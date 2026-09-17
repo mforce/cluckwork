@@ -176,7 +176,11 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     // #512 — the filter flock is now a FlockPicker, not a native select.
     // Open the picker (trigger), pick the option, and the picker commits.
     // The records list re-queries with the EXACT committed flockId.
-    const filterTrigger = screen.getByRole("button", { name: /All/ });
+    // Owner redesign, 2026-09-17: the closed-state trigger is a read-only
+    // MUI TextField (role "textbox") whose accessible name is the picker's
+    // own label; the displayed placeholder/value lives in the field's value.
+    const filterTrigger = screen.getByRole("textbox", { name: "Filter by flock" });
+    expect(filterTrigger).toHaveValue("All");
     fireEvent.click(filterTrigger);
     const option = await screen.findByRole("option", { name: /Barn A/ });
     fireEvent.click(option);
@@ -334,10 +338,13 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     // #512 — the filter picker's trigger shows the EXACT row-owned identity's
     // name (resolved via the exact GET, T038), not a raw id. The capture
     // picker's trigger ALSO shows "Barn A" (the default), so scope to the
-    // filter's own trigger (the one inside the .filter-flock container).
+    // filter's own trigger (found by its own label, "Filter by flock").
+    // Owner redesign, 2026-09-17: the closed-state trigger is a read-only
+    // MUI TextField, so the displayed name lives in its value, not its text
+    // content.
     const filterTrigger = screen.getByLabelText("Filter by flock");
     expect(filterTrigger).toBeInTheDocument();
-    expect(filterTrigger).toHaveTextContent(/Barn A/);
+    expect(filterTrigger).toHaveValue("Barn A");
   });
 
   // #512 US4 (T043/T051) — a record row's own flockName is null (the flock
@@ -368,10 +375,13 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     // substituted with "all flocks" / the first discovery result.
     await waitFor(() => expect(mockListUsage).toHaveBeenCalledWith(
       expect.objectContaining({ flockId: "f-gone", from: "2026-08-01", to: "2026-08-01" })));
+    // Owner redesign, 2026-09-17: the closed-state trigger is a read-only
+    // MUI TextField, so the displayed name lives in its value, not its text
+    // content.
     await waitFor(() => expect(screen.getByLabelText("Filter by flock"))
-      .toHaveTextContent(i18n.t("feed:filterFlockUnavailable")));
+      .toHaveValue(i18n.t("feed:filterFlockUnavailable")));
     const filterTrigger = screen.getByLabelText("Filter by flock");
-    expect(filterTrigger).not.toHaveTextContent("Barn A"); // never the first result
+    expect(filterTrigger).not.toHaveValue("Barn A"); // never the first result
 
     // The engine's own adjacent recovery — translated, visible without
     // opening the picker.
@@ -385,7 +395,7 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     vi.mocked(getFlock).mockResolvedValueOnce({ ...FLOCK, id: "f-gone" });
     fireEvent.click(retryBtn);
     await waitFor(() => expect(vi.mocked(getFlock).mock.calls.length).toBe(getFlockCallsBefore + 1));
-    await waitFor(() => expect(screen.getByLabelText("Filter by flock")).toHaveTextContent("Barn A"));
+    await waitFor(() => expect(screen.getByLabelText("Filter by flock")).toHaveValue("Barn A"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

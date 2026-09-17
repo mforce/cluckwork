@@ -37,28 +37,53 @@ export async function selectOptionContaining(select: Locator, needle: string): P
  * Commit a #512 searchable named-entity picker (FlockPicker/CustomerPicker) —
  * NOT a native `<select>` — by typing a substring unique to the target's name
  * and selecting the sole matching result. Returns the committed entity's id,
- * parsed from the picker's own option element id (`{...}-opt-{entity.id}`):
- * unlike a `<select>`, the picker has no `<option value>` to read directly.
+ * read from the discovery request's own JSON response (a bare array of
+ * `{ id, name, ... }` rows) rather than parsed off the option element's id:
+ * since #826 (MUI `Autocomplete`), the option's DOM id is minted by INDEX
+ * (`{fieldId}-option-{n}`) and carries no entity identity at all — the old
+ * engine's own `{...}-opt-{entity.id}` ids are gone.
  *
  * `root` should be scoped tightly enough that `labelText` is unambiguous —
  * e.g. a dialog Locator, when the same label also names a page-level filter
  * picker outside it (the Sales page's own Customer filter, for one).
  *
- * Opens the picker first if it is currently closed (a field-sized trigger
- * button whose accessible name is "<label> <current value>" via
- * aria-labelledby — matched on the stable label prefix, since the current
- * value may already be a remembered/default entity rather than a blank
- * placeholder). Pickers that are always open (e.g. a dialog-owned picker)
- * skip that step.
+ * Opens the picker first if it is currently closed (a field-sized, read-only
+ * MUI field whose accessible name is the picker's `label` ALONE now — #826
+ * moved the current value off the accessible name and onto the field's
+ * `value`, so exact match replaces the old "<label> <current value>" prefix
+ * regex). Pickers that are always open (e.g. a dialog-owned picker) skip
+ * that step.
  */
 export async function commitNamedPicker(root: Locator | Page, labelText: string, needle: string): Promise<string> {
+  const page: Page = "page" in root ? root.page() : root;
   let combobox = root.getByRole("combobox", { name: labelText });
   if ((await combobox.count()) === 0) {
-    await root.getByRole("button", { name: new RegExp(`^${labelText} `) }).click();
+    await root.getByRole("textbox", { name: labelText }).click();
     combobox = root.getByRole("combobox", { name: labelText });
   }
   await expect(combobox).toBeVisible();
+
+  // Same serializer the app uses (`URLSearchParams`, a space is `+`), so the
+  // match cannot drift from the request; `encodeURIComponent`'s `%20` never
+  // matched a multi-word needle and hung `waitForResponse`.
+  const expectedSearchParam = new URLSearchParams({ search: needle }).toString();
+
+  // A picker may already show `needle` (a restricted worker's one flock
+  // auto-prefills), and filling an unchanged value fires no request; clear
+  // it first so the fill is a real change. The blank-query debounce is
+  // cancelled by the fill's own keystrokes.
+  if ((await combobox.inputValue()) === needle) await combobox.fill("");
+
+  const discovery = page.waitForResponse((r) =>
+    r.request().method() === "GET"
+    && r.url().includes(expectedSearchParam)
+    && r.ok());
   await combobox.fill(needle);
+  const rows = (await (await discovery).json()) as Array<{ id: string; name: string }>;
+  const row = rows.find((r) => r.name.includes(needle));
+  if (!row) {
+    throw new Error(`commitNamedPicker: no row named "${needle}" in the discovery response for "${labelText}".`);
+  }
 
   const option = root.getByRole("option", { name: needle });
   await expect(
@@ -66,10 +91,6 @@ export async function commitNamedPicker(root: Locator | Page, labelText: string,
     `no picker option containing "${needle}" for "${labelText}" — the list did not load, the fixture `
       + `does not have it, or the name format changed`,
   ).toHaveCount(1);
-
-  const optionId = await option.getAttribute("id");
-  const match = optionId?.match(/-opt-(.+)$/);
-  if (!match) throw new Error(`commitNamedPicker: could not parse an entity id from option id "${optionId}".`);
   await option.click();
-  return match[1]!;
+  return row.id;
 }

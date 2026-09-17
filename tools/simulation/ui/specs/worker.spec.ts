@@ -123,11 +123,17 @@ test.describe("Worker", () => {
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
     await prefill;
     // #512 — the restricted worker's picker auto-defaults to its one assigned
-    // flock (the closed trigger's accessible name is "<label> <current
-    // value>" via aria-labelledby), and its own server-side scope (#388) means
-    // the unassigned flock is unreachable even by an explicit search for it.
-    await expect(page.getByRole("button", { name: ASSIGNED_FLOCK })).toBeVisible();
-    await page.getByRole("button", { name: new RegExp(`^${tEn("dailyEntry:flockLabel")} `) }).click();
+    // flock. #826 — the closed trigger is a read-only MUI field: its
+    // accessible name is the picker's label ALONE, and the current value
+    // (here, the assigned default) lives in the field's `value`. Its own
+    // server-side scope (#388) means the unassigned flock is unreachable
+    // even by an explicit search for it.
+    // The trigger's value is `DailyEntryPage.tsx`'s own `"{name} ({breed})"`
+    // (plus a depleted suffix when relevant), never the bare name, so this
+    // needs a prefix match.
+    const flockTrigger = page.getByRole("textbox", { name: tEn("dailyEntry:flockLabel") });
+    await expect(flockTrigger).toHaveValue(new RegExp(`^${ASSIGNED_FLOCK} \\(`));
+    await flockTrigger.click();
     const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
     const unassignedSearch = page.waitForResponse((response) => {
       const url = new URL(response.url());
@@ -211,8 +217,9 @@ test.describe("Worker", () => {
     // The read boundary, asserted where the worker actually sees it: the
     // #512 picker offers the assigned flock and hides the unassigned one
     // entirely — server-side, so an explicit search for it still finds
-    // nothing (not merely "not on the unfiltered first page").
-    await page.getByRole("button", { name: new RegExp(`^${tEn("dailyEntry:flockLabel")} `) }).click();
+    // nothing (not merely "not on the unfiltered first page"). #826 — the
+    // closed trigger's accessible name is the picker's label alone now.
+    await page.getByRole("textbox", { name: tEn("dailyEntry:flockLabel") }).click();
     const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
     await combobox.fill(ASSIGNED_FLOCK);
     await expect(page.getByRole("option", { name: ASSIGNED_FLOCK })).toHaveCount(1);

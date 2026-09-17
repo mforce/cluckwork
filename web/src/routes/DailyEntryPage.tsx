@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Box, Button, Paper, Typography, useMediaQuery } from "@mui/material";
+import { Box, Button, Paper, TextField, Typography, useMediaQuery } from "@mui/material";
 import {
   createFlock, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
@@ -786,24 +786,18 @@ export function DailyEntryPage() {
       )}
 
       {/* Context, not a step: choosing a flock and a date says WHICH day is
-          being recorded, it is not part of recording it. The two steps below
-          are the work, and they reconcile against each other. #830 restyles
-          this row to the mockup's underlined selects — the FlockPicker
-          trigger and the date input, via a scoped sx override, never a
-          FlockPicker.tsx edit (out of scope; #512 owns that component). */}
+          being recorded, it is not part of recording it. Both fields are
+          outlined (owner decision on #898, 2026-09-17, from an A/B against
+          the mockup's underlined variant); each component's default, so no
+          `variant` is passed. Below `md` the Flock picker stacks full-width
+          above Date, because a 110px field in a two-up row could not show a
+          flock name (owner, #898). At `md` the Date/button group sizes to
+          its content rather than sharing the row 50/50 as the old flat row
+          did; that is the frame the owner approved. */}
       <Box sx={{
-        display: "flex", gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: "flex-end",
+        display: "flex", flexDirection: { xs: "column", md: "row" },
+        gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: { xs: "stretch", md: "flex-end" },
         borderBottom: "1px solid var(--rule-strong)",
-        "& .named-picker-trigger": {
-          font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
-          border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,
-          textAlign: "left", width: "100%", minHeight: 44, padding: "4px 0",
-        },
-        "& > label input[type='date']": {
-          font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
-          border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,
-          width: "100%", minHeight: 44, padding: "4px 0",
-        },
       }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -838,16 +832,24 @@ export function DailyEntryPage() {
             }
           />
         </Box>
-        <label style={{ flex: 1, minWidth: 0, display: "block" }}>
-          <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>{t("dateLabel")}</Typography>
-          <input type="date" value={date} max={today}
-            onChange={(e) => retarget(() => setDate(e.target.value))} />
-        </label>
-        {isAdmin && (
-          <button className="link" type="button" onClick={() => { openDialog("new-flock"); setShowNewFlock(true); }}>
-            {t("newFlockButton")}
-          </button>
-        )}
+        <Box sx={{ display: "flex", flexDirection: "row", gap: { xs: 2, md: 5 }, alignItems: "flex-end" }}>
+          {/* A native date input shows its own "mm/dd/yyyy" even when empty,
+              so the label is forced shrunk or it sits on top of that text. */}
+          <TextField
+            type="date"
+            label={t("dateLabel")}
+            value={date}
+            onChange={(e) => retarget(() => setDate(e.target.value))}
+            slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
+            size="small"
+            sx={{ flex: 1, minWidth: 0 }}
+          />
+          {isAdmin && (
+            <button className="link" type="button" onClick={() => { openDialog("new-flock"); setShowNewFlock(true); }}>
+              {t("newFlockButton")}
+            </button>
+          )}
+        </Box>
       </Box>
 
       {/* F131: creating a flock is catalog work, not capture — it belongs in a

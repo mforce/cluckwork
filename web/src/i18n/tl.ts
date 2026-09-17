@@ -283,6 +283,9 @@ export const tl = {
     searchFailed: "Hindi nakamag-search",
     loadMoreFailed: "Hindi nakama-load ng higit pa",
     results: "{{count}} resulta",
+    // #826 — mga label na sarili ng MUI Autocomplete (tingnan ang en.ts).
+    close: "Isara",
+    open: "Buksan",
   },
   splash: {
     continue: "Magpatuloy",

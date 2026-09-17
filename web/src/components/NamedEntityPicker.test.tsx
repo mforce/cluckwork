@@ -801,9 +801,9 @@ describe("T023: ARIA contract and interaction semantics", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    mockListFlocks.mockImplementation(async (params: any) => {
-      const offset = params.offset ?? 0;
-      return fiveFlocks.slice(offset, offset + 5) as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      return fiveFlocks.slice(offset, offset + 5);
     });
   });
 
@@ -840,19 +840,20 @@ describe("T023: ARIA contract and interaction semantics", () => {
     optionsAfter.slice(1).forEach((o) => expect(o).toHaveAttribute("aria-selected", "false"));
   });
 
-  it("T023-3: aria-activedescendant tracks arrow navigation", async () => {
+  it("T023-3: aria-activedescendant tracks arrow navigation (#826 — MUI Autocomplete mints the option ids; the picker no longer does)", async () => {
     const { input } = openPicker();
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
     expect(input).not.toHaveAttribute("aria-activedescendant");
-    // Derive the ID prefix from the listbox's aria-controls reference
-    const listboxId = input.getAttribute("aria-controls")!;
-    const prefix = listboxId.replace("-listbox", "");
+    const options = screen.getAllByRole("option");
     fireEvent.keyDown(input, { key: "ArrowDown" });
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(input.getAttribute("aria-activedescendant")).toBe(`${prefix}-opt-f0`);
+    // Points at a REAL rendered option — the first one.
+    expect(input.getAttribute("aria-activedescendant")).toBe(options[0].id);
     fireEvent.keyDown(input, { key: "ArrowDown" });
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(input.getAttribute("aria-activedescendant")).toBe(`${prefix}-opt-f1`);
+    // Advances to the second option, and never repeats the first.
+    expect(input.getAttribute("aria-activedescendant")).toBe(options[1].id);
+    expect(input.getAttribute("aria-activedescendant")).not.toBe(options[0].id);
   });
 
   it("T023-4: aria-required is present for required pickers, absent for optional", async () => {
@@ -910,11 +911,11 @@ describe("T023: ARIA contract and interaction semantics", () => {
     // Override mock: 50 items per page (limit=50), 2 pages
     const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
     const page1 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p1-${i}`, name: `Page1 Flock ${i}` }));
-    mockListFlocks.mockImplementation(async (params: any) => {
-      const offset = params.offset ?? 0;
-      if (offset === 0) return page0 as any;
-      if (offset === 50) return page1 as any;
-      return [] as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      if (offset === 50) return page1;
+      return [];
     });
     const { input } = openPicker();
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
@@ -932,6 +933,148 @@ describe("T023: ARIA contract and interaction semantics", () => {
     const lastCall = mockListFlocks.mock.calls[mockListFlocks.mock.calls.length - 1];
     expect(lastCall[0]).toMatchObject({ offset: 50 });
   });
+
+  // Pins the FR-018/FR-032 interaction: `highlightedIdRef` outlives an
+  // `<Autocomplete>` remount, so a reopen onto a retained window whose end
+  // was already reached must not treat the first ArrowDown as `atEnd` and
+  // load a page instead of moving the highlight.
+  it("T023-7c: a stale highlightedIdRef does not falsely trigger Load More on the first ArrowDown after reopening", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
+    });
+    const renderPicker = (open: boolean) => (
+      <FlockPicker label="Pick" eligibility="active" required open={open} trigger={<button>open</button>} />
+    );
+    const { rerender } = render(renderPicker(true));
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    let input = screen.getByRole("combobox");
+    // Navigate to the TRUE last option (50 items, no wrap).
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    // Close, then reopen — same discovery window retained (FR-018), but
+    // `<Autocomplete>` is a fresh mount.
+    rerender(renderPicker(false));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    rerender(renderPicker(true));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    input = screen.getByRole("combobox");
+    const callsBeforeReopenArrow = mockListFlocks.mock.calls.length;
+    // First ArrowDown after reopening must move the highlight normally, not
+    // request another page — the stale-ref bug fired loadMore here instead.
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeReopenArrow);
+  });
+
+  // `highlightedIdRef` clears on three more transitions besides reopen
+  // (typing, Escape, outside-click); each sibling below reuses T023-7c's
+  // technique — an intentional id collision between the row highlighted
+  // before the transition and a row in the window after it — so a stale ref
+  // falsely satisfies `atEnd` on the very next ArrowDown.
+  it("T023-7e: a stale highlightedIdRef does not falsely trigger Load More after typing replaces the discovery window", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    // The typed-query's own result window reuses "p0-49" — the id
+    // highlighted just before typing — as one of ITS rows (not necessarily
+    // its own last one; the id merely has to exist for a stale ref to
+    // "find" it). 50 rows, so `hasMore` is true for this window too.
+    const searchResults = Array.from({ length: 50 }, (_, i) =>
+      i === 49 ? { ...fiveFlocks[0], id: "p0-49", name: "Search Match 49" }
+        : { ...fiveFlocks[0], id: `s-${i}`, name: `Search Match ${i}` });
+    mockListFlocks.mockImplementation(async (params) => {
+      if (params?.search) return searchResults;
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
+    });
+    const { input } = openPicker();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    // Type: a brand new discovery generation replaces `items` entirely.
+    fireEvent.change(input, { target: { value: "Search" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(screen.getAllByRole("option")).toHaveLength(50);
+    const callsBeforeArrow = mockListFlocks.mock.calls.length;
+    // First ArrowDown after typing must move the highlight onto the new
+    // window's first option, not request another page — the stale-ref bug
+    // would falsely read "already at the end" via the id-49 collision.
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeArrow);
+  });
+
+  it("T023-7f: a stale highlightedIdRef does not falsely trigger Load More after Escape", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
+    });
+    const { input } = openPicker();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    fireEvent.keyDown(input, { key: "Escape" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    const callsBeforeArrow = mockListFlocks.mock.calls.length;
+    // First ArrowDown after Escape must move the highlight normally (the
+    // discovery window is retained, same 50 items, same true last id
+    // "p0-49" — a CORRECTLY cleared ref moves to option 0 first; a stale
+    // one still reading "p0-49" falsely fires loadMore immediately).
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeArrow);
+  });
+
+  it("T023-7g: a stale highlightedIdRef does not falsely trigger Load More after an outside click", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
+    });
+    const { input } = openPicker();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    // A genuine outside click: `document.body` is outside the picker's own
+    // `containerRef`.
+    fireEvent.mouseDown(document.body);
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    const callsBeforeArrow = mockListFlocks.mock.calls.length;
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeArrow);
+  });
+
+  // `useAutocomplete.js`'s `syncHighlightedIndex` closes over `value` by
+  // reference and re-runs whenever that reference changes; `clonedSelectedValue`
+  // (`useMemo` on id/name, below) holds it stable so an unrelated render —
+  // including one mid page-load — cannot resync the highlight to the
+  // committed row. The mechanism is real in `useAutocomplete.js`, but its
+  // consequence was not observable across any construction tried, in jsdom
+  // or Chromium:
+  // - jsdom, a full Load-More round trip on a synchronous mock
+  // - jsdom, a forced `rerender()` with unchanged props
+  // - jsdom, a deferred extension request held open by hand
+  // - Chromium (`named-entity-picker.spec.ts`), the same deferred-request
+  //   construction, mutation-checked against a rebuilt image
+  // No test pins it.
 
   it("T023-8: optional clear button commits blank and fires onClear", async () => {
     const onClear = vi.fn();
@@ -990,47 +1133,63 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(screen.getByRole("combobox").getAttribute("aria-controls")).toBe(listboxId);
   });
 
-  it("T023-12: closed state: label associated to trigger via htmlFor/id; open swaps trigger for combobox", () => {
+  it("T023-12 (#826): closed state: label associated to a read-only field carrying the trigger's value and open contract; open swaps it for a combobox", () => {
     render(
       <FlockPicker label="Pick Flock" eligibility="active" required open={false} trigger={<button type="button">My Trigger</button>} />
     );
-    // The label is programmatically associated: getByLabelText returns the ACTUAL trigger
-    const labeledTrigger = screen.getByLabelText("Pick Flock");
-    expect(labeledTrigger.tagName).toBe("BUTTON");
-    expect(labeledTrigger).toHaveTextContent("My Trigger");
-    // The association is the cloned trigger's stable id — the label's htmlFor
-    // points at it, and the trigger carries that exact id.
-    const labelEl = screen.getByText("Pick Flock");
-    expect(labelEl).toHaveAttribute("for", labeledTrigger.id);
-    expect(labeledTrigger.id).toBeTruthy();
-    // The trigger's accessible name is label + current value via aria-labelledby
-    // referencing [label-id, value-id] (the value child wrapped in a stable span).
-    const labelledby = labeledTrigger.getAttribute("aria-labelledby")!.split(" ");
-    expect(labelledby).toHaveLength(2);
-    expect(labelledby[0]).toBe(labelEl.id);
-    expect(document.getElementById(labelledby[1])?.textContent).toBe("My Trigger");
-    expect(labeledTrigger.getAttribute("aria-labelledby")).toBe(`${labelledby[0]} ${labelledby[1]}`);
-    // Accessible role name includes BOTH the label and the current value
-    expect(screen.getByRole("button", { name: /Pick Flock/ })).toBe(labeledTrigger);
-    expect(screen.getByRole("button", { name: /My Trigger/ })).toBe(labeledTrigger);
-    // Exactly one control (the trigger)
-    const buttons = screen.getAllByRole("button");
-    expect(buttons.length).toBe(1);
-    // No combobox or listbox in closed state
+    // The label is programmatically associated with the closed-state field —
+    // an MUI TextField now, not the caller's own <button> (owner redesign,
+    // 2026-09-17: the committed state reads as the same outlined field as
+    // the open search, not a hand-rolled trigger).
+    const closedField = screen.getByLabelText(/^Pick Flock/) as HTMLInputElement;
+    expect(closedField.tagName).toBe("INPUT");
+    // The trigger's DISPLAYED VALUE (its children) still comes from the
+    // caller, unchanged — only the chrome around it moved.
+    expect(closedField).toHaveValue("My Trigger");
+    // The trigger's open contract survives on this field: read-only (not
+    // editable — activating it opens the search, typing does not filter it
+    // in place), and the haspopup/expanded pair a combobox trigger needs.
+    expect(closedField).toHaveAttribute("readonly");
+    expect(closedField).toHaveAttribute("aria-haspopup", "listbox");
+    expect(closedField).toHaveAttribute("aria-expanded", "false");
+    // Exactly one focusable control — no separate trigger button.
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getByRole("textbox", { name: "Pick Flock" })).toBe(closedField);
+    // No combobox or listbox in closed state.
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(screen.queryByRole("listbox")).toBeNull();
-    // Open state: label + combobox in same slot, NO trigger button (swap)
+    // Open state: label + combobox in same slot, the closed field gone (swap).
     cleanup();
     render(
       <FlockPicker label="Pick Flock" eligibility="active" required open trigger={<button type="button">My Trigger</button>} />
     );
-    expect(screen.getByText("Pick Flock")).toBeInTheDocument();
     const combo = screen.getByRole("combobox");
     expect(combo).toBeInTheDocument();
-    // The label is now associated to the combobox (htmlFor = input id)
-    expect(screen.getByLabelText("Pick Flock")).toBe(combo);
-    // The trigger button is ABSENT in open state (swapped, not duplicated)
-    expect(screen.queryByRole("button", { name: "My Trigger" })).toBeNull();
+    // The label is now associated to the combobox.
+    expect(screen.getByLabelText(/^Pick Flock/)).toBe(combo);
+    // The closed-state read-only field is ABSENT in open state (swapped, not duplicated).
+    expect(screen.queryByRole("textbox", { name: "Pick Flock" })).toBeNull();
+  });
+
+  // T023-12 asserts the closed field's static open contract but never
+  // presses a key, so an `onKeyDown` handler removed or narrowed to the
+  // wrong keys would still pass. A spy on the trigger's own `onClick` is
+  // what proves the key handler actually reaches it.
+  it("T023-12b: Enter and Space on the closed field both activate the trigger (Enter and Space, not just click)", () => {
+    const onTriggerClick = vi.fn();
+    render(
+      <FlockPicker label="Pick Flock" eligibility="active" required open={false}
+        trigger={<button type="button" onClick={onTriggerClick}>My Trigger</button>} />
+    );
+    const closedField = screen.getByLabelText(/^Pick Flock/);
+    fireEvent.keyDown(closedField, { key: "Enter" });
+    expect(onTriggerClick).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(closedField, { key: " " });
+    expect(onTriggerClick).toHaveBeenCalledTimes(2);
+    // Any OTHER key must not activate it (a handler that fires on every
+    // keydown would pass the two assertions above too).
+    fireEvent.keyDown(closedField, { key: "a" });
+    expect(onTriggerClick).toHaveBeenCalledTimes(2);
   });
 
   it("T023-13: closed state with no trigger element renders no orphan htmlFor", () => {

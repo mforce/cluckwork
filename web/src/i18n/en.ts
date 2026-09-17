@@ -362,6 +362,13 @@ export const en = {
     searchFailed: "Search failed",
     loadMoreFailed: "Load more failed",
     results: "{{count}} results",
+    // #826 — MUI Autocomplete's own aria-labels for its clear/close/open
+    // affordances. The picker disables those icons (its own Clear button and
+    // Retry cover the same ground), so these rarely paint, but the strings
+    // must still resolve through t() rather than leak Autocomplete's English
+    // defaults if a future change re-enables them.
+    close: "Close",
+    open: "Open",
   },
   // The post-login splash (#179) — shown once per sign-in when the farm has a
   // banner set, before the authenticated shell.

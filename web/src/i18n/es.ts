@@ -271,6 +271,9 @@ export const es = {
     searchFailed: "La búsqueda falló",
     loadMoreFailed: "Falló la carga adicional",
     results: "{{count}} resultados",
+    // #826 — etiquetas propias de MUI Autocomplete (ver en.ts).
+    close: "Cerrar",
+    open: "Abrir",
   },
   splash: {
     continue: "Continuar",

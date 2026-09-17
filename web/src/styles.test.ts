@@ -343,18 +343,12 @@ describe("the full-ink underline applies to keyboard focus, not only mouse hover
     expect(match![0], "rest state must use the 28% ink rule").toContain("text-decoration-color: var(--link-rule)");
   });
 
-  // Codex CLI review of #884, round 4: no page currently combines the
-  // `named-picker-trigger` and `link` classes on one element (grepped —
-  // only a test fixture does), but `button.link`'s new rest-state underline
-  // would bleed through the SAME equal-specificity, later-wins mechanism the
-  // trigger's own comment already defends padding/font-size against, the
-  // moment a page ever does. `button.named-picker-trigger` — a form control,
-  // not a link — resets it explicitly.
-  it("button.named-picker-trigger defends against button.link's underline bleeding through", () => {
-    const rule = /button\.named-picker-trigger\s*\{[^}]*\}/.exec(css);
-    expect(rule, "button.named-picker-trigger rest-state rule not found").not.toBeNull();
-    expect(rule![0], "must reset text-decoration").toContain("text-decoration: none");
-  });
+  // `button.named-picker-trigger` retires here in #826 (its own guard,
+  // formerly here): the closed-state picker no longer renders the
+  // page-owned `<button>` this defended — it is a read-only MUI outlined
+  // field now, so `button.link`'s underline has nothing of the trigger's to
+  // bleed through. No successor: the concern (a link class colliding with a
+  // form control's rest state) does not apply to a component MUI themes.
 });
 
 // #654 — the dashboard's surfaces carry no shadow, no caps, no motion and no

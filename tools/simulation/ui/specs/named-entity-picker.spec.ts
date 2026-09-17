@@ -47,10 +47,12 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await signIn(castMember("Manager"));
     await nav.link("nav:dailyEntry").click();
 
-    // The trigger's accessible name is "<label> <current value>" (aria-labelledby),
-    // and the current value may already be a remembered/default flock rather than
-    // the empty "Select a flock" placeholder — match on the stable label prefix.
-    await page.getByRole("button", { name: new RegExp(`^${tEn("dailyEntry:flockLabel")} `) }).click();
+    // #826 — the closed-state trigger is a read-only MUI field now (role
+    // "textbox"); its accessible name is the picker's label ALONE (the
+    // current value — possibly already a remembered/default flock rather
+    // than the empty placeholder — lives in the field's `value`, not its
+    // name).
+    await page.getByRole("textbox", { name: tEn("dailyEntry:flockLabel") }).click();
     const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
     await expect(combobox).toBeVisible();
 
@@ -93,15 +95,56 @@ test.describe("Searchable named-entity picker (#512)", () => {
     // flocks of their own, so keep arrowing (never assume exactly one more
     // press) until it is genuinely the active option, then commit with
     // Enter — also part of the Keyboard Contract, and never a click.
-    for (let i = 0; i < 60; i++) {
-      const activeClass = await sentinel.getAttribute("class");
-      if (activeClass?.includes("active")) break;
+    // #826 — tracked via `aria-activedescendant` on the combobox, not a CSS
+    // class: `useAutocomplete.js`'s `syncHighlightedIndexToDOM` sets that
+    // attribute unconditionally from the highlighted INDEX, whereas its
+    // `Mui-focused` class is applied by querying the listbox DOM for a
+    // `[data-option-index]` match at sync time — which this suite found is
+    // NOT reliably present yet immediately after an extension's rows commit,
+    // so polling for the class flaked where the attribute does not.
+    const sentinelId = await sentinel.getAttribute("id");
+    for (let i = 0; i < 260; i++) {
+      if ((await combobox.getAttribute("aria-activedescendant")) === sentinelId) break;
       await combobox.press("ArrowDown");
     }
-    await expect(sentinel).toHaveClass(/active/);
+    await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
+
+    // Pins `NamedEntityPicker.tsx`'s `disableListWrap`: ArrowDown at the
+    // true final option (hasMore exhausted) must not wrap to the first row.
+    // The sentinel is not necessarily that row (other specs may add flocks
+    // that sort after it), so keep arrowing until the highlight stops
+    // advancing before checking the next press leaves it there.
+    let activeId = sentinelId;
+    for (let i = 0; i < 260; i++) {
+      await combobox.press("ArrowDown");
+      const next = await combobox.getAttribute("aria-activedescendant");
+      if (next === activeId) break;
+      activeId = next;
+    }
+    const trueEndId = activeId;
+    await combobox.press("ArrowDown");
+    await expect(
+      combobox,
+      "ArrowDown at the picker's true final option (hasMore exhausted) must not wrap back to the first row",
+    ).toHaveAttribute("aria-activedescendant", trueEndId!);
+
+    // Navigate back up to the named sentinel to commit it — this test's own
+    // promise (reaches AND commits the sentinel through paging), unaffected
+    // by the wrap check above.
+    for (let i = 0; i < 260 && (await combobox.getAttribute("aria-activedescendant")) !== sentinelId; i++) {
+      await combobox.press("ArrowUp");
+    }
+    await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
     await combobox.press("Enter");
     await expect(combobox).toHaveValue(FLOCK_SENTINEL);
   });
+
+  // A real-browser construction for the `clonedSelectedValue` memoisation
+  // (commit a flock, page to the true end, hold the extension's request via
+  // `page.route`, assert `aria-activedescendant` mid-flight and after)
+  // passed both with the fix and against a rebuilt image with it reverted —
+  // vacuous here too, so it is not shipped. Full account in
+  // `NamedEntityPicker.test.tsx`, above the picker's T023-7 block.
 
   test("a new Sales order's customer picker reaches and commits the page-two sentinel through search", async ({
     page,
@@ -119,6 +162,20 @@ test.describe("Searchable named-entity picker (#512)", () => {
     const combobox = dialog.getByRole("combobox", { name: tEn("sales:customer") });
     await expect(combobox).toBeVisible();
 
+    // #826 (D2 pair 1) — the Load more button renders through a custom
+    // `slots.paper` component precisely so it lands OUTSIDE `<ul
+    // role="listbox">`, as a sibling: ARIA only allows `option`/`group`
+    // inside a listbox, and `slotProps.listbox` (rather than `slots.paper`)
+    // would have put it inside. Assert every DIRECT child of the listbox is
+    // itself role="option" — the AX guarantee that placement depends on.
+    const listbox = dialog.getByRole("listbox", { name: tEn("sales:customer") });
+    await expect(listbox).toBeVisible();
+    const listboxChildren = await listbox.locator(":scope > *").all();
+    expect(listboxChildren.length).toBeGreaterThan(0);
+    for (const child of listboxChildren) {
+      expect(await child.getAttribute("role")).toBe("option");
+    }
+
     // Absent before: the picker opens on the unfiltered first page (up to 50
     // of 101 customers), and the sentinel — lexically last — is not on it.
     const sentinel = page.getByRole("option", { name: CUSTOMER_SENTINEL });
@@ -130,10 +187,11 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await expect(sentinel, "search for \"Page Two\" never surfaced the customer page-two sentinel").toHaveCount(1);
 
     await sentinel.click();
-    await expect(dialog.getByRole("button", {
-      name: `${tEn("sales:customer")} ${CUSTOMER_SENTINEL}`,
-      exact: true,
-    })).toBeVisible();
+    // #826 — the committed trigger's accessible name is the picker's label
+    // ALONE now; the committed value moved to the field's `value`.
+    const committedTrigger = dialog.getByRole("textbox", { name: tEn("sales:customer"), exact: true });
+    await expect(committedTrigger).toBeVisible();
+    await expect(committedTrigger).toHaveValue(CUSTOMER_SENTINEL);
   });
 
   test("recovers from a failed customer search with Retry, then reaches the sentinel", async ({
@@ -190,9 +248,10 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await expect(sentinel).toHaveCount(1);
 
     await sentinel.click();
-    await expect(dialog.getByRole("button", {
-      name: `${tEn("sales:customer")} ${CUSTOMER_SENTINEL}`,
-      exact: true,
-    })).toBeVisible();
+    // #826 — the committed trigger's accessible name is the picker's label
+    // ALONE now; the committed value moved to the field's `value`.
+    const recoveredTrigger = dialog.getByRole("textbox", { name: tEn("sales:customer"), exact: true });
+    await expect(recoveredTrigger).toBeVisible();
+    await expect(recoveredTrigger).toHaveValue(CUSTOMER_SENTINEL);
   });
 });

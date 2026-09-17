@@ -160,17 +160,18 @@ async function renderReady(token: Record<string, unknown>) {
   await screen.findByText("worker@farm.test");
 }
 
-// #512 — the assignment flock is a FlockPicker, not a native select. The
-// closed state shows a "Flock <current>" trigger button; opening it renders
-// the searchable combobox, whose options are discovered through the
-// eligibility-scoped listFlocks seam (mocked above). Commit = click the
-// option (or Enter on the active one).
+// #512 — the assignment flock is a FlockPicker, now a read-only MUI
+// TextField in its closed state. Its accessible name is just the "Flock"
+// label; the committed name or the placeholder text is the field's VALUE,
+// not part of the name. Opening it renders the searchable combobox, whose
+// options are discovered through the eligibility-scoped listFlocks seam
+// (mocked above). Commit = click the option (or Enter on the active one).
 async function pickFlock(name: string | RegExp) {
-  fireEvent.click(screen.getByRole("button", { name: /^Flock / }));
+  fireEvent.click(screen.getByRole("textbox", { name: "Flock" }));
   const option = await screen.findByRole("option", { name });
   fireEvent.click(option);
 }
-const assignTrigger = () => screen.getByRole("button", { name: /^Flock / });
+const assignTrigger = () => screen.getByRole("textbox", { name: "Flock" });
 
 // #606 — the flock dialog's shared current-password field, required before
 // either an assign or a remove.
@@ -1948,7 +1949,8 @@ describe("UsersPage flock scoping", () => {
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
     await pickFlock("Coop B");
-    expect(assignTrigger()).toHaveAccessibleName("Flock Coop B");
+    expect(assignTrigger()).toHaveAccessibleName("Flock");
+    expect(assignTrigger()).toHaveValue("Coop B");
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
     // Reopen — the picker is back to BLANK, not the stale fl2, so a
@@ -1957,7 +1959,8 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
-    expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
+    expect(assignTrigger()).toHaveAccessibleName("Flock");
+    expect(assignTrigger()).toHaveValue("Select a flock");
   });
 
   it("closes the flock dialog on Done", async () => {
@@ -2302,7 +2305,9 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     });
     const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // Fresh blank generation: the trigger shows the uncommitted label…
-    expect(within(panel).getByRole("button", { name: "Flock Select a flock" })).toBeInTheDocument();
+    const trigger = within(panel).getByRole("textbox", { name: "Flock" });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveValue("Select a flock");
     // …and no write is armed, whatever the step-up state.
     fillFlockPassword();
     expect(screen.getByRole("button", { name: "Assign flock" })).toBeDisabled();
@@ -2319,7 +2324,8 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // Worker A commits fl2 off the fl1 default…
     await pickFlock("Coop B");
-    expect(assignTrigger()).toHaveAccessibleName("Flock Coop B");
+    expect(assignTrigger()).toHaveAccessibleName("Flock");
+    expect(assignTrigger()).toHaveValue("Coop B");
     // …and the dialog is closed and reopened for worker B.
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     const rowB = screen.getByRole("row", { name: /worker2@farm\.test/, hidden: true });
@@ -2328,8 +2334,9 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     // #646 — B's fresh generation is back on the BLANK default; A's pick
     // never leaks into B's dialog. The leak is what this test guards, and it
     // is now guarded against a blank rather than against fl1.
-    expect(within(panelB).getByRole("button", { name: "Flock Select a flock" })).toBeInTheDocument();
-    expect(within(panelB).queryByRole("button", { name: "Flock Coop B" })).not.toBeInTheDocument();
+    const triggerB = within(panelB).getByRole("textbox", { name: "Flock" });
+    expect(triggerB).toBeInTheDocument();
+    expect(triggerB).toHaveValue("Select a flock");
   });
 
   it("reopening the SAME worker does not retain prior EXPLORATION (typed query) either", async () => {
@@ -2350,7 +2357,8 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     // the abandoned query text is gone, not retained.
     await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true })); });
     await screen.findByRole("dialog", { name: /Flock access/ });
-    expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
+    expect(assignTrigger()).toHaveAccessibleName("Flock");
+    expect(assignTrigger()).toHaveValue("Select a flock");
     fireEvent.click(assignTrigger());
     const reopened = await screen.findByRole("combobox");
     expect(reopened).toHaveValue("");
@@ -2380,7 +2388,8 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     // never leak into it, and the picker's discovery must not substitute a
     // first result for it either. Assigning still names a flock the admin
     // picked, which is the point of the blank.
-    expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
+    expect(assignTrigger()).toHaveAccessibleName("Flock");
+    expect(assignTrigger()).toHaveValue("Select a flock");
     await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {

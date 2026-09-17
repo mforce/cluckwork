@@ -234,11 +234,12 @@ describe("SalesPage new-order customer picker (#512)", () => {
     fireEvent.click(screen.getByRole("button", { name: "New order" }));
     const newOrder = dialog();
     const customerInput = () => within(newOrder).queryByRole("combobox");
-    const committedTrigger = () => within(newOrder).getByRole("button", { name: "Customer Acme Eggs" });
+    const committedTrigger = () => within(newOrder).getByRole("textbox", { name: "Customer" });
 
     fireEvent.click(await within(newOrder).findByRole("option", { name: "Acme Eggs" }));
     await waitFor(() => expect(customerInput()).not.toBeInTheDocument());
     expect(committedTrigger()).toBeVisible();
+    expect(committedTrigger()).toHaveValue("Acme Eggs");
 
     fireEvent.click(committedTrigger());
     await within(newOrder).findByRole("combobox", { name: "Customer" });
@@ -2296,11 +2297,12 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     mockGetCustomer.mockReturnValue(new Promise((resolve) => { resolveCustomer = resolve; }));
     await renderReady(`/sales?customerId=${GUID_A}`);
 
-    expect(screen.getByRole("button", { name: new RegExp(i18n.t("namedEntityPicker:loading")) })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: i18n.t("sales:filterCustomerUnavailable") })).not.toBeInTheDocument();
+    const trigger = () => screen.getByRole("textbox", { name: "Customer" });
+    expect(trigger()).toHaveValue(i18n.t("namedEntityPicker:loading"));
+    expect(trigger()).not.toHaveValue(i18n.t("sales:filterCustomerUnavailable"));
 
     await act(async () => { resolveCustomer(CUSTOMER_A); });
-    expect(await screen.findByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument();
+    await waitFor(() => expect(trigger()).toHaveValue("Filtered Farm A"));
   });
 
   it("normalizes a mixed-case canonical GUID to lowercase before requesting and resolving — direct navigation is the source of truth", async () => {
@@ -2312,7 +2314,7 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     expect(mockGetCustomer).not.toHaveBeenCalledWith(MIXED);
     await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
       expect.objectContaining({ customerId: GUID_A })));
-    expect(await screen.findByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Customer" })).toHaveValue("Filtered Farm A"));
   });
 
   it("treats a malformed customerId as absent — no filtered request, no exact GET, trigger shows All", async () => {
@@ -2321,14 +2323,14 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     expect(mockGetCustomer).not.toHaveBeenCalled();
     await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
       expect.objectContaining({ customerId: undefined })));
-    expect(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Customer" })).toHaveValue(i18n.t("sales:allOption"));
   });
 
   it("selecting a customer sets customerId while preserving unrelated query keys", async () => {
     mockListCustomers.mockResolvedValue([CUSTOMER_A, CUSTOMER_B]);
     await renderReadyWithProbe("/sales?status=Draft&foo=bar");
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) }));
+    fireEvent.click(screen.getByRole("textbox", { name: "Customer" }));
     const option = await screen.findByRole("option", { name: "Filtered Farm A" });
     fireEvent.click(option);
 
@@ -2340,9 +2342,10 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
   it("clearing the filter removes only customerId, preserving unrelated query keys", async () => {
     mockGetCustomer.mockResolvedValue(CUSTOMER_A);
     await renderReadyWithProbe(`/sales?customerId=${GUID_A}&status=Draft`);
-    await screen.findByRole("button", { name: /Filtered Farm A/ });
+    const trigger = () => screen.getByRole("textbox", { name: "Customer" });
+    await waitFor(() => expect(trigger()).toHaveValue("Filtered Farm A"));
 
-    fireEvent.click(screen.getByRole("button", { name: /Filtered Farm A/ }));
+    fireEvent.click(trigger());
     fireEvent.click(await screen.findByRole("button", { name: i18n.t("namedEntityPicker:clear") }));
 
     await waitFor(() => expect(probeSearch()).not.toContain("customerId"));
@@ -2352,13 +2355,13 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
   it("closes the customer filter on Escape or an outside pointer without changing the URL", async () => {
     await renderReadyWithProbe("/sales?foo=bar");
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) }));
+    fireEvent.click(screen.getByRole("textbox", { name: i18n.t("sales:customer") }));
     const input = await screen.findByRole("combobox", { name: i18n.t("sales:customer") });
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.queryByRole("combobox", { name: i18n.t("sales:customer") })).not.toBeInTheDocument();
     expect(probeSearch()).toContain("foo=bar");
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) }));
+    fireEvent.click(screen.getByRole("textbox", { name: i18n.t("sales:customer") }));
     await screen.findByRole("combobox", { name: i18n.t("sales:customer") });
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("combobox", { name: i18n.t("sales:customer") })).not.toBeInTheDocument();
@@ -2369,23 +2372,24 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     mockGetCustomer.mockRejectedValueOnce(new Error("not found"));
     await renderReady(`/sales?customerId=${GUID_A}`);
 
+    const trigger = () => screen.getByRole("textbox", { name: "Customer" });
     const unavailableLabel = i18n.t("sales:filterCustomerUnavailable");
-    await waitFor(() => expect(screen.getByRole("button", { name: new RegExp(unavailableLabel) })).toBeInTheDocument());
+    await waitFor(() => expect(trigger()).toHaveValue(unavailableLabel));
     expect(screen.queryByText(GUID_A)).not.toBeInTheDocument();
     // Neither rewritten to All nor silently dropped — the URL still carries it.
-    expect(screen.queryByRole("button", { name: new RegExp(`\\b${i18n.t("sales:allOption")}\\b`) })).not.toBeInTheDocument();
+    expect(trigger()).not.toHaveValue(i18n.t("sales:allOption"));
 
     const retryBtn = screen.getByRole("button", { name: i18n.t("namedEntityPicker:retry") });
     mockGetCustomer.mockResolvedValueOnce(CUSTOMER_A);
     fireEvent.click(retryBtn);
-    expect(await screen.findByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument();
+    await waitFor(() => expect(trigger()).toHaveValue("Filtered Farm A"));
 
   });
 
   it("clear is available while the filter is unavailable, not just once something is committed", async () => {
     mockGetCustomer.mockRejectedValueOnce(new Error("not found"));
     await renderReadyWithProbe(`/sales?customerId=${GUID_A}`);
-    await waitFor(() => expect(screen.getByRole("button", { name: new RegExp(i18n.t("sales:filterCustomerUnavailable")) })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Customer" })).toHaveValue(i18n.t("sales:filterCustomerUnavailable")));
 
     const clearBtn = await screen.findByRole("button", { name: i18n.t("namedEntityPicker:clear") });
     fireEvent.click(clearBtn);
@@ -2424,14 +2428,15 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     });
     await renderReadyWithProbe(`/sales?customerId=${GUID_A}`);
     await screen.findByRole("row", { name: /SO-A/ });
-    await waitFor(() => expect(screen.getByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument());
+    const trigger = () => screen.getByRole("textbox", { name: "Customer" });
+    await waitFor(() => expect(trigger()).toHaveValue("Filtered Farm A"));
 
     // Navigate to B; its list read is HELD. Neither the A row nor the A
     // trigger name may still be on screen — synchronous hide, not "hidden
     // once B's request settles."
     act(() => { capturedNavigate!(`/sales?customerId=${GUID_B}`); });
     expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Filtered Farm A/ })).not.toBeInTheDocument();
+    expect(trigger()).not.toHaveValue("Filtered Farm A");
 
     await act(async () => { releaseB([{ ...DRAFT_TWO, id: "ob", referenceNumber: "SO-B", customerName: "Filtered Farm B" }]); });
     await screen.findByRole("row", { name: /SO-B/ });
@@ -2445,14 +2450,15 @@ describe("SalesPage empty states (#655)", () => {
   it("offers Clear filters, not New order, when a customer filter matches no orders", async () => {
     mockGetCustomer.mockResolvedValue(CUSTOMER_A);
     renderWithProviders(<SalesPage />, { token: ADMIN, route: `/sales?customerId=${GUID_A}` });
-    await screen.findByRole("button", { name: /Filtered Farm A/ });
+    const trigger = () => screen.getByRole("textbox", { name: "Customer" });
+    await waitFor(() => expect(trigger()).toHaveValue("Filtered Farm A"));
 
     expect(await screen.findByText("No orders match.")).toBeInTheDocument();
     // The book isn't empty (the header's own New order stays) — only ONE
     // action comes from the empty state itself, and it clears the filter.
     expect(screen.getAllByRole("button", { name: "New order" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) })).toBeInTheDocument());
+    await waitFor(() => expect(trigger()).toHaveValue(i18n.t("sales:allOption")));
   });
 
   // #655 — role/data-aware: the same condition AND handler as the page-head
