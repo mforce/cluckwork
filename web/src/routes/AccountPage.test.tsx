@@ -192,7 +192,9 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
       // MIN_LENGTH is 12 (AccountPage.tsx) — asserting the exact number, not
       // just that A number appears, is what would catch a mutation that
       // dropped the interpolation and always rendered a literal "12".
-      expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END")).toBeInTheDocument();
+      // MUI's required indicator appends its own trailing " *" to the label
+      // text (repo convention, e.g. GradesPage.test.tsx's "Name *").
+      expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END *")).toBeInTheDocument();
       expect(screen.queryByLabelText(/^New password/)).not.toBeInTheDocument();
     });
   });
