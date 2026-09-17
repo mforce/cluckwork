@@ -99,15 +99,15 @@ describe("StockPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the grade table as a table.data scroller (the scroll-cue hook, #150)", async () => {
-    // The mobile scroll-shadow affordance keys entirely off `table.data` in the
-    // stylesheet (no JS, no wrapper), so the class IS the contract: drop it in a
-    // refactor and the last-column-clipped cue silently disappears. jsdom can't
+  it("renders the grade table inside a MuiTableContainer scroller (the scroll-cue hook, #150/#831)", async () => {
+    // #831 — the mobile scroll-shadow affordance moved from `table.data` in
+    // the stylesheet to the theme's `MuiTableContainer` phone override
+    // (FarmThemeProvider.tsx), which every MUI Table now shares. jsdom can't
     // render the gradient, but it can guard the hook the CSS depends on.
     mockGetStock.mockResolvedValue(ROWS);
     const { container } = render(<StockPage />);
     await screen.findByText("Grade A");
-    expect(container.querySelector("table.data")).not.toBeNull();
+    expect(container.querySelector(".MuiTableContainer-root")).not.toBeNull();
   });
 });
 
@@ -169,12 +169,12 @@ describe("StockPage drill-down", () => {
     expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g1", limit: 50, offset: 0 });
   });
 
-  it("puts the lot date range in the bounded toolbar, not a bare filters row", async () => {
-    // #653/#662 — this is a structural guard on purpose. The defect is a WIDTH
-    // (styles.css caps `.toolbar input[type="date"]` at 12rem and the pair was
-    // outside any .toolbar), and jsdom computes no layout, so the only honest
-    // assertion here is the wrapper the cap is keyed on. The rendered result is
-    // checked by the before/after screenshot pair on the PR.
+  it("puts the lot date range in the bounded FilterBar, not a bare filters row", async () => {
+    // #653/#662/#831 — this is a structural guard on purpose. The width cap
+    // moved from `.toolbar input[type="date"]` (12rem) to FilterDateField's
+    // own `sx`, and jsdom computes no layout so the only honest assertion
+    // here is the wrapper the field is rendered inside. The rendered result
+    // is checked by the before/after screenshot pair on the PR.
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
     const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
@@ -182,7 +182,7 @@ describe("StockPage drill-down", () => {
     await screen.findByRole("row", { name: /07\/01\/2026/ });
 
     const fromInput = screen.getByLabelText("From");
-    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+    expect(fromInput.closest(".MuiPaper-outlined")).not.toBeNull();
   });
 
   it("collapses the lots again on 'hide lots'", async () => {

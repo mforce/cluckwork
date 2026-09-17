@@ -423,7 +423,21 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       // forward.
       MuiTableContainer: {
         styleOverrides: {
-          root: { [phone]: { contain: "layout" } },
+          root: {
+            [phone]: {
+              contain: "layout",
+              // #150/#831 — the same scroll-shadow affordance `table.data`
+              // carries for every unconverted ledger (styles.css §2.2,
+              // verbatim): a wide MUI table on phone gets the "more to
+              // scroll" edge cue instead of silently clipping its last
+              // column with no sign anything is cut off.
+              background:
+                "linear-gradient(to right, var(--surface) 40%, transparent) 0 0 / 2.25rem 100% no-repeat local,"
+                + "linear-gradient(to left, var(--surface) 40%, transparent) 100% 0 / 2.25rem 100% no-repeat local,"
+                + "linear-gradient(to right, var(--scroll-cue), transparent) 0 0 / 0.85rem 100% no-repeat scroll,"
+                + "linear-gradient(to left, var(--scroll-cue), transparent) 100% 0 / 0.85rem 100% no-repeat scroll",
+            },
+          },
         },
       },
       // #832 — closes the gap the comment above used to carry: this is the
