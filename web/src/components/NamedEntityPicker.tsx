@@ -15,9 +15,16 @@
 // generations, unavailable states, Escape/clear, Retry) arrives in T026–T034
 // on top of the same state.
 
-import React, { useCallback, useEffect, useId, useRef, useState } from "react";
-import type { ChangeEvent, KeyboardEvent, ReactNode } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import Autocomplete from "@mui/material/Autocomplete";
+import TextField from "@mui/material/TextField";
+import Paper from "@mui/material/Paper";
+import InputAdornment from "@mui/material/InputAdornment";
+import type { PaperProps } from "@mui/material/Paper";
+import type { AutocompleteRenderInputParams } from "@mui/material/Autocomplete";
+import { Search } from "lucide-react";
 
 // --- Eligibility policy ------------------------------------------------------
 
@@ -81,8 +88,6 @@ export interface DiscoveryState<T> {
   eligibilityKey: FlockEligibilityKey | null;
   /** Rows owned by the current generation only. */
   items: T[];
-  /** The keyboard-active option; never implies a committed selection. */
-  activeId: string | null;
   /** Offset cursor, advanced by raw server row counts. */
   cursor: number;
   /** Whether an extension (Load more) may be requested. */
@@ -175,7 +180,6 @@ function initialState<T extends NamedEntity>(eligibilityKey: FlockEligibilityKey
       normalizedQuery: null,
       eligibilityKey,
       items: [],
-      activeId: null,
       cursor: 0,
       hasMore: false,
       phase: "closed",
@@ -277,8 +281,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   const onClearRef = useRef(onClear);
   onClearRef.current = onClear;
   const { t } = useTranslation("namedEntityPicker");
-  const ids = useId();
-  const listboxId = `${ids}-listbox`;
   const [state, setState] = useState<EngineState<T>>(() => initialState(eligibilityKey));
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -330,7 +332,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       selection: { entity, requestedId: null, phase: "committed", transitionGeneration: selectionGenRef.current },
       discovery: {
         ...prev.discovery,
-        activeId: entity.id,
         rawQuery: entity.name,
       },
     }));
@@ -348,7 +349,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     // dropped.
     setState((prev) => ({
       ...prev,
-      discovery: { ...prev.discovery, phase: "replacing", items: [], error: null, activeId: null, discoveryGeneration: gen },
+      discovery: { ...prev.discovery, phase: "replacing", items: [], error: null, discoveryGeneration: gen },
     }));
     let page: T[];
     try {
@@ -482,7 +483,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       setState((prev) => ({
         ...prev,
         selection: { entity: resolved, requestedId: null, phase: "committed", transitionGeneration: gen },
-        discovery: { ...prev.discovery, rawQuery: resolved.name, activeId: resolved.id },
+        discovery: { ...prev.discovery, rawQuery: resolved.name },
       }));
     } catch {
       if (selectionGenRef.current !== gen) return;
@@ -498,9 +499,13 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // exact 250 ms pause (FR-008) owns whether a replacement goes out. The
   // debounce timer is the newest-intent check: each keystroke cancels the
   // previous one, so only the final text ever requests.
-  const onQueryChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+  //
+  // Takes the raw string directly (not a ChangeEvent): `Autocomplete`'s own
+  // `onInputChange(event, value, reason)` is the only caller (#826 — the
+  // combobox is `Autocomplete`'s, not a hand-rolled `<input onChange>`), and
+  // it already hands over the string.
+  const onQueryChange = useCallback((raw: string) => {
     if (disabled) return;
-    const raw = e.target.value;
     const trimmed = raw.trim();
     const gen = ++discoveryGenRef.current;
     if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
@@ -512,7 +517,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         normalizedQuery: trimmed === "" ? null : trimmed,
         items: [],
         error: null,
-        activeId: null,
         cursor: 0,
         hasMore: false,
         phase: "debouncing",
@@ -561,7 +565,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
           ...prev.discovery,
           eligibilityKey,
           items: [],
-          activeId: null,
           cursor: 0,
           hasMore: false,
           phase: "closed",
@@ -586,7 +589,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         eligibilityKey,
         items: [],
         error: null,
-        activeId: null,
         cursor: 0,
         hasMore: false,
         phase: "debouncing",
@@ -630,7 +632,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         discoveryGenRef.current += 1;
         setState((prev) => ({
           ...prev,
-          discovery: { ...prev.discovery, phase: "closed", items: [], activeId: null, hasMore: false, cursor: 0 },
+          discovery: { ...prev.discovery, phase: "closed", items: [], hasMore: false, cursor: 0 },
         }));
       }
       return;
@@ -660,84 +662,73 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     }
   }, [open, disabled, id]);
 
-  // Arrow navigation: activation only — committing is Enter/pointer (FR-030).
-  // Down Arrow at the loaded end with hasMore requests the next page (FR-032).
-  const onArrow = useCallback((delta: number) => {
-    if (disabled) return;
-    const { items, activeId, hasMore, phase } = stateRef.current.discovery;
-    if (items.length === 0) return;
-    const idx = activeId ? items.findIndex((x) => x.id === activeId) : -1;
-    // Down Arrow at the loaded end: request extension if more is available.
-    if (delta === 1 && idx === items.length - 1 && hasMore && phase === "ready") {
-      void loadMore();
-      return;
+  // #826 — `Autocomplete` now owns arrow/Enter navigation and highlight
+  // tracking (the engine no longer hand-rolls a `role=combobox`/`listbox`
+  // pair). `handleHomeEndKeys={false}` on the element below keeps Home/End
+  // native (FR-031). Two things `Autocomplete` does NOT know about stay here:
+  // FR-032 (Down Arrow at the loaded end with `hasMore` requests the next
+  // page) and the Escape cancellation contract (US2: restore committed/blank
+  // text, retain the discovery window, call the page's `onEscape`).
+  const highlightedIdRef = useRef<string | null>(null);
+
+  // US2: cancel exploration and restore committed/blank text — shared by
+  // Escape (`Autocomplete`'s `onClose` with reason "escape", below). The
+  // discovery window (items, cursor, hasMore, phase) is retained, never
+  // wiped, and the discovery generation is untouched: an in-flight request
+  // settles into the retained window under its own generation.
+  const cancelExploration = useCallback(() => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
     }
-    const next = Math.min(items.length - 1, Math.max(0, idx + delta));
+    const selection = stateRef.current.selection;
+    // A fixed requested-ID read belongs to the page's selection intent and
+    // must still be allowed to settle.
+    if (selection.phase !== "resolving" || selection.requestedId === null) {
+      selectionGenRef.current += 1;
+    }
+    const committed = selection.entity;
     setState((prev) => ({
       ...prev,
-      discovery: { ...prev.discovery, activeId: prev.discovery.items[next]?.id ?? prev.discovery.activeId },
+      discovery: { ...prev.discovery, rawQuery: committed?.name ?? "" },
     }));
-  }, [disabled, loadMore]);
+    setCommittedText(committed?.name ?? null);
+  }, []);
 
-  const onKey = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+  // FR-032: Down Arrow at the loaded end with `hasMore` requests the next
+  // page instead of moving the highlight (there is nowhere further to move
+  // it). Wired onto `Autocomplete`'s own `onKeyDown` prop, which
+  // `useAutocomplete.js`'s `getRootProps` calls BEFORE its own switch, so
+  // `highlightedIdRef` still holds the option the PREVIOUS keypress left
+  // highlighted — the same "already at the end" check the hand-rolled
+  // `onArrow` used to make against `activeId`.
+  //
+  // Escape is ALSO handled here rather than through `Autocomplete`'s own
+  // `onClose` callback: `useAutocomplete.js`'s own Escape case calls
+  // `event.stopPropagation()` after closing the popup, which — because
+  // `FlockPicker`/`CustomerPicker` render inside dialogs whose own
+  // Escape-to-close listens on an ancestor — swallowed a SINGLE Escape press
+  // that used to close both the exploration AND the dialog at once
+  // (SalesPage's new-order picker test, #826 round 1). Setting
+  // `defaultMuiPrevented` tells `getRootProps`'s `handleKeyDown` (which calls
+  // our handler FIRST, then checks that flag before its own switch) to skip
+  // its Escape case entirely, so only OUR `preventDefault` runs and the event
+  // keeps bubbling — restoring the pre-#826 behavior exactly.
+  const handleRootKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement> & { defaultMuiPrevented?: boolean }) => {
     if (disabled) return;
-    const items = stateRef.current.discovery.items;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      onArrow(1);
-      return;
-    }
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      onArrow(-1);
-      return;
-    }
-    if (e.key === "Enter") {
-      const active = items.find((x) => x.id === stateRef.current.discovery.activeId);
-      if (active) {
-        e.preventDefault();
-        commit(active);
-      }
-      return;
-    }
     if (e.key === "Escape") {
-      // US2: cancel exploration, restore committed/blank text, cancel any
-      // pending debounce (so a stale request never fires after restore),
-      // and close the picker via the page's onEscape callback.
       e.preventDefault();
-      // Cancel debounce: a pending replacement must not fire after restore.
-      // Cancel the debounce (a pending replacement must not fire after
-      // restore) and claim a SELECTION-transition generation. Escape must
-      // NOT bump the discovery generation or wipe the discovery window: the
-      // page may keep the picker open (onEscape is page-controlled), and the
-      // retained rows/cursor stay usable. The rawQuery/activeId restore below
-      // is the cancellation; an in-flight discovery settles into the retained
-      // window under its own generation.
-      if (debounceRef.current !== null) {
-        window.clearTimeout(debounceRef.current);
-        debounceRef.current = null;
-      }
-      const selection = stateRef.current.selection;
-      // Closing only cancels exploration. A fixed requested-ID read belongs
-      // to the page's selection intent and must still be allowed to settle.
-      if (selection.phase !== "resolving" || selection.requestedId === null) {
-        selectionGenRef.current += 1;
-      }
-      const committed = selection.entity;
-      setState((prev) => ({
-        ...prev,
-        discovery: {
-          ...prev.discovery,
-          rawQuery: committed?.name ?? "",
-          activeId: null,
-        },
-      }));
-      setCommittedText(committed?.name ?? null);
+      e.defaultMuiPrevented = true;
+      cancelExploration();
       onEscapeRef.current?.();
       return;
     }
-    // Home/End: native input behavior, not intercepted (FR-031).
-  }, [commit, onArrow, disabled]);
+    if (e.key !== "ArrowDown") return;
+    const d = stateRef.current.discovery;
+    if (d.items.length === 0) return;
+    const atEnd = highlightedIdRef.current === d.items[d.items.length - 1].id;
+    if (atEnd && d.hasMore && d.phase === "ready") void loadMore();
+  }, [disabled, loadMore, cancelExploration]);
 
   // Exploration (FR-020): the visible text differs from the committed label.
   // A committed picker with an untouched field is not exploring.
@@ -821,7 +812,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         selection: { entity, requestedId: null, phase: entity ? "committed" : "blank", transitionGeneration: prev.selection.transitionGeneration },
         discovery: sameEntity
           ? prev.discovery
-          : { ...prev.discovery, rawQuery: entity?.name ?? "", activeId: entity?.id ?? null, items: [], hasMore: false, cursor: 0 },
+          : { ...prev.discovery, rawQuery: entity?.name ?? "", items: [], hasMore: false, cursor: 0 },
       };
     });
     // Exact-identity validation: only when an exact read is provided AND the
@@ -859,7 +850,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       setState((prev) => ({
         ...prev,
         selection: { entity: null, requestedId: null, phase: "blank", transitionGeneration: gen },
-        discovery: { ...prev.discovery, rawQuery: "", activeId: null },
+        discovery: { ...prev.discovery, rawQuery: "" },
       }));
       return;
     }
@@ -886,7 +877,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       setState((prev) => ({
         ...prev,
         selection: { entity: resolved, requestedId: null, phase: "committed", transitionGeneration: gen },
-        discovery: { ...prev.discovery, rawQuery: resolved.name, activeId: resolved.id },
+        discovery: { ...prev.discovery, rawQuery: resolved.name },
       }));
     }).catch(() => {
       if (selectionGenRef.current !== gen) return;
@@ -933,7 +924,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
           discovery: {
             ...prev.discovery,
             rawQuery: committed?.name ?? "",
-            activeId: null,
           },
         }));
         setCommittedText(committed?.name ?? null);
@@ -946,11 +936,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
 
   const d = state.discovery;
   const showLoading = d.phase === "replacing" || d.phase === "extending" || d.phase === "debouncing";
-  const loading = showLoading;
-  const activeId = d.activeId;
-  // aria-controls only when the listbox is actually rendered (open state).
-  const ariaControls = open ? listboxId : undefined;
-  const ariaActivedescendant = activeId ? `${ids}-opt-${activeId}` : undefined;
   // The input value IS the discovery's raw text — no committed-text fallback.
   // After a commit the field shows the committed name (rawQuery was set to it);
   // typing explores and the committed entity survives in `selection`.
@@ -975,40 +960,188 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
             ? t("results", { count: d.items.length })
             : "";
 
+  // US2: optional clear — commits blank. A selection transition only: the
+  // discovery window is retained and its generation is untouched.
+  const clearSelection = useCallback(() => {
+    selectionGenRef.current += 1;
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setCommittedText(null);
+    setState((prev) => ({
+      ...prev,
+      selection: { entity: null, requestedId: null, phase: "blank", transitionGeneration: selectionGenRef.current },
+      discovery: { ...prev.discovery, rawQuery: "" },
+    }));
+    onClearRef.current?.();
+  }, []);
+
+  // #826 — the status/alert/Load-more/Clear footer renders INSIDE
+  // `Autocomplete`'s floating Paper, as a sibling of the `<ul role="listbox">`
+  // it supplies as `children` — never through `slotProps.listbox`, which
+  // would put a `<button>` where ARIA only allows `option`/`group`.
+  //
+  // `PickerPaper` itself must keep a STABLE identity across renders:
+  // `Autocomplete` mounts it via `as={PaperSlot}`, so a fresh function value
+  // every render would remount the whole popup subtree on every keystroke —
+  // including the stable `aria-live` region below, whose contract (US3 T034)
+  // is that it is the SAME node across loading/results/error transitions.
+  // `footerRef` carries the latest values the footer reads; the `useRef`
+  // lazy-init below creates the component exactly once per picker instance.
+  const footerRef = useRef({
+    t, showLoading, d, disabled, required,
+    committedEntity: state.selection.entity,
+    unavailable: state.selection.phase === "unavailable",
+    retry, loadMore, retryUnavailable, clearSelection, liveMessage,
+  });
+  footerRef.current = {
+    t, showLoading, d, disabled, required,
+    committedEntity: state.selection.entity,
+    unavailable: state.selection.phase === "unavailable",
+    retry, loadMore, retryUnavailable, clearSelection, liveMessage,
+  };
+  const pickerPaperRef = useRef<((props: PaperProps) => React.ReactElement) | null>(null);
+  if (pickerPaperRef.current === null) {
+    pickerPaperRef.current = function PickerPaper({ children, ...paperProps }: PaperProps) {
+      const f = footerRef.current;
+      return (
+        <Paper {...paperProps}>
+          {children}
+          <div className="named-picker-meta">
+            {/* US3 (T034): a STABLE mounted aria-live region — the SAME node
+                across loading/results/error transitions — so assistive tech
+                announces the picker's state without the visible spans being
+                re-created (and without moving focus off the input). It is
+                deliberately NOT role="status": the transient loading span
+                below owns that role for the visible UI, and a second
+                [role=status] would make getByRole("status") ambiguous. Its
+                text mirrors the state for screen readers. */}
+            <span className="named-picker-live" aria-live="polite" aria-atomic="true" aria-busy={f.showLoading || undefined}>
+              {f.liveMessage}
+            </span>
+            {f.showLoading && <span className="named-picker-status" role="status">{f.t("loading")}</span>}
+            {f.d.phase === "empty" && <span className="named-picker-status" role="status">{f.t("noResults")}</span>}
+            {f.d.phase === "replacement-error" && (
+              <span className="named-picker-status" role="alert">{f.t("searchFailed")}</span>
+            )}
+            {f.d.phase === "replacement-error" && (
+              <button type="button" className="named-picker-retry link" onClick={() => void f.retry()} disabled={f.disabled}>
+                {f.t("retry")}
+              </button>
+            )}
+            {f.d.phase === "extension-error" && (
+              <span className="named-picker-status" role="alert">{f.t("loadMoreFailed")}</span>
+            )}
+            {f.d.phase === "extension-error" && (
+              <button type="button" className="named-picker-retry link" onClick={() => void f.retry()} disabled={f.disabled}>
+                {f.t("retry")}
+              </button>
+            )}
+            {f.d.hasMore && (
+              <button type="button" className="named-picker-loadmore link" onClick={() => void f.loadMore()} disabled={f.showLoading || f.disabled}>
+                {f.t("loadMore")}
+              </button>
+            )}
+            {/* US3 (T034/T038): an unavailable exact identity (scoped 404 /
+                transport failure on the exact GET) renders the translated
+                unavailable label and a keyboard-reachable Retry — never a raw
+                ID or a first-result substitution. The Retry re-runs the exact
+                read; focus returns to the input on success. */}
+            {f.unavailable && (
+              <span className="named-picker-status" role="alert">{f.t("unavailable")} — {f.t("unavailableExplanation")}</span>
+            )}
+            {/* Deliberately NOT gated on `disabled` (US3 remediation): Retry
+                re-resolves a FIXED identity via the exact GET, not ordinary
+                discovery/selection, which stays disabled above. */}
+            {f.unavailable && (
+              <button type="button" className="named-picker-retry link" onClick={() => void f.retryUnavailable()}>
+                {f.t("retry")}
+              </button>
+            )}
+            {!f.required && f.committedEntity && !f.disabled && (
+              <button type="button" className="named-picker-clear link" onClick={f.clearSelection}>
+                {f.t("clear")}
+              </button>
+            )}
+          </div>
+        </Paper>
+      );
+    };
+  }
+
   // US2: closed state renders exactly ONE trigger in the normal form slot.
   // The combobox/listbox are absent. Open state: no trigger, just the
   // searchable combobox in the same position.
   if (!open) {
-    // Closed state: visible label + exactly one field-sized trigger.
-    // Programmatic association: the label has an id; the trigger is cloned
-    // with a trigger id and its children wrapped in a value span. The
-    // trigger's aria-labelledby references [labelId, valueId] so the
-    // accessible name is "<label> <current value>" without self-reference.
-    // The label's htmlFor points at the trigger (clickable label → focus).
-    const triggerId = `${ids}-trigger`;
-    const labelId = `${ids}-label`;
-    const valueId = `${ids}-value`;
+    // Closed state (owner redesign, 2026-09-17): the committed value reads
+    // as the SAME outlined MUI field as the open search — label in the
+    // border, an end adornment signaling "this reopens a search" — not a
+    // plain button (a #896-review finding: the old trigger read as "a plain
+    // dark box with no affordance that it reopens a search"). Only the
+    // CHROME moves from a hand-rolled `<button>`/`<span>` to a read-only
+    // `TextField`: click, Enter and Space all open the search exactly as the
+    // trigger's own `onClick` did before.
+    //
+    // The `trigger` prop still supplies BOTH the interaction contract (its
+    // `onClick` opens the picker; its own `disabled` combines with the
+    // engine's) and the DISPLAYED text. The text stays trigger-owned rather
+    // than switching to the engine's own `committedText`: each caller
+    // already computes "committed name or placeholder" itself, and that
+    // placeholder differs screen to screen ("No flocks yet", "All", a
+    // loading/unavailable fallback on Sales' filter) — `committedText` alone
+    // has no placeholder to fall back to.
     const hasTrigger = React.isValidElement(trigger);
-    const triggerEl = hasTrigger
-      ? React.cloneElement(trigger as React.ReactElement<{ id?: string; children?: ReactNode; "aria-labelledby"?: string }>, {
-          id: triggerId,
-          "aria-labelledby": `${labelId} ${valueId}`,
-          children: <span id={valueId}>{React.Children.toArray((trigger as React.ReactElement<{ children?: ReactNode }>).props.children)}</span>,
-        })
-      : trigger;
+    const triggerProps = hasTrigger
+      ? (trigger as React.ReactElement<{
+          onClick?: (e: React.SyntheticEvent) => void;
+          disabled?: boolean;
+          children?: ReactNode;
+        }>).props
+      : undefined;
+    const triggerDisabled = disabled || !!triggerProps?.disabled;
+    const activate = (e: React.SyntheticEvent) => {
+      if (triggerDisabled) return;
+      triggerProps?.onClick?.(e);
+    };
+    const displayValue = typeof triggerProps?.children === "string" ? triggerProps.children : "";
     return (
       <div ref={containerRef} className={`named-picker${disabled ? " disabled" : ""}`}>
         {hasTrigger ? (
-          <label id={labelId} htmlFor={triggerId} className="named-picker-label">{label}</label>
+          <TextField
+            id={id}
+            label={label}
+            required={required}
+            disabled={triggerDisabled}
+            value={displayValue}
+            onClick={activate}
+            slotProps={{
+              htmlInput: {
+                readOnly: true,
+                "aria-haspopup": "listbox",
+                "aria-expanded": false,
+                "aria-required": required || undefined,
+                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  activate(e);
+                },
+              },
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <Search size={18} strokeWidth={1.5} aria-hidden focusable={false} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
         ) : (
           // No trigger element was provided (optional on the typed adapters):
-          // there is no control for htmlFor to point at, so the label must
-          // not be a <label> at all — an orphan htmlFor would reference a
-          // nonexistent id and hand the page a broken programmatic
-          // association. Render the same visible text/styling as a plain span.
-          <span id={labelId} className="named-picker-label">{label}</span>
+          // there is no control to activate and no value to show as a field,
+          // so render only the visible label text.
+          <span className="named-picker-label">{label}</span>
         )}
-        {triggerEl}
         {/* US3 remediation — the engine used to render unavailable/Retry ONLY
             in the open branch above, so a page whose picker never opens
             (History/Feed row-owned ids resolved without a combobox) or is
@@ -1031,117 +1164,123 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
 
   return (
     <div ref={containerRef} className={`named-picker${disabled ? " disabled" : ""}`}>
-      <label htmlFor={id} className="named-picker-label">{label}</label>
+      {/* Owner redesign, 2026-09-17: the floating label lives on the
+          `TextField` (`renderInput` below) now, not a separate `<label>` —
+          `Autocomplete`/`TextField` wire `id`/`InputLabel` themselves, so
+          `getByLabelText(label)` still resolves to the real input. */}
       {showCommitted && (
         <div className="named-picker-committed">{committedText}</div>
       )}
-      <div className="named-picker-control">
-        <input
-          id={id}
-          type="text"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={open}
-          aria-controls={ariaControls}
-          aria-activedescendant={ariaActivedescendant}
-          aria-required={required || undefined}
-          disabled={disabled}
-          value={displayText}
-          placeholder={committedText ?? undefined}
-          onChange={onQueryChange}
-          onKeyDown={onKey}
-        />
-        <ul id={listboxId} role="listbox" className="named-picker-listbox">
-          {d.items.map((item) => (
-            <li
-              key={item.id}
-              id={`${ids}-opt-${item.id}`}
-              role="option"
-              aria-selected={item.id === state.selection.entity?.id}
-              className={item.id === activeId ? "named-picker-option active" : "named-picker-option"}
-              onClick={disabled ? undefined : () => commit(item)}
-            >
-              {item.name}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="named-picker-meta">
-        {/* US3 (T034): a STABLE mounted aria-live region — the SAME node across
-            loading/results/error transitions — so assistive tech announces the
-            picker's state without the visible spans being re-created (and without
-            moving focus off the input). It is deliberately NOT role="status": the
-            transient loading span below owns that role for the visible UI, and a
-            second [role=status] would make getByRole("status") ambiguous for the
-            US1/US2 suites. Its text mirrors the state for screen readers. */}
-        <span className="named-picker-live" aria-live="polite" aria-atomic="true" aria-busy={showLoading || undefined}>
-          {liveMessage}
-        </span>
-        {loading && <span className="named-picker-status" role="status">{t("loading")}</span>}
-        {d.phase === "empty" && <span className="named-picker-status" role="status">{t("noResults")}</span>}
-        {d.phase === "replacement-error" && (
-          <span className="named-picker-status" role="alert">{t("searchFailed")}</span>
-        )}
-        {d.phase === "replacement-error" && (
-          <button type="button" className="named-picker-retry link" onClick={() => void retry()} disabled={disabled}>
-            {t("retry")}
-          </button>
-        )}
-        {d.phase === "extension-error" && (
-          <span className="named-picker-status" role="alert">{t("loadMoreFailed")}</span>
-        )}
-        {d.phase === "extension-error" && (
-          <button type="button" className="named-picker-retry link" onClick={() => void retry()} disabled={disabled}>
-            {t("retry")}
-          </button>
-        )}
-        {d.hasMore && (
-          <button type="button" className="named-picker-loadmore link" onClick={() => void loadMore()} disabled={showLoading || disabled}>
-            {t("loadMore")}
-          </button>
-        )}
-        {/* US3 (T034/T038): an unavailable exact identity (scoped 404 / transport
-            failure on the exact GET) renders the translated unavailable label and
-            a keyboard-reachable Retry — never a raw ID or a first-result
-            substitution. The Retry re-runs the exact read; focus returns to the
-            input on success. */}
-        {state.selection.phase === "unavailable" && (
-          <span className="named-picker-status" role="alert">{t("unavailable")} — {t("unavailableExplanation")}</span>
-        )}
-        {/* Deliberately NOT gated on `disabled` (US3 remediation): Retry
-            re-resolves a FIXED identity via the exact GET, not ordinary
-            discovery/selection, which stays disabled below and above. */}
-        {state.selection.phase === "unavailable" && (
-          <button type="button" className="named-picker-retry link" onClick={() => void retryUnavailable() }>
-            {t("retry")}
-          </button>
-        )}
-        {!required && state.selection.entity && !disabled && (
-          <button
-            type="button"
-            className="named-picker-clear link"
-            onClick={() => {
-              // US2: optional clear — commits blank. A selection transition
-              // only: the discovery window is retained and its generation is
-              // untouched.
-              selectionGenRef.current += 1;
-              if (debounceRef.current !== null) {
-                window.clearTimeout(debounceRef.current);
-                debounceRef.current = null;
-              }
-              setCommittedText(null);
-              setState((prev) => ({
-                ...prev,
-                selection: { entity: null, requestedId: null, phase: "blank", transitionGeneration: selectionGenRef.current },
-                discovery: { ...prev.discovery, rawQuery: "", activeId: null },
-              }));
-              onClearRef.current?.();
+      {/* Explicit generics: the committed value is genuinely `T | null`
+          (blank/uninitialized are real states). MUI's own `disableClearable`
+          PROP ties `DisableClearable` to `true` at the type level too
+          (narrowing `value`/`onChange` to exclude `null`), which is why the
+          clear icon is suppressed via `slots.clearIndicator` below instead —
+          that leaves this generic, and the value type, alone. */}
+      <Autocomplete<T, false, false, false>
+        id={id}
+        open
+        disabled={disabled}
+        options={d.items}
+        loading={showLoading}
+        inputValue={displayText}
+        // A fresh shallow clone, not the entity itself: `useAutocomplete.js`'s
+        // `handleValue` bails out (never calls `onChange`) when the newly
+        // selected option is `===` the current `value` — reference equality,
+        // not `isOptionEqualToValue`. A picker whose committed entity and
+        // discovery window happen to hold the SAME object reference (e.g. a
+        // page-level default customer, FR-037, fetched once and handed to
+        // both `controlledCommitted` and the picker's own discovery request)
+        // would then silently no-op on re-clicking that already-committed
+        // option — a real regression, caught by SalesPage's new-order dialog
+        // test, not merely a test mock artifact: a caching or memoizing data
+        // layer could produce the same shared reference in production. The
+        // clone guarantees `value !== newValue`, so `onChange` always fires;
+        // `isOptionEqualToValue` (by id, below) still drives `aria-selected`.
+        value={state.selection.entity ? { ...state.selection.entity } : null}
+        onChange={(_event, newValue, reason) => {
+          // Commit by pointer/Enter (FR-030) — the ONLY two ways MUI's own
+          // handling reaches `reason === "selectOption"`. Guarded on
+          // `disabled` here (not just on the closed native input) because
+          // `Autocomplete`'s own key handling is not itself gated on it.
+          if (disabled) return;
+          if (reason === "selectOption" && newValue) commit(newValue);
+        }}
+        onInputChange={(_event, newInputValue, reason) => {
+          // Only genuine typing re-discovers. `Autocomplete` also fires this
+          // with reason "reset" right after a commit (syncing its internal
+          // input value to the selected label) and "clear" from its own
+          // clear icon (disabled below) — `commit`/`clearSelection` already
+          // own `rawQuery` for those, so re-running discovery for them would
+          // wipe the just-loaded results.
+          if (reason === "input") onQueryChange(newInputValue);
+        }}
+        // No `onClose`: Escape is fully handled by `handleRootKeyDown`
+        // (`onKeyDown` below), which runs before — and here, instead of —
+        // `Autocomplete`'s own Escape case. Outside-click keeps its own
+        // long-standing `mousedown` listener (above): `Autocomplete` also
+        // treats an outside click as a "blur" close, and wiring both would
+        // double-fire `onOutsideClick`.
+        onHighlightChange={(_event, option) => {
+          highlightedIdRef.current = option ? option.id : null;
+        }}
+        onKeyDown={handleRootKeyDown}
+        filterOptions={(options) => options}
+        getOptionLabel={(option) => option.name}
+        getOptionKey={(option) => option.id}
+        isOptionEqualToValue={(option, value) => option.id === value.id}
+        // US2/US3 own commit, retry and clear (in the footer below);
+        // `Autocomplete`'s built-in clear/popup icons would duplicate that
+        // UI, so both are nulled via `slots` (not `disableClearable` — see
+        // the generics comment above). `handleHomeEndKeys={false}` keeps
+        // Home/End native input behavior (FR-031) — `Autocomplete` jumps to
+        // the first/last option on those keys by default.
+        handleHomeEndKeys={false}
+        // The popup stays a DOM descendant of `containerRef` (no portal to
+        // `document.body`): the engine's own outside-click listener (above)
+        // tests `containerRef.current.contains(event.target)`, which a
+        // portalled popper would defeat — a click on an option would read as
+        // "outside" and wrongly cancel exploration.
+        disablePortal
+        clearText={t("clear")}
+        closeText={t("close")}
+        openText={t("open")}
+        loadingText={t("loading")}
+        noOptionsText={t("noResults")}
+        slots={{
+          paper: pickerPaperRef.current,
+          clearIndicator: () => null,
+          popupIndicator: () => null,
+          // The picker renders its OWN loading/no-results text in the footer
+          // (it must also cover "loading while retained rows are still
+          // shown", e.g. Load more in flight — a case `Autocomplete`'s own
+          // status slot can't reach: it hides once options are non-empty).
+          // Suppressing that slot avoids a second, usually-empty
+          // `role="status"` node — it otherwise mounts whenever the popup is
+          // open, which would make `getByRole("status")` ambiguous.
+          status: () => null,
+        }}
+        renderInput={(params: AutocompleteRenderInputParams) => (
+          <TextField
+            {...params}
+            label={label}
+            required={required}
+            placeholder={committedText ?? undefined}
+            slotProps={{
+              ...params.slotProps,
+              htmlInput: {
+                ...params.slotProps.htmlInput,
+                // The literal attribute: `required` above gives the native
+                // HTML attribute (and MUI's own asterisk) but not this — no
+                // picker label carries its own "*" today (contrast
+                // `useConfirm.tsx`'s `reasonLabel`, which does and so skips
+                // the `required` prop to avoid a doubled asterisk).
+                "aria-required": required || undefined,
+              },
             }}
-          >
-            {t("clear")}
-          </button>
+          />
         )}
-      </div>
+      />
     </div>
   );
 }

@@ -39,7 +39,10 @@ function Harness() {
 describe("#735 open focus", () => {
   it("opening from the trigger focuses the input and selects the committed name", async () => {
     render(<Harness />);
-    fireEvent.click(screen.getByText("Sim House A", { selector: "button *, button" }).closest("button")!);
+    // #826 — the closed-state trigger is a read-only MUI field now, not a
+    // <button>; clicking it (the same open contract the old trigger button
+    // exposed) is what fires the caller's onClick (setOpen(true)).
+    fireEvent.click(screen.getByRole("textbox", { name: "Flock" }));
     const input = await screen.findByRole<HTMLInputElement>("combobox");
     await waitFor(() => expect(input.value).toBe("Sim House A"));
     expect(document.activeElement).toBe(input);

@@ -840,19 +840,20 @@ describe("T023: ARIA contract and interaction semantics", () => {
     optionsAfter.slice(1).forEach((o) => expect(o).toHaveAttribute("aria-selected", "false"));
   });
 
-  it("T023-3: aria-activedescendant tracks arrow navigation", async () => {
+  it("T023-3: aria-activedescendant tracks arrow navigation (#826 — MUI Autocomplete mints the option ids; the picker no longer does)", async () => {
     const { input } = openPicker();
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
     expect(input).not.toHaveAttribute("aria-activedescendant");
-    // Derive the ID prefix from the listbox's aria-controls reference
-    const listboxId = input.getAttribute("aria-controls")!;
-    const prefix = listboxId.replace("-listbox", "");
+    const options = screen.getAllByRole("option");
     fireEvent.keyDown(input, { key: "ArrowDown" });
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(input.getAttribute("aria-activedescendant")).toBe(`${prefix}-opt-f0`);
+    // Points at a REAL rendered option — the first one.
+    expect(input.getAttribute("aria-activedescendant")).toBe(options[0].id);
     fireEvent.keyDown(input, { key: "ArrowDown" });
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(input.getAttribute("aria-activedescendant")).toBe(`${prefix}-opt-f1`);
+    // Advances to the second option, and never repeats the first.
+    expect(input.getAttribute("aria-activedescendant")).toBe(options[1].id);
+    expect(input.getAttribute("aria-activedescendant")).not.toBe(options[0].id);
   });
 
   it("T023-4: aria-required is present for required pickers, absent for optional", async () => {
@@ -990,47 +991,42 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(screen.getByRole("combobox").getAttribute("aria-controls")).toBe(listboxId);
   });
 
-  it("T023-12: closed state: label associated to trigger via htmlFor/id; open swaps trigger for combobox", () => {
+  it("T023-12 (#826): closed state: label associated to a read-only field carrying the trigger's value and open contract; open swaps it for a combobox", () => {
     render(
       <FlockPicker label="Pick Flock" eligibility="active" required open={false} trigger={<button type="button">My Trigger</button>} />
     );
-    // The label is programmatically associated: getByLabelText returns the ACTUAL trigger
-    const labeledTrigger = screen.getByLabelText("Pick Flock");
-    expect(labeledTrigger.tagName).toBe("BUTTON");
-    expect(labeledTrigger).toHaveTextContent("My Trigger");
-    // The association is the cloned trigger's stable id — the label's htmlFor
-    // points at it, and the trigger carries that exact id.
-    const labelEl = screen.getByText("Pick Flock");
-    expect(labelEl).toHaveAttribute("for", labeledTrigger.id);
-    expect(labeledTrigger.id).toBeTruthy();
-    // The trigger's accessible name is label + current value via aria-labelledby
-    // referencing [label-id, value-id] (the value child wrapped in a stable span).
-    const labelledby = labeledTrigger.getAttribute("aria-labelledby")!.split(" ");
-    expect(labelledby).toHaveLength(2);
-    expect(labelledby[0]).toBe(labelEl.id);
-    expect(document.getElementById(labelledby[1])?.textContent).toBe("My Trigger");
-    expect(labeledTrigger.getAttribute("aria-labelledby")).toBe(`${labelledby[0]} ${labelledby[1]}`);
-    // Accessible role name includes BOTH the label and the current value
-    expect(screen.getByRole("button", { name: /Pick Flock/ })).toBe(labeledTrigger);
-    expect(screen.getByRole("button", { name: /My Trigger/ })).toBe(labeledTrigger);
-    // Exactly one control (the trigger)
-    const buttons = screen.getAllByRole("button");
-    expect(buttons.length).toBe(1);
-    // No combobox or listbox in closed state
+    // The label is programmatically associated with the closed-state field —
+    // an MUI TextField now, not the caller's own <button> (owner redesign,
+    // 2026-09-17: the committed state reads as the same outlined field as
+    // the open search, not a hand-rolled trigger).
+    const closedField = screen.getByLabelText(/^Pick Flock/) as HTMLInputElement;
+    expect(closedField.tagName).toBe("INPUT");
+    // The trigger's DISPLAYED VALUE (its children) still comes from the
+    // caller, unchanged — only the chrome around it moved.
+    expect(closedField).toHaveValue("My Trigger");
+    // The trigger's open contract survives on this field: read-only (not
+    // editable — activating it opens the search, typing does not filter it
+    // in place), and the haspopup/expanded pair a combobox trigger needs.
+    expect(closedField).toHaveAttribute("readonly");
+    expect(closedField).toHaveAttribute("aria-haspopup", "listbox");
+    expect(closedField).toHaveAttribute("aria-expanded", "false");
+    // Exactly one focusable control — no separate trigger button.
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getByRole("textbox", { name: "Pick Flock" })).toBe(closedField);
+    // No combobox or listbox in closed state.
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(screen.queryByRole("listbox")).toBeNull();
-    // Open state: label + combobox in same slot, NO trigger button (swap)
+    // Open state: label + combobox in same slot, the closed field gone (swap).
     cleanup();
     render(
       <FlockPicker label="Pick Flock" eligibility="active" required open trigger={<button type="button">My Trigger</button>} />
     );
-    expect(screen.getByText("Pick Flock")).toBeInTheDocument();
     const combo = screen.getByRole("combobox");
     expect(combo).toBeInTheDocument();
-    // The label is now associated to the combobox (htmlFor = input id)
-    expect(screen.getByLabelText("Pick Flock")).toBe(combo);
-    // The trigger button is ABSENT in open state (swapped, not duplicated)
-    expect(screen.queryByRole("button", { name: "My Trigger" })).toBeNull();
+    // The label is now associated to the combobox.
+    expect(screen.getByLabelText(/^Pick Flock/)).toBe(combo);
+    // The closed-state read-only field is ABSENT in open state (swapped, not duplicated).
+    expect(screen.queryByRole("textbox", { name: "Pick Flock" })).toBeNull();
   });
 
   it("T023-13: closed state with no trigger element renders no orphan htmlFor", () => {
