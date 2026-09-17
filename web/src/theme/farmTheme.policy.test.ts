@@ -136,29 +136,15 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  it("stacks dialog actions at phone width", () => {
-    for (const { label, theme } of themes) {
-      const root = slot(theme.components?.MuiDialogActions?.styleOverrides?.root,
-        `${label} MuiDialogActions root`);
-      const narrow = slot(root[theme.breakpoints.down("md")], `${label} MuiDialogActions phone`);
-      expect(narrow.flexDirection, `${label}`).toBe("column");
-      // `DialogActions` sets `alignItems: center`, which leaves a stacked button
-      // at its intrinsic width — half of #740 rather than all of it.
-      expect(narrow.alignItems, `${label}`).toBe("stretch");
-      // `DialogActions` ALSO carries its own sibling-combinator spacing
-      // (`& > :not(style) ~ :not(style) { marginLeft: 8 }`, from its own
-      // `variants`, not from this override), which stacking direction alone
-      // does not touch: a column of buttons still pushed every one after the
-      // first 8px right, with no space between rows. This object read is not
-      // the full proof — the nested selector shares the sibling-margin
-      // property with several unrelated rules a theme walk cannot tell apart
-      // by intent — so FarmThemeProvider.render.test.tsx reads the actual
-      // generated CSS for the property this reset REPLACES.
-      const spacing = slot(narrow["& > :not(style) ~ :not(style)"], `${label} MuiDialogActions phone spacing`);
-      expect(spacing.marginLeft, `${label} sibling margin reset`).toBe(0);
-      expect(narrow.gap, `${label} vertical gap between stacked buttons`).toBe(8);
-    }
-  });
+  // #832 — retired: #896 (owner, 2026-09-17) made a dialog footer row/
+  // right-aligned at phone width, not stacked, so `MuiDialogActions` carries
+  // no phone override at all any more (see the comment beside where this
+  // block used to sit in FarmThemeProvider.tsx). There is nothing app-owned
+  // left to pin here — the resulting layout is MUI's own unmodified
+  // `DialogActions` default at every width, a library fact rather than an
+  // app policy, and this is a deliberate coverage reduction rather than a
+  // guard with a successor. `FarmThemeProvider.render.test.tsx`'s matching
+  // "resets DialogActions' sibling spacing…" render test is retired with it.
 
   it("keeps radius a three-step nesting scale", () => {
     for (const { label, theme, input, panel, card } of themes) {
@@ -284,6 +270,47 @@ describe("farm theme policy (#823 G2)", () => {
       const phone = theme.breakpoints.down("md");
       const narrow = slot(root[phone], `${label} MuiTableRow phone`);
       expect(narrow.height, `${label} phone row height`).toBe(52);
+    }
+  });
+
+  // #832 — a real #441 repro: `TableContainer`'s own default (`overflow-x:
+  // auto`) scrolls a wide table WITHIN itself but does not stop a mobile
+  // browser's initial layout-viewport sizing from measuring the table's
+  // raw content width, which is what actually pushed `/flocks` to a
+  // 941px `document.documentElement.scrollWidth` at a 390px frame
+  // (`phone.spec.ts`'s overflow walk, run against a real build). `contain:
+  // layout` is the fix `styles.css`'s own `table.data` phone rule already
+  // carries; this pins the same property on `MuiTableContainer`.
+  it("stops a phone-width table's own layout from inflating the viewport (#441)", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiTableContainer?.styleOverrides?.root, `${label} MuiTableContainer root`);
+      const phone = theme.breakpoints.down("md");
+      const narrow = slot(root[phone], `${label} MuiTableContainer phone`);
+      expect(narrow.contain, `${label} phone table containment`).toBe("layout");
+    }
+  });
+
+  // #832 — the first slice to mount a real MUI `Table`. Pinned so a later
+  // change cannot silently widen `TableCell` back to `body2`'s 0.95rem/1.43
+  // (the pre-#832 default, ~21.7px tall) or drop the tabular numerals pair 9
+  // asks for, both of which `TableRow`'s height floor above would hide —
+  // it is a floor, not a ceiling, so an over-tall cell renders wrong with
+  // every one of these assertions still green.
+  //
+  // Padding is pinned as well: `size="small"`'s default is 16px per cell
+  // wider than `table.data td`'s, enough to push Flocks' widest row off-screen
+  // at 1280 with no cell wrapping, which no other guard here would catch.
+  it("sizes table cells to the row scale, gives every cell tabular numerals, and matches table.data's padding", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiTableCell?.styleOverrides?.root, `${label} MuiTableCell root`);
+      expect(root.fontSize, `${label} row size`).toBe("0.875rem");
+      expect(root.lineHeight, `${label} row line-height`).toBe(20 / 14);
+      expect(root.fontVariantNumeric, `${label} tabular numerals`).toBe("tabular-nums");
+      expect(root.padding, `${label} cell padding`).toBe("0.6rem 1rem 0.6rem 0");
+      const phone = theme.breakpoints.down("md");
+      const narrow = slot(root[phone], `${label} MuiTableCell phone`);
+      expect(narrow.fontSize, `${label} phone row size`).toBe("1rem");
+      expect(narrow.lineHeight, `${label} phone row line-height`).toBe(24 / 16);
     }
   });
 

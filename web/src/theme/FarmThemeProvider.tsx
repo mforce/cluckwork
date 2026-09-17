@@ -253,27 +253,9 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         },
       },
       MuiChip: { styleOverrides: { root: { borderRadius: pillRadius } } },
-      // #740 / D3.4. `DialogActions` sets `alignItems: center`, which would leave
-      // stacked buttons at their intrinsic width. Its OWN `& > :not(style) ~
-      // :not(style) { marginLeft: 8 }` spacing rule survives this override
-      // untouched — it is a sibling-combinator rule at the same specificity as
-      // `root`, not a property `root` itself carries, so declaring
-      // `flexDirection`/`alignItems` alone leaves it in place: a stacked column
-      // still pushes every button after the first 8px to the right, with no gap
-      // between rows. Phone-scope resets it to 0 and a `gap` on the flex
-      // container replaces it with real vertical space.
-      MuiDialogActions: {
-        styleOverrides: {
-          root: {
-            [phone]: {
-              flexDirection: "column",
-              alignItems: "stretch",
-              gap: 8,
-              "& > :not(style) ~ :not(style)": { marginLeft: 0 },
-            },
-          },
-        },
-      },
+      // No `MuiDialogActions` override: dialog footers stay a right-aligned
+      // row at every width (#896, owner decision 2026-09-17, a D3.4 exception
+      // like the Daily entry footer), which is the component's own default.
       // A raw `<label>` styles.css still targets (§2.3's `:where(label)`
       // demotion neutralises it only where MUI itself declares the property —
       // `FormControlLabel` never declares `flex-direction`/`gap` on its own
@@ -396,23 +378,54 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         },
       },
       // Ledger row heights (DIRECTION.md): 36px desktop, 52px phone.
-      //
-      // KNOWN GAP, flagged by a Codex review of #882 (2026-09-16) and left
-      // open rather than fixed here: `height` on a `table-row` is a floor,
-      // not a ceiling, so a row still grows past it when its cells' content
-      // does not fit. `TableCell` spreads `theme.typography.body2` — 0.95rem
-      // at MUI's default 1.43 line-height (~21.7px), never this theme's
-      // row scale (14/20 desktop, 16/24 phone) — plus MUI's own default 16px
-      // vertical padding and a 1px border, ~54.7px total, comfortably over
-      // both targets. Closing this needs an explicit `MuiTableCell` density
-      // (variant, padding, and whether it should track the row scale at all)
-      // that nothing has reviewed yet, and this slice mounts no real
-      // `Table` on any screen (by design — no screen conversion), so nothing
-      // renders wrong today. Left for whichever slice first puts a ledger on
-      // MUI's `Table`.
       MuiTableRow: {
         styleOverrides: {
           root: { height: 36, [phone]: { height: 52 } },
+        },
+      },
+      // #832 — real-device #441 repro, reproduced again on this PR's first
+      // Playwright pass: `TableContainer`'s own default (`width: 100%;
+      // overflow-x: auto`, `TableContainer.js`) correctly scrolls the table
+      // WITHIN itself, but mobile browsers' initial LAYOUT viewport sizing
+      // still measures the un-clipped table's raw content width and inflates
+      // `window.innerWidth` past the visual viewport — `overflow-x` on every
+      // ancestor does not stop it, confirmed on `/flocks` at 390 (measured
+      // `document.documentElement.scrollWidth` 941px against a 390px frame,
+      // `phone.spec.ts`'s "no walked screen overflows" walk). `contain:
+      // layout` is what closes the gap: it tells the browser this element's
+      // internal layout can never affect an ancestor's size. `styles.css`'s
+      // own `table.data` phone rule (§2.2) already carries this for every
+      // unconverted ledger; this is the same fix for MUI's `TableContainer`,
+      // the component D3.2 names as this app's phone table treatment going
+      // forward.
+      MuiTableContainer: {
+        styleOverrides: {
+          root: { [phone]: { contain: "layout" } },
+        },
+      },
+      // #832 — closes the gap the comment above used to carry: this is the
+      // first slice to mount a real MUI `Table` (Customers/Products/Grades/
+      // Flocks/Users). `TableCell` spreads `theme.typography.body2` as its
+      // base (`TableCell.js`) — 0.95rem at MUI's default 1.43 line-height
+      // (~21.7px), never this theme's row scale — so left alone it would sit
+      // taller than DIRECTION.md's 14/20 desktop / 16/24 phone rows and carry
+      // no tabular numerals. Pinning `fontSize`/`lineHeight` here to the same
+      // numbers `body1` already carries (rather than pointing `variant` at
+      // `body1`, which would also move the `variantMapping` element) reaches
+      // every `TableCell` regardless of context.
+      //
+      // Padding is `table.data td`'s own value rather than `size="small"`'s
+      // symmetric default: the default's extra 16px per cell pushed Flocks'
+      // widest row past its container at 1280.
+      MuiTableCell: {
+        styleOverrides: {
+          root: {
+            fontSize: "0.875rem",
+            lineHeight: 20 / 14,
+            fontVariantNumeric: "tabular-nums",
+            padding: "0.6rem 1rem 0.6rem 0",
+            [phone]: { fontSize: "1rem", lineHeight: 24 / 16 },
+          },
         },
       },
       // Sidebar shell (D2 pair 12, #829). `Drawer`'s paper defaults to

@@ -647,18 +647,6 @@ input.cell {
    selector below — still reached by unconverted callers' own raw markup
    inside the dialog's content — keeps matching unchanged. */
 
-/* A confirmation is prose, not fields — the consequence is the whole point, so
-   it gets reading leading rather than the tight rhythm a form wants (F135). */
-.dialog .confirm-body {
-  color: var(--muted);
-  line-height: 1.55;
-  margin-bottom: 1.1rem;
-}
-
-.dialog .confirm-body strong {
-  color: var(--ink);
-}
-
 /* Row-shaped page forms become a stacked column once they are in a dialog —
    there is no list to sit above any more, so fields get the full width. */
 .dialog .inline-form,

@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
+import { Box, TableCell } from "@mui/material";
 import type { RecordHistory } from "../api/cluckwork";
 import { useFarm } from "../farm/useFarm";
 import { relativeTime } from "../lib/relativeTime";
@@ -31,12 +33,18 @@ function actorHandle(email: string): string {
 // entry, confirming a sales order. Records with no such step (flocks, egg
 // grades, expenses) pass nothing and can never render the line, even if a
 // madeOfficialAtUtc somehow arrived.
+//
+// `auditHref` (#493) is optional and admin-gated by the caller, so this
+// component stays admin-agnostic. Flocks passes it to keep its Actions cell
+// narrow; the other callers keep their own audit link or pass nothing.
 export function ProvenanceCell({
   history,
   official,
+  auditHref,
 }: {
   history: RecordHistory;
   official?: "submitted" | "confirmed";
+  auditHref?: string;
 }) {
   const { t } = useTranslation("common");
   const { farm } = useFarm();
@@ -54,7 +62,16 @@ export function ProvenanceCell({
   const officialAt = official ? (history.madeOfficialAtUtc ?? null) : null;
 
   if (!created && !changed && !officialAt) {
-    return <td className="muted">—</td>;
+    return (
+      <TableCell sx={{ padding: "0.6rem 1rem 0.6rem 0" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+          <span className="muted">—</span>
+          {auditHref && (
+            <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
+          )}
+        </Box>
+      </TableCell>
+    );
   }
 
   // The full stamp — everything the pre-#653 three-line cell said — moves
@@ -81,11 +98,24 @@ export function ProvenanceCell({
   const summary = changed ?? created;
 
   return (
-    <td className="nowrap provenance-cell" title={fullStamp}>
-      <span className="muted">
-        {relativeTime(summary ? summary.at : (officialAt as string), farm?.timeZoneId)}
-        {summary && <> · {actorHandle(summary.email)}</>}
-      </span>
-    </td>
+    // Padding is pinned to `table.data td`'s value because three callers
+    // (Sales, Expenses, History, until #831) still render this inside a plain
+    // `table.data`. The ellipsis sits on the summary line alone so a stacked
+    // audit link is never clipped.
+    <TableCell title={fullStamp} sx={{ padding: "0.6rem 1rem 0.6rem 0", whiteSpace: "nowrap" }}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "14rem" }}>
+        <Box
+          component="span"
+          className="muted"
+          sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}
+        >
+          {relativeTime(summary ? summary.at : (officialAt as string), farm?.timeZoneId)}
+          {summary && <> · {actorHandle(summary.email)}</>}
+        </Box>
+        {auditHref && (
+          <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
+        )}
+      </Box>
+    </TableCell>
   );
 }

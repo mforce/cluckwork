@@ -1049,6 +1049,44 @@ export const MUTANTS: Record<string, Mutant> = {
       ),
   },
 
+  // #897 codex review — the ratio/share checks above never actually proved a
+  // dialog footer's two buttons share one LINE, only that neither is taller
+  // than wide and neither spans most of the row; a stacked column of
+  // narrow, intrinsic-width buttons (MUI's own `Button` does not stretch to
+  // fill a `flex-direction: column` parent) satisfies both while genuinely
+  // being the #740 shape one axis over. This mutant reverts #896's own fix —
+  // `MuiDialogActions` carries no phone override at all any more
+  // (`FarmThemeProvider.tsx`), so a dialog footer stays row at every width —
+  // back to a stacked column, and only the new vertical-band-intersection/
+  // flex-direction assertion on `phone.spec.ts`'s dialog-footer row can catch
+  // it (NOT same-top-edge equality — Grades' own footer legitimately fails
+  // that: a text `Cancel` link sits beside a taller pill `Add grade` button
+  // under `alignItems: center`, so their raw tops differ by several px while
+  // genuinely on one line; the assertion checks that every button's
+  // `[top, bottom]` range shares a common band instead). The ratio/share
+  // checks stay green under this mutant exactly as described above.
+  "phone-dialog-footer-stacked": {
+    breaks:
+      "#896's fix — MuiDialogActions carries no phone override any more, so a converted dialog's "
+      + "footer stays row and right-aligned at every width, the same shape as the daily-entry bar. "
+      + "This reverts just that: a dialog's Save/Cancel row stacks into a column at phone width "
+      + "while the raw `.dialog .dialog-foot` div (already row per #896) and the daily-entry bar "
+      + "(its own F134 rule) stay untouched",
+    caughtBy: "phone.spec.ts — no action control is taller than it is wide",
+    apply: (page) =>
+      // `.MuiDialogActions-root` is MUI's generated class on the Emotion-styled
+      // root — the same stable, locale-independent hook `PHONE_ACTION_ROWS`'s
+      // dialog-footer row uses to find it. `insertCssRule` can only reach
+      // styles.css's OWN stylesheet, which loads BEFORE Emotion's runtime
+      // `<style>` tag, so — exactly like `phone-action-bar-under-tabbar`
+      // above — this needs `!important` to win the cascade at equal
+      // specificity.
+      insertCssRule(
+        page,
+        "@media (max-width: 900px) { .MuiDialogActions-root { flex-direction: column !important } }",
+      ),
+  },
+
   "phone-tabs-inert": {
     breaks:
       "the four thumb tabs' ability to be tapped, while leaving the bar looking and measuring "
@@ -1078,18 +1116,24 @@ export const MUTANTS: Record<string, Mutant> = {
 
   "phone-table-overflow-unclipped": {
     breaks:
-      "#441's containment on wide data tables — `contain: layout` and the block-level scroller are "
-      + "both reverted inside the same media block #441 lives in (web/src/styles.css), so a table "
-      + "lays its full content width out into the page instead of scrolling within itself",
+      "#441's containment on a raw `table.data` table — `contain: layout` and the block-level "
+      + "scroller are both reverted inside the same media block #441 lives in (web/src/styles.css), "
+      + "so an unconverted screen's table lays its full content width out into the page instead of "
+      + "scrolling within itself. #832 gave `Customers`/`Flocks` (and `Products`/`Grades`/`Users`) "
+      + "the same containment through a different mechanism — a `MuiTableContainer` theme override, "
+      + "not this class — so this mutant's `table.data`-scoped rule no longer reaches them; see the "
+      + "note on EXPECT_MSG_FOR in mutation-check.sh.",
     caughtBy: "phone.spec.ts — no walked screen overflows the viewport horizontally",
     apply: (page) =>
-      // Four of the six walked routes overflow under this and two do not —
-      // /daily-entry and /stock render no wide data table. That per-route
-      // spread is why the spec's walk asserts PER ROUTE and asserts SOFTLY: a
-      // hard assertion stops at the first and reports a quarter of the damage.
-      // The exact widths are deliberately not recorded here; they drift with
-      // fixture content, and a stale copy of them in this file is a defect
-      // this file has already had once.
+      // Two of the six walked routes overflow under this now — /sales and
+      // /history — and four do not: /daily-entry and /stock render no wide
+      // data table, and /customers and /flocks moved off `table.data` in
+      // #832 (see `breaks` above). That per-route spread is why the spec's
+      // walk asserts PER ROUTE and asserts SOFTLY: a hard assertion stops at
+      // the first and reports half the damage. The exact widths are
+      // deliberately not recorded here; they drift with fixture content, and
+      // a stale copy of them in this file is a defect this file has already
+      // had once.
       //
       // Desktop-green, stated honestly rather than claimed as containment:
       // the rule is inside `@media (max-width: 900px)`, so it cannot apply at

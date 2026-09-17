@@ -3,6 +3,10 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Package, Plus } from "lucide-react";
 import {
+  Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, TextField,
+} from "@mui/material";
+import {
   activateProduct, createProduct, deactivateProduct,
   getAccount, listEggGrades, listEggUnitConversions, listProducts,
   updateEggUnitConversion, updateProduct,
@@ -31,6 +35,10 @@ const EGG_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"];
 // The scopes that own a dialog (#703). A scope outside the list — the row
 // activate/deactivate writes — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit", "edit-conversion"] as const;
+
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -306,69 +314,110 @@ export function ProductsPage() {
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
       <Dialog open={creating && isAdmin} title={t("newProductDialogTitle")} onClose={closeCreate}>
-        <form onSubmit={(e) => void onCreate(e)} className="inline-form">
-          <label>{t("nameLabel")}
-            <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
-          </label>
-          <label>{t("gradeLabel")}
-            <select value={gradeId} onChange={(e) => setGradeId(e.target.value)} required>
-              <option value="">{t("pickGradeOption")}</option>
-              {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </label>
-          <label>{t("soldPerLabel")}
-            <select value={unit} onChange={(e) => setUnit(e.target.value)}>
-              {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
-          </label>
-          <label>{currency.code ? t("defaultPriceWithCurrencyLabel", { code: currency.code }) : t("defaultPriceLabel")}
-            <input type="number" min="0" step={(1 / 10 ** currency.minor).toFixed(currency.minor)}
-              value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("priceOptionalPlaceholder")} />
-          </label>
-          <label>{t("notesLabel")}
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
-          </label>
+        <Stack component="form" spacing={2} onSubmit={(e) => void onCreate(e)}>
+          <TextField
+            label={t("nameLabel")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            slotProps={{ htmlInput: { required: true, maxLength: 100 } }}
+          />
+          <TextField
+            select
+            label={t("gradeLabel")}
+            value={gradeId}
+            onChange={(e) => setGradeId(e.target.value)}
+            slotProps={{
+              select: { native: true }, htmlInput: { required: true },
+              // The placeholder option shows text while `value` is "", so MUI
+              // would leave the label resting on top of it.
+              inputLabel: { shrink: true },
+            }}
+          >
+            <option value="">{t("pickGradeOption")}</option>
+            {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </TextField>
+          <TextField
+            select
+            label={t("soldPerLabel")}
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+          >
+            {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </TextField>
+          <TextField
+            label={currency.code ? t("defaultPriceWithCurrencyLabel", { code: currency.code }) : t("defaultPriceLabel")}
+            type="number"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder={t("priceOptionalPlaceholder")}
+            slotProps={{ htmlInput: { min: "0", step: (1 / 10 ** currency.minor).toFixed(currency.minor) } }}
+          />
+          <TextField
+            label={t("notesLabel")}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+          />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton disabled={busy} busy={isPending("create")}>{t("addProductButton")}</BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       <Dialog open={editingProduct !== null && isAdmin} title={t("editProductDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — the price parser's own message
             ("At most N decimal places for this currency") did. */}
-        <form onSubmit={(e) => void onSaveEdit(e)} className="inline-form" noValidate>
-          <label>{t("nameLabel")}
-            <input value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={100} />
-          </label>
-          <label>{t("gradeLabel")}
-            <select value={editGradeId} onChange={(e) => setEditGradeId(e.target.value)}>
-              {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </label>
-          <label>{t("soldPerLabel")}
-            <select value={editUnit} onChange={(e) => setEditUnit(e.target.value)}>
-              {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
-          </label>
+        <Stack component="form" spacing={2} noValidate onSubmit={(e) => void onSaveEdit(e)}>
+          <TextField
+            label={t("nameLabel")}
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: 100 } }}
+          />
+          <TextField
+            select
+            label={t("gradeLabel")}
+            value={editGradeId}
+            onChange={(e) => setEditGradeId(e.target.value)}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+          >
+            {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </TextField>
+          <TextField
+            select
+            label={t("soldPerLabel")}
+            value={editUnit}
+            onChange={(e) => setEditUnit(e.target.value)}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+          >
+            {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </TextField>
           {/* Stepped by THIS product's snapshot precision, not the account's. */}
-          <label>{editingProduct ? t("defaultPriceWithCurrencyLabel", { code: editingProduct.currencyCode }) : t("defaultPriceLabel")}
-            <input type="number" min="0"
-              step={editingProduct ? (1 / 10 ** editingProduct.currencyMinorUnit).toFixed(editingProduct.currencyMinorUnit) : "0.01"}
-              value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
-          </label>
+          <TextField
+            label={editingProduct ? t("defaultPriceWithCurrencyLabel", { code: editingProduct.currencyCode }) : t("defaultPriceLabel")}
+            type="number"
+            value={editPrice}
+            onChange={(e) => setEditPrice(e.target.value)}
+            slotProps={{
+              htmlInput: {
+                min: "0",
+                step: editingProduct ? (1 / 10 ** editingProduct.currencyMinorUnit).toFixed(editingProduct.currencyMinorUnit) : "0.01",
+              },
+            }}
+          />
           {/* No notes field: the inline edit had none, and #131 changes shape,
               not capability. editNotes stays seeded so the body round-trips. */}
           <DialogError errors={errors} scope="edit" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={isPending("edit")}>{tc("save")}</BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       <Dialog
@@ -376,98 +425,117 @@ export function ProductsPage() {
         title={editingConv ? t("eggsPerUnit", { unitCode: editingConv.unitCode }) : t("packedUnitDialogTitle")}
         onClose={closeEditConversion}
       >
-        <form onSubmit={(e) => void onSaveConversion(e)} className="inline-form" noValidate>
+        <Stack component="form" spacing={2} noValidate onSubmit={(e) => void onSaveConversion(e)}>
           {/* #250: sibling label, not wrapping — a <label> may not contain
               interactive content other than its own control, and the stepper
-              carries two buttons. */}
+              carries two buttons. NumberField itself is out of this slice's
+              scope (pair 3, #828). */}
           <div className="numfield-field">
             <label htmlFor={eggsFieldId}>{t("eggsPerUnitFieldLabel")}</label>
             <NumberField id={eggsFieldId} label={t("eggsPerUnitFieldLabel").toLowerCase()}
               value={editEggs} onChange={setEditEggs} min={1} />
           </div>
-          <label className="check">
-            <input type="checkbox" checked={editConvActive}
-              onChange={(e) => setEditConvActive(e.target.checked)} /> {t("activeCheckboxLabel")}
-          </label>
+          <FormControlLabel
+            label={t("activeCheckboxLabel")}
+            control={<Checkbox checked={editConvActive} onChange={(e) => setEditConvActive(e.target.checked)} />}
+          />
           <DialogError errors={errors} scope="edit-conversion" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEditConversion}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={isPending("edit-conversion")}>{tc("save")}</BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       {products.length === 0 ? (
         <EmptyState icon={Package} message={t("noProductsMessage")}
           action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); } } : undefined} />
       ) : (
-        <table className="data">
-          <thead>
-            <tr><th>{t("nameHeader")}</th><th>{t("gradeHeader")}</th><th>{t("soldPerHeader")}</th><th className="num">{t("defaultPriceHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className={p.active ? undefined : "muted"}>
-                <td title={p.notes ?? undefined}>{p.name}</td>
-                <td>{gradeName(p.eggGradeId)}</td>
-                <td>{p.defaultUnit}</td>
-                <td className="num">{p.defaultPriceMinorUnits === null
-                  ? "—"
-                  : fmt.money(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
-                <td><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></td>
-                {isAdmin && (
-                  <td>
-                    <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>{" "}
-                    {p.active ? (
-                      <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
-                        onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
-                        {t("deactivateButton")}
-                      </BusyButton>
-                    ) : (
-                      <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
-                        onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
-                        {t("activateButton")}
-                      </BusyButton>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{t("nameHeader")}</TableCell>
+                <TableCell>{t("gradeHeader")}</TableCell>
+                <TableCell>{t("soldPerHeader")}</TableCell>
+                <TableCell align="right">{t("defaultPriceHeader")}</TableCell>
+                <TableCell>{t("statusHeader")}</TableCell>
+                {isAdmin && <TableCell>{tc("actions")}</TableCell>}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {products.map((p) => (
+                <TableRow key={p.id} className={p.active ? undefined : "muted"}>
+                  <TableCell title={p.notes ?? undefined} sx={NOWRAP}>{p.name}</TableCell>
+                  <TableCell sx={NOWRAP}>{gradeName(p.eggGradeId)}</TableCell>
+                  <TableCell sx={NOWRAP}>{p.defaultUnit}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{p.defaultPriceMinorUnits === null
+                    ? "—"
+                    : fmt.money(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</TableCell>
+                  <TableCell sx={NOWRAP}><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></TableCell>
+                  {isAdmin && (
+                    <TableCell sx={NOWRAP}>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                        <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
+                        {p.active ? (
+                          <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
+                            onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
+                            {t("deactivateButton")}
+                          </BusyButton>
+                        ) : (
+                          <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
+                            onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
+                            {t("activateButton")}
+                          </BusyButton>
+                        )}
+                      </Stack>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       <h3>{t("packedUnitsHeading")}</h3>
       <p className="muted">
         {t("packedUnitsIntro")}
       </p>
-      <table className="data">
-        <thead>
-          <tr><th>{t("unitHeader")}</th><th className="num">{t("eggsPerUnitHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
-        </thead>
-        <tbody>
-          {conversions.map((c) => (
-            <tr key={c.id} className={c.active ? undefined : "muted"}>
-              <td>{c.unitCode}</td>
-              <td className="num">{fmt.count(c.eggsPerUnit)}</td>
-              <td>{statusLabel(c.active ? "Active" : "Inactive")}</td>
-              {isAdmin && (
-                <td>
-                  {c.unitCode === "Individual" ? (
-                    <span className="muted">{t("alwaysOneMessage")}</span>
-                  ) : (
-                    <button className="link" disabled={busy}
-                      onClick={() => startEditConversion(c)}>
-                      {t("editButton")}
-                    </button>
-                  )}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>{t("unitHeader")}</TableCell>
+              <TableCell align="right">{t("eggsPerUnitHeader")}</TableCell>
+              <TableCell>{t("statusHeader")}</TableCell>
+              {isAdmin && <TableCell>{tc("actions")}</TableCell>}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {conversions.map((c) => (
+              <TableRow key={c.id} className={c.active ? undefined : "muted"}>
+                <TableCell sx={NOWRAP}>{c.unitCode}</TableCell>
+                <TableCell align="right" sx={NOWRAP}>{fmt.count(c.eggsPerUnit)}</TableCell>
+                <TableCell sx={NOWRAP}>{statusLabel(c.active ? "Active" : "Inactive")}</TableCell>
+                {isAdmin && (
+                  <TableCell sx={NOWRAP}>
+                    {c.unitCode === "Individual" ? (
+                      <span className="muted">{t("alwaysOneMessage")}</span>
+                    ) : (
+                      <button className="link" disabled={busy}
+                        onClick={() => startEditConversion(c)}>
+                        {t("editButton")}
+                      </button>
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </section>
   );
 }

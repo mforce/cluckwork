@@ -221,7 +221,19 @@ describe("ProvenanceCell", () => {
       lastChangedByEmail: null,
       lastChangedAtUtc: null,
     });
-    expect(cell().className).toContain("nowrap");
+    // #832 — the class this used to assert is gone; the same CSS fact now
+    // ships as `sx` on the `TableCell`, so pin the computed style instead.
+    expect(getComputedStyle(cell()).whiteSpace).toBe("nowrap");
+    // `nowrap` alone does not stop the column growing; the width cap and the
+    // ellipsis on the inner boxes do, so assert them where they live, or a
+    // regression that drops them and keeps `nowrap` stays green.
+    const outerBox = cell().firstElementChild as HTMLElement;
+    // jsdom resolves `getComputedStyle` in px, not the authored unit — 14rem
+    // at the default 16px root.
+    expect(getComputedStyle(outerBox).maxWidth).toBe("224px");
+    const summaryLine = cell().querySelector(".muted") as HTMLElement;
+    expect(getComputedStyle(summaryLine).overflow).toBe("hidden");
+    expect(getComputedStyle(summaryLine).textOverflow).toBe("ellipsis");
   });
 
   describe("on the farm clock", () => {

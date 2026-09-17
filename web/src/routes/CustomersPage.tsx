@@ -4,6 +4,9 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Pencil, Plus, Users } from "lucide-react";
 import {
+  DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
+} from "@mui/material";
+import {
   createCustomer, listCustomerBalances, listCustomers, updateCustomer,
 } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
@@ -17,6 +20,10 @@ import { usePagedList } from "../components/usePagedList";
 import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
+
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 interface EditForm {
   id: string;
@@ -236,28 +243,41 @@ export function CustomersPage() {
       </div>
 
       <Dialog open={creating} title={t("newCustomerButton")} onClose={closeCreate}>
-        <form className="inline-form" onSubmit={onCreate}>
-          <label>{t("nameFieldLabel")}
-            <input value={name} required onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label>{t("phoneFieldLabel")}
-            <input value={phone} required onChange={(e) => setPhone(e.target.value)} />
-          </label>
-          <label>{t("emailFieldLabel")}
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </label>
-          <label>{t("addressFieldLabel")}
-            <input value={address} onChange={(e) => setAddress(e.target.value)} />
-          </label>
-          <label>{t("noteFieldLabel")}
-            <input value={note} onChange={(e) => setNote(e.target.value)} />
-          </label>
+        <Stack component="form" spacing={2} onSubmit={onCreate}>
+          <TextField
+            label={t("nameFieldLabel")}
+            value={name}
+            slotProps={{ htmlInput: { required: true } }}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextField
+            label={t("phoneFieldLabel")}
+            value={phone}
+            slotProps={{ htmlInput: { required: true } }}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <TextField
+            label={t("emailFieldLabel")}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextField
+            label={t("addressFieldLabel")}
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+          <TextField
+            label={t("noteFieldLabel")}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={busy}>{t("addCustomerButton")}</BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       {/* #625 — closeDisabled covers the write AND its post-write refresh:
@@ -273,41 +293,54 @@ export function CustomersPage() {
         closeDisabled={editWriteInFlight}
       >
         {editForm && (
-          <form className="inline-form" onSubmit={onSaveEdit}>
+          <Stack component="form" spacing={2} onSubmit={onSaveEdit}>
             {/* #625 review round 2 — disabled while the write OR its refresh
                 is in flight: without this, keystrokes made after Save land in
                 editForm/state but are silently discarded (the request already
                 snapshotted `target`), and the field APPEARS live while the
                 edit it holds cannot go anywhere. */}
-            <label>{t("nameFieldLabel")}
-              <input value={editForm.name} required disabled={editWriteInFlight}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-            </label>
-            <label>{t("phoneFieldLabel")}
-              <input value={editForm.phone} required disabled={editWriteInFlight}
-                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
-            </label>
-            <label>{t("emailFieldLabel")}
-              <input type="email" value={editForm.email} disabled={editWriteInFlight}
-                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
-            </label>
-            <label>{t("addressFieldLabel")}
-              <input value={editForm.address} disabled={editWriteInFlight}
-                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
-            </label>
-            <label>{t("noteFieldLabel")}
-              <input value={editForm.note} disabled={editWriteInFlight}
-                onChange={(e) => setEditForm({ ...editForm, note: e.target.value })} />
-            </label>
+            <TextField
+              label={t("nameFieldLabel")}
+              value={editForm.name}
+              disabled={editWriteInFlight}
+              slotProps={{ htmlInput: { required: true } }}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            />
+            <TextField
+              label={t("phoneFieldLabel")}
+              value={editForm.phone}
+              disabled={editWriteInFlight}
+              slotProps={{ htmlInput: { required: true } }}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+            />
+            <TextField
+              label={t("emailFieldLabel")}
+              type="email"
+              value={editForm.email}
+              disabled={editWriteInFlight}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            />
+            <TextField
+              label={t("addressFieldLabel")}
+              value={editForm.address}
+              disabled={editWriteInFlight}
+              onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+            />
+            <TextField
+              label={t("noteFieldLabel")}
+              value={editForm.note}
+              disabled={editWriteInFlight}
+              onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+            />
             <DialogError errors={errors} scope="edit-customer" />
-            <div className="dialog-foot">
+            <DialogActions>
               <button type="button" className="link" disabled={editWriteInFlight} onClick={closeEdit}>
                 {tc("cancel")}
               </button>
               <BusyButton type="submit" disabled={busy}
                 busy={isPending("edit-customer")}>{tc("save")}</BusyButton>
-            </div>
-          </form>
+            </DialogActions>
+          </Stack>
         )}
       </Dialog>
 
@@ -326,42 +359,50 @@ export function CustomersPage() {
         <EmptyState icon={Users} message={t("noCustomersMessage")}
           action={{ label: t("newCustomerButton"), onClick: () => { openDialog("create"); setCreating(true); } }} />
       ) : (
-        <table className="data">
-          <thead>
-            <tr>
-              <th>{t("nameHeader")}</th><th>{t("phoneHeader")}</th><th>{t("emailHeader")}</th><th>{t("addressHeader")}</th><th>{t("noteHeader")}</th>
-              {isAdmin && <th className="num">{t("outstandingHeader")}</th>}
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  {canSeeSales
-                    ? <Link className="link" to={`/sales?customerId=${c.id}`}>{c.name}</Link>
-                    : c.name}
-                </td>
-                <td>{c.phone}</td>
-                <td>{c.email ?? "—"}</td>
-                <td>{c.address ?? "—"}</td>
-                <td>{c.note ?? "—"}</td>
-                {isAdmin && (
-                  <td className="num">
-                    {balances === null || outstandingFor(c.id) === null
-                      ? "…"
-                      : fmt.money(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
-                  </td>
-                )}
-                <td>
-                  <button type="button" className="link" onClick={() => openEdit(c)}>
-                    <Pencil size={14} aria-hidden /> {t("editButton")}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{t("nameHeader")}</TableCell>
+                <TableCell>{t("phoneHeader")}</TableCell>
+                <TableCell>{t("emailHeader")}</TableCell>
+                <TableCell>{t("addressHeader")}</TableCell>
+                <TableCell>{t("noteHeader")}</TableCell>
+                {isAdmin && <TableCell align="right">{t("outstandingHeader")}</TableCell>}
+                <TableCell></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {customers.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell sx={NOWRAP}>
+                    {canSeeSales
+                      ? <Link className="link" to={`/sales?customerId=${c.id}`}>{c.name}</Link>
+                      : c.name}
+                  </TableCell>
+                  <TableCell sx={NOWRAP}>{c.phone}</TableCell>
+                  <TableCell>{c.email ?? "—"}</TableCell>
+                  <TableCell>{c.address ?? "—"}</TableCell>
+                  <TableCell>{c.note ?? "—"}</TableCell>
+                  {isAdmin && (
+                    <TableCell align="right" sx={NOWRAP}>
+                      {balances === null || outstandingFor(c.id) === null
+                        ? "…"
+                        : fmt.money(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
+                    </TableCell>
+                  )}
+                  <TableCell sx={NOWRAP}>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                      <button type="button" className="link" onClick={() => openEdit(c)}>
+                        <Pencil size={14} aria-hidden /> {t("editButton")}
+                      </button>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       {customerList.canLoadMore && (

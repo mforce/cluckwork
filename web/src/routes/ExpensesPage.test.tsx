@@ -297,14 +297,16 @@ describe("ExpensesPage record history column (#494)", () => {
     // #653 — the visible line shows the CHANGER (the more recent event);
     // both facts still live in the title, unchanged from #494.
     expect(within(historyRow).getByText(/bo/)).toBeInTheDocument();
-    expect((historyRow.querySelector("td.provenance-cell") as HTMLElement).title).toBe(
-      "Created by ana@farm.test on 2026-05-01 08:00:00\nLast changed by bo@farm.test on 2026-05-03 14:30:00",
-    );
+    // getByTitle normalizes whitespace by default, so the embedded newline
+    // collapses to a single space here even though the DOM attribute keeps it.
+    expect(within(historyRow).getByTitle(
+      "Created by ana@farm.test on 2026-05-01 08:00:00 Last changed by bo@farm.test on 2026-05-03 14:30:00",
+    )).toBeInTheDocument();
 
     // The OTHER row must not carry the history row's data — this is what
     // catches every row being wired to the same object.
     const otherRow = screen.getByRole("row", { name: /Layer feed/ });
-    expect(otherRow.querySelector("td.provenance-cell")).toBeNull();
+    expect(within(otherRow).queryByTitle(/./)).not.toBeInTheDocument();
   });
 });
 

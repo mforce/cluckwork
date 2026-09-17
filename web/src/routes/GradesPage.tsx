@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Plus } from "lucide-react";
 import {
+  Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, TextField,
+} from "@mui/material";
+import {
   activateEggGrade, createEggGrade, deactivateEggGrade, listEggGrades, updateEggGrade,
 } from "../api/cluckwork";
 import type { EggGrade } from "../api/cluckwork";
@@ -24,6 +28,10 @@ const GRADE_TYPES = ["Size", "Quality", "Custom"];
 // The scopes that own a dialog (#703). A scope outside the list — the row
 // activate/deactivate writes — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit"] as const;
+
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // F6 (#42): manage the farm's egg grades. No hard delete — grade lines, lots,
 // and order items reference grades forever; deactivation only removes a grade
@@ -177,119 +185,135 @@ export function GradesPage() {
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
       <Dialog open={creating && isAdmin} title={t("newGradeDialogTitle")} onClose={closeCreate}>
-        <form className="inline-form" onSubmit={onCreate}>
-          <label>{t("nameLabel")}
-            <input value={name} required maxLength={50}
-              onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label>{t("typeLabel")}
-            <select value={gradeType} onChange={(e) => setGradeType(e.target.value)}>
-              {GRADE_TYPES.map((gt) => <option key={gt} value={gt}>{gradeTypeLabel(gt)}</option>)}
-            </select>
-          </label>
-          <label>{t("sortLabel")}
-            <input className="cell" type="number" value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.valueAsNumber || 0)} />
-          </label>
-          <label className="muted check">
-            <input type="checkbox" checked={isSaleable}
-              onChange={(e) => setIsSaleable(e.target.checked)} />
-            {t("saleableLabel")}
-          </label>
+        <Stack component="form" spacing={2} onSubmit={onCreate}>
+          <TextField
+            label={t("nameLabel")}
+            value={name}
+            slotProps={{ htmlInput: { maxLength: 50, required: true } }}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextField
+            select
+            label={t("typeLabel")}
+            value={gradeType}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => setGradeType(e.target.value)}
+          >
+            {GRADE_TYPES.map((gt) => <option key={gt} value={gt}>{gradeTypeLabel(gt)}</option>)}
+          </TextField>
+          <TextField
+            label={t("sortLabel")}
+            type="number"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
+            sx={{ maxWidth: "10rem" }}
+          />
+          <FormControlLabel
+            label={t("saleableLabel")}
+            control={<Checkbox checked={isSaleable} onChange={(e) => setIsSaleable(e.target.checked)} />}
+          />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addGradeButton")}</BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       <Dialog open={editingId !== null && isAdmin} title={t("editGradeDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button, so native
             constraint validation never ran on these fields. */}
-        <form className="inline-form" noValidate onSubmit={onSaveEdit}>
-          <label>{t("editNameLabel")}
-            <input value={editName} maxLength={50}
-              onChange={(e) => setEditName(e.target.value)} />
-          </label>
-          <label>{t("sortLabel")}
-            <input className="cell" type="number" value={editSort}
-              onChange={(e) => setEditSort(e.target.valueAsNumber || 0)} />
-          </label>
-          <label className="muted check">
-            <input type="checkbox" checked={editSaleable}
-              onChange={(e) => setEditSaleable(e.target.checked)} />
-            {t("saleableLabel")}
-          </label>
+        <Stack component="form" spacing={2} noValidate onSubmit={onSaveEdit}>
+          <TextField
+            label={t("editNameLabel")}
+            value={editName}
+            slotProps={{ htmlInput: { maxLength: 50 } }}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+          <TextField
+            label={t("sortLabel")}
+            type="number"
+            value={editSort}
+            onChange={(e) => setEditSort(Number(e.target.value) || 0)}
+            sx={{ maxWidth: "10rem" }}
+          />
+          <FormControlLabel
+            label={t("saleableLabel")}
+            control={<Checkbox checked={editSaleable} onChange={(e) => setEditSaleable(e.target.checked)} />}
+          />
           <DialogError errors={errors} scope="edit" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       {/* Unconditional since #479: this slot is the page's alone now, so there
           is nothing a dialog's own message could double up with. */}
       {errors.page && <p className="error">{errors.page}</p>}
 
-      <table className="data">
-        <thead>
-          <tr>
-            <th>{t("nameHeader")}</th>
-            <th>{t("typeHeader")}</th>
-            <th className="num">{t("sortHeader")}</th>
-            <th>{t("saleableHeader")}</th>
-            <th>{t("statusHeader")}</th>
-            <th>{tc("recordHistoryHeader")}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {grades.map((g) => (
-            <tr key={g.id} className={g.active ? undefined : "inactive"}>
-              <td>{g.name}</td>
-              <td>{gradeTypeLabel(g.gradeType)}</td>
-              <td className="num">{fmt.count(g.sortOrder)}</td>
-              <td>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</td>
-              <td><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></td>
-              <ProvenanceCell history={g} />
-              <td>
-                {/* #493 — full audit trail for this record, distinct from
-                    the created/last-changed summary in ProvenanceCell.
-                    Admin-gated: /api/v1/audit is AdminOnly (codex review of
-                    #516). */}
-                {isAdmin && (
-                  <Link className="link" to={`/audit?entityId=${g.id}`}>
-                    {tc("recordHistory.viewHistoryLink")}
-                  </Link>
-                )}
-                {isAdmin && (
-                  <>
-                    {/* Opens the edit dialog — non-mutating, so the spinner
-                        belongs to the dialog's Save, not here (#242). */}
-                    <button className="link" disabled={busy}
-                      onClick={() => startEdit(g)}>{t("editButton")}</button>
-                    {g.active ? (
-                      <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
-                        onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
-                        {t("deactivateButton")}
-                      </BusyButton>
-                    ) : (
-                      <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
-                        onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
-                        {t("activateButton")}
-                      </BusyButton>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>{t("nameHeader")}</TableCell>
+              <TableCell>{t("typeHeader")}</TableCell>
+              <TableCell align="right">{t("sortHeader")}</TableCell>
+              <TableCell>{t("saleableHeader")}</TableCell>
+              <TableCell>{t("statusHeader")}</TableCell>
+              <TableCell>{tc("recordHistoryHeader")}</TableCell>
+              <TableCell></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {grades.map((g) => (
+              <TableRow key={g.id} className={g.active ? undefined : "inactive"}>
+                <TableCell sx={NOWRAP}>{g.name}</TableCell>
+                <TableCell sx={NOWRAP}>{gradeTypeLabel(g.gradeType)}</TableCell>
+                <TableCell align="right" sx={NOWRAP}>{fmt.count(g.sortOrder)}</TableCell>
+                <TableCell sx={NOWRAP}>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</TableCell>
+                <TableCell sx={NOWRAP}><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></TableCell>
+                <ProvenanceCell history={g} />
+                <TableCell sx={NOWRAP}>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                    {/* #493 — full audit trail for this record, distinct from
+                        the created/last-changed summary in ProvenanceCell.
+                        Admin-gated: /api/v1/audit is AdminOnly (codex review of
+                        #516). */}
+                    {isAdmin && (
+                      <Link className="link" to={`/audit?entityId=${g.id}`}>
+                        {tc("recordHistory.viewHistoryLink")}
+                      </Link>
                     )}
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                    {isAdmin && (
+                      <>
+                        {/* Opens the edit dialog — non-mutating, so the spinner
+                            belongs to the dialog's Save, not here (#242). */}
+                        <button className="link" disabled={busy}
+                          onClick={() => startEdit(g)}>{t("editButton")}</button>
+                        {g.active ? (
+                          <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+                            onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
+                            {t("deactivateButton")}
+                          </BusyButton>
+                        ) : (
+                          <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
+                            onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
+                            {t("activateButton")}
+                          </BusyButton>
+                        )}
+                      </>
+                    )}
+                  </Stack>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </section>
   );
 }

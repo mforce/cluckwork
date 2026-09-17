@@ -64,7 +64,7 @@ async function rectOf(locator: Locator, what: string) {
 }
 
 /**
- * Every `.actions` row that exists at phone width, with the number of buttons
+ * Every action row that exists at phone width, with the number of buttons
  * it must hold, the layout it must have, and how to reach it.
  *
  * Each row opens itself, and that is not indirection for its own sake: they
@@ -72,10 +72,16 @@ async function rectOf(locator: Locator, what: string) {
  * matches nothing by the time it is measured.
  *
  * `layout` is what makes this a table rather than a loop over two selectors.
- * #823 stacks action rows below 900px, and the daily-entry bar is exempt: the
- * #864 mockup the owner confirmed keeps its two saves side by side (F134), so
- * a walk that demanded full width everywhere would fail on the one row the
- * design says must not be full width.
+ * #823 stacks `.actions` rows below 900px, and two are exempt, for two
+ * different reasons. The daily-entry bar: the #864 mockup the owner
+ * confirmed keeps its two saves side by side (F134). A dialog footer: #896
+ * (owner, 2026-09-17) moved `.dialog .dialog-foot` off the general stacking
+ * rule too, row and right-aligned at every width, matching the #892
+ * mockups — `MuiDialogActions` carries no phone override at all any more
+ * (`FarmThemeProvider.tsx`), so a converted dialog's `DialogActions` and an
+ * unconverted screen's raw `.dialog-foot` div now agree. A walk that
+ * demanded full width everywhere would fail on both of these rows, which
+ * the design says must not be full width.
  */
 const PHONE_ACTION_ROWS: ReadonlyArray<{
   what: string;
@@ -112,6 +118,29 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
         .toBeVisible();
       await draft.getByRole("button", { name: tEn("sales:open") }).click();
       const row = page.locator(".order-panel .actions");
+      await expect(row).toBeVisible();
+      return row;
+    },
+  },
+  {
+    // #832/#896 — one open CRUD dialog stands in for all of them: every
+    // dialog footer on Customers/Products/Grades/Flocks/Users converted from
+    // the raw `.dialog-foot` div to MUI `DialogActions` in the same PR that
+    // proved `MuiDialogActions` carries no phone override (see the comment
+    // above `PHONE_ACTION_ROWS`), so one row is representative rather than a
+    // sample of one. Grades' "New grade" dialog is the smallest of the five.
+    what: "the Grades \"New grade\" dialog footer",
+    buttons: 2,
+    layout: "side by side",
+    open: async (page) => {
+      await page.goto("/grades");
+      await page.getByRole("button", { name: tEn("grades:newGradeButton") }).click();
+      const dialog = page.getByRole("dialog", { name: tEn("grades:newGradeDialogTitle") });
+      await expect(dialog).toBeVisible();
+      // `DialogActions` carries no ARIA role of its own; MUI's own generated
+      // class is the stable hook, the same technique
+      // `FarmThemeProvider.render.test.tsx` uses for `.MuiButton-contained`.
+      const row = dialog.locator(".MuiDialogActions-root");
       await expect(row).toBeVisible();
       return row;
     },
@@ -266,11 +295,15 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // the one geometry a 1280 run can never reach — at desktop these rows are
     // ~974px and every label stays on one line.
     //
-    // #823 closed it by stacking: below 900px `.actions` and
-    // `.dialog .dialog-foot` lay out in a column and every button fills the
-    // row, so no label can reshape the control. BOTH halves are asserted,
-    // because the ratio alone stays green for a button that stacked and then
-    // collapsed to its intrinsic width — which is the same defect one step on.
+    // #823 closed it by stacking: below 900px `.actions` lays out in a
+    // column and every button fills the row, so no label can reshape the
+    // control. BOTH halves are asserted, because the ratio alone stays green
+    // for a button that stacked and then collapsed to its intrinsic width —
+    // which is the same defect one step on. `.dialog .dialog-foot` and
+    // `DialogActions` are no longer part of that stacking rule at all (#896;
+    // see the comment above `PHONE_ACTION_ROWS`) — a dialog footer stays row
+    // and right-aligned at every width, the same shape as the daily-entry
+    // bar, for a different reason.
     //
     // MEASURED at 390 after #823, recorded here where this suite keeps its
     // measurements. Sales draft: all three 295.2 wide, 46.2 and 44.2 tall, 100%
@@ -281,13 +314,14 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // Under `phone-action-label-wrapped` the Sales row goes back to side by
     // side and every button drops to a fraction of its container: 51% and 22%,
     // with `close` at 54.0x65.2 — taller than it is wide, so the ratio
-    // assertion fires there too. The daily-entry row is untouched by that
-    // mutant and is not evidence for it.
+    // assertion fires there too. The daily-entry row and the dialog footer are
+    // untouched by that mutant and are not evidence for it.
     //
-    // BOTH ROWS ARE WALKED, and the Sales one is why the walk exists: the
+    // ALL THREE ROWS ARE WALKED, and the Sales one is why the walk exists: the
     // daily-entry bar passed the ratio check before #823 and the Sales draft
     // panel did not, so a walk that stopped at the bar asserted the one row
-    // that was never broken.
+    // that was never broken. The dialog footer joined in #832, as one open
+    // CRUD dialog standing in for all of them (see its own entry above).
     for (const { what, buttons, layout, open } of PHONE_ACTION_ROWS) {
       const row = await open(page);
       // Non-vacuity: a walk over an empty set passes for free.
@@ -295,9 +329,10 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
 
       const measured = await row.evaluate((el) => ({
         container: el.getBoundingClientRect().width,
+        flexDirection: getComputedStyle(el).flexDirection,
         buttons: Array.from(el.querySelectorAll("button")).map((b) => {
           const r = b.getBoundingClientRect();
-          return { name: (b.textContent ?? "").trim(), width: r.width, height: r.height };
+          return { name: (b.textContent ?? "").trim(), width: r.width, height: r.height, top: r.top };
         }),
       }));
 
@@ -334,6 +369,43 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
               + "meant to stay side by side (F134, and the confirmed #864 mockup), and it stacked",
           ).toBeLessThan(0.6);
         }
+      }
+
+      // #897 codex review — the width-share checks above are a per-button
+      // ratio and pass for free on a STACKED column of narrow, intrinsic-width
+      // buttons too: a button that does not fill its row is <60% of the
+      // container whether it sits beside its sibling or above it. Neither
+      // half of "side by side" that name actually claims — same row, same
+      // reading order — was ever checked. This asserts the row geometry
+      // directly: the row's own flex-direction is "row", and every button
+      // shares some common vertical band with every other (a real intersection
+      // of their [top, bottom] ranges, not an edge-equality check — Grades'
+      // own footer pairs a text `Cancel` link against a taller pill `Add
+      // grade` button, `alignItems: "center"`, so their TOPS legitimately
+      // differ by several px while they are genuinely on one line; a column
+      // can never produce an intersecting band, however each button aligns
+      // within it). `phone-dialog-footer-stacked` is the mutant for this.
+      if (layout === "side by side" && measured.buttons.length > 1) {
+        // Soft, like every other check in this walk — so a mutant that breaks
+        // both halves reports both, rather than the first throwing and hiding
+        // the second from the log (which EXPECT_MSG_FOR would then declare
+        // wrongly: a message that never gets the chance to appear).
+        expect.soft(
+          measured.flexDirection,
+          `${what}'s row is not laid out as a row (computed flex-direction: ${measured.flexDirection}) `
+            + "— its buttons may still be a narrow stacked column rather than side by side",
+        ).toBe("row");
+
+        const tops = measured.buttons.map((b) => b.top);
+        const bottoms = measured.buttons.map((b) => b.top + b.height);
+        const bandStart = Math.max(...tops);
+        const bandEnd = Math.min(...bottoms);
+        expect.soft(
+          bandEnd - bandStart,
+          `${what}'s buttons share no common vertical band (closest they get is `
+            + `${(bandEnd - bandStart).toFixed(1)}px) — they read as side by side by width alone but `
+            + "are actually stacked",
+        ).toBeGreaterThan(0);
       }
     }
   });
@@ -477,8 +549,14 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       { path: "/", content: "ul.dash-sales-list", what: "the recent-sales list" },
       { path: "/sales", content: "table.data", what: "the orders table" },
       { path: "/daily-entry", content: "footer", what: "the entry form's sticky foot" },
-      { path: "/customers", content: "table.data", what: "the customer book" },
-      { path: "/flocks", content: "table.data", what: "the flock table" },
+      // #832 — Customers and Flocks moved their table onto MUI's `Table`, which
+      // carries no `.data` class (the whole point of the conversion: the
+      // screen's TSX carries no className `styles.css` still declares). A
+      // role locator survives the conversion of the OTHER three routes too,
+      // whenever their turn comes — `role=table` matches a real `<table>`
+      // either way, `table.data` or MUI's.
+      { path: "/customers", content: "role=table", what: "the customer book" },
+      { path: "/flocks", content: "role=table", what: "the flock table" },
       { path: "/stock", content: "table.data", what: "the stock table" },
       { path: "/history", content: "table.data", what: "the entry history table" },
     ];
