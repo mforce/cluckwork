@@ -37,6 +37,12 @@ function errText(err: unknown): string {
 // `startLoad` + `openDialog` rather than `openDialog` alone.
 const DIALOG_SCOPES = ["flock-access", "create", "edit-user", "set-password", "change-role", "change-email", "disable-enable"] as const;
 
+// #897 review — a short value (an email, a name, a role, a status chip) must
+// never wrap: MUI's auto table layout treats a wrappable cell as shrinkable
+// and gives it less than its content needs, even with slack elsewhere in the
+// row.
+const NOWRAP = { whiteSpace: "nowrap" as const };
+
 // #73 — minimal user management: create a worker (or another admin) and see
 // who exists. The full user-administration UI belongs to the RBAC slice.
 export function UsersPage() {
@@ -804,40 +810,42 @@ export function UsersPage() {
                 button here would only ever fail. */}
             {users.map((u) => (
               <TableRow key={u.id} className={u.disabledAt ? "muted" : undefined}>
-                <TableCell>{u.email}</TableCell>
-                <TableCell>{u.displayName ?? "—"}</TableCell>
-                <TableCell>{roleLabel(u.role)}</TableCell>
-                <TableCell>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</TableCell>
-                <TableCell>
-                  <button className="link" onClick={() => openEdit(u)}>
-                    <Pencil size={14} aria-hidden /> {t("editButton")}
-                  </button>
-                  <button className="link" onClick={() => openPassword(u)}>
-                    <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
-                  </button>
-                  <button className="link" onClick={() => openRole(u)}>
-                    <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
-                  </button>
-                  <button className="link" onClick={() => openEmail(u)}>
-                    <Mail size={14} aria-hidden /> {t("changeEmailButton")}
-                  </button>
-                  {/* #612 — shown for every role, not just Worker: a promoted
-                      user keeps their retained rows (inert, but still visible
-                      and removable) even though a NEW assignment is Worker-only. */}
-                  <button className="link" onClick={() => void openAssignments(u.id)}>
-                    {t("flocksButton")}
-                  </button>
-                  {myId !== u.id && (
-                    u.disabledAt ? (
-                      <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
-                        <RotateCcw size={14} aria-hidden /> {t("enableButton")}
-                      </button>
-                    ) : (
-                      <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
-                        <Ban size={14} aria-hidden /> {t("disableButton")}
-                      </button>
-                    )
-                  )}
+                <TableCell sx={NOWRAP}>{u.email}</TableCell>
+                <TableCell sx={NOWRAP}>{u.displayName ?? "—"}</TableCell>
+                <TableCell sx={NOWRAP}>{roleLabel(u.role)}</TableCell>
+                <TableCell sx={NOWRAP}>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</TableCell>
+                <TableCell sx={NOWRAP}>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                    <button className="link" onClick={() => openEdit(u)}>
+                      <Pencil size={14} aria-hidden /> {t("editButton")}
+                    </button>
+                    <button className="link" onClick={() => openPassword(u)}>
+                      <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
+                    </button>
+                    <button className="link" onClick={() => openRole(u)}>
+                      <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
+                    </button>
+                    <button className="link" onClick={() => openEmail(u)}>
+                      <Mail size={14} aria-hidden /> {t("changeEmailButton")}
+                    </button>
+                    {/* #612 — shown for every role, not just Worker: a promoted
+                        user keeps their retained rows (inert, but still visible
+                        and removable) even though a NEW assignment is Worker-only. */}
+                    <button className="link" onClick={() => void openAssignments(u.id)}>
+                      {t("flocksButton")}
+                    </button>
+                    {myId !== u.id && (
+                      u.disabledAt ? (
+                        <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+                          <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+                        </button>
+                      ) : (
+                        <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
+                          <Ban size={14} aria-hidden /> {t("disableButton")}
+                        </button>
+                      )
+                    )}
+                  </Stack>
                 </TableCell>
               </TableRow>
             ))}

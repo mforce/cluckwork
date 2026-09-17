@@ -21,6 +21,12 @@ import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
+// #897 review — a short value (a name, a phone number, a money figure) must
+// never wrap: MUI's auto table layout treats a wrappable cell as shrinkable
+// and gives it less than its content needs, even with slack elsewhere in the
+// row. Only genuinely free-text columns (email, address, note) keep wrapping.
+const NOWRAP = { whiteSpace: "nowrap" as const };
+
 interface EditForm {
   id: string;
   version: number;
@@ -371,26 +377,28 @@ export function CustomersPage() {
             <TableBody>
               {customers.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell>
+                  <TableCell sx={NOWRAP}>
                     {canSeeSales
                       ? <Link className="link" to={`/sales?customerId=${c.id}`}>{c.name}</Link>
                       : c.name}
                   </TableCell>
-                  <TableCell>{c.phone}</TableCell>
+                  <TableCell sx={NOWRAP}>{c.phone}</TableCell>
                   <TableCell>{c.email ?? "—"}</TableCell>
                   <TableCell>{c.address ?? "—"}</TableCell>
                   <TableCell>{c.note ?? "—"}</TableCell>
                   {isAdmin && (
-                    <TableCell align="right">
+                    <TableCell align="right" sx={NOWRAP}>
                       {balances === null || outstandingFor(c.id) === null
                         ? "…"
                         : fmt.money(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
                     </TableCell>
                   )}
-                  <TableCell>
-                    <button type="button" className="link" onClick={() => openEdit(c)}>
-                      <Pencil size={14} aria-hidden /> {t("editButton")}
-                    </button>
+                  <TableCell sx={NOWRAP}>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                      <button type="button" className="link" onClick={() => openEdit(c)}>
+                        <Pencil size={14} aria-hidden /> {t("editButton")}
+                      </button>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}

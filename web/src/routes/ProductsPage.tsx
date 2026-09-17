@@ -36,6 +36,11 @@ const EGG_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"];
 // activate/deactivate writes — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit", "edit-conversion"] as const;
 
+// #897 review — a short value (a name, a unit, a money figure) must never
+// wrap: MUI's auto table layout treats a wrappable cell as shrinkable and
+// gives it less than its content needs, even with slack elsewhere in the row.
+const NOWRAP = { whiteSpace: "nowrap" as const };
+
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
@@ -458,27 +463,29 @@ export function ProductsPage() {
             <TableBody>
               {products.map((p) => (
                 <TableRow key={p.id} className={p.active ? undefined : "muted"}>
-                  <TableCell title={p.notes ?? undefined}>{p.name}</TableCell>
-                  <TableCell>{gradeName(p.eggGradeId)}</TableCell>
-                  <TableCell>{p.defaultUnit}</TableCell>
-                  <TableCell align="right">{p.defaultPriceMinorUnits === null
+                  <TableCell title={p.notes ?? undefined} sx={NOWRAP}>{p.name}</TableCell>
+                  <TableCell sx={NOWRAP}>{gradeName(p.eggGradeId)}</TableCell>
+                  <TableCell sx={NOWRAP}>{p.defaultUnit}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{p.defaultPriceMinorUnits === null
                     ? "—"
                     : fmt.money(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</TableCell>
-                  <TableCell><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></TableCell>
+                  <TableCell sx={NOWRAP}><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></TableCell>
                   {isAdmin && (
-                    <TableCell>
-                      <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>{" "}
-                      {p.active ? (
-                        <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
-                          onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
-                          {t("deactivateButton")}
-                        </BusyButton>
-                      ) : (
-                        <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
-                          onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
-                          {t("activateButton")}
-                        </BusyButton>
-                      )}
+                    <TableCell sx={NOWRAP}>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                        <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
+                        {p.active ? (
+                          <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
+                            onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
+                            {t("deactivateButton")}
+                          </BusyButton>
+                        ) : (
+                          <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
+                            onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
+                            {t("activateButton")}
+                          </BusyButton>
+                        )}
+                      </Stack>
                     </TableCell>
                   )}
                 </TableRow>
@@ -505,11 +512,11 @@ export function ProductsPage() {
           <TableBody>
             {conversions.map((c) => (
               <TableRow key={c.id} className={c.active ? undefined : "muted"}>
-                <TableCell>{c.unitCode}</TableCell>
-                <TableCell align="right">{fmt.count(c.eggsPerUnit)}</TableCell>
-                <TableCell>{statusLabel(c.active ? "Active" : "Inactive")}</TableCell>
+                <TableCell sx={NOWRAP}>{c.unitCode}</TableCell>
+                <TableCell align="right" sx={NOWRAP}>{fmt.count(c.eggsPerUnit)}</TableCell>
+                <TableCell sx={NOWRAP}>{statusLabel(c.active ? "Active" : "Inactive")}</TableCell>
                 {isAdmin && (
-                  <TableCell>
+                  <TableCell sx={NOWRAP}>
                     {c.unitCode === "Individual" ? (
                       <span className="muted">{t("alwaysOneMessage")}</span>
                     ) : (

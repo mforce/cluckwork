@@ -29,6 +29,11 @@ const GRADE_TYPES = ["Size", "Quality", "Custom"];
 // activate/deactivate writes — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit"] as const;
 
+// #897 review — a short value (a name, a type, a status chip) must never
+// wrap: MUI's auto table layout treats a wrappable cell as shrinkable and
+// gives it less than its content needs, even with slack elsewhere in the row.
+const NOWRAP = { whiteSpace: "nowrap" as const };
+
 // F6 (#42): manage the farm's egg grades. No hard delete — grade lines, lots,
 // and order items reference grades forever; deactivation only removes a grade
 // from capture/order pickers while history keeps rendering its name.
@@ -267,41 +272,43 @@ export function GradesPage() {
           <TableBody>
             {grades.map((g) => (
               <TableRow key={g.id} className={g.active ? undefined : "inactive"}>
-                <TableCell>{g.name}</TableCell>
-                <TableCell>{gradeTypeLabel(g.gradeType)}</TableCell>
-                <TableCell align="right">{fmt.count(g.sortOrder)}</TableCell>
-                <TableCell>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</TableCell>
-                <TableCell><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></TableCell>
+                <TableCell sx={NOWRAP}>{g.name}</TableCell>
+                <TableCell sx={NOWRAP}>{gradeTypeLabel(g.gradeType)}</TableCell>
+                <TableCell align="right" sx={NOWRAP}>{fmt.count(g.sortOrder)}</TableCell>
+                <TableCell sx={NOWRAP}>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</TableCell>
+                <TableCell sx={NOWRAP}><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></TableCell>
                 <ProvenanceCell history={g} />
-                <TableCell>
-                  {/* #493 — full audit trail for this record, distinct from
-                      the created/last-changed summary in ProvenanceCell.
-                      Admin-gated: /api/v1/audit is AdminOnly (codex review of
-                      #516). */}
-                  {isAdmin && (
-                    <Link className="link" to={`/audit?entityId=${g.id}`}>
-                      {tc("recordHistory.viewHistoryLink")}
-                    </Link>
-                  )}
-                  {isAdmin && (
-                    <>
-                      {/* Opens the edit dialog — non-mutating, so the spinner
-                          belongs to the dialog's Save, not here (#242). */}
-                      <button className="link" disabled={busy}
-                        onClick={() => startEdit(g)}>{t("editButton")}</button>
-                      {g.active ? (
-                        <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
-                          onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
-                          {t("deactivateButton")}
-                        </BusyButton>
-                      ) : (
-                        <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
-                          onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
-                          {t("activateButton")}
-                        </BusyButton>
-                      )}
-                    </>
-                  )}
+                <TableCell sx={NOWRAP}>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                    {/* #493 — full audit trail for this record, distinct from
+                        the created/last-changed summary in ProvenanceCell.
+                        Admin-gated: /api/v1/audit is AdminOnly (codex review of
+                        #516). */}
+                    {isAdmin && (
+                      <Link className="link" to={`/audit?entityId=${g.id}`}>
+                        {tc("recordHistory.viewHistoryLink")}
+                      </Link>
+                    )}
+                    {isAdmin && (
+                      <>
+                        {/* Opens the edit dialog — non-mutating, so the spinner
+                            belongs to the dialog's Save, not here (#242). */}
+                        <button className="link" disabled={busy}
+                          onClick={() => startEdit(g)}>{t("editButton")}</button>
+                        {g.active ? (
+                          <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+                            onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
+                            {t("deactivateButton")}
+                          </BusyButton>
+                        ) : (
+                          <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
+                            onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
+                            {t("activateButton")}
+                          </BusyButton>
+                        )}
+                      </>
+                    )}
+                  </Stack>
                 </TableCell>
               </TableRow>
             ))}

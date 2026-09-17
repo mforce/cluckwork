@@ -40,6 +40,12 @@ const LEDGER_PAGE = 50;
 // the row buttons — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit", "record-movement"] as const;
 
+// #897 review — a short value (a name, a breed, a bird count, a status chip)
+// must never wrap: MUI's auto table layout treats a wrappable cell as
+// shrinkable and gives it less than its content needs, even with slack
+// elsewhere in the row.
+const NOWRAP = { whiteSpace: "nowrap" as const };
+
 // F7 (#47): manage flocks — create, correct identity fields, deplete, archive.
 // Archived flocks leave pickers and the dashboard; this screen still shows them
 // behind a toggle. Current bird count math is the mortality slice, not this one.
@@ -398,59 +404,61 @@ export function FlocksPage() {
             <TableBody>
               {visible.map((f) => (
                 <TableRow key={f.id} className={f.status === "Archived" ? "inactive" : undefined}>
-                  <TableCell>{f.name}</TableCell>
-                  <TableCell>{f.breed}</TableCell>
-                  <TableCell sx={{ whiteSpace: "nowrap" }}><FarmDate iso={f.placementDate} /></TableCell>
-                  <TableCell align="right">{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</TableCell>
-                  <TableCell align="right">
+                  <TableCell sx={NOWRAP}>{f.name}</TableCell>
+                  <TableCell sx={NOWRAP}>{f.breed}</TableCell>
+                  <TableCell sx={NOWRAP}><FarmDate iso={f.placementDate} /></TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>
                     {fmt.count(f.currentBirds)}
                     {f.currentBirds !== f.initialCount &&
                       <span className="muted"> / {fmt.count(f.initialCount)}</span>}
                   </TableCell>
-                  <TableCell><StatusBadge status={f.status} label={statusLabel(f.status)} /></TableCell>
+                  <TableCell sx={NOWRAP}><StatusBadge status={f.status} label={statusLabel(f.status)} /></TableCell>
                   <ProvenanceCell history={f} />
-                  <TableCell>
-                    {/* #493 — full audit trail for this record, distinct from
-                        the created/last-changed summary in ProvenanceCell.
-                        Admin-gated: /api/v1/audit is AdminOnly, so a non-admin
-                        following this link would only reach a 403 (codex
-                        review of #516). */}
-                    {isAdmin && (
-                      <Link className="link" to={`/audit?entityId=${f.id}`}>
-                        {tc("recordHistory.viewHistoryLink")}
-                      </Link>
-                    )}
-                    <button className="link" disabled={busy}
-                      onClick={() => void openLedger(f.id)}>
-                      {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
-                    </button>
-                    {isAdmin && (
-                      // Opens the edit dialog — non-mutating, so the spinner
-                      // belongs to the dialog's Save, not here (#242).
+                  <TableCell sx={NOWRAP}>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                      {/* #493 — full audit trail for this record, distinct from
+                          the created/last-changed summary in ProvenanceCell.
+                          Admin-gated: /api/v1/audit is AdminOnly, so a non-admin
+                          following this link would only reach a 403 (codex
+                          review of #516). */}
+                      {isAdmin && (
+                        <Link className="link" to={`/audit?entityId=${f.id}`}>
+                          {tc("recordHistory.viewHistoryLink")}
+                        </Link>
+                      )}
                       <button className="link" disabled={busy}
-                        onClick={() => startEdit(f)}>{t("editButton")}</button>
-                    )}
-                    {isAdmin && f.status === "Active" && (
-                      <BusyButton className="link" busy={isPending(`deplete:${f.id}`)} disabled={busy}
-                        onClick={() => void onDeplete(f)}>
-                        {t("depleteButton")}
-                      </BusyButton>
-                    )}
-                    {isAdmin && f.status !== "Archived" && (
-                      // After the confirm dialog settles, THIS button is the
-                      // pending indicator for the in-flight archive (#236).
-                      <BusyButton className="link" busy={isPending(`archive:${f.id}`)} disabled={busy}
-                        onClick={() => void onArchive(f)}>
-                        {t("archiveButton")}
-                      </BusyButton>
-                    )}
-                    {isAdmin && f.status !== "Active" && (
-                      // The undo (#57): back to Active, full capture restored.
-                      <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
-                        onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
-                        {t("reactivateButton")}
-                      </BusyButton>
-                    )}
+                        onClick={() => void openLedger(f.id)}>
+                        {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
+                      </button>
+                      {isAdmin && (
+                        // Opens the edit dialog — non-mutating, so the spinner
+                        // belongs to the dialog's Save, not here (#242).
+                        <button className="link" disabled={busy}
+                          onClick={() => startEdit(f)}>{t("editButton")}</button>
+                      )}
+                      {isAdmin && f.status === "Active" && (
+                        <BusyButton className="link" busy={isPending(`deplete:${f.id}`)} disabled={busy}
+                          onClick={() => void onDeplete(f)}>
+                          {t("depleteButton")}
+                        </BusyButton>
+                      )}
+                      {isAdmin && f.status !== "Archived" && (
+                        // After the confirm dialog settles, THIS button is the
+                        // pending indicator for the in-flight archive (#236).
+                        <BusyButton className="link" busy={isPending(`archive:${f.id}`)} disabled={busy}
+                          onClick={() => void onArchive(f)}>
+                          {t("archiveButton")}
+                        </BusyButton>
+                      )}
+                      {isAdmin && f.status !== "Active" && (
+                        // The undo (#57): back to Active, full capture restored.
+                        <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
+                          onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
+                          {t("reactivateButton")}
+                        </BusyButton>
+                      )}
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}
@@ -556,9 +564,9 @@ export function FlocksPage() {
                   <TableBody>
                     {ledger.rows.map((m) => (
                       <TableRow key={m.id}>
-                        <TableCell sx={{ whiteSpace: "nowrap" }}><FarmDate iso={m.date} /></TableCell>
-                        <TableCell>{flockMovementLabel(m.type)}</TableCell>
-                        <TableCell align="right">{m.quantity > 0 ? `−${fmt.count(m.quantity)}` : `+${fmt.count(-m.quantity)}`}</TableCell>
+                        <TableCell sx={NOWRAP}><FarmDate iso={m.date} /></TableCell>
+                        <TableCell sx={NOWRAP}>{flockMovementLabel(m.type)}</TableCell>
+                        <TableCell align="right" sx={NOWRAP}>{m.quantity > 0 ? `−${fmt.count(m.quantity)}` : `+${fmt.count(-m.quantity)}`}</TableCell>
                         <TableCell>{m.note ?? "—"}</TableCell>
                       </TableRow>
                     ))}
