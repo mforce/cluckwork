@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
 import { Bird, FilterX, Plus } from "lucide-react";
 import {
   Box, Divider, DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -414,19 +413,18 @@ export function FlocksPage() {
                       <span className="muted"> / {fmt.count(f.initialCount)}</span>}
                   </TableCell>
                   <TableCell sx={NOWRAP}><StatusBadge status={f.status} label={statusLabel(f.status)} /></TableCell>
-                  <ProvenanceCell history={f} />
+                  {/* #897 review — #493's full audit trail (AdminOnly, so a
+                      non-admin following it would only reach a 403, codex
+                      review of #516) moved out of Actions and into this
+                      column, stacked under the provenance summary: at 1280
+                      an Active, non-archived flock's Actions cell (birds,
+                      edit, deplete, archive — 4 verbs) plus this link left
+                      `deplete`/`archive` past the table's right edge with no
+                      scroll cue, a hidden-primary-verb regression, not a
+                      cosmetic one. */}
+                  <ProvenanceCell history={f} auditHref={isAdmin ? `/audit?entityId=${f.id}` : undefined} />
                   <TableCell sx={NOWRAP}>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                      {/* #493 — full audit trail for this record, distinct from
-                          the created/last-changed summary in ProvenanceCell.
-                          Admin-gated: /api/v1/audit is AdminOnly, so a non-admin
-                          following this link would only reach a 403 (codex
-                          review of #516). */}
-                      {isAdmin && (
-                        <Link className="link" to={`/audit?entityId=${f.id}`}>
-                          {tc("recordHistory.viewHistoryLink")}
-                        </Link>
-                      )}
                       <button className="link" disabled={busy}
                         onClick={() => void openLedger(f.id)}>
                         {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
