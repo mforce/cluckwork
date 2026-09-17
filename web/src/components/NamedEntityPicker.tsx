@@ -676,6 +676,11 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     if (inputEl instanceof HTMLInputElement) {
       inputEl.focus();
       inputEl.setSelectionRange(0, inputEl.value.length, "backward");
+      // `direction: "backward"` alone measured as NOT reliably enough to
+      // move the visible scroll position in this app's actual Chromium
+      // (confirmed with a real capture, #898 round 2) — force it directly
+      // rather than trust an implied side effect of the selection API.
+      inputEl.scrollLeft = 0;
     }
   }, [open, disabled, id]);
 
