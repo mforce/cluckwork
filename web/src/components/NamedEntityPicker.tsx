@@ -22,6 +22,7 @@ import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import Paper from "@mui/material/Paper";
 import InputAdornment from "@mui/material/InputAdornment";
+import Box from "@mui/material/Box";
 import type { PaperProps } from "@mui/material/Paper";
 import type { AutocompleteRenderInputParams } from "@mui/material/Autocomplete";
 import { ChevronDown } from "lucide-react";
@@ -653,12 +654,28 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // it never runs before the input exists in the same commit. The Retry paths
   // above still call focus() themselves: those run from a button that has
   // already taken focus, so this effect (keyed on `open`) does not fire.
+  //
+  // Coordinator review of #898's captures: a plain `.select()` selects start
+  // to end with the "focus" (active) end at the end of the text, and a
+  // browser showing a SELECTED range wider than the field scrolls to keep
+  // that focus end visible — so a name longer than the field showed its
+  // TAIL ("se A" of "Sim House A"), not its head. Decision, logged per the
+  // coordinator's request: keep select-all (dropping it would break #735's
+  // own "first keystroke replaces" contract — typing over a selection
+  // REPLACES it, typing at a bare caret position would INSERT into it) and
+  // fix the scroll position instead. `setSelectionRange`'s third argument is
+  // NOT cosmetic: `direction: "backward"` puts the SAME start-to-end range's
+  // focus end at index 0, so the browser scrolls to show the head of the
+  // name while the whole string stays selected and still replaces on the
+  // first keystroke — `selectionStart`/`selectionEnd` (what
+  // `NamedEntityPicker.openFocus.test.tsx` asserts) are unchanged by
+  // `direction`; only which end is "active" moves.
   useEffect(() => {
     if (!open || disabled) return;
     const inputEl = document.getElementById(id);
     if (inputEl instanceof HTMLInputElement) {
       inputEl.focus();
-      inputEl.select();
+      inputEl.setSelectionRange(0, inputEl.value.length, "backward");
     }
   }, [open, disabled, id]);
 
@@ -1255,6 +1272,18 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         getOptionLabel={(option) => option.name}
         getOptionKey={(option) => option.id}
         isOptionEqualToValue={(option, value) => option.id === value.id}
+        // Coordinator review of #898's captures: at 390px inside a two-up
+        // row, the popper below is only as wide as the input (~110px), so a
+        // longer name wrapped across 3-4 lines per option. `renderOption`
+        // keeps each option one line with an ellipsis instead — the popper
+        // itself is widened separately, below.
+        renderOption={({ key, ...optionProps }, option) => (
+          <li key={key} {...optionProps}>
+            <Box component="span" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {option.name}
+            </Box>
+          </li>
+        )}
         // US2/US3 own commit, retry and clear (in the footer below);
         // `Autocomplete`'s built-in clear/popup icons would duplicate that
         // UI, so both are nulled via `slots` (not `disableClearable` — see
@@ -1280,6 +1309,22 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         openText={t("open")}
         loadingText={t("loading")}
         noOptionsText={t("noResults")}
+        // Coordinator review of #898's captures: `Autocomplete` sizes its
+        // popper to the ANCHOR's width (`useAutocomplete.js` sets
+        // `style.width: anchorEl.clientWidth` on the popper), which inside a
+        // narrow two-up phone row is far too little to read a flock/customer
+        // name against. `min-width` always wins over a smaller `width` in
+        // CSS's box-sizing resolution regardless of that inline style's
+        // specificity, so this floors the popup at a readable size without
+        // touching the FIELD's own width (the two-up row layout is #830's,
+        // not this slice's, to change). `bottom-start` keeps the wider popup
+        // left-aligned with the field rather than centered under it.
+        slotProps={{
+          popper: {
+            placement: "bottom-start",
+            sx: { minWidth: "min(20rem, calc(100vw - 32px))" },
+          },
+        }}
         slots={{
           paper: pickerPaperRef.current,
           clearIndicator: () => null,
