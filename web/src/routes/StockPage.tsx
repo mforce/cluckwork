@@ -4,6 +4,9 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Egg, FilterX } from "lucide-react";
 import {
+  DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
+import {
   getStock, listEggLotMovements, listEggLots, recordEggLotMovement,
 } from "../api/cluckwork";
 import type { EggLotRow, EggMovementRow, StockRow } from "../api/cluckwork";
@@ -12,6 +15,7 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { EmptyState } from "../components/EmptyState";
+import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -23,6 +27,7 @@ import { newId } from "../lib/ids";
 
 // Matches the API's default page size — a full page means there may be more.
 const LOT_PAGE = 50;
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // The scope that owns a dialog (#703). `run` routes a failure by this and gates
 // a success by it; nothing else on this screen goes through `run`.
@@ -472,9 +477,9 @@ export function StockPage() {
   }
 
   if (errors.page && rows === null) {
-    return <section><h2>{t("title")}</h2><p className="error">{errors.page}</p></section>;
+    return <section><Typography variant="h2">{t("title")}</Typography><p className="error">{errors.page}</p></section>;
   }
-  if (rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+  if (rows === null) return <section><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></section>;
 
   const totalAvailable = rows.reduce((a, r) => a + r.available, 0);
   // Largest available across the loaded rows scales every meter fill so the bars
@@ -483,7 +488,7 @@ export function StockPage() {
 
   return (
     <section>
-      <h2>{t("title")}</h2>
+      <Typography variant="h2">{t("title")}</Typography>
       {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success" role="status">{message}</p>}
       {rows.length === 0 ? (
@@ -492,53 +497,52 @@ export function StockPage() {
         <EmptyState icon={Egg} message={t("noStockMessage")} />
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr><th>{t("gradeHeader")}</th><th className="num">{t("availableHeader")}</th><th className="num">{t("restrictedHeader")}<GlossaryLink term="WithdrawalRestriction" /></th><th></th></tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.eggGradeId}>
-                  <td>{r.gradeName}</td>
-                  <td className="num">
-                    {fmt.count(r.available)}
-                    <div className="meter" aria-hidden="true">
-                      <span style={{ width: (maxAvailable > 0 ? (r.available / maxAvailable) * 100 : 0) + "%" }} />
-                    </div>
-                  </td>
-                  <td className="num">{r.restricted > 0 ? <span className="badge badge-warn">{fmt.count(r.restricted)}</span> : "—"}</td>
-                  <td>
-                    <button className="link" onClick={() => void toggleGrade(r.eggGradeId)}>
-                      {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t("gradeHeader")}</TableCell>
+                  <TableCell align="right">{t("availableHeader")}</TableCell>
+                  <TableCell align="right">{t("restrictedHeader")}<GlossaryLink term="WithdrawalRestriction" /></TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.eggGradeId}>
+                    <TableCell>{r.gradeName}</TableCell>
+                    <TableCell align="right">
+                      {fmt.count(r.available)}
+                      <div className="meter" aria-hidden="true">
+                        <span style={{ width: (maxAvailable > 0 ? (r.available / maxAvailable) * 100 : 0) + "%" }} />
+                      </div>
+                    </TableCell>
+                    <TableCell align="right">{r.restricted > 0 ? <span className="badge badge-warn">{fmt.count(r.restricted)}</span> : "—"}</TableCell>
+                    <TableCell sx={NOWRAP}>
+                      <button className="link" onClick={() => void toggleGrade(r.eggGradeId)}>
+                        {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
           <p className="muted">{t("totalAvailableMessage", { available: fmt.count(totalAvailable), grades: rows.length })}</p>
 
           {openGrade !== null && (
             <>
               <h3>{t("lotsHeading")}</h3>
               {/* #465 — a server-side production-date window, so an old lot is
-                  findable without paging the whole history to it.
-                  #653 — and it belongs in the bounded toolbar: the width cap in
-                  styles.css is keyed on `.toolbar input[type="date"]`, so under
-                  `.filters` these two rendered at the row's full width, which is
-                  exactly the bug #653 was filed to fix. This section has no
-                  non-date filter, so the whole bar is the toolbar — the same
-                  shape ReportsPage uses. */}
-              <div className="toolbar">
-                <label>{t("fromLabel")}
-                  <input type="date" value={lotsFrom}
-                    onChange={(e) => void changeLotsFilter(e.target.value, lotsTo)} />
-                </label>
-                <label>{t("toLabel")}
-                  <input type="date" value={lotsTo}
-                    onChange={(e) => void changeLotsFilter(lotsFrom, e.target.value)} />
-                </label>
-              </div>
+                  findable without paging the whole history to it. This
+                  section has no non-date filter, so the whole bar is the
+                  filter bar — the same shape ReportsPage uses. */}
+              <FilterBar>
+                <FilterDateField label={t("fromLabel")} value={lotsFrom}
+                  onChange={(e) => void changeLotsFilter(e.target.value, lotsTo)} />
+                <FilterDateField label={t("toLabel")} value={lotsTo}
+                  onChange={(e) => void changeLotsFilter(lotsFrom, e.target.value)} />
+              </FilterBar>
               {lots.length === 0 ? (
                 // lotsFrom/lotsTo are this section's own filter, unrelated to
                 // any page-head action — "filtered to nothing" offers Clear
@@ -548,57 +552,64 @@ export function StockPage() {
                       action={{ label: tc("clearFiltersButton"), onClick: () => void changeLotsFilter("", "") }} />
                   : <EmptyState icon={Egg} message={t("noLotsMessage")} />
               ) : (
-                <table className="data">
-                  <thead>
-                    <tr><th>{t("producedOnHeader")}</th><th className="num">{t("producedHeader")}</th><th className="num">{t("availableHeader")}</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {lots.map((l) => (
-                      <tr key={l.id}>
-                        <td className="nowrap"><FarmDate iso={l.productionDate} /></td>
-                        <td className="num">{fmt.count(l.quantityProduced)}</td>
-                        <td className="num">{fmt.count(l.quantityAvailable)}</td>
-                        <td>
-                          {/* #493 — the audit trail for MANUAL ADJUSTMENTS to
-                              this lot (write-offs, recounts), distinct from
-                              the button below: that one toggles the
-                              inventory MOVEMENT ledger in place (quantities
-                              in/out), a different and older trail. Two
-                              affordances on the same row on purpose — kept
-                              visibly separate by label so they don't read as
-                              the same thing.
-                              Deliberately NOT "Audit history"/viewHistoryLink
-                              (codex review of #516): the only audit action
-                              ever written against an EggLot's own entityId is
-                              a manual write-off/recount
-                              (RecordEggLotMovementHandler) — creation is
-                              recorded against the Daily Entry that produced
-                              the lot, allocation/restoration against the
-                              Sales Order, so
-                              a normal never-adjusted lot would show nothing
-                              under the generic "full audit trail" label the
-                              other five screens use accurately. */}
-                          {/* Admin-gated: /api/v1/audit is AdminOnly, and
-                              this screen is readable by non-admins too
-                              (codex review of #516). */}
-                          {isAdmin && (
-                            <Link className="link" to={`/audit?entityId=${l.id}`}>
-                              {tc("recordHistory.viewAdjustmentHistoryLink")}
-                            </Link>
-                          )}
-                          <button className="link" onClick={() => void toggleLot(l.id)}>
-                            {openLot === l.id ? t("hideHistoryButton") : t("historyButton")}
-                          </button>
-                          {isAdmin && (
-                            <button className="link" onClick={() => openWriteOff(l)}>
-                              {t("writeOffButton")}
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{t("producedOnHeader")}</TableCell>
+                        <TableCell align="right">{t("producedHeader")}</TableCell>
+                        <TableCell align="right">{t("availableHeader")}</TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {lots.map((l) => (
+                        <TableRow key={l.id}>
+                          <TableCell sx={NOWRAP}><FarmDate iso={l.productionDate} /></TableCell>
+                          <TableCell align="right">{fmt.count(l.quantityProduced)}</TableCell>
+                          <TableCell align="right">{fmt.count(l.quantityAvailable)}</TableCell>
+                          <TableCell sx={NOWRAP}>
+                            {/* #493 — the audit trail for MANUAL ADJUSTMENTS to
+                                this lot (write-offs, recounts), distinct from
+                                the button below: that one toggles the
+                                inventory MOVEMENT ledger in place (quantities
+                                in/out), a different and older trail. Two
+                                affordances on the same row on purpose — kept
+                                visibly separate by label so they don't read as
+                                the same thing.
+                                Deliberately NOT "Audit history"/viewHistoryLink
+                                (codex review of #516): the only audit action
+                                ever written against an EggLot's own entityId is
+                                a manual write-off/recount
+                                (RecordEggLotMovementHandler) — creation is
+                                recorded against the Daily Entry that produced
+                                the lot, allocation/restoration against the
+                                Sales Order, so
+                                a normal never-adjusted lot would show nothing
+                                under the generic "full audit trail" label the
+                                other five screens use accurately. */}
+                            {/* Admin-gated: /api/v1/audit is AdminOnly, and
+                                this screen is readable by non-admins too
+                                (codex review of #516). */}
+                            {isAdmin && (
+                              <Link className="link" to={`/audit?entityId=${l.id}`}>
+                                {tc("recordHistory.viewAdjustmentHistoryLink")}
+                              </Link>
+                            )}
+                            <button className="link" onClick={() => void toggleLot(l.id)}>
+                              {openLot === l.id ? t("hideHistoryButton") : t("historyButton")}
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            {isAdmin && (
+                              <button className="link" onClick={() => openWriteOff(l)}>
+                                {t("writeOffButton")}
+                              </button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
               {hasMoreLots && !lotsLoading && (
                 <button className="link" onClick={() => void loadMoreLots()}>
@@ -616,21 +627,28 @@ export function StockPage() {
                   <p className="muted">
                     {t("movementLedgerIntro")}
                   </p>
-                  <table className="data">
-                    <thead>
-                      <tr><th>{t("ledgerWhenHeader")}</th><th>{t("ledgerTypeHeader")}<GlossaryLink term="EggMovementLedger" /></th><th className="num">{t("ledgerChangeHeader")}</th><th>{t("ledgerReasonHeader")}</th></tr>
-                    </thead>
-                    <tbody>
-                      {movements.map((m) => (
-                        <tr key={m.id}>
-                          <td className="nowrap">{m.createdAtUtc.replace("T", " ").slice(0, 19)}</td>
-                          <td>{stockMovementLabel(m.movementType)}</td>
-                          <td className="num">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)}</td>
-                          <td>{m.reason ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>{t("ledgerWhenHeader")}</TableCell>
+                          <TableCell>{t("ledgerTypeHeader")}<GlossaryLink term="EggMovementLedger" /></TableCell>
+                          <TableCell align="right">{t("ledgerChangeHeader")}</TableCell>
+                          <TableCell>{t("ledgerReasonHeader")}</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {movements.map((m) => (
+                          <TableRow key={m.id}>
+                            <TableCell sx={NOWRAP}>{m.createdAtUtc.replace("T", " ").slice(0, 19)}</TableCell>
+                            <TableCell>{stockMovementLabel(m.movementType)}</TableCell>
+                            <TableCell align="right">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)}</TableCell>
+                            <TableCell>{m.reason ?? "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 </>
               )}
             </>
@@ -643,34 +661,45 @@ export function StockPage() {
       {writeOffLot !== null && (
         <Dialog open={isAdmin} title={t("writeOffDialogTitle", { date: fmt.date(writeOffLot.productionDate) })}
           onClose={closeWriteOff}>
-          <form className="form-grid" onSubmit={(e) => void onWriteOff(e)}>
-            <label>{t("writeOffTypeLabel")}
-              <select value={woType} onChange={(e) => setWoType(e.target.value)}>
-                <option value="Discard">{stockMovementLabel("Discard")}</option>
-                <option value="InternalUse">{stockMovementLabel("InternalUse")}</option>
-                <option value="Reconciliation">{stockMovementLabel("Reconciliation")}</option>
-              </select>
-            </label>
+          <Stack component="form" spacing={2} onSubmit={(e) => void onWriteOff(e)}>
+            <TextField
+              select
+              label={t("writeOffTypeLabel")}
+              value={woType}
+              slotProps={{ select: { native: true } }}
+              onChange={(e) => setWoType(e.target.value)}
+            >
+              <option value="Discard">{stockMovementLabel("Discard")}</option>
+              <option value="InternalUse">{stockMovementLabel("InternalUse")}</option>
+              <option value="Reconciliation">{stockMovementLabel("Reconciliation")}</option>
+            </TextField>
             {woType === "Reconciliation" && (
-              <label>{t("writeOffDirectionLabel")}
-                <select value={woDirection} onChange={(e) => setWoDirection(e.target.value)}>
-                  <option value="remove">{t("writeOffDirectionRemoveOption")}</option>
-                  <option value="add">{t("writeOffDirectionAddOption")}</option>
-                </select>
-              </label>
+              <TextField
+                select
+                label={t("writeOffDirectionLabel")}
+                value={woDirection}
+                slotProps={{ select: { native: true } }}
+                onChange={(e) => setWoDirection(e.target.value)}
+              >
+                <option value="remove">{t("writeOffDirectionRemoveOption")}</option>
+                <option value="add">{t("writeOffDirectionAddOption")}</option>
+              </TextField>
             )}
             {/* Sibling label, not wrapping — the stepper carries two buttons
                 and a <label> may not contain interactive content other than
-                its own control (#250). */}
+                its own control (#250). NumberField is its own component
+                (pair 8), unconverted here on purpose. */}
             <div className="numfield-field">
               <label htmlFor="write-off-qty">{t("writeOffQuantityLabel")}</label>
               <NumberField id="write-off-qty" label={t("writeOffQuantityLabel").toLowerCase()}
                 value={woQty} onChange={setWoQty} min={0} />
             </div>
-            <label>{t("writeOffReasonLabel")}
-              <input value={woReason} maxLength={500} required
-                onChange={(e) => setWoReason(e.target.value)} />
-            </label>
+            <TextField
+              label={t("writeOffReasonLabel")}
+              value={woReason}
+              slotProps={{ htmlInput: { maxLength: 500, required: true } }}
+              onChange={(e) => setWoReason(e.target.value)}
+            />
             {woQty > 0 && (
               <p className="muted">
                 {t("writeOffPreviewMessage", {
@@ -683,13 +712,13 @@ export function StockPage() {
                 which this bare paragraph never carried (deliberate
                 improvement, not a behavior this conversion is fixing). */}
             <DialogError errors={errors} scope="write-off" />
-            <div className="dialog-foot">
+            <DialogActions>
               <button type="button" className="link" onClick={closeWriteOff}>{tc("cancel")}</button>
               <BusyButton type="submit" busy={isPending("write-off")} disabled={busy}>
                 {t("writeOffSubmitButton")}
               </BusyButton>
-            </div>
-          </form>
+            </DialogActions>
+          </Stack>
         </Dialog>
       )}
     </section>
