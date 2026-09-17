@@ -197,7 +197,7 @@ export function GradesPage() {
             select
             label={t("typeLabel")}
             value={gradeType}
-            slotProps={{ select: { native: true } }}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
             onChange={(e) => setGradeType(e.target.value)}
           >
             {GRADE_TYPES.map((gt) => <option key={gt} value={gt}>{gradeTypeLabel(gt)}</option>)}

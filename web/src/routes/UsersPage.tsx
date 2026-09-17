@@ -760,7 +760,7 @@ export function UsersPage() {
             label={t("roleFieldLabel")}
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            slotProps={{ select: { native: true } }}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           >
             {ROLE_VALUES.map((v) => (
               <option key={v} value={v}>
@@ -1038,7 +1038,7 @@ export function UsersPage() {
             label={t("roleFieldLabel")}
             value={roleValue}
             onChange={(e) => setRoleValue(e.target.value)}
-            slotProps={{ select: { native: true } }}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           >
             {ROLE_VALUES.map((v) => (
               <option key={v} value={v}>

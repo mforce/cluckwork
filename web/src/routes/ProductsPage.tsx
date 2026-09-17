@@ -327,7 +327,15 @@ export function ProductsPage() {
             label={t("gradeLabel")}
             value={gradeId}
             onChange={(e) => setGradeId(e.target.value)}
-            slotProps={{ select: { native: true }, htmlInput: { required: true } }}
+            slotProps={{
+              select: { native: true }, htmlInput: { required: true },
+              // #897 review — a select's own placeholder OPTION already says
+              // "Pick a grade…"; without this the floating label sits on top
+              // of that text instead of shrinking, because MUI's shrink
+              // heuristic reads the empty string `value` as "nothing to
+              // shrink for" even though the select is visibly showing text.
+              inputLabel: { shrink: true },
+            }}
           >
             <option value="">{t("pickGradeOption")}</option>
             {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -337,7 +345,7 @@ export function ProductsPage() {
             label={t("soldPerLabel")}
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
-            slotProps={{ select: { native: true } }}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           >
             {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
           </TextField>
@@ -379,7 +387,7 @@ export function ProductsPage() {
             label={t("gradeLabel")}
             value={editGradeId}
             onChange={(e) => setEditGradeId(e.target.value)}
-            slotProps={{ select: { native: true } }}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           >
             {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
           </TextField>
@@ -388,7 +396,7 @@ export function ProductsPage() {
             label={t("soldPerLabel")}
             value={editUnit}
             onChange={(e) => setEditUnit(e.target.value)}
-            slotProps={{ select: { native: true } }}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           >
             {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
           </TextField>

@@ -503,7 +503,7 @@ export function FlocksPage() {
                   select
                   label={t("typeLabel")}
                   value={mvType}
-                  slotProps={{ select: { native: true } }}
+                  slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
                   onChange={(e) => setMvType(e.target.value)}
                 >
                   <option value="Cull">{flockMovementLabel("Cull")}</option>
