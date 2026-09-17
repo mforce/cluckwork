@@ -55,8 +55,11 @@ describe("Login", () => {
     // Pinned to i18n.t, not the literal — proves the screen is reading the
     // catalog rather than a string that happens to still match it.
     expect(await screen.findByText(i18n.t("auth:title"))).toBeInTheDocument();
-    expect(screen.getByLabelText(i18n.t("auth:email"))).toBeInTheDocument();
-    expect(screen.getByLabelText(i18n.t("auth:password"))).toBeInTheDocument();
+    // MUI's required indicator adds its own trailing " *" to the label text
+    // (repo convention, e.g. GradesPage.test.tsx's "Name *"), so a required
+    // field's accessible name is matched by prefix rather than by equality.
+    expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:email")}`))).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:password")}`))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: i18n.t("auth:signIn") })).toBeInTheDocument();
   });
 
@@ -326,7 +329,7 @@ describe("Login — first-run setup notice", () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     });
 
-    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest(".auth-setup");
+    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest("[role='status']");
     expect(notice).not.toBeNull();
     expect(notice!.querySelector("code")).toBeNull();
     expect(notice!.textContent).not.toMatch(/docker|dotnet|bootstrap-admin|--email/i);
@@ -468,7 +471,7 @@ describe("Login — farm-code prefill and picker", () => {
     // 82fbb5b5 then replaced it with the node query that ships today, which is
     // stronger than either: a string matcher is still literal, but the node now has
     // the trimmed "farm from link" copy. Verified by mutation.
-    expect(document.querySelector(".auth-farm-source")).toBeNull();
+    expect(screen.queryByText(/Signing in to farm/)).not.toBeInTheDocument();
   });
 
   // #535 review round 1 — the picker's a11y wiring (a role="group" labelled by

@@ -178,8 +178,12 @@ function declarationsFor(selector: string): Map<string, string> {
 // and `Autocomplete`'s own exception, `MuiAutocomplete.styleOverrides.paper`
 // at index 8, already pinned in `farmTheme.policy.test.ts`) — no new G2 row,
 // unchanged by this PR.
+// `.auth .card` retired here in #833: the sign-in card is now a MUI `Paper
+// elevation={0}` carrying `--auth-card-shadow` through its own `sx` (D2 pair
+// 16) — a bespoke per-instance shadow, not a G2 theme default, so there is no
+// new row in `farmTheme.policy.test.ts`; `styles.test.ts`'s token-contrast
+// assertions already cover `--auth-card-shadow` unchanged.
 const SHADOW_ALLOWED = [
-  ".auth .card",            // the sign-in card, floating on the auth gradient
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
   ".update-banner",         // the service-worker update prompt
 ].sort();
