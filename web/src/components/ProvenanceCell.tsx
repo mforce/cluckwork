@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { TableCell } from "@mui/material";
 import type { RecordHistory } from "../api/cluckwork";
 import { useFarm } from "../farm/useFarm";
 import { relativeTime } from "../lib/relativeTime";
@@ -54,7 +55,7 @@ export function ProvenanceCell({
   const officialAt = official ? (history.madeOfficialAtUtc ?? null) : null;
 
   if (!created && !changed && !officialAt) {
-    return <td className="muted">—</td>;
+    return <TableCell className="muted" sx={{ padding: "0.6rem 1rem 0.6rem 0" }}>—</TableCell>;
   }
 
   // The full stamp — everything the pre-#653 three-line cell said — moves
@@ -81,11 +82,28 @@ export function ProvenanceCell({
   const summary = changed ?? created;
 
   return (
-    <td className="nowrap provenance-cell" title={fullStamp}>
+    // #832 — pair 9's two retired classes (`td.nowrap`, `td.provenance-cell`)
+    // become an explicit sx here rather than the density this `TableCell`
+    // would otherwise inherit from a `Table`/`size="small"` ancestor,
+    // because three of this component's five callers (Sales, Expenses,
+    // History — #831) still render it inside a plain `<table className="data">`
+    // with no MUI density context at all. Pinning the padding to
+    // `table.data td`'s own values keeps every caller pixel-identical,
+    // converted or not, until #831 lands and can revisit this.
+    <TableCell
+      title={fullStamp}
+      sx={{
+        padding: "0.6rem 1rem 0.6rem 0",
+        whiteSpace: "nowrap",
+        maxWidth: "14rem",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+    >
       <span className="muted">
         {relativeTime(summary ? summary.at : (officialAt as string), farm?.timeZoneId)}
         {summary && <> · {actorHandle(summary.email)}</>}
       </span>
-    </td>
+    </TableCell>
   );
 }

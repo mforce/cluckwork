@@ -287,6 +287,25 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  // #832 — the first slice to mount a real MUI `Table`. Pinned so a later
+  // change cannot silently widen `TableCell` back to `body2`'s 0.95rem/1.43
+  // (the pre-#832 default, ~21.7px tall) or drop the tabular numerals pair 9
+  // asks for, both of which `TableRow`'s height floor above would hide —
+  // it is a floor, not a ceiling, so an over-tall cell renders wrong with
+  // every one of these assertions still green.
+  it("sizes table cells to the row scale and gives every cell tabular numerals", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiTableCell?.styleOverrides?.root, `${label} MuiTableCell root`);
+      expect(root.fontSize, `${label} row size`).toBe("0.875rem");
+      expect(root.lineHeight, `${label} row line-height`).toBe(20 / 14);
+      expect(root.fontVariantNumeric, `${label} tabular numerals`).toBe("tabular-nums");
+      const phone = theme.breakpoints.down("md");
+      const narrow = slot(root[phone], `${label} MuiTableCell phone`);
+      expect(narrow.fontSize, `${label} phone row size`).toBe("1rem");
+      expect(narrow.lineHeight, `${label} phone row line-height`).toBe(24 / 16);
+    }
+  });
+
   it("sets the direction's type scale (display/title/section/rows/caption)", () => {
     for (const { label, theme } of themes) {
       const phone = theme.breakpoints.down("md");

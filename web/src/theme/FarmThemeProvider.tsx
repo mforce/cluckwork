@@ -396,23 +396,32 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         },
       },
       // Ledger row heights (DIRECTION.md): 36px desktop, 52px phone.
-      //
-      // KNOWN GAP, flagged by a Codex review of #882 (2026-09-16) and left
-      // open rather than fixed here: `height` on a `table-row` is a floor,
-      // not a ceiling, so a row still grows past it when its cells' content
-      // does not fit. `TableCell` spreads `theme.typography.body2` — 0.95rem
-      // at MUI's default 1.43 line-height (~21.7px), never this theme's
-      // row scale (14/20 desktop, 16/24 phone) — plus MUI's own default 16px
-      // vertical padding and a 1px border, ~54.7px total, comfortably over
-      // both targets. Closing this needs an explicit `MuiTableCell` density
-      // (variant, padding, and whether it should track the row scale at all)
-      // that nothing has reviewed yet, and this slice mounts no real
-      // `Table` on any screen (by design — no screen conversion), so nothing
-      // renders wrong today. Left for whichever slice first puts a ledger on
-      // MUI's `Table`.
       MuiTableRow: {
         styleOverrides: {
           root: { height: 36, [phone]: { height: 52 } },
+        },
+      },
+      // #832 — closes the gap the comment above used to carry: this is the
+      // first slice to mount a real MUI `Table` (Customers/Products/Grades/
+      // Flocks/Users). `TableCell` spreads `theme.typography.body2` as its
+      // base (`TableCell.js`) — 0.95rem at MUI's default 1.43 line-height
+      // (~21.7px), never this theme's row scale — so left alone it would sit
+      // taller than DIRECTION.md's 14/20 desktop / 16/24 phone rows and carry
+      // no tabular numerals. Pinning `fontSize`/`lineHeight` here to the same
+      // numbers `body1` already carries (rather than pointing `variant` at
+      // `body1`, which would also move the `variantMapping` element) reaches
+      // every `TableCell` regardless of context. `size="small"` (`6px 16px`
+      // padding, `TableCell.js`) plus this line height plus the 1px border
+      // comes in under both `MuiTableRow` floors above, which is correct: a
+      // floor, not a ceiling (#882 review).
+      MuiTableCell: {
+        styleOverrides: {
+          root: {
+            fontSize: "0.875rem",
+            lineHeight: 20 / 14,
+            fontVariantNumeric: "tabular-nums",
+            [phone]: { fontSize: "1rem", lineHeight: 24 / 16 },
+          },
         },
       },
       // Sidebar shell (D2 pair 12, #829). `Drawer`'s paper defaults to

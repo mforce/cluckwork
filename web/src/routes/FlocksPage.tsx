@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Bird, FilterX, Plus } from "lucide-react";
 import {
+  Box, Divider, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  TextField, Typography,
+} from "@mui/material";
+import {
   archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks, reactivateFlock,
   recordBirdMovement, updateFlock,
 } from "../api/cluckwork";
@@ -275,22 +279,31 @@ export function FlocksPage() {
       </p>
 
       <Dialog open={creating && isAdmin} title={t("newFlockDialogTitle")} onClose={closeCreate}>
-        <form className="inline-form" onSubmit={onCreate}>
-          <label>{t("nameLabel")}
-            <input value={name} required maxLength={100}
-              onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label>{t("breedLabel")}
-            <input value={breed} required maxLength={100}
-              onChange={(e) => setBreed(e.target.value)} />
-          </label>
-          <label>{t("placedLabel")}
-            <input type="date" value={placed} max={today} required
-              onChange={(e) => setPlaced(e.target.value)} />
-          </label>
+        <Stack component="form" spacing={2} onSubmit={onCreate}>
+          <TextField
+            label={t("nameLabel")}
+            value={name}
+            slotProps={{ htmlInput: { maxLength: 100, required: true } }}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextField
+            label={t("breedLabel")}
+            value={breed}
+            slotProps={{ htmlInput: { maxLength: 100, required: true } }}
+            onChange={(e) => setBreed(e.target.value)}
+          />
+          <TextField
+            label={t("placedLabel")}
+            type="date"
+            value={placed}
+            slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => setPlaced(e.target.value)}
+          />
           {/* #250: sibling label, not wrapping — a <label> may not contain
               interactive content other than its own control, and the stepper
-              carries two buttons. */}
+              carries two buttons. NumberField itself is out of this slice's
+              scope (pair 3, #828), so it and its wrapper keep their existing
+              markup unconverted. */}
           <div className="numfield-field">
             <label htmlFor={idFor("birds")}>{t("birdsLabel")}</label>
             <NumberField id={idFor("birds")} label={t("birdsLabel").toLowerCase()}
@@ -301,26 +314,33 @@ export function FlocksPage() {
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
 
       {/* Editing is admin-only, so a role change mid-edit closes it. */}
       <Dialog open={editingId !== null && isAdmin} title={t("editFlockDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button — native
             constraint validation never ran on these fields. */}
-        <form className="inline-form" noValidate onSubmit={onSaveEdit}>
-          <label>{t("editNameLabel")}
-            <input value={editName} maxLength={100}
-              onChange={(e) => setEditName(e.target.value)} />
-          </label>
-          <label>{t("editBreedLabel")}
-            <input value={editBreed} maxLength={100}
-              onChange={(e) => setEditBreed(e.target.value)} />
-          </label>
-          <label>{t("editPlacedLabel")}
-            <input type="date" value={editPlaced} max={today}
-              onChange={(e) => setEditPlaced(e.target.value)} />
-          </label>
+        <Stack component="form" spacing={2} noValidate onSubmit={onSaveEdit}>
+          <TextField
+            label={t("editNameLabel")}
+            value={editName}
+            slotProps={{ htmlInput: { maxLength: 100 } }}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+          <TextField
+            label={t("editBreedLabel")}
+            value={editBreed}
+            slotProps={{ htmlInput: { maxLength: 100 } }}
+            onChange={(e) => setEditBreed(e.target.value)}
+          />
+          <TextField
+            label={t("editPlacedLabel")}
+            type="date"
+            value={editPlaced}
+            slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
+            onChange={(e) => setEditPlaced(e.target.value)}
+          />
           <div className="numfield-field">
             <label htmlFor={idFor("edit-count")}>{t("editCountLabel")}</label>
             <NumberField id={idFor("edit-count")} label={t("editCountLabel").toLowerCase()}
@@ -333,7 +353,7 @@ export function FlocksPage() {
               {tc("save")}
             </BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
 
       {/* #479 — unconditional: each dialog now renders its own failure through
@@ -361,167 +381,199 @@ export function FlocksPage() {
           : <EmptyState icon={Bird} message={t("noFlocksMessage")}
               action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); openDialog("create"); setCreating(true); } } : undefined} />
       ) : (
-        <table className="data">
-          <thead>
-            <tr>
-              <th>{t("nameHeader")}</th><th>{t("breedHeader")}</th><th>{t("placedHeader")}</th><th className="num">{t("ageHeader")}</th>
-              <th className="num">{t("birdsHeader")}</th><th>{t("statusHeader")}</th>
-              <th>{tc("recordHistoryHeader")}</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((f) => (
-              <tr key={f.id} className={f.status === "Archived" ? "inactive" : undefined}>
-                <td>{f.name}</td>
-                <td>{f.breed}</td>
-                <td className="nowrap"><FarmDate iso={f.placementDate} /></td>
-                <td className="num">{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</td>
-                <td className="num">
-                  {fmt.count(f.currentBirds)}
-                  {f.currentBirds !== f.initialCount &&
-                    <span className="muted"> / {fmt.count(f.initialCount)}</span>}
-                </td>
-                <td><StatusBadge status={f.status} label={statusLabel(f.status)} /></td>
-                <ProvenanceCell history={f} />
-                <td>
-                  {/* #493 — full audit trail for this record, distinct from
-                      the created/last-changed summary in ProvenanceCell.
-                      Admin-gated: /api/v1/audit is AdminOnly, so a non-admin
-                      following this link would only reach a 403 (codex
-                      review of #516). */}
-                  {isAdmin && (
-                    <Link className="link" to={`/audit?entityId=${f.id}`}>
-                      {tc("recordHistory.viewHistoryLink")}
-                    </Link>
-                  )}
-                  <button className="link" disabled={busy}
-                    onClick={() => void openLedger(f.id)}>
-                    {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
-                  </button>
-                  {isAdmin && (
-                    // Opens the edit dialog — non-mutating, so the spinner
-                    // belongs to the dialog's Save, not here (#242).
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{t("nameHeader")}</TableCell>
+                <TableCell>{t("breedHeader")}</TableCell>
+                <TableCell>{t("placedHeader")}</TableCell>
+                <TableCell align="right">{t("ageHeader")}</TableCell>
+                <TableCell align="right">{t("birdsHeader")}</TableCell>
+                <TableCell>{t("statusHeader")}</TableCell>
+                <TableCell>{tc("recordHistoryHeader")}</TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {visible.map((f) => (
+                <TableRow key={f.id} className={f.status === "Archived" ? "inactive" : undefined}>
+                  <TableCell>{f.name}</TableCell>
+                  <TableCell>{f.breed}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}><FarmDate iso={f.placementDate} /></TableCell>
+                  <TableCell align="right">{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</TableCell>
+                  <TableCell align="right">
+                    {fmt.count(f.currentBirds)}
+                    {f.currentBirds !== f.initialCount &&
+                      <span className="muted"> / {fmt.count(f.initialCount)}</span>}
+                  </TableCell>
+                  <TableCell><StatusBadge status={f.status} label={statusLabel(f.status)} /></TableCell>
+                  <ProvenanceCell history={f} />
+                  <TableCell>
+                    {/* #493 — full audit trail for this record, distinct from
+                        the created/last-changed summary in ProvenanceCell.
+                        Admin-gated: /api/v1/audit is AdminOnly, so a non-admin
+                        following this link would only reach a 403 (codex
+                        review of #516). */}
+                    {isAdmin && (
+                      <Link className="link" to={`/audit?entityId=${f.id}`}>
+                        {tc("recordHistory.viewHistoryLink")}
+                      </Link>
+                    )}
                     <button className="link" disabled={busy}
-                      onClick={() => startEdit(f)}>{t("editButton")}</button>
-                  )}
-                  {isAdmin && f.status === "Active" && (
-                    <BusyButton className="link" busy={isPending(`deplete:${f.id}`)} disabled={busy}
-                      onClick={() => void onDeplete(f)}>
-                      {t("depleteButton")}
-                    </BusyButton>
-                  )}
-                  {isAdmin && f.status !== "Archived" && (
-                    // After the confirm dialog settles, THIS button is the
-                    // pending indicator for the in-flight archive (#236).
-                    <BusyButton className="link" busy={isPending(`archive:${f.id}`)} disabled={busy}
-                      onClick={() => void onArchive(f)}>
-                      {t("archiveButton")}
-                    </BusyButton>
-                  )}
-                  {isAdmin && f.status !== "Active" && (
-                    // The undo (#57): back to Active, full capture restored.
-                    <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
-                      onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
-                      {t("reactivateButton")}
-                    </BusyButton>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      onClick={() => void openLedger(f.id)}>
+                      {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
+                    </button>
+                    {isAdmin && (
+                      // Opens the edit dialog — non-mutating, so the spinner
+                      // belongs to the dialog's Save, not here (#242).
+                      <button className="link" disabled={busy}
+                        onClick={() => startEdit(f)}>{t("editButton")}</button>
+                    )}
+                    {isAdmin && f.status === "Active" && (
+                      <BusyButton className="link" busy={isPending(`deplete:${f.id}`)} disabled={busy}
+                        onClick={() => void onDeplete(f)}>
+                        {t("depleteButton")}
+                      </BusyButton>
+                    )}
+                    {isAdmin && f.status !== "Archived" && (
+                      // After the confirm dialog settles, THIS button is the
+                      // pending indicator for the in-flight archive (#236).
+                      <BusyButton className="link" busy={isPending(`archive:${f.id}`)} disabled={busy}
+                        onClick={() => void onArchive(f)}>
+                        {t("archiveButton")}
+                      </BusyButton>
+                    )}
+                    {isAdmin && f.status !== "Active" && (
+                      // The undo (#57): back to Active, full capture restored.
+                      <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
+                        onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
+                        {t("reactivateButton")}
+                      </BusyButton>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       {ledgerFlockId && (
-        <div className="order-panel">
-          <h3>
-            {t("ledgerHeading", { name: flocks.find((f) => f.id === ledgerFlockId)?.name ?? "" })}
-          </h3>
-          <p className="muted">
-            {t("ledgerIntro")}
-            {isAdmin ? t("ledgerIntroAdminNote") : t("ledgerIntroWorkerNote")}
-          </p>
+        // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —
+        // a Box between two Dividers, an h3, no fill, no radius. Flocks was
+        // this rule's last STYLESHEET consumer to convert (Sales/Inventory/
+        // Expenses still render the old `.order-panel` div and keep its CSS
+        // alive until #831), so only this screen's own markup moves.
+        <Box sx={{ my: 3 }}>
+          <Divider />
+          <Box sx={{ py: 3 }}>
+            <Typography variant="h3" gutterBottom>
+              {t("ledgerHeading", { name: flocks.find((f) => f.id === ledgerFlockId)?.name ?? "" })}
+            </Typography>
+            <p className="muted">
+              {t("ledgerIntro")}
+              {isAdmin ? t("ledgerIntroAdminNote") : t("ledgerIntroWorkerNote")}
+            </p>
 
-          {isAdmin && (
-            <button type="button" onClick={() => { openDialog("record-movement"); setRecording(true); }}>
-              <Plus size={16} aria-hidden /> {t("recordMovementButton")}
-            </button>
-          )}
+            {isAdmin && (
+              <button type="button" onClick={() => { openDialog("record-movement"); setRecording(true); }}>
+                <Plus size={16} aria-hidden /> {t("recordMovementButton")}
+              </button>
+            )}
 
-          <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}>
-            <form className="inline-form" onSubmit={onRecordMovement}>
-              <label>{t("dateLabel")}
-                <input type="date" value={mvDate} max={today}
-                  onChange={(e) => setMvDate(e.target.value)} />
-              </label>
-              <label>{t("typeLabel")}
-                <select value={mvType} onChange={(e) => setMvType(e.target.value)}>
+            <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}>
+              <Stack component="form" spacing={2} onSubmit={onRecordMovement}>
+                <TextField
+                  label={t("dateLabel")}
+                  type="date"
+                  value={mvDate}
+                  slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
+                  onChange={(e) => setMvDate(e.target.value)}
+                />
+                <TextField
+                  select
+                  label={t("typeLabel")}
+                  value={mvType}
+                  slotProps={{ select: { native: true } }}
+                  onChange={(e) => setMvType(e.target.value)}
+                >
                   <option value="Cull">{flockMovementLabel("Cull")}</option>
                   <option value="Adjustment">{flockMovementLabel("Adjustment")}</option>
-                </select>
-              </label>
-              {/* A cull removes at least one bird; an Adjustment counts both
-                  ways (added or lost), so its floor is unbounded (#250). */}
-              <div className="numfield-field">
-                <label htmlFor={idFor("mv-birds")}>{t("birdsLabel")}</label>
-                <NumberField id={idFor("mv-birds")} label={t("birdsLabel").toLowerCase()}
-                  value={mvQty} onChange={setMvQty}
-                  min={mvType === "Cull" ? 1 : Number.NEGATIVE_INFINITY} />
-              </div>
-              <label>{t("noteLabel")}
-                <input value={mvNote} maxLength={500}
-                  onChange={(e) => setMvNote(e.target.value)} />
-              </label>
-              <DialogError errors={errors} scope="record-movement" />
-              <div className="dialog-foot">
-                <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
-                <BusyButton type="submit"
-                  busy={isPending("record-movement")}
-                  disabled={busy || mvQty === 0}>
-                  {t("recordButton")}
-                </BusyButton>
-              </div>
-            </form>
-          </Dialog>
+                </TextField>
+                {/* A cull removes at least one bird; an Adjustment counts both
+                    ways (added or lost), so its floor is unbounded (#250). */}
+                <div className="numfield-field">
+                  <label htmlFor={idFor("mv-birds")}>{t("birdsLabel")}</label>
+                  <NumberField id={idFor("mv-birds")} label={t("birdsLabel").toLowerCase()}
+                    value={mvQty} onChange={setMvQty}
+                    min={mvType === "Cull" ? 1 : Number.NEGATIVE_INFINITY} />
+                </div>
+                <TextField
+                  label={t("noteLabel")}
+                  value={mvNote}
+                  slotProps={{ htmlInput: { maxLength: 500 } }}
+                  onChange={(e) => setMvNote(e.target.value)}
+                />
+                <DialogError errors={errors} scope="record-movement" />
+                <div className="dialog-foot">
+                  <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
+                  <BusyButton type="submit"
+                    busy={isPending("record-movement")}
+                    disabled={busy || mvQty === 0}>
+                    {t("recordButton")}
+                  </BusyButton>
+                </div>
+              </Stack>
+            </Dialog>
 
-          {/* #511 round 5 — the error renders BESIDE the rows, never instead of
-              them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
-              fails (only a failed REPLACEMENT empties them), so a branch that
-              swapped the table for the message threw away everything the user
-              had paged to over one transient load-more failure. That is AC3:
-              a failed extension keeps already-loaded rows and permits retry.
-              CustomersPage had this right from the start — it is the shape
-              copied here. A failed REPLACEMENT still shows the message alone,
-              because the hook has emptied `rows` by then and the empty branch
-              below does not fire on `error`. */}
-          {ledger.error && <p className="error">{ledger.error}</p>}
-          {ledger.rows === null || ledger.reloading ? (
-            <p className="muted">{tc("loading")}</p>
-          ) : ledger.rows.length === 0 && !ledger.error ? (
-            <p className="muted">{t("noMovementsMessage")}</p>
-          ) : (
-            <table className="data">
-              <thead>
-                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th className="num">{t("ledgerBirdsHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
-              </thead>
-              <tbody>
-                {ledger.rows.map((m) => (
-                  <tr key={m.id}>
-                    <td className="nowrap"><FarmDate iso={m.date} /></td>
-                    <td>{flockMovementLabel(m.type)}</td>
-                    <td className="num">{m.quantity > 0 ? `−${fmt.count(m.quantity)}` : `+${fmt.count(-m.quantity)}`}</td>
-                    <td>{m.note ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {ledger.canLoadMore && (
-            <button className="link" onClick={() => void ledger.loadMore()}>
-              {t("loadMoreButton")}
-            </button>
-          )}
-        </div>
+            {/* #511 round 5 — the error renders BESIDE the rows, never instead of
+                them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
+                fails (only a failed REPLACEMENT empties them), so a branch that
+                swapped the table for the message threw away everything the user
+                had paged to over one transient load-more failure. That is AC3:
+                a failed extension keeps already-loaded rows and permits retry.
+                CustomersPage had this right from the start — it is the shape
+                copied here. A failed REPLACEMENT still shows the message alone,
+                because the hook has emptied `rows` by then and the empty branch
+                below does not fire on `error`. */}
+            {ledger.error && <p className="error">{ledger.error}</p>}
+            {ledger.rows === null || ledger.reloading ? (
+              <p className="muted">{tc("loading")}</p>
+            ) : ledger.rows.length === 0 && !ledger.error ? (
+              <p className="muted">{t("noMovementsMessage")}</p>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t("ledgerDateHeader")}</TableCell>
+                      <TableCell>{t("ledgerTypeHeader")}</TableCell>
+                      <TableCell align="right">{t("ledgerBirdsHeader")}</TableCell>
+                      <TableCell>{t("ledgerNoteHeader")}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {ledger.rows.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}><FarmDate iso={m.date} /></TableCell>
+                        <TableCell>{flockMovementLabel(m.type)}</TableCell>
+                        <TableCell align="right">{m.quantity > 0 ? `−${fmt.count(m.quantity)}` : `+${fmt.count(-m.quantity)}`}</TableCell>
+                        <TableCell>{m.note ?? "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+            {ledger.canLoadMore && (
+              <button className="link" onClick={() => void ledger.loadMore()}>
+                {t("loadMoreButton")}
+              </button>
+            )}
+          </Box>
+          <Divider />
+        </Box>
       )}
 
       {confirmDialog}

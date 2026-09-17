@@ -221,7 +221,9 @@ describe("ProvenanceCell", () => {
       lastChangedByEmail: null,
       lastChangedAtUtc: null,
     });
-    expect(cell().className).toContain("nowrap");
+    // #832 — the class this used to assert is gone; the same CSS fact now
+    // ships as `sx` on the `TableCell`, so pin the computed style instead.
+    expect(getComputedStyle(cell()).whiteSpace).toBe("nowrap");
   });
 
   describe("on the farm clock", () => {

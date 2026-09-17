@@ -3,6 +3,9 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
+  Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
+import {
   assignFlock as apiAssignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments,
   listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
@@ -724,42 +727,55 @@ export function UsersPage() {
       </p>
 
       <Dialog open={creating} title={t("newUserButton")} onClose={closeCreate}>
-        <form className="inline-form" onSubmit={onCreate}>
-          <label>{t("emailFieldLabel")}
-            <input type="email" value={email} required maxLength={256}
-              autoComplete="off"
-              onChange={(e) => setEmail(e.target.value)} />
-          </label>
-          <label>{t("passwordFieldLabel")}
-            <input type="password" value={password}
-              required minLength={12} maxLength={256} autoComplete="new-password"
-              onChange={(e) => setPassword(e.target.value)} />
-          </label>
-          <label>{t("nameFieldLabel")}
-            <input type="text" value={name} maxLength={128} autoComplete="off"
-              onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label>{t("roleFieldLabel")}
-            <select value={role} onChange={(e) => setRole(e.target.value)}>
-              {ROLE_VALUES.map((v) => (
-                <option key={v} value={v}>
-                  {v === "Admin" ? t("adminRoleOption", { label: roleLabel(v) }) : roleLabel(v)}
-                </option>
-              ))}
-            </select>
-          </label>
+        <Stack component="form" spacing={2} onSubmit={onCreate}>
+          <TextField
+            label={t("emailFieldLabel")}
+            type="email"
+            value={email}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "off" } }}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextField
+            label={t("passwordFieldLabel")}
+            type="password"
+            value={password}
+            slotProps={{ htmlInput: { required: true, minLength: 12, maxLength: 256, autoComplete: "new-password" } }}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <TextField
+            label={t("nameFieldLabel")}
+            type="text"
+            value={name}
+            slotProps={{ htmlInput: { maxLength: 128, autoComplete: "off" } }}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextField
+            select
+            label={t("roleFieldLabel")}
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            slotProps={{ select: { native: true } }}
+          >
+            {ROLE_VALUES.map((v) => (
+              <option key={v} value={v}>
+                {v === "Admin" ? t("adminRoleOption", { label: roleLabel(v) }) : roleLabel(v)}
+              </option>
+            ))}
+          </TextField>
           <p className="muted">{t("stepUpCreateHint")}</p>
-          <label>{t("stepUpFieldLabel")}
-            <input type="password" value={createStepUpPassword} required maxLength={256}
-              autoComplete="current-password"
-              onChange={(e) => setCreateStepUpPassword(e.target.value)} />
-          </label>
+          <TextField
+            label={t("stepUpFieldLabel")}
+            type="password"
+            value={createStepUpPassword}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
+            onChange={(e) => setCreateStepUpPassword(e.target.value)}
+          />
           <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
 
       {/* Unconditional since #479. The five-way guard this replaces existed
@@ -769,63 +785,65 @@ export function UsersPage() {
       {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success">{message}</p>}
 
-      <table className="data">
-        <thead>
-          <tr>
-            <th>{t("emailColumnHeader")}</th>
-            <th>{t("nameColumnHeader")}</th>
-            <th>{t("roleColumnHeader")}</th>
-            <th>{t("statusColumnHeader")}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* #356 — a disabled row renders muted (ProductsPage's active/inactive
-              precedent), and offers Enable in place of Disable. Neither action
-              appears on the caller's own row: the server 400s a self-target
-              (Users.CannotDisableSelf/CannotEnableSelf), so presenting the
-              button here would only ever fail. */}
-          {users.map((u) => (
-            <tr key={u.id} className={u.disabledAt ? "muted" : undefined}>
-              <td>{u.email}</td>
-              <td>{u.displayName ?? "—"}</td>
-              <td>{roleLabel(u.role)}</td>
-              <td>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</td>
-              <td>
-                <button className="link" onClick={() => openEdit(u)}>
-                  <Pencil size={14} aria-hidden /> {t("editButton")}
-                </button>
-                <button className="link" onClick={() => openPassword(u)}>
-                  <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
-                </button>
-                <button className="link" onClick={() => openRole(u)}>
-                  <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
-                </button>
-                <button className="link" onClick={() => openEmail(u)}>
-                  <Mail size={14} aria-hidden /> {t("changeEmailButton")}
-                </button>
-                {/* #612 — shown for every role, not just Worker: a promoted
-                    user keeps their retained rows (inert, but still visible
-                    and removable) even though a NEW assignment is Worker-only. */}
-                <button className="link" onClick={() => void openAssignments(u.id)}>
-                  {t("flocksButton")}
-                </button>
-                {myId !== u.id && (
-                  u.disabledAt ? (
-                    <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
-                      <RotateCcw size={14} aria-hidden /> {t("enableButton")}
-                    </button>
-                  ) : (
-                    <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
-                      <Ban size={14} aria-hidden /> {t("disableButton")}
-                    </button>
-                  )
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>{t("emailColumnHeader")}</TableCell>
+              <TableCell>{t("nameColumnHeader")}</TableCell>
+              <TableCell>{t("roleColumnHeader")}</TableCell>
+              <TableCell>{t("statusColumnHeader")}</TableCell>
+              <TableCell></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {/* #356 — a disabled row renders muted (ProductsPage's active/inactive
+                precedent), and offers Enable in place of Disable. Neither action
+                appears on the caller's own row: the server 400s a self-target
+                (Users.CannotDisableSelf/CannotEnableSelf), so presenting the
+                button here would only ever fail. */}
+            {users.map((u) => (
+              <TableRow key={u.id} className={u.disabledAt ? "muted" : undefined}>
+                <TableCell>{u.email}</TableCell>
+                <TableCell>{u.displayName ?? "—"}</TableCell>
+                <TableCell>{roleLabel(u.role)}</TableCell>
+                <TableCell>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</TableCell>
+                <TableCell>
+                  <button className="link" onClick={() => openEdit(u)}>
+                    <Pencil size={14} aria-hidden /> {t("editButton")}
+                  </button>
+                  <button className="link" onClick={() => openPassword(u)}>
+                    <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
+                  </button>
+                  <button className="link" onClick={() => openRole(u)}>
+                    <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
+                  </button>
+                  <button className="link" onClick={() => openEmail(u)}>
+                    <Mail size={14} aria-hidden /> {t("changeEmailButton")}
+                  </button>
+                  {/* #612 — shown for every role, not just Worker: a promoted
+                      user keeps their retained rows (inert, but still visible
+                      and removable) even though a NEW assignment is Worker-only. */}
+                  <button className="link" onClick={() => void openAssignments(u.id)}>
+                    {t("flocksButton")}
+                  </button>
+                  {myId !== u.id && (
+                    u.disabledAt ? (
+                      <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+                        <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+                      </button>
+                    ) : (
+                      <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
+                        <Ban size={14} aria-hidden /> {t("disableButton")}
+                      </button>
+                    )
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       <Dialog
         open={openUser !== null}
@@ -839,94 +857,100 @@ export function UsersPage() {
         // no longer belongs to the current dialog instance).
         closeDisabled={flockWriteInFlight}
       >
-        <p className="muted">
-          {t("flockAccessHint")}
-        </p>
-        {/* #612 — only a plain Worker is ever narrowed by these rows; a
-            promoted user's retained rows are inert until (or unless) they
-            are demoted back to Worker. */}
-        {!openUserIsWorker && assignments.length > 0 && (
-          <p className="hint">{t("retainedAssignmentsHint")}</p>
-        )}
-        {assignments.length === 0 ? (
-          <p className="muted">{t("noAssignmentsMessage")}</p>
-        ) : (
-          <ul>
-            {assignments.map((a) => (
-              <li key={a.id}>
-                {flockName(a)}
-                {!openUserIsWorker && <span className="muted"> ({t("inactiveAssignmentLabel")})</span>}{" "}
-                <BusyButton className="link" disabled={busy || !flockStepUpPassword}
-                  busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
-                  onClick={() => void onUnassign(a)}>
-                  {t("removeAssignmentButton")}
-                </BusyButton>
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* #612 — a live assignment write is refused server-side for a
-            non-Worker target (Users.FlockAssignmentsWorkerOnly); the add
-            control is disabled here rather than letting the user discover
-            that as a 422. Removal above stays available regardless. */}
-        {openUserIsWorker ? (
-          <div className="inline-form">
-            {/* #512 (T028/T037) — the assignment flock commits through
-                FlockPicker. Optional: the blank means "no assignments yet"
-                (account-wide) and is submittable; a committed flock —
-                possibly an archived retained identity, resolved through the
-                picker's exact read — is the write payload. Disabled during
-                any flight: the assign scope embeds the selected flock id, so
-                changing the selection mid-flight would re-point isPending at
-                a scope nobody is running and drop the spinner while the
-                request is still open (#242 review). */}
-            <FlockPicker
-              label={t("flockLabel")}
-              eligibility="active"
-              required={false}
-              disabled={busy}
-              open={assignPickerOpen}
-              controlledCommitted={assignFlock}
-              controlledGeneration={assignFlockGen}
-              onSnapshot={setAssignFlockSnapshot}
-              onCommit={(f) => {
-                setAssignFlock(f);
-                setAssignFlockGen((g) => g + 1);
-                setAssignPickerOpen(false);
-              }}
-              onClear={() => {
-                setAssignFlock(null);
-                setAssignFlockGen((g) => g + 1);
-              }}
-              onEscape={() => setAssignPickerOpen(false)}
-              onOutsideClick={() => setAssignPickerOpen(false)}
-              trigger={
-                <button type="button" className="named-picker-trigger"
-                  disabled={busy}
-                  onClick={() => setAssignPickerOpen(true)}>
-                  {assignFlock ? assignFlock.name : t("selectFlockOption")}
-                </button>
-              }
-            />
-            <BusyButton disabled={busy || !assignFlock || !assignFlockSnapshot.canSubmit || !flockStepUpPassword}
-              busy={openUser !== null && isPending(`assign:${openUser}:${assignFlock?.id ?? ""}`)}
-              onClick={() => void onAssign()}>
-              {t("assignFlockButton")}
-            </BusyButton>
+        <Stack spacing={2}>
+          <p className="muted">
+            {t("flockAccessHint")}
+          </p>
+          {/* #612 — only a plain Worker is ever narrowed by these rows; a
+              promoted user's retained rows are inert until (or unless) they
+              are demoted back to Worker. */}
+          {!openUserIsWorker && assignments.length > 0 && (
+            <p className="hint">{t("retainedAssignmentsHint")}</p>
+          )}
+          {assignments.length === 0 ? (
+            <p className="muted">{t("noAssignmentsMessage")}</p>
+          ) : (
+            <ul>
+              {assignments.map((a) => (
+                <li key={a.id}>
+                  {flockName(a)}
+                  {!openUserIsWorker && <span className="muted"> ({t("inactiveAssignmentLabel")})</span>}{" "}
+                  <BusyButton className="link" disabled={busy || !flockStepUpPassword}
+                    busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
+                    onClick={() => void onUnassign(a)}>
+                    {t("removeAssignmentButton")}
+                  </BusyButton>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* #612 — a live assignment write is refused server-side for a
+              non-Worker target (Users.FlockAssignmentsWorkerOnly); the add
+              control is disabled here rather than letting the user discover
+              that as a 422. Removal above stays available regardless. */}
+          {openUserIsWorker ? (
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+              {/* #512 (T028/T037) — the assignment flock commits through
+                  FlockPicker; its own call and props are untouched (#826
+                  owns the picker's internals). Optional: the blank means "no
+                  assignments yet" (account-wide) and is submittable; a
+                  committed flock — possibly an archived retained identity,
+                  resolved through the picker's exact read — is the write
+                  payload. Disabled during any flight: the assign scope
+                  embeds the selected flock id, so changing the selection
+                  mid-flight would re-point isPending at a scope nobody is
+                  running and drop the spinner while the request is still
+                  open (#242 review). */}
+              <FlockPicker
+                label={t("flockLabel")}
+                eligibility="active"
+                required={false}
+                disabled={busy}
+                open={assignPickerOpen}
+                controlledCommitted={assignFlock}
+                controlledGeneration={assignFlockGen}
+                onSnapshot={setAssignFlockSnapshot}
+                onCommit={(f) => {
+                  setAssignFlock(f);
+                  setAssignFlockGen((g) => g + 1);
+                  setAssignPickerOpen(false);
+                }}
+                onClear={() => {
+                  setAssignFlock(null);
+                  setAssignFlockGen((g) => g + 1);
+                }}
+                onEscape={() => setAssignPickerOpen(false)}
+                onOutsideClick={() => setAssignPickerOpen(false)}
+                trigger={
+                  <button type="button" className="named-picker-trigger"
+                    disabled={busy}
+                    onClick={() => setAssignPickerOpen(true)}>
+                    {assignFlock ? assignFlock.name : t("selectFlockOption")}
+                  </button>
+                }
+              />
+              <BusyButton disabled={busy || !assignFlock || !assignFlockSnapshot.canSubmit || !flockStepUpPassword}
+                busy={openUser !== null && isPending(`assign:${openUser}:${assignFlock?.id ?? ""}`)}
+                onClick={() => void onAssign()}>
+                {t("assignFlockButton")}
+              </BusyButton>
+            </Stack>
+          ) : (
+            <p className="hint">{t("assignmentsWorkerOnlyHint")}</p>
+          )}
+          <p className="muted">{t("stepUpFlockHint")}</p>
+          <TextField
+            label={t("stepUpFieldLabel")}
+            type="password"
+            value={flockStepUpPassword}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
+            onChange={(e) => setFlockStepUpPassword(e.target.value)}
+          />
+          <DialogError errors={errors} scope="flock-access" />
+          <div className="dialog-foot">
+            <button type="button" className="link" disabled={flockWriteInFlight} onClick={closeAssignments}>{t("doneButton")}</button>
           </div>
-        ) : (
-          <p className="hint">{t("assignmentsWorkerOnlyHint")}</p>
-        )}
-        <p className="muted">{t("stepUpFlockHint")}</p>
-        <label>{t("stepUpFieldLabel")}
-          <input type="password" value={flockStepUpPassword} required maxLength={256}
-            autoComplete="current-password"
-            onChange={(e) => setFlockStepUpPassword(e.target.value)} />
-        </label>
-        <DialogError errors={errors} scope="flock-access" />
-        <div className="dialog-foot">
-          <button type="button" className="link" disabled={flockWriteInFlight} onClick={closeAssignments}>{t("doneButton")}</button>
-        </div>
+        </Stack>
       </Dialog>
 
       <Dialog
@@ -934,11 +958,14 @@ export function UsersPage() {
         title={t("editUserTitle", { email: editUser?.email ?? "" })}
         onClose={closeEdit}
       >
-        <form className="inline-form" onSubmit={onUpdate}>
-          <label>{t("nameFieldLabel")}
-            <input type="text" value={editName} maxLength={128} autoComplete="off"
-              onChange={(e) => setEditName(e.target.value)} />
-          </label>
+        <Stack component="form" spacing={2} onSubmit={onUpdate}>
+          <TextField
+            label={t("nameFieldLabel")}
+            type="text"
+            value={editName}
+            slotProps={{ htmlInput: { maxLength: 128, autoComplete: "off" } }}
+            onChange={(e) => setEditName(e.target.value)}
+          />
           <p className="muted">{t("clearNameHint")}</p>
           <DialogError errors={errors} scope="edit-user" />
           <div className="dialog-foot">
@@ -946,7 +973,7 @@ export function UsersPage() {
             <BusyButton type="submit" disabled={busy}
               busy={editUser !== null && isPending(`update:${editUser.id}`)}>{tc("save")}</BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
 
       <Dialog
@@ -954,33 +981,39 @@ export function UsersPage() {
         title={t("setPasswordTitle", { email: pwUser?.email ?? "" })}
         onClose={closePassword}
       >
-        <form className="inline-form" onSubmit={onSetPassword}>
+        <Stack component="form" spacing={2} onSubmit={onSetPassword}>
           <p className="muted">
             {t("passwordDialogHint")}
           </p>
-          <label>{t("newPasswordFieldLabel")}
-            <input type="password" value={pwValue} required minLength={12} maxLength={256}
-              autoComplete="new-password"
-              onChange={(e) => setPwValue(e.target.value)} />
-          </label>
-          <label>{t("confirmPasswordFieldLabel")}
-            <input type="password" value={pwConfirm} required maxLength={256}
-              autoComplete="new-password"
-              onChange={(e) => setPwConfirm(e.target.value)} />
-          </label>
+          <TextField
+            label={t("newPasswordFieldLabel")}
+            type="password"
+            value={pwValue}
+            slotProps={{ htmlInput: { required: true, minLength: 12, maxLength: 256, autoComplete: "new-password" } }}
+            onChange={(e) => setPwValue(e.target.value)}
+          />
+          <TextField
+            label={t("confirmPasswordFieldLabel")}
+            type="password"
+            value={pwConfirm}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "new-password" } }}
+            onChange={(e) => setPwConfirm(e.target.value)}
+          />
           <p className="muted">{t("stepUpResetHint")}</p>
-          <label>{t("stepUpFieldLabel")}
-            <input type="password" value={pwStepUpPassword} required maxLength={256}
-              autoComplete="current-password"
-              onChange={(e) => setPwStepUpPassword(e.target.value)} />
-          </label>
+          <TextField
+            label={t("stepUpFieldLabel")}
+            type="password"
+            value={pwStepUpPassword}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
+            onChange={(e) => setPwStepUpPassword(e.target.value)}
+          />
           <DialogError errors={errors} scope="set-password" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={pwUser !== null && isPending(`set-password:${pwUser.id}`)}>{t("setPasswordButton")}</BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
 
       <Dialog
@@ -988,32 +1021,38 @@ export function UsersPage() {
         title={t("changeRoleTitle", { email: roleUser?.email ?? "" })}
         onClose={closeRole}
       >
-        <form className="inline-form" onSubmit={onChangeRole}>
+        <Stack component="form" spacing={2} onSubmit={onChangeRole}>
           <p className="muted">
             {t("roleDialogHint")}
           </p>
-          <label>{t("roleFieldLabel")}
-            <select value={roleValue} onChange={(e) => setRoleValue(e.target.value)}>
-              {ROLE_VALUES.map((v) => (
-                <option key={v} value={v}>
-                  {v === "Admin" ? t("adminRoleOption", { label: roleLabel(v) }) : roleLabel(v)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <TextField
+            select
+            label={t("roleFieldLabel")}
+            value={roleValue}
+            onChange={(e) => setRoleValue(e.target.value)}
+            slotProps={{ select: { native: true } }}
+          >
+            {ROLE_VALUES.map((v) => (
+              <option key={v} value={v}>
+                {v === "Admin" ? t("adminRoleOption", { label: roleLabel(v) }) : roleLabel(v)}
+              </option>
+            ))}
+          </TextField>
           <p className="muted">{t("stepUpRoleHint")}</p>
-          <label>{t("stepUpFieldLabel")}
-            <input type="password" value={roleStepUpPassword} required maxLength={256}
-              autoComplete="current-password"
-              onChange={(e) => setRoleStepUpPassword(e.target.value)} />
-          </label>
+          <TextField
+            label={t("stepUpFieldLabel")}
+            type="password"
+            value={roleStepUpPassword}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
+            onChange={(e) => setRoleStepUpPassword(e.target.value)}
+          />
           <DialogError errors={errors} scope="change-role" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
 
       <Dialog
@@ -1021,30 +1060,41 @@ export function UsersPage() {
         title={t("changeEmailTitle", { email: emailUser?.email ?? "" })}
         onClose={closeEmail}
       >
-        <form className="inline-form" onSubmit={onChangeEmail}>
+        <Stack component="form" spacing={2} onSubmit={onChangeEmail}>
           <p className="muted" id={emailHintId}>{t("changeEmailHint")}</p>
-          <label>{t("loginEmailFieldLabel")}
-            <input type="email" value={emailValue} required maxLength={256}
-              autoComplete="off"
-              disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
-              aria-invalid={emailFieldError !== null}
-              aria-describedby={emailFieldError ? emailErrorId : emailHintId}
-              onChange={(e) => {
-                setEmailValue(e.target.value);
-                setEmailFieldError(null);
-                if (emailUser !== null) clearKey(`change-email:${emailUser.id}`);
-              }} />
-          </label>
-          {emailFieldError && (
-            <p className="error" role="alert" id={emailErrorId}>{emailFieldError}</p>
-          )}
+          <TextField
+            label={t("loginEmailFieldLabel")}
+            type="email"
+            value={emailValue}
+            disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
+            error={emailFieldError !== null}
+            helperText={emailFieldError ?? undefined}
+            slotProps={{
+              // Same field carries both ids the raw markup did: the hint
+              // stays the description at rest, and the error paragraph takes
+              // over once one exists — `role="alert"` on it is what #479's
+              // pattern requires (`DialogError` carries the same contract).
+              htmlInput: {
+                required: true, maxLength: 256, autoComplete: "off",
+                "aria-describedby": emailFieldError ? emailErrorId : emailHintId,
+              },
+              formHelperText: { id: emailErrorId, role: "alert" },
+            }}
+            onChange={(e) => {
+              setEmailValue(e.target.value);
+              setEmailFieldError(null);
+              if (emailUser !== null) clearKey(`change-email:${emailUser.id}`);
+            }}
+          />
           <p className="muted">{t("stepUpEmailHint")}</p>
-          <label>{t("stepUpFieldLabel")}
-            <input type="password" value={emailStepUpPassword} required maxLength={256}
-              autoComplete="current-password"
-              disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
-              onChange={(e) => setEmailStepUpPassword(e.target.value)} />
-          </label>
+          <TextField
+            label={t("stepUpFieldLabel")}
+            type="password"
+            value={emailStepUpPassword}
+            disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
+            onChange={(e) => setEmailStepUpPassword(e.target.value)}
+          />
           <DialogError errors={errors} scope="change-email" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEmail}>{tc("cancel")}</button>
@@ -1053,7 +1103,7 @@ export function UsersPage() {
               {t("changeEmailSubmitButton")}
             </BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
 
       {/* #356 — one dialog is the whole disable/enable flow: it IS the
@@ -1069,24 +1119,40 @@ export function UsersPage() {
         onClose={closeStepUp}
         describedBy={stepUpMode === "disable" ? disableWarningId : undefined}
       >
-        <form className="inline-form" onSubmit={onSubmitStepUp}>
+        <Stack component="form" spacing={2} onSubmit={onSubmitStepUp}>
           {stepUpMode === "disable" && (
             <>
-              <p id={disableWarningId} className="confirm-body">{t("disableWarningBody")}</p>
-              <label>{t("disableReasonFieldLabel")}
-                <textarea value={disableReason} maxLength={200} rows={3}
-                  onChange={(e) => setDisableReason(e.target.value)} />
-              </label>
+              {/* #832 — `.dialog .confirm-body` was this app's one CSS rule
+                  for confirmation prose; useConfirm.tsx dropped it for MUI's
+                  own DialogContentText treatment in #827, but this raw <p>
+                  never got swept along because it lives on a screen, not in
+                  the shared hook. A Typography with the same reading-leading
+                  treatment (`--muted`) replaces it, and the class (and its
+                  now-dead CSS rule) go in this PR — confirmed as the class's
+                  only consumer left in the whole repo (git grep). */}
+              <Typography id={disableWarningId} color="text.secondary" sx={{ lineHeight: 1.55 }}>
+                {t("disableWarningBody")}
+              </Typography>
+              <TextField
+                label={t("disableReasonFieldLabel")}
+                value={disableReason}
+                multiline
+                rows={3}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
+                onChange={(e) => setDisableReason(e.target.value)}
+              />
             </>
           )}
           <p className="muted">
             {stepUpMode === "disable" ? t("stepUpDisableHint") : t("stepUpEnableHint")}
           </p>
-          <label>{t("stepUpFieldLabel")}
-            <input type="password" value={stepUpPassword} required maxLength={256}
-              autoComplete="current-password"
-              onChange={(e) => setStepUpPassword(e.target.value)} />
-          </label>
+          <TextField
+            label={t("stepUpFieldLabel")}
+            type="password"
+            value={stepUpPassword}
+            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
+            onChange={(e) => setStepUpPassword(e.target.value)}
+          />
           <DialogError errors={errors} scope="disable-enable" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
@@ -1097,7 +1163,7 @@ export function UsersPage() {
               {stepUpMode === "disable" ? t("disableSubmitButton") : t("enableSubmitButton")}
             </BusyButton>
           </div>
-        </form>
+        </Stack>
       </Dialog>
     </section>
   );
