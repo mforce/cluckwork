@@ -47,10 +47,12 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await signIn(castMember("Manager"));
     await nav.link("nav:dailyEntry").click();
 
-    // The trigger's accessible name is "<label> <current value>" (aria-labelledby),
-    // and the current value may already be a remembered/default flock rather than
-    // the empty "Select a flock" placeholder — match on the stable label prefix.
-    await page.getByRole("button", { name: new RegExp(`^${tEn("dailyEntry:flockLabel")} `) }).click();
+    // #826 — the closed-state trigger is a read-only MUI field now (role
+    // "textbox"); its accessible name is the picker's label ALONE (the
+    // current value — possibly already a remembered/default flock rather
+    // than the empty placeholder — lives in the field's `value`, not its
+    // name).
+    await page.getByRole("textbox", { name: tEn("dailyEntry:flockLabel") }).click();
     const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
     await expect(combobox).toBeVisible();
 
@@ -93,12 +95,14 @@ test.describe("Searchable named-entity picker (#512)", () => {
     // flocks of their own, so keep arrowing (never assume exactly one more
     // press) until it is genuinely the active option, then commit with
     // Enter — also part of the Keyboard Contract, and never a click.
+    // #826 — MUI Autocomplete marks the keyboard-highlighted option with its
+    // own `Mui-focused` class, not the old engine's hand-rolled `.active`.
     for (let i = 0; i < 60; i++) {
       const activeClass = await sentinel.getAttribute("class");
-      if (activeClass?.includes("active")) break;
+      if (activeClass?.includes("Mui-focused")) break;
       await combobox.press("ArrowDown");
     }
-    await expect(sentinel).toHaveClass(/active/);
+    await expect(sentinel).toHaveClass(/Mui-focused/);
     await combobox.press("Enter");
     await expect(combobox).toHaveValue(FLOCK_SENTINEL);
   });
@@ -119,6 +123,20 @@ test.describe("Searchable named-entity picker (#512)", () => {
     const combobox = dialog.getByRole("combobox", { name: tEn("sales:customer") });
     await expect(combobox).toBeVisible();
 
+    // #826 (D2 pair 1) — the Load more button renders through a custom
+    // `slots.paper` component precisely so it lands OUTSIDE `<ul
+    // role="listbox">`, as a sibling: ARIA only allows `option`/`group`
+    // inside a listbox, and `slotProps.listbox` (rather than `slots.paper`)
+    // would have put it inside. Assert every DIRECT child of the listbox is
+    // itself role="option" — the AX guarantee that placement depends on.
+    const listbox = dialog.getByRole("listbox", { name: tEn("sales:customer") });
+    await expect(listbox).toBeVisible();
+    const listboxChildren = await listbox.locator(":scope > *").all();
+    expect(listboxChildren.length).toBeGreaterThan(0);
+    for (const child of listboxChildren) {
+      expect(await child.getAttribute("role")).toBe("option");
+    }
+
     // Absent before: the picker opens on the unfiltered first page (up to 50
     // of 101 customers), and the sentinel — lexically last — is not on it.
     const sentinel = page.getByRole("option", { name: CUSTOMER_SENTINEL });
@@ -130,10 +148,11 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await expect(sentinel, "search for \"Page Two\" never surfaced the customer page-two sentinel").toHaveCount(1);
 
     await sentinel.click();
-    await expect(dialog.getByRole("button", {
-      name: `${tEn("sales:customer")} ${CUSTOMER_SENTINEL}`,
-      exact: true,
-    })).toBeVisible();
+    // #826 — the committed trigger's accessible name is the picker's label
+    // ALONE now; the committed value moved to the field's `value`.
+    const committedTrigger = dialog.getByRole("textbox", { name: tEn("sales:customer"), exact: true });
+    await expect(committedTrigger).toBeVisible();
+    await expect(committedTrigger).toHaveValue(CUSTOMER_SENTINEL);
   });
 
   test("recovers from a failed customer search with Retry, then reaches the sentinel", async ({
@@ -190,9 +209,10 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await expect(sentinel).toHaveCount(1);
 
     await sentinel.click();
-    await expect(dialog.getByRole("button", {
-      name: `${tEn("sales:customer")} ${CUSTOMER_SENTINEL}`,
-      exact: true,
-    })).toBeVisible();
+    // #826 — the committed trigger's accessible name is the picker's label
+    // ALONE now; the committed value moved to the field's `value`.
+    const recoveredTrigger = dialog.getByRole("textbox", { name: tEn("sales:customer"), exact: true });
+    await expect(recoveredTrigger).toBeVisible();
+    await expect(recoveredTrigger).toHaveValue(CUSTOMER_SENTINEL);
   });
 });
