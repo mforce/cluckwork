@@ -363,8 +363,20 @@ export function Dialog({
     <MuiDialog
       open={open}
       onClose={handleClose}
-      onTransitionEnter={() => { entered.current = true; bumpOpenCount(1); }}
-      onTransitionExited={() => { entered.current = false; bumpOpenCount(-1); }}
+      // Both guarded on `entered`: reopening during the exit transition
+      // fires `onTransitionEnter` again with no `onTransitionExited` for the
+      // interrupted exit in between, so an unguarded pair counts one dialog
+      // twice and `anyDialogOpen()` never returns to false.
+      onTransitionEnter={() => {
+        if (entered.current) return;
+        entered.current = true;
+        bumpOpenCount(1);
+      }}
+      onTransitionExited={() => {
+        if (!entered.current) return;
+        entered.current = false;
+        bumpOpenCount(-1);
+      }}
       // `restoreFocusOnClose` above is a full replacement for MUI's own
       // restore, not a supplement — measured directly against the rewritten
       // stacked-dialog tests, running BOTH produced a real conflict: closing

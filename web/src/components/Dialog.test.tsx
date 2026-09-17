@@ -569,4 +569,24 @@ describe("Dialog anyDialogOpen / onModalStateChange (#485)", () => {
 
     expect(anyDialogOpen()).toBe(false);
   });
+
+  // Same counter, the other way a transition can be skipped: reopening a
+  // dialog while its exit transition is still running. react-transition-group
+  // fires `onEnter` again for the re-entry but never fires `onExited` for the
+  // interrupted exit, so a naive pair of increment/decrement callbacks counts
+  // one dialog twice and never gets back to zero.
+  it("does not leak an open count when a dialog is reopened before its exit transition finishes", async () => {
+    const user = userEvent.setup();
+    expect(anyDialogOpen()).toBe(false);
+    render(<Host />);
+
+    await user.click(screen.getByRole("button", { name: "New grade" }));
+    await waitFor(() => expect(anyDialogOpen()).toBe(true));
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "New grade", hidden: true }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+
+    await waitFor(() => expect(anyDialogOpen()).toBe(false));
+  });
 });
