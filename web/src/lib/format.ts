@@ -87,33 +87,63 @@ export function formatTime(iso: string, locale: string, timeZone: string | undef
   return dateFormat(locale, { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
 }
 
-export function formatDate(isoDate: string, locale: string, override: string | null): string {
+// The leap-safe ISO-day parse `formatDate` and `formatDateShort` both need:
+// construct in UTC from the three numeric parts, then read the parts BACK
+// off the constructed date and compare — `Date.setUTCFullYear` silently
+// rolls a day-31 in a 30-day month into the next month rather than throwing,
+// so this is the check that catches it. Returns `null` for an unparseable or
+// impossible calendar day, leaving the caller free to fall back to the raw
+// string.
+function parseIsoDateSafely(isoDate: string): Date | null {
   const m = ISO_DATE.exec(isoDate);
-  if (!m) return isoDate;
+  if (!m) return null;
   const [, y, mo, d] = m;
   const date = new Date(0);
   date.setUTCFullYear(Number(y), Number(mo) - 1, Number(d));
   if (date.getUTCFullYear() !== Number(y) || date.getUTCMonth() !== Number(mo) - 1 || date.getUTCDate() !== Number(d)) {
-    return isoDate;
+    return null;
   }
+  return date;
+}
+
+// A 2-digit-year numeric date, ignoring the farm's own `dateFormatOverride`:
+// "short" is a deliberate request for brevity over the farm's configured
+// preference, for the one column dense enough to need it (#897 review,
+// Flocks' Placed column) — not a replacement for `formatDate`, which stays
+// the farm's own choice everywhere else.
+export function formatDateShort(isoDate: string, locale: string): string {
+  const date = parseIsoDateSafely(isoDate);
+  if (date === null) return isoDate;
+  return dateFormat(locale, { timeZone: "UTC", year: "2-digit", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+export function formatDate(isoDate: string, locale: string, override: string | null): string {
+  const date = parseIsoDateSafely(isoDate);
+  if (date === null) return isoDate;
 
   if (override === null || override.trim() === "") {
     return dateFormat(locale, { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
   }
 
+  // Re-derived from the validated `date` (UTC getters, zero-padded) rather
+  // than kept from the regex match: `parseIsoDateSafely` no longer hands the
+  // raw string parts back, since `formatDateShort` above never needed them.
+  const yyyy = String(date.getUTCFullYear());
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dayNum = String(date.getUTCDate()).padStart(2, "0");
   const part = (options: Intl.DateTimeFormatOptions) => dateFormat(locale, { timeZone: "UTC", ...options }).format(date);
   return override.replace(TOKEN, (token) => {
     switch (token) {
-      case "yyyy": return y;
-      case "yy": return y.slice(2);
+      case "yyyy": return yyyy;
+      case "yy": return yyyy.slice(2);
       case "MMMM": return part({ month: "long" });
       case "MMM": return part({ month: "short" });
-      case "MM": return mo;
-      case "M": return String(Number(mo));
+      case "MM": return mm;
+      case "M": return String(date.getUTCMonth() + 1);
       case "dddd": return part({ weekday: "long" });
       case "ddd": return part({ weekday: "short" });
-      case "dd": return d;
-      case "d": return String(Number(d));
+      case "dd": return dayNum;
+      case "d": return String(date.getUTCDate());
       default:
         if (token.length >= 2 && (token[0] === "'" || token[0] === '"')) return token.slice(1, -1);
         if (token[0] === "\\") return token.slice(1);
