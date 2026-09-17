@@ -74,6 +74,21 @@ export async function commitNamedPicker(root: Locator | Page, labelText: string,
   // serializer the app uses is what keeps the two in sync by construction,
   // rather than by matching a specific escaping rule that could drift again.
   const expectedSearchParam = new URLSearchParams({ search: needle }).toString();
+
+  // Full-suite run found a SECOND, independent hang (2026-09-18): a picker
+  // can already display `needle` as its own committed text BEFORE this
+  // function ever touches it — a restricted worker's single assigned flock
+  // auto-prefills on open (worker.spec.ts's "records a daily entry... on an
+  // assigned flock"). `fill(needle)` onto a field that already reads
+  // `needle` is not an observable change, so no new discovery request ever
+  // fires and this hangs until timeout — the opposite failure shape from the
+  // encoding bug above (that one fired the WRONG request; this one fires
+  // NONE). Clear the field first whenever it already matches, so the fill
+  // below is always a genuine change; the debounce it starts is cancelled by
+  // the very next keystroke (`onQueryChange`'s own comment), so this costs
+  // no extra wait when the field was already blank or different.
+  if ((await combobox.inputValue()) === needle) await combobox.fill("");
+
   const discovery = page.waitForResponse((r) =>
     r.request().method() === "GET"
     && r.url().includes(expectedSearchParam)
