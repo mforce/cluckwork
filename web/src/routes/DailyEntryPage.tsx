@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Box, Button, Paper, Typography, useMediaQuery } from "@mui/material";
+import { Box, Button, Paper, TextField, Typography, useMediaQuery } from "@mui/material";
 import {
   createFlock, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
@@ -789,14 +789,22 @@ export function DailyEntryPage() {
           being recorded, it is not part of recording it. #830 restyled this
           row to the mockup's underlined selects via a scoped sx override
           targeting `.named-picker-trigger` — #826 (owner redesign,
-          2026-09-17) retires that class: the closed-state picker is now an
+          2026-09-17) retired that class: the closed-state picker is now an
           outlined MUI field everywhere (label in the border, a search-icon
-          adornment), and #830's `& .named-picker-trigger` override has
-          nothing left to target. Flagged for reviewer capture rather than
-          restyled here: whether Daily Entry's flock control should keep the
-          underlined-select language or fold into the new global outlined
-          look is a design call, not this slice's to make unilaterally. The
-          date input keeps its own underline via the second rule below. */}
+          adornment), and #830's `& .named-picker-trigger` override had
+          nothing left to target. Owner decision on #898 (2026-09-17,
+          A/B comparison — outlined vs. the mockup's underlined "standard"
+          variant, both captured at 1280/390): outlined wins for both
+          controls. Date converts from a native `<input type="date">` with
+          its own hand-rolled underline to an outlined MUI `TextField` here,
+          matching the picker's own default variant (no `variant` prop is
+          passed to either — outlined is each component's shipped default,
+          so there is nothing to keep in sync if that default ever moves).
+          The old underline sx rule this comment block used to describe is
+          gone with the native input it targeted — grepped the repo
+          (including tools/simulation/ui) first and found no other consumer
+          of it; it was scoped to this Box's own `sx`, never a shared CSS
+          class, so there was nothing in styles.css to retire alongside it. */}
       {/* Owner direction (2026-09-17): at 390 a 110px Flock field could not
           show any flock name at all (#898 review) — stacked full-width
           above Date instead of the alternative offered (widen the picker
@@ -804,22 +812,11 @@ export function DailyEntryPage() {
           states makes the whole row jump. 1280 is unchanged: `flexDirection`
           switches to column only below `md`, and Date + "+ new flock" stay
           grouped in their own row (nested Box, `gap` unchanged so their
-          spacing at 1280 is pixel-identical to the old flat three-item row).
-          The date input's underline rule below was `& > label` (direct
-          child); nesting the label inside that inner Box moved it one level
-          deeper, so the rule is now `& label` (descendant) — caught by a
-          390 recapture showing the date field revert to the browser's
-          default boxed style once the direct-child selector stopped
-          matching. */}
+          spacing at 1280 is pixel-identical to the old flat three-item row). */}
       <Box sx={{
         display: "flex", flexDirection: { xs: "column", md: "row" },
         gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: { xs: "stretch", md: "flex-end" },
         borderBottom: "1px solid var(--rule-strong)",
-        "& label input[type='date']": {
-          font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
-          border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,
-          width: "100%", minHeight: 44, padding: "4px 0",
-        },
       }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -855,11 +852,17 @@ export function DailyEntryPage() {
           />
         </Box>
         <Box sx={{ display: "flex", flexDirection: "row", gap: { xs: 2, md: 5 }, alignItems: "flex-end" }}>
-          <label style={{ flex: 1, minWidth: 0, display: "block" }}>
-            <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>{t("dateLabel")}</Typography>
-            <input type="date" value={date} max={today}
-              onChange={(e) => retarget(() => setDate(e.target.value))} />
-          </label>
+          {/* Outlined MUI field, same `size="small"` height as the picker
+              (#898 item 2, owner pick: variant A). */}
+          <TextField
+            type="date"
+            label={t("dateLabel")}
+            value={date}
+            onChange={(e) => retarget(() => setDate(e.target.value))}
+            slotProps={{ htmlInput: { max: today } }}
+            size="small"
+            sx={{ flex: 1, minWidth: 0 }}
+          />
           {isAdmin && (
             <button className="link" type="button" onClick={() => { openDialog("new-flock"); setShowNewFlock(true); }}>
               {t("newFlockButton")}
