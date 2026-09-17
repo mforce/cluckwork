@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert, List, ListItem, Stack, Typography } from "@mui/material";
 import {
   EXPORT_DATASETS,
   downloadExportCsv,
@@ -49,13 +50,13 @@ export function ExportPage() {
 
   return (
     <section>
-      <h2>{t("heading")}</h2>
-      <p className="muted">{t("intro")}</p>
+      <Typography variant="h2">{t("heading")}</Typography>
+      <Typography variant="body2" color="text.secondary">{t("intro")}</Typography>
 
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && <Alert severity="error">{error}</Alert>}
 
-      <h3>{t("fullBackupHeading")}</h3>
-      <p>
+      <Typography variant="h3" sx={{ mt: 3 }}>{t("fullBackupHeading")}</Typography>
+      <Stack sx={{ mt: 1, alignItems: "flex-start" }}>
         <button
           disabled={busy !== null}
           onClick={() =>
@@ -64,13 +65,13 @@ export function ExportPage() {
         >
           {busy === "all" ? t("preparingButton") : t("fullBackupButton")}
         </button>
-      </p>
-      <p className="muted">{t("fullBackupHint")}</p>
+      </Stack>
+      <Typography variant="body2" color="text.secondary">{t("fullBackupHint")}</Typography>
 
-      <h3>{t("singleDatasetsHeading")}</h3>
-      <ul className="export-list">
+      <Typography variant="h3" sx={{ mt: 3 }}>{t("singleDatasetsHeading")}</Typography>
+      <List disablePadding>
         {EXPORT_DATASETS.map((d) => (
-          <li key={d}>
+          <ListItem key={d} disableGutters>
             <button
               className="link"
               disabled={busy !== null}
@@ -80,9 +81,9 @@ export function ExportPage() {
             >
               {busy === d ? t("preparingButton") : t(`dataset.${d}`)}
             </button>
-          </li>
+          </ListItem>
         ))}
-      </ul>
+      </List>
     </section>
   );
 }

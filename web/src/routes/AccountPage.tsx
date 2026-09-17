@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { Alert, Stack, TextField, Typography } from "@mui/material";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
@@ -66,53 +67,63 @@ export function AccountPage() {
 
   return (
     <section>
-      <div className="page-head">
-        <h2>{t("heading")}</h2>
-      </div>
-      <p className="muted">
+      <Typography variant="h2">{t("heading")}</Typography>
+      <Typography variant="body2" color="text.secondary">
         <Trans ns="account" i18nKey="roleLine" values={{ role: roleLabel(role) }} components={{ strong: <strong /> }} />
-      </p>
+      </Typography>
 
       <section>
-        <h3>{t("preferences")}</h3>
+        <Typography variant="h3" sx={{ mt: 3 }}>{t("preferences")}</Typography>
         {SUPPORTED_LANGUAGES.length > 1 && (
           <>
-            <p className="hint">{t("languageHint")}</p>
+            <Typography variant="body2" color="text.secondary">{t("languageHint")}</Typography>
             <LanguageSelector />
           </>
         )}
         {/* #444 — the pack unit YOUR Daily Entry steppers bump by, overriding
             the farm default set in Settings. */}
-        <p className="hint">{t("stepperUnitHint")}</p>
+        <Typography variant="body2" color="text.secondary">{t("stepperUnitHint")}</Typography>
         <StepperUnitSelector />
       </section>
 
-      <h3>{t("changePasswordHeading")}</h3>
-      <p className="muted">
+      <Typography variant="h3" sx={{ mt: 3 }}>{t("changePasswordHeading")}</Typography>
+      <Typography variant="body2" color="text.secondary">
         {t("changePasswordHint")}
-      </p>
-      <form className="inline-form" onSubmit={onSubmit}>
-        <label>{t("currentPasswordLabel")}
-          <input type="password" value={current} required autoComplete="current-password"
-            maxLength={256}
-            onChange={(e) => setCurrent(e.target.value)} />
-        </label>
-        <label>{t("newPasswordLabel", { min: MIN_LENGTH })}
-          <input type="password" value={next} required minLength={MIN_LENGTH} maxLength={256}
-            autoComplete="new-password"
-            onChange={(e) => setNext(e.target.value)} />
-        </label>
-        <label>{t("confirmPasswordLabel")}
-          <input type="password" value={confirm} required autoComplete="new-password"
-            maxLength={256}
-            onChange={(e) => setConfirm(e.target.value)} />
-        </label>
-        {error && <p className="error">{error}</p>}
-        {message && <p className="success">{message}</p>}
-        <div className="dialog-foot">
+      </Typography>
+      <Stack component="form" spacing={2} sx={{ mt: 1, maxWidth: "24rem" }} onSubmit={onSubmit}>
+        <TextField
+          label={t("currentPasswordLabel")}
+          type="password"
+          value={current}
+          required
+          autoComplete="current-password"
+          onChange={(e) => setCurrent(e.target.value)}
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        <TextField
+          label={t("newPasswordLabel", { min: MIN_LENGTH })}
+          type="password"
+          value={next}
+          required
+          autoComplete="new-password"
+          onChange={(e) => setNext(e.target.value)}
+          slotProps={{ htmlInput: { minLength: MIN_LENGTH, maxLength: 256 } }}
+        />
+        <TextField
+          label={t("confirmPasswordLabel")}
+          type="password"
+          value={confirm}
+          required
+          autoComplete="new-password"
+          onChange={(e) => setConfirm(e.target.value)}
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        {error && <Alert severity="error">{error}</Alert>}
+        {message && <Alert severity="success">{message}</Alert>}
+        <Stack direction="row">
           <BusyButton type="submit" busy={busy}>{t("changePasswordButton")}</BusyButton>
-        </div>
-      </form>
+        </Stack>
+      </Stack>
     </section>
   );
 }
