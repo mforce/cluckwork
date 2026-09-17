@@ -786,19 +786,20 @@ export function DailyEntryPage() {
       )}
 
       {/* Context, not a step: choosing a flock and a date says WHICH day is
-          being recorded, it is not part of recording it. The two steps below
-          are the work, and they reconcile against each other. #830 restyles
-          this row to the mockup's underlined selects — the FlockPicker
-          trigger and the date input, via a scoped sx override, never a
-          FlockPicker.tsx edit (out of scope; #512 owns that component). */}
+          being recorded, it is not part of recording it. #830 restyled this
+          row to the mockup's underlined selects via a scoped sx override
+          targeting `.named-picker-trigger` — #826 (owner redesign,
+          2026-09-17) retires that class: the closed-state picker is now an
+          outlined MUI field everywhere (label in the border, a search-icon
+          adornment), and #830's `& .named-picker-trigger` override has
+          nothing left to target. Flagged for reviewer capture rather than
+          restyled here: whether Daily Entry's flock control should keep the
+          underlined-select language or fold into the new global outlined
+          look is a design call, not this slice's to make unilaterally. The
+          date input keeps its own underline via the second rule below. */}
       <Box sx={{
         display: "flex", gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: "flex-end",
         borderBottom: "1px solid var(--rule-strong)",
-        "& .named-picker-trigger": {
-          font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
-          border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,
-          textAlign: "left", width: "100%", minHeight: 44, padding: "4px 0",
-        },
         "& > label input[type='date']": {
           font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
           border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,

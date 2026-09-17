@@ -389,10 +389,10 @@ describe("DailyEntryPage new-flock dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     // the freshly created flock becomes the capture target — the trigger
     // shows the EXACT created entity's name (T036 created-ID retention).
-    // #512 — the picker's closed-state trigger is a button, not a select, so
-    // the assertion is on the button's accessible name (the committed flock's
-    // name + breed), not on a select's value.
-    expect(screen.getByRole("button", { name: /Rhode Reds \(Rhode Island Red\)/ })).toBeInTheDocument();
+    // #826 — the picker's closed-state trigger is a read-only MUI TextField,
+    // not a button: its accessible name is the picker's own label ("Flock"),
+    // and the committed flock's name + breed is the field's VALUE.
+    expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Rhode Reds (Rhode Island Red)");
   });
 
   it("creates exactly one flock when double-submitted mid-flight (#236 — this form had no guard)", async () => {
@@ -449,9 +449,10 @@ describe("DailyEntryPage new-flock dialog", () => {
     expect(vi.mocked(getFlock)).toHaveBeenCalledWith("f2"); // real exact GET, id-only response can't fabricate the entity
 
     // Open the picker: the failed GET left it unavailable, with the
-    // engine's own Retry (never the page's).
-    const selectOption = i18n.t("dailyEntry:selectFlockOption");
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(selectOption) }));
+    // engine's own Retry (never the page's). #826 — the closed-state
+    // trigger's accessible name is now the picker's own label ("Flock"),
+    // not the displayed placeholder text.
+    fireEvent.click(screen.getByRole("textbox", { name: "Flock" }));
     const unavailableLabel = i18n.t("namedEntityPicker:unavailable");
     await screen.findByText(new RegExp(unavailableLabel));
 
@@ -466,8 +467,8 @@ describe("DailyEntryPage new-flock dialog", () => {
     const input = screen.getByRole("combobox");
     fireEvent.keyDown(input, { key: "Escape" });
     // Committed, from the resolved GET — the trigger, which reads pickerFlock
-    // directly, shows the recovered entity's name+breed.
-    expect(screen.getByRole("button", { name: /Rhode Reds \(Rhode Island Red\)/ })).toBeInTheDocument();
+    // directly, shows the recovered entity's name+breed as its VALUE.
+    expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Rhode Reds (Rhode Island Red)");
   });
 
   it("closes on Cancel without creating anything", async () => {
@@ -522,7 +523,12 @@ describe("DailyEntryPage new-flock admin gating (#388)", () => {
 describe("DailyEntryPage submit confirmation", () => {
   async function readyWithCounts() {
     await renderReady();
-    fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
+    // #826 — the closed-state field's accessible label now carries the MUI
+    // required asterisk ("Flock *"), so an exact match on "Flock" no longer
+    // resolves it; this fires on the same read-only field as before (a
+    // no-op onChange either way — the flock is already the sole eligible
+    // default from `mockListFlocks`), only the query needed to loosen.
+    fireEvent.change(screen.getByLabelText(/^Flock/), { target: { value: "f1" } });
     setNum("Total eggs", 10);
     // #394: submit needs grading to reconcile exactly — 10 sellable, 10 graded.
     setNum("Grade A", 10);
@@ -674,14 +680,14 @@ describe("DailyEntryPage draft badge", () => {
     ]);
     await renderReady();
 
-    expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Hen House 1 (ISA)");
     expect(screen.queryByText("Some Other Name")).not.toBeInTheDocument();
   });
 
   it("appears as soon as a first draft is saved, not only after a reload", async () => {
     vi.mocked(recordDailyEntry).mockResolvedValue({ id: "e1" } as never);
     await renderReady();
-    fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
+    fireEvent.change(screen.getByLabelText(/^Flock/), { target: { value: "f1" } });
     setNum("Total eggs", 12);
     expect(screen.queryByText("Editing draft")).toBeNull();
 
@@ -1092,7 +1098,9 @@ describe("DailyEntryPage assign the remainder", () => {
     // onCommit is routed through retarget, so the disarm is synchronous).
     // The picker's discovery is async (a listFocks call), so the option is
     // not in the DOM until the discovery resolves. Wait for it.
-    const trigger = screen.getByRole("button", { name: /Hen House 1/ });
+    // #826 — the closed-state trigger is a read-only textbox named after the
+    // picker's own label, not the displayed flock.
+    const trigger = screen.getByRole("textbox", { name: "Flock" });
     fireEvent.click(trigger);
     const option = await screen.findByRole("option", { name: /Second Coop/ });
     fireEvent.click(option);
@@ -1128,8 +1136,9 @@ describe("DailyEntryPage assign the remainder", () => {
     });
 
     // #512 — the picker's trigger shows the EXACT created entity's name,
-    // hydrated via the picker's own exact GET (fixture breed ISA).
-    await waitFor(() => expect(screen.getByRole("button", { name: /Rhode Reds \(ISA\)/ })).toBeInTheDocument());
+    // hydrated via the picker's own exact GET (fixture breed ISA). #826 —
+    // that name is the read-only field's VALUE now, not its accessible name.
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Rhode Reds (ISA)"));
     expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
   });
 
@@ -1445,7 +1454,9 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
     await withOverride("dailyEntry", "confirmSubmitTitle", "SUBMIT-TITLE-MARKER", () =>
       withOverride("dailyEntry", "confirmSubmitLabel", "SUBMIT-CONFIRM-MARKER", async () => {
         await renderReady();
-        fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
+        // #826 — the closed-state field's accessible label now carries the
+        // MUI required asterisk ("Flock *"); loosen to a prefix match.
+        fireEvent.change(screen.getByLabelText(/^Flock/), { target: { value: "f1" } });
         setNum("Total eggs", 10);
         // #394: submit needs grading to reconcile exactly — 10 sellable, 10 graded.
         setNum("Grade A", 10);
@@ -1561,8 +1572,9 @@ describe("DailyEntryPage account-scoped flock memory", () => {
     // #512 — the picker's open state is page-owned; the trigger opens it,
     // the user picks an option, and the picker commits. The picker's
     // discovery is async, so the option is not in the DOM until the
-    // listFocks call resolves.
-    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    // listFocks call resolves. #826 — the trigger is a read-only textbox
+    // named after the picker's own label.
+    fireEvent.click(screen.getByRole("textbox", { name: "Flock" }));
     const option = await screen.findByRole("option", { name: /Rhode Reds/ });
     fireEvent.click(option);
     await waitFor(() => expect(localStorage.getItem(NS_KEY)).toBe("f2"));
@@ -1586,8 +1598,9 @@ describe("DailyEntryPage account-scoped flock memory", () => {
     await renderReady();
 
     // #512 — the remembered id is committed through the picker; the trigger
-    // shows the exact remembered flock's name (not the default's).
-    expect(screen.getByRole("button", { name: /Rhode Reds/ })).toBeInTheDocument();
+    // shows the exact remembered flock's name (not the default's), as the
+    // read-only field's VALUE (#826).
+    expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Rhode Reds (RIR)");
   });
 
   // #535 review round 1 — cross-account isolation was only INFERRED from the
@@ -1613,7 +1626,7 @@ describe("DailyEntryPage account-scoped flock memory", () => {
 
     // farm B has no remembered flock of its own -> falls back to the first
     // active flock (f1).
-    expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Hen House 1 (ISA)");
   });
 });
 
@@ -1645,20 +1658,22 @@ describe("DailyEntryPage picker lifecycle races (#512 T031)", () => {
     const restore = withQuery(`?flockId=f1&date=${todayIso()}`);
     try {
       await renderReady();
-      // Deep link (f1) already won atomically at mount.
-      expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+      // Deep link (f1) already won atomically at mount. #826 — the trigger
+      // is a read-only textbox named after the picker's own label; its
+      // displayed value is the committed flock's name.
+      expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Hen House 1 (ISA)");
 
       // The picker's own discovery round-trip is the lower-priority async
       // result: it fetches the eligible list only once opened, AFTER the
       // deep-linked commit already landed. Its later arrival must never
       // re-resolve the committed selection back toward remembered/default.
-      fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+      fireEvent.click(screen.getByRole("textbox", { name: "Flock" }));
       await screen.findByRole("option", { name: /Second Coop/ });
       expect(screen.getByRole("option", { name: /Hen House 1/ })).toBeInTheDocument();
 
       const input = screen.getByRole("combobox");
       fireEvent.keyDown(input, { key: "Escape" });
-      expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Flock" })).toHaveValue("Hen House 1 (ISA)");
     } finally {
       restore();
     }
@@ -1732,10 +1747,12 @@ describe("DailyEntryPage new-flock abandoned-attempt success (#703)", () => {
 
     // The flock exists but the page did NOT retarget to it: no exact-GET
     // hydration for the created id fired, and the trigger still shows the
-    // originally-captured flock (#703 INV-8).
+    // originally-captured flock (#703 INV-8). #826 — that name is the
+    // read-only field's VALUE, not its accessible name.
     expect(vi.mocked(getFlock)).not.toHaveBeenCalledWith("f2");
-    expect(screen.getByRole("button", { name: /Hen House 1 \(ISA\)/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Rhode Reds/ })).not.toBeInTheDocument();
+    const trigger = screen.getByRole("textbox", { name: "Flock" }) as HTMLInputElement;
+    expect(trigger).toHaveValue("Hen House 1 (ISA)");
+    expect(trigger.value).not.toMatch(/Rhode Reds/);
   });
 
   it("still rotates the flock key when an abandoned new-flock create succeeds", async () => {
@@ -1783,7 +1800,13 @@ describe("DailyEntryPage new-flock role-change session (#703 r2)", () => {
     await act(async () => { gate.resolve({ id: "f2" }); });                              // old create lands
 
     expect(vi.mocked(getFlock)).not.toHaveBeenCalledWith("f2");
-    expect(screen.queryByRole("button", { name: /Rhode Reds/ })).not.toBeInTheDocument();
+    // The new-flock dialog is still open here (this flow never calls
+    // cancel()) — MUI's modal marks the rest of the page `aria-hidden`
+    // while it is open, so the picker's trigger was never accessible-role
+    // queryable at this point even under the old `<button>` trigger; this
+    // assertion is a presence check for exactly that reason, both before
+    // and after #826.
+    expect(screen.queryByRole("textbox", { name: "Flock" })).not.toBeInTheDocument();
   });
 });
 

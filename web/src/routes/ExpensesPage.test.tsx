@@ -106,7 +106,10 @@ beforeEach(() => {
 const comboWithOption = (name: RegExp) =>
   screen.getAllByRole("combobox").find((el) => within(el).queryByRole("option", { name }) !== null)!;
 const pickAddFlock = async (name: RegExp) => {
-  fireEvent.click(screen.getByRole("button", { name: /— none —/ }));
+  // #826 — the closed-state trigger is a read-only MUI field now (role
+  // "textbox"): its accessible name is the field LABEL ("Flock (optional)"),
+  // not the displayed value/placeholder the old <button>'s text content was.
+  fireEvent.click(screen.getByRole("textbox", { name: "Flock (optional)" }));
   fireEvent.click(await screen.findByRole("option", { name }));
 };
 
