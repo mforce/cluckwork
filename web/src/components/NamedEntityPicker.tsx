@@ -1126,6 +1126,12 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
             disabled={triggerDisabled}
             value={displayValue}
             onClick={activate}
+            // MUI's default ("medium") horizontal padding, on a field this
+            // narrow inside a two-up phone row (`.form-grid .named-picker`'s
+            // 8rem floor), left almost no room for the value text — a real
+            // capture at 390px showed a committed "Capture Test Flock"
+            // rendered as just "C…". `size="small"` reclaims that padding.
+            size="small"
             slotProps={{
               htmlInput: {
                 readOnly: true,
@@ -1195,6 +1201,11 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       <Autocomplete<T, false, false, false>
         id={id}
         open
+        // Set here, not on the TextField in `renderInput`: `Autocomplete`
+        // forwards `size` into `params.size`, which `{...params}` already
+        // spreads onto the TextField below — the same 390px-width overflow
+        // fix as the closed-state field's own `size="small"`.
+        size="small"
         disabled={disabled}
         options={d.items}
         loading={showLoading}
