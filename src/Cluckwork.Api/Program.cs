@@ -63,17 +63,14 @@ var rateLimiting = builder.Services.AddCluckworkRateLimiting(
     builder.Configuration, processRole);
 builder.Services.AddCluckworkEdgeSecurity(rateLimiting.TrustedProxies);
 
-builder.Services.AddCluckworkSharedState(builder.Configuration, processRole);
+var sharedState = builder.Services.AddCluckworkSharedState(builder.Configuration, processRole);
 
 // #545 — the account-scoped report concurrency cap. After shared state (it
 // resolves IConnectionMultiplexer when Redis is configured) and after rate
-// limiting (permit limit). Namespace matches the shared-state keys.
-var sharedStateNamespace = builder.Configuration
-    .GetSection(Cluckwork.Api.Configuration.SharedStateOptions.SectionName)
-    .Get<Cluckwork.Api.Configuration.SharedStateOptions>()?.Redis.KeyNamespace
-    ?? new Cluckwork.Api.Configuration.SharedStateOptions().Redis.KeyNamespace;
+// limiting (permit limit). Reuse the namespace that registered shared state;
+// binding configuration again here could send the cap to a different keyspace.
 builder.Services.AddCluckworkReportConcurrencyCap(
-    rateLimiting.Options.ReportsConcurrency.PermitLimit, sharedStateNamespace);
+    rateLimiting.Options.ReportsConcurrency.PermitLimit, sharedState.Redis.KeyNamespace);
 
 builder.Services.AddCluckworkFeatures(builder.Configuration);
 

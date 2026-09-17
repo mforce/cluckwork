@@ -7,7 +7,7 @@ using Cluckwork.Infrastructure.SharedState;
 // guard, then delegates registration to Infrastructure.
 internal static class CluckworkSharedStateServiceCollectionExtensions
 {
-    public static void AddCluckworkSharedState(
+    public static SharedStateOptions AddCluckworkSharedState(
         this IServiceCollection services, IConfiguration configuration, ProcessRole role)
     {
         var options = configuration.GetSection(SharedStateOptions.SectionName)
@@ -21,6 +21,8 @@ internal static class CluckworkSharedStateServiceCollectionExtensions
             options.Redis.ConnectionString,
             options.Redis.KeyNamespace,
             failOnMalformed: false);
+
+        return options;
     }
 
     // #543/#347 — SERVING-ONLY boot guard: a serving process with a set-but-
