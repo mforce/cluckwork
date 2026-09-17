@@ -2611,9 +2611,10 @@ dl.glossary {
   /* #827 — the phone bottom-sheet variant (`.dialog-backdrop`'s
      `align-items: flex-end`, `.dialog`'s sheet chrome, `.dialog.wide`'s reset
      and `@keyframes dialog-sheet`) is retired in favour of MUI `Dialog`'s own
-     `fullScreen` prop below 900px (D2 pair 2, D3.3): every form dialog now
-     takes the full phone screen rather than a bottom sheet, and a
-     confirmation stays a centred `Dialog` at every width. The dialog-foot
+     centred paper, sized to its content with a 16px side margin below 900px
+     (owner, 2026-09-17, chosen from the three mockups on #892 over the
+     full-screen form D3.3 had planned); only the phone More menu takes
+     `fullScreen`. The dialog-foot
      stacking rule below is unrelated to that chrome and stays — unconverted
      callers still render a raw `.dialog-foot` footer inside the dialog's
      content. */

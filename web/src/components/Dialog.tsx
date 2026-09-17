@@ -89,16 +89,17 @@ interface DialogProps {
    * numbers) rather than MUI's own `maxWidth` breakpoint enum: `sm` (600px)
    * and `md` (900px) are not close enough to the shipped 480px/832px to
    * reuse without a visual regression nobody asked for, and no design record
-   * names new numbers. Suppressed at phone width in favour of `fullScreen`
-   * below, which needs the full 100% MUI's own fullScreen variant sets.
+   * names new numbers. Below 900px the cap gives way to a 16px side margin
+   * (owner, 2026-09-17, from the three mockups on #892: a centred dialog
+   * sized to its content, not the full-screen form D3.3 had planned), and
+   * `fullScreen` suppresses it entirely.
    */
   wide?: boolean;
   /**
-   * Whether this dialog goes `fullScreen` below 900px (D2 pair 2, D3.3): true
-   * for every form dialog, false for a confirmation, which stays a centred
-   * dialog at any width. `useConfirm.tsx` is the only caller that passes
-   * `false`; the phone More menu (`BottomNav.tsx`) takes the default, same as
-   * every route's form dialog.
+   * Whether this dialog takes the whole screen below 900px. Off by default:
+   * form dialogs and confirmations alike stay a centred dialog sized to their
+   * content at every width. The phone More menu (`BottomNav.tsx`) is the one
+   * caller that turns it on, because a twenty-link menu needs the height.
    */
   fullScreenOnPhone?: boolean;
   children: ReactNode;
@@ -258,7 +259,7 @@ function restoreFocusOnClose(
 // `onModalStateChange` pair #485 depends on.
 export function Dialog({
   open, title, onClose, focusKey, describedBy, wide, closeDisabled,
-  fullScreenOnPhone = true, children,
+  fullScreenOnPhone = false, children,
 }: DialogProps) {
   const { t } = useTranslation("common");
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -396,7 +397,11 @@ export function Dialog({
         paper: {
           ref: panelRef,
           className: "dialog",
-          sx: fullScreen ? undefined : { maxWidth: wide ? "52rem" : "30rem" },
+          sx: fullScreen
+            ? undefined
+            : isPhone
+              ? { m: 2, width: "calc(100% - 32px)", maxWidth: wide ? "52rem" : "30rem" }
+              : { maxWidth: wide ? "52rem" : "30rem" },
         },
         backdrop: { className: "dialog-backdrop" },
       }}

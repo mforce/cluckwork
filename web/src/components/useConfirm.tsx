@@ -202,18 +202,12 @@ export function useConfirm() {
   // Focus lands by DOM order, which puts it in the right place for free:
   // Cancel for a yes/no (a stray Enter must not deplete a flock), the field
   // for a reason (there is nothing to decide until they have typed).
-  //
-  // fullScreenOnPhone={false} — a confirmation is prose and one or two
-  // controls, never a form long enough to need a phone's whole screen (D2
-  // pair 2, D3.3); it stays a centred Dialog at every width, unlike the form
-  // dialogs every route screen opens through this same component.
   const confirmDialog = (
     <Dialog
       open={pending !== null}
       title={pending?.title ?? ""}
       onClose={dismiss}
       describedBy={pending ? bodyId : undefined}
-      fullScreenOnPhone={false}
     >
       {pending && (
         <>

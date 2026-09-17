@@ -7,12 +7,11 @@ import i18n from "../i18n";
 import { stubMatchMedia } from "../test/matchMedia";
 
 // jsdom has no `matchMedia`, so left unstubbed every test below would render
-// its dialog `fullScreen` by default (`fullScreenOnPhone` defaults true, and
-// an unstubbed `useMediaQuery` reads "below the breakpoint" — see
-// `test/matchMedia.ts`). None of the guarantees this file pins care about
-// fullScreen chrome, but testing them all against the phone variant by
-// ACCIDENT is not the same as choosing to; the desktop width test below
-// stubs its own case explicitly regardless.
+// its dialog at the phone size (an unstubbed `useMediaQuery` reads "below the
+// breakpoint" — see `test/matchMedia.ts`). None of the guarantees this file
+// pins care about the phone margins, but testing them all against the phone
+// variant by ACCIDENT is not the same as choosing to; the desktop width test
+// below stubs its own case explicitly regardless.
 beforeEach(() => { stubMatchMedia(true); });
 
 // The Base UI spike (#674) ported this component onto MUI `Dialog` — 338 ->

@@ -27,9 +27,10 @@ const MORE_VALUE = "__more__";
 // sheet, not a route — carrying `aria-haspopup="dialog"`, `aria-expanded` and
 // `aria-current="page"` when the route is under More, none of which
 // `BottomNavigationAction` models on its own. More itself stays on the MUI
-// `Dialog` component #827 shipped, rendering `fullScreen` below 900px (the
-// same default every form dialog gets — a twenty-link menu is exactly the
-// case that default exists for) rather than the retired bottom sheet; the
+// `Dialog` component #827 shipped, rendering `fullScreen` below 900px — the
+// one caller that asks for it, since form dialogs stay centred and sized to
+// their content (owner, 2026-09-17, #892) and a twenty-link menu is the case
+// full screen exists for — rather than the retired bottom sheet; the
 // `SwipeableDrawer` alternative §7 names is still open and unanswered here —
 // #829 decides it. `anyDialogOpen()` still reads true while More is open,
 // same as before #827: it is a real `Dialog` instance either way.
@@ -116,7 +117,7 @@ export function BottomNav({
       {/* The full map, so nothing is unreachable — the tabs are shortcuts into
           it, not a smaller menu. Dialog gives the focus trap, scroll lock and
           bottom-sheet styling for free (#131). */}
-      <Dialog open={moreOpen} title={t("menuTitle")} onClose={() => setMoreOpen(false)}>
+      <Dialog open={moreOpen} title={t("menuTitle")} onClose={() => setMoreOpen(false)} fullScreenOnPhone>
         <nav className="more-nav" aria-label={t("allSectionsAriaLabel")}>
           {groups.map((g) => (
             <div className="more-group" key={g.labelKey}>
