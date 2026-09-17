@@ -1057,9 +1057,14 @@ export const MUTANTS: Record<string, Mutant> = {
   // being the #740 shape one axis over. This mutant reverts #896's own fix —
   // `MuiDialogActions` carries no phone override at all any more
   // (`FarmThemeProvider.tsx`), so a dialog footer stays row at every width —
-  // back to a stacked column, and only the new same-top-edge/flex-direction
-  // assertion on `phone.spec.ts`'s dialog-footer row can catch it; the
-  // ratio/share checks stay green under it exactly as described above.
+  // back to a stacked column, and only the new vertical-band-intersection/
+  // flex-direction assertion on `phone.spec.ts`'s dialog-footer row can catch
+  // it (NOT same-top-edge equality — Grades' own footer legitimately fails
+  // that: a text `Cancel` link sits beside a taller pill `Add grade` button
+  // under `alignItems: center`, so their raw tops differ by several px while
+  // genuinely on one line; the assertion checks that every button's
+  // `[top, bottom]` range shares a common band instead). The ratio/share
+  // checks stay green under this mutant exactly as described above.
   "phone-dialog-footer-stacked": {
     breaks:
       "#896's fix — MuiDialogActions carries no phone override any more, so a converted dialog's "
