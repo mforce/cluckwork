@@ -1086,28 +1086,48 @@ describe("T023: ARIA contract and interaction semantics", () => {
   // below (`clonedSelectedValue`, a `useMemo` keyed on the committed
   // entity's id/name) by memoizing that clone.
   //
-  // No jsdom test for this: THREE constructions were tried and all three were
-  // REJECTED after a red/green mutation check — (1) a full Load-More round
-  // trip using a synchronous mock, (2) a forced-incidental-rerender via
-  // `rerender()` with unchanged props, and (3) a Codex re-review suggestion
-  // (2026-09-18): a DEFERRED extension request (the mock's second page holds
-  // an unresolved promise), asserting the highlight is unchanged while
-  // `phase === "extending"` is genuinely in flight, then resolving it and
-  // asserting the highlight survived. All three showed the SAME final
-  // `aria-activedescendant` whether or not `value` was memoized — (1)/(2)
-  // traced (via direct `syncHighlightedIndex` instrumentation) to
-  // `usePreviousProps`'s own effect-flush timing relative to `act()`/fake
-  // timers in this exact harness; (3) reproduced the identical result even
-  // holding the fetch open by hand, ruling out fake-timer batching as the
-  // sole cause — something about jsdom's own render/effect cadence here
-  // genuinely does not let this construction discriminate the fix, not
-  // merely a fake-timer artifact. Shipping any of the three would have been
-  // a guard that reads as safety without being one. The real-browser
-  // Playwright suite (real timers, real batching) is the layer that can
-  // actually discriminate this class of bug; `named-entity-picker.spec.ts`'s
-  // paging coverage is
-  // extended below to commit a value before paging past it, which a stale
-  // MUI version reintroducing this issue would visibly break.
+  // No test pins this directly — FOUR constructions were tried across two
+  // harnesses and all four were REJECTED after a red/green mutation check.
+  // In jsdom: (1) a full Load-More round trip using a synchronous mock, (2)
+  // a forced-incidental-rerender via `rerender()` with unchanged props, and
+  // (3) a Codex re-review suggestion (2026-09-18): a DEFERRED extension
+  // request (the mock's second page holds an unresolved promise), asserting
+  // the highlight is unchanged while `phase === "extending"` is genuinely in
+  // flight, then resolving it and asserting the highlight survived. All
+  // three showed the SAME final `aria-activedescendant` whether or not
+  // `value` was memoized — (1)/(2) traced (via direct `syncHighlightedIndex`
+  // instrumentation) to `usePreviousProps`'s own effect-flush timing
+  // relative to `act()`/fake timers in this exact harness; (3) reproduced
+  // the identical result even holding the fetch open by hand, ruling out
+  // fake-timer batching as the sole cause.
+  //
+  // (4) A second Codex re-review (2026-09-18) asked for the real-browser
+  // version of (3) instead, reasoning that jsdom's own render/effect cadence
+  // — not a fake-timer artifact — might be what defeats the first three.
+  // Built and run in `named-entity-picker.spec.ts` against an isolated
+  // stack at head: commit a flock (the picker stays open, same 50-row
+  // window — verified, not assumed), page to the true end, hold the
+  // extension's own request via `page.route` and a deferred promise, assert
+  // `aria-activedescendant` mid-flight and after the page lands. It PASSED
+  // with the fix in place. The mutation check — `clonedSelectedValue` swapped
+  // back to the inline clone, image rebuilt, spec rerun — ALSO passed,
+  // unchanged. Real React scheduling, not jsdom's, and still vacuous for
+  // this exact scenario (commit-then-page, one committed value, one
+  // extension). Not shipped, per the standing rule against a guard that
+  // reads as safety without being one; the attempt and both real-browser
+  // results are recorded here rather than in the spec file itself, so a
+  // future reader does not have to reconstruct why a fourth attempt is
+  // missing from a file that already tracks the first three.
+  //
+  // The fix itself stays: `clonedSelectedValue` is still the CORRECT
+  // response to the mechanism Codex's first review identified (read
+  // directly from `useAutocomplete.js` — an unmemoized `value` clone
+  // genuinely does give `syncHighlightedIndex` a new identity on every
+  // render and genuinely does retrigger its resync effect on renders
+  // unrelated to the committed value). Four attempts at an OBSERVABLE
+  // regression test for that mechanism, across two harnesses, found none;
+  // that is a fact about how hard this particular symptom is to catch from
+  // the outside, not evidence the fix is unneeded.
 
   it("T023-8: optional clear button commits blank and fires onClear", async () => {
     const onClear = vi.fn();

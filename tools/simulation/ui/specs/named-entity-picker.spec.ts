@@ -145,6 +145,25 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await expect(combobox).toHaveValue(FLOCK_SENTINEL);
   });
 
+  // Codex re-review of #898 (2026-09-18, finding 2): a FOURTH construction
+  // was tried here, in a real browser against an isolated stack at head —
+  // commit a flock first (verified the picker stays open and keeps its
+  // 50-row window afterward, so `state.selection.entity` is non-null for
+  // the rest of the scenario), page to the true end, hold the extension's
+  // own request open via `page.route` and a deferred promise (the same
+  // technique the three jsdom attempts used a mocked fetch for), and assert
+  // `aria-activedescendant` both mid-flight and after the page lands. It
+  // PASSED with the fix in place, then a mutation check — swap
+  // `clonedSelectedValue` back to the inline `state.selection.entity ? {...}
+  // : null` clone, rebuild the image, rerun — also PASSED, unchanged. Real
+  // React scheduling, not jsdom's, and still vacuous for this exact
+  // scenario: not shipped, per the standing rule against a guard that reads
+  // as safety without being one. The full three-jsdom-plus-one-real-browser
+  // account lives in `NamedEntityPicker.test.tsx`, right above the picker's
+  // T023-7 block — this is the fourth entry in that record, not a
+  // duplicate a reader would otherwise wonder why is missing from a file
+  // that already tracks the first three.
+
   test("a new Sales order's customer picker reaches and commits the page-two sentinel through search", async ({
     page,
     signIn,
