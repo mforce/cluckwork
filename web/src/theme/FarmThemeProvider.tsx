@@ -253,27 +253,19 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         },
       },
       MuiChip: { styleOverrides: { root: { borderRadius: pillRadius } } },
-      // #740 / D3.4. `DialogActions` sets `alignItems: center`, which would leave
-      // stacked buttons at their intrinsic width. Its OWN `& > :not(style) ~
-      // :not(style) { marginLeft: 8 }` spacing rule survives this override
-      // untouched — it is a sibling-combinator rule at the same specificity as
-      // `root`, not a property `root` itself carries, so declaring
-      // `flexDirection`/`alignItems` alone leaves it in place: a stacked column
-      // still pushes every button after the first 8px to the right, with no gap
-      // between rows. Phone-scope resets it to 0 and a `gap` on the flex
-      // container replaces it with real vertical space.
-      MuiDialogActions: {
-        styleOverrides: {
-          root: {
-            [phone]: {
-              flexDirection: "column",
-              alignItems: "stretch",
-              gap: 8,
-              "& > :not(style) ~ :not(style)": { marginLeft: 0 },
-            },
-          },
-        },
-      },
+      // #740 / D3.4 originally stacked `DialogActions` at phone width, the
+      // same rule every other `.actions` row follows. #896 (owner,
+      // 2026-09-17, from the #892 mockups) superseded that for dialog
+      // footers specifically: the phone `.dialog .dialog-foot` rule went
+      // from column/stretch to row/right-aligned, so a dialog footer is now
+      // a SECOND exemption from D3.4's stacking rule, alongside the Daily
+      // Entry footer (#830). `DialogActions` already renders row and
+      // right-aligned by default at every width (`justifyContent:
+      // 'flex-end'`, `DialogActions.js`) with its own sibling-margin
+      // spacing, so the fix is to declare no override at all here — the
+      // 44px touch target still comes from `MuiButton`'s own phone floor
+      // above, not from anything this component would otherwise add.
+      // No `MuiDialogActions` entry needed.
       // A raw `<label>` styles.css still targets (§2.3's `:where(label)`
       // demotion neutralises it only where MUI itself declares the property —
       // `FormControlLabel` never declares `flex-direction`/`gap` on its own

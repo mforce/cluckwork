@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Package, Plus } from "lucide-react";
 import {
-  Checkbox, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
+  Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, TextField,
 } from "@mui/material";
 import {
@@ -351,10 +351,10 @@ export function ProductsPage() {
             slotProps={{ htmlInput: { maxLength: 500 } }}
           />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton disabled={busy} busy={isPending("create")}>{t("addProductButton")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -403,11 +403,11 @@ export function ProductsPage() {
           {/* No notes field: the inline edit had none, and #131 changes shape,
               not capability. editNotes stays seeded so the body round-trips. */}
           <DialogError errors={errors} scope="edit" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={isPending("edit")}>{tc("save")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -431,11 +431,11 @@ export function ProductsPage() {
             control={<Checkbox checked={editConvActive} onChange={(e) => setEditConvActive(e.target.checked)} />}
           />
           <DialogError errors={errors} scope="edit-conversion" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEditConversion}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={isPending("edit-conversion")}>{tc("save")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 

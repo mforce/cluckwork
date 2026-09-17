@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Plus } from "lucide-react";
 import {
-  Checkbox, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
+  Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, TextField,
 } from "@mui/material";
 import {
@@ -209,10 +209,10 @@ export function GradesPage() {
             control={<Checkbox checked={isSaleable} onChange={(e) => setIsSaleable(e.target.checked)} />}
           />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addGradeButton")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -238,12 +238,12 @@ export function GradesPage() {
             control={<Checkbox checked={editSaleable} onChange={(e) => setEditSaleable(e.target.checked)} />}
           />
           <DialogError errors={errors} scope="edit" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 

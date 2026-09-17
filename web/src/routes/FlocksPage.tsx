@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Bird, FilterX, Plus } from "lucide-react";
 import {
-  Box, Divider, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Box, Divider, DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   TextField, Typography,
 } from "@mui/material";
 import {
@@ -310,10 +310,10 @@ export function FlocksPage() {
               value={count} onChange={setCount} min={1} />
           </div>
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -347,12 +347,12 @@ export function FlocksPage() {
               value={editCount} onChange={setEditCount} min={1} />
           </div>
           <DialogError errors={errors} scope="edit" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -516,14 +516,14 @@ export function FlocksPage() {
                   onChange={(e) => setMvNote(e.target.value)}
                 />
                 <DialogError errors={errors} scope="record-movement" />
-                <div className="dialog-foot">
+                <DialogActions>
                   <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
                   <BusyButton type="submit"
                     busy={isPending("record-movement")}
                     disabled={busy || mvQty === 0}>
                     {t("recordButton")}
                   </BusyButton>
-                </div>
+                </DialogActions>
               </Stack>
             </Dialog>
 

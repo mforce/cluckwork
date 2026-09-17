@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Pencil, Plus, Users } from "lucide-react";
 import {
-  Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
+  DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
 } from "@mui/material";
 import {
   createCustomer, listCustomerBalances, listCustomers, updateCustomer,
@@ -269,10 +269,10 @@ export function CustomersPage() {
             onChange={(e) => setNote(e.target.value)}
           />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={busy}>{t("addCustomerButton")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -329,13 +329,13 @@ export function CustomersPage() {
               onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
             />
             <DialogError errors={errors} scope="edit-customer" />
-            <div className="dialog-foot">
+            <DialogActions>
               <button type="button" className="link" disabled={editWriteInFlight} onClick={closeEdit}>
                 {tc("cancel")}
               </button>
               <BusyButton type="submit" disabled={busy}
                 busy={isPending("edit-customer")}>{tc("save")}</BusyButton>
-            </div>
+            </DialogActions>
           </Stack>
         )}
       </Dialog>

@@ -136,29 +136,15 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  it("stacks dialog actions at phone width", () => {
-    for (const { label, theme } of themes) {
-      const root = slot(theme.components?.MuiDialogActions?.styleOverrides?.root,
-        `${label} MuiDialogActions root`);
-      const narrow = slot(root[theme.breakpoints.down("md")], `${label} MuiDialogActions phone`);
-      expect(narrow.flexDirection, `${label}`).toBe("column");
-      // `DialogActions` sets `alignItems: center`, which leaves a stacked button
-      // at its intrinsic width — half of #740 rather than all of it.
-      expect(narrow.alignItems, `${label}`).toBe("stretch");
-      // `DialogActions` ALSO carries its own sibling-combinator spacing
-      // (`& > :not(style) ~ :not(style) { marginLeft: 8 }`, from its own
-      // `variants`, not from this override), which stacking direction alone
-      // does not touch: a column of buttons still pushed every one after the
-      // first 8px right, with no space between rows. This object read is not
-      // the full proof — the nested selector shares the sibling-margin
-      // property with several unrelated rules a theme walk cannot tell apart
-      // by intent — so FarmThemeProvider.render.test.tsx reads the actual
-      // generated CSS for the property this reset REPLACES.
-      const spacing = slot(narrow["& > :not(style) ~ :not(style)"], `${label} MuiDialogActions phone spacing`);
-      expect(spacing.marginLeft, `${label} sibling margin reset`).toBe(0);
-      expect(narrow.gap, `${label} vertical gap between stacked buttons`).toBe(8);
-    }
-  });
+  // #832 — retired: #896 (owner, 2026-09-17) made a dialog footer row/
+  // right-aligned at phone width, not stacked, so `MuiDialogActions` carries
+  // no phone override at all any more (see the comment beside where this
+  // block used to sit in FarmThemeProvider.tsx). There is nothing app-owned
+  // left to pin here — the resulting layout is MUI's own unmodified
+  // `DialogActions` default at every width, a library fact rather than an
+  // app policy, and this is a deliberate coverage reduction rather than a
+  // guard with a successor. `FarmThemeProvider.render.test.tsx`'s matching
+  // "resets DialogActions' sibling spacing…" render test is retired with it.
 
   it("keeps radius a three-step nesting scale", () => {
     for (const { label, theme, input, panel, card } of themes) {

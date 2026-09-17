@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
-  Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   assignFlock as apiAssignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments,
@@ -771,10 +771,10 @@ export function UsersPage() {
             onChange={(e) => setCreateStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -947,9 +947,9 @@ export function UsersPage() {
             onChange={(e) => setFlockStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="flock-access" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" disabled={flockWriteInFlight} onClick={closeAssignments}>{t("doneButton")}</button>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -968,11 +968,11 @@ export function UsersPage() {
           />
           <p className="muted">{t("clearNameHint")}</p>
           <DialogError errors={errors} scope="edit-user" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={editUser !== null && isPending(`update:${editUser.id}`)}>{tc("save")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1008,11 +1008,11 @@ export function UsersPage() {
             onChange={(e) => setPwStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="set-password" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={pwUser !== null && isPending(`set-password:${pwUser.id}`)}>{t("setPasswordButton")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1047,11 +1047,11 @@ export function UsersPage() {
             onChange={(e) => setRoleStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="change-role" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1096,13 +1096,13 @@ export function UsersPage() {
             onChange={(e) => setEmailStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="change-email" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEmail}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={emailUser !== null && isPending(`change-email:${emailUser.id}`)}>
               {t("changeEmailSubmitButton")}
             </BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1154,7 +1154,7 @@ export function UsersPage() {
             onChange={(e) => setStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="disable-enable" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               className={stepUpMode === "disable" ? "btn-danger" : undefined}
@@ -1162,7 +1162,7 @@ export function UsersPage() {
                 && isPending(`${stepUpMode}:${stepUpUser.id}`)}>
               {stepUpMode === "disable" ? t("disableSubmitButton") : t("enableSubmitButton")}
             </BusyButton>
-          </div>
+          </DialogActions>
         </Stack>
       </Dialog>
     </section>
