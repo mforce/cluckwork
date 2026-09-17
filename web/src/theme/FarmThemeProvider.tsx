@@ -422,16 +422,26 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       // no tabular numerals. Pinning `fontSize`/`lineHeight` here to the same
       // numbers `body1` already carries (rather than pointing `variant` at
       // `body1`, which would also move the `variantMapping` element) reaches
-      // every `TableCell` regardless of context. `size="small"` (`6px 16px`
-      // padding, `TableCell.js`) plus this line height plus the 1px border
-      // comes in under both `MuiTableRow` floors above, which is correct: a
-      // floor, not a ceiling (#882 review).
+      // every `TableCell` regardless of context.
+      //
+      // #897 review — padding is pinned too, to `table.data td`'s own value
+      // (`styles.css`: `0.6rem 1rem 0.6rem 0`), not `size="small"`'s default
+      // (`6px 16px`, symmetric — `TableCell.js`). Measured directly on
+      // Flocks (the widest converted table, 8 columns plus a 5-button
+      // actions cell): the default's extra ~16px/cell of left padding alone
+      // pushed the table's natural width to 1230px against a 948px
+      // container, overflowing the `TableContainer`'s own horizontal scroll
+      // and hiding the tail of the actions row from a plain screenshot even
+      // though no cell wrapped and the page itself stayed exactly 1280px
+      // wide (the `contain: layout` fix above is a different guarantee and
+      // was never in question). The legacy value reclaims that width.
       MuiTableCell: {
         styleOverrides: {
           root: {
             fontSize: "0.875rem",
             lineHeight: 20 / 14,
             fontVariantNumeric: "tabular-nums",
+            padding: "0.6rem 1rem 0.6rem 0",
             [phone]: { fontSize: "1rem", lineHeight: 24 / 16 },
           },
         },

@@ -296,12 +296,20 @@ describe("farm theme policy (#823 G2)", () => {
   // asks for, both of which `TableRow`'s height floor above would hide —
   // it is a floor, not a ceiling, so an over-tall cell renders wrong with
   // every one of these assertions still green.
-  it("sizes table cells to the row scale and gives every cell tabular numerals", () => {
+  //
+  // #897 review — padding joined this row after `size="small"`'s own default
+  // (`6px 16px`, symmetric) measured 16px/cell wider per side than
+  // `table.data td`'s legacy value, enough to push Flocks' widest row (8
+  // columns, a 5-button actions cell) past its container and off-screen —
+  // no cell wrapped and the page itself stayed 1280px wide, so neither of
+  // the other guards here would have caught it.
+  it("sizes table cells to the row scale, gives every cell tabular numerals, and matches table.data's padding", () => {
     for (const { label, theme } of themes) {
       const root = slot(theme.components?.MuiTableCell?.styleOverrides?.root, `${label} MuiTableCell root`);
       expect(root.fontSize, `${label} row size`).toBe("0.875rem");
       expect(root.lineHeight, `${label} row line-height`).toBe(20 / 14);
       expect(root.fontVariantNumeric, `${label} tabular numerals`).toBe("tabular-nums");
+      expect(root.padding, `${label} cell padding`).toBe("0.6rem 1rem 0.6rem 0");
       const phone = theme.breakpoints.down("md");
       const narrow = slot(root[phone], `${label} MuiTableCell phone`);
       expect(narrow.fontSize, `${label} phone row size`).toBe("1rem");
