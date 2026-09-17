@@ -16,28 +16,35 @@ public sealed class SharedStateNamespaceWiringTests(RedisFixture redis) : IClass
     [Fact]
     public async Task AuthCounterAndReportCap_UseTheConfiguredSharedStateNamespace()
     {
-        await using var factory = new NamespaceFactory(redis.ConnectionString);
-        await factory.InitializeAsync();
-
-        var counter = factory.Services.GetRequiredService<IFixedWindowCounter>();
-        await counter.IncrementAsync("auth-login:namespace-wiring", TimeSpan.FromMinutes(1));
-
-        var accountId = Guid.NewGuid();
-        var cap = factory.Services.GetRequiredService<DistributedReportConcurrencyLimiter>();
-        await using var permit = await cap.AcquireAsync(accountId);
-        Assert.NotNull(permit);
-
-        var keys = new List<string>();
-        foreach (var endpoint in redis.Redis.GetEndPoints())
+        var factory = new NamespaceFactory(redis.ConnectionString);
+        try
         {
-            var server = redis.Redis.GetServer(endpoint);
-            await foreach (var key in server.KeysAsync(pattern: $"*{KeyNamespace}*"))
-                keys.Add(key.ToString());
-        }
+            await factory.InitializeAsync();
 
-        Assert.Contains(keys, key => key.StartsWith(
-            $"{{{KeyNamespace}:win:auth-login:namespace-wiring}}:", StringComparison.Ordinal));
-        Assert.Contains($"{KeyNamespace}:lease:report-cc:{accountId:N}:0", keys);
+            var counter = factory.Services.GetRequiredService<IFixedWindowCounter>();
+            await counter.IncrementAsync("auth-login:namespace-wiring", TimeSpan.FromHours(24));
+
+            var accountId = Guid.NewGuid();
+            var cap = factory.Services.GetRequiredService<DistributedReportConcurrencyLimiter>();
+            await using var permit = await cap.AcquireAsync(accountId);
+            Assert.NotNull(permit);
+
+            var keys = new List<string>();
+            foreach (var endpoint in redis.Redis.GetEndPoints())
+            {
+                var server = redis.Redis.GetServer(endpoint);
+                await foreach (var key in server.KeysAsync(pattern: $"*{KeyNamespace}*"))
+                    keys.Add(key.ToString());
+            }
+
+            Assert.Contains(keys, key => key.StartsWith(
+                $"{{{KeyNamespace}:win:auth-login:namespace-wiring}}:", StringComparison.Ordinal));
+            Assert.Contains($"{KeyNamespace}:lease:report-cc:{accountId:N}:0", keys);
+        }
+        finally
+        {
+            await factory.DisposeAsync();
+        }
     }
 
     private sealed class NamespaceFactory(string redisConnection) : CluckworkWebApplicationFactory
