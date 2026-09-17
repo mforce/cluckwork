@@ -108,6 +108,39 @@ test.describe("Searchable named-entity picker (#512)", () => {
       await combobox.press("ArrowDown");
     }
     await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
+
+    // Codex review of #898 (2026-09-18): `NamedEntityPicker.tsx`'s own
+    // `disableListWrap` comment claims THIS spec proves ArrowDown at the
+    // picker's TRUE final option (hasMore already exhausted) does not wrap
+    // back to the first row — but stopping here and committing immediately,
+    // which this test used to do, never actually pressed ArrowDown past the
+    // sentinel, so that claim went unverified. The sentinel is not
+    // necessarily the true final row either (comment above: other specs may
+    // have added flocks that sort after it), so keep arrowing past it until
+    // the highlight genuinely stops advancing — the true end, wherever it
+    // lands — then confirm one more ArrowDown leaves it exactly there
+    // instead of wrapping to the first option.
+    let activeId = sentinelId;
+    for (let i = 0; i < 260; i++) {
+      await combobox.press("ArrowDown");
+      const next = await combobox.getAttribute("aria-activedescendant");
+      if (next === activeId) break;
+      activeId = next;
+    }
+    const trueEndId = activeId;
+    await combobox.press("ArrowDown");
+    await expect(
+      combobox,
+      "ArrowDown at the picker's true final option (hasMore exhausted) must not wrap back to the first row",
+    ).toHaveAttribute("aria-activedescendant", trueEndId!);
+
+    // Navigate back up to the named sentinel to commit it — this test's own
+    // promise (reaches AND commits the sentinel through paging), unaffected
+    // by the wrap check above.
+    for (let i = 0; i < 260 && (await combobox.getAttribute("aria-activedescendant")) !== sentinelId; i++) {
+      await combobox.press("ArrowUp");
+    }
+    await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
     await combobox.press("Enter");
     await expect(combobox).toHaveValue(FLOCK_SENTINEL);
   });

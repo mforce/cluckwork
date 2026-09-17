@@ -934,6 +934,79 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(lastCall[0]).toMatchObject({ offset: 50 });
   });
 
+  // Codex review of #898 (2026-09-18): `highlightedIdRef` (used ONLY by
+  // FR-032's `atEnd` check, above) was set by `onHighlightChange` but never
+  // CLEARED — not on Escape, not on outside-click, not on close. `<Autocomplete>`
+  // itself unmounts every close and mounts fresh every reopen (it only
+  // renders in the open JSX branch), so MUI's own internal highlight always
+  // starts clean on reopen — but this ref lives on the outer component,
+  // which does not unmount across an open/close cycle. With FR-018 retaining
+  // the SAME discovery window across a close (no fetch, no reset, since the
+  // "open effect" only resets on a mid-flight close), reopening after
+  // navigating to the true last option left the ref pointed at that same
+  // option — still the list's actual last item, since nothing changed. The
+  // very first ArrowDown after reopening then falsely read `atEnd` and fired
+  // an unwanted `loadMore()`, instead of moving the highlight from its true,
+  // freshly-reset position (nothing highlighted).
+  it("T023-7c: a stale highlightedIdRef does not falsely trigger Load More on the first ArrowDown after reopening", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    mockListFlocks.mockImplementation(async (params: any) => {
+      const offset = params.offset ?? 0;
+      if (offset === 0) return page0 as any;
+      return [] as any;
+    });
+    const renderPicker = (open: boolean) => (
+      <FlockPicker label="Pick" eligibility="active" required open={open} trigger={<button>open</button>} />
+    );
+    const { rerender } = render(renderPicker(true));
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    let input = screen.getByRole("combobox");
+    // Navigate to the TRUE last option (50 items, no wrap).
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    // Close, then reopen — same discovery window retained (FR-018), but
+    // `<Autocomplete>` is a fresh mount.
+    rerender(renderPicker(false));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    rerender(renderPicker(true));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    input = screen.getByRole("combobox");
+    const callsBeforeReopenArrow = mockListFlocks.mock.calls.length;
+    // First ArrowDown after reopening must move the highlight normally, not
+    // request another page — the stale-ref bug fired loadMore here instead.
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeReopenArrow);
+  });
+
+  // Codex review of #898 (2026-09-18): T023-7 above only checked that the
+  // NEXT FETCH was issued at the right offset — not what happened to the
+  // highlight while it was in flight or after it landed with a value already
+  // committed. `value={state.selection.entity ? {...} : null}` used to
+  // recreate that clone on EVERY render; `useAutocomplete.js`'s own
+  // `syncHighlightedIndex` — a `useCallback` closing over `value` BY
+  // REFERENCE — got a new identity on every such render, which retriggers
+  // the effect that calls it regardless of why the render happened. Fixed
+  // below (`clonedSelectedValue`, a `useMemo` keyed on the committed
+  // entity's id/name) by memoizing that clone.
+  //
+  // No jsdom test for this: two constructions were tried (a full Load-More
+  // round trip, and a simpler forced-incidental-rerender via `rerender()`
+  // with unchanged props) and both were REJECTED after a red/green mutation
+  // check — with `syncHighlightedIndex` instrumented directly, both showed
+  // the SAME final `aria-activedescendant` whether or not `value` was
+  // memoized, tracing back to `usePreviousProps`'s own effect-flush timing
+  // relative to `act()`/fake timers in this exact harness, not to anything
+  // this fix controls. Shipping either would have been a guard that reads as
+  // safety without being one. The real-browser Playwright suite (real
+  // timers, real batching) is the layer that can actually discriminate this
+  // class of bug; `named-entity-picker.spec.ts`'s paging coverage is
+  // extended below to commit a value before paging past it, which a stale
+  // MUI version reintroducing this issue would visibly break.
+
   it("T023-8: optional clear button commits blank and fires onClear", async () => {
     const onClear = vi.fn();
     const onSnapshot = vi.fn();
@@ -1027,6 +1100,33 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(screen.getByLabelText(/^Pick Flock/)).toBe(combo);
     // The closed-state read-only field is ABSENT in open state (swapped, not duplicated).
     expect(screen.queryByRole("textbox", { name: "Pick Flock" })).toBeNull();
+  });
+
+  // Codex review of #898 (2026-09-18): T023-12 above asserts the closed
+  // field's STATIC open contract (readonly, aria-haspopup, aria-expanded)
+  // but never actually presses a key on it — so a real activation defect
+  // (the `onKeyDown` handler removed, or narrowed to the wrong keys) would
+  // pass every existing assertion. The comment on the closed-state `TextField`
+  // itself ("click, Enter and Space all open it") names two keys nothing in
+  // this file exercised. `activate` is gated on `triggerDisabled`, not
+  // `disabled` alone, so a spy on the trigger's own `onClick` is what proves
+  // the KEY handler actually reached it, not just that the field looks
+  // right.
+  it("T023-12b: Enter and Space on the closed field both activate the trigger (Enter and Space, not just click)", () => {
+    const onTriggerClick = vi.fn();
+    render(
+      <FlockPicker label="Pick Flock" eligibility="active" required open={false}
+        trigger={<button type="button" onClick={onTriggerClick}>My Trigger</button>} />
+    );
+    const closedField = screen.getByLabelText(/^Pick Flock/);
+    fireEvent.keyDown(closedField, { key: "Enter" });
+    expect(onTriggerClick).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(closedField, { key: " " });
+    expect(onTriggerClick).toHaveBeenCalledTimes(2);
+    // Any OTHER key must not activate it (a handler that fires on every
+    // keydown would pass the two assertions above too).
+    fireEvent.keyDown(closedField, { key: "a" });
+    expect(onTriggerClick).toHaveBeenCalledTimes(2);
   });
 
   it("T023-13: closed state with no trigger element renders no orphan htmlFor", () => {

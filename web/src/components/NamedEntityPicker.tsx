@@ -15,7 +15,7 @@
 // generations, unavailable states, Escape/clear, Retry) arrives in T026–T034
 // on top of the same state.
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -510,6 +510,11 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     const trimmed = raw.trim();
     const gen = ++discoveryGenRef.current;
     if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    // Codex review of #898 (2026-09-18): see `cancelExploration`'s comment —
+    // typing REPLACES `items` below (a new discovery generation), so any
+    // option `highlightedIdRef` still names from the previous window is
+    // gone; the ref itself must go with it.
+    highlightedIdRef.current = null;
     setState((prev) => ({
       ...prev,
       discovery: {
@@ -620,6 +625,19 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // by the eligibility effect) handles the request under the new key.
   useEffect(() => {
     if (!open) {
+      // Codex review of #898 (2026-09-18): `<Autocomplete>` only renders in
+      // the open JSX branch — it unmounts every close and mounts fresh every
+      // reopen, so MUI's OWN internal highlighted-index ref always starts
+      // clean. `highlightedIdRef` lives on THIS (outer) component, which
+      // does not unmount across an open/close cycle, so left unset here it
+      // would still hold whatever option was highlighted when the picker
+      // last closed — on some captured discovery windows (FR-018 retention)
+      // the SAME items reappear on reopen, and if the user had reached the
+      // true end before closing, the very first ArrowDown after reopening
+      // would falsely read `atEnd` (`handleRootKeyDown`, below) and fire an
+      // unwanted `loadMore()` instead of moving the highlight, since MUI's
+      // own highlight is actually back at "nothing highlighted".
+      highlightedIdRef.current = null;
       if (debounceRef.current !== null) {
         window.clearTimeout(debounceRef.current);
         debounceRef.current = null;
@@ -703,6 +721,17 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       window.clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
+    // Codex review of #898 (2026-09-18): FR-032's `atEnd` check
+    // (`handleRootKeyDown`, below) compares against `highlightedIdRef`, which
+    // is set ONLY by `onHighlightChange` — never cleared on its own. Left
+    // stale across Escape, a later reopen's first ArrowDown could compare
+    // against an option that is no longer highlighted (MUI's OWN internal
+    // highlight index resets fresh on every open/close, since `<Autocomplete>`
+    // itself unmounts/remounts across the open/closed JSX branch — but this
+    // ref lives on the OUTER component, which does not), falsely satisfying
+    // `atEnd` and firing an unwanted `loadMore()` instead of moving the
+    // highlight.
+    highlightedIdRef.current = null;
     const selection = stateRef.current.selection;
     // A fixed requested-ID read belongs to the page's selection intent and
     // must still be allowed to settle.
@@ -949,6 +978,10 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
           window.clearTimeout(debounceRef.current);
           debounceRef.current = null;
         }
+        // See `cancelExploration`'s own comment — same stale-ref hazard
+        // (Codex review of #898, 2026-09-18), this path just doesn't share
+        // that function's body.
+        highlightedIdRef.current = null;
         const selection = stateRef.current.selection;
         // Outside-click closes exploration, not the page-owned requested-ID
         // intent. Keep that exact read live while the picker is closed.
@@ -972,6 +1005,29 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   }, [open]);
 
   const d = state.discovery;
+  // A memoized shallow clone of the committed entity, not a fresh one every
+  // render (Codex review of #898, 2026-09-18). `useAutocomplete.js`'s own
+  // `syncHighlightedIndex` is a `useCallback` closing over `value` BY
+  // REFERENCE, and a `useEffect` re-runs it whenever that reference changes
+  // while the popup is open — so recreating the clone on every render (the
+  // clone itself is still needed; see the comment on `value` below) retriggered
+  // that effect on renders with nothing to do with the committed value, INCLUDING
+  // a render mid-page-load. That effect resyncs `highlightedIndexRef` to the
+  // committed option's index (or resets it) whenever it does not see the SAME
+  // `filteredOptions` array it saw last time paired with the SAME `value`
+  // reference it saw last time — so the spurious extra runs kept snapping the
+  // highlight back to the committed row (or off the end entirely) instead of
+  // leaving it on the row the user had arrowed onto at the newly loaded end.
+  // Memoizing by id/name keeps the clone's reference stable across renders
+  // that do not actually change the committed entity, while still being a
+  // DIFFERENT object than any row in `d.items` — which is the property the
+  // clone exists for in the first place (see below).
+  const selectedEntity = state.selection.entity;
+  const clonedSelectedValue = useMemo(
+    () => (selectedEntity ? { ...selectedEntity } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedEntity?.id, selectedEntity?.name],
+  );
   const showLoading = d.phase === "replacing" || d.phase === "extending" || d.phase === "debouncing";
   // The input value IS the discovery's raw text — no committed-text fallback.
   // After a commit the field shows the committed name (rawQuery was set to it);
@@ -1232,7 +1288,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         options={d.items}
         loading={showLoading}
         inputValue={displayText}
-        // A fresh shallow clone, not the entity itself: `useAutocomplete.js`'s
+        // A shallow clone, not the entity itself: `useAutocomplete.js`'s
         // `handleValue` bails out (never calls `onChange`) when the newly
         // selected option is `===` the current `value` — reference equality,
         // not `isOptionEqualToValue`. A picker whose committed entity and
@@ -1245,7 +1301,10 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         // layer could produce the same shared reference in production. The
         // clone guarantees `value !== newValue`, so `onChange` always fires;
         // `isOptionEqualToValue` (by id, below) still drives `aria-selected`.
-        value={state.selection.entity ? { ...state.selection.entity } : null}
+        // MEMOIZED (not recreated every render) — see `clonedSelectedValue`'s
+        // own comment above for why an unmemoized clone here broke Load
+        // More's highlight retention.
+        value={clonedSelectedValue}
         onChange={(_event, newValue, reason) => {
           // Commit by pointer/Enter (FR-030) — the ONLY two ways MUI's own
           // handling reaches `reason === "selectOption"`. Guarded on
@@ -1298,9 +1357,15 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         // stops ArrowDown at the TRUE final option (hasMore already false)
         // from silently jumping back to the first row — found the same way
         // as the `handleRootKeyDown` comment above, via
-        // `named-entity-picker.spec.ts`'s real-browser keyboard-paging test:
-        // MUI's default wrap only stops mid-pagination there, not once
-        // discovery is fully exhausted.
+        // `named-entity-picker.spec.ts`'s real-browser keyboard-paging test.
+        // Codex review of #898 (2026-09-18): that spec used to stop and
+        // commit the moment its named sentinel was highlighted, never
+        // pressing ArrowDown past it — so this exact claim went unverified
+        // (removing `disableListWrap` still passed). It now keeps arrowing
+        // past the sentinel to wherever the true end actually is (not
+        // assumed to be the sentinel — a dirty shared fixture can add rows
+        // after it) and asserts one more ArrowDown leaves the highlight
+        // exactly there, before navigating back up to commit the sentinel.
         handleHomeEndKeys={false}
         disableListWrap
         // The popup stays a DOM descendant of `containerRef` (no portal to

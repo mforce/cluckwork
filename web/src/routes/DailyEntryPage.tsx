@@ -809,10 +809,21 @@ export function DailyEntryPage() {
           show any flock name at all (#898 review) — stacked full-width
           above Date instead of the alternative offered (widen the picker
           on open), since a width that changes between closed and open
-          states makes the whole row jump. 1280 is unchanged: `flexDirection`
-          switches to column only below `md`, and Date + "+ new flock" stay
-          grouped in their own row (nested Box, `gap` unchanged so their
-          spacing at 1280 is pixel-identical to the old flat three-item row). */}
+          states makes the whole row jump. 1280 is unchanged in ROW ORDER
+          (`flexDirection` switches to column only below `md`) and in
+          spacing between Date and "+ new flock" (`gap` unchanged, still
+          grouped together) — but NOT pixel-identical to the old flat
+          three-item row, which is a correction of this comment's earlier
+          claim (Codex review of #898, 2026-09-18): the old row's Date
+          `<label>` carried its own `flex: 1`, splitting the row's remaining
+          width with Flock roughly evenly; the nested grouping `Box` below
+          has no `flex` of its own, so at `md` it sizes to its CONTENT
+          (Date's `TextField` plus the button), not to a share of the row —
+          Date is narrower here than it was in the flat row, and Flock takes
+          correspondingly more. This is the layout the owner approved: the
+          1280 frame attached to #898 (`final-1280-committed.png`) is this
+          exact rendering, not the wider, 50/50-split Date the old comment
+          described. */}
       <Box sx={{
         display: "flex", flexDirection: { xs: "column", md: "row" },
         gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: { xs: "stretch", md: "flex-end" },

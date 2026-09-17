@@ -63,9 +63,20 @@ export async function commitNamedPicker(root: Locator | Page, labelText: string,
   }
   await expect(combobox).toBeVisible();
 
+  // Codex review of #898 (2026-09-18): the app builds this query string with
+  // `URLSearchParams.set("search", ...)` (`cluckwork.ts`'s `listFlocks`/
+  // `listCustomers`), which is the `application/x-www-form-urlencoded`
+  // serializer — a space becomes `+`, not `%20`. `encodeURIComponent` used to
+  // be used here, which DOES produce `%20`, so this match never fired for any
+  // multi-word needle (every real call site passes one — "Sim House A", "E2E
+  // Customer <ts>", "E2E Flock <ts>") and `waitForResponse` hung until
+  // timeout. Building the expected fragment with the same `URLSearchParams`
+  // serializer the app uses is what keeps the two in sync by construction,
+  // rather than by matching a specific escaping rule that could drift again.
+  const expectedSearchParam = new URLSearchParams({ search: needle }).toString();
   const discovery = page.waitForResponse((r) =>
     r.request().method() === "GET"
-    && r.url().includes(`search=${encodeURIComponent(needle)}`)
+    && r.url().includes(expectedSearchParam)
     && r.ok());
   await combobox.fill(needle);
   const rows = (await (await discovery).json()) as Array<{ id: string; name: string }>;
