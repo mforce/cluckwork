@@ -574,7 +574,10 @@ export function ExpensesPage() {
           label={t("categoryLabel")}
           value={filterCategory}
           size="small"
-          slotProps={{ select: { native: true } }}
+          // The placeholder option shows text while `value` is "", so MUI
+          // would leave the label resting on top of it (#897/#833 caught
+          // this on Products' grade select and Audit's filters).
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           onChange={(e) => setFilterCategory(e.target.value)}
         >
           <option value="">{t("allCategoriesOption")}</option>
@@ -682,7 +685,9 @@ export function ExpensesPage() {
           label={t("categoryLabel")}
           value={categoryId}
           size="small"
-          slotProps={{ select: { native: true }, htmlInput: { required: true } }}
+          // The placeholder option shows text while `value` is "", so MUI
+          // would leave the label resting on top of it (#897/#833).
+          slotProps={{ select: { native: true }, htmlInput: { required: true }, inputLabel: { shrink: true } }}
           onChange={(e) => setCategoryId(e.target.value)}
         >
           <option value="">{t("pickOption")}</option>
