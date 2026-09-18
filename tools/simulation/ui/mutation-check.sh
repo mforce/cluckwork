@@ -261,21 +261,22 @@ declare -A FALSE_KILLS=(
 # does — this mutant still dies inside sign-in, still proves nothing about the
 # nav gate, and is still counted as a false kill rather than as coverage.
 #
-# The three phone entries were observed the same way. Two of them carry a custom
-# message; `phone-table-overflow-unclipped` declares TWO lines, one per route it
-# still breaks, because the softness of that walk is itself the claim — a hard
-# assertion would stop at /sales and report half the damage, so requiring both
-# is what keeps `expect.soft` there honest. /daily-entry and /stock are
-# deliberately absent: neither renders a wide data table, and both stayed at
-# exactly 390 under the mutant. /customers and /flocks were also on this list
-# until #832: the mutant's CSS targets `table.data` specifically, and #832
-# moved both routes onto MUI's `TableContainer`, which the mutant's rule does
-# not reach — observed directly (`CLUCKWORK_E2E_MUTANT=phone-table-overflow-unclipped`
-# against a #832 build): only /sales and /history still overflow. This is a
-# real narrowing of what the mutant proves, not a typo; if a later slice moves
-# /sales or /history onto MUI too, this mutant stops proving anything at all
-# and needs a new CSS target (MUI's `TableContainer`, not `table.data`) or
-# retirement, matching #824's "retire only with a named successor" rule.
+# The three phone entries were observed the same way. One of them carries a
+# custom message; `phone-table-overflow-unclipped` declares ONE line now
+# (narrowed from two in #832 to one in #831 — see below), because the
+# softness of that walk is itself the claim — a hard assertion would stop at
+# the first offender and report only part of the damage, so requiring the
+# line that remains is what keeps `expect.soft` there honest. /daily-entry
+# and /stock are deliberately absent: neither renders a wide data table (Stock
+# moved to MUI's `Table` in #831, same shape as Customers/Flocks below), and
+# both stayed at exactly 390 under the mutant. /customers and /flocks were
+# also on this list until #832, and /history until #831: the mutant's CSS
+# targets `table.data` specifically, and each of those slices moved its route
+# onto MUI's `TableContainer`, which the mutant's rule does not reach. This is
+# a real narrowing of what the mutant proves, not a typo — only /sales still
+# overflows under it now, and #831's own follow-up (Sales) needs a new CSS
+# target (MUI's `TableContainer`, not `table.data`) or retirement, matching
+# #824's "retire only with a named successor" rule, once it lands too.
 #
 # The two phone action mutants split the walk's rule between them, and each
 # declares only what it can actually redden. #823 stacks every action row below
@@ -332,8 +333,7 @@ taller than it is wide, so its pill clamps into an ellipse"
   [phone-entry-foot-stacked]="in the daily-entry save bar spans"
   [phone-dialog-footer-stacked]="dialog footer's row is not laid out as a row (computed flex-direction: column)
 dialog footer's buttons share no common vertical band"
-  [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
-/history scrolls sideways at phone width"
+  [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width"
 )
 
 MUTANTS=("$@")

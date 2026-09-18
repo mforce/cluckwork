@@ -557,8 +557,10 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // either way, `table.data` or MUI's.
       { path: "/customers", content: "role=table", what: "the customer book" },
       { path: "/flocks", content: "role=table", what: "the flock table" },
-      { path: "/stock", content: "table.data", what: "the stock table" },
-      { path: "/history", content: "table.data", what: "the entry history table" },
+      // #831 — Stock and History moved their table onto MUI's `Table` too,
+      // same reasoning as Customers/Flocks above.
+      { path: "/stock", content: "role=table", what: "the stock table" },
+      { path: "/history", content: "role=table", what: "the entry history table" },
     ];
 
     for (const { path: route, content, what } of ROUTES) {
