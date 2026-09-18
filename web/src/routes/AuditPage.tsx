@@ -424,7 +424,7 @@ export function AuditPage() {
           label={t("entityTypeFilterLabel")}
           value={entityTypeFilter}
           size="small"
-          slotProps={{ select: { native: true } }}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           onChange={(e) => updateEntityTypeFilter(e.target.value)}
         >
           <option value="">{t("allEntityTypesOption")}</option>
@@ -437,7 +437,7 @@ export function AuditPage() {
           label={t("actionFilterLabel")}
           value={actionFilter}
           size="small"
-          slotProps={{ select: { native: true } }}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           onChange={(e) => updateActionFilter(e.target.value)}
         >
           <option value="">{t("allActionsOption")}</option>
