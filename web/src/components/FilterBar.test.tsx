@@ -39,4 +39,25 @@ describe("FilterBar", () => {
     fireEvent.change(screen.getByLabelText("From", { exact: true }), { target: { value: "2026-02-01" } });
     expect(onChange).toHaveBeenCalledTimes(1);
   });
+
+  // CodeRabbit on #901 (FilterBar cherry-picked into Audit): `{ ...sx }` only
+  // spreads a plain object — a theme-callback `sx` function or an `sx` array
+  // has no own enumerable properties to spread, so either was silently
+  // dropped. `sx` accepts both shapes; a caller passing a function must still
+  // see it applied alongside the field's own bounded-width default.
+  it("still applies a caller's function-form sx alongside the bounded-width default", () => {
+    render(
+      <FilterBar>
+        <FilterDateField
+          label="From"
+          value="2026-01-01"
+          onChange={() => {}}
+          sx={() => ({ color: "rgb(1, 2, 3)" })}
+        />
+      </FilterBar>,
+    );
+    const field = screen.getByLabelText("From", { exact: true }).closest(".MuiFormControl-root");
+    expect(field).not.toBeNull();
+    expect(field).toHaveStyle({ color: "rgb(1, 2, 3)" });
+  });
 });
