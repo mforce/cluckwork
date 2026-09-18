@@ -45,7 +45,12 @@ export function FilterDateField({ sx, slotProps, ...props }: TextFieldProps) {
       size="small"
       {...props}
       slotProps={{ ...slotProps, inputLabel: { shrink: true, ...slotProps?.inputLabel } }}
-      sx={{ maxWidth: { md: DATE_FIELD_MAX_WIDTH }, ...sx }}
+      // An array, not a spread: `sx` may be a callback (a theme function) or
+      // an array itself, and `{ ...sx }` on either silently drops it (spreads
+      // no own enumerable properties). MUI merges an sx array by applying
+      // each entry in order, so the caller's own sx — of any shape — still
+      // applies after the bounded-width default.
+      sx={[{ maxWidth: { md: DATE_FIELD_MAX_WIDTH } }, ...(Array.isArray(sx) ? sx : sx ? [sx] : [])]}
     />
   );
 }
