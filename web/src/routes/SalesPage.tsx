@@ -1729,7 +1729,9 @@ export function SalesPage() {
           label={t("status")}
           value={statusFilter}
           size="small"
-          slotProps={{ select: { native: true } }}
+          // The placeholder option shows text while `value` is "", so MUI
+          // would leave the label resting on top of it (#897/#833).
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="">{t("allOption")}</option>
