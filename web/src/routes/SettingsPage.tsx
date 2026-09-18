@@ -574,8 +574,14 @@ export function SettingsPage() {
   // so it cannot become a BusyButton or an MUI Button — only its look moves
   // to sx. Shared by the logo and banner pickers.
   const fileButtonSx = {
-    display: "inline-flex", alignItems: "center", gap: "0.4rem", cursor: "pointer",
-    fontWeight: 600, fontSize: "0.92rem", color: "primary.contrastText",
+    // flexDirection is explicit, not left to inline-flex's row default: this
+    // renders a real <label>, and styles.css's bare-element `:where(label)`
+    // rule sets `flex-direction: column` with zero specificity — the ONLY
+    // declaration for that property unless sx names one too, so it wins by
+    // default and stacked the icon above the text (same trap
+    // FarmThemeProvider.tsx's MuiFormControlLabel comment already names).
+    display: "inline-flex", flexDirection: "row", alignItems: "center", gap: "0.4rem",
+    cursor: "pointer", fontWeight: 600, fontSize: "0.92rem", color: "primary.contrastText",
     backgroundColor: "primary.main", borderRadius: "var(--r-pill)", padding: "0.6rem 1.15rem",
     "&:hover": { backgroundColor: "primary.dark" },
     "&:has(input:disabled)": { opacity: 0.55, cursor: "default" },
@@ -687,7 +693,7 @@ export function SettingsPage() {
       {bannerError !== null && <Alert severity="error">{bannerError}</Alert>}
 
       <Typography variant="h3" sx={{ mt: 3 }}>{t("localizationSectionHeading")}</Typography>
-      <Stack component="form" spacing={2} sx={{ maxWidth: "40rem", mt: 1 }} onSubmit={(e) => void onSave(e)}>
+      <Stack component="form" spacing={2} sx={{ maxWidth: "40rem", mt: 1.5 }} onSubmit={(e) => void onSave(e)}>
         <TextField label={t("farmNameLabel")} value={name} required
           onChange={(e) => setName(e.target.value)}
           slotProps={{ htmlInput: { maxLength: MAX_NAME } }} />

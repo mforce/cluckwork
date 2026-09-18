@@ -67,7 +67,11 @@ export function SetPasswordPage() {
       component="main"
       sx={{
         position: "relative", minHeight: "100dvh", display: "grid", placeItems: "center",
-        padding: "1.5rem", backgroundColor: "var(--auth-bg)",
+        padding: "1.5rem",
+        // `--auth-bg` is a four-stop gradient, not a flat colour — `backgroundColor`
+        // silently drops a gradient value. Same D3.3 rule as Login: the
+        // gradient stays at 1280, the phone card is full-width with no bleed.
+        background: { xs: "var(--canvas)", md: "var(--auth-bg)" },
       }}
     >
       <Box sx={{ position: "absolute", top: "1.1rem", right: "1.1rem" }}>
