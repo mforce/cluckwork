@@ -553,7 +553,6 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // FOR, and its recent-sales list is the widest intrinsic content in the
       // app — a money string in a `max-content` track beside a name.
       { path: "/", content: "ul.dash-sales-list", what: "the recent-sales list" },
-      { path: "/sales", content: "table.data", what: "the orders table" },
       { path: "/daily-entry", content: "footer", what: "the entry form's sticky foot" },
       // #832 — Customers and Flocks moved their table onto MUI's `Table`, which
       // carries no `.data` class (the whole point of the conversion: the
@@ -565,6 +564,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       { path: "/flocks", content: "role=table", what: "the flock table" },
       { path: "/stock", content: `role=list[name="${tEn("stock:title")}"]`, what: "the stock board" },
       { path: "/history", content: "role=table", what: "the entry history table" },
+      { path: "/sales", content: "role=table", what: "the orders table" },
     ];
 
     for (const { path: route, content, what } of ROUTES) {
