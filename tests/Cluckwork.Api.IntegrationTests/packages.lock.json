@@ -11,8 +11,8 @@
       "Google.Protobuf": {
         "type": "Direct",
         "requested": "[3.*, )",
-        "resolved": "3.36.1",
-        "contentHash": "77AqPEoaY1ODE+syYBHti0jXiwQq0J/fUr/fRyYhNlc9oKtH5dZZEr/OLKtdKNVG83PRnCYB2r8B80ZrObzOGQ=="
+        "resolved": "3.36.2",
+        "contentHash": "Ci1q1iJg74qAE5riTA2FbMS0wPbpruPQI/JQ9DrAsRo2VsSxgt1e/pmxGxgrci+pXJEgrSYg2vPl8rrStZkclQ=="
       },
       "Microsoft.AspNetCore.Mvc.Testing": {
         "type": "Direct",
@@ -27,11 +27,11 @@
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[18.*, )",
-        "resolved": "18.10.0",
-        "contentHash": "0CZZ688UBvpQFB9HKo7wrNJNVe+AOM4UtipgwpER3TTM+d2DDM6QyKkIJZTR3mpbn9/zFbZEtAgVIz4SPTjQZQ==",
+        "resolved": "18.10.1",
+        "contentHash": "SxCFvJE/2ltUQgCgv6+Ixagohw4sZc9hM7Wid2foaNM7paBscktoHLoRDz91fW8wbHG87Rg9Ku59/8PXumqUrA==",
         "dependencies": {
-          "Microsoft.CodeCoverage": "18.10.0",
-          "Microsoft.TestPlatform.TestHost": "18.10.0"
+          "Microsoft.CodeCoverage": "18.10.1",
+          "Microsoft.TestPlatform.TestHost": "18.10.1"
         }
       },
       "Testcontainers.PostgreSql": {
@@ -143,8 +143,8 @@
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
-        "resolved": "18.10.0",
-        "contentHash": "zo1hqV+Nz6FlIwdc+aPfrvGzqfKAPPaZ6OPj1W8C0QQE2xH951AZwTUytL3K7XX8brVBUFd7MhrLDl3CtK3U/A=="
+        "resolved": "18.10.1",
+        "contentHash": "tV7tCyp/t+DuwQugLkCeUN7NBFFB4fEGRPr0gkMQ2nQgAvQQjmGlZZi1dsLzbyoe/A0mbnKybmkIh8qhT9p4Zw=="
       },
       "Microsoft.EntityFrameworkCore.Abstractions": {
         "type": "Transitive",
@@ -218,15 +218,15 @@
       },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
-        "resolved": "18.10.0",
-        "contentHash": "aXA7DDbnt6MYu3eLBEDksNdl09QxJ/PpMzrFcSxqEOk3RvRGJzhKI5mezVCEOcvveRhjfw/mvn6xVXC/rTaOog=="
+        "resolved": "18.10.1",
+        "contentHash": "o+PuLDRVp1iwiVAPBADZItXgm9Ck23XtPhE4kZtZVi0uYnMiiz1Dx9Cjh75kJ+ijfqnORL3VOTOaQVKi0f/ixg=="
       },
       "Microsoft.TestPlatform.TestHost": {
         "type": "Transitive",
-        "resolved": "18.10.0",
-        "contentHash": "Spu6C7bgz1PmWN+Y7wS0PfGCw9Kwv5RvJbCwyQaEWjcwpMire+qYMrcZ7qk8agjy6nd0sdHLc3ugCSrGuSbZdw==",
+        "resolved": "18.10.1",
+        "contentHash": "KYz2omqkoz9E2mWa4fdgT+Ycie1wi5968EmyJlusjlp87RxxtA2FvDm8tcBEYIDzLnkWGnsKjE4d13Z7/rxkQA==",
         "dependencies": {
-          "Microsoft.TestPlatform.ObjectModel": "18.10.0"
+          "Microsoft.TestPlatform.ObjectModel": "18.10.1"
         }
       },
       "Npgsql": {
@@ -257,8 +257,8 @@
       },
       "RESPite": {
         "type": "Transitive",
-        "resolved": "3.2.0",
-        "contentHash": "7M3keAYl4YVvaEt4HSWEJ/VuO+0etlTqzRaDeeiOhC8rcV6qR9IUeJHwTuGygO5pdJ7b+h9gS6VRGH6goC21/A=="
+        "resolved": "3.2.15",
+        "contentHash": "YdUqhnCR0RKnkwVGCYqLl0vWDV7nvkcJkX7kM/DsJuUB84+GAtYHziDWxYxMi1IjqEvrfBkD8cqgto0mYTt6ow=="
       },
       "Serilog": {
         "type": "Transitive",
@@ -567,10 +567,10 @@
       "StackExchange.Redis": {
         "type": "CentralTransitive",
         "requested": "[3.*, )",
-        "resolved": "3.2.0",
-        "contentHash": "TslSZ7wRyEdl2YIl4O4xxL108+oKjNsbHOfM3ujt5oQ6CMFUH4KosmmRXypV+K5GS1JGdI8+e1dZ2HsHrghocg==",
+        "resolved": "3.2.15",
+        "contentHash": "QBlh1av9iQSRCRSTyVUXPj3TDaYLCVV3IfVnL7XEsCuwUsxHQ3pCgPmnVFiIBKZSfkmQRn5wPD75/Ix5dZ2Ucw==",
         "dependencies": {
-          "RESPite": "3.2.0",
+          "RESPite": "3.2.15",
           "System.IO.Hashing": "10.0.12"
         }
       },

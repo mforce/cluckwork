@@ -67,10 +67,10 @@
       "StackExchange.Redis": {
         "type": "Direct",
         "requested": "[3.*, )",
-        "resolved": "3.2.0",
-        "contentHash": "TslSZ7wRyEdl2YIl4O4xxL108+oKjNsbHOfM3ujt5oQ6CMFUH4KosmmRXypV+K5GS1JGdI8+e1dZ2HsHrghocg==",
+        "resolved": "3.2.15",
+        "contentHash": "QBlh1av9iQSRCRSTyVUXPj3TDaYLCVV3IfVnL7XEsCuwUsxHQ3pCgPmnVFiIBKZSfkmQRn5wPD75/Ix5dZ2Ucw==",
         "dependencies": {
-          "RESPite": "3.2.0",
+          "RESPite": "3.2.15",
           "System.IO.Hashing": "10.0.12"
         }
       },
@@ -228,8 +228,8 @@
       },
       "RESPite": {
         "type": "Transitive",
-        "resolved": "3.2.0",
-        "contentHash": "7M3keAYl4YVvaEt4HSWEJ/VuO+0etlTqzRaDeeiOhC8rcV6qR9IUeJHwTuGygO5pdJ7b+h9gS6VRGH6goC21/A=="
+        "resolved": "3.2.15",
+        "contentHash": "YdUqhnCR0RKnkwVGCYqLl0vWDV7nvkcJkX7kM/DsJuUB84+GAtYHziDWxYxMi1IjqEvrfBkD8cqgto0mYTt6ow=="
       },
       "Serilog": {
         "type": "Transitive",
