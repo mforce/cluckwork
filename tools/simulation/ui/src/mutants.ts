@@ -1121,19 +1121,25 @@ export const MUTANTS: Record<string, Mutant> = {
       + "so an unconverted screen's table lays its full content width out into the page instead of "
       + "scrolling within itself. #832 gave `Customers`/`Flocks` (and `Products`/`Grades`/`Users`) "
       + "the same containment through a different mechanism — a `MuiTableContainer` theme override, "
-      + "not this class — so this mutant's `table.data`-scoped rule no longer reaches them; see the "
-      + "note on EXPECT_MSG_FOR in mutation-check.sh.",
+      + "not this class — and #831 did the same for `Stock`/`History` — so this mutant's "
+      + "`table.data`-scoped rule no longer reaches any of them; see the note on EXPECT_MSG_FOR in "
+      + "mutation-check.sh.",
     caughtBy: "phone.spec.ts — no walked screen overflows the viewport horizontally",
     apply: (page) =>
-      // Two of the six walked routes overflow under this now — /sales and
-      // /history — and four do not: /daily-entry and /stock render no wide
-      // data table, and /customers and /flocks moved off `table.data` in
-      // #832 (see `breaks` above). That per-route spread is why the spec's
-      // walk asserts PER ROUTE and asserts SOFTLY: a hard assertion stops at
-      // the first and reports half the damage. The exact widths are
-      // deliberately not recorded here; they drift with fixture content, and
-      // a stale copy of them in this file is a defect this file has already
-      // had once.
+      // Only ONE of the six walked routes overflows under this now — /sales
+      // — narrowed from two (/sales and /history) once #831 converted
+      // History. /daily-entry and /stock render no wide data table (Stock
+      // moved off `table.data` in #831 too); /customers, /flocks and
+      // /history moved onto MUI's `TableContainer` (#832, #831 — see
+      // `breaks` above), which this mutant's rule does not reach. That
+      // per-route spread is why the spec's walk asserts PER ROUTE and
+      // asserts SOFTLY: a hard assertion stops at the first and reports
+      // only part of the damage. The exact widths are deliberately not
+      // recorded here; they drift with fixture content, and a stale copy of
+      // them in this file is a defect this file has already had once. Once
+      // /sales converts too this mutant proves nothing at all and needs a
+      // new CSS target (MUI's `TableContainer`) or retirement (#824's
+      // "retire only with a named successor" rule).
       //
       // Desktop-green, stated honestly rather than claimed as containment:
       // the rule is inside `@media (max-width: 900px)`, so it cannot apply at
