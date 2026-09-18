@@ -181,17 +181,76 @@ describe.each(BRANDS)("palette: %s", (brand) => {
   });
 
   it.each(MODES)("%s: the login Forget glyph clears WCAG AA on its rest fill", (mode) => {
-    // #587 — .auth-forget-farm draws its × over --surface-2 at rest. The
-    // destructive FILL token (--danger) does not clear 4.5:1 for that glyph in
-    // the dark theme (2.76:1 over aubergine's dark --surface-2), so the at-rest
-    // colour is the TEXT token --error, which clears in every theme and
-    // palette. The hover state fills with --danger and its white label is
-    // checked here too, so a hover edit that darkened the fill cannot
-    // silently break the pair.
+    // #587/#833 — the Forget IconButton (web/src/routes/Login.tsx) draws its
+    // "x" over --surface-2 at rest. The destructive FILL token (--danger)
+    // does not clear 4.5:1 for that glyph in the dark theme (2.76:1 over
+    // aubergine's dark --surface-2), so the at-rest colour is the TEXT token
+    // --error, which clears in every theme and palette. The hover state
+    // fills with --danger and its white label is checked here too, so a
+    // hover edit that darkened the fill cannot silently break the pair. This
+    // is a TOKEN-VALUE check only — it says --error is safe to use, not that
+    // Login.tsx actually uses it; the source-shape test right below is what
+    // pins that, so the pair cannot pass while the component quietly reaches
+    // for `error.main` (which resolves to --danger) instead.
     const t = resolveTokens(attrFor(brand), mode);
     const at = (k: string) => t.get(k)!;
     expect(contrast(at("--error"), at("--surface-2"))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(at("--on-danger"), at("--danger"))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+// #833, Codex review round 2 — the contrast pair above only proves --error
+// IS safe; it cannot see which token the component actually paints with.
+// `error.main` (MUI's palette slot) resolves to --danger, not --error
+// (FarmThemeProvider.tsx's own comment: "--danger is this app's destructive-
+// action colour and --error its validation colour... MUI has one slot... so
+// --danger is the honest mapping" for THAT slot) — so a well-meaning edit
+// that swapped the rest colour from `"var(--error)"` to the shorter
+// `"error.main"` silently regressed the Forget glyph to 2.76:1 in dark
+// aubergine while this file's own token-value pair kept passing. Source-shape
+// guard, same technique as routes/emptyStates.guard.test.ts: read the real
+// source and require the literal token, not the palette slot.
+describe("the login Forget glyph's source uses --error, not the error.main palette slot", () => {
+  it("Login.tsx's rest-state colour is var(--error)", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/routes/Login.tsx"), "utf8",
+    );
+    // Scoped to the Forget IconButton specifically: its aria-label is the
+    // one JSX attribute unique to this control, so the match window opens
+    // there and closes at the icon element that ends the button — short and
+    // unambiguous, unlike bounding on "&:hover" (which legitimately DOES use
+    // error.main for the --danger hover fill and sits behind a comment block
+    // long enough to overrun a tighter window).
+    const forgetButton = /aria-label=\{t\("forgetFarm"[\s\S]{0,1500}?<X size=\{16\}/.exec(source)?.[0];
+    expect(forgetButton, "could not find the Forget IconButton in Login.tsx — has it moved or been renamed?")
+      .toBeTruthy();
+    expect(forgetButton).toMatch(/color:\s*"var\(--error\)"/);
+    // And the hover fill still legitimately reaches for the palette slot —
+    // proves this guard distinguishes the two `color:` declarations rather
+    // than matching whichever comes first.
+    expect(forgetButton).toMatch(/"&:hover":\s*\{[^}]*color:\s*"error\.contrastText"/);
+  });
+});
+
+// #833, Codex review round 2 — Login.styles.test.ts (retired with the
+// deleted `.auth` CSS block) also carried "does not make the farm-selection
+// chip destructive": the select chip and the Forget control share one entry
+// wrapper, and a later edit that copy-pasted the Forget button's destructive
+// styling onto the SELECT chip (not just its icon) would tell a farm operator
+// that choosing a remembered farm is dangerous. No CSS selector is left to
+// read this off, since both controls are inline `sx` now — same source-shape
+// technique as the guard above, scoped to the select chip's own `onClick`
+// (the one attribute unique to it) rather than the Forget button's
+// `aria-label`.
+describe("the login farm-selection chip carries no destructive colour", () => {
+  it("Login.tsx's select-chip sx names no error/danger token", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/routes/Login.tsx"), "utf8",
+    );
+    const selectChip = /onClick=\{\(\) => setFarmCode\(code\)\}[\s\S]{0,600}?\{code\}/.exec(source)?.[0];
+    expect(selectChip, "could not find the farm-selection chip in Login.tsx — has it moved or been renamed?")
+      .toBeTruthy();
+    expect(selectChip).not.toMatch(/error|danger/i);
   });
 });
 

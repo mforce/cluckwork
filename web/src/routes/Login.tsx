@@ -299,7 +299,15 @@ export function Login() {
                     sx={{
                       minWidth: 44, minHeight: 44, borderRadius: "0 var(--r-pill) var(--r-pill) 0",
                       border: "1px solid", borderColor: "divider", background: "var(--surface-2)",
-                      color: "error.main",
+                      // #587 — `--error`, not the theme's `error.main` (which
+                      // maps to `--danger`): the destructive FILL token does
+                      // not clear 4.5:1 for this glyph in the dark theme
+                      // (2.76:1 over aubergine's dark --surface-2), while
+                      // `--error` clears it in every theme and palette. The
+                      // hover fill keeps `--danger` (via `error.main`), whose
+                      // `--on-danger` label clears 4.5:1 — pinned in
+                      // styles.test.ts's "login Forget glyph" pair.
+                      color: "var(--error)",
                       "&:hover": { background: "error.main", color: "error.contrastText" },
                     }}
                   >
