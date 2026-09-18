@@ -767,9 +767,11 @@ export function InventoryPage() {
                 {t("loadMoreButton")}
               </button>
             )}
-            <Box sx={{ mt: 2 }}>
+            {/* `.actions` stays: it carries a real phone-stacking rule
+                (styles.css, D3.4's default), not a bare layout hook. */}
+            <div className="actions">
               <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>
-            </Box>
+            </div>
           </Box>
           <Divider />
         </Box>
