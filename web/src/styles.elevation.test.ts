@@ -272,11 +272,15 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // `.logo-preview`/`.banner-preview`/`.palette-picker` retire here in #833:
   // SettingsPage renders them through `sx` now (the literal `var(--r-panel)`
   // moved with the markup, unpinned — the same fate #829 gave `.panel`).
-  // `.help-hero` retires alongside Help's own conversion, same PR.
-  // `.farm-warning` stays: it is AppLayout's shell strip, outside this
-  // slice's seven screens.
+  // `.help-hero` does NOT retire: #833's Help conversion is deliberately
+  // scoped to the outer Container and the page's own h2 (see the PR body),
+  // so HelpPage.tsx still renders `className="help-hero"` and the rule is
+  // still live — Codex review round 2 caught an earlier version of this PR
+  // that dropped the row anyway. Restore it when the hero band itself
+  // converts, not before. `.farm-warning` stays too: it is AppLayout's
+  // shell strip, outside this slice's seven screens.
   it.each([
-    ".card", ".order-panel", ".entry-pane", ".farm-warning",
+    ".card", ".order-panel", ".entry-pane", ".farm-warning", ".help-hero",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {
     expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
   });
