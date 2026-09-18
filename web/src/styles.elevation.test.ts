@@ -194,12 +194,12 @@ describe("#651 elevation: only a float casts a shadow", () => {
   // `declarationsFor` on a selector nothing declares returns an empty map,
   // so keeping it here would pass vacuously — exactly the trap 822's D4
   // named for this rule ("passes vacuously once those selectors are gone").
-  // No MuiCard successor exists for `.panel` specifically because nothing
-  // replaced it with a card; `.card`/`.order-panel` below still do, and
-  // `farmTheme.policy.test.ts`'s "makes a Card a hairline box" is their G2.
-  it("a card and an order panel carry a border and nothing else", () => {
-    for (const selector of [".card", ".order-panel"])
-      expect(declarationsFor(selector).get("box-shadow")).toBeUndefined();
+  // `.order-panel` retires here too, in #831: every drill-down converted to
+  // pair 15's ruled region, so `.card` (Login, still unconverted) is this
+  // list's remaining member, and `farmTheme.policy.test.ts`'s "makes a Card a
+  // hairline box" is its G2.
+  it("a card carries a border and nothing else", () => {
+    expect(declarationsFor(".card").get("box-shadow")).toBeUndefined();
   });
 
   it("the toolbar reads as inset, not as a floating card", () => {
@@ -243,16 +243,16 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // Dashboard no longer renders either selector (it is `sx`-laid-out MUI),
   // so a radius token on a selector nothing renders would be a guard reading
   // as safety it does not provide (AGENTS.md, "writing a guard"). `.card`
-  // and `.order-panel` stay — other screens still convert their own cards
-  // in #831 to #833. `.named-picker-trigger` retires here in #826: the
-  // closed-state picker no longer renders the page-owned `<button>` this
-  // class named — it is an MUI outlined field now, themed through
-  // `MuiOutlinedInput` (already asserted elsewhere) — so `input` alone is
-  // this list's remaining `--r-input` consumer.
+  // stays — Login still converts its own card later. `.order-panel` retires
+  // here in #831, its CSS deleted with Sales (the last consumer).
+  // `.named-picker-trigger` retires here in #826: the closed-state picker no
+  // longer renders the page-owned `<button>` this class named — it is an MUI
+  // outlined field now, themed through `MuiOutlinedInput` (already asserted
+  // elsewhere) — so `input` alone is this list's remaining `--r-input`
+  // consumer.
   it.each([
     ".toolbar",
     ".card",
-    ".order-panel",
     ".entry-pane",
     "input",
     "button",
@@ -264,9 +264,10 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // #864 narrows the meaning of --r-card to dialogs and sheets only: every
   // card-like surface reads --r-panel instead. A generic "some r-* token"
   // pattern match (above) would stay green if one of these silently reverted
-  // to --r-card, so this pins the SPECIFIC token per surface.
+  // to --r-card, so this pins the SPECIFIC token per surface. `.order-panel`
+  // retires here in #831, alongside the list above.
   it.each([
-    ".card", ".order-panel", ".entry-pane", ".farm-warning", ".help-hero",
+    ".card", ".entry-pane", ".farm-warning", ".help-hero",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {
     expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
   });
