@@ -2483,6 +2483,18 @@ describe("SalesPage empty states (#655)", () => {
   });
 });
 
+// The Status filter starts at "" with a placeholder option, so without an
+// explicit shrink the label sat on top of that text. jsdom cannot show the
+// overlap; the shrink class is the DOM fact that stands in for it (same
+// pattern as #897's Grade select and #833's Audit filters).
+describe("SalesPage status filter label", () => {
+  it("shrinks the Status select's label instead of sitting it on top of the placeholder option text", async () => {
+    await renderReady();
+    const label = screen.getByText("Status", { selector: "label" });
+    expect(label).toHaveClass("MuiInputLabel-shrink");
+  });
+});
+
 describe("SalesPage list failures (#469)", () => {
   // The old behaviour: ANY rejection from the order-list fetch set a
   // `loadError` that nothing ever cleared, and the render replaced the whole
