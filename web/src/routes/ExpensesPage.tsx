@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Receipt } from "lucide-react";
 import {
-  Box, DialogActions, Divider, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  Box, DialogActions, Divider, List, ListItem, ListItemText, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
@@ -652,18 +652,27 @@ export function ExpensesPage() {
               </Stack>
             </Dialog>
 
-            <ul>
-              {categories.map((c) => (
-                <li key={c.id}>
-                  {c.name}{c.active ? "" : t("deactivatedSuffix")}{" "}
-                  <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
-                    disabled={busy} onClick={() => onToggleCategory(c)}>
-                    {c.active ? t("deactivateButton") : t("reactivateButton")}
-                  </BusyButton>
-                </li>
+            {/* Direction A: ruled rows, not bullets — a small ruled list
+                mirrors the table shape every other list on this screen uses. */}
+            <List disablePadding>
+              {categories.map((c, i) => (
+                <ListItem key={c.id} disableGutters divider={i < categories.length - 1}
+                  secondaryAction={
+                    <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
+                      disabled={busy} onClick={() => onToggleCategory(c)}>
+                      {c.active ? t("deactivateButton") : t("reactivateButton")}
+                    </BusyButton>
+                  }
+                >
+                  <ListItemText primary={`${c.name}${c.active ? "" : t("deactivatedSuffix")}`} />
+                </ListItem>
               ))}
-              {categories.length === 0 && <li className="muted">{t("noCategoriesMessage")}</li>}
-            </ul>
+              {categories.length === 0 && (
+                <ListItem disableGutters>
+                  <ListItemText primary={t("noCategoriesMessage")} slotProps={{ primary: { color: "text.secondary" } }} />
+                </ListItem>
+              )}
+            </List>
           </Box>
           <Divider />
         </Box>
@@ -910,13 +919,13 @@ export function ExpensesPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>{t("dateHeader")}</TableCell>
-                <TableCell>{t("categoryHeader")}</TableCell>
+                <TableCell sx={NOWRAP}>{t("dateHeader")}</TableCell>
+                <TableCell sx={NOWRAP}>{t("categoryHeader")}</TableCell>
                 <TableCell>{t("descriptionHeader")}</TableCell>
-                <TableCell align="right">{t("amountHeader")}</TableCell>
-                <TableCell>{t("flockHeader")}</TableCell>
+                <TableCell align="right" sx={NOWRAP}>{t("amountHeader")}</TableCell>
+                <TableCell sx={NOWRAP}>{t("flockHeader")}</TableCell>
                 <TableCell>{t("noteHeader")}</TableCell>
-                <TableCell>{tc("recordHistoryHeader")}</TableCell>
+                <TableCell sx={NOWRAP}>{tc("recordHistoryHeader")}</TableCell>
                 <TableCell></TableCell>
               </TableRow>
             </TableHead>
@@ -924,10 +933,10 @@ export function ExpensesPage() {
               {expenses.rows.map((x) => (
                 <TableRow key={x.id}>
                   <TableCell sx={NOWRAP}><FarmDate iso={x.date} /></TableCell>
-                  <TableCell>{categoryName(x.expenseCategoryId)}</TableCell>
+                  <TableCell sx={NOWRAP}>{categoryName(x.expenseCategoryId)}</TableCell>
                   <TableCell>{x.description}</TableCell>
-                  <TableCell align="right">{fmt.money(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</TableCell>
-                  <TableCell>{rowFlockName(x)}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{fmt.money(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</TableCell>
+                  <TableCell sx={NOWRAP}>{rowFlockName(x)}</TableCell>
                   <TableCell>{x.note ?? "—"}</TableCell>
                   <ProvenanceCell history={x} />
                   <TableCell sx={NOWRAP}>
