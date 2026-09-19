@@ -86,8 +86,10 @@ export function Dashboard() {
       // Only the fetches we actually issued count toward "everything failed":
       // the sales read is an inert placeholder when the role can't see it.
       const issued = canSeeSales ? [f, e, s, o, cur, prev] : [f, e, s, cur, prev];
-      if (issued.every((r) => r.status === "rejected")) {
-        const reason = issued[0].reason;
+      const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      const firstRejected = rejected[0];
+      if (rejected.length === issued.length && firstRejected) {
+        const reason = firstRejected.reason;
         setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
       }
       setLoading(false);
