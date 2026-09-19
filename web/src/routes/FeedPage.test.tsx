@@ -74,6 +74,14 @@ async function renderReady(route = "/feed") {
 }
 
 describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down)", () => {
+  it("previews 0.1 kg after issuing 0.9 kg from 1 kg", async () => {
+    mockListItems.mockResolvedValue([item({ quantityOnHand: 1 })]);
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "0.9" } });
+    expect(within(screen.getByRole("complementary", { name: "Ration check" })).getByText("0.1 kg")).toBeInTheDocument();
+    expect(mockRecord).not.toHaveBeenCalled();
+  });
+
   it("previews the stock remaining after the entered ration without recording it", async () => {
     await renderReady();
     fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "18" } });
