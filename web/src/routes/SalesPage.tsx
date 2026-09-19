@@ -1395,10 +1395,7 @@ export function SalesPage() {
                       {SELLING_UNITS.map((u) =>
                         <option key={u} value={u}>{t(`unit${u}`)}</option>)}
                     </TextField>
-                    {/* Sibling label, not wrapping: a <label> may not contain
-                        interactive content other than its own control, and the
-                        stepper carries two buttons. NumberField is its own
-                        component (pair 8), unconverted here on purpose. */}
+                    {/* Keep the label beside the stepper: it cannot wrap the two buttons. */}
                     <div className="numfield-field">
                       {/* #445 — the label names the unit ("Quantity (trays)" not
                           bare "Quantity"), and the live hint shows the resulting
