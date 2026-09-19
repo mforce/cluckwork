@@ -446,6 +446,7 @@ export const en = {
     unitPrice: "Unit price",
     discount: "Discount",
     aboveList: "Above list",
+    atListShort: "At list",
     // #723 — the row's text marker. Colour alone fails greyscale and fails a
     // colour-blind reader, so the tint never travels without this chip.
     // Ends in `Badge`, so badgeCase.test.ts holds it to a capital first letter

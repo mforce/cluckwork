@@ -1840,7 +1840,7 @@ export function SalesPage() {
       ) : (
         <>
           <LedgerTableContainer>
-            <Table size="small">
+            <Table size="small" sx={{ "& .MuiTableCell-root": { whiteSpace: "nowrap", px: .75, py: .75 } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={NOWRAP}>{t("reference")}</TableCell>
@@ -1855,93 +1855,68 @@ export function SalesPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {orders.rows.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell sx={NOWRAP}>{o.referenceNumber}</TableCell>
-                    <TableCell sx={NOWRAP}><FarmDate iso={o.orderDate} /></TableCell>
-                    <TableCell sx={NOWRAP}>{rowCustomerName(o)}</TableCell>
-                    <TableCell sx={NOWRAP}><StatusBadge status={o.status} label={statusLabel(o.status)} /></TableCell>
-                    {/* #724 — one column on the only per-order list in the app.
-                        right-aligned tabular figures per #650. The short
-                        badge/amount stays on one line; the optional note
-                        after it is free text and wraps on its own. */}
-                    <TableCell align="right">{(() => {
-                      const d = orderDiscount(o.items);
-                      if (d.kind === "unknown") return <span className="muted discount-note">{listPriceBasisLabel(
-                        orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")}</span>;
-                      // Round 1 — the em dash means "sold at list". An order only
-                      // part of which is measurable must not borrow that glyph.
-                      if (d.kind !== "below") {
-                        return d.partial
-                          ? <span className="muted discount-note">{t("discountPartialNote")}</span>
-                          : "—";
-                      }
-                      const amount = fmt.money(d.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
-                      return (
-                        <>
+                {orders.rows.map((o) => {
+                  const discount = orderDiscount(o.items);
+                  const discountDescription = discount.kind === "unknown"
+                    ? listPriceBasisLabel(orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")
+                    : discount.partial ? t("discountPartialNote") : "";
+                  const reason = o.discountReasonCode ? discountReasonLabel(o.discountReasonCode) : "";
+                  const atList = discount.kind === "atList" && !discount.partial && o.items.length > 0
+                    && o.items.every((item) => item.unitPriceMinorUnits === item.listUnitPriceMinorUnits);
+                  const partlyPaid = o.outstandingMinorUnits !== null && o.outstandingMinorUnits > 0
+                    && o.outstandingMinorUnits < o.totalMinorUnits;
+                  const rowId = `${fieldId}-${o.id}`;
+                  return (
+                    <TableRow key={o.id}>
+                      <TableCell sx={NOWRAP}>{o.referenceNumber}</TableCell>
+                      <TableCell sx={NOWRAP}><FarmDate iso={o.orderDate} /></TableCell>
+                      <TableCell sx={NOWRAP}>{rowCustomerName(o)}</TableCell>
+                      <TableCell sx={NOWRAP}><StatusBadge status={o.status} label={statusLabel(o.status)} /></TableCell>
+                      <TableCell align="right" sx={NOWRAP}
+                        title={[discountDescription, reason].filter(Boolean).join(". ") || undefined}
+                        aria-describedby={[
+                          discountDescription && `${rowId}-discount`, reason && `${rowId}-reason`,
+                        ].filter(Boolean).join(" ") || undefined}>
+                        {discount.kind === "below" ? (
                           <Box component="span" className="badge badge-warn" sx={NOWRAP}>
-                            {d.percent === null
-                              ? t("discountBadgeNoPct", { amount })
-                              : t("discountBadge", { amount, percent: discountPercent(d.percent) })}
+                            {discount.percent === null
+                              ? t("discountBadgeNoPct", { amount: fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit) })
+                              : t("discountBadge", {
+                                  amount: fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit),
+                                  percent: discountPercent(discount.percent),
+                                })}
                           </Box>
-                          {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
-                        </>
-                      );
-                    })()}
-                    {/* Outside the branch above, deliberately: the reason is a
-                        stored fact about the order, not a property of what the
-                        measurement currently says about its lines. */}
-                    {o.discountReasonCode && (
-                      <><br /><span className="muted discount-note" data-testid="row-discount-reason">
-                        {discountReasonLabel(o.discountReasonCode)}
-                      </span></>
-                    )}</TableCell>
-                    <TableCell align="right" sx={NOWRAP}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>
-                    {/* #769 — what the order still owes, right-aligned like the
-                        Total beside it. Three textual states, never colour
-                        alone; only "settled" is tinted, because `badge-warn`
-                        is already the discount chip one column over and two
-                        warn pills would sit side by side on exactly the rows
-                        most likely to have both. The amount stays on one line;
-                        the partly-paid note after it is free text. */}
-                    {canSettle && (
-                      <TableCell align="right">{(() => {
-                        const owed = o.outstandingMinorUnits;
-                        // The column renders only inside the money tier, so null
-                        // here means one thing: the order is not Confirmed. Same
-                        // "no figure" glyph the discount column uses.
-                        if (owed === null) return "—";
-                        // Nothing owed. No amount beside it: a "0.00" here reads
-                        // as a debt at a glance.
-                        if (owed === 0) return <span className="badge badge-ok">{t("settledBadge")}</span>;
-                        const amount = fmt.money(owed, o.currencyCode, o.currencyMinorUnit);
-                        return owed < o.totalMinorUnits
-                          ? <><Box component="span" sx={NOWRAP}>{amount}</Box><br /><span className="muted discount-note" data-testid="row-partly-paid">{t("partlyPaidNote")}</span></>
-                          : <Box component="span" sx={NOWRAP}>{amount}</Box>;
-                      })()}</TableCell>
-                    )}
-                    <ProvenanceCell history={o} official="confirmed" />
-                    <TableCell>
-                      <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: "wrap" }}>
-                        <Box component="span" sx={NOWRAP}>
-                          <Button variant="outlined" color="inherit" size="small" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</Button>
-                        </Box>
-                        {/* #493 — full audit trail for this record, distinct from
-                            the created/last-changed summary in ProvenanceCell.
-                            Admin-gated: /api/v1/audit is AdminOnly, so the Sales
-                            role (which can settle orders here) would otherwise
-                            hit a 403 (codex review of #516). */}
-                        {isAdmin && (
-                          <Box component="span" sx={NOWRAP}>
+                        ) : <span>{atList ? t("atListShort") : "—"}</span>}
+                        {discountDescription && <span id={`${rowId}-discount`} className="sr-only">{discountDescription}</span>}
+                        {reason && <span id={`${rowId}-reason`} className="sr-only" data-testid="row-discount-reason">{reason}</span>}
+                      </TableCell>
+                      <TableCell align="right" sx={NOWRAP}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>
+                      {canSettle && (
+                        <TableCell align="right" sx={NOWRAP}
+                          title={partlyPaid ? t("partlyPaidNote") : undefined}
+                          aria-describedby={partlyPaid ? `${rowId}-payment` : undefined}>
+                          {o.outstandingMinorUnits === null ? "—"
+                            : o.outstandingMinorUnits === 0
+                              ? <span className="badge badge-ok">{t("settledBadge")}</span>
+                              : fmt.money(o.outstandingMinorUnits, o.currencyCode, o.currencyMinorUnit)}
+                          {partlyPaid && <span id={`${rowId}-payment`} className="sr-only">{t("partlyPaidNote")}</span>}
+                        </TableCell>
+                      )}
+                      <ProvenanceCell history={o} official="confirmed" />
+                      <TableCell sx={NOWRAP}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "nowrap" }}>
+                          {isAdmin && (
                             <Link className="link" to={`/audit?entityId=${o.id}`}>
                               {tc("recordHistory.viewHistoryLink")}
                             </Link>
-                          </Box>
-                        )}
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          )}
+                          <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, px: .5 }}
+                            disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</Button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </LedgerTableContainer>
