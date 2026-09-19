@@ -255,99 +255,99 @@ export function FeedPage() {
       <p className="muted">{t("intro")}</p>
 
       <Box sx={CONSOLE_SPLIT_SX}>
-      <Stack component="form" sx={{ ...CONSOLE_PANEL_SX, ...CONSOLE_FORM_SX }} onSubmit={onSubmit}>
-        <Box sx={PICKER_SX}>
-          <FlockPicker
-            label={t("flockLabel")}
-            eligibility="active-and-depleted"
-            required
-            open={capturePickerOpen}
-            controlledCommitted={captureFlock}
-            controlledGeneration={captureFlockGen}
-            onSnapshot={setCaptureFlockSnapshot}
-            onCommit={(f) => {
-              setCaptureFlock(f);
-              setCaptureFlockGen((g) => g + 1);
-              setCapturePickerOpen(false);
-            }}
-            onEscape={() => setCapturePickerOpen(false)}
-            onOutsideClick={() => setCapturePickerOpen(false)}
-            trigger={
-              <button
-                type="button"
-                className="named-picker-trigger"
-                onClick={() => setCapturePickerOpen(true)}
-              >
-                {captureFlock
-                  ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
-                  : t("selectFlockOption")}
-              </button>
-            }
+        <Stack component="form" sx={{ ...CONSOLE_PANEL_SX, ...CONSOLE_FORM_SX }} onSubmit={onSubmit}>
+          <Box sx={PICKER_SX}>
+            <FlockPicker
+              label={t("flockLabel")}
+              eligibility="active-and-depleted"
+              required
+              open={capturePickerOpen}
+              controlledCommitted={captureFlock}
+              controlledGeneration={captureFlockGen}
+              onSnapshot={setCaptureFlockSnapshot}
+              onCommit={(f) => {
+                setCaptureFlock(f);
+                setCaptureFlockGen((g) => g + 1);
+                setCapturePickerOpen(false);
+              }}
+              onEscape={() => setCapturePickerOpen(false)}
+              onOutsideClick={() => setCapturePickerOpen(false)}
+              trigger={
+                <button
+                  type="button"
+                  className="named-picker-trigger"
+                  onClick={() => setCapturePickerOpen(true)}
+                >
+                  {captureFlock
+                    ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
+                    : t("selectFlockOption")}
+                </button>
+              }
+            />
+          </Box>
+          <TextField
+            select
+            label={t("itemLabel")}
+            value={itemId}
+            size="small"
+            slotProps={{ select: { native: true } }}
+            onChange={(e) => setItemId(e.target.value)}
+          >
+            {pickableItems.map((x) => (
+              <option key={x.id} value={x.id}>
+                {t("itemOption", { name: x.name, onHand: x.quantityOnHand, unit: x.unit })}
+                {x.active ? ""
+                  : x.quantityOnHand > 0 ? t("inactiveItemSuffix")
+                    : t("inactiveEmptyItemSuffix")}
+              </option>
+            ))}
+          </TextField>
+          <TextField
+            type="date"
+            label={t("dateLabel")}
+            value={date}
+            size="small"
+            slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => setDate(e.target.value)}
           />
-        </Box>
-        <TextField
-          select
-          label={t("itemLabel")}
-          value={itemId}
-          size="small"
-          slotProps={{ select: { native: true } }}
-          onChange={(e) => setItemId(e.target.value)}
-        >
-          {pickableItems.map((x) => (
-            <option key={x.id} value={x.id}>
-              {t("itemOption", { name: x.name, onHand: x.quantityOnHand, unit: x.unit })}
-              {x.active ? ""
-                : x.quantityOnHand > 0 ? t("inactiveItemSuffix")
-                  : t("inactiveEmptyItemSuffix")}
-            </option>
-          ))}
-        </TextField>
-        <TextField
-          type="date"
-          label={t("dateLabel")}
-          value={date}
-          size="small"
-          slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
-          onChange={(e) => setDate(e.target.value)}
-        />
-        <TextField
-          type="number"
-          label={selectedItem
-            ? t("quantityLabelWithUnit", { unit: selectedItem.unit })
-            : t("quantityLabel")}
-          value={quantity}
-          size="small"
-          slotProps={{ htmlInput: { min: 0.001, step: 0.001, required: true } }}
-          onChange={(e) => setQuantity(e.target.value)}
-        />
-        <TextField
-          label={t("noteLabel")}
-          value={note}
-          size="small"
-          slotProps={{ htmlInput: { maxLength: 500 } }}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <BusyButton component={Button} variant="contained" type="submit" busy={busy}
-          disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
-          {t("recordFeedButton")}
-        </BusyButton>
-      </Stack>
+          <TextField
+            type="number"
+            label={selectedItem
+              ? t("quantityLabelWithUnit", { unit: selectedItem.unit })
+              : t("quantityLabel")}
+            value={quantity}
+            size="small"
+            slotProps={{ htmlInput: { min: 0.001, step: 0.001, required: true } }}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+          <TextField
+            label={t("noteLabel")}
+            value={note}
+            size="small"
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <BusyButton component={Button} variant="contained" type="submit" busy={busy}
+            disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
+            {t("recordFeedButton")}
+          </BusyButton>
+        </Stack>
 
-      <Box component="aside" aria-label={t("rationCheck")} sx={{ ...CONSOLE_PANEL_SX, bgcolor: "var(--surface-2)" }}>
-        <h3>{t("rationCheck")}</h3>
-        <Typography sx={{ fontWeight: 700 }}>{selectedItem?.name}</Typography>
-        <Box component="dl" sx={{ m: 0 }}>
-          {[
-            [t("onHand"), selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
-            [t("issue"), selectedItem && quantity !== "" ? `${fmt.count(Number(quantity))} ${selectedItem.unit}` : "—"],
-            [t("afterIssue"), selectedItem && quantity !== "" ? `${fmt.count(selectedItem.quantityOnHand - Number(quantity))} ${selectedItem.unit}` : "—"],
-          ].map(([label, value]) => <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
-            <Typography component="dt" sx={{ fontSize: ".8rem" }}>{label}</Typography>
-            <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
-          </Box>)}
+        <Box component="aside" aria-label={t("rationCheck")} sx={{ ...CONSOLE_PANEL_SX, bgcolor: "var(--surface-2)" }}>
+          <h3>{t("rationCheck")}</h3>
+          <Typography sx={{ fontWeight: 700 }}>{selectedItem?.name}</Typography>
+          <Box component="dl" sx={{ m: 0 }}>
+            {[
+              [t("onHand"), selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
+              [t("issue"), selectedItem && quantity !== "" ? `${fmt.count(Number(quantity))} ${selectedItem.unit}` : "—"],
+              [t("afterIssue"), selectedItem && quantity !== "" ? `${fmt.count(selectedItem.quantityOnHand - Number(quantity))} ${selectedItem.unit}` : "—"],
+            ].map(([label, value]) => <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
+              <Typography component="dt" sx={{ fontSize: ".8rem" }}>{label}</Typography>
+              <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
+            </Box>)}
+          </Box>
+          <p className="muted">{t("correctionsHint")}</p>
         </Box>
-        <p className="muted">{t("correctionsHint")}</p>
-      </Box>
       </Box>
 
       {error && <p className="error">{error}</p>}

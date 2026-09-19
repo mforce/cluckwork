@@ -211,55 +211,55 @@ export function ReportsPage() {
             </List>
           </Box>
         )}
-      {isAdmin && sales && expenses && profit && (
-        <Box sx={CONSOLE_PANEL_SX}>
-          <h3>{t("moneyHeading")}</h3>
-          <Box component="dl" sx={{ m: 0 }}>
-                <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
-                  <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("salesRowLabel")}</Typography>
-                  <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
-                    {t("salesSummary", {
-                      count: sales.confirmedCount,
-                      confirmed: fmt.count(sales.confirmedCount),
-                      revenue: fmt.money(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                      paid: fmt.money(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                      outstanding: fmt.money(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                    })}
-                    {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount, voided: fmt.count(sales.voidedCount) }) : ""}
-                  </Typography>
-                </Box>
-                <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
-                  <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("expensesRowLabel")}</Typography>
-                  <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
-                    {expenses.categories.length === 0
-                      ? t("expensesNone")
-                      : expenses.categories
-                          .map((c) => `${c.name} ${fmt.money(c.totalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}`)
-                          .join(", ")}
-                    {t("expensesTotalSuffix", {
-                      total: fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit),
-                    })}
-                  </Typography>
-                </Box>
-                <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
-                  <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("profitRowLabel")}</Typography>
-                  <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
-                    <Trans ns="reports" i18nKey="profitLine"
-                      values={{
-                        revenue: fmt.money(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                        expenses: fmt.money(profit.expensesMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                        profit: fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                      }}
-                      components={{ strong: <strong /> }}
-                    />
-                  </Typography>
-                </Box>
+        {isAdmin && sales && expenses && profit && (
+          <Box sx={CONSOLE_PANEL_SX}>
+            <h3>{t("moneyHeading")}</h3>
+            <Box component="dl" sx={{ m: 0 }}>
+              <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
+                <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("salesRowLabel")}</Typography>
+                <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
+                  {t("salesSummary", {
+                    count: sales.confirmedCount,
+                    confirmed: fmt.count(sales.confirmedCount),
+                    revenue: fmt.money(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                    paid: fmt.money(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                    outstanding: fmt.money(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                  })}
+                  {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount, voided: fmt.count(sales.voidedCount) }) : ""}
+                </Typography>
+              </Box>
+              <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
+                <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("expensesRowLabel")}</Typography>
+                <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
+                  {expenses.categories.length === 0
+                    ? t("expensesNone")
+                    : expenses.categories
+                        .map((c) => `${c.name} ${fmt.money(c.totalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}`)
+                        .join(", ")}
+                  {t("expensesTotalSuffix", {
+                    total: fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit),
+                  })}
+                </Typography>
+              </Box>
+              <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
+                <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("profitRowLabel")}</Typography>
+                <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
+                  <Trans ns="reports" i18nKey="profitLine"
+                    values={{
+                      revenue: fmt.money(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                      expenses: fmt.money(profit.expensesMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                      profit: fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                    }}
+                    components={{ strong: <strong /> }}
+                  />
+                </Typography>
+              </Box>
+            </Box>
+            <p className="muted">
+              {t("profitFootnote")}
+            </p>
           </Box>
-          <p className="muted">
-            {t("profitFootnote")}
-          </p>
-        </Box>
-      )}
+        )}
       </Box>
     </FieldConsole>
   );
