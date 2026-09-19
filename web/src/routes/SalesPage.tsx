@@ -18,6 +18,7 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { CustomerPicker } from "../components/CustomerPicker";
+import { FilterBar } from "../components/FilterBar";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
@@ -1719,11 +1720,13 @@ export function SalesPage() {
       {message && <p className="success">{message}</p>}
 
       <h3>{t("ordersHeading")}</h3>
-      {/* #831 — Sales carries no date range, so pair 7's FilterBar (built for
-          the bounded-toolbar screens) does not apply here; this row converts
-          under pair 11 instead, same as every other inline form. */}
-      <Stack direction="row" useFlexGap spacing={2}
-        sx={{ flexWrap: "wrap", alignItems: "flex-end", my: "0.75rem" }}>
+      {/* #831 — Sales carries no date range, so pair 7's FilterBar started as
+          a bare Stack here (no bounded-width field to own). Coordinator
+          review of the rendered frames caught the inconsistency it left: an
+          unbordered row beside every other screen's outlined filter surface.
+          FilterBar owns the visual surface regardless of whether any child
+          is a date field, so this row moves onto it too. */}
+      <FilterBar>
         <TextField
           select
           label={t("status")}
@@ -1818,7 +1821,7 @@ export function SalesPage() {
             }
           />
         )}
-      </Stack>
+      </FilterBar>
       {/* The list's own failure, beside the workspace rather than instead of
           it — and self-healing on the next successful load (#469). */}
       {orders.error && <p className="error" role="alert">{orders.error}</p>}
@@ -1860,14 +1863,14 @@ export function SalesPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>{t("reference")}</TableCell>
-                  <TableCell>{t("date")}</TableCell>
-                  <TableCell>{t("customer")}</TableCell>
-                  <TableCell>{t("status")}<GlossaryLink term="ConfirmOrder" /></TableCell>
-                  <TableCell align="right">{t("discount")}</TableCell>
-                  <TableCell align="right">{t("total")}</TableCell>
-                  {canSettle && <TableCell align="right">{t("outstanding")}<GlossaryLink term="Outstanding" /></TableCell>}
-                  <TableCell>{tc("recordHistoryHeader")}</TableCell>
+                  <TableCell sx={NOWRAP}>{t("reference")}</TableCell>
+                  <TableCell sx={NOWRAP}>{t("date")}</TableCell>
+                  <TableCell sx={NOWRAP}>{t("customer")}</TableCell>
+                  <TableCell sx={NOWRAP}>{t("status")}<GlossaryLink term="ConfirmOrder" /></TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{t("discount")}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{t("total")}</TableCell>
+                  {canSettle && <TableCell align="right" sx={NOWRAP}>{t("outstanding")}<GlossaryLink term="Outstanding" /></TableCell>}
+                  <TableCell sx={NOWRAP}>{tc("recordHistoryHeader")}</TableCell>
                   <TableCell></TableCell>
                 </TableRow>
               </TableHead>
@@ -1876,10 +1879,12 @@ export function SalesPage() {
                   <TableRow key={o.id}>
                     <TableCell sx={NOWRAP}>{o.referenceNumber}</TableCell>
                     <TableCell sx={NOWRAP}><FarmDate iso={o.orderDate} /></TableCell>
-                    <TableCell>{rowCustomerName(o)}</TableCell>
-                    <TableCell><StatusBadge status={o.status} label={statusLabel(o.status)} /></TableCell>
+                    <TableCell sx={NOWRAP}>{rowCustomerName(o)}</TableCell>
+                    <TableCell sx={NOWRAP}><StatusBadge status={o.status} label={statusLabel(o.status)} /></TableCell>
                     {/* #724 — one column on the only per-order list in the app.
-                        right-aligned tabular figures per #650. */}
+                        right-aligned tabular figures per #650. The short
+                        badge/amount stays on one line; the optional note
+                        after it is free text and wraps on its own. */}
                     <TableCell align="right">{(() => {
                       const d = orderDiscount(o.items);
                       if (d.kind === "unknown") return <span className="muted discount-note">{listPriceBasisLabel(
@@ -1894,11 +1899,11 @@ export function SalesPage() {
                       const amount = fmt.money(d.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
                       return (
                         <>
-                          <span className="badge badge-warn">
+                          <Box component="span" className="badge badge-warn" sx={NOWRAP}>
                             {d.percent === null
                               ? t("discountBadgeNoPct", { amount })
                               : t("discountBadge", { amount, percent: discountPercent(d.percent) })}
-                          </span>
+                          </Box>
                           {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
                         </>
                       );
@@ -1911,13 +1916,14 @@ export function SalesPage() {
                         {discountReasonLabel(o.discountReasonCode)}
                       </span></>
                     )}</TableCell>
-                    <TableCell align="right">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>
+                    <TableCell align="right" sx={NOWRAP}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>
                     {/* #769 — what the order still owes, right-aligned like the
                         Total beside it. Three textual states, never colour
                         alone; only "settled" is tinted, because `badge-warn`
                         is already the discount chip one column over and two
                         warn pills would sit side by side on exactly the rows
-                        most likely to have both. */}
+                        most likely to have both. The amount stays on one line;
+                        the partly-paid note after it is free text. */}
                     {canSettle && (
                       <TableCell align="right">{(() => {
                         const owed = o.outstandingMinorUnits;
@@ -1930,23 +1936,29 @@ export function SalesPage() {
                         if (owed === 0) return <span className="badge badge-ok">{t("settledBadge")}</span>;
                         const amount = fmt.money(owed, o.currencyCode, o.currencyMinorUnit);
                         return owed < o.totalMinorUnits
-                          ? <>{amount}<br /><span className="muted discount-note" data-testid="row-partly-paid">{t("partlyPaidNote")}</span></>
-                          : amount;
+                          ? <><Box component="span" sx={NOWRAP}>{amount}</Box><br /><span className="muted discount-note" data-testid="row-partly-paid">{t("partlyPaidNote")}</span></>
+                          : <Box component="span" sx={NOWRAP}>{amount}</Box>;
                       })()}</TableCell>
                     )}
                     <ProvenanceCell history={o} official="confirmed" />
-                    <TableCell sx={NOWRAP}>
-                      <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>
-                      {/* #493 — full audit trail for this record, distinct from
-                          the created/last-changed summary in ProvenanceCell.
-                          Admin-gated: /api/v1/audit is AdminOnly, so the Sales
-                          role (which can settle orders here) would otherwise
-                          hit a 403 (codex review of #516). */}
-                      {isAdmin && (
-                        <Link className="link" to={`/audit?entityId=${o.id}`}>
-                          {tc("recordHistory.viewHistoryLink")}
-                        </Link>
-                      )}
+                    <TableCell>
+                      <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: "wrap" }}>
+                        <Box component="span" sx={NOWRAP}>
+                          <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>
+                        </Box>
+                        {/* #493 — full audit trail for this record, distinct from
+                            the created/last-changed summary in ProvenanceCell.
+                            Admin-gated: /api/v1/audit is AdminOnly, so the Sales
+                            role (which can settle orders here) would otherwise
+                            hit a 403 (codex review of #516). */}
+                        {isAdmin && (
+                          <Box component="span" sx={NOWRAP}>
+                            <Link className="link" to={`/audit?entityId=${o.id}`}>
+                              {tc("recordHistory.viewHistoryLink")}
+                            </Link>
+                          </Box>
+                        )}
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}
