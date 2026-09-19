@@ -15,6 +15,7 @@ using FluentValidation;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Application.Features.Customers;
+using Cluckwork.Application.Features.EggGrades;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -195,7 +196,7 @@ public static class SaleEndpoints
     }
 
     private static async Task<IResult> GetSalesOrder(
-        Guid id, ISalesOrderRepository orders, ICustomerRepository customers,
+        Guid id, ISalesOrderRepository orders, ICustomerRepository customers, IEggGradeRepository grades,
         IAuditEventRepository audit, IPaymentRepository payments,
         IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct)
@@ -214,8 +215,9 @@ public static class SaleEndpoints
         if (order.Status == SalesOrderStatus.Confirmed && await MaySeeMoneyAsync(authorization, caller))
             outstanding = order.TotalAmount.MinorUnits
                 - await payments.SumNonVoidedByOrderAsync(id, ct);
+        var gradeNames = await grades.GetDisplayNamesAsync(order.Items.Select(i => i.EggGradeId).Distinct().ToList(), ct);
         return Results.Ok(ToResponse(
-            order, provenance.GetValueOrDefault(id), customer, outstanding));
+            order, provenance.GetValueOrDefault(id), gradeNames, customer, outstanding));
     }
 
     // #769 — the money tier is AuthPolicies.SalesAccess, asked through the
@@ -242,6 +244,7 @@ public static class SaleEndpoints
     private static async Task<IResult> ListSalesOrders(
         ISalesOrderRepository orders,
         Cluckwork.Application.Features.Customers.ICustomerRepository customers,
+        IEggGradeRepository grades,
         IAuditEventRepository audit,
         IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct,
@@ -293,19 +296,22 @@ public static class SaleEndpoints
         // a null name rather than an identifier fragment.
         var names = await customers.GetDisplayNamesAsync(
             list.Select(r => r.Order.CustomerId).ToList(), ct);
+        var gradeNames = await grades.GetDisplayNamesAsync(
+            list.SelectMany(r => r.Order.Items).Select(i => i.EggGradeId).Distinct().ToList(), ct);
         return Results.Ok(list.Select(r => ToResponse(
-            r.Order, provenance.GetValueOrDefault(r.Order.Id),
+            r.Order, provenance.GetValueOrDefault(r.Order.Id), gradeNames,
             names.GetValueOrDefault(r.Order.CustomerId), r.OutstandingMinorUnits)));
     }
 
     private static SalesOrderResponse ToResponse(
-        SalesOrder o, EntityProvenance? p, CustomerReference? customer = null,
+        SalesOrder o, EntityProvenance? p, IReadOnlyDictionary<Guid, string> gradeNames,
+        CustomerReference? customer = null,
         long? outstandingMinorUnits = null) => new(
         o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
         o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
         o.VoidReason,
         o.Items.Select(i => new SalesOrderItemResponse(
-            i.Id, i.ProductId, i.EggGradeId, i.Unit.ToString(), i.BaseUnitFactor,
+            i.Id, i.ProductId, i.EggGradeId, gradeNames.GetValueOrDefault(i.EggGradeId) ?? "", i.Unit.ToString(), i.BaseUnitFactor,
             i.Quantity, i.QuantityBase,
             i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit,
             i.ListUnitPriceMinorUnits, i.ListPriceBasis.ToString())).ToList(),
@@ -450,7 +456,7 @@ public sealed record UpdateOrderItemRequest(int Quantity, long UnitPriceMinorUni
 // Quantity is selling units; QuantityBase is individual eggs (Quantity ×
 // BaseUnitFactor, snapshotted at line creation — spec §10.5/§9.7).
 public sealed record SalesOrderItemResponse(
-    Guid Id, Guid ProductId, Guid EggGradeId, string Unit, int BaseUnitFactor,
+    Guid Id, Guid ProductId, Guid EggGradeId, string EggGradeName, string Unit, int BaseUnitFactor,
     int Quantity, int QuantityBase,
     long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
     // #720 — the list price this line was sold against, in the SAME currency

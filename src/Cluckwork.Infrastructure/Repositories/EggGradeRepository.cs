@@ -24,6 +24,12 @@ public sealed class EggGradeRepository(AppDbContext db) : IEggGradeRepository
             .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyDictionary<Guid, string>> GetDisplayNamesAsync(
+        IReadOnlyCollection<Guid> gradeIds, CancellationToken ct = default) =>
+        await db.EggGrades.AsNoTracking()
+            .Where(g => gradeIds.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, g => g.Name, ct);
+
     public Task<bool> NameExistsAsync(
         Guid farmId, string name, Guid? excludeId = null, CancellationToken ct = default)
     {

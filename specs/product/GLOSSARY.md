@@ -102,11 +102,11 @@ eggs, loss counts (cracked / dirty / discarded), mortality count, and the
 graded breakdown of sellable eggs. One entry per flock per day (natural key).
 
 **Capture status (#654)** — whether each active flock has a daily entry for
-today. The dashboard's landing panel shows one tile per active flock with
-today's eggs and the entry's status, the flocks without an entry first; a tile
+today. The dashboard's Morning collection shows one row per active flock with
+today's eggs and the entry's status, the flocks without an entry first; a row
 reading **no entry** is the missed-capture alarm — the loudest element on the
-screen — and links to Daily entry for that flock and day. The grid shows at
-most twelve tiles and a "N more flocks" link for the rest, so a missing house
+screen — and links to Daily entry for that flock and day. The list shows at
+most twelve rows and a "N more flocks" link for the rest, so a missing house
 is never behind the link while twelve or fewer are missing. A Voided entry
 does not count (it vacated its day, #82); a Draft does (captured, not yet
 submitted). Depleted and archived flocks appear only when they do have an

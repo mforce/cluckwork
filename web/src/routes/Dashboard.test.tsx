@@ -1,6 +1,7 @@
 // web/src/routes/Dashboard.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Dashboard } from "./Dashboard";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
@@ -543,9 +544,9 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     const spans = Array.from(stock.querySelectorAll(".meter-stack > span")) as HTMLElement[];
     expect(spans.map((s) => [s.style.width, s.className])).toEqual([["79.5%", "grade-1"], ["20.5%", "grade-2"]]);
     // The ledger, not the band, is what names a grade and carries its share.
-    // #829 — a plain `role="list"`, not a `.stock-ledger` class hook.
-    const rows = within(stock).getAllByRole("listitem")
-      .map((li) => Array.from(li.querySelectorAll("span")).slice(1).map((s) => s.textContent));
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Grade", "Count", "Share"]);
+    const rows = within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((cell) => cell.textContent));
     expect(rows).toEqual([["Grade A", "1,240", "79.5%"], ["Grade B", "320", "20.5%"]]);
     expect(within(stock).queryByText(/restricted/)).not.toBeInTheDocument();
   });
@@ -570,7 +571,8 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(within(stock).queryAllByRole("listitem")).toHaveLength(0);
+    expect(within(stock).queryByRole("row", { name: /Grade A/ })).not.toBeInTheDocument();
+    expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
 });
@@ -664,7 +666,7 @@ describe("Dashboard sales panel role gate (#127)", () => {
   });
   it("fetches and shows the sales panel for a non-ReadOnly user", async () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
-    expect(await screen.findByText("Recent sales")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Recent sales" })).toBeInTheDocument();
     expect(mockOrders).toHaveBeenCalled();
   });
 });
@@ -767,9 +769,10 @@ describe("Dashboard follows the farm's day and locale", () => {
 // the screen reads the catalog rather than a literal that happens to match.
 describe("Dashboard i18n wiring (#654)", () => {
   it("reads the heading, the trend title and the today total from the catalog", async () => {
-    await withOverride("dashboard", "title", "TITLE-MARKER", async () => {
+    await withOverride("dashboard", "morningHeading", "TITLE-MARKER", async () => {
       renderWithProviders(<Dashboard />);
-      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      await panel("Today");
+      expect(screen.getByRole("heading", { name: "Dashboard" })).toHaveTextContent("TITLE-MARKER");
     });
     await withOverride("dashboard", "trendPanelTitle", "TREND-MARKER", async () => {
       renderWithProviders(<Dashboard />);
@@ -804,5 +807,57 @@ describe("Dashboard status rendering (#864, dot not badge)", () => {
 
     const salesStatus = await screen.findByText("Draft");
     expect(salesStatus.previousElementSibling).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+describe("Operations desk", () => {
+  it("puts collection, stock, orders and lay rate in reading order", async () => {
+    renderWithProviders(<Dashboard />);
+    await panel("Today");
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent))
+      .toEqual(["Morning brief", "Morning collection", "Available stock", "Recent orders", "Lay rate"]);
+  });
+
+  it("lets a keyboard user focus each whole stock row", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    const table = await screen.findByRole("table", { name: "Stock by grade" });
+    const row = within(table).getByRole("row", { name: "Grade A 1,240 79.5%" });
+    row.focus();
+    expect(row).toHaveFocus();
+    await user.tab();
+    expect(within(table).getByRole("row", { name: "Grade B 320 20.5%" })).toHaveFocus();
+  });
+
+  it.each([
+    ["Large", 1, "3,600 Large"],
+    ["Large", 3, "3,600 Large +2"],
+    ["", 1, "3,600"],
+  ])("shows the first order quantity and grade (%s, %i lines)", async (eggGradeName, lines, expected) => {
+    const sale = order("o1", "SO-GRADES", "Ramos Grocery");
+    sale.items = Array.from({ length: lines }, (_, i) => ({
+      id: `i${i}`, productId: `p${i}`, eggGradeId: `g${i}`, eggGradeName: i === 0 ? eggGradeName : ["Medium", "Small"][i - 1],
+      unit: "Piece", baseUnitFactor: 1, quantity: i === 0 ? 3600 : i * 120, quantityBase: i === 0 ? 3600 : i * 120,
+      unitPriceMinorUnits: 100, currencyCode: "USD", currencyMinorUnit: 2,
+      listUnitPriceMinorUnits: null, listPriceBasis: "NoDefault",
+    }));
+    mockOrders.mockResolvedValue([sale]);
+    renderWithProviders(<Dashboard />);
+    const row = await screen.findByRole("listitem", { name: "SO-GRADES" });
+    expect(within(row).getByText(expected)).toBeInTheDocument();
+  });
+
+  it("labels missing, partial and complete production days and navigates them with arrows", async () => {
+    const user = userEvent.setup();
+    mockReport.mockImplementation((from) => Promise.resolve(from === daysBefore(today, 14)
+      ? report(80, [day("2026-07-01", 0, 0, 2), day("2026-07-02", 40, 1, 2), day("2026-07-03", 80, 2, 2)])
+      : report(85, [])));
+    renderWithProviders(<Dashboard />);
+    const missing = await screen.findByRole("button", { name: "07/01/2026 – no entry" });
+    missing.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("button", { name: "07/02/2026 – 40 eggs, 1 of 2 flocks" })).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("button", { name: "07/03/2026 – 80 eggs" })).toHaveFocus();
   });
 });

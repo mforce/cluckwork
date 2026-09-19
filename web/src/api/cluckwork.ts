@@ -329,6 +329,7 @@ export interface OrderItem {
   id: string;
   productId: string;
   eggGradeId: string;
+  eggGradeName: string;
   unit: string;
   baseUnitFactor: number;
   quantity: number;

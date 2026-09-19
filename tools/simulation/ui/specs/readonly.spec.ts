@@ -32,7 +32,11 @@ test.describe("ReadOnly", () => {
     // renders it only when role is neither ReadOnly nor Denied), so its absence
     // is part of what "correct for this persona" means.
     await expect(page.getByRole("heading", { name: tEn("dashboard:title") })).toBeVisible();
-    await expect(page.getByRole("link", { name: tEn("dashboard:salesPanelTitle") })).toBeHidden();
+    await expect(page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") })).toBeVisible();
+    const salesPanel = page.locator("section").filter({
+      has: page.getByRole("link", { name: tEn("dashboard:recentOrdersTitle"), exact: true }),
+    });
+    await expect(salesPanel).toHaveCount(0);
 
     // Stock — allowed, and populated.
     await nav.link("nav:stock").click();

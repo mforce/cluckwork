@@ -130,6 +130,7 @@ erDiagram
   varchar_16_ ListPriceBasis
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 ```
 

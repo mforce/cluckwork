@@ -114,7 +114,7 @@ function draftEmpty(currencyMinorUnit: number, currencyCode: string, id = "o1"):
 // A single-line draft for edit/display, price + scale parametrised by currency.
 function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPrice: number, id = "o5"): SalesOrder {
   const item: OrderItem = {
-    id: "e1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+    id: "e1", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
     quantity: 3, quantityBase: 36, unitPriceMinorUnits: unitPrice, currencyCode, currencyMinorUnit,
     listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
   };
@@ -124,7 +124,7 @@ function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPric
 // Two lines with DIFFERENT line totals so the order total can't be confused with
 // any single line: A = 300×3 = 900 (9.00), B = 1000×2 = 2000 (20.00), order 2900.
 const ITEM_A: OrderItem = {
-  id: "it1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+  id: "it1", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
   quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
   // 375, not 300: a list price EQUAL to unitPriceMinorUnits would render the
   // same "$3.00" text in both the list-price and unit-price cells, breaking
@@ -133,7 +133,7 @@ const ITEM_A: OrderItem = {
   listUnitPriceMinorUnits: 375, listPriceBasis: "Recorded",
 };
 const ITEM_B: OrderItem = {
-  id: "it2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+  id: "it2", productId: "p2", eggGradeId: "gr2", eggGradeName: "Large", unit: "Tray", baseUnitFactor: 30,
   quantity: 2, quantityBase: 60, unitPriceMinorUnits: 1000, currencyCode: "USD", currencyMinorUnit: 2,
   listUnitPriceMinorUnits: 1200, listPriceBasis: "Recorded",
 };
@@ -830,7 +830,7 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-ATLIST",
       totalMinorUnits: 900,
       items: [{
-        id: "it-atlist", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "it-atlist", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded",
       }],
@@ -860,7 +860,7 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-ABOVE",
       totalMinorUnits: 900,
       items: [{
-        id: "it-above", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "it-above", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: 250, listPriceBasis: "Recorded",
       }],
@@ -898,7 +898,7 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-ATLIST-MARK",
       totalMinorUnits: 900,
       items: [{
-        id: "it-atlist-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "it-atlist-mark", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded",
       }],
@@ -919,7 +919,7 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-NULL-MARK",
       totalMinorUnits: 900,
       items: [{
-        id: "it-null-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "it-null-mark", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
       }],
@@ -1097,10 +1097,10 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-ABOVE-MIX",
       totalMinorUnits: 200,
       items: [
-        { id: "it-am1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        { id: "it-am1", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
           quantity: 1, quantityBase: 12, unitPriceMinorUnits: 110, currencyCode: "USD", currencyMinorUnit: 2,
           listUnitPriceMinorUnits: 100, listPriceBasis: "Recorded" },
-        { id: "it-am2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+        { id: "it-am2", productId: "p2", eggGradeId: "gr2", eggGradeName: "Large", unit: "Tray", baseUnitFactor: 30,
           quantity: 1, quantityBase: 30, unitPriceMinorUnits: 90, currencyCode: "USD", currencyMinorUnit: 2,
           listUnitPriceMinorUnits: 100, listPriceBasis: "Recorded" },
       ],
@@ -1116,10 +1116,10 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-PARTIAL",
       totalMinorUnits: 1200,
       items: [
-        { id: "it-p1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        { id: "it-p1", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
           quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
           listUnitPriceMinorUnits: 400, listPriceBasis: "Recorded" },
-        { id: "it-p2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+        { id: "it-p2", productId: "p2", eggGradeId: "gr2", eggGradeName: "Large", unit: "Tray", baseUnitFactor: 30,
           quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
           listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" },
       ],
@@ -1140,7 +1140,7 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-ATLIST-TOTAL",
       totalMinorUnits: 900,
       items: [{
-        id: "it-atlist-total", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "it-atlist-total", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded",
       }],
@@ -1163,7 +1163,7 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-ZERO-LIST",
       totalMinorUnits: 0,
       items: [{
-        id: "it-zero-list", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "it-zero-list", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 1, quantityBase: 12, unitPriceMinorUnits: -100, currencyCode: "USD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: 0, listPriceBasis: "Recorded",
       }],
@@ -1192,10 +1192,10 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-ATLIST-PARTIAL",
       totalMinorUnits: 1200,
       items: [
-        { id: "it-ap1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        { id: "it-ap1", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
           quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
           listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded" },
-        { id: "it-ap2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+        { id: "it-ap2", productId: "p2", eggGradeId: "gr2", eggGradeName: "Large", unit: "Tray", baseUnitFactor: 30,
           quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
           listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" },
       ],
@@ -1215,7 +1215,7 @@ describe("SalesPage list price and discount (#720)", () => {
       referenceNumber: "SO-UNKNOWN-PANEL",
       totalMinorUnits: 900,
       items: [{
-        id: "it-up1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "it-up1", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
       }],
@@ -1598,7 +1598,7 @@ describe("SalesPage price scale", () => {
       referenceNumber: "SO-7",
       totalMinorUnits: 4500,
       items: [{
-        id: "e7", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        id: "e7", productId: "p1", eggGradeId: "gr1", eggGradeName: "Large", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 1500,
         currencyCode: "KWD", currencyMinorUnit: 2,
         listUnitPriceMinorUnits: 1200, listPriceBasis: "Recorded",
