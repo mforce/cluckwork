@@ -556,6 +556,7 @@ export function HelpPage() {
         </li>
         <li>
           <Trans ns="help" i18nKey="salesConfirming" components={{ strong: <strong /> }} />
+          <p>{t("salesCommitment")}</p>
         </li>
         {/* #727 — the only rule on this screen that PREVENTS rather than
             reports, so it sits with Confirming rather than with the discount
