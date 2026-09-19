@@ -11,7 +11,8 @@
 // against a database with nothing in it. That is the whole reason #277 shares
 // #243's fixture rather than standing up an empty app.
 
-import { expect, test } from "../src/fixtures";
+import { expect } from "../src/fixtures";
+import { test } from "../src/dashboard-fixtures";
 import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
@@ -74,7 +75,10 @@ test.describe("Owner", () => {
     await expect(stock.getByRole("row").nth(2)).toBeFocused();
   });
 
-  test("the outlined Record action is legible and thumb-sized in both themes", async ({ page }) => {
+  test("the outlined Record action is legible and thumb-sized in both themes", async ({ page, signIn, recordedHouse }) => {
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(readmeFarmOwner());
     for (const theme of ["dark", "light"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await page.goto("/");
@@ -94,8 +98,15 @@ test.describe("Owner", () => {
       await expect(recordButton).toHaveClass(/MuiButton-outlined/);
       const box = await recordButton.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
-      const rowHeight = await recordButton.evaluate((el) => el.closest('[role="group"]')?.getBoundingClientRect().height);
-      expect(rowHeight).toBe(66);
+      const missingRow = page.getByRole("group").filter({ has: page.getByRole("link", { name: /^Record / }) }).first();
+      const recordedRow = page.getByRole("group", { name: recordedHouse, exact: true });
+      await expect(missingRow).toBeVisible();
+      await expect(recordedRow).toBeVisible();
+      const missingHeight = await missingRow.evaluate((el) => el.getBoundingClientRect().height);
+      const recordedHeight = await recordedRow.evaluate((el) => el.getBoundingClientRect().height);
+      expect(missingHeight).toBeGreaterThanOrEqual(44);
+      expect(recordedHeight).toBeGreaterThanOrEqual(44);
+      expect(Math.abs(missingHeight - recordedHeight)).toBeLessThanOrEqual(1);
       const placement = await recordButton.evaluate((el) => {
         const style = getComputedStyle(el);
         return [style.gridColumn, style.gridRow];
