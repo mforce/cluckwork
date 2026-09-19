@@ -63,6 +63,8 @@ const STEPPER_SX = {
   },
 } as const;
 
+const captionIdFor = (fieldId: string) => `${fieldId}-caption`;
+
 // #830 (owner's screenshot review of #888) — one ruled GRID row: label (+
 // optional caption, e.g. "deactivated") in a flexible truncating column,
 // stepper in a fixed-content column, per the mockup's `.row`. The row used to
@@ -80,13 +82,14 @@ const STEPPER_SX = {
 // "taking" outline the same rows carried before, now an inline sx state
 // instead of a shared `.taking` class.
 function EntryRow({
-  htmlFor, label, caption, groupLabel, armed = false, dropProps, children,
+  htmlFor, label, caption, groupLabel, armed = false, variant = "standard", dropProps, children,
 }: {
   htmlFor: string;
   label: string;
   caption?: string;
   groupLabel?: string;
   armed?: boolean;
+  variant?: "standard" | "primary" | "flock-event";
   dropProps?: ReturnType<typeof remainderDropProps>;
   children: ReactNode;
 }) {
@@ -98,8 +101,18 @@ function EntryRow({
       sx={{
         display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto",
         alignItems: "center",
-        gap: 2, minHeight: { xs: 52, md: 44 }, py: 1,
+        gap: 2, minHeight: { xs: 64, md: 44 }, px: 2, py: 1,
         borderBottom: "1px solid var(--rule)",
+        ...(variant === "primary" ? {
+          minHeight: { xs: 76, md: 68 },
+          backgroundColor: "var(--tint-accent)",
+          "& .numfield-step": { width: { xs: 48, md: 42 }, height: { xs: 48, md: 42 } },
+        } : {}),
+        ...(variant === "flock-event" ? {
+          mt: 1,
+          background: "linear-gradient(90deg, var(--tint-warn), transparent)",
+          borderTop: "1px dashed var(--warn)",
+        } : {}),
         ...(armed ? {
           outline: "1px dashed var(--stat-accent)", outlineOffset: "4px",
           borderRadius: "var(--r-input)",
@@ -107,17 +120,22 @@ function EntryRow({
         ...STEPPER_SX,
       }}
     >
-      <Box component="label" htmlFor={htmlFor}
-        sx={{ minWidth: 0, overflow: "hidden", cursor: "pointer" }}
-      >
-        <Typography component="span" sx={{
-          fontWeight: 500, display: "block",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}
-        >{label}</Typography>
+      <Box sx={{ minWidth: 0, overflow: "hidden" }}>
+        <Box component="label" htmlFor={htmlFor} sx={{ display: "block", cursor: "pointer" }}>
+          <Typography component="span" sx={{
+            fontWeight: variant === "primary" ? 700 : 500,
+            fontSize: variant === "primary" ? "1.125rem" : undefined,
+            display: "block",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {label}
+          </Typography>
+        </Box>
         {caption && (
-          <Typography component="span" variant="caption" className="muted" sx={{
-            display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          <Typography id={captionIdFor(htmlFor)} component="span" variant="caption" className="muted" sx={{
+            display: "block", overflow: "hidden", textOverflow: "ellipsis",
+            whiteSpace: variant === "standard" ? "nowrap" : "normal",
+            lineHeight: 1.25,
           }}
           >
             {caption}
@@ -127,6 +145,54 @@ function EntryRow({
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "flex-end" }}>
         {children}
       </Box>
+    </Box>
+  );
+}
+
+function WorkbenchPanel({ title, caption, children, summary }: {
+  title: string;
+  caption: string;
+  children: ReactNode;
+  summary: ReactNode;
+}) {
+  return (
+    <Paper component="section" variant="outlined" sx={{
+      minWidth: 0,
+      overflow: "hidden",
+      borderRadius: "var(--r-panel)",
+      borderColor: "var(--rule-strong)",
+      boxShadow: "none",
+    }}>
+      <Box sx={{
+        display: "flex", alignItems: "baseline", justifyContent: "space-between",
+        flexWrap: "wrap", gap: 1, px: 2, py: 1.5,
+        backgroundColor: "#2c2429", color: "#fff",
+      }}>
+        <Typography component="h3" sx={{ fontSize: "1.125rem", lineHeight: 1.3, fontWeight: 700 }}>
+          {title}
+        </Typography>
+        <Typography component="span" variant="caption" sx={{ color: "#d8cfd4" }}>
+          {caption}
+        </Typography>
+      </Box>
+      {children}
+      {summary}
+    </Paper>
+  );
+}
+
+function SummaryStat({ label, value, live = false }: { label: string; value: string; live?: boolean }) {
+  return (
+    <Box role={live ? "status" : undefined} sx={{ minWidth: 0 }}>
+      <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>
+        {label}
+      </Typography>
+      <Typography component="strong" sx={{
+        display: "block", fontSize: "1.375rem", lineHeight: 1.3,
+        fontWeight: 700, fontVariantNumeric: "tabular-nums",
+      }}>
+        {value}
+      </Typography>
     </Box>
   );
 }
@@ -748,11 +814,15 @@ export function DailyEntryPage() {
             own RecordHistory timestamp is available (every real record has
             one; #819), else the bare "Editing draft" fallback a pre-#494 row
             with no history still gets. */}
-        <Typography component="span" role="status" className="muted">
+        <Typography component="span" role="status" className="muted" sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+          {selectedFlock && <span>{selectedFlock.name}</span>}
+          {selectedFlock && editingDraft && <span aria-hidden>·</span>}
           {editingDraft && (
-            savedTime !== null
-              ? t("dashboard:entryStateDraftTime", { time: savedTime })
-              : t("editingDraftBadge")
+            <span>
+              {savedTime !== null
+                ? t("dashboard:entryStateDraftTime", { time: savedTime })
+                : t("editingDraftBadge")}
+            </span>
           )}
         </Typography>
       </Box>
@@ -763,8 +833,10 @@ export function DailyEntryPage() {
           precedent this mirrors. */}
       {attentionShown.length > 0 && (
         <Box sx={{
-          display: "flex", alignItems: "center", gap: 1.5, mt: 1.5,
-          minHeight: 24, overflow: "hidden", whiteSpace: "nowrap",
+          display: "flex", alignItems: "center", gap: 1.5, mt: 1.5, px: 1.5, py: 1,
+          minHeight: 40, overflow: "hidden", whiteSpace: "nowrap",
+          backgroundColor: "var(--tint-warn)", border: "1px solid var(--rule)",
+          borderRadius: "var(--r-input)",
         }}
         >
           <Box component="span" aria-hidden sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "var(--warn)", flexShrink: 0 }} />
@@ -796,8 +868,9 @@ export function DailyEntryPage() {
           did; that is the frame the owner approved. */}
       <Box sx={{
         display: "flex", flexDirection: { xs: "column", md: "row" },
-        gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: { xs: "stretch", md: "flex-end" },
-        borderBottom: "1px solid var(--rule-strong)",
+        gap: { xs: 2, md: 5 }, mt: 3, p: 2, alignItems: { xs: "stretch", md: "flex-end" },
+        backgroundColor: "var(--surface-2)", border: "1px solid var(--rule)",
+        borderRadius: "var(--r-panel)",
       }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -955,30 +1028,40 @@ export function DailyEntryPage() {
         );
       })()}
 
-      {/* Side by side, because the two panes reconcile: the sellable figure the
-          left one produces is the target the right one has to hit. Reading one
-          while the other was a screen away was the whole problem. #830: one
-          full-width column at phone width (D3.3 amended below), a 2-up Grid
-          from md up. */}
+      {/* The two work cards stay side by side when space allows because the
+          collection result is the grading target. */}
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3.5, md: 4 }, mt: { xs: 3.5, md: 4 } }}>
-        <Box component="section">
-          {/* The visible heading is just "Egg counts" (mockup: no numbered
-              step badge); "Step 1 of 2:" stays exactly as spoken before, fully
-              sr-only now instead of half-visible via `.step-n` — the
-              accessible NAME string is unchanged (accessible-name computation
-              does not care whether a contributing span is clipped or not), so
-              `getByRole("heading", { name: "Step 1 of 2: Egg counts" })` still
-              matches. `.step-n`'s own CSS stays: HistoryPage's adjust dialog
-              still renders the visible pill on its mirror of this heading. */}
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", pb: 1, borderBottom: "1px solid var(--rule-strong)" }}>
-            <Typography variant="h3" component="h3">
-              <span className="sr-only">{t("stepLabel", { n: 1 })} {t("stepOfTotal")}</span> {t("eggCountsHeading")}
-            </Typography>
-          </Box>
-
-          <EntryRow htmlFor={idFor("total")} label={t("totalEggsLabel")}>
+        <WorkbenchPanel
+          title={t("collectionHeading")}
+          caption={t("collectionCaption")}
+          summary={(
+            <Box role="group" aria-label={t("collectionTotalsLabel")} sx={{
+              display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2,
+              px: 2, py: 1.5, backgroundColor: "var(--surface-2)",
+            }}>
+              <SummaryStat label={t("setAsideLabel")} value={fmt.count(losses)} />
+              <SummaryStat
+                label={t("sellableTargetLabel")}
+                value={lossesExceedTotal ? "—" : fmt.count(sellable)}
+                live={!lossesExceedTotal}
+              />
+              {lossesExceedTotal && (
+                <Typography role="alert" sx={{ gridColumn: "1 / -1", color: "var(--error)" }}>
+                  {t("countsExceedTotalMessage", { losses, total: totalEggs })}
+                </Typography>
+              )}
+            </Box>
+          )}
+        >
+          <EntryRow
+            variant="primary"
+            htmlFor={idFor("total")}
+            label={t("totalEggsLabel")}
+            caption={t("totalEggsCaption")}
+          >
             <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
-              value={totalEggs} onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
+              describedBy={captionIdFor(idFor("total"))} value={totalEggs}
+              onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
           </EntryRow>
           <EntryRow htmlFor={idFor("cracked")} label={t("crackedLabel")}>
             <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
@@ -992,51 +1075,71 @@ export function DailyEntryPage() {
             <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
               value={discarded} onChange={setDiscarded} step={stepSize} disabled={entryLocked} />
           </EntryRow>
-          {/* NO step: the pack unit counts EGGS. One tap here records a dead
-              BIRD, and submitting writes the bird-ledger movement — a Tray
-              farm must never log 30 deaths per tap (codex P1 review of #451). */}
-          <EntryRow htmlFor={idFor("mortality")} label={t("mortalityLabel")}>
+          <EntryRow
+            variant="flock-event"
+            htmlFor={idFor("mortality")}
+            label={t("mortalityLabel")}
+            caption={t("mortalityEventCaption")}
+          >
             <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
-              value={mortality} onChange={setMortality} disabled={entryLocked} />
+              describedBy={captionIdFor(idFor("mortality"))} value={mortality}
+              onChange={setMortality} disabled={entryLocked} />
           </EntryRow>
+        </WorkbenchPanel>
 
-          {lossesExceedTotal ? (
-            <Typography role="alert" sx={{ mt: 2, color: "var(--error)" }}>
-              {t("countsExceedTotalMessage", { losses, total: totalEggs })}
-            </Typography>
-          ) : (
-            /* Shown as a value, not buried in a sentence — it is the target
-               the grading pane has to hit. */
-            <Typography component="p" role="status" sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, mt: 2, pt: 1.5, borderTop: "1px dashed var(--hairline)" }}>
-              <span className="muted">{t("sellableLabel")}<br />{t("sellableFormula", { total: totalEggs, cracked, dirty, discarded })}</span>
-              <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{sellable}</Box>
-            </Typography>
+        <WorkbenchPanel
+          title={t("gradingWorkbenchHeading")}
+          caption={t("gradingTargetCaption", {
+            target: lossesExceedTotal ? "—" : fmt.count(sellable),
+          })}
+          summary={(
+            <Box role="group" aria-label={t("gradingTotalsLabel")} sx={{
+              px: 2, py: 1.5, backgroundColor: "var(--surface-2)",
+            }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                <SummaryStat label={t("gradedLabel")} value={fmt.count(gradesSum)} />
+                <SummaryStat
+                  label={t("stillToGradeLabel")}
+                  value={lossesExceedTotal ? "—" : fmt.count(Math.max(0, remaining))}
+                />
+              </Box>
+              <Box sx={{
+                display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto",
+                alignItems: "center", gap: 1.5, mt: 1.5, pt: 1.5,
+                borderTop: "1px solid var(--rule-strong)",
+                "& .entry-chip": {
+                  display: "flex", width: "100%", alignItems: "baseline",
+                  background: "none !important", borderRadius: "0 !important", padding: "0 !important",
+                },
+                "& .entry-chip-text": { display: "flex", gap: "0.4rem", minWidth: 0 },
+                "& .entry-chip-text > span::before": {
+                  content: '""', display: "inline-block", width: 8, height: 8,
+                  borderRadius: "50%", marginRight: "6px", verticalAlign: "middle",
+                  background: "var(--warn)",
+                },
+                "& .entry-chip.done .entry-chip-text > span::before": { background: "var(--success)" },
+              }}>
+                <GradingChip tone={grading.tone} count={grading.count} says={grading.says}
+                  canAssign={canAssign} remaining={remaining}
+                  assigning={armed} onAssigningChange={setAssigning} />
+                <Typography component="strong" sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                  {t("gradingProgress", {
+                    graded: fmt.count(gradesSum),
+                    target: lossesExceedTotal ? "—" : fmt.count(sellable),
+                  })}
+                </Typography>
+              </Box>
+            </Box>
           )}
-        </Box>
-
-        <Box component="section">
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", pb: 1, borderBottom: "1px solid var(--rule-strong)" }}>
-            <Typography variant="h3" component="h3">
-              <span className="sr-only">{t("stepLabel", { n: 2 })} {t("stepOfTotal")}</span> {t("gradingHeading")}
-            </Typography>
-            {/* Mockup: "Counted 298" — the same sum GradingChip counts DOWN
-                from, read the other way. */}
-            <Typography component="span" variant="caption" className="muted">
-              {t("gradedCountCaption", { graded: fmt.count(gradesSum) })}
-            </Typography>
-          </Box>
-
+        >
           {visibleGrades.map((g) => (
             <EntryRow key={g.id} htmlFor={idFor(g.id)}
               label={g.name} caption={g.active ? undefined : t("deactivatedGradeSuffix")}
               groupLabel={t("gradeRowLabel", { grade: g.name })} armed={armed}
               dropProps={remainderDropProps(armed, () => assignRest(g.id))}
             >
-              {/* #443 — no max=: the old ceiling refused to let a grade run
-                  ahead of step 1's total, forcing the total to be known
-                  before grading could finish. setGrade now raises the total
-                  to fit instead. */}
               <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
+                describedBy={g.active ? undefined : captionIdFor(idFor(g.id))}
                 value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
                 step={stepSize} disabled={entryLocked} />
               {armed && (
@@ -1045,57 +1148,7 @@ export function DailyEntryPage() {
               )}
             </EntryRow>
           ))}
-
-          {/* The count changes as they type, and it is the only feedback that
-              the day adds up — see GradingChip for its live-region shape.
-              #830 (owner's screenshot review of #888) — GradingChip.tsx is
-              untouched (shared with HistoryPage's adjust dialog, which mirrors
-              this layout and keeps its own pill); these descendant selectors
-              restyle only THIS page's chip into the mockup's `.row.total` —
-              a ruled row, no fill (DIRECTION.md forbids a badge fill for
-              status), the count right-aligned and the "says" wording left
-              beside a status dot. `.entry-chip-text`'s DOM order stays
-              count-then-says (`toHaveTextContent("90 graded — the day adds
-              up")` reads left-to-right in DOM order, not screen order), so
-              the swap is `row-reverse` + `space-between`, never a JSX
-              reorder — that would read the text back to front. The dot is a
-              generated `::before` on the "says" span, contributing nothing
-              to its text content.
-
-              `!important` on `background`/`border-radius`/`padding`:
-              FarmThemeProvider.tsx `prepend`s Emotion's `<style>` tags AHEAD
-              of styles.css in `<head>`, so at EQUAL selector specificity
-              styles.css wins the cascade — this sx block's generated class
-              plus `.entry-chip`/`.entry-chip.done`/`.entry-chip.over` are all
-              two simple selectors, a tie append order alone settles in
-              styles.css's favour. Measured: without `!important` the fill
-              stayed (Playwright capture, #830). */}
-          <Box sx={{
-            mt: 2,
-            "& .entry-chip": {
-              display: "flex", width: "100%", alignItems: "baseline",
-              justifyContent: "space-between", gap: 1.5,
-              background: "none !important", borderRadius: "0 !important", padding: "0 !important",
-              borderTop: "1px solid var(--rule-strong)", paddingTop: "0.75rem",
-            },
-            "& .entry-chip-text": {
-              display: "flex", flexDirection: "row-reverse",
-              justifyContent: "space-between", alignItems: "baseline",
-              gap: "0.4rem", flex: "1 1 auto", minWidth: 0,
-            },
-            "& .entry-chip-text > span::before": {
-              content: '""', display: "inline-block",
-              width: 8, height: 8, borderRadius: "50%", marginRight: "6px",
-              verticalAlign: "middle", background: "var(--warn)",
-            },
-            "& .entry-chip.done .entry-chip-text > span::before": { background: "var(--success)" },
-          }}
-          >
-            <GradingChip tone={grading.tone} count={grading.count} says={grading.says}
-              canAssign={canAssign} remaining={remaining}
-              assigning={armed} onAssigningChange={setAssigning} />
-          </Box>
-        </Box>
+        </WorkbenchPanel>
       </Box>
 
       {/* Save feedback lives with the saves: anything below a pinned bar
