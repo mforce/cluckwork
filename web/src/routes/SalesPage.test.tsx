@@ -424,6 +424,19 @@ describe("SalesPage quantity must be a whole number (#398)", () => {
 // preview, and the unit size on the product option. All display-only — the
 // unit math itself is the server's (snapshotted per line, spec §9.7).
 describe("SalesPage quantity unit clarity (#445)", () => {
+  it("previews stock commitment while a line changes without writing", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(row).getByRole("spinbutton", { name: "Edit quantity" }), { target: { value: "4" } });
+    expect(within(settlement).getByText("(108 eggs)")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "cancel" }));
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+    expect(mockUpdateOrderItem).not.toHaveBeenCalled();
+    expect(confirmOrder).not.toHaveBeenCalled();
+  });
+
   it("names the selected unit in the quantity label and follows the Per picker", async () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
@@ -670,7 +683,7 @@ describe("SalesPage quantity unit clarity (#445)", () => {
   // asserts the two facts that actually matter: every field (Unit price
   // included) still shares one row with Add line, and the hint is NOT inside
   // that row to begin with.
-  it("keeps the Unit price field in the same .form-grid row as Add line, with the hint OUTSIDE that row (#720 R11)", async () => {
+  it("keeps the Unit price field in the same row as Add line, with the hint OUTSIDE that row (#720 R11)", async () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
 
@@ -678,10 +691,12 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     const hint = screen.getByText("$1.00 below list (33.3%)");
     const priceField = screen.getByLabelText(/Unit price/);
     const addLineBtn = screen.getByRole("button", { name: "Add line" });
-    const row = priceField.closest(".form-grid");
+    // #831 — the retired `.form-grid` row is now a bare MUI Stack; the hint
+    // sits after it in normal flow (#720 R11), same structural claim.
+    const row = priceField.closest(".MuiStack-root");
 
     expect(row).not.toBeNull();
-    expect(addLineBtn.closest(".form-grid")).toBe(row);
+    expect(addLineBtn.closest(".MuiStack-root")).toBe(row);
     expect(row).not.toContainElement(hint);
   });
 
@@ -764,10 +779,11 @@ describe("SalesPage line display", () => {
     // line total = unitPrice × quantity (300 × 3), NOT the order total
     expect(within(rowA).getByText("$3.00")).toBeInTheDocument();
     expect(within(rowA).getByText("$9.00")).toBeInTheDocument();
-    // #650 — money and quantity cells are numeric cells; the product cell is not.
-    expect(within(rowA).getByText("$9.00")).toHaveClass("num");
-    expect(within(rowA).getByText("36")).toHaveClass("num");
-    expect(within(rowA).getByText(/Grade A Dozen/)).not.toHaveClass("num");
+    // #650/#831 — money and quantity cells are numeric cells, right-aligned
+    // (MUI owns the class name now; textAlign is the actual observable effect).
+    expect(within(rowA).getByText("$9.00")).toHaveStyle({ textAlign: "right" });
+    expect(within(rowA).getByText("36")).toHaveStyle({ textAlign: "right" });
+    expect(within(rowA).getByText(/Grade A Dozen/)).not.toHaveStyle({ textAlign: "right" });
 
     const rowB = screen.getByRole("row", { name: /Grade B Tray/ });
     expect(within(rowB).getByText("60")).toBeInTheDocument();
@@ -876,17 +892,25 @@ describe("SalesPage list price and discount (#720)", () => {
 
   // #723 — colour is not the only signal. A discounted row carries a text chip
   // and a struck-through list price, both of which survive greyscale; the tint
-  // is the third layer, asserted through the row's class because jsdom computes
-  // no layout.
-  it("marks a below-list row with a chip, a struck list price and the row class", async () => {
+  // is the third layer, asserted through the row's computed background-color
+  // (jsdom resolves an emotion-injected rule's declared value, though not the
+  // custom property behind it).
+  it("marks a below-list row with a chip, a struck list price and the row tint", async () => {
     // ITEM_B: sold 1000 against a list of 1200 → below list.
     const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
-    // Both classes: `badge` is the pill, `badge-warn` is what the stylesheet's
-    // `tr.discounted .badge-warn` rule keys on to lift the chip off the row's
-    // own tint. Asserting only `badge` let the JSX drop `badge-warn`, orphaning
-    // that rule and restoring the invisible-chip defect with the suite green.
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("badge", "badge-warn");
-    expect(row).toHaveClass("discounted");
+    // Both classes: `badge` is the pill, `badge-warn` names it as a warning
+    // chip. Asserting only `badge` let the JSX drop `badge-warn`, orphaning
+    // its semantics and restoring the invisible-chip defect with the suite
+    // green.
+    const badge = within(row).getByText(i18n.t("sales:belowListBadge"));
+    expect(badge).toHaveClass("badge", "badge-warn");
+    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    // #831 — the retired `tr.discounted .badge-warn` CSS rule lifted the chip
+    // off the row's own tint; DISCOUNTED_BADGE_SX (SalesPage.tsx) replicates
+    // it inline now, so the chip's own background has to be asserted here or
+    // an edit dropping that sx would ship an invisible chip with this suite
+    // still green.
+    expect(badge).toHaveStyle({ backgroundColor: "var(--surface)" });
     // The list-price money is struck through — the <s> element, not a class, so
     // it survives a stylesheet change and reads as struck to a screen reader.
     expect(within(row).getByText("$12.00").closest("s")).not.toBeNull();
@@ -905,7 +929,7 @@ describe("SalesPage list price and discount (#720)", () => {
     };
     const row = await openOrder(order, /Grade A Dozen/);
     expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     // The fixture renders $3.00 in the List price AND the Unit price cell.
     // Checking only the first let an implementation that struck the other pass.
     for (const match of within(row).getAllByText("$3.00")) {
@@ -934,7 +958,7 @@ describe("SalesPage list price and discount (#720)", () => {
     // satisfy a test named for a chip.
     const productCell = within(row).getAllByRole("cell")[0];
     expect(within(productCell).getByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveClass("badge");
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
   });
 
   // #773 — the two answers side by side on ONE order. Before this, both lines
@@ -1262,7 +1286,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     )).toHaveClass("badge");
   });
 
-  it("shows an em dash for an order sold entirely at list", async () => {
+  it("names an order sold entirely at list", async () => {
     const atList: OrderItem = { ...ITEM_A, id: "at1", listUnitPriceMinorUnits: 300 };
     mockListOrders.mockResolvedValue([listedOrder("atlist", [atList], 900)]);
     await renderReady();
@@ -1273,7 +1297,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // Discount, Total, Provenance, actions — so the new column is index 4.
     // Without this, an implementation returning null for every non-below order
     // leaves the cell EMPTY and both negative assertions still pass.
-    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("At list");
     expect(within(row).queryByText(/%/)).toBeNull();
   });
 
@@ -1305,40 +1329,32 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // says WHICH kind of nothing — this one predates capture, so "no list price"
     // (the recorded fact) would be a different and wrong claim.
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
-    // The wrap class is applied here, not just declared in the stylesheet: this
-    // cell is inside td.num, which is pinned white-space: nowrap.
-    expect(within(within(row).getAllByRole("cell")[4]).getByText(i18n.t("enums:listPriceBasis.PreDating")))
-      .toHaveClass("discount-note");
+    expect(within(row).getAllByRole("cell")[4])
+      .toHaveAccessibleDescription(i18n.t("enums:listPriceBasis.PreDating"));
   });
 
-  it("does not print a bare em dash for an order only part of which can be measured", async () => {
+  it("describes missing list prices without calling the order at list", async () => {
     const atList: OrderItem = { ...ITEM_A, id: "ap1", listUnitPriceMinorUnits: 300 };
     const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     mockListOrders.mockResolvedValue([listedOrder("partial", [atList, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-partial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    // The em dash means "sold at list". This order was not fully measured, so
-    // the cell must carry the note instead.
-    expect(cell).toHaveTextContent(i18n.t("sales:discountPartialNote"));
-    expect(cell.textContent?.trim()).not.toBe("—");
+    expect(cell).toHaveAccessibleName("—");
+    expect(cell).toHaveAccessibleDescription("part of this order has no list price");
+    expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
 
-  // The BELOW-list partial branch: a discounted order that also carries an
-  // unmeasurable line. The at-list partial test above never enters it, which
-  // left SalesPage.tsx:1537 the one `discount-note` call site with no assertion
-  // — so the class could be dropped there and the note would stop wrapping
-  // inside td.num, with the suite green. Found by CodeRabbit on 0c65418.
-  it("wraps the partial note on a DISCOUNTED order that also has an unmeasurable line", async () => {
+  it("describes the unmeasurable part of a discounted order", async () => {
     const below: OrderItem = { ...ITEM_A, id: "bp1", listUnitPriceMinorUnits: 375 };
     const noList: OrderItem = { ...ITEM_B, id: "bp2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     mockListOrders.mockResolvedValue([listedOrder("belowpartial", [below, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-belowpartial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    // The badge renders (it IS discounted) AND the partial note is present and wrappable.
     expect(within(cell).getByText(/%/)).toHaveClass("badge");
-    expect(within(cell).getByText(i18n.t("sales:discountPartialNote"))).toHaveClass("discount-note");
+    expect(cell).toHaveAccessibleDescription("part of this order has no list price");
+    expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
 });
 
@@ -1387,10 +1403,9 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
 
     const cell = outstandingCell(/SO-part/);
     expect(cell).toHaveTextContent("$9.00");
-    // `discount-note` is the wrap class: this note sits inside td.num, which
-    // #650 pins to white-space: nowrap.
-    expect(within(cell).getByTestId("row-partly-paid"))
-      .toHaveClass("muted", "discount-note");
+    expect(cell).toHaveAccessibleName("$9.00");
+    expect(cell).toHaveAccessibleDescription("part of this order is paid");
+    expect(cell).toHaveAttribute("title", "part of this order is paid");
     expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
   });
 
@@ -1402,7 +1417,7 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
     expect(cell).toHaveTextContent("$29.00");
     // The three states must be distinguishable from each other, not just from
     // empty: no part-paid note and no settled pill on an order owing all of it.
-    expect(within(cell).queryByTestId("row-partly-paid")).toBeNull();
+    expect(cell).not.toHaveAccessibleDescription();
     expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
   });
 
@@ -2472,6 +2487,18 @@ describe("SalesPage empty states (#655)", () => {
   });
 });
 
+// The Status filter starts at "" with a placeholder option, so without an
+// explicit shrink the label sat on top of that text. jsdom cannot show the
+// overlap; the shrink class is the DOM fact that stands in for it (same
+// pattern as #897's Grade select and #833's Audit filters).
+describe("SalesPage status filter label", () => {
+  it("shrinks the Status select's label instead of sitting it on top of the placeholder option text", async () => {
+    await renderReady();
+    const label = screen.getByText("Status", { selector: "label" });
+    expect(label).toHaveClass("MuiInputLabel-shrink");
+  });
+});
+
 describe("SalesPage list failures (#469)", () => {
   // The old behaviour: ANY rejection from the order-list fetch set a
   // `loadError` that nothing ever cleared, and the render replaced the whole
@@ -3263,14 +3290,14 @@ describe("SalesPage panel liveness (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close") });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => {
       resolveWrite();
       resolveRead({ ...DRAFT_TWO, items: [ITEM_B] });
     });
     expect(mockGetOrder).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "open" })).toBeEnabled();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   });
 });
 
@@ -3291,7 +3318,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   };
   const openButton = () => screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true });
 
@@ -3348,7 +3375,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
       expect(openButton()).toBeDisabled();
       await act(async () => { read.resolve({ ...order, status: action === "confirm" ? "Confirmed" : action === "void" ? "Voided" : "Draft" }); });
       expect(openButton()).toBeEnabled();
-      expect(document.querySelector(".order-panel")).toBeNull();
+      expect(screen.queryByRole("region", { hidden: true })).toBeNull();
       if (action === "confirm" || action === "void") {
         expect(screen.queryByText(i18n.t(action === "confirm" ? "sales:orderConfirmed" : "sales:orderVoided", { ref: order.referenceNumber }))).not.toBeInTheDocument();
         expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
@@ -3367,7 +3394,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     closePanel();
     await act(async () => { write.resolve(); });
     expect(openButton()).toBeEnabled();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.queryByText(i18n.t("sales:draftOrderCancelled"))).not.toBeInTheDocument();
     expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
   });
@@ -3378,7 +3405,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     const listCalls = mockListOrders.mock.calls.length;
     await submit("cancel");
     expect(vi.mocked(cancelOrder)).toHaveBeenCalledWith(DRAFT_TWO.id, expect.any(String));
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText(i18n.t("sales:draftOrderCancelled"))).toBeInTheDocument();
     expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
   });
@@ -3426,7 +3453,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     await act(async () => { write.resolve({ orderId: DRAFT_TWO.id, itemId: ITEM_A.id }); });
     expect(mockGetOrder).toHaveBeenCalledTimes(2);
     expect(mockGetOrder).toHaveBeenLastCalledWith(DRAFT_TWO.id);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(openButton()).toBeEnabled();
     // The fixture deliberately remains a draft, allowing the identical add
     // request after reopening without simulating backend line merging.
@@ -3510,14 +3537,14 @@ describe("SalesPage payment panel contracts (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeDisabled();
     await act(async () => { resolveWrite(undefined as never); });
     expect(mockListOrderPayments).toHaveBeenCalledTimes(2);
     expect(mockListOrderPayments).toHaveBeenLastCalledWith(order.id);
     await act(async () => { resolveRead({ ...ledger, items: [{ ...ledger.items[0], referenceNumber: "late receipt", voided: true }] }); });
     expect(screen.getByText(i18n.t("sales:paymentVoided"))).toBeInTheDocument();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.queryByText("late receipt")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeEnabled();
     // DOM absence cannot observe a hidden setPayments overwrite: reopening
@@ -3538,9 +3565,9 @@ it.each([false, true])("discards the line editor on Close before same-order relo
   fireEvent.click(within(row).getByRole("button", { name: "edit" }));
   if (pending) await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "save" })); });
   fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
-  expect(document.querySelector(".order-panel")).toBeNull();
+  expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   if (pending) await act(async () => { settle(); });
-  expect(document.querySelector(".order-panel")).toBeNull();
+  expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   // Another writer changed the line while this panel was closed. A fresh Open
   // must show that fetched row, not the dismissed editor's old quantity/price.
   mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, items: [{ ...ITEM_A, quantity: 9, quantityBase: 108, unitPriceMinorUnits: 400 }, ITEM_B] });
@@ -3569,7 +3596,7 @@ describe.each(["Draft", "Confirmed"] as const)("Sales Open dismissal (#712), %s 
       });
     };
     await openRow(original);
-    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
 
     let resolveRead!: (order: SalesOrder) => void;
     mockGetOrder.mockReturnValueOnce(new Promise<SalesOrder>((resolve) => { resolveRead = resolve; }));
@@ -3579,14 +3606,14 @@ describe.each(["Draft", "Confirmed"] as const)("Sales Open dismissal (#712), %s 
     expect(within(screen.getByRole("row", { name: new RegExp(target.referenceNumber) }))
       .getByRole("button", { name: i18n.t("sales:open") })).toBeDisabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => { resolveRead(target); });
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
 
     mockGetOrder.mockResolvedValue(target);
     await openRow(target);
-    expect(document.querySelector(".order-panel")).not.toBeNull();
-    expect(within(document.querySelector<HTMLElement>(".order-panel")!)
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
+    expect(within(screen.getByRole("region"))
       .getByText(new RegExp(target.referenceNumber))).toBeInTheDocument();
   });
 });
@@ -3596,9 +3623,9 @@ describe("Sales primary Open controls (#712)", () => {
     mockListOrders.mockResolvedValue([DRAFT_TWO]);
     mockGetOrder.mockResolvedValue(DRAFT_TWO);
     await renderReady();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
   });
 
   it("shows an Open failure and allows retry", async () => {
@@ -3606,10 +3633,10 @@ describe("Sales primary Open controls (#712)", () => {
     mockGetOrder.mockRejectedValueOnce(new Error("Order read failed")).mockResolvedValue(DRAFT_TWO);
     await renderReady();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText("Order read failed")).toBeInTheDocument();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
     expect(screen.queryByText("Order read failed")).not.toBeInTheDocument();
   });
 
@@ -3620,7 +3647,7 @@ describe("Sales primary Open controls (#712)", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
     fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
     await act(async () => { rejectRead(new Error("Dismissed order read failed")); });
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText("Dismissed order read failed")).toBeInTheDocument();
   });
 });
@@ -3980,13 +4007,13 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
   it("keeps the tint, the chip and the Discount cell agreeing as the price is edited", async () => {
     const row = await beginEdit();
     // ITEM_A: 3 x $3.00 against a $3.75 list — below list before a key is pressed.
-    expect(row).toHaveClass("discounted");
+    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("$2.25");
 
     // Typed UP to the list price: no longer a discount, so every marker goes.
     typePrice("3.75");
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("—");
 
@@ -3994,18 +4021,18 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     // used to be blanked to "—" for the whole edit.
     typePrice("4.00");
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent(i18n.t("sales:aboveList"));
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
 
     // Back below list: the markers come back rather than sticking.
     typePrice("2.00");
-    expect(row).toHaveClass("discounted");
+    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
   });
 
   it("falls back to the saved line rather than flickering when the price box is unparseable", async () => {
     const row = await beginEdit();
     typePrice("");
-    expect(row).toHaveClass("discounted");
+    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).not.toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
   });
 

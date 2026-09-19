@@ -117,7 +117,12 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
       await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
         .toBeVisible();
       await draft.getByRole("button", { name: tEn("sales:open") }).click();
-      const row = page.locator(".order-panel .actions");
+      // #831 — `.order-panel` retired; the draft panel is now a named
+      // `role="region"` landmark (SalesPage.tsx), so scope through that
+      // instead of the class the CSS selector used to key on. `.actions`
+      // itself is unchanged — a bare hook class with a real phone-stacking
+      // rule (styles.css) — so the row this measures is the same one.
+      const row = page.getByRole("region").locator(".actions");
       await expect(row).toBeVisible();
       return row;
     },
@@ -547,7 +552,6 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // FOR, and its recent-sales list is the widest intrinsic content in the
       // app — a money string in a `max-content` track beside a name.
       { path: "/", content: "ul.dash-sales-list", what: "the recent-sales list" },
-      { path: "/sales", content: "table.data", what: "the orders table" },
       { path: "/daily-entry", content: "footer", what: "the entry form's sticky foot" },
       // #832 — Customers and Flocks moved their table onto MUI's `Table`, which
       // carries no `.data` class (the whole point of the conversion: the
@@ -560,6 +564,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // #831 keeps grade comparisons in a named board and history in a table.
       { path: "/stock", content: `role=list[name="${tEn("stock:title")}"]`, what: "the stock board" },
       { path: "/history", content: "role=table", what: "the entry history table" },
+      { path: "/sales", content: "role=table", what: "the orders table" },
     ];
 
     for (const { path: route, content, what } of ROUTES) {

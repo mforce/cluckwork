@@ -379,6 +379,10 @@ export const en = {
   },
   // Sales pilot (Task 7, #182) — the worked pattern for the full sweep.
   sales: {
+    manifestHeading: "Order manifest",
+    settlementHeading: "Settlement",
+    stockCommitment: "Stock commitment",
+
     // Headings
     title: "Sales",
     loading: "Loading…",
@@ -440,6 +444,7 @@ export const en = {
     unitPrice: "Unit price",
     discount: "Discount",
     aboveList: "Above list",
+    atListShort: "At list",
     // #723 — the row's text marker. Colour alone fails greyscale and fails a
     // colour-blind reader, so the tint never travels without this chip.
     // Ends in `Badge`, so badgeCase.test.ts holds it to a capital first letter
@@ -3113,6 +3118,7 @@ export const en = {
       + "<strong>Discount</strong> column, so a discounted order is visible without opening it — and an "
       + "order every line of which was taken before list prices were recorded reads \"List price not "
       + "recorded\" there, never zero.",
+    salesCommitment: "Stock commitment previews the eggs in the order, including an unsaved quantity edit. Stock is allocated only when Confirm order succeeds.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",

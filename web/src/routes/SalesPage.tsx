@@ -3,6 +3,9 @@ import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import {
+  Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
+import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder,
   listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
   listProducts, parseMoneyToMinorUnits, recordPayment,
@@ -15,6 +18,8 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { CustomerPicker } from "../components/CustomerPicker";
+import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
+import { FilterBar } from "../components/FilterBar";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
@@ -34,6 +39,19 @@ import { DISCOUNT_REASON_VALUES, discountReasonLabel, listPriceBasisLabel, statu
 import type { DiscountReasonValue } from "../i18n/enums";
 
 const PAGE = 50;
+const NOWRAP = { whiteSpace: "nowrap" as const };
+const MANIFEST_ACTIONS_SX = {
+  position: { xs: "sticky", md: "static" },
+  right: 0,
+  zIndex: 1,
+  minWidth: { xs: 100, md: "auto" },
+  "& button": { display: { xs: "block", md: "inline-flex" }, minHeight: { xs: 44, md: "auto" } },
+};
+// #831: bound picker widths so opening a filter does not move sibling fields.
+const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
+// #723: lift the below-list chip off the row tint.
+const DISCOUNTED_ROW_SX = { bgcolor: "var(--tint-warn)" };
+const DISCOUNTED_BADGE_SX = { bgcolor: "var(--surface)" };
 
 // The egg selling units, in picker order — one list for the Per picker and
 // the #445 unit-label/preview helpers, mirroring the server's ProductUnit
@@ -405,6 +423,10 @@ export function SalesPage() {
   const fieldId = useId();
   const addQtyId = `${fieldId}-qty`;
   const editQtyId = `${fieldId}-edit-qty`;
+  // #831 — the open order panel's own landmark, replacing the retired
+  // `.order-panel` class as the structural test hook: a named region whose
+  // accessible name is the panel's own heading (the reference number).
+  const orderPanelHeadingId = `${fieldId}-order-panel-heading`;
   const [price, setPrice] = useState("");
 
   // ONE scale for every price this screen reads or writes (#123). The two
@@ -1070,13 +1092,13 @@ export function SalesPage() {
   // is part-way through editing (#469). Only the setup reads — customers and
   // products, without which no form on this screen can function — still gate
   // the page.
-  if (setupError) return <section><h2>{t("title")}</h2><p className="error">{setupError}</p></section>;
-  if (orders.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
+  if (setupError) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{setupError}</p></FieldConsole>;
+  if (orders.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{t("loading")}</p></FieldConsole>;
 
   return (
-    <section>
-      <div className="page-head">
-        <h2>{t("title")}</h2>
+    <FieldConsole>
+      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
+        <Typography variant="h2">{t("title")}</Typography>
         {/* #655 — also withheld exactly when the truly-empty state below is
             offering this same action (never for the filtered-empty branch,
             which offers "Clear filters" instead — no duplicate there). */}
@@ -1096,7 +1118,7 @@ export function SalesPage() {
             <Plus size={16} aria-hidden /> {t("newOrder")}
           </button>
         )}
-      </div>
+      </Stack>
 
       {customers.length === 0 && (
         <p className="muted">{t("addCustomerFirst")}</p>
@@ -1123,8 +1145,12 @@ export function SalesPage() {
       {/* Deliberately NOT a <form>: these controls were button-driven, so
           wrapping them in one would newly enforce min/step and swallow the
           screen's own money messages (codex review of #132). */}
+      {/* Deliberately not `component="form"`: these controls were
+          button-driven, so wrapping them in a form would newly enforce
+          min/step and swallow the screen's own money messages (codex review
+          of #132) — the same reason the original div was never a <form>. */}
       <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}>
-        <div className="form-grid">
+        <Stack spacing={2}>
           <CustomerPicker
             label={t("customer")}
             required
@@ -1150,10 +1176,13 @@ export function SalesPage() {
               </button>
             }
           />
-          <label>{t("date")}
-            <input type="date" value={orderDate} max={today}
-              onChange={(e) => setOrderDate(e.target.value)} />
-          </label>
+          <TextField
+            type="date"
+            label={t("date")}
+            value={orderDate}
+            slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
+            onChange={(e) => setOrderDate(e.target.value)}
+          />
           {/* #474 — this copy lives INSIDE the dialog, which renders nothing
               while closed, so the page's `!creatingOrder` condition hid the
               message exactly when the dialog it belongs to was up. The scope
@@ -1162,467 +1191,499 @@ export function SalesPage() {
               because focus is trapped in the panel and nothing else announces
               the failure. */}
           <DialogError errors={errors} scope="create-order" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
             <BusyButton disabled={busy || !customer || !customerSnapshot.canSubmit}
               busy={isPending("create-order")}
               onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
-          </div>
-        </div>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       {active && (
-        <div className="order-panel">
-          <h3>
+        <Box sx={{ my: 3 }} role="region" aria-labelledby={orderPanelHeadingId}>
+          <Typography variant="h3" component="h3" id={orderPanelHeadingId}>
             {active.referenceNumber} — {rowCustomerName(active)}{" "}
             <span className={active.status === "Draft" ? "muted" : "warn"}>
               [{statusLabel(active.status)}]
             </span>
-          </h3>
+          </Typography>
 
-          {active.items.length > 0 && (
-            <table className="data">
-              <thead><tr><th>{t("product")}</th><th className="num">{t("qty")}</th><th className="num">{t("eggs")}</th><th className="num">{t("listPrice")}</th><th className="num">{t("unitPrice")}</th><th className="num">{t("discount")}</th><th className="num">{t("lineTotal")}</th><th></th></tr></thead>
-              <tbody>
-                {active.items.map((i) => {
-                  // #752 — ONE discount per row. The tint, the chip and the
-                  // Discount cell all read this, so they cannot disagree.
-                  // While this row is being edited it describes the TYPED
-                  // price, the same way #445 made the eggs column live: a row
-                  // that still claims its saved discount while you retype the
-                  // price is telling you about a line that no longer exists.
-                  // An unparseable box (mid-keystroke, empty) falls back to
-                  // the saved line rather than flickering to "no list price".
-                  const editingThis = !!editor && editingLine?.id === i.id;
-                  const typed = editingThis
-                    ? parseMoneyToMinorUnits(editor.price, active.currencyMinorUnit)
-                    : Number.NaN;
-                  const shown = editingThis && Number.isFinite(typed)
-                    ? { ...i, unitPriceMinorUnits: typed, quantity: editor.quantity }
-                    : i;
-                  const discount = lineDiscount(shown);
-                  // #727 — measured against the SAME line the Discount cell
-                  // describes, so the badge cannot report a line as within the
-                  // ceiling while the cell beside it shows the typed give-away.
-                  const overMaximum = ceiling !== null
-                    && lineExceedsCeiling(shown.listUnitPriceMinorUnits, shown.unitPriceMinorUnits, ceiling);
-                  // Rendered identically in BOTH branches below. Two copies
-                  // of this that drifted apart is what #752 was.
-                  const discountCell = discount.kind === "below"
-                    ? <span className="discount">
-                        {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${discountPercent(discount.percent)}%`}
-                      </span>
-                    : discount.kind === "above" ? t("aboveList")
-                      : discount.kind === "none" ? listPriceBasisLabel(i.listPriceBasis)
-                        : "—";
-                  return (
-                  <tr key={i.id} className={discount.kind === "below" ? "discounted" : undefined}>
-                    <td>{productName(i.productId)}{" "}
-                      <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
-                        {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span>
-                      {/* #723 — the text marker, beside the product rather than
-                          in the Discount cell, so it is legible on a row whose
-                          numeric cells are being scanned as a column. */}
-                      {discount.kind === "below" && (
-                        <> <span className="badge badge-warn">{t("belowListBadge")}</span></>
-                      )}
-                      {/* #727 — beside the below-list chip, not instead of it:
-                          the two say different things, and a breaching line is
-                          always also a below-list line. badge-danger, because
-                          this one stops the confirm rather than describing it —
-                          and because badge-warn would need the tr.discounted
-                          override the below-list chip already carries. */}
-                      {overMaximum && (
-                        <> <span className="badge badge-danger">{t("overMaximumBadge")}</span></>
-                      )}
-                      {discount.kind === "none" && (
-                        <> <span className="badge">{listPriceBasisLabel(i.listPriceBasis)}</span></>
-                      )}</td>
-                    {editor && editingLine?.id === i.id ? (
-                      <>
-                        <td className="num">
-                          {/* No visible label in the cell — the sr-only one names
-                              the input; the buttons carry their own names. */}
-                          <label className="sr-only" htmlFor={editQtyId}>{t("editQuantityAriaLabel")}</label>
-                          <NumberField id={editQtyId} label={t("editQuantityAriaLabel").toLowerCase()}
-                            value={editor.quantity} onChange={(quantity) => {
-                              const draft = editorRef.current;
-                              if (draft) setEditor({ ...draft, quantity: typeof quantity === "function" ? quantity(draft.quantity) : quantity });
-                            }} min={1} />
-                        </td>
-                        {/* #445 — live: the eggs column tracks the edited
-                            quantity instead of going blank, so a unit/count
-                            mix-up is visible mid-edit too. */}
-                        <td className="num muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</td>
-                        <td className="num muted">
-                          {i.listUnitPriceMinorUnits === null
-                            ? "—"
-                            : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
-                        </td>
-                        <td className="num"><input className="cell" type="number" min={0}
-                          aria-label={t("editUnitPriceAriaLabel")}
-                          step={10 ** -active.currencyMinorUnit} value={editor.price}
-                          onChange={(e) => {
-                            const draft = editorRef.current;
-                            if (draft) setEditor({ ...draft, price: e.target.value });
-                          }} /></td>
-                        {/* #752 — was a flat "—", which contradicted the tint
-                            and chip this same row still carried, and erased an
-                            above-list line's ONLY marker for the whole edit. */}
-                        <td className="num">{discountCell}</td>
-                        <td className="num">—</td>
-                        <td>
-                          <BusyButton className="link" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
-                            onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
-                          <button className="link" onClick={() => setEditor(null)}>{t("cancelEdit")}</button>
-                          {editConflict && (
-                            <div role="status">
-                              {t("editConflict")} {" "}
-                              <button className="link" onClick={reloadEditor}>{t("reloadLine")}</button>
-                            </div>
-                          )}
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="num">{fmt.count(i.quantity)}</td>
-                        <td className="num">{fmt.count(i.quantityBase)}</td>
-                        <td className="num">
-                          {i.listUnitPriceMinorUnits === null
-                            ? "—"
-                            : discount.kind === "below"
-                              ? <s>{fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</s>
-                              : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
-                        </td>
-                        <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
-                        <td className="num">{discountCell}</td>
-                        <td className="num">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
-                        <td>
-                          {active.status === "Draft" && (
-                            <>
-                              <button className="link" disabled={busy} onClick={() => {
-                                setEditor(lineDraft(active, i));
-                              }}>{t("edit")}</button>
-                              <BusyButton className="link" disabled={busy} busy={isPending(`remove-item:${i.id}`)}
-                                onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
-                            </>
-                          )}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-          {/* #723 — the order's give-away, directly above the total it was
-              taken from. A sibling <p>, not a <tfoot>: the order total has
-              never been a table footer and the only <tfoot> in the app is
-              ReportsPage's. Rendered ONLY for a below-list order — #723's
-              acceptance is that an at-list order carries no treatment at all. */}
-          {(() => {
-            const orderLevel = orderDiscount(active.items);
-            // Round 1 — read `partial` BEFORE bailing on kind. An order with
-            // nothing discounted but a line we cannot measure is not an at-list
-            // order, and rendering nothing here let it read as one.
-            if (orderLevel.kind === "atList" && orderLevel.partial) {
-              return (
-                <p className="discount-note" data-testid="order-discount-partial">
-                  {t("discountPartialOnly")}
-                </p>
-              );
-            }
-            // Round 2 — `unknown` reached this bail and rendered nothing, while
-            // the Orders list said "Unknown" for the same order. Two screens
-            // disagreeing about whether an order is measurable is worse than
-            // either answer alone.
-            if (orderLevel.kind === "unknown") {
-              return (
-                <p className="discount-note" data-testid="order-discount-unknown">
-                  {{
-                    allPreDating: t("discountUnrecordedOrder"),
-                    nonePreDating: t("discountUnknownOrder"),
-                    mixed: t("discountPartlyUnrecordedOrder"),
-                  }[orderListPriceBasis(active.items)]}
-                </p>
-              );
-            }
-            if (orderLevel.kind !== "below") return null;
-            const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
-            return (
-              <p className="discount" data-testid="order-discount">
-                {orderLevel.percent === null
-                  ? t("discountTotalNoPct", { amount })
-                  : t("discountTotal", { amount, percent: discountPercent(orderLevel.percent) })}
-                {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
-              </p>
-            );
-          })()}
-          {/* #721 — the reason the order was allowed below list, beside the
-              give-away it explains. Absent on an order confirmed before that
-              shipped: no backfill, so nothing here means "not recorded". */}
-          {active.discountReasonCode && (
-            <p className="discount-note" data-testid="order-discount-reason">
-              {active.discountReasonNote
-                ? t("discountReasonSummaryWithNote", {
-                    reason: discountReasonLabel(active.discountReasonCode),
-                    note: active.discountReasonNote,
-                  })
-                : t("discountReasonSummary", {
-                    reason: discountReasonLabel(active.discountReasonCode),
-                  })}
-            </p>
-          )}
-          <p><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
+          <Box sx={CONSOLE_SPLIT_SX}>
+            <Box sx={CONSOLE_PANEL_SX}>
+              <Typography component="h4" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.25rem", mb: 2 }}>{t("manifestHeading")}</Typography>
+              {active.items.length > 0 && (
+                <LedgerTableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{t("product")}</TableCell>
+                        <TableCell align="right">{t("qty")}</TableCell>
+                        <TableCell align="right">{t("eggs")}</TableCell>
+                        <TableCell align="right">{t("listPrice")}</TableCell>
+                        <TableCell align="right">{t("unitPrice")}</TableCell>
+                        <TableCell align="right">{t("discount")}</TableCell>
+                        <TableCell align="right">{t("lineTotal")}</TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                    {active.items.map((i) => {
+                      // #752: derive the tint, chip and discount cell from the same edited line.
+                      // An incomplete price retains the saved line’s display.
+                      const editingThis = !!editor && editingLine?.id === i.id;
+                      const typed = editingThis
+                        ? parseMoneyToMinorUnits(editor.price, active.currencyMinorUnit)
+                        : Number.NaN;
+                      const shown = editingThis && Number.isFinite(typed)
+                        ? { ...i, unitPriceMinorUnits: typed, quantity: editor.quantity }
+                        : i;
+                      const discount = lineDiscount(shown);
+                      // #727 — measured against the SAME line the Discount cell
+                      // describes, so the badge cannot report a line as within the
+                      // ceiling while the cell beside it shows the typed give-away.
+                      const overMaximum = ceiling !== null
+                        && lineExceedsCeiling(shown.listUnitPriceMinorUnits, shown.unitPriceMinorUnits, ceiling);
 
-          {active.status === "Draft" && (
-            <>
-              <div className="form-grid">
-                <label>{t("product")}
-                  <select value={productId} onChange={(e) => {
-                    setProductId(e.target.value);
-                    const p = products.find((x) => x.id === e.target.value);
-                    if (p) {
-                      setUnit(p.defaultUnit);
-                      setPrice(priceInput(p.defaultPriceMinorUnits, priceScale));
-                    }
-                  }}>
-                    {products.map((p) => {
-                      // Unit size visible BEFORE quantity entry starts (#445):
-                      // "Grade A Tray (30 eggs/tray)". Only the per-egg unit
-                      // is bare — by identity, not factor, so "1 egg/dozen"
-                      // still shows (see eggsPerUnit above).
-                      const f = p.defaultUnit === "Egg" ? null : eggsPerUnit(p.defaultUnit);
+                      const discountCell = discount.kind === "below"
+                        ? <span className="discount">
+                            {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${discountPercent(discount.percent)}%`}
+                          </span>
+                        : discount.kind === "above" ? t("aboveList")
+                          : discount.kind === "none" ? listPriceBasisLabel(i.listPriceBasis)
+                            : "—";
                       return (
-                        <option key={p.id} value={p.id}>
-                          {f !== null
-                            ? t("productOptionWithUnit", { name: p.name, count: f, unit: unitWord(p.defaultUnit) })
-                            : p.name}
-                        </option>
+                      <TableRow key={i.id} sx={discount.kind === "below" ? DISCOUNTED_ROW_SX : undefined}>
+                        <TableCell>{productName(i.productId)}{" "}
+                          <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
+                            {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span>
+                          {/* #723 — the text marker, beside the product rather than
+                              in the Discount cell, so it is legible on a row whose
+                              numeric cells are being scanned as a column. */}
+                          {discount.kind === "below" && (
+                            <> <Box component="span" className="badge badge-warn" sx={DISCOUNTED_BADGE_SX}>{t("belowListBadge")}</Box></>
+                          )}
+                          {/* #727: the below-list marker describes the price; the ceiling marker
+                              warns that confirmation may be refused. Keep both meanings visible. */}
+                          {overMaximum && (
+                            <> <span className="badge badge-danger">{t("overMaximumBadge")}</span></>
+                          )}
+                          {discount.kind === "none" && (
+                            <> <span className="badge">{listPriceBasisLabel(i.listPriceBasis)}</span></>
+                          )}</TableCell>
+                        {editor && editingLine?.id === i.id ? (
+                          <>
+                            <TableCell align="right">
+                              <label className="sr-only" htmlFor={editQtyId}>{t("editQuantityAriaLabel")}</label>
+                              <NumberField id={editQtyId} label={t("editQuantityAriaLabel").toLowerCase()}
+                                value={editor.quantity} onChange={(quantity) => {
+                                  const draft = editorRef.current;
+                                  if (draft) setEditor({ ...draft, quantity: typeof quantity === "function" ? quantity(draft.quantity) : quantity });
+                                }} min={1} />
+                            </TableCell>
+                            {/* #445 — live: the eggs column tracks the edited
+                                quantity instead of going blank, so a unit/count
+                                mix-up is visible mid-edit too. */}
+                            <TableCell align="right" className="muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</TableCell>
+                            <TableCell align="right" className="muted">
+                              {i.listUnitPriceMinorUnits === null
+                                ? "—"
+                                : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                            </TableCell>
+                            <TableCell align="right"><input className="cell" type="number" min={0}
+                              aria-label={t("editUnitPriceAriaLabel")}
+                              step={10 ** -active.currencyMinorUnit} value={editor.price}
+                              onChange={(e) => {
+                                const draft = editorRef.current;
+                                if (draft) setEditor({ ...draft, price: e.target.value });
+                              }} /></TableCell>
+                            <TableCell align="right">{discountCell}</TableCell>
+                            <TableCell align="right">—</TableCell>
+                            <TableCell sx={{ ...MANIFEST_ACTIONS_SX, bgcolor: discount.kind === "below" ? "var(--tint-warn)" : "var(--surface)" }}>
+                              <BusyButton component={Button} variant="contained" size="small" sx={{ minWidth: 0, p: .5 }} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
+                                onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
+                              <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, p: .5 }} onClick={() => setEditor(null)}>{t("cancelEdit")}</Button>
+                              {editConflict && (
+                                <div role="status">
+                                  {t("editConflict")} {" "}
+                                  <button className="link" onClick={reloadEditor}>{t("reloadLine")}</button>
+                                </div>
+                              )}
+                            </TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell align="right">{fmt.count(i.quantity)}</TableCell>
+                            <TableCell align="right">{fmt.count(i.quantityBase)}</TableCell>
+                            <TableCell align="right">
+                              {i.listUnitPriceMinorUnits === null
+                                ? "—"
+                                : discount.kind === "below"
+                                  ? <s>{fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</s>
+                                  : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                            </TableCell>
+                            <TableCell align="right">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</TableCell>
+                            <TableCell align="right">{discountCell}</TableCell>
+                            <TableCell align="right">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</TableCell>
+                            <TableCell sx={{ ...MANIFEST_ACTIONS_SX, bgcolor: discount.kind === "below" ? "var(--tint-warn)" : "var(--surface)" }}>
+                              {active.status === "Draft" && (
+                                <>
+                                  <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, p: .5 }} disabled={busy} onClick={() => {
+                                    setEditor(lineDraft(active, i));
+                                  }}>{t("edit")}</Button>
+                                  <BusyButton component={Button} size="small" sx={{ minWidth: 0, p: .5, color: "var(--error)" }} disabled={busy} busy={isPending(`remove-item:${i.id}`)}
+                                    onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
+                                </>
+                              )}
+                            </TableCell>
+                          </>
+                        )}
+                      </TableRow>
                       );
                     })}
-                  </select>
-                </label>
-                <label>{t("perLabel")}
-                  <select value={unit} onChange={(e) => setUnit(e.target.value)}>
-                    {SELLING_UNITS.map((u) =>
-                      <option key={u} value={u}>{t(`unit${u}`)}</option>)}
-                  </select>
-                </label>
-                {/* Sibling label, not wrapping: a <label> may not contain
-                    interactive content other than its own control, and the
-                    stepper carries two buttons. */}
-                <div className="numfield-field">
-                  {/* #445 — the label names the unit ("Quantity (trays)" not
-                      bare "Quantity"), and the live hint shows the resulting
-                      egg count while typing, so "2 trays" typed as 60 is
-                      visibly 1,800 eggs before Add line is pressed. */}
-                  <label htmlFor={addQtyId}>{t("quantityWithUnit", { unit: unitWord(unit) })}</label>
-                  <NumberField id={addQtyId} label={t("quantityWithUnit", { unit: unitWord(unit) }).toLowerCase()}
-                    value={qty} onChange={setQty} min={1} />
+                  </TableBody>
+                </Table>
+              </LedgerTableContainer>
+              )}
+              {active.status === "Draft" && (
+                <>
+                  <Stack sx={{ ...CONSOLE_FORM_SX, my: 2 }}>
+                    <TextField
+                      select
+                      label={t("product")}
+                      value={productId}
+                      size="small"
+                      slotProps={{ select: { native: true } }}
+                      onChange={(e) => {
+                        setProductId(e.target.value);
+                        const p = products.find((x) => x.id === e.target.value);
+                        if (p) {
+                          setUnit(p.defaultUnit);
+                          setPrice(priceInput(p.defaultPriceMinorUnits, priceScale));
+                        }
+                      }}
+                    >
+                      {products.map((p) => {
+                        // Unit size visible BEFORE quantity entry starts (#445):
+                        // "Grade A Tray (30 eggs/tray)". Only the per-egg unit
+                        // is bare — by identity, not factor, so "1 egg/dozen"
+                        // still shows (see eggsPerUnit above).
+                        const f = p.defaultUnit === "Egg" ? null : eggsPerUnit(p.defaultUnit);
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {f !== null
+                              ? t("productOptionWithUnit", { name: p.name, count: f, unit: unitWord(p.defaultUnit) })
+                              : p.name}
+                          </option>
+                        );
+                      })}
+                    </TextField>
+                    <TextField
+                      select
+                      label={t("perLabel")}
+                      value={unit}
+                      size="small"
+                      slotProps={{ select: { native: true } }}
+                      onChange={(e) => setUnit(e.target.value)}
+                    >
+                      {SELLING_UNITS.map((u) =>
+                        <option key={u} value={u}>{t(`unit${u}`)}</option>)}
+                    </TextField>
+                    {/* Keep the label beside the stepper: it cannot wrap the two buttons. */}
+                    <div className="numfield-field">
+                      {/* #445 — the label names the unit ("Quantity (trays)" not
+                          bare "Quantity"), and the live hint shows the resulting
+                          egg count while typing, so "2 trays" typed as 60 is
+                          visibly 1,800 eggs before Add line is pressed. */}
+                      <label htmlFor={addQtyId}>{t("quantityWithUnit", { unit: unitWord(unit) })}</label>
+                      <NumberField id={addQtyId} label={t("quantityWithUnit", { unit: unitWord(unit) }).toLowerCase()}
+                        value={qty} onChange={setQty} min={1} />
+                      {(() => {
+
+                        const f = unit === "Egg" ? null : eggsPerUnit(unit);
+                        return f !== null
+                          ? <p className="muted">{t("equalsEggs", { count: qty * f })}</p>
+                          : null;
+                      })()}
+                    </div>
+                    <TextField
+                      type="number"
+                      label={t("unitPriceWithCurrency", { code: active.currencyCode })}
+                      value={price}
+                      size="small"
+                      slotProps={{ htmlInput: { min: 0, step: 10 ** -active.currencyMinorUnit } }}
+                      onChange={(e) => setPrice(e.target.value)}
+                    />
+                    <BusyButton component={Button} variant="outlined" color="inherit" disabled={busy || !productId} busy={isPending("add-item")}
+                      onClick={onAddItem}>{t("addLine")}</BusyButton>
+                  </Stack>
+                  {/* #720: keep the price hint outside the grid so translations cannot overlap the input. */}
                   {(() => {
-                    // Per-egg suppressed by identity, not factor (see above).
-                    const f = unit === "Egg" ? null : eggsPerUnit(unit);
-                    return f !== null
-                      ? <p className="muted">{t("equalsEggs", { count: qty * f })}</p>
-                      : null;
+                    // #720 — the same amount AddOrderItemHandler would snapshot
+                    // as ListUnitPriceMinorUnits if Add line were pressed now.
+                    const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
+                    if (list === null) return null;
+                    const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
+                    if (!Number.isFinite(typed) || typed === list) return null;
+                    const perUnit = Math.abs(typed - list);
+                    const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
+                    // A zero list price is legal, and min does not prevent negative input.
+                    // Percentages require a nonzero list-price denominator.
+                    if (typed < list) {
+                      return list === 0
+                        ? <p className="discount">{t("listPriceHintBelowNoPct", { amount })}</p>
+                        : <p className="discount">
+                            {t("listPriceHintBelow", { amount, percent: discountPercent((perUnit * 100) / list) })}
+                          </p>;
+                    }
+                    return list === 0
+                      ? <p className="discount">{t("listPriceHintAboveNoPct", { amount })}</p>
+                      : <p className="discount">
+                          {t("listPriceHintAbove", { amount, percent: discountPercent((perUnit * 100) / list) })}
+                        </p>;
                   })()}
-                </div>
-                <label>{t("unitPriceWithCurrency", { code: active.currencyCode })}
-                  <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
-                    onChange={(e) => setPrice(e.target.value)} />
-                </label>
-                <BusyButton disabled={busy || !productId} busy={isPending("add-item")}
-                  onClick={onAddItem}>{t("addLine")}</BusyButton>
-              </div>
-              {/* #720 R11 — AFTER .form-grid, not a grid cell: a third child in
-                  a cell bottom-aligns under .form-grid's align-items:end and
-                  lifts that field's label/input above the row (R8, then R9's
-                  position:absolute chased the same shape into an overlap at
-                  420px in tl). In normal flow after the grid it wraps to any
-                  height in any locale with nothing to overlap. Knowing trade:
-                  it renders left-aligned under the whole form rather than
-                  under the Unit price input, which diverges from the artboard
-                  — the price of a layout that cannot overlap in any locale. */}
-              {(() => {
-                // #720 — the same amount AddOrderItemHandler would snapshot
-                // as ListUnitPriceMinorUnits if Add line were pressed now.
-                const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
-                if (list === null) return null;
-                const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
-                if (!Number.isFinite(typed) || typed === list) return null;
-                const perUnit = Math.abs(typed - list);
-                const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
-                // A zero list price is legal (Product.cs rejects only
-                // negatives) — dividing by it for a percent would be NaN/Infinity.
-                // <input min={0}> is a validation constraint, not an input
-                // filter, so a negative typed price against a zero list can
-                // still reach the below branch here.
-                if (typed < list) {
-                  return list === 0
-                    ? <p className="discount">{t("listPriceHintBelowNoPct", { amount })}</p>
-                    : <p className="discount">
-                        {t("listPriceHintBelow", { amount, percent: discountPercent((perUnit * 100) / list) })}
-                      </p>;
-                }
-                return list === 0
-                  ? <p className="discount">{t("listPriceHintAboveNoPct", { amount })}</p>
-                  : <p className="discount">
-                      {t("listPriceHintAbove", { amount, percent: discountPercent((perUnit * 100) / list) })}
-                    </p>;
-              })()}
-              {/* #727 — a WARNING beside Confirm, not a gate on it.
-                  This number can be wrong in two ways the server's cannot: it
-                  is fetched once per session, so an owner RAISING the ceiling
-                  leaves a seller holding a stale lower one; and a list price
-                  past 2^53 has already been rounded by JSON.parse before it
-                  reaches us. Either way, disabling Confirm turned advice into a
-                  verdict and stopped the authoritative in-transaction check
-                  from ever running — a seller blocked here was told to go and
-                  ask a manager when the real remedy was a page reload.
-                  §4.6 calls this a display hint; a greyed-out button is not a
-                  hint. The server refuses over-ceiling confirms, and that
-                  refusal is the only authority. */}
-              {orderOverCeiling && (
-                <p className="warn" role="status" data-testid="order-ceiling-warning">
-                  {t("discountCeilingWarning", { percent: ceilingPercent })}
-                </p>
+                </>
               )}
-              <div className="actions">
-                <BusyButton disabled={busy || active.items.length === 0}
-                  busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
-                  {t("confirmOrderButton")}
-                </BusyButton>
-                <BusyButton className="link" disabled={busy} busy={isPending(`cancel:${active.id}`)}
-                  onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
-                <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
-              </div>
-            </>
-          )}
-          {active.status === "Confirmed" && canSettle && payments && (
-            <>
-              <h4>{t("payments")}</h4>
-              {payments.items.length > 0 && (
-                <table className="data">
-                  <thead>
-                    <tr><th>{t("date")}</th><th className="num">{t("amount")}</th><th>{t("method")}</th><th>{t("reference")}</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {payments.items.map((p) => (
-                      <tr key={p.id} className={p.voided ? "inactive" : undefined}
-                        title={p.note ?? undefined}>
-                        <td className="nowrap"><FarmDate iso={p.paymentDate} /></td>
-                        <td className="num">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
-                        <td>{t(`method${p.method as PaymentMethod}`)}</td>
-                        <td className="nowrap">{p.referenceNumber ?? "—"}</td>
-                        <td>
-                          {p.voided
-                            ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
-                            : isAdmin ? (
-                              <BusyButton className="link" disabled={busy} busy={isPending(`void-payment:${p.id}`)}
-                                onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
-                            ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-              <p>
-                <Trans
-                  ns="sales"
-                  i18nKey="paymentsSummary"
-                  values={{
-                    paid: fmt.money(payments.paidMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
-                    outstanding: fmt.money(payments.outstandingMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
-                  }}
-                  components={{ strong: <strong /> }}
-                />
-              </p>
-              {payments.outstandingMinorUnits > 0 && (
-                <div className="panel-actions">
-                  <button type="button" onClick={() => {
-                    setPayDate(today);
-                    // A new session starts clean: an earlier attempt that
-                    // succeeded after being abandoned leaves its amount in
-                    // place otherwise, ready to be sent again under a fresh
-                    // key — a duplicate payment (codex review).
-                    setPayAmount("");
-                    setPayRef("");
-                    setPayNote("");
-                    // The method too (CodeRabbit): it is as much part of the
-                    // abandoned attempt as the amount, and leaving it behind
-                    // preselects a method this payment was never given.
-                    setPayMethod(DEFAULT_PAY_METHOD);
-                    openDialog("record-payment"); // a new session — see #477
-                    setPaying(true);
-                  }}>
-                    {t("recordPayment")}
-                  </button>
-                </div>
+            </Box>
+            <Box component="aside" aria-label={t("settlementHeading")} sx={{
+              ...CONSOLE_RAIL_SX,
+              "--surface": "#2c2429",
+              "--surface-2": "#433840",
+              "& .muted, & .discount-note": { color: "#cfc4cb" },
+              "& .discount, & .warn": { color: "#ffcf85" },
+              "& .MuiTableCell-root": { color: "inherit" },
+              "& .actions": { flexDirection: "column", alignItems: "stretch" },
+              "& .actions > button": { minHeight: 44 },
+            }}>
+              <Typography component="h4" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.25rem", mb: 2 }}>{t("settlementHeading")}</Typography>
+              {(active.status === "Draft" || active.status === "Confirmed") && (
+                <Box sx={{ borderBottom: "1px solid #6b5b65", pb: 2, mb: 2 }}>
+                  <Typography variant="body2">{t("stockCommitment")}</Typography>
+                  <Typography variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.75rem" }}>
+                    {t("eggsCount", {
+                      count: active.items.reduce((sum, item) => sum + (
+                        editor && editingLine?.id === item.id
+                          ? editor.quantity * item.baseUnitFactor
+                          : item.quantityBase
+                      ), 0),
+                    })}
+                  </Typography>
+                </Box>
               )}
 
-              <Dialog open={paying} title={t("recordPayment")} onClose={closePayment}>
-                <div className="form-grid">
-                  <label>{t("date")}
-                    <input type="date" value={payDate} max={today}
-                      onChange={(e) => setPayDate(e.target.value)} />
-                  </label>
-                  <label>{t("amountWithCurrency", { code: payments.currencyCode })}
-                    <input type="number"
-                      min={(1 / 10 ** payments.currencyMinorUnit).toFixed(payments.currencyMinorUnit)}
-                      step="any" value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)} />
-                  </label>
-                  <label>{t("method")}
-                    <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                      {(["Cash", "Check", "Card", "BankTransfer", "MobilePayment", "Other"] as const).map((m) => (
-                        <option key={m} value={m}>{t(`method${m}`)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>{t("referenceOptional")}
-                    <input value={payRef} maxLength={50}
-                      onChange={(e) => setPayRef(e.target.value)} />
-                  </label>
-                  <label>{t("noteOptional")}
-                    <input value={payNote} maxLength={500}
-                      onChange={(e) => setPayNote(e.target.value)} />
-                  </label>
-                  {/* #474 — this dialog's own write only: see the new-order
-                      dialog above. A void raised from the payments table can
-                      land while this is open, and is not this form's failure. */}
-                  <DialogError errors={errors} scope="record-payment" />
-                  <div className="dialog-foot">
-                    <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
-                    <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
-                      onClick={onRecordPayment}>
-                      {t("recordPayment")}
+              {(() => {
+                const orderLevel = orderDiscount(active.items);
+                // Unpriced lines make an otherwise at-list order only partially measurable.
+                if (orderLevel.kind === "atList" && orderLevel.partial) {
+                  return (
+                    <p className="discount-note" data-testid="order-discount-partial">
+                      {t("discountPartialOnly")}
+                    </p>
+                  );
+                }
+
+                if (orderLevel.kind === "unknown") {
+                  return (
+                    <p className="discount-note" data-testid="order-discount-unknown">
+                      {{
+                        allPreDating: t("discountUnrecordedOrder"),
+                        nonePreDating: t("discountUnknownOrder"),
+                        mixed: t("discountPartlyUnrecordedOrder"),
+                      }[orderListPriceBasis(active.items)]}
+                    </p>
+                  );
+                }
+                if (orderLevel.kind !== "below") return null;
+                const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
+                return (
+                  <p className="discount" data-testid="order-discount">
+                    {orderLevel.percent === null
+                      ? t("discountTotalNoPct", { amount })
+                      : t("discountTotal", { amount, percent: discountPercent(orderLevel.percent) })}
+                    {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
+                  </p>
+                );
+              })()}
+              {/* #721 — the reason the order was allowed below list, beside the
+                  give-away it explains. Absent on an order confirmed before that
+                  shipped: no backfill, so nothing here means "not recorded". */}
+              {active.discountReasonCode && (
+                <p className="discount-note" data-testid="order-discount-reason">
+                  {active.discountReasonNote
+                    ? t("discountReasonSummaryWithNote", {
+                        reason: discountReasonLabel(active.discountReasonCode),
+                        note: active.discountReasonNote,
+                      })
+                    : t("discountReasonSummary", {
+                        reason: discountReasonLabel(active.discountReasonCode),
+                      })}
+                </p>
+              )}
+              <Typography component="p" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.5rem" }}><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></Typography>
+
+              {active.status === "Draft" && (
+                <>
+                  {/* #727: the cached ceiling can be stale. Keep Confirm enabled so the
+                      server can apply its authoritative check. */}
+                  {orderOverCeiling && (
+                    <p className="warn" role="status" data-testid="order-ceiling-warning">
+                      {t("discountCeilingWarning", { percent: ceilingPercent })}
+                    </p>
+                  )}
+                  <div className="actions">
+                    <BusyButton component={Button} variant="contained" disabled={busy || active.items.length === 0}
+                      busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
+                      {t("confirmOrderButton")}
                     </BusyButton>
+                    <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                      onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
+                    <Button variant="outlined" color="inherit" onClick={closeOrderPanel}>{t("close")}</Button>
                   </div>
+                </>
+              )}
+              {active.status === "Confirmed" && canSettle && payments && (
+                <>
+                  <h4>{t("payments")}</h4>
+                  {payments.items.length > 0 && (
+                    <LedgerTableContainer alwaysShowSwipeCue>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>{t("date")}</TableCell>
+                            <TableCell align="right">{t("amount")}</TableCell>
+                            <TableCell>{t("method")}</TableCell>
+                            <TableCell>{t("reference")}</TableCell>
+                            <TableCell></TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {payments.items.map((p) => (
+                            <TableRow key={p.id} sx={p.voided ? { color: "var(--muted)" } : undefined}
+                              title={p.note ?? undefined}>
+                              <TableCell sx={NOWRAP}><FarmDate iso={p.paymentDate} /></TableCell>
+                              <TableCell align="right">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</TableCell>
+                              <TableCell>{t(`method${p.method as PaymentMethod}`)}</TableCell>
+                              <TableCell sx={NOWRAP}>{p.referenceNumber ?? "—"}</TableCell>
+                              <TableCell sx={NOWRAP}>
+                                {p.voided
+                                  ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
+                                  : isAdmin ? (
+                                    <BusyButton component={Button} size="small" sx={{ color: "#ffb4a2" }} disabled={busy} busy={isPending(`void-payment:${p.id}`)}
+                                      onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
+                                  ) : null}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </LedgerTableContainer>
+                  )}
+                  <p>
+                    <Trans
+                      ns="sales"
+                      i18nKey="paymentsSummary"
+                      values={{
+                        paid: fmt.money(payments.paidMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
+                        outstanding: fmt.money(payments.outstandingMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
+                      }}
+                      components={{ strong: <strong /> }}
+                    />
+                  </p>
+                  {payments.outstandingMinorUnits > 0 && (
+                    <div className="panel-actions">
+                      <Button variant="contained" type="button" onClick={() => {
+                        setPayDate(today);
+                        // Reset the abandoned payment so a fresh key cannot resubmit it.
+                        setPayAmount("");
+                        setPayRef("");
+                        setPayNote("");
+
+                        setPayMethod(DEFAULT_PAY_METHOD);
+                        openDialog("record-payment"); // a new session — see #477
+                        setPaying(true);
+                      }}>
+                        {t("recordPayment")}
+                      </Button>
+                    </div>
+                  )}
+
+                  <Dialog open={paying} title={t("recordPayment")} onClose={closePayment}>
+                    <Stack spacing={2}>
+                      <TextField
+                        type="date"
+                        label={t("date")}
+                        value={payDate}
+                        slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
+                        onChange={(e) => setPayDate(e.target.value)}
+                      />
+                      <TextField
+                        type="number"
+                        label={t("amountWithCurrency", { code: payments.currencyCode })}
+                        value={payAmount}
+                        slotProps={{ htmlInput: {
+                          min: (1 / 10 ** payments.currencyMinorUnit).toFixed(payments.currencyMinorUnit),
+                          step: "any",
+                        } }}
+                        onChange={(e) => setPayAmount(e.target.value)}
+                      />
+                      <TextField
+                        select
+                        label={t("method")}
+                        value={payMethod}
+                        slotProps={{ select: { native: true } }}
+                        onChange={(e) => setPayMethod(e.target.value)}
+                      >
+                        {(["Cash", "Check", "Card", "BankTransfer", "MobilePayment", "Other"] as const).map((m) => (
+                          <option key={m} value={m}>{t(`method${m}`)}</option>
+                        ))}
+                      </TextField>
+                      <TextField
+                        label={t("referenceOptional")}
+                        value={payRef}
+                        slotProps={{ htmlInput: { maxLength: 50 } }}
+                        onChange={(e) => setPayRef(e.target.value)}
+                      />
+                      <TextField
+                        label={t("noteOptional")}
+                        value={payNote}
+                        slotProps={{ htmlInput: { maxLength: 500 } }}
+                        onChange={(e) => setPayNote(e.target.value)}
+                      />
+                      {/* #474 — this dialog's own write only: see the new-order
+                          dialog above. A void raised from the payments table can
+                          land while this is open, and is not this form's failure. */}
+                      <DialogError errors={errors} scope="record-payment" />
+                      <DialogActions>
+                        <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
+                        <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
+                          onClick={onRecordPayment}>
+                          {t("recordPayment")}
+                        </BusyButton>
+                      </DialogActions>
+                    </Stack>
+                  </Dialog>
+                </>
+              )}
+              {active.status === "Voided" && active.voidReason && (
+                <p className="muted">{t("voidReasonLabel", { reason: active.voidReason })}</p>
+              )}
+              {active.status !== "Draft" && (
+                <div className="actions">
+                  {active.status === "Confirmed" && isAdmin && (
+                    <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`void:${active.id}`)}
+                      onClick={() => void onVoid()}>
+                      {t("voidOrderButton")}
+                    </BusyButton>
+                  )}
+                  {active.status === "Confirmed" && !isAdmin && (
+                    <span className="muted">{t("voidingNeedsAdmin")}</span>
+                  )}
+                  <Button variant="outlined" color="inherit" onClick={closeOrderPanel}>{t("close")}</Button>
                 </div>
-              </Dialog>
-            </>
-          )}
-          {active.status === "Voided" && active.voidReason && (
-            <p className="muted">{t("voidReasonLabel", { reason: active.voidReason })}</p>
-          )}
-          {active.status !== "Draft" && (
-            <div className="actions">
-              {active.status === "Confirmed" && isAdmin && (
-                <BusyButton className="link" disabled={busy} busy={isPending(`void:${active.id}`)}
-                  onClick={() => void onVoid()}>
-                  {t("voidOrderButton")}
-                </BusyButton>
               )}
-              {active.status === "Confirmed" && !isAdmin && (
-                <span className="muted">{t("voidingNeedsAdmin")}</span>
-              )}
-              <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
-            </div>
-          )}
-        </div>
+            </Box>
+          </Box>
+        </Box>
       )}
 
       {/* The page's own copy, for everything not behind a dialog — and for a
@@ -1633,17 +1694,30 @@ export function SalesPage() {
       {message && <p className="success">{message}</p>}
 
       <h3>{t("ordersHeading")}</h3>
-      <div className="form-grid">
-        <label>{t("status")}
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">{t("allOption")}</option>
-            <option value="Draft">{statusLabel("Draft")}</option>
-            <option value="Confirmed">{statusLabel("Confirmed")}</option>
-            <option value="Cancelled">{statusLabel("Cancelled")}</option>
-            <option value="Voided">{statusLabel("Voided")}</option>
-          </select>
-        </label>
-        <div className="filter-customer">
+      {/* #831 — Sales carries no date range, so pair 7's FilterBar started as
+          a bare Stack here (no bounded-width field to own). Coordinator
+          review of the rendered frames caught the inconsistency it left: an
+          unbordered row beside every other screen's outlined filter surface.
+          FilterBar owns the visual surface regardless of whether any child
+          is a date field, so this row moves onto it too. */}
+      <FilterBar>
+        <TextField
+          select
+          label={t("status")}
+          value={statusFilter}
+          size="small"
+          // The placeholder option shows text while `value` is "", so MUI
+          // would leave the label resting on top of it (#897/#833).
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="">{t("allOption")}</option>
+          <option value="Draft">{statusLabel("Draft")}</option>
+          <option value="Confirmed">{statusLabel("Confirmed")}</option>
+          <option value="Cancelled">{statusLabel("Cancelled")}</option>
+          <option value="Voided">{statusLabel("Voided")}</option>
+        </TextField>
+        <Box sx={PICKER_SX}>
           {/* #512 US5 (T057) — `customerId` in the URL is the sole source of
               truth (FR-046); select/clear clone the CURRENT URLSearchParams
               and touch only `customerId` (FR-047), preserving every unrelated
@@ -1703,22 +1777,25 @@ export function SalesPage() {
               {i18n.t("namedEntityPicker:clear")}
             </button>
           )}
-        </div>
+        </Box>
         {/* #769 — the money tier only. Same clone-and-set discipline as the
             customer filter above: touch `unpaid` and nothing else. */}
         {canSettle && (
-          <label className="muted check">
-            <input type="checkbox" checked={unpaidFilter}
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                if (e.target.checked) next.set("unpaid", "1");
-                else next.delete("unpaid");
-                setSearchParams(next);
-              }} />
-            {t("unpaidOnlyFilter")}
-          </label>
+          <FormControlLabel
+            label={t("unpaidOnlyFilter")}
+            slotProps={{ typography: { color: "text.secondary" } }}
+            control={
+              <Checkbox checked={unpaidFilter}
+                onChange={(e) => {
+                  const next = new URLSearchParams(searchParams);
+                  if (e.target.checked) next.set("unpaid", "1");
+                  else next.delete("unpaid");
+                  setSearchParams(next);
+                }} />
+            }
+          />
         )}
-      </div>
+      </FilterBar>
       {/* The list's own failure, beside the workspace rather than instead of
           it — and self-healing on the next successful load (#469). */}
       {orders.error && <p className="error" role="alert">{orders.error}</p>}
@@ -1756,93 +1833,87 @@ export function SalesPage() {
               } : undefined} />
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("discount")}</th><th className="num">{t("total")}</th>{canSettle && <th className="num">{t("outstanding")}<GlossaryLink term="Outstanding" /></th>}<th>{tc("recordHistoryHeader")}</th><th></th></tr>
-            </thead>
-            <tbody>
-              {orders.rows.map((o) => (
-                <tr key={o.id}>
-                  <td className="nowrap">{o.referenceNumber}</td>
-                  <td className="nowrap"><FarmDate iso={o.orderDate} /></td>
-                  <td>{rowCustomerName(o)}</td>
-                  <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
-                  {/* #724 — one column on the only per-order list in the app.
-                      class="num" per #650: styles.num.test.ts pins td.num to
-                      right-aligned tabular figures that never wrap. */}
-                  <td className="num">{(() => {
-                    const d = orderDiscount(o.items);
-                    if (d.kind === "unknown") return <span className="muted discount-note">{listPriceBasisLabel(
-                      orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")}</span>;
-                    // Round 1 — the em dash means "sold at list". An order only
-                    // part of which is measurable must not borrow that glyph.
-                    if (d.kind !== "below") {
-                      return d.partial
-                        ? <span className="muted discount-note">{t("discountPartialNote")}</span>
-                        : "—";
-                    }
-                    const amount = fmt.money(d.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
-                    return (
-                      <>
-                        <span className="badge badge-warn">
-                          {d.percent === null
-                            ? t("discountBadgeNoPct", { amount })
-                            : t("discountBadge", { amount, percent: discountPercent(d.percent) })}
-                        </span>
-                        {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
-                      </>
-                    );
-                  })()}
-                  {/* Outside the branch above, deliberately: the reason is a
-                      stored fact about the order, not a property of what the
-                      measurement currently says about its lines. */}
-                  {o.discountReasonCode && (
-                    <><br /><span className="muted discount-note" data-testid="row-discount-reason">
-                      {discountReasonLabel(o.discountReasonCode)}
-                    </span></>
-                  )}</td>
-                  <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
-                  {/* #769 — what the order still owes. class="num" per #650,
-                      like the Total beside it. Three textual states, never
-                      colour alone; only "settled" is tinted, because
-                      `badge-warn` is already the discount chip one column over
-                      (styles.css carries a `tr.discounted .badge-warn` override
-                      for it) and two warn pills would sit side by side on
-                      exactly the rows most likely to have both. */}
-                  {canSettle && (
-                    <td className="num">{(() => {
-                      const owed = o.outstandingMinorUnits;
-                      // The column renders only inside the money tier, so null
-                      // here means one thing: the order is not Confirmed. Same
-                      // "no figure" glyph the discount column uses.
-                      if (owed === null) return "—";
-                      // Nothing owed. No amount beside it: a "0.00" here reads
-                      // as a debt at a glance.
-                      if (owed === 0) return <span className="badge badge-ok">{t("settledBadge")}</span>;
-                      const amount = fmt.money(owed, o.currencyCode, o.currencyMinorUnit);
-                      return owed < o.totalMinorUnits
-                        ? <>{amount}<br /><span className="muted discount-note" data-testid="row-partly-paid">{t("partlyPaidNote")}</span></>
-                        : amount;
-                    })()}</td>
-                  )}
-                  <ProvenanceCell history={o} official="confirmed" />
-                  <td>
-                    <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>
-                    {/* #493 — full audit trail for this record, distinct from
-                        the created/last-changed summary in ProvenanceCell.
-                        Admin-gated: /api/v1/audit is AdminOnly, so the Sales
-                        role (which can settle orders here) would otherwise
-                        hit a 403 (codex review of #516). */}
-                    {isAdmin && (
-                      <Link className="link" to={`/audit?entityId=${o.id}`}>
-                        {tc("recordHistory.viewHistoryLink")}
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <LedgerTableContainer>
+            <Table size="small" sx={{ "& .MuiTableCell-root": { whiteSpace: "nowrap", px: .75, py: .75 } }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={NOWRAP}>{t("reference")}</TableCell>
+                  <TableCell sx={NOWRAP}>{t("date")}</TableCell>
+                  <TableCell sx={NOWRAP}>{t("customer")}</TableCell>
+                  <TableCell sx={NOWRAP}>{t("status")}<GlossaryLink term="ConfirmOrder" /></TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{t("discount")}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{t("total")}</TableCell>
+                  {canSettle && <TableCell align="right" sx={NOWRAP}>{t("outstanding")}<GlossaryLink term="Outstanding" /></TableCell>}
+                  <TableCell sx={NOWRAP}>{tc("recordHistoryHeader")}</TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {orders.rows.map((o) => {
+                  const discount = orderDiscount(o.items);
+                  const discountDescription = discount.kind === "unknown"
+                    ? listPriceBasisLabel(orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")
+                    : discount.partial ? t("discountPartialNote") : "";
+                  const reason = o.discountReasonCode ? discountReasonLabel(o.discountReasonCode) : "";
+                  const atList = discount.kind === "atList" && !discount.partial && o.items.length > 0
+                    && o.items.every((item) => item.unitPriceMinorUnits === item.listUnitPriceMinorUnits);
+                  const partlyPaid = o.outstandingMinorUnits !== null && o.outstandingMinorUnits > 0
+                    && o.outstandingMinorUnits < o.totalMinorUnits;
+                  const rowId = `${fieldId}-${o.id}`;
+                  return (
+                    <TableRow key={o.id}>
+                      <TableCell sx={NOWRAP}>{o.referenceNumber}</TableCell>
+                      <TableCell sx={NOWRAP}><FarmDate iso={o.orderDate} /></TableCell>
+                      <TableCell sx={NOWRAP}>{rowCustomerName(o)}</TableCell>
+                      <TableCell sx={NOWRAP}><StatusBadge status={o.status} label={statusLabel(o.status)} /></TableCell>
+                      <TableCell align="right" sx={NOWRAP}
+                        title={[discountDescription, reason].filter(Boolean).join(". ") || undefined}
+                        aria-describedby={[
+                          discountDescription && `${rowId}-discount`, reason && `${rowId}-reason`,
+                        ].filter(Boolean).join(" ") || undefined}>
+                        {discount.kind === "below" ? (
+                          <Box component="span" className="badge badge-warn" sx={NOWRAP}>
+                            {discount.percent === null
+                              ? t("discountBadgeNoPct", { amount: fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit) })
+                              : t("discountBadge", {
+                                  amount: fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit),
+                                  percent: discountPercent(discount.percent),
+                                })}
+                          </Box>
+                        ) : <span>{atList ? t("atListShort") : "—"}</span>}
+                        {discountDescription && <span id={`${rowId}-discount`} className="sr-only" aria-hidden="true">{discountDescription}</span>}
+                        {reason && <span id={`${rowId}-reason`} className="sr-only" aria-hidden="true" data-testid="row-discount-reason">{reason}</span>}
+                      </TableCell>
+                      <TableCell align="right" sx={NOWRAP}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>
+                      {canSettle && (
+                        <TableCell align="right" sx={NOWRAP}
+                          title={partlyPaid ? t("partlyPaidNote") : undefined}
+                          aria-describedby={partlyPaid ? `${rowId}-payment` : undefined}>
+                          {o.outstandingMinorUnits === null ? "—"
+                            : o.outstandingMinorUnits === 0
+                              ? <span className="badge badge-ok">{t("settledBadge")}</span>
+                              : fmt.money(o.outstandingMinorUnits, o.currencyCode, o.currencyMinorUnit)}
+                          {partlyPaid && <span id={`${rowId}-payment`} className="sr-only" aria-hidden="true">{t("partlyPaidNote")}</span>}
+                        </TableCell>
+                      )}
+                      <ProvenanceCell history={o} official="confirmed" />
+                      <TableCell sx={NOWRAP}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "nowrap" }}>
+                          {isAdmin && (
+                            <Link className="link" to={`/audit?entityId=${o.id}`}>
+                              {tc("recordHistory.viewHistoryLink")}
+                            </Link>
+                          )}
+                          <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, px: .5 }}
+                            disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</Button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </LedgerTableContainer>
           {orders.canLoadMore && (
             // A guarded READ — the hook withdraws this control for the
             // duration of any load, so it cannot mix two windows (#469).
@@ -1853,6 +1924,6 @@ export function SalesPage() {
       )}
 
       {confirmDialog}
-    </section>
+    </FieldConsole>
   );
 }

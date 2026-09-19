@@ -1010,19 +1010,11 @@ export const MUTANTS: Record<string, Mutant> = {
       + "`flex-direction: row` (F134, and the confirmed #864 mockup) and outranks this rule",
     caughtBy: "phone.spec.ts — no action control is taller than it is wide",
     apply: (page) =>
-      // CSS, not a longer label, and that is the re-targeting. A full-width
-      // button cannot become taller than it is wide however long its label, so
-      // the label mutant this replaced would now survive and the harness would
-      // correctly report the spec as uncovered. The cause worth imitating is a
-      // revert of the rule #823 added.
-      //
-      // Scoped inside the same media query the rule lives in, so it is inert at
-      // 1280 — which `MUST_STAY_GREEN_ON` checks rather than trusts. No desktop
-      // spec measures this ratio at all, so what a green desktop run proves is
-      // narrower than it sounds: no EXISTING desktop scenario noticed.
+      // #831: the settlement rail's sx rule outranks plain .actions.
+      // Keep the stronger override inside the phone breakpoint.
       insertCssRule(
         page,
-        "@media (max-width: 900px) { .actions, .dialog .dialog-foot { flex-direction: row } }",
+        "@media (max-width: 900px) { .actions, .dialog .dialog-foot { flex-direction: row } aside[aria-label] .actions { flex-direction: row !important } }",
       ),
   },
 
