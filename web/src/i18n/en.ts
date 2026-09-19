@@ -4,6 +4,7 @@
 // is a build error.
 export const en = {
   common: {
+    swipeColumns: "Swipe columns ↔",
     whatDoesTermMean: "What does “{{term}}” mean?",
     // #494 — the record-history cell shown on the list screens. "Last changed"
     // appears only when something happened after creation.

@@ -5,6 +5,7 @@
 // on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
+    swipeColumns: "Desliza las columnas ↔",
     whatDoesTermMean: "¿Qué significa “{{term}}”?",
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
