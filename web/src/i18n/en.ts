@@ -677,7 +677,7 @@ export const en = {
     // count-DOWN wording.
     gradedCountCaption: "Counted {{graded}}",
     collectionHeading: "1 · Count the collection",
-    collectionCaption: "Eggs and losses",
+    collectionCaption: "Collection and set-aside counts",
     gradingWorkbenchHeading: "2 · Grade the sellable eggs",
     gradingTargetCaption: "Target {{target}}",
 
@@ -717,7 +717,7 @@ export const en = {
     sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
     collectionTotalsLabel: "Collection totals",
     gradingTotalsLabel: "Grading totals",
-    nonSellableLabel: "Non-sellable eggs",
+    setAsideLabel: "Set aside",
     sellableTargetLabel: "Sellable target",
     gradedLabel: "Graded",
     stillToGradeLabel: "Still to grade",

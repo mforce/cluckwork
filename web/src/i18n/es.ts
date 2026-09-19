@@ -513,7 +513,7 @@ export const es = {
     gradingHeading: "Clasificación",
     gradedCountCaption: "Contados {{graded}}",
     collectionHeading: "1 · Cuente la recolección",
-    collectionCaption: "Huevos y pérdidas",
+    collectionCaption: "Recolección y conteos apartados",
     gradingWorkbenchHeading: "2 · Clasifique los huevos vendibles",
     gradingTargetCaption: "Objetivo {{target}}",
 
@@ -539,7 +539,7 @@ export const es = {
     sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
     collectionTotalsLabel: "Totales de recolección",
     gradingTotalsLabel: "Totales de clasificación",
-    nonSellableLabel: "Huevos no vendibles",
+    setAsideLabel: "Apartados",
     sellableTargetLabel: "Objetivo vendible",
     gradedLabel: "Clasificados",
     stillToGradeLabel: "Faltan por clasificar",

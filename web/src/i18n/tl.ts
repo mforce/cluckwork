@@ -534,7 +534,7 @@ export const tl = {
     gradingHeading: "Pag-grade",
     gradedCountCaption: "Binilang {{graded}}",
     collectionHeading: "1 · Bilangin ang nakolekta",
-    collectionCaption: "Mga itlog at nawala",
+    collectionCaption: "Nakolekta at ibinukod na bilang",
     gradingWorkbenchHeading: "2 · I-grade ang mga itlog na nabebenta",
     gradingTargetCaption: "Target {{target}}",
 
@@ -561,7 +561,7 @@ export const tl = {
     sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
     collectionTotalsLabel: "Kabuuan ng nakolekta",
     gradingTotalsLabel: "Kabuuan ng pag-grade",
-    nonSellableLabel: "Mga itlog na hindi nabebenta",
+    setAsideLabel: "Ibinukod",
     sellableTargetLabel: "Target na nabebenta",
     gradedLabel: "Na-grade",
     stillToGradeLabel: "Iga-grade pa",

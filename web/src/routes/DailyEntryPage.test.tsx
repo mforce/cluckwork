@@ -275,6 +275,7 @@ describe("DailyEntryPage accuracy gating", () => {
     const msg = within(countsSection()).getByRole("alert");
     expect(msg).toHaveTextContent("Cracked + dirty + discarded (11) exceed total eggs (10)");
     expect(msg.textContent).not.toMatch(/-\d/);
+    expect(within(countsSection()).queryByRole("status")).toBeNull();
     expect(remainingChip()).toHaveTextContent("Fix the counts first");
     expect(submitBtn()).toBeDisabled();
     expect(saveDraftBtn()).toBeDisabled();
@@ -594,8 +595,11 @@ describe("DailyEntryPage structure", () => {
   it("names the two workbench steps in the order the collection is counted", async () => {
     await renderReady();
 
-    expect(screen.getByRole("heading", { name: "1 · Count the collection" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "2 · Grade the sellable eggs" })).toBeInTheDocument();
+    const collection = screen.getByRole("heading", { name: "1 · Count the collection" });
+    const grading = screen.getByRole("heading", { name: "2 · Grade the sellable eggs" });
+    const workbenchHeadings = screen.getAllByRole("heading")
+      .filter((heading) => heading === collection || heading === grading);
+    expect(workbenchHeadings).toEqual([collection, grading]);
     expect(screen.queryByRole("heading", { name: /Flock/ })).toBeNull();
   });
 
@@ -609,13 +613,35 @@ describe("DailyEntryPage structure", () => {
     setNum("Grade B", 25);
 
     const collection = screen.getByRole("group", { name: "Collection totals" });
-    expect(collection).toHaveTextContent("Non-sellable eggs10");
+    expect(collection).toHaveTextContent("Set aside10");
     expect(collection).toHaveTextContent("Sellable target90");
+    expect(within(collection).getByRole("status")).toHaveTextContent("Sellable target90");
 
     const grading = screen.getByRole("group", { name: "Grading totals" });
     expect(grading).toHaveTextContent("Graded85");
     expect(grading).toHaveTextContent("Still to grade5");
     expect(grading).toHaveTextContent("85 of 90");
+  });
+
+  it("describes captioned count fields to assistive technology", async () => {
+    const deactivatedGrade = { ...GRADES[0], active: false };
+    const draft: DailyEntry = {
+      ...NO_RECORD_HISTORY,
+      id: "de-caption", farmId: "farm1", houseId: "h1", flockId: "f1",
+      date: todayIso(), status: "Draft", totalEggs: 1, crackedEggs: 0,
+      dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0,
+      crackedGradeId: null, dirtyGradeId: null,
+      grades: [{ eggGradeId: deactivatedGrade.id, quantity: 1 }],
+      version: 1, adjustReason: null, voidReason: null,
+      lockedAtUtc: null, adjustedFrom: null,
+    };
+    mockListEggGrades.mockResolvedValue([deactivatedGrade, GRADES[1]]);
+    mockListDailyEntries.mockResolvedValue([draft]);
+
+    await renderReady();
+
+    expect(screen.getByLabelText("Mortality")).toHaveAccessibleDescription("Flock event · birds");
+    expect(screen.getByLabelText("Grade A")).toHaveAccessibleDescription("(deactivated)");
   });
 
   it("puts each readout with the fields it describes, and the saves in the footer", async () => {

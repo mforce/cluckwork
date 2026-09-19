@@ -63,6 +63,8 @@ const STEPPER_SX = {
   },
 } as const;
 
+const captionIdFor = (fieldId: string) => `${fieldId}-caption`;
+
 // #830 (owner's screenshot review of #888) — one ruled GRID row: label (+
 // optional caption, e.g. "deactivated") in a flexible truncating column,
 // stepper in a fixed-content column, per the mockup's `.row`. The row used to
@@ -130,7 +132,7 @@ function EntryRow({
           </Typography>
         </Box>
         {caption && (
-          <Typography component="span" variant="caption" className="muted" sx={{
+          <Typography id={captionIdFor(htmlFor)} component="span" variant="caption" className="muted" sx={{
             display: "block", overflow: "hidden", textOverflow: "ellipsis",
             whiteSpace: variant === "standard" ? "nowrap" : "normal",
             lineHeight: 1.25,
@@ -181,11 +183,11 @@ function WorkbenchPanel({ title, caption, children, summary }: {
 
 function SummaryStat({ label, value, live = false }: { label: string; value: string; live?: boolean }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <Box role={live ? "status" : undefined} sx={{ minWidth: 0 }}>
       <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>
         {label}
       </Typography>
-      <Typography component="strong" role={live ? "status" : undefined} sx={{
+      <Typography component="strong" sx={{
         display: "block", fontSize: "1.375rem", lineHeight: 1.3,
         fontWeight: 700, fontVariantNumeric: "tabular-nums",
       }}>
@@ -1037,11 +1039,11 @@ export function DailyEntryPage() {
               display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2,
               px: 2, py: 1.5, backgroundColor: "var(--surface-2)",
             }}>
-              <SummaryStat label={t("nonSellableLabel")} value={fmt.count(losses)} />
+              <SummaryStat label={t("setAsideLabel")} value={fmt.count(losses)} />
               <SummaryStat
                 label={t("sellableTargetLabel")}
                 value={lossesExceedTotal ? "—" : fmt.count(sellable)}
-                live
+                live={!lossesExceedTotal}
               />
               {lossesExceedTotal && (
                 <Typography role="alert" sx={{ gridColumn: "1 / -1", color: "var(--error)" }}>
@@ -1058,7 +1060,8 @@ export function DailyEntryPage() {
             caption={t("totalEggsCaption")}
           >
             <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
-              value={totalEggs} onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
+              describedBy={captionIdFor(idFor("total"))} value={totalEggs}
+              onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
           </EntryRow>
           <EntryRow htmlFor={idFor("cracked")} label={t("crackedLabel")}>
             <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
@@ -1079,7 +1082,8 @@ export function DailyEntryPage() {
             caption={t("mortalityEventCaption")}
           >
             <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
-              value={mortality} onChange={setMortality} disabled={entryLocked} />
+              describedBy={captionIdFor(idFor("mortality"))} value={mortality}
+              onChange={setMortality} disabled={entryLocked} />
           </EntryRow>
         </WorkbenchPanel>
 
@@ -1135,6 +1139,7 @@ export function DailyEntryPage() {
               dropProps={remainderDropProps(armed, () => assignRest(g.id))}
             >
               <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
+                describedBy={g.active ? undefined : captionIdFor(idFor(g.id))}
                 value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
                 step={stepSize} disabled={entryLocked} />
               {armed && (
