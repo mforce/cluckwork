@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
+  Typography,
 } from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
@@ -407,8 +409,27 @@ export function AuditPage() {
     ? events.rows?.[0]?.entityType
     : undefined;
 
+  // #833 redesign — Concept C "Focus panels": each row is a collapsed summary
+  // (When/Who/Action) by default, expanding IN PLACE to reveal Entity and
+  // Details. A Set of expanded ids, not a single "which row" value: nothing
+  // stops a reader opening more than one row at once, and #93's read-only
+  // guarantee only needs disclosure state, not mutation, to survive a filter
+  // reload — reloads replace `events.rows` by id, and this state is keyed the
+  // same way, so an expanded row that's still on the new page stays expanded.
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
   return (
     <section>
+      <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
+        {t("eyebrow")}
+      </Typography>
       <Typography variant="h2">
         {entityId
           ? (scopedEntityType
@@ -508,28 +529,60 @@ export function AuditPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
+                  {/* Header-less disclosure column: each row's own toggle
+                      carries its own accessible name (#833), so the column
+                      needs no visible or accessible header of its own. */}
+                  <TableCell padding="checkbox" />
                   <TableCell>{t("whenHeader")}</TableCell>
                   <TableCell>{t("whoHeader")}</TableCell>
                   <TableCell>{t("actionHeader")}</TableCell>
-                  {/* #493, Slice 2 — every row in a scoped view shares the same
-                      entity; repeating it up to 100 times is noise, not a
-                      neutral no-op, so it's hidden rather than left in. */}
-                  {!entityId && <TableCell>{t("entityHeader")}</TableCell>}
-                  <TableCell>{t("detailsHeader")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {events.rows.map((e) => (
-                  <TableRow key={e.id} title={e.detailsJson ?? undefined}>
-                    <TableCell sx={NOWRAP}>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</TableCell>
-                    <TableCell sx={NOWRAP}>{e.actorEmail}</TableCell>
-                    <TableCell sx={NOWRAP}>{auditActionLabel(e.action)}</TableCell>
-                    {!entityId && (
-                      <TableCell sx={NOWRAP}>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</TableCell>
-                    )}
-                    <TableCell><AuditDetails event={e} /></TableCell>
-                  </TableRow>
-                ))}
+                {events.rows.map((e) => {
+                  const expanded = expandedIds.has(e.id);
+                  return (
+                    <TableRow key={e.id} title={e.detailsJson ?? undefined}>
+                      <TableCell padding="checkbox">
+                        <IconButton size="small" aria-expanded={expanded}
+                          aria-label={t("detailsHeader")}
+                          onClick={() => toggleExpanded(e.id)}>
+                          {expanded ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell sx={NOWRAP}>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</TableCell>
+                      <TableCell sx={NOWRAP}>{e.actorEmail}</TableCell>
+                      <TableCell sx={NOWRAP}>{auditActionLabel(e.action)}</TableCell>
+                      {expanded && (
+                        <>
+                          {/* #493, Slice 2 — every row in a scoped view shares
+                              the same entity; repeating it up to 100 times is
+                              noise, not a neutral no-op, so it's hidden rather
+                              than left in. */}
+                          {!entityId && (
+                            <TableCell sx={NOWRAP}>
+                              <Typography variant="caption" color="text.secondary" component="div">
+                                {t("entityHeader")}
+                              </Typography>
+                              <Typography component="span" variant="body2">
+                                {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
+                              </Typography>
+                            </TableCell>
+                          )}
+                          {/* No inline "Details" label here (unlike Entity
+                              above): several tests pin this cell's exact
+                              textContent (#758's price-summary cases), and a
+                              prefix label would corrupt every one of those
+                              exact-string comparisons. The row's own "Details"
+                              toggle button already names what this reveals. */}
+                          <TableCell>
+                            <AuditDetails event={e} />
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>

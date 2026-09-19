@@ -34,6 +34,15 @@ function renderAudit(route = "/audit") {
   );
 }
 
+// #833 redesign — Concept C "Focus panels": each row collapses Entity and
+// Details behind its own toggle by default. Every existing assertion that
+// reads Entity or Details from a row now has to open it first; When/Who/
+// Action stay visible without this, so a test reading only those three never
+// needs it.
+function expandRow(row: HTMLElement) {
+  fireEvent.click(within(row).getByRole("button", { name: "Details" }));
+}
+
 function LocationProbe() {
   const loc = useLocation();
   const navigate = useNavigate();
@@ -186,6 +195,7 @@ describe("AuditPage load + render", () => {
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
     // Action cell: friendly label, not the raw "Account.SetLogo".
     expect(within(row).getByText("Farm logo set")).toBeInTheDocument();
+    expandRow(row);
     // Entity cell: entityTypeLabel("FarmLogo") + first 8 chars of the id.
     expect(within(row).getByText("Farm logo fl123456")).toBeInTheDocument();
     expect(within(row).queryByText("FarmLogo fl123456")).not.toBeInTheDocument();
@@ -201,6 +211,7 @@ describe("AuditPage load + render", () => {
     // Action cell renders auditActionLabel(e.action), not the raw code.
     expect(within(rowA).getByText("Flock depleted")).toBeInTheDocument();
     expect(within(rowA).queryByText("Flock.Deplete")).not.toBeInTheDocument();
+    expandRow(rowA);
     // entityTypeLabel(entityType) + first 8 chars of entityId. "Flock" is an
     // identity label (enums:entityType.Flock === "Flock"), so this also
     // covers the entity cell reading through entityTypeLabel.
@@ -208,6 +219,7 @@ describe("AuditPage load + render", () => {
     expect(within(rowA).getByText("culled sick birds")).toBeInTheDocument();
 
     const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
+    expandRow(rowB);
     expect(within(rowB).getByText("User u9abcdef")).toBeInTheDocument();
     expect(within(rowB).getByText("—")).toBeInTheDocument(); // null reason → em dash
   });
@@ -218,7 +230,15 @@ describe("AuditPage load + render", () => {
     await screen.findByRole("row", { name: /admin@farm\.test/ });
     // #93: the audit trail is deliberately read-only — no adjust/void/delete
     // controls — and 'load more' only appears when a full page came back.
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    // #833 — the only buttons a read-only row may carry are its own
+    // disclosure toggles (never a write), so every button here must be one:
+    // collapsed (aria-expanded="false") and named "Details".
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(2); // one toggle per row
+    for (const button of buttons) {
+      expect(button).toHaveAccessibleName("Details");
+      expect(button).toHaveAttribute("aria-expanded", "false");
+    }
   });
 
   // #758 — the four AddItem price cases. Each asserts the cell's LITERAL text,
@@ -245,9 +265,12 @@ describe("AuditPage load + render", () => {
 
   // The cell is a fragment of text nodes, so read the whole cell's textContent
   // rather than matching one node — that is what pins the ORDER of the two
-  // prices, and it is the assertion the bug would have failed.
+  // prices, and it is the assertion the bug would have failed. #833 — Details
+  // is collapsed by default, so the row must be expanded before the last
+  // cell is its own; collapsed, that slot would be the Action cell instead.
   const detailsText = async () => {
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(row);
     const cells = within(row).getAllByRole("cell");
     return cells[cells.length - 1].textContent;
   };
@@ -323,6 +346,7 @@ describe("AuditPage load + render", () => {
     renderAudit();
 
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(row);
     expect(within(row).getByText("Medium Eggs", { exact: false })).toBeInTheDocument();
     // The artboard strikes the OLD price and bolds the NEW one. Asserting the
     // element, not just the text, is what makes that a real check.
@@ -351,6 +375,7 @@ describe("AuditPage load + render", () => {
     renderAudit();
 
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(row);
     // #720: a null list price is "no list price", never a zero discount.
     expect(within(row).getByText(/no list price/i)).toBeInTheDocument();
     expect(within(row).queryByText("$0.00")).not.toBeInTheDocument();
@@ -364,8 +389,10 @@ describe("AuditPage load + render", () => {
     renderAudit();
 
     const rowA = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(rowA);
     expect(within(rowA).getByText("culled sick birds")).toBeInTheDocument();
     const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
+    expandRow(rowB);
     expect(within(rowB).getByText("—")).toBeInTheDocument();
   });
 
@@ -391,6 +418,7 @@ describe("AuditPage load + render", () => {
     renderAudit();
 
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(row);
     expect(within(row).getByText("Discount reason: Damaged stock (Cracked in transit)")).toBeInTheDocument();
   });
 
@@ -408,6 +436,7 @@ describe("AuditPage load + render", () => {
     renderAudit();
 
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(row);
     expect(within(row).getByText("Discount reason: Volume")).toBeInTheDocument();
   });
 
@@ -425,7 +454,68 @@ describe("AuditPage load + render", () => {
     renderAudit();
 
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(row);
     expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Expandable rows (#833 redesign, Concept C "Focus panels")
+// ---------------------------------------------------------------------------
+
+describe("AuditPage — expandable rows (#833 Concept C)", () => {
+  it("starts every row collapsed, with Entity and Details not in the document", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(within(row).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
+    expect(within(row).queryByText("Flock f1234567")).not.toBeInTheDocument();
+    expect(within(row).queryByText("culled sick birds")).not.toBeInTheDocument();
+  });
+
+  it("expands a row on click, and collapses it again on a second click", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    const toggle = within(row).getByRole("button", { name: "Details" });
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(row).getByText("Flock f1234567")).toBeInTheDocument();
+    expect(within(row).getByText("culled sick birds")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(row).queryByText("Flock f1234567")).not.toBeInTheDocument();
+    expect(within(row).queryByText("culled sick birds")).not.toBeInTheDocument();
+  });
+
+  it("expands each row independently — opening one leaves the other collapsed", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
+    renderAudit();
+
+    const rowA = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
+    expandRow(rowA);
+
+    expect(within(rowA).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(rowB).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
+    expect(within(rowB).queryByText("User u9abcdef")).not.toBeInTheDocument();
+  });
+
+  // #93/#833 — read-only stays read-only: the toggle only ever changes what
+  // is SHOWN, never issues a request or calls a mutation.
+  it("does not call listAuditEvents again when a row is expanded", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit();
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    mockListAuditEvents.mockClear();
+
+    expandRow(row);
+
+    expect(mockListAuditEvents).not.toHaveBeenCalled();
   });
 });
 
@@ -843,19 +933,21 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     });
   });
 
-  it("reads every table header from the audit catalog, not a hardcoded literal", async () => {
+  it("reads every table column header from the audit catalog, not a hardcoded literal", async () => {
     // At least one event, so the table (with its <thead>) actually renders —
     // the empty-state branch renders no headers at all.
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     // Headers are checked one at a time (each override restored before the
     // next) so a single shared render can't mask one key silently falling
     // back to English while another is overridden.
+    //
+    // #833 — entityHeader/detailsHeader are no longer TABLE columns (Entity
+    // and Details moved behind each row's own disclosure toggle), so they're
+    // covered by the next test instead of this columnheader loop.
     for (const [key, marker, original] of [
       ["whenHeader", "WHEN-MARKER", "When (UTC)"],
       ["whoHeader", "WHO-MARKER", "Who"],
       ["actionHeader", "ACTION-HEADER-MARKER", "Action"],
-      ["entityHeader", "ENTITY-MARKER", "Entity"],
-      ["detailsHeader", "DETAILS-MARKER", "Details"],
     ] as const) {
       await withOverride("audit", key, marker, async () => {
         // Unmounted at the end of this iteration (afterEach's cleanup() only
@@ -869,6 +961,31 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
         unmount();
       });
     }
+  });
+
+  // #833 — entityHeader names the disclosure toggle's own accessible name AND
+  // labels the Entity value once expanded; detailsHeader names the toggle
+  // too (Details is the one value it always reveals, so it carries the name
+  // alone rather than splitting it with entityHeader).
+  it("reads the disclosure toggle's accessible name from detailsHeader, not a hardcoded literal", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    await withOverride("audit", "detailsHeader", "DETAILS-MARKER", async () => {
+      renderAudit();
+      const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+      expect(within(row).getByRole("button", { name: "DETAILS-MARKER" })).toBeInTheDocument();
+      expect(within(row).queryByRole("button", { name: "Details" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the expanded entity label from entityHeader, not a hardcoded literal", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    await withOverride("audit", "entityHeader", "ENTITY-LABEL-HEADER-MARKER", async () => {
+      renderAudit();
+      const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+      expandRow(row);
+      expect(within(row).getByText("ENTITY-LABEL-HEADER-MARKER")).toBeInTheDocument();
+      expect(within(row).queryByText("Entity")).not.toBeInTheDocument();
+    });
   });
 
   it("reads the empty-state message from the audit catalog, not a hardcoded literal", async () => {
@@ -929,6 +1046,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     await withOverride("enums", "entityType.User", "ENTITY-LABEL-MARKER", async () => {
       renderAudit();
       const row = await screen.findByRole("row", { name: /manager@farm\.test/ });
+      expandRow(row);
       expect(within(row).getByText("ENTITY-LABEL-MARKER u9abcdef")).toBeInTheDocument();
       expect(within(row).queryByText("User u9abcdef")).not.toBeInTheDocument();
     });
@@ -1061,22 +1179,26 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
   });
 
-  it("hides the entity column when scoped; shows it when unscoped", async () => {
+  // #833 — Entity is no longer its own table column (it moved behind each
+  // row's disclosure toggle along with Details), so this now expands the row
+  // before checking presence/absence rather than checking a columnheader.
+  it("hides the entity value when scoped; shows it when unscoped, once expanded", async () => {
     mockListAuditEvents.mockResolvedValue([
       { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
     ]);
     const { unmount } = renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
     const scopedRow = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expect(screen.queryByRole("columnheader", { name: "Entity" })).not.toBeInTheDocument();
-    // The header and the row's own <td> are two separate gates in the JSX
-    // (review round 1 finding) — asserting only the header would miss a
-    // regression that drops the header but leaves the cell rendered.
+    expandRow(scopedRow);
+    // Entity's gate (`!entityId`) and Details' own cell are two separate
+    // conditionals in the JSX (review round 1 finding, #493) — checking the
+    // row's actual rendered content, not just that SOMETHING expanded, is
+    // what would catch a regression that drops one gate but not the other.
     expect(within(scopedRow).queryByText(/Flock f1234567/)).not.toBeInTheDocument();
     unmount();
 
     renderAudit("/audit");
     const unscopedRow = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expect(screen.getByRole("columnheader", { name: "Entity" })).toBeInTheDocument();
+    expandRow(unscopedRow);
     expect(within(unscopedRow).getByText(/Flock f1234567/)).toBeInTheDocument();
   });
 
