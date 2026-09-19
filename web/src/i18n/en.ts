@@ -2143,6 +2143,10 @@ export const en = {
   // interpolated verbatim into previouslyAdjusted), and every numeric count
   // (totalEggs/crackedEggs/etc., adjustedFrom's snapshot counts).
   history: {
+    contextLabel: "Loaded history context",
+    windowLabel: "Window",
+    allDates: "All dates",
+    loadedRecords: "Loaded records",
     reconciliation: "Reconciliation",
     reconciliationLine: "{{total}} collected − {{cracked}} cracked − {{dirty}} dirty − {{discarded}} discarded = {{sellable}} sellable {{comparison}} {{graded}} graded",
     // Titles. `loadingTitle` is the shorter heading the early-return

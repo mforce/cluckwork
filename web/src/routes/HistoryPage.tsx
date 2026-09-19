@@ -18,7 +18,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
-import { FieldConsole, LedgerTableContainer } from "../components/FieldConsole";
+import { FieldConsole, LedgerTableContainer, ConsoleSummary } from "../components/FieldConsole";
 import { EntryRow } from "../components/EntryRow";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
@@ -536,6 +536,8 @@ export function HistoryPage() {
   // The setup read (flocks + grades) failing with nothing to show is the one
   // fatal case: without those, every row renders unresolvable ids. `entries`
   // is the hook's handle, so the emptiness test is on its rows.
+  const loadedEntries = entries.rows;
+
   if (errors.page && entries.rows === null)
     return <section><Typography variant="h2">{t("loadingTitle")}</Typography><p className="error">{errors.page}</p></section>;
 
@@ -546,6 +548,19 @@ export function HistoryPage() {
         <p className="muted">
           {t("intro")}
         </p>
+      )}
+
+      {loadedEntries !== null && !entries.reloading && (
+        <ConsoleSummary label={t("contextLabel")} items={[
+          { label: t("windowLabel"), value: from || to ? `${from ? fmt.date(from) : "…"} – ${to ? fmt.date(to) : "…"}` : t("allDates") },
+          { label: t("loadedRecords"), value: fmt.count(loadedEntries.length) },
+          ...([
+            ["Submitted", "statusSubmitted"], ["Draft", "statusDraft"],
+            ["Locked", "statusLocked"], ["ManagerAdjusted", "statusAdjusted"], ["Voided", "statusVoided"],
+          ] as const).map(([status, label]) => ({
+            label: t(label), value: fmt.count(loadedEntries.filter((entry) => entry.status === status).length),
+          })),
+        ]} />
       )}
 
       <FilterBar>

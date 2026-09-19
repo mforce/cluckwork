@@ -1587,6 +1587,10 @@ export const es = {
   // unexternalized screen's name untranslated until dailyEntry itself is
   // added to TRANSLATED_NAMESPACES.
   history: {
+    contextLabel: "Contexto del historial cargado",
+    windowLabel: "Período",
+    allDates: "Todas las fechas",
+    loadedRecords: "Registros cargados",
     reconciliation: "Conciliación",
     reconciliationLine: "{{total}} recolectados − {{cracked}} rotos − {{dirty}} sucios − {{discarded}} descartados = {{sellable}} vendibles {{comparison}} {{graded}} clasificados",
     loadingTitle: "Historial",

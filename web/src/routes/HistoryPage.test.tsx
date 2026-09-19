@@ -1511,3 +1511,14 @@ describe("HistoryPage adjust wiring under the shared dialog session (#703)", () 
     expect(screen.getByText(i18n.t("history:entryVoidedMessage"))).toBeInTheDocument();
   });
 });
+
+
+it("labels status counts as loaded records in the history window", async () => {
+  mockListDailyEntries.mockResolvedValue([SUBMITTED, DRAFT, LOCKED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const summary = await screen.findByLabelText("Loaded history context");
+  await waitFor(() => expect(summary).toHaveTextContent("Loaded records3"));
+  expect(summary).toHaveTextContent("Submitted1");
+  expect(summary).toHaveTextContent("Draft1");
+  expect(summary).toHaveTextContent("Locked1");
+});

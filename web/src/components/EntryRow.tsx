@@ -8,11 +8,11 @@ export const STEPPER_SX = {
     width: { xs: 48, md: 36 }, height: { xs: 48, md: 36 },
     borderRadius: "var(--r-input)",
   },
-  "& .numfield input": {
+  "&&& .numfield input": {
     fontSize: { xs: "1.75rem", md: "1.5rem" },
     lineHeight: { xs: "2rem", md: "1.75rem" },
     fontWeight: 500, textAlign: "right",
-    width: { xs: "5.5ch", md: "6ch" },
+    width: "calc(5ch + 1.5rem)",
   },
 } as const;
 export function EntryRow({

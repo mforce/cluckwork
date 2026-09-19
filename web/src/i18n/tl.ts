@@ -1648,6 +1648,10 @@ export const tl = {
   // (statusVoided/statusAdjusted/statusLocked/statusSubmitted/statusDraft)
   // reuse the same words already chosen for enums.status.* for consistency.
   history: {
+    contextLabel: "Konteksto ng na-load na kasaysayan",
+    windowLabel: "Saklaw",
+    allDates: "Lahat ng petsa",
+    loadedRecords: "Mga na-load na tala",
     reconciliation: "Pagtutugma",
     reconciliationLine: "{{total}} nakolekta − {{cracked}} basag − {{dirty}} marumi − {{discarded}} itinapon = {{sellable}} naibebenta {{comparison}} {{graded}} nagrado",
     loadingTitle: "Kasaysayan",

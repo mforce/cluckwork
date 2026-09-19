@@ -717,6 +717,23 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
         + "it is clipped by ellipsis truncation",
     ).toBe(clientWidth);
   });
+  test("History adjustment displays a four-digit count without clipping", async ({ page }) => {
+    await page.goto("/history");
+    await page.getByRole("button", { name: tEn("history:adjustButton"), exact: true }).first().click();
+    const input = page.getByRole("dialog").getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true });
+    await input.fill("8542");
+    const fit = await input.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const canvas = document.createElement("canvas").getContext("2d")!;
+      canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      return {
+        available: element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        needed: canvas.measureText("8542").width,
+      };
+    });
+    expect(fit.available, "History count input fits four digits").toBeGreaterThanOrEqual(fit.needed);
+  });
+
 });
 
 test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {
