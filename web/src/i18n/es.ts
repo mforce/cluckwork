@@ -739,6 +739,12 @@ export const es = {
     loadMoreButton: "cargar más",
   },
   water: {
+    directMode: "Cantidad directa",
+    meterMode: "Lecturas del medidor",
+    entryMode: "Modo de registro",
+    readingCheck: "Comprobación de la lectura",
+    result: "Resultado",
+
     title: "Agua",
 
     // Imperative messages
@@ -2406,6 +2412,7 @@ export const es = {
       + "la parvada seleccionada, con enlace aquí. Un registro de alimento o agua hecho cuando ya existe la "
       + "entrada de ese día también recuerda esa entrada — los hechos antes quedan sin enlazar a propósito; "
       + "el día en sí es lo que los une.",
+    waterModes: "Elige Cantidad directa para introducir una cantidad o Lecturas del medidor para introducir las lecturas inicial y final. Comprobación de la lectura muestra el Resultado antes de registrar.",
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "
