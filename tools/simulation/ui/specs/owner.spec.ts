@@ -39,8 +39,6 @@ test.describe("Owner", () => {
     await expect(page.getByRole("group").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noFlocksMessage"))).toBeHidden();
 
-    // Stock: the stacked bar has at least one segment (a grade with available
-    // eggs), and the caption — the text of record — is the availability sentence.
     await expect(page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") }).getByRole("row").nth(1)).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noStockMessage"))).toBeHidden();
 

@@ -544,7 +544,6 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     const spans = Array.from(stock.querySelectorAll(".meter-stack > span")) as HTMLElement[];
     expect(spans.map((s) => [s.style.width, s.className])).toEqual([["79.5%", "grade-1"], ["20.5%", "grade-2"]]);
     // The ledger, not the band, is what names a grade and carries its share.
-    // #829 — a plain `role="list"`, not a `.stock-ledger` class hook.
     const table = within(stock).getByRole("table", { name: "Stock by grade" });
     expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Grade", "Count", "Share"]);
     const rows = within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((cell) => cell.textContent));
@@ -809,7 +808,6 @@ describe("Dashboard status rendering (#864, dot not badge)", () => {
     expect(salesStatus.previousElementSibling).toHaveAttribute("aria-hidden", "true");
   });
 });
-
 
 describe("Operations desk", () => {
   it("puts collection, stock, orders and lay rate in reading order", async () => {

@@ -33,20 +33,8 @@ const RECENT_ORDERS = 5;
 // day comes.
 const MAX_PAGE = 500;
 
-// F5 (#41) → #654 → #829: the landing page answers the 6 am question — which
-// houses have no entry yet, and is lay rate normal? A ruled Today list, the
-// missing ones first and at most 12 (a link carries the rest), the last 14
-// days as a bar strip with the production report's own hen-day % for the
-// last 7 complete days against the 7 before, stock as one stacked bar by
-// grade, and recent sales as a ruled list. #829 converts the shell to MUI
-// (DIRECTION.md, the confirmed mockup at docs/designs/864-visual-language/)
-// without changing any of the data pipeline below.
-//
-// Composed client-side from existing read endpoints (6 parallel GETs). The
-// trend is the production report — computed server-side in one place, so the
-// page never sums report rows: two calls, one per 7-day window, and the
-// server's periodHenDayPct from each. Panels degrade independently: one
-// failed fetch blanks its section, not the page.
+// Six parallel reads; failed panels degrade independently. The server owns
+// the hen-day calculation for each seven-day reporting window.
 export function Dashboard() {
   const { t } = useTranslation("dashboard");
   const fmt = useFormat();
@@ -75,11 +63,7 @@ export function Dashboard() {
   const canSeeSales = role !== "ReadOnly" && role !== "Denied";
   // END PROTECTED
 
-  // The attention line never wraps: DIRECTION.md's fold point is two items at
-  // 1280 and ONE at 390 — the same md (900px) boundary the sidebar/tab-bar
-  // switch uses, not a flat cap at every width (#883 round 2, finding 1: the
-  // desktop count was overcounting on a phone, wrapping or truncating a line
-  // that must stay one line).
+  // Match the navigation breakpoint when folding the missing-house summary.
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
 
@@ -103,7 +87,7 @@ export function Dashboard() {
       // the sales read is an inert placeholder when the role can't see it.
       const issued = canSeeSales ? [f, e, s, o, cur, prev] : [f, e, s, cur, prev];
       if (issued.every((r) => r.status === "rejected")) {
-        const reason = (issued[0] as PromiseRejectedResult).reason;
+        const reason = issued[0].reason;
         setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
       }
       setLoading(false);
@@ -154,13 +138,7 @@ export function Dashboard() {
     delta === null ? "—"
       : delta < 0 ? t("henDayDeltaDown", { delta: fmt.count(Math.abs(delta), 1) })
         : t("henDayDeltaUp", { delta: fmt.count(delta, 1) });
-  // Lay rate falling IS the bad direction here, so the delta carries the
-  // semantic colour. An unknown delta stays neutral rather than reading as good.
-  // The strip's whole change is that a day with nothing recorded is an empty
-  // slot, so the accessible name has to say how many there are — otherwise a
-  // screen-reader user still gets "lowest 0", the conflation the redraw
-  // removed for everyone else. Two complete sentences rather than one built by
-  // concatenation, so each locale can order its own clauses.
+  // A missing day is not zero production; its accessible label must say so.
   const trendLabel = (line: DayStripData) => {
     // Four states, none of which may report a figure it does not have. max and
     // average are null together — both come from the COMPLETE days — so a
@@ -192,11 +170,6 @@ export function Dashboard() {
       case "unrecorded":
         return t("trendDayTipNone", { date });
       case "partial":
-        // Plural on the EGG count, which is what the noun beside it is. It
-        // selected on the flock count, so a partly recorded day with one egg
-        // rendered "1 eggs". The flock noun stays plural unconditionally and is
-        // safe there: `partial` requires 1 <= recorded < expected, so `expected`
-        // is never below 2.
         return t("trendDayTipPartial", {
           date, count: slot.eggs, total: fmt.count(slot.eggs),
           recorded: fmt.count(slot.filedFlocks), expected: fmt.count(slot.expectedFlocks),
@@ -212,12 +185,7 @@ export function Dashboard() {
   const deltaClass = (delta: number | null) =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 
-  // Owner amendment on #864 (2026-09-16): a caption under "Today so far" that
-  // gives the running total a reference — "Yesterday by close: N" — sourced
-  // from the SAME data the 14-day strip already reads (its last slot, since
-  // the strip runs oldest-first and ends on yesterday), never a second fetch.
-  // Only when yesterday was a COMPLETE day: a partial or unrecorded yesterday
-  // has no figure honest enough to caption "by close".
+  // Only a complete yesterday can be described as its closing total.
   const yesterdaySlot = trendData?.line.slots.at(-1) ?? null;
   const yesterdayByClose = yesterdaySlot?.kind === "recorded" ? yesterdaySlot.eggs : null;
 
@@ -286,7 +254,7 @@ export function Dashboard() {
             <EmptyState icon={Bird} message={t("noFlocksMessage")} />
           ) : (
             <>
-              <LinearProgress variant="determinate" value={recordedHouses / (allTiles?.length ?? 1) * 100} aria-label={t("collectionTitle")}
+              <LinearProgress variant="determinate" value={recordedHouses / (tiles.shown.length + tiles.hidden) * 100} aria-label={t("collectionTitle")}
                 sx={{ height: 5, borderRadius: 2, mb: 1, bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--success)" } }} />
               {tiles.shown.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
               <Box sx={{ bgcolor: "var(--surface-2)", mx: { xs: -2, md: -2.25 }, mb: { xs: -2, md: -2.25 }, mt: 1.5, px: 2.25, py: 1.5 }}>
@@ -353,7 +321,7 @@ export function Dashboard() {
                 <Box sx={{ textAlign: "right" }}>
                   <Typography className="num" sx={{ fontWeight: 600 }}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
                   <StatusDot status={o.status} label={statusLabel(o.status)} />
-                  {o.status === "Draft" && <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ display: "block !important" }}>{t("salesRowConfirmAction")}</Typography>}
+                  {o.status === "Draft" && <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ width: "100%", justifyContent: "flex-end" }}>{t("salesRowConfirmAction")}</Typography>}
                 </Box>
               </Box>)}
             </Box>
@@ -387,12 +355,6 @@ export function Dashboard() {
   );
 }
 
-// One Today row: name, entry state, action, count. The missing house carries
-// a 3px `--warn` left rule and its action is the page's single filled
-// button (owner amendment on #864, 2026-09-16 — amends DIRECTION.md's
-// "ruled text at 1280" for this one row); a Draft entry gets a ruled-text
-// "Continue" action; a submitted/locked/voided entry has no action cell,
-// only its name links through.
 function TodayRow({ tile, today, fmt, t }: {
   tile: CaptureTile;
   today: string;
@@ -404,14 +366,8 @@ function TodayRow({ tile, today, fmt, t }: {
   const missing = entry === null;
   const draft = entry !== null && entry.status === "Draft";
 
-  // DIRECTION.md line 6 — the entry state with its time ("Recorded 06:40",
-  // "Draft, saved 06:52"), farm-local (#883 round 2, finding 4). A Draft's
-  // time is the last save (lastChangedAtUtc, falling back to createdAtUtc for
-  // a Draft that has never been edited since); a submitted/locked/adjusted
-  // entry's time is when it became official — madeOfficialAtUtc, sent only
-  // for a record that has actually reached that step. A record with neither
-  // timestamp (data predating #494, or a fixture that doesn't care) falls
-  // back to the bare status word, exactly as before this slice.
+  // Drafts use their last save; official entries use their submission time.
+  // Older records without provenance retain the bare status label.
   const stateTime = missing
     ? null
     : fmt.time(draft ? (entry.lastChangedAtUtc ?? entry.createdAtUtc) : (entry.madeOfficialAtUtc ?? null));
@@ -443,13 +399,7 @@ function TodayRow({ tile, today, fmt, t }: {
   );
 }
 
-// DIRECTION.md line 15: status is a word with an 8px dot, never a filled
-// badge — success (recorded, paid), --stat-accent (allocated), a hollow ring
-// (draft and anything else with no mapped colour), --warn (not recorded,
-// low). Dashboard-local: `StatusBadge` (../components/StatusBadge) stays
-// untouched for the other screens, its own conversion is #831's, so this
-// duplicates StatusBadge's small VARIANT table rather than exporting it —
-// the two are expected to diverge until #831 unifies them.
+// A hollow dot marks states without a semantic colour.
 const STATUS_DOT_COLOR: Record<string, string> = {
   active: "var(--success)", submitted: "var(--success)", confirmed: "var(--success)",
   saleable: "var(--success)", paid: "var(--success)",

@@ -29,17 +29,7 @@ function matches(pathname: string, entry: NavEntry): boolean {
   return entry.end ? pathname === entry.to : pathname.startsWith(entry.to);
 }
 
-// Authenticated shell (#52 redesign, #829 MUI conversion): a permanent
-// `Drawer` — the brand's navigation spine, tinted `--lavender` paper per the
-// confirmed direction (DIRECTION.md), not the aubergine `--brand` slab this
-// screen painted before — with the destinations grouped by job, each with a
-// lucide glyph. Role-tiered (#103): links and whole groups hide per role; the
-// API enforces the policy on every gated endpoint regardless.
-//
-// Below 900px the sidebar gives way to a bottom tab bar + More sheet
-// (BottomNav) — the wrapping top bar it used to become ate a third of a
-// phone screen. Both navs render from the same nav model (nav.tsx, D5), so
-// the role gates live in one place.
+// Desktop rail and phone tabs share the role-filtered navigation model.
 export function AppLayout() {
   const { t } = useTranslation("nav");
   const { t: tc } = useTranslation("common");
