@@ -1197,6 +1197,7 @@ export const es = {
     loadFailedMessage: "No se pudo cargar la configuración de la granja.",
 
     identityImagesHeading: "Identidad e imágenes",
+    imageGuidanceHeading: "Guía de imágenes",
 
     // Logo panel
     logoSectionHeading: "Logotipo",

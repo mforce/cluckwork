@@ -1628,6 +1628,7 @@ export const en = {
 
     // Accordion heading grouping the Logo/Banner panels and the palette below.
     identityImagesHeading: "Identity & images",
+    imageGuidanceHeading: "Image guidance",
 
     // Logo panel
     logoSectionHeading: "Logo",

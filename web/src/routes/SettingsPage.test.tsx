@@ -1580,6 +1580,32 @@ describe("SettingsPage — expandable sections (#833 Concept C)", () => {
   });
 });
 
+describe("SettingsPage — persistent actions and image guidance", () => {
+  it("folds each image's existing help under a closed Image guidance disclosure", async () => {
+    await renderReady();
+
+    const guidance = screen.getAllByText("Image guidance");
+    expect(guidance).toHaveLength(2);
+    for (const summary of guidance) {
+      expect(summary.closest("details")).not.toHaveAttribute("open");
+    }
+
+    fireEvent.click(guidance[0]);
+    expect(guidance[0].closest("details")).toHaveAttribute("open");
+    expect(screen.getByText(/up to 2 MB and 4096/)).toBeInTheDocument();
+    expect(screen.getByText(/small in the sidebar/)).toBeInTheDocument();
+  });
+
+  it("keeps Save settings in a fixed footer above the phone tab bar", async () => {
+    await renderReady();
+    const saveBar = screen.getByTestId("settings-save-bar");
+    const computed = getComputedStyle(saveBar);
+    expect(computed.position).toBe("fixed");
+    expect(computed.bottom).toBe("var(--tabbar-h)");
+    expect(within(saveBar).getByRole("button", { name: "Save settings" })).toBeInTheDocument();
+  });
+});
+
 describe("formatByteCap", () => {
   it("shows a whole number of MB without a decimal", () => {
     expect(formatByteCap(2 * 1024 * 1024)).toBe("2 MB");

@@ -1247,6 +1247,7 @@ export const tl = {
     loadFailedMessage: "Hindi na-load ang mga setting ng bukid.",
 
     identityImagesHeading: "Pagkakakilanlan at mga larawan",
+    imageGuidanceHeading: "Gabay sa larawan",
 
     // Logo panel
     logoSectionHeading: "Logo",

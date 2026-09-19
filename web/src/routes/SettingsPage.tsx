@@ -646,7 +646,7 @@ export function SettingsPage() {
 
       {/* Logo and banner writes remain independent actions even though the
           four settings groups share this form. */}
-      <Stack component="form" spacing={2} sx={{ mt: 3 }} onSubmit={(e) => void onSave(e)}>
+      <Stack component="form" spacing={2} sx={{ mt: 3, pb: "6rem" }} onSubmit={(e) => void onSave(e)}>
         <Accordion defaultExpanded disableGutters>
           <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
             <Typography variant="h3" component="span">{t("identityImagesHeading")}</Typography>
@@ -692,12 +692,19 @@ export function SettingsPage() {
                     </BusyButton>
                   )}
                 </Stack>
-                <Typography variant="body2" color="text.secondary" id={logoRulesId}>
-                  {t("logoRulesHint", { cap: formatByteCap(maxUploadBytes) })}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  <Trans ns="settings" i18nKey="logoSquareHint" components={{ strong: <strong /> }} />
-                </Typography>
+                <Box component="details" sx={{ color: "text.secondary", mb: 1 }}>
+                  <Typography component="summary" variant="body2" sx={{ color: "text.primary", cursor: "pointer" }}>
+                    {t("imageGuidanceHeading")}
+                  </Typography>
+                  <Box sx={{ pt: 1 }}>
+                    <Typography variant="body2" color="text.secondary" id={logoRulesId}>
+                      {t("logoRulesHint", { cap: formatByteCap(maxUploadBytes) })}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      <Trans ns="settings" i18nKey="logoSquareHint" components={{ strong: <strong /> }} />
+                    </Typography>
+                  </Box>
+                </Box>
                 {/* The upload is silent otherwise — a file input cannot be a
                     BusyButton, so this region carries its "Working…". The
                     removal is deliberately NOT announced here: the Remove
@@ -741,9 +748,14 @@ export function SettingsPage() {
                     </BusyButton>
                   )}
                 </Stack>
-                <Typography variant="body2" color="text.secondary" id={bannerRulesId}>
-                  {t("bannerRulesHint", { cap: formatByteCap(bannerMaxUploadBytes) })}
-                </Typography>
+                <Box component="details" sx={{ color: "text.secondary", mb: 1 }}>
+                  <Typography component="summary" variant="body2" sx={{ color: "text.primary", cursor: "pointer" }}>
+                    {t("imageGuidanceHeading")}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" id={bannerRulesId} sx={{ pt: 1 }}>
+                    {t("bannerRulesHint", { cap: formatByteCap(bannerMaxUploadBytes) })}
+                  </Typography>
+                </Box>
                 <Typography id="banner-status" variant="body2" role="status" color="success.main">
                   {isPending("banner:upload") ? t("bannerWorkingMessage") : bannerMessage ?? ""}
                 </Typography>
@@ -977,28 +989,28 @@ export function SettingsPage() {
           {t("effectNote")}
         </Typography>
 
-        <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
-            {t("saveScopeNote")}
+        <Paper
+          data-testid="settings-save-bar"
+          square
+          sx={{
+            position: "fixed", left: { xs: 0, md: "var(--sidebar-w)" }, right: 0,
+            bottom: "var(--tabbar-h)", zIndex: "appBar", px: { xs: 2, md: 4 }, py: 1.5,
+            borderTop: "1px solid", borderColor: "divider", backgroundColor: "background.paper",
+          }}
+        >
+          <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
+              {t("saveScopeNote")}
+            </Typography>
+            <BusyButton type="submit" busy={saving} disabled={busy || stale}>
+              {saving ? t("savingButton") : t("saveButton")}
+            </BusyButton>
+          </Stack>
+          {saveError !== null && <Alert severity="error" sx={{ mt: 1 }}>{saveError}</Alert>}
+          <Typography id="settings-status" variant="body2" role="status" color="success.main" sx={{ m: 0 }}>
+            {saved && saveError === null ? t("savedMessage") : ""}
           </Typography>
-          {/* Disabled while a logo write is in flight too (`busy` covers every
-              scope): the save issues its own GET, and a delayed one landing
-              after the logo write would restore the hash the logo write had
-              just replaced — the very stale-response class removing load()
-              from the logo path was meant to close (codex round 2). It only
-              SPINS for its own scope, though — a logo flight merely disables. */}
-          <BusyButton type="submit" busy={saving} disabled={busy || stale}>
-            {saving ? t("savingButton") : t("saveButton")}
-          </BusyButton>
-        </Stack>
-
-        {saveError !== null && <Alert severity="error">{saveError}</Alert>}
-        {/* Always mounted, like the logo's — a live region inserted at the same
-            moment as its text is not reliably announced, and the logo panel two
-            sections up already says so. */}
-        <Typography id="settings-status" variant="body2" role="status" color="success.main">
-          {saved && saveError === null ? t("savedMessage") : ""}
-        </Typography>
+        </Paper>
       </Stack>
 
       {confirmDialog}
