@@ -4,6 +4,9 @@ import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { FilterX, Inbox } from "lucide-react";
 import {
+  Box, Button, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
+import {
   listFeedUsage, listFlocks, listInventoryItems, recordFeedUsage,
 } from "../api/cluckwork";
 import type { Flock, InventoryItem } from "../api/cluckwork";
@@ -12,15 +15,22 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { EmptyState } from "../components/EmptyState";
+import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
+import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
 const PAGE = 50;
+const NOWRAP = { whiteSpace: "nowrap" as const };
+// #831 — replicates the retired `.form-grid .named-picker` rule: without a
+// fixed flex-basis the picker's closed (button) and open (input) states have
+// different intrinsic widths, which used to shift every sibling field.
+const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 // Client-side mirror of RecordFeedUsageHandler.FeedableCategories — one copy
 // for the SPA (InventoryPage imports it for its panel link). The server
@@ -196,6 +206,10 @@ export function FeedPage() {
     (x) => FEEDABLE_CATEGORIES.includes(x.category)
       && (x.active || x.quantityOnHand > 0 || x.id === requestedItemId));
   const selectedItem = items.find((x) => x.id === itemId);
+  // #831: inventory quantities are stored to three decimal places.
+  const afterIssueQuantity = selectedItem && quantity !== ""
+    ? (Math.round(selectedItem.quantityOnHand * 1000) - Math.round(Number(quantity) * 1000)) / 1000
+    : null;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -236,44 +250,53 @@ export function FeedPage() {
     });
   }
 
-  if (error && usage.rows === null) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
-  if (usage.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+  if (error && usage.rows === null) return <section><Typography variant="h2">{t("title")}</Typography><p className="error">{error}</p></section>;
+  if (usage.rows === null) return <section><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></section>;
 
   return (
-    <section>
-      <h2>{t("title")}</h2>
+    <FieldConsole>
+      <Typography variant="h2">{t("title")}</Typography>
       <p className="muted">{t("intro")}</p>
 
-      <form className="form-grid" onSubmit={onSubmit}>
-        <FlockPicker
-          label={t("flockLabel")}
-          eligibility="active-and-depleted"
-          required
-          open={capturePickerOpen}
-          controlledCommitted={captureFlock}
-          controlledGeneration={captureFlockGen}
-          onSnapshot={setCaptureFlockSnapshot}
-          onCommit={(f) => {
-            setCaptureFlock(f);
-            setCaptureFlockGen((g) => g + 1);
-            setCapturePickerOpen(false);
-          }}
-          onEscape={() => setCapturePickerOpen(false)}
-          onOutsideClick={() => setCapturePickerOpen(false)}
-          trigger={
-            <button
-              type="button"
-              className="named-picker-trigger"
-              onClick={() => setCapturePickerOpen(true)}
-            >
-              {captureFlock
-                ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
-                : t("selectFlockOption")}
-            </button>
-          }
-        />
-        <label>{t("itemLabel")}
-          <select value={itemId} onChange={(e) => setItemId(e.target.value)}>
+      <Box sx={CONSOLE_SPLIT_SX}>
+        <Stack component="form" sx={{ ...CONSOLE_PANEL_SX, ...CONSOLE_FORM_SX }} onSubmit={onSubmit}>
+          <Box sx={PICKER_SX}>
+            <FlockPicker
+              label={t("flockLabel")}
+              eligibility="active-and-depleted"
+              required
+              open={capturePickerOpen}
+              controlledCommitted={captureFlock}
+              controlledGeneration={captureFlockGen}
+              onSnapshot={setCaptureFlockSnapshot}
+              onCommit={(f) => {
+                setCaptureFlock(f);
+                setCaptureFlockGen((g) => g + 1);
+                setCapturePickerOpen(false);
+              }}
+              onEscape={() => setCapturePickerOpen(false)}
+              onOutsideClick={() => setCapturePickerOpen(false)}
+              trigger={
+                <button
+                  type="button"
+                  className="named-picker-trigger"
+                  onClick={() => setCapturePickerOpen(true)}
+                >
+                  {captureFlock
+                    ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
+                    : t("selectFlockOption")}
+                </button>
+              }
+            />
+          </Box>
+          <TextField
+            select
+            label={t("itemLabel")}
+            value={itemId}
+            size="small"
+            slotProps={{ select: { native: true } }}
+            onChange={(e) => setItemId(e.target.value)}
+          >
             {pickableItems.map((x) => (
               <option key={x.id} value={x.id}>
                 {t("itemOption", { name: x.name, onHand: x.quantityOnHand, unit: x.unit })}
@@ -282,31 +305,57 @@ export function FeedPage() {
                     : t("inactiveEmptyItemSuffix")}
               </option>
             ))}
-          </select>
-        </label>
-        <label>{t("dateLabel")}
-          <input type="date" value={date} max={today} required
-            onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label>
-          {selectedItem
-            ? t("quantityLabelWithUnit", { unit: selectedItem.unit })
-            : t("quantityLabel")}
-          <input type="number" min={0.001} step={0.001} value={quantity} required
-            onChange={(e) => setQuantity(e.target.value)} />
-        </label>
-        <label>{t("noteLabel")}
-          <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
-        </label>
-        <BusyButton type="submit" busy={busy}
-          disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
-          {t("recordFeedButton")}
-        </BusyButton>
-      </form>
+          </TextField>
+          <TextField
+            type="date"
+            label={t("dateLabel")}
+            value={date}
+            size="small"
+            slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => setDate(e.target.value)}
+          />
+          <TextField
+            type="number"
+            label={selectedItem
+              ? t("quantityLabelWithUnit", { unit: selectedItem.unit })
+              : t("quantityLabel")}
+            value={quantity}
+            size="small"
+            slotProps={{ htmlInput: { min: 0.001, step: 0.001, required: true } }}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+          <TextField
+            label={t("noteLabel")}
+            value={note}
+            size="small"
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <BusyButton component={Button} variant="contained" type="submit" busy={busy}
+            disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
+            {t("recordFeedButton")}
+          </BusyButton>
+        </Stack>
 
-      {/* Feed is create-only — the FIFO stock draw already happened, so a
-          mis-entry is undone with a compensating lot adjustment, not an edit. */}
-      <p className="muted">{t("correctionsHint")}</p>
+        <Box component="aside" aria-label={t("rationCheck")} sx={{ ...CONSOLE_PANEL_SX, bgcolor: "var(--surface-2)" }}>
+          <h3>{t("rationCheck")}</h3>
+          <Typography sx={{ fontWeight: 700 }}>{selectedItem?.name}</Typography>
+          <Box component="dl" sx={{ m: 0 }}>
+            {([
+              ["onHand", selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
+              ["issue", selectedItem && quantity !== "" ? `${fmt.count(Number(quantity))} ${selectedItem.unit}` : "—"],
+              ["afterIssue", selectedItem && afterIssueQuantity !== null ? `${fmt.count(afterIssueQuantity)} ${selectedItem.unit}` : "—"],
+            ] as const).map(([key, value]) => <Box key={key}
+              aria-live={key === "afterIssue" ? "polite" : undefined}
+              aria-atomic={key === "afterIssue" ? true : undefined}
+              sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
+              <Typography component="dt" sx={{ fontSize: ".8rem" }}>{t(key)}</Typography>
+              <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
+            </Box>)}
+          </Box>
+          <p className="muted">{t("correctionsHint")}</p>
+        </Box>
+      </Box>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
@@ -315,8 +364,8 @@ export function FeedPage() {
       {/* List failures degrade the LIST only — the capture form must stay
           usable through a transient history read failure (review of #446). */}
       {usage.error && <p className="error">{usage.error}</p>}
-      <div className="form-grid">
-        <div className="filter-flock">
+      <FilterBar>
+        <Box sx={PICKER_SX}>
           <FlockPicker
             label={t("filterFlockLabel")}
             eligibility="all"
@@ -350,18 +399,10 @@ export function FeedPage() {
               </button>
             }
           />
-        </div>
-        {/* #653 — the date range gets its own bounded toolbar; the flock
-            picker above stays a plain form-grid field. */}
-        <div className="toolbar">
-          <label>{t("fromLabel")}
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>{t("toLabel")}
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-        </div>
-      </div>
+        </Box>
+        <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
+        <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
+      </FilterBar>
 
       {/* One window's rows must never sit under another window's controls,
           not even for the length of the request (#469). Only this region is
@@ -379,23 +420,32 @@ export function FeedPage() {
           : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("itemHeader")}</th><th className="num">{t("amountHeader")}</th><th className="num">{t("estimatedCostHeader")}</th><th>{t("noteHeader")}</th></tr>
-            </thead>
-            <tbody>
-              {usage.rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="nowrap"><FarmDate iso={r.date} /></td>
-                  <td>{r.flockName ?? t("rowFlockUnavailable")}</td>
-                  <td>{itemName(r.inventoryItemId)}</td>
-                  <td className="num">{fmt.count(r.quantity)} {r.unit}</td>
-                  <td className="num">{fmt.money(r.estimatedCostMinorUnits, r.currencyCode, r.currencyMinorUnit)}</td>
-                  <td>{r.note ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <LedgerTableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t("dateHeader")}</TableCell>
+                  <TableCell>{t("flockHeader")}</TableCell>
+                  <TableCell>{t("itemHeader")}</TableCell>
+                  <TableCell align="right">{t("amountHeader")}</TableCell>
+                  <TableCell align="right">{t("estimatedCostHeader")}</TableCell>
+                  <TableCell>{t("noteHeader")}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {usage.rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell sx={NOWRAP}><FarmDate iso={r.date} /></TableCell>
+                    <TableCell>{r.flockName ?? t("rowFlockUnavailable")}</TableCell>
+                    <TableCell>{itemName(r.inventoryItemId)}</TableCell>
+                    <TableCell align="right">{fmt.count(r.quantity)} {r.unit}</TableCell>
+                    <TableCell align="right">{fmt.money(r.estimatedCostMinorUnits, r.currencyCode, r.currencyMinorUnit)}</TableCell>
+                    <TableCell>{r.note ?? ""}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </LedgerTableContainer>
           {usage.canLoadMore && (
             // Two rapid clicks cannot append the same page twice: the hook
             // no-ops a load-more while one is in flight, and canLoadMore
@@ -407,6 +457,6 @@ export function FeedPage() {
           )}
         </>
       )}
-    </section>
+    </FieldConsole>
   );
 }

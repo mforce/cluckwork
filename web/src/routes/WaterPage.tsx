@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { FilterX, Inbox } from "lucide-react";
+import {
+  Box, Button, ToggleButton, ToggleButtonGroup, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
 import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "../api/cluckwork";
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -10,12 +13,14 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { EmptyState } from "../components/EmptyState";
+import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { readLastFlockId, rememberFlockId, resolveDefaultFlock } from "../lib/flockDefault";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
+import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { waterSourceLabel, waterUnitLabel } from "../i18n/enums";
@@ -23,6 +28,11 @@ import { waterSourceLabel, waterUnitLabel } from "../i18n/enums";
 const PAGE = 50;
 const SOURCES = ["Well", "Municipal", "Tank", "Other"];
 const UNITS = ["L", "gal"];
+const NOWRAP = { whiteSpace: "nowrap" as const };
+// #831 — replicates the retired `.form-grid .named-picker` rule: without a
+// fixed flex-basis the picker's closed (button) and open (input) states have
+// different intrinsic widths, which used to shift every sibling field.
+const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 function errText(err: unknown): string {
   // Concurrent-edit conflicts get a human message instead of raw problem text.
@@ -81,6 +91,8 @@ export function WaterPage() {
   const [quantity, setQuantity] = useState("");
   const [meterStart, setMeterStart] = useState("");
   const [meterEnd, setMeterEnd] = useState("");
+  // #831: meter readings are stored to three decimal places.
+  const meterQuantity = (Math.round(Number(meterEnd) * 1000) - Math.round(Number(meterStart) * 1000)) / 1000;
   const [note, setNote] = useState("");
 
   // list filters — initialized from the URL (?flockId=&from=&to=) so the
@@ -349,125 +361,173 @@ export function WaterPage() {
     });
   }
 
-  if (error && usage.rows === null) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
-  if (usage.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+  if (error && usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{error}</p></FieldConsole>;
+  if (usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
 
   return (
-    <section>
-      <h2>{t("title")}</h2>
+    <FieldConsole>
+      <Typography variant="h2">{t("title")}</Typography>
       <p className="muted">
         {t("intro")}
       </p>
 
-      <form className="form-grid" onSubmit={onSubmit}>
-        <FlockPicker
-          label={t("flockLabel")}
-          eligibility="active-and-depleted"
-          required
-          disabled={editingId !== null}
-          open={capturePickerOpen}
-          controlledCommitted={captureFlock}
-          controlledGeneration={captureFlockGen}
-          requestedId={captureFlockRequestId}
-          onSnapshot={(snap) => {
-            setCaptureFlockSnapshot(snap);
-            // #512 (P2) — only adopt the engine's committed entity when it
-            // resolves the page's own requestedId exact GET (the row-owned
-            // id the loaded list never carried). Every other snapshot —
-            // including the engine's internal re-emission after a controlled
-            // sync — carries the engine's PREVIOUS committed entity, which
-            // can be STALE relative to a concurrent page-side commit
-            // (startEdit / resetForm). Blindly adopting it overwrites the
-            // page's fresh row-owned entity with the old default.
-            if (
-              snap.committed &&
-              captureFlockRequestId &&
-              snap.committed.id === captureFlockRequestId
-            ) {
-              setCaptureFlock(snap.committed);
-              setCaptureFlockRequestId(null);
-            }
-          }}
-          onCommit={(f) => {
-            setCaptureFlock(f);
-            setCaptureFlockRequestId(null);
-            setCaptureFlockGen((g) => g + 1);
-            setCapturePickerOpen(false);
-          }}
-          onEscape={() => setCapturePickerOpen(false)}
-          onOutsideClick={() => setCapturePickerOpen(false)}
-          trigger={
-            <button
-              type="button"
-              className="named-picker-trigger"
+      <Box sx={CONSOLE_SPLIT_SX}>
+        <Box sx={CONSOLE_PANEL_SX}>
+          <ToggleButtonGroup exclusive value={useMeters ? "meter" : "direct"} aria-label={t("entryMode")} fullWidth sx={{ mb: 2 }}>
+            <ToggleButton value="direct" onClick={() => setUseMeters(false)}>{t("directMode")}</ToggleButton>
+            <ToggleButton value="meter" onClick={() => setUseMeters(true)}>{t("meterMode")}</ToggleButton>
+          </ToggleButtonGroup>
+        <Stack component="form" sx={CONSOLE_FORM_SX} onSubmit={onSubmit}>
+          <Box sx={PICKER_SX}>
+            <FlockPicker
+              label={t("flockLabel")}
+              eligibility="active-and-depleted"
+              required
               disabled={editingId !== null}
-              onClick={() => setCapturePickerOpen(true)}
-            >
-              {captureFlock
-                ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
-                // #512 (T037) — while the row-owned id's exact GET is in
-                // flight (or the list doesn't carry it), the trigger shows the
-                // ROW's own flockName for display only — never another flock's
-                // metadata. Once the exact read commits, `captureFlock` wins.
-                : (editingRow && captureFlockRequestId ? editingRow.flockName : null)
-                  ?? t("selectFlockOption")}
-            </button>
-          }
-        />
-        <label>{t("dateLabel")}
-          <input type="date" value={date} max={today} required disabled={editingId !== null}
-            onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label>{t("sourceLabel")}
-          <select value={source} onChange={(e) => setSource(e.target.value)}>
+              open={capturePickerOpen}
+              controlledCommitted={captureFlock}
+              controlledGeneration={captureFlockGen}
+              requestedId={captureFlockRequestId}
+              onSnapshot={(snap) => {
+                setCaptureFlockSnapshot(snap);
+                // #512: only the requested row's exact lookup may replace its flock;
+                // controlled re-emissions can still carry the previous default.
+                if (
+                  snap.committed &&
+                  captureFlockRequestId &&
+                  snap.committed.id === captureFlockRequestId
+                ) {
+                  setCaptureFlock(snap.committed);
+                  setCaptureFlockRequestId(null);
+                }
+              }}
+              onCommit={(f) => {
+                setCaptureFlock(f);
+                setCaptureFlockRequestId(null);
+                setCaptureFlockGen((g) => g + 1);
+                setCapturePickerOpen(false);
+              }}
+              onEscape={() => setCapturePickerOpen(false)}
+              onOutsideClick={() => setCapturePickerOpen(false)}
+              trigger={
+                <button
+                  type="button"
+                  className="named-picker-trigger"
+                  disabled={editingId !== null}
+                  onClick={() => setCapturePickerOpen(true)}
+                >
+                  {captureFlock
+                    ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
+                    // #512 (T037) — while the row-owned id's exact GET is in
+                    // flight (or the list doesn't carry it), the trigger shows the
+                    // ROW's own flockName for display only — never another flock's
+                    // metadata. Once the exact read commits, `captureFlock` wins.
+                    : (editingRow && captureFlockRequestId ? editingRow.flockName : null)
+                      ?? t("selectFlockOption")}
+                </button>
+              }
+            />
+          </Box>
+          <TextField
+            type="date"
+            label={t("dateLabel")}
+            value={date}
+            size="small"
+            disabled={editingId !== null}
+            slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => setDate(e.target.value)}
+          />
+          <TextField
+            select
+            label={t("sourceLabel")}
+            value={source}
+            size="small"
+            slotProps={{ select: { native: true } }}
+            onChange={(e) => setSource(e.target.value)}
+          >
             {SOURCES.map((s) => <option key={s} value={s}>{waterSourceLabel(s)}</option>)}
-          </select>
-        </label>
-        <label>{t("unitLabel")}
-          <select value={unit} onChange={(e) => setUnit(e.target.value)}>
+          </TextField>
+          <TextField
+            select
+            label={t("unitLabel")}
+            value={unit}
+            size="small"
+            slotProps={{ select: { native: true } }}
+            onChange={(e) => setUnit(e.target.value)}
+          >
             {UNITS.map((u) => <option key={u} value={u}>{waterUnitLabel(u)}</option>)}
-          </select>
-        </label>
-        <label className="muted check">
-          <input type="checkbox" checked={useMeters}
-            onChange={(e) => setUseMeters(e.target.checked)} />
-          {t("fromMeterReadingsLabel")}
-        </label>
-        {useMeters ? (
-          <>
-            <label>{t("meterStartLabel")}
-              <input type="number" min={0} step={0.001} value={meterStart} required
-                onChange={(e) => setMeterStart(e.target.value)} />
-            </label>
-            <label>{t("meterEndLabel")}
-              <input type="number" min={0} step={0.001} value={meterEnd} required
-                onChange={(e) => setMeterEnd(e.target.value)} />
-            </label>
-          </>
-        ) : (
-          <label>{t("quantityLabelWithUnit", { unit: waterUnitLabel(unit) })}
-            <input type="number" min={0.001} step={0.001} value={quantity} required
-              onChange={(e) => setQuantity(e.target.value)} />
-          </label>
-        )}
-        <label>{t("noteLabel")}
-          <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
-        </label>
-        <BusyButton type="submit" busy={busy}
-          disabled={!captureFlock || !captureFlockSnapshot.canSubmit}>
-          {editingId ? t("saveCorrectionButton") : t("recordWaterButton")}
-        </BusyButton>
-        {editingId && (
-          <button type="button" className="link" onClick={resetForm}>{t("cancelEditButton")}</button>
-        )}
-      </form>
+          </TextField>
+          {useMeters ? (
+            <>
+              <TextField
+                type="number"
+                label={t("meterStartLabel")}
+                value={meterStart}
+                size="small"
+                slotProps={{ htmlInput: { min: 0, step: 0.001, required: true } }}
+                onChange={(e) => setMeterStart(e.target.value)}
+              />
+              <TextField
+                type="number"
+                label={t("meterEndLabel")}
+                value={meterEnd}
+                size="small"
+                slotProps={{ htmlInput: { min: 0, step: 0.001, required: true } }}
+                onChange={(e) => setMeterEnd(e.target.value)}
+              />
+            </>
+          ) : (
+            <TextField
+              type="number"
+              label={t("quantityLabelWithUnit", { unit: waterUnitLabel(unit) })}
+              value={quantity}
+              size="small"
+              slotProps={{ htmlInput: { min: 0.001, step: 0.001, required: true } }}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+          )}
+          <TextField
+            label={t("noteLabel")}
+            value={note}
+            size="small"
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <BusyButton component={Button} variant="contained" type="submit" busy={busy}
+            disabled={!captureFlock || !captureFlockSnapshot.canSubmit}>
+            {editingId ? t("saveCorrectionButton") : t("recordWaterButton")}
+          </BusyButton>
+          {editingId && (
+            <button type="button" className="link" onClick={resetForm}>{t("cancelEditButton")}</button>
+          )}
+        </Stack>
+        </Box>
+        <Box component="aside" aria-label={t("readingCheck")} sx={{ ...CONSOLE_PANEL_SX, bgcolor: "var(--surface-2)" }}>
+          <h3>{t("readingCheck")}</h3>
+          <Box component="dl" sx={{ m: 0 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
+              <Typography component="dt">{t("sourceLabel")}</Typography>
+              <Typography component="dd" sx={{ m: 0, fontWeight: 700 }}>{waterSourceLabel(source)}</Typography>
+            </Box>
+            <Box aria-live="polite" aria-atomic="true" sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
+              <Typography component="dt">{t("result")}</Typography>
+              <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                {useMeters
+                  ? meterStart !== "" && meterEnd !== "" ? `${fmt.count(meterQuantity)} ${waterUnitLabel(unit)}` : "—"
+                  : quantity !== "" ? `${fmt.count(Number(quantity))} ${waterUnitLabel(unit)}` : "—"}
+              </Typography>
+            </Box>
+          </Box>
+          <p className="muted">{t("intro")}</p>
+        </Box>
+      </Box>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <h3>{t("recordsHeading")}</h3>
-      <div className="form-grid">
-        <div className="filter-flock">
+      <FilterBar>
+        <Box sx={PICKER_SX}>
           <FlockPicker
             label={t("filterFlockLabel")}
             eligibility="all"
@@ -501,18 +561,10 @@ export function WaterPage() {
               </button>
             }
           />
-        </div>
-        {/* #653 — the date range gets its own bounded toolbar; the flock
-            picker above stays a plain form-grid field. */}
-        <div className="toolbar">
-          <label>{t("fromLabel")}
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>{t("toLabel")}
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-        </div>
-      </div>
+        </Box>
+        <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
+        <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
+      </FilterBar>
 
       {usage.error && <p className="error">{usage.error}</p>}
 
@@ -531,28 +583,38 @@ export function WaterPage() {
           : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th className="num">{t("amountHeader")}</th><th>{t("sourceHeader")}</th><th className="num">{t("metersHeader")}</th><th>{t("noteHeader")}</th><th></th></tr>
-            </thead>
-            <tbody>
-              {usage.rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="nowrap"><FarmDate iso={r.date} /></td>
-                  <td>{r.flockName ?? t("rowFlockUnavailable")}</td>
-                  <td className="num">{fmt.count(r.quantity)} {waterUnitLabel(r.unit)}</td>
-                  <td>{waterSourceLabel(r.source)}</td>
-                  <td className="num">{r.meterStart !== null ? `${fmt.count(r.meterStart)} → ${r.meterEnd === null ? "" : fmt.count(r.meterEnd)}` : "—"}</td>
-                  <td>{r.note ?? ""}</td>
-                  <td>
-                    {isAdmin && (
-                      <button className="link" disabled={busy} onClick={() => startEdit(r)}>{t("correctButton")}</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <LedgerTableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t("dateHeader")}</TableCell>
+                  <TableCell>{t("flockHeader")}</TableCell>
+                  <TableCell align="right">{t("amountHeader")}</TableCell>
+                  <TableCell>{t("sourceHeader")}</TableCell>
+                  <TableCell align="right">{t("metersHeader")}</TableCell>
+                  <TableCell>{t("noteHeader")}</TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {usage.rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell sx={NOWRAP}><FarmDate iso={r.date} /></TableCell>
+                    <TableCell>{r.flockName ?? t("rowFlockUnavailable")}</TableCell>
+                    <TableCell align="right">{fmt.count(r.quantity)} {waterUnitLabel(r.unit)}</TableCell>
+                    <TableCell>{waterSourceLabel(r.source)}</TableCell>
+                    <TableCell align="right">{r.meterStart !== null ? `${fmt.count(r.meterStart)} → ${r.meterEnd === null ? "" : fmt.count(r.meterEnd)}` : "—"}</TableCell>
+                    <TableCell>{r.note ?? ""}</TableCell>
+                    <TableCell sx={NOWRAP}>
+                      {isAdmin && (
+                        <Button color="warning" size="small" disabled={busy} onClick={() => startEdit(r)}>{t("correctButton")}</Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </LedgerTableContainer>
           {usage.canLoadMore && (
             <button className="link" disabled={busy}
               onClick={() => void usage.loadMore()}>
@@ -561,6 +623,6 @@ export function WaterPage() {
           )}
         </>
       )}
-    </section>
+    </FieldConsole>
   );
 }

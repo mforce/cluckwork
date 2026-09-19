@@ -87,6 +87,16 @@ async function openAdjustPanel() {
   fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
 }
 
+it("updates the reconciliation equation when grading reaches sellable eggs", async () => {
+  mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+  await openAdjustPanel();
+  const equation = screen.getByRole("group", { name: "Reconciliation" });
+  expect(equation).toHaveTextContent("100 collected − 2 cracked − 3 dirty − 5 discarded = 90 sellable ≠ 60 graded");
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "50" } });
+  expect(equation).toHaveTextContent("100 collected − 2 cracked − 3 dirty − 5 discarded = 90 sellable = 90 graded");
+  expect(mockAdjustDailyEntry).not.toHaveBeenCalled();
+});
+
 // #396 — the Condition column answers "how many of this day's cracked/dirty
 // eggs became stock", read from the ENTRY's own snapshot. It must never be
 // re-derived from the current grade catalog: a farm that switches Cracked off
@@ -332,12 +342,22 @@ describe("HistoryPage adjust — reconciliation guard", () => {
 // shows and what it allows would fail here.
 describe("HistoryPage adjust — mirrored daily-entry layout", () => {
   const dialog = () => screen.getByRole("dialog");
-  // Class-selected, exactly as DailyEntryPage.test.tsx selects the same two
-  // readouts: neither has an unambiguous role here either — every BusyButton
-  // renders its own sr-only role="status" for the "Working…" announcement, so
-  // the chip's live region is one of several.
+  // `.entry-chip` is GradingChip's own class (component untouched by #831,
+  // shared with DailyEntryPage) — still class-selected for the same reason
+  // DailyEntryPage.test.tsx gives: every BusyButton renders its own sr-only
+  // role="status" for the "Working…" announcement, so the chip's live region
+  // is one of several and a role alone would not disambiguate it.
   const chip = () => dialog().querySelector(".entry-chip") as HTMLElement;
-  const sellableReadout = () => dialog().querySelector(".entry-readout") as HTMLElement;
+  // #831 dropped `.entry-readout` in favor of the same role-scoped lookup
+  // DailyEntryPage.test.tsx uses for its converted counterpart: `role="alert"`
+  // once losses exceed the total, `role="status"` in the normal case, both
+  // scoped to the Egg counts section so they cannot match the chip's status.
+  const countsSection = () =>
+    within(dialog()).getByRole("heading", { name: /Egg counts/ }).closest("section") as HTMLElement;
+  const sellableReadout = () => {
+    const section = countsSection();
+    return within(section).queryByRole("alert") ?? within(section).getByRole("status");
+  };
 
   it("shows both steps and the sellable figure the grading pane has to hit", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
@@ -431,7 +451,9 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     await openAdjustPanel();
 
     fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
-    const gradeBRow = screen.getByRole("spinbutton", { name: "Grade B" }).closest(".entry-row")!;
+    // #831: the row is now a named `role="group"` (the F134 drop target),
+    // exactly as DailyEntryPage.test.tsx selects its own converted rows.
+    const gradeBRow = within(dialog()).getByRole("group", { name: "Grade B row" });
 
     // A foreign drag (plain text — what dropping a link or a selection looks
     // like) must leave the line untouched.

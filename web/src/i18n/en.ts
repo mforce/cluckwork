@@ -4,6 +4,7 @@
 // is a build error.
 export const en = {
   common: {
+    swipeColumns: "Swipe columns ↔",
     whatDoesTermMean: "What does “{{term}}” mean?",
     // #494 — the record-history cell shown on the list screens. "Last changed"
     // appears only when something happened after creation.
@@ -938,6 +939,11 @@ export const en = {
   // page, mirroring the water namespace's shape (minus corrections: feed is
   // create-only; mis-entries are compensated via Inventory adjustments).
   feed: {
+    rationCheck: "Ration check",
+    onHand: "On hand",
+    issue: "Issue",
+    afterIssue: "After issue",
+
     title: "Feed",
 
     // Imperative messages (event handlers / promise callbacks).
@@ -1006,6 +1012,12 @@ export const en = {
     loadMoreButton: "load more",
   },
   water: {
+    directMode: "Direct amount",
+    meterMode: "Meter readings",
+    entryMode: "Entry mode",
+    readingCheck: "Reading check",
+    result: "Result",
+
     title: "Water",
 
     // Imperative messages (event handlers / promise callbacks — see
@@ -1167,7 +1179,7 @@ export const en = {
     title: "Feed & inventory",
     intro:
       "Receive stock as purchases; every change lands in the item's movement "
-      + "ledger. Recording feed usage against flocks arrives next.",
+      + "ledger. Record feed usage against flocks on the Feed page.",
 
     // Imperative messages (event handlers / promise callbacks — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
@@ -1916,6 +1928,8 @@ export const en = {
   // task brief — a cross-screen consolidation is a tracked native-pass
   // deferral, not this task's job.
   expenses: {
+    ledgerHeading: "Expense ledger",
+    wholePeriod: "Whole filtered period, including rows not yet loaded.",
     title: "Expenses",
 
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
@@ -2088,6 +2102,8 @@ export const en = {
   // interpolated verbatim into previouslyAdjusted), and every numeric count
   // (totalEggs/crackedEggs/etc., adjustedFrom's snapshot counts).
   history: {
+    reconciliation: "Reconciliation",
+    reconciliationLine: "{{total}} collected − {{cracked}} cracked − {{dirty}} dirty − {{discarded}} discarded = {{sellable}} sellable {{comparison}} {{graded}} graded",
     // Titles. `loadingTitle` is the shorter heading the early-return
     // load-error state uses before the real heading below — a pre-existing
     // inconsistency, preserved verbatim rather than "fixed" as a drive-by
@@ -3033,6 +3049,7 @@ export const en = {
       + "admin-only.",
 
     // Feed (#446 — its own page, out of the Inventory drill-down)
+    feedRationPreview: "Ration check shows On hand, Issue, and After issue before you record feed. It previews the entered quantity; stock changes only after recording succeeds.",
     feedHeading: "Feed",
     feedRecording:
       "<strong>Record feed</strong> logs what a flock ate on a day: pick the flock, the item (current "
@@ -3050,6 +3067,7 @@ export const en = {
       + "ties them together.",
 
     // Water
+    waterModes: "Choose Direct amount to enter a quantity, or Meter readings to enter Meter start and Meter end. Reading check previews the Result before you record.",
     waterHeading: "Water",
     waterRecording:
       "Record what each flock drank per day: either a direct amount (liters or gallons) or <strong>meter "
@@ -3173,6 +3191,7 @@ export const en = {
       + "production screens where workers record.",
 
     // History
+    historyReconciliation: "The Reconciliation line compares collected eggs minus losses with sellable and graded eggs. The ≠ sign means the counts still differ. Mortality remains separate.",
     historyHeading: "History",
     historyBrowse:
       "Browse recorded daily entries newest-first, filtered by flock and date range. The status column shows "

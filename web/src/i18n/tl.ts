@@ -10,6 +10,7 @@
 //   label, until that screen itself is externalized to the catalog (#182).
 export const tl = {
   common: {
+    swipeColumns: "I-swipe ang mga column ↔",
     whatDoesTermMean: "Ano ang ibig sabihin ng “{{term}}”?",
     "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
@@ -692,6 +693,11 @@ export const tl = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    rationCheck: "Suriin ang pakain",
+    onHand: "Kasalukuyang stock",
+    issue: "Gagamitin",
+    afterIssue: "Matitirang stock",
+
     title: "Pakain",
     loadFailed: "Hindi ma-load ang mga kawan at mga item ng pakain. Gumagana ba ang API?",
     loadRecordsFailed: "Hindi ma-load ang mga tala ng pakain.",
@@ -736,6 +742,12 @@ export const tl = {
     loadMoreButton: "mag-load pa",
   },
   water: {
+    directMode: "Direktang dami",
+    meterMode: "Mga pagbasa ng metro",
+    entryMode: "Paraan ng pagtatala",
+    readingCheck: "Suriin ang pagbasa",
+    result: "Resulta",
+
     title: "Tubig",
 
     // Imperative messages
@@ -862,8 +874,7 @@ export const tl = {
     title: "Feed at Imbentaryo",
     intro:
       "Tumanggap ng stock bilang pagbili; bawat pagbabago ay napupunta sa "
-      + "talaan ng galaw ng item. Susunod ang pagtatala ng paggamit ng feed "
-      + "laban sa mga kawan.",
+      + "talaan ng galaw ng item. Itala ang paggamit ng feed ng mga kawan sa pahina ng Pakain.",
 
     // Imperative messages
     loadInventoryFailed: "Hindi na-load ang imbentaryo. Gumagana ba ang API?",
@@ -1470,6 +1481,8 @@ export const tl = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    ledgerHeading: "Talaan ng mga gastos",
+    wholePeriod: "Buong napiling panahon, kasama ang mga row na hindi pa na-load.",
     title: "Mga Gastos",
 
     // Imperative messages
@@ -1588,6 +1601,8 @@ export const tl = {
   // (statusVoided/statusAdjusted/statusLocked/statusSubmitted/statusDraft)
   // reuse the same words already chosen for enums.status.* for consistency.
   history: {
+    reconciliation: "Pagtutugma",
+    reconciliationLine: "{{total}} nakolekta − {{cracked}} basag − {{dirty}} marumi − {{discarded}} itinapon = {{sellable}} naibebenta {{comparison}} {{graded}} nagrado",
     loadingTitle: "Kasaysayan",
     title: "Kasaysayan ng araw-araw na entry",
 
@@ -2454,6 +2469,7 @@ export const tl = {
       "Bukas sa lahat ang pagtatala ng pagbili at paggamit; ang katalogo ng item at mga pagtatama ng "
       + "stock ay para sa admin lang.",
 
+    feedRationPreview: "Ipinapakita ng Suriin ang pakain ang Kasalukuyang stock, Gagamitin, at Matitirang stock bago itala ang pakain. Magbabago lamang ang stock kapag matagumpay na naitala.",
     feedHeading: "Pakain",
     feedRecording:
       "Ang <strong>Itala ang pakain</strong> ay nagtatala kung ano ang kinain ng kawan sa isang araw: "
@@ -2470,6 +2486,7 @@ export const tl = {
       + "sa isang sulyap, na may link dito. Ang tala ng pakain o tubig na ginawa habang umiiral na ang "
       + "entry ng araw na iyon ay naaalala rin ang entry na iyon — ang mga ginawa bago nito ay sadyang "
       + "hindi naka-link; ang araw mismo ang nag-uugnay sa kanila.",
+    waterModes: "Piliin ang Direktang dami upang ilagay ang dami, o Mga pagbasa ng metro upang ilagay ang una at huling pagbasa. Ipinapakita ng Suriin ang pagbasa ang Resulta bago itala.",
     waterHeading: "Tubig",
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
@@ -2598,6 +2615,7 @@ export const tl = {
       "Data ng pera ang mga gastos, kaya ang buong screen — kasama ang pagtingin — ay para sa admin lang, "
       + "hindi tulad ng mga production screen kung saan nagtatala ang manggagawa.",
 
+    historyReconciliation: "Inihahambing ng Pagtutugma ang mga nakolektang itlog na binawasan ng mga nawala sa naibebenta at nagrado. Ang ≠ ay nangangahulugang hindi pa tugma ang bilang. Hiwalay ang bilang ng namatay.",
     historyHeading: "History",
     historyBrowse:
       "Tumingin sa mga naitalang araw-araw na entry, pinakabago muna, na-filter kada kawan at date range. "

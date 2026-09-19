@@ -5,6 +5,7 @@
 // on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
+    swipeColumns: "Desliza las columnas ↔",
     whatDoesTermMean: "¿Qué significa “{{term}}”?",
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
@@ -657,6 +658,11 @@ export const es = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    rationCheck: "Comprobación de la ración",
+    onHand: "Disponible",
+    issue: "Consumo",
+    afterIssue: "Después del consumo",
+
     title: "Alimento",
     loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
     loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
@@ -701,6 +707,12 @@ export const es = {
     loadMoreButton: "cargar más",
   },
   water: {
+    directMode: "Cantidad directa",
+    meterMode: "Lecturas del medidor",
+    entryMode: "Modo de registro",
+    readingCheck: "Comprobación de la lectura",
+    result: "Resultado",
+
     title: "Agua",
 
     // Imperative messages
@@ -825,8 +837,7 @@ export const es = {
     title: "Alimento e inventario",
     intro:
       "Reciba existencias como compras; cada cambio queda en el registro de "
-      + "movimientos del artículo. El registro de uso de alimento contra los "
-      + "lotes llega después.",
+      + "movimientos del artículo. Registre el uso de alimento por lote en la página de Alimento.",
 
     // Imperative messages
     loadInventoryFailed: "No se pudo cargar el inventario. ¿Está la API activa?",
@@ -1411,6 +1422,8 @@ export const es = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    ledgerHeading: "Registro de gastos",
+    wholePeriod: "Todo el período filtrado, incluidas las filas aún no cargadas.",
     title: "Gastos",
 
     // Imperative messages
@@ -1527,6 +1540,8 @@ export const es = {
   // unexternalized screen's name untranslated until dailyEntry itself is
   // added to TRANSLATED_NAMESPACES.
   history: {
+    reconciliation: "Conciliación",
+    reconciliationLine: "{{total}} recolectados − {{cracked}} rotos − {{dirty}} sucios − {{discarded}} descartados = {{sellable}} vendibles {{comparison}} {{graded}} clasificados",
     loadingTitle: "Historial",
     title: "Historial de entradas diarias",
 
@@ -2356,6 +2371,7 @@ export const es = {
       "Registrar compras y uso está abierto para todos; el catálogo de artículos y las correcciones de "
       + "existencias son solo para administradores.",
 
+    feedRationPreview: "Comprobación de la ración muestra Disponible, Consumo y Después del consumo antes de registrar el alimento. El stock cambia solo cuando el registro se completa.",
     feedHeading: "Alimento",
     feedRecording:
       "<strong>Registrar alimento</strong> anota lo que comió una parvada en un día: elija la parvada, el "
@@ -2372,6 +2388,7 @@ export const es = {
       + "la parvada seleccionada, con enlace aquí. Un registro de alimento o agua hecho cuando ya existe la "
       + "entrada de ese día también recuerda esa entrada — los hechos antes quedan sin enlazar a propósito; "
       + "el día en sí es lo que los une.",
+    waterModes: "Elige Cantidad directa para introducir una cantidad o Lecturas del medidor para introducir las lecturas inicial y final. Comprobación de la lectura muestra el Resultado antes de registrar.",
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "
@@ -2496,6 +2513,7 @@ export const es = {
       "Los gastos son datos de dinero, así que toda la pantalla — incluida la visualización — es solo "
       + "para administradores, a diferencia de las pantallas de producción donde los trabajadores registran.",
 
+    historyReconciliation: "La línea de Conciliación compara los huevos recolectados menos las pérdidas con los vendibles y clasificados. El signo ≠ indica que las cantidades aún difieren. La mortalidad se cuenta por separado.",
     historyHeading: "Historial",
     historyBrowse:
       "Explore las entradas diarias registradas de más reciente a más antigua, filtradas por lote y rango "

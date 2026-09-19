@@ -1,3 +1,4 @@
+import { responsiveStyle } from "../test/renderedStyle";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { act, screen, waitFor, within, fireEvent } from "@testing-library/react";
@@ -88,7 +89,7 @@ describe("StockPage", () => {
     expect(await screen.findByText("Grade A")).toBeInTheDocument();
     // Scope the restricted-count assertion to Grade B's row so it pins that
     // cell, not just "some 5 rendered somewhere".
-    const gradeBRow = screen.getByRole("row", { name: /Grade B\b/ });
+    const gradeBRow = screen.getByRole("region", { name: /Grade B\b/ });
     expect(within(gradeBRow).getByText("5")).toBeInTheDocument();
 
     // 100 + 50 = 150 across 2 grades — the client-side reduce.
@@ -99,15 +100,13 @@ describe("StockPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the grade table as a table.data scroller (the scroll-cue hook, #150)", async () => {
-    // The mobile scroll-shadow affordance keys entirely off `table.data` in the
-    // stylesheet (no JS, no wrapper), so the class IS the contract: drop it in a
-    // refactor and the last-column-clipped cue silently disappears. jsdom can't
-    // render the gradient, but it can guard the hook the CSS depends on.
+  it("exposes each grade as a named region in the stock board", async () => {
     mockGetStock.mockResolvedValue(ROWS);
-    const { container } = render(<StockPage />);
-    await screen.findByText("Grade A");
-    expect(container.querySelector("table.data")).not.toBeNull();
+    render(<StockPage />);
+    const board = await screen.findByRole("list", { name: "Stock" });
+    expect(within(board).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(board).getByRole("region", { name: "Grade A" })).toHaveTextContent("100");
+    expect(within(board).getByRole("region", { name: "Grade B" })).toHaveTextContent("50");
   });
 });
 
@@ -122,7 +121,7 @@ describe("StockPage drill-down", () => {
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
 
-    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    const gradeA = screen.getByRole("region", { name: /Grade A\b/ });
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
 
     const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
@@ -135,14 +134,14 @@ describe("StockPage drill-down", () => {
     expect(within(lotRow).getByText("99")).toBeInTheDocument(); // quantityAvailable
     // toggle text flips to "hide lots"; the other grade is untouched (still "lots").
     expect(within(gradeA).getByRole("button", { name: "hide lots" })).toBeInTheDocument();
-    const gradeB = screen.getByRole("row", { name: /Grade B\b/ });
+    const gradeB = screen.getByRole("region", { name: /Grade B\b/ });
     expect(within(gradeB).getByRole("button", { name: "lots" })).toBeInTheDocument();
   });
 
   it("shows the empty-lots hint when a grade has no lots", async () => {
     mockListEggLots.mockResolvedValue([]);
     await renderWithData();
-    const gradeB = screen.getByRole("row", { name: /Grade B\b/ });
+    const gradeB = screen.getByRole("region", { name: /Grade B\b/ });
     fireEvent.click(within(gradeB).getByRole("button", { name: "lots" }));
     expect(await screen.findByText(/No lots for this grade yet/)).toBeInTheDocument();
     expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g2", limit: 50, offset: 0 });
@@ -154,7 +153,7 @@ describe("StockPage drill-down", () => {
   it("offers Clear filters when a date-narrowed grade has no lots in range", async () => {
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
-    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    const gradeA = screen.getByRole("region", { name: /Grade A\b/ });
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
     await screen.findByRole("row", { name: /07\/01\/2026/ });
 
@@ -169,26 +168,25 @@ describe("StockPage drill-down", () => {
     expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g1", limit: 50, offset: 0 });
   });
 
-  it("puts the lot date range in the bounded toolbar, not a bare filters row", async () => {
-    // #653/#662 — this is a structural guard on purpose. The defect is a WIDTH
-    // (styles.css caps `.toolbar input[type="date"]` at 12rem and the pair was
-    // outside any .toolbar), and jsdom computes no layout, so the only honest
-    // assertion here is the wrapper the cap is keyed on. The rendered result is
-    // checked by the before/after screenshot pair on the PR.
+  it("puts the lot date range in the bounded FilterBar, not a bare filters row", async () => {
+    // #653: the field's generated rule carries the bound; a Paper ancestor does not.
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
-    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    const gradeA = screen.getByRole("region", { name: /Grade A\b/ });
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
     await screen.findByRole("row", { name: /07\/01\/2026/ });
 
     const fromInput = screen.getByLabelText("From");
-    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+    expect(fromInput.closest(".MuiPaper-outlined")).not.toBeNull();
+    const field = fromInput.closest(".MuiFormControl-root");
+    expect(field).not.toBeNull();
+    expect(responsiveStyle(field!, "(min-width:900px)", "max-width")).toBe("12rem");
   });
 
   it("collapses the lots again on 'hide lots'", async () => {
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
-    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    const gradeA = screen.getByRole("region", { name: /Grade A\b/ });
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
     await screen.findByText("07/01/2026");
     fireEvent.click(within(gradeA).getByRole("button", { name: "hide lots" }));
@@ -200,7 +198,7 @@ describe("StockPage drill-down", () => {
     mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
     await renderWithData();
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     await screen.findByText("07/01/2026");
     // the lot row's history button
     const lotRow = screen.getByRole("row", { name: /07\/01\/2026/ });
@@ -219,7 +217,7 @@ describe("StockPage drill-down", () => {
     mockListEggLots.mockResolvedValue(LOTS);
     mockListEggLotMovements.mockRejectedValue(new Error("movements down"));
     await renderWithData();
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
     expect(await screen.findByText(/Could not load the lot's movements/)).toBeInTheDocument();
@@ -230,7 +228,7 @@ describe("StockPage drill-down", () => {
     // created rejection is awaited immediately — no dangling unhandled promise.
     mockListEggLots.mockRejectedValue(new Error("lots down"));
     await renderWithData();
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     expect(await screen.findByText(/Could not load the grade's lots/)).toBeInTheDocument();
     expect(screen.getByText("Grade A")).toBeInTheDocument(); // table still there
   });
@@ -263,7 +261,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
       mockListEggLots.mockResolvedValue(LOTS);
       render(<StockPage />);
       await screen.findByText("Grade A");
-      fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+      fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
       const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
       expect(within(lotRow).getByRole("link", { name: "ADJUSTMENT-MARKER" })).toBeInTheDocument();
       expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
@@ -292,7 +290,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
     await withOverride("stock", "lotsButton", "LOTS-MARKER", async () => {
       mockGetStock.mockResolvedValue(ROWS);
       render(<StockPage />);
-      const gradeA = await screen.findByRole("row", { name: /Grade A\b/ });
+      const gradeA = await screen.findByRole("region", { name: /Grade A\b/ });
       expect(within(gradeA).getByRole("button", { name: "LOTS-MARKER" })).toBeInTheDocument();
       expect(within(gradeA).queryByRole("button", { name: "lots" })).not.toBeInTheDocument();
     });
@@ -323,7 +321,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
       mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
       render(<StockPage />);
       await screen.findByText("Grade A");
-      fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+      fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
       const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
       fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
       expect(await screen.findByText("PRODUCTION-MARKER")).toBeInTheDocument();
@@ -337,7 +335,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
       mockListEggLots.mockRejectedValue(new Error("lots down"));
       render(<StockPage />);
       await screen.findByText("Grade A");
-      fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+      fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
       expect(await screen.findByText("LOAD-LOTS-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/Could not load the grade's lots/)).not.toBeInTheDocument();
     });
@@ -361,7 +359,7 @@ describe("StockPage write-off (#406)", () => {
     mockListEggLots.mockResolvedValue(LOTS);
     render(<StockPage />, token);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     return await screen.findByRole("row", { name: /07\/01\/2026/ });
   }
 
@@ -556,7 +554,7 @@ describe("StockPage error placement (#479)", () => {
     mockListEggLots.mockResolvedValue(LOTS);
     render(<StockPage />);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     return await screen.findByRole("row", { name: /07\/01\/2026/ });
   }
 
@@ -598,7 +596,7 @@ describe("StockPage error placement (#479)", () => {
     mockRecordEggLotMovement.mockRejectedValue(new Error("network down"));
     render(<StockPage />);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     const lotRow1 = await screen.findByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
     fillAndSubmit();
@@ -625,7 +623,7 @@ describe("StockPage error placement (#479)", () => {
       new Promise((resolve) => { resolveFirst = resolve; }));
     render(<StockPage />);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     const lotRow1 = await screen.findByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
     fillAndSubmit(); // lot A's submit is left pending
@@ -735,7 +733,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     mockGetStock.mockResolvedValue(ROWS);
     render(<StockPage />);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     await screen.findByText(/^Lots$/);
   }
 
@@ -784,7 +782,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
     await screen.findByText(/^Lots$/);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
     await screen.findByText(/^Lots$/);
     expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g2", limit: PAGE, offset: 0 });
     expect(screen.getByLabelText("From")).toHaveValue("");
@@ -982,7 +980,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
       .mockImplementationOnce(() => new Promise<EggLotRow[]>((r) => (releaseSwitch = r)));
     await expandGradeA();
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
     fireEvent.click(screen.getByRole("button", { name: "history" }));
     await screen.findByText(/Movement ledger/);
 
@@ -1042,7 +1040,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     await expandGradeA();
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "hide lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "hide lots" }));
     expect(screen.queryByText(/^Lots$/)).not.toBeInTheDocument();
 
     await act(async () => {
@@ -1239,7 +1237,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     await expandGradeA();
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
     await screen.findByText(/Could not load the grade's lots/);
     expect(screen.getByLabelText("From")).toHaveValue("");
     expect(screen.getByText("07/01/2026")).toBeInTheDocument();
@@ -1317,7 +1315,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
 
     // While the refresh's getStock() hangs, the user switches to Grade B.
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/, hidden: true })).getByRole("button", { name: "lots", hidden: true }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade B\b/, hidden: true })).getByRole("button", { name: "lots", hidden: true }));
     await screen.findByText("03/03/2026");
 
     await act(async () => {
@@ -1371,7 +1369,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
     await screen.findByText("07/02/2026");
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
     await screen.findByText(/Could not load the grade's lots/);
     expect(screen.getByLabelText("From")).toHaveValue("2026-07-02");
     expect(screen.getByText("07/02/2026")).toBeInTheDocument();
@@ -1467,7 +1465,7 @@ describe("StockPage audit history link (#493)", () => {
     mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
     render(<StockPage />);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
 
     // The link navigates to the entity-scoped audit trail — never opens
@@ -1495,7 +1493,7 @@ describe("StockPage audit history link (#493)", () => {
     mockListEggLots.mockResolvedValue(LOTS);
     render(<StockPage />, WORKER);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
     expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
   });
@@ -1522,7 +1520,7 @@ describe("StockPage abandoned-attempt success (#703)", () => {
     mockListEggLots.mockResolvedValue(LOTS);
     render(<StockPage />);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     return await screen.findByRole("row", { name: /07\/01\/2026/ });
   }
 

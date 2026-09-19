@@ -1,3 +1,4 @@
+import { responsiveStyle } from "../test/renderedStyle";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { ExpensesPage } from "./ExpensesPage";
@@ -423,6 +424,16 @@ describe("ExpensesPage category filter", () => {
         categoryId: "cat-util", limit: 100, offset: 0,
       }),
     );
+  });
+
+  // Empty Category selects need shrunk labels above their placeholders.
+  // jsdom has no layout engine, so check MUI's shrink class on both labels.
+  it("shrinks both Category selects' labels instead of sitting them on top of their placeholder text", async () => {
+    mockListExpenses.mockResolvedValue(emptyList("USD", 2));
+    await renderReady("USD");
+    const labels = screen.getAllByText("Category", { selector: "label" });
+    expect(labels).toHaveLength(2);
+    for (const label of labels) expect(label).toHaveClass("MuiInputLabel-shrink");
   });
 });
 
@@ -1116,14 +1127,15 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
 });
 
 describe("ExpensesPage date-range filter (#667)", () => {
-  // #653/#662 — mirrors Increment 3's StockPage structural guard: the width
-  // cap in styles.css is keyed on `.toolbar input[type="date"]`, so the wrapper
-  // is the only honest thing jsdom (no layout engine) can assert here.
-  it("puts the date range in the bounded toolbar, not a bare filters row", async () => {
+  // #653: inspect the date field's generated bound, not just its container.
+  it("puts the date range in the bounded FilterBar, not a bare filters row", async () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
     await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
     const fromInput = screen.getByLabelText("From");
-    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+    expect(fromInput.closest(".MuiPaper-outlined")).not.toBeNull();
+    const field = fromInput.closest(".MuiFormControl-root");
+    expect(field).not.toBeNull();
+    expect(responsiveStyle(field!, "(min-width:900px)", "max-width")).toBe("12rem");
   });
 
 

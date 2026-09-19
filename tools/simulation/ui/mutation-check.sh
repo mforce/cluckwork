@@ -110,7 +110,7 @@ declare -A SPEC_FOR=(
   [a11y-probe-off-role-dropped]="specs/a11y-live-regions.spec.ts"
   [phone-action-bar-under-tabbar]="specs/phone.spec.ts"
   [phone-tabbar-removed]="specs/phone.spec.ts"
-  [phone-table-overflow-unclipped]="specs/phone.spec.ts"
+  [phone-mui-table-overflow-unclipped]="specs/phone.spec.ts"
   [phone-tabs-inert]="specs/phone.spec.ts"
   [phone-action-label-wrapped]="specs/phone.spec.ts"
   [phone-entry-foot-stacked]="specs/phone.spec.ts"
@@ -148,7 +148,7 @@ declare -A PROJECT_FOR=(
   [a11y-probe-off-role-dropped]="chromium"
   [phone-action-bar-under-tabbar]="chromium-phone"
   [phone-tabbar-removed]="chromium-phone"
-  [phone-table-overflow-unclipped]="chromium-phone"
+  [phone-mui-table-overflow-unclipped]="chromium-phone"
   [phone-tabs-inert]="chromium-phone"
   [phone-action-label-wrapped]="chromium-phone"
   [phone-entry-foot-stacked]="chromium-phone"
@@ -162,7 +162,7 @@ declare -A PROJECT_FOR=(
 declare -A MUST_STAY_GREEN_ON=(
   [phone-action-bar-under-tabbar]="chromium"
   [phone-tabbar-removed]="chromium"
-  [phone-table-overflow-unclipped]="chromium"
+  [phone-mui-table-overflow-unclipped]="chromium"
   [phone-tabs-inert]="chromium"
   [phone-action-label-wrapped]="chromium"
   [phone-entry-foot-stacked]="chromium"
@@ -219,7 +219,7 @@ declare -A GREP_FOR=(
   [a11y-probe-off-role-dropped]="recorded browser facts"
   [phone-action-bar-under-tabbar]="action bar stays clear of the tab bar"
   [phone-tabbar-removed]="the tab bar is the navigation at this width"
-  [phone-table-overflow-unclipped]="no walked screen overflows"
+  [phone-mui-table-overflow-unclipped]="no walked screen overflows"
   [phone-tabs-inert]="the tab bar is the navigation at this width"
   [phone-action-label-wrapped]="no action control is taller than it is wide"
   [phone-entry-foot-stacked]="no action control is taller than it is wide"
@@ -261,21 +261,9 @@ declare -A FALSE_KILLS=(
 # does — this mutant still dies inside sign-in, still proves nothing about the
 # nav gate, and is still counted as a false kill rather than as coverage.
 #
-# The three phone entries were observed the same way. Two of them carry a custom
-# message; `phone-table-overflow-unclipped` declares TWO lines, one per route it
-# still breaks, because the softness of that walk is itself the claim — a hard
-# assertion would stop at /sales and report half the damage, so requiring both
-# is what keeps `expect.soft` there honest. /daily-entry and /stock are
-# deliberately absent: neither renders a wide data table, and both stayed at
-# exactly 390 under the mutant. /customers and /flocks were also on this list
-# until #832: the mutant's CSS targets `table.data` specifically, and #832
-# moved both routes onto MUI's `TableContainer`, which the mutant's rule does
-# not reach — observed directly (`CLUCKWORK_E2E_MUTANT=phone-table-overflow-unclipped`
-# against a #832 build): only /sales and /history still overflow. This is a
-# real narrowing of what the mutant proves, not a typo; if a later slice moves
-# /sales or /history onto MUI too, this mutant stops proving anything at all
-# and needs a new CSS target (MUI's `TableContainer`, not `table.data`) or
-# retirement, matching #824's "retire only with a named successor" rule.
+# #831 replaces the retired table.data mutant with the MUI-container successor.
+# Require failures from separate tables so the overflow walk must continue
+# after its first offender. Stock's grade board has no comparison table.
 #
 # The two phone action mutants split the walk's rule between them, and each
 # declares only what it can actually redden. #823 stacks every action row below
@@ -332,7 +320,7 @@ taller than it is wide, so its pill clamps into an ellipse"
   [phone-entry-foot-stacked]="in the daily-entry save bar spans"
   [phone-dialog-footer-stacked]="dialog footer's row is not laid out as a row (computed flex-direction: column)
 dialog footer's buttons share no common vertical band"
-  [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
+  [phone-mui-table-overflow-unclipped]="/customers scrolls sideways at phone width
 /history scrolls sideways at phone width"
 )
 
@@ -350,7 +338,7 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-probe-alert-control-broken a11y-probe-alert-control-silenced
            a11y-probe-off-role-dropped
            phone-action-bar-under-tabbar phone-tabbar-removed
-           phone-table-overflow-unclipped phone-action-label-wrapped
+           phone-mui-table-overflow-unclipped phone-action-label-wrapped
            phone-entry-foot-stacked phone-dialog-footer-stacked
            phone-tabs-inert)
 fi
@@ -364,7 +352,7 @@ rule
 # UNSCOPED — no `--project`, so this runs BOTH the desktop and the phone
 # project. A baseline scoped to one width would leave the other one's specs
 # unproven before the run that is about to accuse them.
-if npx playwright test --reporter=line; then
+if npx playwright test --workers=1 --reporter=line; then
   echo "BASELINE: GREEN"
 else
   echo
@@ -412,7 +400,7 @@ for name in "${MUTANTS[@]}"; do
   fi
 
   printf '  .. %-30s -> %s [%s]\n' "$name" "$spec" "$project"
-  if CLUCKWORK_E2E_MUTANT="$name" npx playwright test "$spec" -g "$pattern" \
+  if CLUCKWORK_E2E_MUTANT="$name" npx playwright test --workers=1 "$spec" -g "$pattern" \
        --project "$project" --reporter=line > "/tmp/mutant-$name.log" 2>&1; then
     echo "     SURVIVED — the spec still passed with this guarantee broken."
     survived+=("$name")
@@ -509,7 +497,7 @@ for name in "${MUTANTS[@]}"; do
         if [ -n "$other" ]; then
           cross_log="/tmp/mutant-$name.must-stay-green-on-$other.log"
           echo "     .. checking it is width-specific: whole $other suite must stay GREEN"
-          if CLUCKWORK_E2E_MUTANT="$name" npx playwright test --project "$other" \
+          if CLUCKWORK_E2E_MUTANT="$name" npx playwright test --workers=1 --project "$other" \
                --reporter=line > "$cross_log" 2>&1; then
             echo "     KILLED — an assertion failed, as it should, and $other stayed green."
             killed+=("$name")
@@ -537,7 +525,7 @@ echo "PHASE 3/3 — RESTORE (the suite must be GREEN again)"
 rule
 # UNSCOPED, same as the baseline — the two have to measure the same thing or
 # the comparison between them means nothing.
-if npx playwright test --reporter=line; then
+if npx playwright test --workers=1 --reporter=line; then
   restore="GREEN"
 else
   restore="RED"

@@ -74,6 +74,30 @@ async function renderReady(route = "/feed") {
 }
 
 describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down)", () => {
+  it("previews 0.1 kg after issuing 0.9 kg from 1 kg", async () => {
+    mockListItems.mockResolvedValue([item({ quantityOnHand: 1 })]);
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "0.9" } });
+    expect(within(screen.getByRole("complementary", { name: "Ration check" })).getByText("0.1 kg")).toBeInTheDocument();
+    expect(mockRecord).not.toHaveBeenCalled();
+  });
+
+  it("previews the stock remaining after the entered ration without recording it", async () => {
+    await renderReady();
+    const ration = screen.getByRole("complementary", { name: "Ration check" });
+    const announcement = within(ration).getByText("After issue").parentElement;
+    expect(announcement).toHaveAttribute("aria-live", "polite");
+    expect(announcement).toHaveAttribute("aria-atomic", "true");
+    expect(announcement).toHaveTextContent("After issue—");
+    fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "18" } });
+    expect(announcement).toHaveTextContent("After issue102 kg");
+    expect(within(ration).getByText("After issue").parentElement).toBe(announcement);
+    expect(within(ration).getByText("120 kg")).toBeInTheDocument();
+    expect(within(ration).getByText("18 kg")).toBeInTheDocument();
+    expect(within(ration).getByText("102 kg")).toBeInTheDocument();
+    expect(mockRecord).not.toHaveBeenCalled();
+  });
+
   it("offers feedable items — active, or inactive with stock left to feed out — never other categories", async () => {
     mockListItems.mockResolvedValue([
       item(),

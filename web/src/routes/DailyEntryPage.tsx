@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Box, Button, Paper, TextField, Typography, useMediaQuery } from "@mui/material";
@@ -12,6 +12,7 @@ import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { rememberFlockId, resolveDefaultFlock } from "../lib/flockDefault";
 import { BusyButton } from "../components/BusyButton";
+import { EntryRow } from "../components/EntryRow";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { Dialog } from "../components/Dialog";
@@ -30,107 +31,6 @@ import { resolveStepperUnit } from "../lib/stepperUnit";
 import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
-
-// #830 (owner's screenshot review of #888) — the stepper row's 48px squares
-// (mockup: docs/designs/864-visual-language/daily-entry.html) are an sx
-// override on NumberField's OWN classes (`.numfield-step`), never an edit to
-// NumberField.tsx or its base CSS block (styles.css L1030-1093, #828's):
-// those stay exactly as #828 will find them, and this override reaches only
-// rows rendered by THIS page. Every part NumberField renders is a FIXED size
-// at a given breakpoint — the two step buttons, and the input's own ch-width
-// — so `.numfield`'s overall footprint is constant across every row; that
-// constancy is what EntryRow's grid below leans on to line the minus/plus
-// buttons up without touching NumberField itself.
-const STEPPER_SX = {
-  "& .numfield": { width: "100%", justifyContent: "space-between" },
-  "& .numfield-step": {
-    width: { xs: 48, md: 36 }, height: { xs: 48, md: 36 },
-    borderRadius: "var(--r-input)",
-  },
-  "& .numfield input": {
-    // The row numeral size (FarmThemeProvider's `h2`/title scale, DIRECTION.md
-    // — 24/28 desktop, 28/32 phone), not a bespoke size: the readout is the
-    // biggest thing in the row and reads as one more title-weight figure
-    // beside the others this screen shows (the sellable value, the grading
-    // count), right-aligned and tabular so a column of them lines up by digit.
-    fontSize: { xs: "1.75rem", md: "1.5rem" },
-    lineHeight: { xs: "2rem", md: "1.75rem" },
-    fontWeight: 500, textAlign: "right",
-    // Wide enough for a 4-digit count (a flock's daily total can run into the
-    // low thousands) with room to spare — measured against "430" clipping to
-    // "43" at a tighter "4ch" on desktop (Playwright capture, #830).
-    width: { xs: "5.5ch", md: "6ch" },
-  },
-} as const;
-
-// #830 (owner's screenshot review of #888) — one ruled GRID row: label (+
-// optional caption, e.g. "deactivated") in a flexible truncating column,
-// stepper in a fixed-content column, per the mockup's `.row`. The row used to
-// be a flex `justify-content: space-between` pair, which reads as aligned
-// only until a label overflows: a flex item shrinks by default, so "Total
-// eggs" wrapping onto two lines squeezed the stepper beside it by a different
-// amount on every row — the owner's screenshot review of #888 caught this as
-// each row's minus button sitting at a different x. A grid's second column
-// sizes to its own max-content and does NOT shrink to make room for an
-// overflowing sibling; pairing that with `minmax(0, 1fr)` + an ellipsis on
-// the label (never wrap) is what makes the fix structural rather than a
-// pinned width. `groupLabel` names a grade row as an `aria-label`ed group
-// (mirrors Dashboard's TodayRow `role="group"` pattern) — the drop target the
-// test suite locates by name instead of a class, and `armed` draws the F134
-// "taking" outline the same rows carried before, now an inline sx state
-// instead of a shared `.taking` class.
-function EntryRow({
-  htmlFor, label, caption, groupLabel, armed = false, dropProps, children,
-}: {
-  htmlFor: string;
-  label: string;
-  caption?: string;
-  groupLabel?: string;
-  armed?: boolean;
-  dropProps?: ReturnType<typeof remainderDropProps>;
-  children: ReactNode;
-}) {
-  return (
-    <Box
-      role={groupLabel ? "group" : undefined}
-      aria-label={groupLabel}
-      {...dropProps}
-      sx={{
-        display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto",
-        alignItems: "center",
-        gap: 2, minHeight: { xs: 52, md: 44 }, py: 1,
-        borderBottom: "1px solid var(--rule)",
-        ...(armed ? {
-          outline: "1px dashed var(--stat-accent)", outlineOffset: "4px",
-          borderRadius: "var(--r-input)",
-        } : {}),
-        ...STEPPER_SX,
-      }}
-    >
-      <Box component="label" htmlFor={htmlFor}
-        sx={{ minWidth: 0, overflow: "hidden", cursor: "pointer" }}
-      >
-        <Typography component="span" sx={{
-          fontWeight: 500, display: "block",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}
-        >{label}</Typography>
-        {caption && (
-          <Typography component="span" variant="caption" className="muted" sx={{
-            display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}
-          >
-            {caption}
-          </Typography>
-        )}
-      </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "flex-end" }}>
-        {children}
-      </Box>
-    </Box>
-  );
-}
-
 
 // Capture targets active flocks plus depleted ones — a depleted flock still
 // accepts backfilled entries up to its depletion date (the API gates exact
