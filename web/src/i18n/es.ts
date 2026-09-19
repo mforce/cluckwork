@@ -690,6 +690,11 @@ export const es = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    rationCheck: "Comprobación de la ración",
+    onHand: "Disponible",
+    issue: "Consumo",
+    afterIssue: "Después del consumo",
+
     title: "Alimento",
     loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
     loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
@@ -2384,6 +2389,7 @@ export const es = {
       "Registrar compras y uso está abierto para todos; el catálogo de artículos y las correcciones de "
       + "existencias son solo para administradores.",
 
+    feedRationPreview: "Comprobación de la ración muestra Disponible, Consumo y Después del consumo antes de registrar el alimento. El stock cambia solo cuando el registro se completa.",
     feedHeading: "Alimento",
     feedRecording:
       "<strong>Registrar alimento</strong> anota lo que comió una parvada en un día: elija la parvada, el "

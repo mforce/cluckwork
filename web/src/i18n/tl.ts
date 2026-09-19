@@ -725,6 +725,11 @@ export const tl = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    rationCheck: "Suriin ang pakain",
+    onHand: "Kasalukuyang stock",
+    issue: "Gagamitin",
+    afterIssue: "Matitirang stock",
+
     title: "Pakain",
     loadFailed: "Hindi ma-load ang mga kawan at mga item ng pakain. Gumagana ba ang API?",
     loadRecordsFailed: "Hindi ma-load ang mga tala ng pakain.",
@@ -2482,6 +2487,7 @@ export const tl = {
       "Bukas sa lahat ang pagtatala ng pagbili at paggamit; ang katalogo ng item at mga pagtatama ng "
       + "stock ay para sa admin lang.",
 
+    feedRationPreview: "Ipinapakita ng Suriin ang pakain ang Kasalukuyang stock, Gagamitin, at Matitirang stock bago itala ang pakain. Magbabago lamang ang stock kapag matagumpay na naitala.",
     feedHeading: "Pakain",
     feedRecording:
       "Ang <strong>Itala ang pakain</strong> ay nagtatala kung ano ang kinain ng kawan sa isang araw: "

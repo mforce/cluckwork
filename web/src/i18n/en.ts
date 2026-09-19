@@ -965,6 +965,11 @@ export const en = {
   // page, mirroring the water namespace's shape (minus corrections: feed is
   // create-only; mis-entries are compensated via Inventory adjustments).
   feed: {
+    rationCheck: "Ration check",
+    onHand: "On hand",
+    issue: "Issue",
+    afterIssue: "After issue",
+
     title: "Feed",
 
     // Imperative messages (event handlers / promise callbacks).
@@ -3053,6 +3058,7 @@ export const en = {
       + "admin-only.",
 
     // Feed (#446 — its own page, out of the Inventory drill-down)
+    feedRationPreview: "Ration check shows On hand, Issue, and After issue before you record feed. It previews the entered quantity; stock changes only after recording succeeds.",
     feedHeading: "Feed",
     feedRecording:
       "<strong>Record feed</strong> logs what a flock ate on a day: pick the flock, the item (current "
