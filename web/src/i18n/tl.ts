@@ -3285,7 +3285,11 @@ export const tl = {
       + "pagkatapos mag-log in, isang beses kada session. Hiwalay sa logo ng bukid sa itaas — puwedeng "
       + "magkaroon ang isang bukid ng logo, banner, pareho, o wala. Parehong panuntunan ng still image "
       + "na PNG/JPEG/WebP, may sarili itong mas malaking limitasyon sa laki (5 MB bilang default), "
-      + "ina-upload mula sa Mga Setting ng Bukid.",
+      + "ina-upload mula sa Mga Setting ng Bukid. Ang device na nagpapakita nito ay nag-ka-cache ng larawan "
+      + "pagkatapos ng splash screen na iyon, kaya sa susunod na pagbisita puwede rin itong lumabas sa "
+      + "sign-in screen bago pa mag-sign in ang sinuman — pero kapag naaalala lang ng device ang eksaktong "
+      + "isang bukid mula sa dati nang pag-sign in doon; ang link na pangalan lang ng farm code ay hindi "
+      + "kailanman nagpapakita ng banner nito.",
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:

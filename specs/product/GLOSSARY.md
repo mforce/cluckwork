@@ -971,9 +971,29 @@ as the logo (PNG/JPEG/WebP, a still image, no SVG, dimensions and metadata
 handled the same way — see below), but its own larger size cap (5 MB by default,
 since a detailed hero image is typically heavier than a small sidebar mark) and its own
 Owner-only upload and everyone-sees-it read, same as the logo. The
-splash is skipped entirely when no banner is set — it is never shown empty, and
-never shown on the pre-login screen (that screen has no farm to show a banner
-for yet).
+splash is skipped entirely when no banner is set — it is never shown empty.
+
+The pre-login screen itself has no farm to fetch a banner for — `/account/banner`
+stays authenticated, and signing in is exactly what has not happened yet — but it
+can still show one (#833): the device caches the banner's bytes locally the moment
+the post-login splash fetches them, storing them the same way the cached **farm
+palette** (below) already stores its colour. On a later visit, Login reads that
+cache and shows the image before any credentials are entered, but only when the
+device *remembers* exactly one farm from a prior sign-in — with two or more
+remembered farm codes it is ambiguous which banner belongs on screen, so neither
+shows and Login falls back to plain Cluckwork branding. Forgetting a remembered
+farm clears its cached banner alongside its cached palette; a first-time visit on
+a device with no prior sign-in shows no banner either, for the same reason.
+
+Deliberately narrower than the palette's own pre-login reach: the palette also
+shows for a farm a `?farm=<code>` link merely *names*, even on a device that has
+never signed in there, because a colour carries no private information. A banner
+is farm-supplied imagery, so showing one to whoever holds a link — rather than
+only to a device this farm has actually authenticated on before — would be a
+new disclosure the owner did not approve; #833's own design note is explicit that
+the banner's placement was approved, not a change to authentication or image
+access. A `?farm=<code>` link therefore shows no banner, cached or otherwise,
+regardless of what the device remembers.
 
 What gets stored is never quite the file that was uploaded. The image is taken
 apart and rebuilt, which drops two things on purpose: **embedded metadata** — a
