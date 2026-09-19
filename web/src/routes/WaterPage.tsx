@@ -388,14 +388,8 @@ export function WaterPage() {
               requestedId={captureFlockRequestId}
               onSnapshot={(snap) => {
                 setCaptureFlockSnapshot(snap);
-                // #512 (P2) — only adopt the engine's committed entity when it
-                // resolves the page's own requestedId exact GET (the row-owned
-                // id the loaded list never carried). Every other snapshot —
-                // including the engine's internal re-emission after a controlled
-                // sync — carries the engine's PREVIOUS committed entity, which
-                // can be STALE relative to a concurrent page-side commit
-                // (startEdit / resetForm). Blindly adopting it overwrites the
-                // page's fresh row-owned entity with the old default.
+                // #512: only the requested row's exact lookup may replace its flock;
+                // controlled re-emissions can still carry the previous default.
                 if (
                   snap.committed &&
                   captureFlockRequestId &&
