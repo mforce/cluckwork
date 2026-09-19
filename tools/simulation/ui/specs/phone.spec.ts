@@ -560,7 +560,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       { path: "/flocks", content: "role=table", what: "the flock table" },
       // #831 — Stock and History moved their table onto MUI's `Table` too,
       // same reasoning as Customers/Flocks above.
-      { path: "/stock", content: "role=table", what: "the stock table" },
+      { path: "/stock", content: `role=list[name="${tEn("stock:title")}"]`, what: "the stock board" },
       { path: "/history", content: "role=table", what: "the entry history table" },
     ];
 
