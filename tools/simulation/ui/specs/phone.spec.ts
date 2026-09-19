@@ -558,8 +558,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // either way, `table.data` or MUI's.
       { path: "/customers", content: "role=table", what: "the customer book" },
       { path: "/flocks", content: "role=table", what: "the flock table" },
-      // #831 — Stock and History moved their table onto MUI's `Table` too,
-      // same reasoning as Customers/Flocks above.
+      // #831 keeps grade comparisons in a named board and history in a table.
       { path: "/stock", content: `role=list[name="${tEn("stock:title")}"]`, what: "the stock board" },
       { path: "/history", content: "role=table", what: "the entry history table" },
     ];

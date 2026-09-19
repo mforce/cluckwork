@@ -3,38 +3,63 @@ import { Box, TableContainer, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 export const CONSOLE_PANEL_SX = {
-  border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", p: 2, minWidth: 0,
+  border: "1px solid var(--rule)",
+  borderRadius: "var(--r-panel)",
+  p: 2,
+  minWidth: 0,
 };
 export const CONSOLE_SPLIT_SX = {
-  display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1.6fr) minmax(240px, .8fr)" },
-  gap: 2, my: 2,
+  display: "grid",
+  gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1.6fr) minmax(240px, .8fr)" },
+  gap: 2,
+  my: 2,
 };
 export const CONSOLE_FORM_SX = {
-  display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" },
-  gap: 2, alignItems: "end", "& > *": { minWidth: 0, width: "100%", maxWidth: "100%" },
+  display: "grid",
+  gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" },
+  gap: 2,
+  alignItems: "end",
+  "& > *": { minWidth: 0, width: "100%", maxWidth: "100%" },
 };
 export const CONSOLE_RAIL_SX = {
-  ...CONSOLE_PANEL_SX, bgcolor: "#2c2429", color: "#fff",
+  ...CONSOLE_PANEL_SX,
+  bgcolor: "#2c2429",
+  color: "#fff",
   "& .MuiTypography-root": { color: "inherit" },
 };
 
 export function FieldConsole({ children }: { children: ReactNode }) {
-  return <Box component="section" sx={{
-    minWidth: 0,
-    "& > h2, & h3": { fontFamily: 'Georgia, "Times New Roman", serif' },
-    "& > h2": { fontSize: { xs: "1.75rem", md: "2rem" }, mb: 1 },
-    "& h3": { fontSize: "1.25rem", mt: 2.5, mb: 1 },
-    "& .MuiTableCell-root": { fontSize: "0.75rem", py: 1.25, px: 1 },
-    "& .MuiTableCell-head": { fontSize: "0.625rem", letterSpacing: ".06em", textTransform: "uppercase" },
-  }}>{children}</Box>;
+  return (
+    <Box component="section" sx={{
+      minWidth: 0,
+      "&& h2, && h3": { fontFamily: 'Georgia, "Times New Roman", serif' },
+      "&& h2": { fontSize: { xs: "1.75rem", md: "2rem" }, mb: 1 },
+      "& h3": { fontSize: "1.25rem", mt: 2.5, mb: 1 },
+      "& .MuiTableCell-root": { fontSize: "0.75rem", py: 1.25, px: 1 },
+      "& .MuiTableCell-head": {
+        fontSize: "0.625rem", letterSpacing: ".06em", textTransform: "uppercase",
+      },
+    }}>
+      {children}
+    </Box>
+  );
 }
 
 export function LedgerTableContainer({ children }: { children: ReactNode }) {
   const { t } = useTranslation("common");
-  return <Box sx={{ minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)" }}>
-    <Typography component="p" sx={{ display: { xs: "block", md: "none" }, m: 0, py: .5, px: 1, fontSize: ".65rem", textAlign: "right", bgcolor: "var(--surface-2)", color: "text.secondary" }}>
-      {t("swipeColumns")}
-    </Typography>
-    <TableContainer>{children}</TableContainer>
-  </Box>;
+  return (
+    <Box sx={{ minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)" }}>
+      <Typography component="p" sx={{
+        display: { xs: "block", md: "none" },
+        m: 0, py: .5, px: 1,
+        fontSize: ".65rem",
+        textAlign: "right",
+        bgcolor: "var(--surface-2)",
+        color: "text.secondary",
+      }}>
+        {t("swipeColumns")}
+      </Typography>
+      <TableContainer>{children}</TableContainer>
+    </Box>
+  );
 }
