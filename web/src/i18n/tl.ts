@@ -1080,6 +1080,8 @@ export const tl = {
   // short Filipino equivalent in common PH farm-software use; flag for
   // native review.
   stock: {
+    gradesLabel: "Mga grado",
+    noRestrictions: "Walang restriksyon",
     title: "Stock",
 
     // Imperative messages

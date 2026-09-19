@@ -92,12 +92,7 @@ describe("StockPage", () => {
     const gradeBRow = screen.getByRole("region", { name: /Grade B\b/ });
     expect(within(gradeBRow).getByText("5")).toBeInTheDocument();
 
-    // 100 + 50 = 150 across 2 grades — the client-side reduce.
-    expect(
-      screen.getByText(
-        (_, el) => el?.tagName === "P" && /^150 eggs available across 2 grade\(s\)\./.test(el.textContent ?? ""),
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/^150 eggs available across 2 grade\(s\)\./)).toHaveTextContent("150");
   });
 
   it("exposes each grade as a named region in the stock board", async () => {
@@ -305,7 +300,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
       async () => {
         mockGetStock.mockResolvedValue(ROWS);
         render(<StockPage />);
-        expect(await screen.findByText("TOTAL-MARKER 150 of 2 MARKER-END")).toBeInTheDocument();
+        expect(await screen.findByLabelText("TOTAL-MARKER 150 of 2 MARKER-END")).toBeInTheDocument();
         expect(screen.queryByText(/eggs available across/)).not.toBeInTheDocument();
       },
     );
@@ -1626,4 +1621,14 @@ describe("StockPage abandoned-attempt success (#703)", () => {
     expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("late write-off failure")).not.toBeInTheDocument();
   });
+});
+
+
+it("separates stock totals and states when a grade has no restrictions", async () => {
+  mockGetStock.mockResolvedValue(ROWS);
+  render(<StockPage />);
+  const grade = await screen.findByRole("region", { name: "Grade A" });
+  expect(within(grade).getByText("No restrictions")).toBeInTheDocument();
+  const summary = screen.getByLabelText(/^150 eggs available across 2 grade\(s\)\./);
+  expect(summary).toHaveTextContent("Restricted5");
 });

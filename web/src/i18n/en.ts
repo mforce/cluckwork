@@ -1414,6 +1414,8 @@ export const en = {
   // and quantity/delta values are free-form farm DATA, not client copy, and
   // stay raw — never routed through the catalog or an enum helper.
   stock: {
+    gradesLabel: "Grades",
+    noRestrictions: "No restrictions",
     title: "Stock",
 
     // Imperative messages (mount-effect / drill-down catch handlers — see

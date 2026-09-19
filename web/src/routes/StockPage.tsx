@@ -23,7 +23,7 @@ import { NumberField } from "../components/NumberField";
 import { useDialogAction } from "../components/useDialogAction";
 import i18n from "../i18n";
 import { stockMovementLabel } from "../i18n/enums";
-import { FieldConsole, LedgerTableContainer } from "../components/FieldConsole";
+import { FieldConsole, LedgerTableContainer, ConsoleSummary } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 
 // Matches the API's default page size — a full page means there may be more.
@@ -498,23 +498,25 @@ export function StockPage() {
         <EmptyState icon={Egg} message={t("noStockMessage")} />
       ) : (
         <>
-          <Typography component="p" sx={{ py: 1.25, my: 2, borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
-            {t("totalAvailableMessage", { available: fmt.count(totalAvailable), grades: rows.length })}
-          </Typography>
+          <ConsoleSummary label={t("totalAvailableMessage", { available: fmt.count(totalAvailable), grades: rows.length })} items={[
+            { label: t("availableHeader"), value: fmt.count(totalAvailable) },
+            { label: t("gradesLabel"), value: fmt.count(rows.length) },
+            { label: t("restrictedHeader"), value: fmt.count(rows.reduce((total, row) => total + row.restricted, 0)) },
+          ]} />
           <List aria-label={t("title")} disablePadding sx={{ borderTop: "2px solid var(--ink)" }}>
             {rows.map((r) => (
               <ListItem key={r.eggGradeId} disablePadding sx={{ borderBottom: "1px solid var(--rule)" }}>
-                <Box role="region" aria-label={r.gradeName} sx={{ width: "100%", display: "grid", gridTemplateColumns: { xs: "80px 60px minmax(0, 1fr)", md: "110px 100px minmax(80px, 1fr) 120px 120px" }, gap: { xs: 1, md: 1.5 }, alignItems: "center", py: { xs: 1, md: 2 }, px: 1 }}>
+                <Box role="region" aria-label={r.gradeName} sx={{ width: "100%", display: "grid", gridTemplateColumns: { xs: "80px 75px minmax(0, 1fr)", md: "110px 100px minmax(80px, 1fr) 120px 120px" }, gap: { xs: 1, md: 1.5 }, alignItems: "center", py: { xs: 1, md: 2 }, px: 1 }}>
                   <Typography component="strong" sx={{ fontFamily: "Georgia, serif", fontSize: "1.1rem", fontWeight: 700 }}>{r.gradeName}</Typography>
                   <Box>
                     <Typography sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.count(r.available)}</Typography>
                     <Typography variant="body2" sx={{ fontSize: ".65rem", color: "text.secondary" }}>{t("availableHeader")}</Typography>
                   </Box>
                   <LinearProgress variant="determinate" value={maxAvailable > 0 ? r.available / maxAvailable * 100 : 0} aria-label={r.gradeName} sx={{ height: 8, borderRadius: "var(--r-pill)", bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--stat-accent)" } }} />
-                  <Box sx={{ gridColumn: { xs: "1 / 3", md: "auto" }, fontSize: ".75rem", color: r.restricted > 0 ? "var(--warn)" : "text.secondary" }}>
-                    <span>{r.restricted > 0 ? fmt.count(r.restricted) : "—"}</span>{" "}{t("restrictedHeader")}<GlossaryLink term="WithdrawalRestriction" />
+                  <Box sx={{ gridColumn: { xs: "2 / 4", md: "auto" }, fontSize: ".75rem", color: r.restricted > 0 ? "var(--warn)" : "text.secondary" }}>
+                    {r.restricted > 0 ? <><span>{fmt.count(r.restricted)}</span>{" "}{t("restrictedHeader")}</> : t("noRestrictions")}<GlossaryLink term="WithdrawalRestriction" />
                   </Box>
-                  <Button variant="outlined" color="inherit" aria-expanded={openGrade === r.eggGradeId} sx={{ gridColumn: { xs: "3", md: "auto" }, height: { xs: 44, md: "auto" } }} onClick={() => void toggleGrade(r.eggGradeId)}>
+                  <Button variant="outlined" color="inherit" aria-expanded={openGrade === r.eggGradeId} sx={{ gridColumn: { xs: "2 / 4", md: "auto" }, height: { xs: 44, md: "auto" } }} onClick={() => void toggleGrade(r.eggGradeId)}>
                     {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
                   </Button>
                 </Box>
