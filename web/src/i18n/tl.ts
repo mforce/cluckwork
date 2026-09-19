@@ -906,8 +906,7 @@ export const tl = {
     title: "Feed at Imbentaryo",
     intro:
       "Tumanggap ng stock bilang pagbili; bawat pagbabago ay napupunta sa "
-      + "talaan ng galaw ng item. Susunod ang pagtatala ng paggamit ng feed "
-      + "laban sa mga kawan.",
+      + "talaan ng galaw ng item. Itala ang paggamit ng feed ng mga kawan sa pahina ng Pakain.",
 
     // Imperative messages
     loadInventoryFailed: "Hindi na-load ang imbentaryo. Gumagana ba ang API?",

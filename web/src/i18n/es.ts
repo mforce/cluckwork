@@ -869,8 +869,7 @@ export const es = {
     title: "Alimento e inventario",
     intro:
       "Reciba existencias como compras; cada cambio queda en el registro de "
-      + "movimientos del artículo. El registro de uso de alimento contra los "
-      + "lotes llega después.",
+      + "movimientos del artículo. Registre el uso de alimento por lote en la página de Alimento.",
 
     // Imperative messages
     loadInventoryFailed: "No se pudo cargar el inventario. ¿Está la API activa?",
