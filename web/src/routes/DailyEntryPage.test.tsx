@@ -131,7 +131,7 @@ function submitBtn() {
 // (component untouched by #830, still shared with HistoryPage) and needs no
 // change at all.
 function countsSection() {
-  return screen.getByRole("heading", { name: /Egg counts/ }).closest("section") as HTMLElement;
+  return screen.getByRole("heading", { name: /Count the collection/ }).closest("section") as HTMLElement;
 }
 function sellableReadout() {
   const section = countsSection();
@@ -170,7 +170,7 @@ describe("DailyEntryPage grading pane excludes counter-fed grades", () => {
     // on this screen: Egg counts has a Cracked *counter*, which must stay — an
     // unscoped query matches that and passes whatever the Grading pane does.
     // (The first version of this test did exactly that and had to be tightened.)
-    const grading = screen.getByRole("heading", { name: /Grading/ })
+    const grading = screen.getByRole("heading", { name: /Grade the sellable eggs/ })
       .closest("section") as HTMLElement;
 
     expect(within(grading).getByLabelText("Grade A")).toBeInTheDocument();
@@ -178,7 +178,7 @@ describe("DailyEntryPage grading pane excludes counter-fed grades", () => {
     expect(within(grading).queryByLabelText("Cracked")).not.toBeInTheDocument();
 
     // ...while the counter it IS fed by stays where it belongs.
-    const counts = screen.getByRole("heading", { name: /Egg counts/ })
+    const counts = screen.getByRole("heading", { name: /Count the collection/ })
       .closest("section") as HTMLElement;
     expect(within(counts).getByLabelText("Cracked")).toBeInTheDocument();
   });
@@ -275,6 +275,7 @@ describe("DailyEntryPage accuracy gating", () => {
     const msg = within(countsSection()).getByRole("alert");
     expect(msg).toHaveTextContent("Cracked + dirty + discarded (11) exceed total eggs (10)");
     expect(msg.textContent).not.toMatch(/-\d/);
+    expect(within(countsSection()).queryByRole("status")).toBeNull();
     expect(remainingChip()).toHaveTextContent("Fix the counts first");
     expect(submitBtn()).toBeDisabled();
     expect(saveDraftBtn()).toBeDisabled();
@@ -588,34 +589,66 @@ describe("DailyEntryPage submit confirmation", () => {
   });
 });
 
-// F134: the screen is one undifferentiated pile of fields no more — three
-// numbered steps in the order the work actually happens, with the
-// reconciliation line and both saves pinned in a footer.
+// Collection and grading are distinct work steps, with their reconciliation
+// beside the fields and both saves pinned in the footer.
 describe("DailyEntryPage structure", () => {
-  it("labels the three steps without speaking the numerals twice", async () => {
+  it("names the two workbench steps in the order the collection is counted", async () => {
     await renderReady();
 
-    // Two steps, not three: choosing a flock and a date says WHICH day is being
-    // recorded, it is not part of recording it. #830 dropped the visible
-    // "Step n" pill from this page's own headings (the mockup shows a plain
-    // "Egg counts"/"Grading" heading; `.step-n`'s CSS and its visible pill
-    // stay for HistoryPage's mirror of this layout) — "Step n of 2" is now
-    // entirely sr-only, but accessible-name computation does not care whether
-    // a contributing span is visually clipped, so the full name is unchanged.
-    expect(screen.getByRole("heading", { name: "Step 1 of 2: Egg counts" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Step 2 of 2: Grading" })).toBeInTheDocument();
+    const collection = screen.getByRole("heading", { name: "1 · Count the collection" });
+    const grading = screen.getByRole("heading", { name: "2 · Grade the sellable eggs" });
+    const workbenchHeadings = screen.getAllByRole("heading")
+      .filter((heading) => heading === collection || heading === grading);
+    expect(workbenchHeadings).toEqual([collection, grading]);
     expect(screen.queryByRole("heading", { name: /Flock/ })).toBeNull();
+  });
+
+  it("shows collection and grading totals without requiring subtraction", async () => {
+    await renderReady();
+    setNum("Total eggs", 100);
+    setNum("Cracked", 2);
+    setNum("Dirty", 3);
+    setNum("Discarded", 5);
+    setNum("Grade A", 60);
+    setNum("Grade B", 25);
+
+    const collection = screen.getByRole("group", { name: "Collection totals" });
+    expect(collection).toHaveTextContent("Set aside10");
+    expect(collection).toHaveTextContent("Sellable target90");
+    expect(within(collection).getByRole("status")).toHaveTextContent("Sellable target90");
+
+    const grading = screen.getByRole("group", { name: "Grading totals" });
+    expect(grading).toHaveTextContent("Graded85");
+    expect(grading).toHaveTextContent("Still to grade5");
+    expect(grading).toHaveTextContent("85 of 90");
+  });
+
+  it("describes captioned count fields to assistive technology", async () => {
+    const deactivatedGrade = { ...GRADES[0], active: false };
+    const draft: DailyEntry = {
+      ...NO_RECORD_HISTORY,
+      id: "de-caption", farmId: "farm1", houseId: "h1", flockId: "f1",
+      date: todayIso(), status: "Draft", totalEggs: 1, crackedEggs: 0,
+      dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0,
+      crackedGradeId: null, dirtyGradeId: null,
+      grades: [{ eggGradeId: deactivatedGrade.id, quantity: 1 }],
+      version: 1, adjustReason: null, voidReason: null,
+      lockedAtUtc: null, adjustedFrom: null,
+    };
+    mockListEggGrades.mockResolvedValue([deactivatedGrade, GRADES[1]]);
+    mockListDailyEntries.mockResolvedValue([draft]);
+
+    await renderReady();
+
+    expect(screen.getByLabelText("Mortality")).toHaveAccessibleDescription("Flock event · birds");
+    expect(screen.getByLabelText("Grade A")).toHaveAccessibleDescription("(deactivated)");
   });
 
   it("puts each readout with the fields it describes, and the saves in the footer", async () => {
     await renderReady();
 
-    // Sellable belongs to the counts that produce it; the remainder belongs to
-    // the grades that consume it. Reading one while the other was a screen away
-    // was the whole complaint. #830: pane-scoped by heading instead of
-    // `.entry-pane` (the class stays for HistoryPage, but #830's own markup no
-    // longer carries it).
-    const gradingSection = screen.getByRole("heading", { name: /Grading/ }).closest("section") as HTMLElement;
+    // Each derived readout stays in the section containing its inputs.
+    const gradingSection = screen.getByRole("heading", { name: /Grade the sellable eggs/ }).closest("section") as HTMLElement;
     expect(within(countsSection()).getByRole("status")).toBeInTheDocument();
     expect(gradingSection.querySelector(".entry-chip")).not.toBeNull();
 

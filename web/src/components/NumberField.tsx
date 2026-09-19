@@ -20,6 +20,8 @@ interface NumberFieldProps {
   id: string;
   /** Names the two buttons — "Increase total eggs", not "Increase". */
   label: string;
+  /** Points the input at supporting text rendered beside its label. */
+  describedBy?: string | undefined;
   value: number;
   /** Takes React's setState directly: the repeat MUST use the updater form. */
   onChange: Dispatch<SetStateAction<number>>;
@@ -51,7 +53,8 @@ interface NumberFieldProps {
 // vanishes entirely on touch, so counts get typed on a phone keypad one digit
 // at a time. These are thumb-sized, and holding one accelerates.
 export function NumberField({
-  id, label, value, onChange, step = 1, max = Number.POSITIVE_INFINITY, min = 0, disabled = false,
+  id, label, describedBy, value, onChange, step = 1,
+  max = Number.POSITIVE_INFINITY, min = 0, disabled = false,
 }: NumberFieldProps) {
   const { t } = useTranslation("numberField");
   const timer = useRef<number | null>(null);
@@ -152,6 +155,7 @@ export function NumberField({
       </button>
       <input
         id={id}
+        aria-describedby={describedBy}
         type="number"
         // -Infinity means "no floor" (signed adjustments); min="-Infinity" is
         // not a valid HTML constraint, so the attribute is omitted entirely.
