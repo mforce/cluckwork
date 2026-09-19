@@ -206,6 +206,10 @@ export function FeedPage() {
     (x) => FEEDABLE_CATEGORIES.includes(x.category)
       && (x.active || x.quantityOnHand > 0 || x.id === requestedItemId));
   const selectedItem = items.find((x) => x.id === itemId);
+  // #831: inventory quantities are stored to three decimal places.
+  const afterIssueQuantity = selectedItem && quantity !== ""
+    ? (Math.round(selectedItem.quantityOnHand * 1000) - Math.round(Number(quantity) * 1000)) / 1000
+    : null;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -340,7 +344,7 @@ export function FeedPage() {
             {[
               [t("onHand"), selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
               [t("issue"), selectedItem && quantity !== "" ? `${fmt.count(Number(quantity))} ${selectedItem.unit}` : "—"],
-              [t("afterIssue"), selectedItem && quantity !== "" ? `${fmt.count(selectedItem.quantityOnHand - Number(quantity))} ${selectedItem.unit}` : "—"],
+              [t("afterIssue"), selectedItem && afterIssueQuantity !== null ? `${fmt.count(afterIssueQuantity)} ${selectedItem.unit}` : "—"],
             ].map(([label, value]) => <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
               <Typography component="dt" sx={{ fontSize: ".8rem" }}>{label}</Typography>
               <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>

@@ -1,3 +1,4 @@
+import { responsiveStyle } from "../test/renderedStyle";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { act, screen, waitFor, within, fireEvent } from "@testing-library/react";
@@ -181,6 +182,9 @@ describe("StockPage drill-down", () => {
 
     const fromInput = screen.getByLabelText("From");
     expect(fromInput.closest(".MuiPaper-outlined")).not.toBeNull();
+    const field = fromInput.closest(".MuiFormControl-root");
+    expect(field).not.toBeNull();
+    expect(responsiveStyle(field!, "(min-width:900px)", "max-width")).toBe("12rem");
   });
 
   it("collapses the lots again on 'hide lots'", async () => {
