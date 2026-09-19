@@ -1456,6 +1456,8 @@ export function SalesPage() {
             </Box>
             <Box component="aside" aria-label={t("settlementHeading")} sx={{
               ...CONSOLE_RAIL_SX,
+              "--surface": "#2c2429",
+              "--surface-2": "#433840",
               "& .muted, & .discount-note": { color: "#cfc4cb" },
               "& .discount, & .warn": { color: "#ffcf85" },
               "& .MuiTableCell-root": { color: "inherit" },
@@ -1552,7 +1554,7 @@ export function SalesPage() {
                 <>
                   <h4>{t("payments")}</h4>
                   {payments.items.length > 0 && (
-                    <LedgerTableContainer>
+                    <LedgerTableContainer alwaysShowSwipeCue>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
