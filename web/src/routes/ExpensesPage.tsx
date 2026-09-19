@@ -749,10 +749,10 @@ export function ExpensesPage() {
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
       </Box>
-      <Box component="aside" sx={CONSOLE_RAIL_SX}>
+      <Box component="aside" sx={{ ...CONSOLE_RAIL_SX, gridRow: { xs: 1, md: "auto" } }}>
         {!expenses.reloading && expenses.meta !== null && (
           <>
-            <Typography component="p" sx={{ fontFamily: "Georgia, serif", fontSize: "1.9rem" }}>
+            <Typography component="p" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.9rem" }}>
               <strong>{t("periodTotalLabel", { amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor) })}</strong>
             </Typography>
             <Typography sx={{ fontSize: ".8rem" }}>{t("wholePeriod")}</Typography>

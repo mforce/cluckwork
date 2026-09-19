@@ -129,8 +129,8 @@ export function ReportsPage() {
               ...(isAdmin && profit ? [[t("profitRowLabel"), fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)]] : []),
               [t("lossesHeader"), fmt.count(production.days.reduce((sum, day) => sum + day.cracked + day.dirty + day.discarded, 0))],
             ].map(([label, value]) => <Box key={label} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
-              <Typography component="dt" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
-              <Typography component="dd" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
+              <Typography component="dt" variant="body2" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
+              <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
             </Box>)}
           </Box>
           <h3>{t("productionHeading")}</h3>
@@ -205,7 +205,7 @@ export function ReportsPage() {
                 <ListItem key={grade.name} sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(50px, 1fr)", gap: 2, px: 0, py: 1.5, borderBottom: "1px solid var(--rule)" }}>
                   <Typography component="span" sx={{ fontFamily: "Georgia, serif", fontWeight: 600 }}>{grade.name}</Typography>
                   <strong>{fmt.count(grade.quantity)}</strong>
-                  <LinearProgress variant="determinate" value={100 * grade.quantity / Math.max(1, ...production.gradeTotals.map((g) => g.quantity))} aria-label={grade.name} sx={{ height: 8, borderRadius: "var(--r-pill)" }} />
+                  <LinearProgress variant="determinate" value={100 * grade.quantity / Math.max(1, ...production.gradeTotals.map((g) => g.quantity))} aria-label={grade.name} sx={{ height: 8, borderRadius: "var(--r-pill)", bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--stat-accent)" } }} />
                 </ListItem>
               ))}
             </List>
