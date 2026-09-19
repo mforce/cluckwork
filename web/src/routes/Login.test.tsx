@@ -641,17 +641,10 @@ describe("Login — forgetting a remembered farm", () => {
     expect(passwordField).toHaveAttribute("autocomplete", "current-password");
   });
 
-  // #587/#833, Codex review round 3 — the source-shape guards in
-  // styles.test.ts only match SPELLING (a stray comment or a dead
-  // declaration containing the same string would satisfy them). This is the
-  // rendered half: jsdom's getComputedStyle does not resolve a custom
-  // property reference through the cascade the way a real browser does, so
-  // it returns exactly the (unresolved) literal Emotion wrote — which is
-  // still the element's real style, just not a real browser's fully-computed
-  // colour. That is enough to prove which of the two possible values
-  // (`var(--error)` vs the theme's `error.main` palette slot, which resolves
-  // to a literal hex/rgb, never the string "var(--error)") the component
-  // actually emitted.
+  // #587/#833 — the rendered half of styles.test.ts's spelling-only
+  // source-shape guards. jsdom's getComputedStyle returns the literal
+  // Emotion wrote for a custom property, which is enough to tell
+  // `var(--error)` apart from `error.main`'s always-literal hex/rgb.
   it("paints the Forget glyph with --error and the select chip with no destructive colour", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
     renderWithProviders(tree(), { route: "/login", token: null });

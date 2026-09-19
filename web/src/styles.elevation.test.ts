@@ -275,9 +275,8 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // `.help-hero` does NOT retire: #833's Help conversion is deliberately
   // scoped to the outer Container and the page's own h2 (see the PR body),
   // so HelpPage.tsx still renders `className="help-hero"` and the rule is
-  // still live — Codex review round 2 caught an earlier version of this PR
-  // that dropped the row anyway. Retire this row (remove `.help-hero` from
-  // the list below) only when the hero band itself converts, not before.
+  // still live. Retire this row (remove `.help-hero` from the list below)
+  // only when the hero band itself converts, not before.
   // `.farm-warning` stays too: it is AppLayout's shell strip, outside this
   // slice's seven screens.
   it.each([

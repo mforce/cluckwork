@@ -199,17 +199,10 @@ describe.each(BRANDS)("palette: %s", (brand) => {
   });
 });
 
-// #833, Codex review round 2 — the contrast pair above only proves --error
-// IS safe; it cannot see which token the component actually paints with.
-// `error.main` (MUI's palette slot) resolves to --danger, not --error
-// (FarmThemeProvider.tsx's own comment: "--danger is this app's destructive-
-// action colour and --error its validation colour... MUI has one slot... so
-// --danger is the honest mapping" for THAT slot) — so a well-meaning edit
-// that swapped the rest colour from `"var(--error)"` to the shorter
-// `"error.main"` silently regressed the Forget glyph to 2.76:1 in dark
-// aubergine while this file's own token-value pair kept passing. Source-shape
-// guard, same technique as routes/emptyStates.guard.test.ts: read the real
-// source and require the literal token, not the palette slot.
+// #833 — the contrast pair above proves --error is safe, not which token
+// the component paints with; `error.main` resolves to --danger instead
+// (FarmThemeProvider.tsx: one MUI slot for two separate colours) and would
+// silently regress the Forget glyph to 2.76:1 in dark aubergine.
 describe("the login Forget glyph's source uses --error, not the error.main palette slot", () => {
   it("Login.tsx's rest-state colour is var(--error)", () => {
     const source = readFileSync(
@@ -232,16 +225,11 @@ describe("the login Forget glyph's source uses --error, not the error.main palet
   });
 });
 
-// #833, Codex review round 2 — Login.styles.test.ts (retired with the
-// deleted `.auth` CSS block) also carried "does not make the farm-selection
-// chip destructive": the select chip and the Forget control share one entry
-// wrapper, and a later edit that copy-pasted the Forget button's destructive
-// styling onto the SELECT chip (not just its icon) would tell a farm operator
-// that choosing a remembered farm is dangerous. No CSS selector is left to
-// read this off, since both controls are inline `sx` now — same source-shape
-// technique as the guard above, scoped to the select chip's own `onClick`
-// (the one attribute unique to it) rather than the Forget button's
-// `aria-label`.
+// #833 — Login.styles.test.ts (retired with the deleted `.auth` CSS block)
+// also carried "does not make the farm-selection chip destructive": the
+// select chip and Forget control share one entry wrapper, so a copy-paste
+// of the Forget button's destructive styling onto the chip itself would
+// tell a farm operator that picking a remembered farm is dangerous.
 describe("the login farm-selection chip carries no destructive colour", () => {
   it("Login.tsx's select-chip sx names no error/danger token", () => {
     const source = readFileSync(
