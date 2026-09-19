@@ -94,6 +94,8 @@ test.describe("Owner", () => {
       await expect(recordButton).toHaveClass(/MuiButton-outlined/);
       const box = await recordButton.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
+      const rowHeight = await recordButton.evaluate((el) => el.closest('[role="group"]')?.getBoundingClientRect().height);
+      expect(rowHeight).toBe(66);
       const placement = await recordButton.evaluate((el) => {
         const style = getComputedStyle(el);
         return [style.gridColumn, style.gridRow];

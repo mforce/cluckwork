@@ -38,7 +38,7 @@ await signIn(readmeFarmOwner());          // demo farm: two houses, one draft, r
 await page.goto("/");
 await expect(page.getByRole("heading", { name: tEn("dashboard:title") })).toBeVisible();
 const row = page.getByRole("group", { name: "House 2 layers" });        // one Today row
-await expect(row.getByRole("link", { name: /Record/ })).toBeVisible();  // the filled action
+await expect(row.getByRole("link", { name: /Record/ })).toBeVisible();  // the outlined action
 const sales = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
 await expect(sales.getByRole("listitem").first()).toBeVisible();
 ```

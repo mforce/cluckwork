@@ -640,6 +640,8 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     await expect(days).toHaveCount(14);
     const record = dashboard.getByRole("link", { name: /^Record / }).first();
     await expect(record).toHaveText(tEn("dashboard:recordAction"));
+    const rowHeight = await record.evaluate((el) => el.closest('[role="group"]')?.getBoundingClientRect().height);
+    expect(rowHeight).toBe(85);
     expect(await record.evaluate((el) => [getComputedStyle(el).gridColumn, getComputedStyle(el).gridRow])).toEqual(["3", "1"]);
     const controls = dashboard.getByRole("link").or(dashboard.getByRole("button")).filter({ visible: true });
     expect(await dashboard.getByRole("link").count()).toBeGreaterThan(0);

@@ -844,7 +844,7 @@ export const en = {
     // aria-label of a tile link; the visible tile shows name, eggs and status.
     tileLinkLabel: "{{flock}}: open today's entry",
     // The missing state has to be IN the accessible name: `aria-label` replaces
-    // the link's content, so the visible "no entry" badge is never announced.
+    // the link's content, so the visible "Not recorded" state is never announced.
     // Shares the "open today's entry" suffix with the recorded label so a test
     // matching tiles generically still matches both.
     tileLinkLabelMissing: "{{flock}}: no entry yet, open today's entry",
