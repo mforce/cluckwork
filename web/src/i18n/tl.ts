@@ -3287,9 +3287,9 @@ export const tl = {
       + "na PNG/JPEG/WebP, may sarili itong mas malaking limitasyon sa laki (5 MB bilang default), "
       + "ina-upload mula sa Mga Setting ng Bukid. Ang device na nagpapakita nito ay nag-ka-cache ng larawan "
       + "pagkatapos ng splash screen na iyon, kaya sa susunod na pagbisita puwede rin itong lumabas sa "
-      + "sign-in screen bago pa mag-sign in ang sinuman — pero kapag naaalala lang ng device ang eksaktong "
-      + "isang bukid mula sa dati nang pag-sign in doon; ang link na pangalan lang ng farm code ay hindi "
-      + "kailanman nagpapakita ng banner nito.",
+      + "sign-in screen bago pa maglagay ng password — pero habang ang farm code field ay pangalan ng "
+      + "parehong bukid na iyon; ang pag-type o pagpili ng ibang code ay agad itong nagtatago, at ang link "
+      + "na pangalan lang ng farm code ay hindi kailanman nagpapakita ng banner nito.",
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:

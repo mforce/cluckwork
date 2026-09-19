@@ -11,6 +11,8 @@ import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
 import { BRANDS } from "../lib/brand";
 import type { Brand } from "../lib/brand";
+import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
 
 // Mirrors PALETTE_LABEL_KEYS in SettingsPage.tsx — kept local to the test
@@ -1137,6 +1139,43 @@ describe("SettingsPage banner", () => {
     expect(screen.getByLabelText("Farm name *")).toHaveValue("Coop Co");
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
   });
+
+  // #833 finding 4 — replacing or removing the banner must also update the
+  // device's pre-login cache (lib/bannerCache.ts), or Login can keep
+  // showing an image the server no longer serves.
+  it("re-caches the banner's bytes on upload, for Login's pre-auth display", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull());
+  });
+
+  it("clears the cached banner on remove, so Login stops showing it before 'Forget this farm'", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    await cacheBannerBytes(new Blob(["old-banner"]), farmBindingToken());
+    expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull(); // the fixture, proven present
+
+    mockRemoveBanner.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
+    });
+
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
+  });
 });
 
 // #236 — one usePendingAction now carries what `saving` + `logoBusy` used to,
@@ -1439,6 +1478,17 @@ describe("SettingsPage — expandable sections (#833 Concept C)", () => {
 
     expect(mockUpdate).not.toHaveBeenCalled();
     // The confirm dialog opened instead — the destructive click's only effect.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // #833 finding 7 — the logo case above proves nothing about the banner's
+  // OWN Remove button; they are two separate controls in two separate
+  // panels, and a fix or regression in one is not visible through the other.
+  it("does not submit the settings form when Remove (banner) is clicked", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

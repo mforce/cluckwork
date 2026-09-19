@@ -1,30 +1,47 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { bannerKeyFor, cacheBannerBytes, forgetBannerFor, readCachedBanner } from "./bannerCache";
+import {
+  bannerKeyFor, cacheBannerBytes, clearBannerIfWrongAccount, forgetBannerFor, readCachedBannerBlob,
+} from "./bannerCache";
 import { bindAccount, bindFarm, clearBoundAccount, farmBindingToken } from "../auth/tokenStore";
 
 beforeEach(() => {
-  localStorage.clear();
   bindAccount("acct-A");
   bindFarm("sunny-acres");
 });
 
 const blob = (data = "fake-image-bytes") => new Blob([data], { type: "image/png" });
 
+async function blobText(b: Blob | null): Promise<string | null> {
+  return b === null ? null : b.text();
+}
+
+// A stub for `indexedDB.open` that fires the request's onerror asynchronously
+// — the shape every IndexedDB failure test below needs (open itself never
+// throws synchronously in a real browser; it always fails through the
+// request's error event).
+function stubFailingIndexedDbOpen() {
+  return vi.spyOn(indexedDB, "open").mockImplementation(() => {
+    const req = new EventTarget() as unknown as IDBOpenDBRequest;
+    Object.defineProperty(req, "error", { value: new Error("blocked"), configurable: true });
+    queueMicrotask(() => req.onerror?.(new Event("error") as unknown as never));
+    return req;
+  });
+}
+
 describe("bannerCache", () => {
   describe("cacheBannerBytes — the cached path", () => {
-    it("caches the blob as a data URL under the bound farm's key", async () => {
-      await cacheBannerBytes(blob(), farmBindingToken());
-      const stored = localStorage.getItem(bannerKeyFor("sunny-acres"));
-      expect(stored).not.toBeNull();
-      expect(stored).toMatch(/^data:/);
+    it("caches the blob under the bound farm's key, readable back byte-for-byte", async () => {
+      await cacheBannerBytes(blob("hello"), farmBindingToken());
+      const cached = await readCachedBannerBlob("sunny-acres");
+      expect(await blobText(cached)).toBe("hello");
     });
 
-    it("does nothing when the token is stale (the tab rebound while the read was in flight)", async () => {
+    it("does nothing when the token is stale (the tab rebound while the write was in flight)", async () => {
       const staleToken = farmBindingToken();
       bindFarm("other-farm"); // rebinding changes the token
       await cacheBannerBytes(blob(), staleToken);
-      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
-      expect(localStorage.getItem(bannerKeyFor("other-farm"))).toBeNull();
+      expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
+      expect(await readCachedBannerBlob("other-farm")).toBeNull();
     });
 
     it("caches nothing when the tab is unbound (a fresh tab restored from the refresh cookie)", async () => {
@@ -32,117 +49,71 @@ describe("bannerCache", () => {
       // farmBindingToken() still returns a real value with no binding — the
       // call must still no-op, matching applyBrand's own contract.
       await cacheBannerBytes(blob(), farmBindingToken());
-      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
+      expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
     });
 
-    it("drops a half-written value when the storage write fails", async () => {
-      const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-        throw new Error("quota exceeded");
-      });
+    // #833 finding 5 — a defensive ceiling, matching
+    // ImageSanitizer.MaxBannerByteLengthCeiling (15 MiB), against a future
+    // caller handing this function something a live upload could never have
+    // produced. Constructing a real 15 MiB+1 Blob is cheap and exact — no
+    // need to mock `.size`.
+    it("refuses a blob over the 15 MiB ceiling", async () => {
+      const oversized = new Blob([new Uint8Array(15 * 1024 * 1024 + 1)]);
+      await cacheBannerBytes(oversized, farmBindingToken());
+      expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
+    });
+
+    it("does nothing when IndexedDB is unavailable", async () => {
+      const spy = stubFailingIndexedDbOpen();
       await expect(cacheBannerBytes(blob(), farmBindingToken())).resolves.not.toThrow();
       spy.mockRestore();
-      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
+      expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
     });
 
-    it("survives removeItem also throwing after a failed write", async () => {
-      const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-        throw new Error("quota exceeded");
-      });
-      const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
-        throw new Error("storage denied");
-      });
-      await expect(cacheBannerBytes(blob(), farmBindingToken())).resolves.not.toThrow();
-      set.mockRestore();
-      remove.mockRestore();
-    });
-
-    it("caches nothing when the FileReader fails to read the blob", async () => {
-      class FailingFileReader {
-        onload: (() => void) | null = null;
-        onerror: (() => void) | null = null;
-        error = new Error("read failed");
-        readAsDataURL() {
-          queueMicrotask(() => this.onerror?.());
-        }
-      }
-      vi.stubGlobal("FileReader", FailingFileReader);
-      await expect(cacheBannerBytes(blob(), farmBindingToken())).resolves.not.toThrow();
-      vi.unstubAllGlobals();
-      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
-    });
-
-    // A real FileReader can fire onerror with `.error` still null (e.g. an
-    // abort before the error is populated) — the `?? new Error(...)` fallback
-    // is for that case, distinct from the "has a real error" case above.
-    it("still caches nothing when the FileReader fails with no .error set", async () => {
-      class FailingFileReaderNoError {
-        onload: (() => void) | null = null;
-        onerror: (() => void) | null = null;
-        error = null;
-        readAsDataURL() {
-          queueMicrotask(() => this.onerror?.());
-        }
-      }
-      vi.stubGlobal("FileReader", FailingFileReaderNoError);
-      await expect(cacheBannerBytes(blob(), farmBindingToken())).resolves.not.toThrow();
-      vi.unstubAllGlobals();
-      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
-    });
-
-    it("does nothing when the token goes stale WHILE the FileReader read is in flight (not just before it starts)", async () => {
-      // Distinct from the "stale before the call" case above: this rebinds
-      // the farm AFTER cacheBannerBytes has already captured its token and
-      // started the read, but BEFORE the read resolves — the only way to
-      // exercise the SECOND staleness check (after the `await`), not the
-      // first one (before it).
-      let resolveRead: (() => void) | undefined;
-      class DelayedFileReader {
-        result = "data:image/png;base64,AAAA";
-        onload: (() => void) | null = null;
-        onerror: (() => void) | null = null;
-        readAsDataURL() {
-          resolveRead = () => this.onload?.();
-        }
-      }
-      vi.stubGlobal("FileReader", DelayedFileReader);
-
-      const staleToken = farmBindingToken();
-      const pending = cacheBannerBytes(blob(), staleToken);
-      bindFarm("other-farm"); // rebinds mid-read, after the token was captured
-      resolveRead?.();
-      await pending;
-
-      vi.unstubAllGlobals();
-      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
-      expect(localStorage.getItem(bannerKeyFor("other-farm"))).toBeNull();
+    // #833 findings 2/3 — the account id travels WITH the blob, not just the
+    // slug, so a later sign-in can tell whether this entry still belongs to
+    // the account that wrote it. Proven indirectly through
+    // clearBannerIfWrongAccount, since the record shape is this module's
+    // own implementation detail.
+    it("stores the bound account id alongside the blob", async () => {
+      await cacheBannerBytes(blob(), farmBindingToken());
+      await clearBannerIfWrongAccount("sunny-acres", "acct-A");
+      expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull(); // matching id: untouched
     });
   });
 
-  describe("readCachedBanner — the first-visit and cached paths", () => {
-    it("first visit: returns null when nothing is cached for the one remembered farm", () => {
-      expect(readCachedBanner(["sunny-acres"])).toBeNull();
+  describe("readCachedBannerBlob — the first-visit and cached paths", () => {
+    it("first visit: returns null when nothing is cached for that farm code", async () => {
+      expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
     });
 
-    it("cached: returns the stored data URL for the one remembered farm", async () => {
+    it("cached: returns the stored blob for a matching farm code", async () => {
       await cacheBannerBytes(blob(), farmBindingToken());
-      expect(readCachedBanner(["sunny-acres"])).toMatch(/^data:/);
+      expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull();
     });
 
-    it("returns null with two or more remembered farms — which one is ambiguous", async () => {
+    // #833 finding 2 — keyed to the exact code, not "how many farms this
+    // device remembers": a DIFFERENT typed/picked code must never resolve
+    // to another farm's cached image.
+    it("returns null for a code that does not match any cached entry", async () => {
       await cacheBannerBytes(blob(), farmBindingToken());
-      expect(readCachedBanner(["sunny-acres", "other-farm"])).toBeNull();
+      expect(await readCachedBannerBlob("a-different-farm")).toBeNull();
     });
 
-    it("returns null with zero remembered farms", () => {
-      expect(readCachedBanner([])).toBeNull();
-    });
-
-    it("returns null when localStorage cannot be read", async () => {
+    it("matches case-insensitively and trims surrounding whitespace, like the server's own lookup", async () => {
       await cacheBannerBytes(blob(), farmBindingToken());
-      const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-        throw new Error("storage denied");
-      });
-      expect(readCachedBanner(["sunny-acres"])).toBeNull();
+      expect(await readCachedBannerBlob("  Sunny-Acres  ")).not.toBeNull();
+    });
+
+    it("returns null for a blank field", async () => {
+      expect(await readCachedBannerBlob("")).toBeNull();
+      expect(await readCachedBannerBlob("   ")).toBeNull();
+    });
+
+    it("returns null when IndexedDB cannot be read", async () => {
+      await cacheBannerBytes(blob(), farmBindingToken());
+      const spy = stubFailingIndexedDbOpen();
+      expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
       spy.mockRestore();
     });
   });
@@ -150,9 +121,9 @@ describe("bannerCache", () => {
   describe("forgetBannerFor — the forget path", () => {
     it("removes the cached banner for the given farm", async () => {
       await cacheBannerBytes(blob(), farmBindingToken());
-      expect(readCachedBanner(["sunny-acres"])).not.toBeNull();
+      expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull();
       forgetBannerFor("sunny-acres");
-      expect(readCachedBanner(["sunny-acres"])).toBeNull();
+      await vi.waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
     });
 
     it("leaves a DIFFERENT farm's cached banner untouched", async () => {
@@ -161,16 +132,48 @@ describe("bannerCache", () => {
       await cacheBannerBytes(blob("other-bytes"), farmBindingToken());
 
       forgetBannerFor("sunny-acres");
-      expect(readCachedBanner(["sunny-acres"])).toBeNull();
-      expect(readCachedBanner(["other-farm"])).not.toBeNull();
+      await vi.waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
+      expect(await readCachedBannerBlob("other-farm")).not.toBeNull();
     });
 
-    it("does not throw when localStorage is unavailable", () => {
-      const spy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
-        throw new Error("storage denied");
+    it("does not throw when IndexedDB is unavailable", () => {
+      const spy = vi.spyOn(indexedDB, "open").mockImplementation(() => {
+        throw new Error("blocked");
       });
       expect(() => forgetBannerFor("sunny-acres")).not.toThrow();
       spy.mockRestore();
+    });
+  });
+
+  describe("clearBannerIfWrongAccount — #833 findings 2/3", () => {
+    it("deletes the entry when the signed-in account differs from the one that wrote it", async () => {
+      await cacheBannerBytes(blob(), farmBindingToken()); // written under acct-A
+      await clearBannerIfWrongAccount("sunny-acres", "acct-B");
+      expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
+    });
+
+    it("leaves the entry when the signed-in account matches", async () => {
+      await cacheBannerBytes(blob(), farmBindingToken()); // written under acct-A
+      await clearBannerIfWrongAccount("sunny-acres", "acct-A");
+      expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull();
+    });
+
+    it("does nothing when there is no entry to reconcile", async () => {
+      await expect(clearBannerIfWrongAccount("sunny-acres", "acct-A")).resolves.not.toThrow();
+    });
+
+    it("does not throw when IndexedDB is unavailable", async () => {
+      const spy = vi.spyOn(indexedDB, "open").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      await expect(clearBannerIfWrongAccount("sunny-acres", "acct-A")).resolves.not.toThrow();
+      spy.mockRestore();
+    });
+  });
+
+  describe("bannerKeyFor", () => {
+    it("is currently the identity function over the slug", () => {
+      expect(bannerKeyFor("sunny-acres")).toBe("sunny-acres");
     });
   });
 });

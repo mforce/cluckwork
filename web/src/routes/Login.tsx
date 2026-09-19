@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -13,7 +13,7 @@ import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
 import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCodeCache";
 import { applyDeviceBrand } from "../lib/brand";
-import { readCachedBanner } from "../lib/bannerCache";
+import { useCachedBannerUrl } from "../lib/bannerCache";
 
 interface LocationState {
   from?: { pathname: string };
@@ -105,14 +105,15 @@ export function Login() {
   // picker disappears the moment the last entry is forgotten rather than on the
   // next reload.
   const [rememberedCodes, setRememberedCodes] = useState(() => (urlFarmCode === null ? readFarmCodes() : []));
-  // #833 — owner decision 2026-09-19: show the device's cached banner from a
-  // prior sign-in, never a fresh authenticated fetch. Re-read whenever the
-  // roster changes (a forget can drop the one farm that justified showing
-  // it), matching applyDeviceBrand's own "exactly one remembered farm" rule.
-  const cachedBanner = useMemo(() => readCachedBanner(rememberedCodes), [rememberedCodes]);
   const [farmCode, setFarmCode] = useState(
     () => urlFarmCode ?? (rememberedCodes.length === 1 ? rememberedCodes[0] : ""),
   );
+  // #833 — owner decision 2026-09-19: show the device's cached banner from a
+  // prior sign-in, never a fresh authenticated fetch. Keyed to the farm-code
+  // FIELD's own current value, not "exactly one remembered farm" — that
+  // rule kept showing one farm's banner while the field held a DIFFERENT
+  // typed or picked code, until the mismatched one was actually submitted.
+  const cachedBanner = useCachedBannerUrl(farmCode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

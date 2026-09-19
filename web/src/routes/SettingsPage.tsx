@@ -16,7 +16,8 @@ import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarm } from "../farm/useFarm";
 import { useBannerObjectUrl, useLogoObjectUrl } from "../farm/useLogoObjectUrl";
-import { farmBindingToken } from "../auth/tokenStore";
+import { farmBindingToken, getBoundFarmCode } from "../auth/tokenStore";
+import { cacheBannerBytes, forgetBannerFor } from "../lib/bannerCache";
 import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
@@ -521,6 +522,11 @@ export function SettingsPage() {
         bannerUploadAttempt.current = null;
         applyBannerHash(stored.contentHash);
         setBannerMessage(i18n.t("settings:bannerUpdatedMessage"));
+        // #833 finding 4 — the file already in hand IS the new banner's
+        // bytes, so cache it directly rather than leave the pre-login cache
+        // holding the REPLACED image until some later sign-in's splash
+        // happens to re-fetch and re-cache it.
+        void cacheBannerBytes(file, farmBindingToken());
         await refresh();
       } catch (err) {
         setBannerError(errText(err));
@@ -549,6 +555,11 @@ export function SettingsPage() {
         bannerRemoveAttempt.current = null;
         applyBannerHash(null);
         setBannerMessage(i18n.t("settings:bannerRemovedMessage"));
+        // #833 finding 4 — otherwise a removed banner stays showable on
+        // Login (from the pre-login cache) until "Forget this farm" is
+        // used, well after the server itself has forgotten it.
+        const slug = getBoundFarmCode();
+        if (slug !== null) forgetBannerFor(slug);
         setFocusBannerUploadAfterRemove(true);
         await refresh();
       } catch (err) {
