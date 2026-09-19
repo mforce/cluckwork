@@ -6,6 +6,7 @@ export const CONSOLE_PANEL_SX = {
   border: "1px solid var(--rule)",
   borderRadius: "var(--r-panel)",
   p: 2,
+  bgcolor: "var(--surface)",
   minWidth: 0,
 };
 export const CONSOLE_SPLIT_SX = {
@@ -19,6 +20,7 @@ export const CONSOLE_FORM_SX = {
   gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" },
   gap: 2,
   alignItems: "end",
+  alignContent: "start",
   "& > *": { minWidth: 0, width: "100%", maxWidth: "100%" },
 };
 export const CONSOLE_RAIL_SX = {
@@ -35,6 +37,9 @@ export function FieldConsole({ children }: { children: ReactNode }) {
       "&& h2, && h3": { fontFamily: 'Georgia, "Times New Roman", serif' },
       "&& h2": { fontSize: { xs: "1.75rem", md: "2rem" }, mb: 1 },
       "& h3": { fontSize: "1.25rem", mt: 2.5, mb: 1 },
+      "& > p": { fontSize: ".8125rem", lineHeight: 1.45 },
+      "& aside p": { fontSize: ".75rem", lineHeight: 1.45 },
+      "& aside h3": { mt: 0 },
       "& .MuiTableCell-root": { fontSize: "0.75rem", py: 1.25, px: 1 },
       "& .MuiTableCell-head": {
         fontSize: "0.625rem", letterSpacing: ".06em", textTransform: "uppercase",
@@ -49,7 +54,7 @@ export function LedgerTableContainer({ children }: { children: ReactNode }) {
   const { t } = useTranslation("common");
   return (
     <Box sx={{ minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)" }}>
-      <Typography component="p" sx={{
+      <Typography component="p" variant="body2" sx={{
         display: { xs: "block", md: "none" },
         m: 0, py: .5, px: 1,
         fontSize: ".65rem",

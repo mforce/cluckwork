@@ -580,9 +580,9 @@ export function InventoryPage() {
               </Typography>
               <Box>
                 <Typography sx={{ fontSize: ".75rem" }}>{t("onHandHeader")}</Typography>
-                <Typography sx={{ fontSize: "2rem", fontFamily: "Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{fmt.count(active.quantityOnHand)} {active.unit}</Typography>
+                <Typography variant="body2" sx={{ fontSize: "2rem", fontFamily: "Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{fmt.count(active.quantityOnHand)} {active.unit}</Typography>
               </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, "& button, & a": { minHeight: 44 } }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, "& button, & a": { height: 44, minHeight: 44, p: 1, fontSize: { xs: ".7rem", md: ".8rem" }, lineHeight: 1.2 } }}>
                 <Button variant="outlined" sx={{ bgcolor: "#fff", color: "#2c2429", borderColor: "#fff" }} onClick={() => { openDialog("purchase"); setPurchasing(true); }}>
                   <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
                 </Button>
