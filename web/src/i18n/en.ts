@@ -2100,6 +2100,8 @@ export const en = {
   // interpolated verbatim into previouslyAdjusted), and every numeric count
   // (totalEggs/crackedEggs/etc., adjustedFrom's snapshot counts).
   history: {
+    reconciliation: "Reconciliation",
+    reconciliationLine: "{{total}} collected − {{cracked}} cracked − {{dirty}} dirty − {{discarded}} discarded = {{sellable}} sellable {{comparison}} {{graded}} graded",
     // Titles. `loadingTitle` is the shorter heading the early-return
     // load-error state uses before the real heading below — a pre-existing
     // inconsistency, preserved verbatim rather than "fixed" as a drive-by
@@ -3187,6 +3189,7 @@ export const en = {
       + "production screens where workers record.",
 
     // History
+    historyReconciliation: "The Reconciliation line compares collected eggs minus losses with sellable and graded eggs. The ≠ sign means the counts still differ. Mortality remains separate.",
     historyHeading: "History",
     historyBrowse:
       "Browse recorded daily entries newest-first, filtered by flock and date range. The status column shows "

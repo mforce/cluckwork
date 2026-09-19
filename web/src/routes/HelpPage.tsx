@@ -531,6 +531,7 @@ export function HelpPage() {
       <div className="help-section-head"><h3 id="history">{t("historyHeading")}</h3>{openLink("history")}</div>
       <ul>
         <li>{t("historyBrowse")}</li>
+        <li>{t("historyReconciliation")}</li>
         <li>
           <Trans ns="help" i18nKey="historyAdminActions" components={{ strong: <strong /> }} />
         </li>
