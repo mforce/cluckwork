@@ -426,11 +426,8 @@ describe("ExpensesPage category filter", () => {
     );
   });
 
-  // Both the filter's and the record-expense form's Category select start at
-  // "" with a placeholder option, so without an explicit shrink the label
-  // sat on top of that text. jsdom cannot show the overlap; the shrink class
-  // is the DOM fact that stands in for it (same pattern as #897's Grade
-  // select and #833's Audit filters).
+  // Empty Category selects need shrunk labels above their placeholders.
+  // jsdom has no layout engine, so check MUI's shrink class on both labels.
   it("shrinks both Category selects' labels instead of sitting them on top of their placeholder text", async () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     await renderReady("USD");
