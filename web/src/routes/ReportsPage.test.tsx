@@ -10,6 +10,7 @@ import type {
 } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { responsiveStyle } from "../test/renderedStyle";
 
 // Keep the REAL formatMoney (the sales/expenses/profit templates under test
 // interpolate its output as pre-formatted DATA — see the `reports` namespace
@@ -366,7 +367,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   });
 
   it.each([
-    ["salesRowLabel", "Sales"],
+    ["revenueRowLabel", "Revenue"],
     ["expensesRowLabel", "Expenses"],
     ["profitRowLabel", "Profit (basic)"],
   ])("reads the %s row label from the catalog, not a hardcoded literal", async (key, original) => {
@@ -470,4 +471,16 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
       i18n.addResource("en", "common", "retry", original);
     }
   });
+});
+
+
+it("keeps period KPIs in one phone strip and aligns primary Money amounts", async () => {
+  renderWithProviders(<ReportsPage />, { token: ADMIN });
+  const money = await screen.findByRole("region", { name: "Money" });
+  const strip = screen.getByLabelText("Period");
+  expect(responsiveStyle(strip, "(min-width:0px)", "grid-auto-flow")).toBe("column");
+  for (const [label, amount] of [["Revenue", "$100.00"], ["Expenses", "$65.00"], ["Profit (basic)", "$35.00"]]) {
+    const row = within(money).getByText(label, { selector: "dt" }).parentElement!;
+    expect(within(row).getByText(amount, { selector: "dd" })).toHaveStyle({ textAlign: "right" });
+  }
 });

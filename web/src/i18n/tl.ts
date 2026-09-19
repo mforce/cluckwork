@@ -1734,6 +1734,7 @@ export const tl = {
   // "inventory valuation" in profitFootnote kept partially in English for
   // the same reason.
   reports: {
+    revenueRowLabel: "Kita",
     title: "Mga Ulat",
     fromLabel: "Mula",
     toLabel: "Hanggang",

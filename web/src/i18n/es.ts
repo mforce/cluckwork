@@ -1670,6 +1670,7 @@ export const es = {
   // {{count}}/{{revenue}}/{{paid}}/{{outstanding}}/{{total}}/{{expenses}}/
   // {{profit}} placeholders and the <strong> tag in profitLine.
   reports: {
+    revenueRowLabel: "Ingresos",
     title: "Informes",
     fromLabel: "Desde",
     toLabel: "Hasta",

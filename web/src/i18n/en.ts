@@ -2274,6 +2274,7 @@ export const en = {
   // interpolated into the templates below as pre-formatted DATA, same
   // pattern as sales:orderTotal).
   reports: {
+    revenueRowLabel: "Revenue",
     title: "Reports",
     fromLabel: "From",
     toLabel: "To",

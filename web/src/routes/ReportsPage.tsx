@@ -121,7 +121,7 @@ export function ReportsPage() {
 
       {production && (
         <>
-          <Box component="dl" aria-label={t("periodRowLabel")} sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(5, minmax(0, 1fr))" }, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)", my: 2 }}>
+          <Box component="dl" aria-label={t("periodRowLabel")} sx={{ display: "grid", gridAutoFlow: { xs: "column" }, gridAutoColumns: { xs: "115px", md: "minmax(0, 1fr)" }, overflowX: "auto", borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)", my: 2 }}>
             {[
               [t("eggsHeader"), fmt.count(production.totalEggs)],
               [t("sellableHeader"), fmt.count(production.totalSellable)],
@@ -212,12 +212,13 @@ export function ReportsPage() {
           </Box>
         )}
         {isAdmin && sales && expenses && profit && (
-          <Box sx={CONSOLE_PANEL_SX}>
-            <h3>{t("moneyHeading")}</h3>
+          <Box component="section" aria-labelledby="reports-money-heading" sx={CONSOLE_PANEL_SX}>
+            <h3 id="reports-money-heading">{t("moneyHeading")}</h3>
             <Box component="dl" sx={{ m: 0 }}>
-              <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
-                <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("salesRowLabel")}</Typography>
-                <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
+                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("revenueRowLabel")}</Typography>
+                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit)}</Typography>
+                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
                   {t("salesSummary", {
                     count: sales.confirmedCount,
                     confirmed: fmt.count(sales.confirmedCount),
@@ -228,9 +229,10 @@ export function ReportsPage() {
                   {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount, voided: fmt.count(sales.voidedCount) }) : ""}
                 </Typography>
               </Box>
-              <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
-                <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("expensesRowLabel")}</Typography>
-                <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
+                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("expensesRowLabel")}</Typography>
+                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}</Typography>
+                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
                   {expenses.categories.length === 0
                     ? t("expensesNone")
                     : expenses.categories
@@ -241,9 +243,10 @@ export function ReportsPage() {
                   })}
                 </Typography>
               </Box>
-              <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
-                <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("profitRowLabel")}</Typography>
-                <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderTop: "2px solid var(--ink)", fontWeight: 700 }}>
+                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("profitRowLabel")}</Typography>
+                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}</Typography>
+                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
                   <Trans ns="reports" i18nKey="profitLine"
                     values={{
                       revenue: fmt.money(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
