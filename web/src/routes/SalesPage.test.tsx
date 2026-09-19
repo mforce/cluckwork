@@ -1329,39 +1329,29 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // says WHICH kind of nothing — this one predates capture, so "no list price"
     // (the recorded fact) would be a different and wrong claim.
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
-    // The wrap class is applied here, not just declared in the stylesheet: this
-    // cell is inside td.num, which is pinned white-space: nowrap.
     expect(within(row).getAllByRole("cell")[4])
       .toHaveAccessibleDescription(i18n.t("enums:listPriceBasis.PreDating"));
   });
 
-  it("does not print a bare em dash for an order only part of which can be measured", async () => {
+  it("describes missing list prices without calling the order at list", async () => {
     const atList: OrderItem = { ...ITEM_A, id: "ap1", listUnitPriceMinorUnits: 300 };
     const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     mockListOrders.mockResolvedValue([listedOrder("partial", [atList, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-partial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    // The em dash means "sold at list". This order was not fully measured, so
-    // the cell must carry the note instead.
     expect(cell).toHaveAccessibleName("—");
     expect(cell).toHaveAccessibleDescription("part of this order has no list price");
     expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
 
-  // The BELOW-list partial branch: a discounted order that also carries an
-  // unmeasurable line. The at-list partial test above never enters it, which
-  // left SalesPage.tsx:1537 the one `discount-note` call site with no assertion
-  // — so the class could be dropped there and the note would stop wrapping
-  // inside td.num, with the suite green. Found by CodeRabbit on 0c65418.
-  it("wraps the partial note on a DISCOUNTED order that also has an unmeasurable line", async () => {
+  it("describes the unmeasurable part of a discounted order", async () => {
     const below: OrderItem = { ...ITEM_A, id: "bp1", listUnitPriceMinorUnits: 375 };
     const noList: OrderItem = { ...ITEM_B, id: "bp2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     mockListOrders.mockResolvedValue([listedOrder("belowpartial", [below, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-belowpartial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    // The badge renders (it IS discounted) AND the partial note is present and wrappable.
     expect(within(cell).getByText(/%/)).toHaveClass("badge");
     expect(cell).toHaveAccessibleDescription("part of this order has no list price");
     expect(cell).toHaveAttribute("title", "part of this order has no list price");
@@ -1413,8 +1403,6 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
 
     const cell = outstandingCell(/SO-part/);
     expect(cell).toHaveTextContent("$9.00");
-    // `discount-note` is the wrap class: this note sits inside td.num, which
-    // #650 pins to white-space: nowrap.
     expect(cell).toHaveAccessibleName("$9.00");
     expect(cell).toHaveAccessibleDescription("part of this order is paid");
     expect(cell).toHaveAttribute("title", "part of this order is paid");
