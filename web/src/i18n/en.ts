@@ -965,6 +965,7 @@ export const en = {
   // page, mirroring the water namespace's shape (minus corrections: feed is
   // create-only; mis-entries are compensated via Inventory adjustments).
   feed: {
+    contextLabel: "Feeding context",
     rationCheck: "Ration check",
     onHand: "On hand",
     issue: "Issue",

@@ -465,3 +465,12 @@ describe("FeedPage i18n wiring (#446)", () => {
     }
   });
 });
+
+
+it("shows the selected ration and on-hand balance in the feeding context", async () => {
+  await renderReady();
+  const summary = screen.getByLabelText("Feeding context");
+  expect(summary).toHaveTextContent("Layer feed");
+  expect(summary).toHaveTextContent("120 kg");
+  expect(summary).toHaveTextContent("Barn A");
+});

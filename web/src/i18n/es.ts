@@ -690,6 +690,7 @@ export const es = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    contextLabel: "Contexto de alimentación",
     rationCheck: "Comprobación de la ración",
     onHand: "Disponible",
     issue: "Consumo",

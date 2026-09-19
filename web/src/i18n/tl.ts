@@ -725,6 +725,7 @@ export const tl = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    contextLabel: "Konteksto ng pagpapakain",
     rationCheck: "Suriin ang pakain",
     onHand: "Kasalukuyang stock",
     issue: "Gagamitin",

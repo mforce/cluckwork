@@ -21,7 +21,7 @@ import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
-import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX } from "../components/FieldConsole";
+import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
@@ -258,9 +258,14 @@ export function FeedPage() {
       <Typography variant="h2">{t("title")}</Typography>
       <p className="muted">{t("intro")}</p>
 
-      <Box sx={CONSOLE_SPLIT_SX}>
-        <Stack component="form" sx={{ ...CONSOLE_PANEL_SX, ...CONSOLE_FORM_SX }} onSubmit={onSubmit}>
-          <Box sx={PICKER_SX}>
+      <ConsoleSummary label={t("contextLabel")} items={[
+        { label: t("flockLabel"), value: captureFlock?.name ?? "—" },
+        { label: t("itemLabel"), value: selectedItem?.name ?? "—" },
+        { label: t("onHand"), value: selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—" },
+      ]} />
+      <Box sx={CONSOLE_TICKET_SX}>
+        <Stack component="form" sx={{ ...CONSOLE_TICKET_FORM_SX, p: 2 }} onSubmit={onSubmit}>
+          <Box sx={{ minWidth: 0, width: "100%" }}>
             <FlockPicker
               label={t("flockLabel")}
               eligibility="active-and-depleted"
@@ -326,6 +331,7 @@ export function FeedPage() {
           />
           <TextField
             label={t("noteLabel")}
+            sx={{ gridColumn: { md: "span 3" } }}
             value={note}
             size="small"
             slotProps={{ htmlInput: { maxLength: 500 } }}
@@ -337,9 +343,8 @@ export function FeedPage() {
           </BusyButton>
         </Stack>
 
-        <Box component="aside" aria-label={t("rationCheck")} sx={{ ...CONSOLE_PANEL_SX, bgcolor: "var(--surface-2)" }}>
+        <Box component="aside" aria-label={t("rationCheck")} sx={CONSOLE_TICKET_CHECK_SX}>
           <h3>{t("rationCheck")}</h3>
-          <Typography sx={{ fontWeight: 700 }}>{selectedItem?.name}</Typography>
           <Box component="dl" sx={{ m: 0 }}>
             {([
               ["onHand", selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
@@ -348,12 +353,12 @@ export function FeedPage() {
             ] as const).map(([key, value]) => <Box key={key}
               aria-live={key === "afterIssue" ? "polite" : undefined}
               aria-atomic={key === "afterIssue" ? true : undefined}
-              sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
+              sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: .5, borderBottom: "1px solid var(--rule)" }}>
               <Typography component="dt" sx={{ fontSize: ".8rem" }}>{t(key)}</Typography>
-              <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
+              <Typography component="dd" variant="body2" sx={{ m: 0, fontSize: ".8rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
             </Box>)}
           </Box>
-          <p className="muted">{t("correctionsHint")}</p>
+          <Box component="p" className="muted" sx={{ mt: 1, mb: 0 }}>{t("correctionsHint")}</Box>
         </Box>
       </Box>
 

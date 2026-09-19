@@ -23,6 +23,44 @@ export const CONSOLE_FORM_SX = {
   alignContent: "start",
   "& > *": { minWidth: 0, width: "100%", maxWidth: "100%" },
 };
+export const CONSOLE_TICKET_SX = {
+  ...CONSOLE_PANEL_SX,
+  display: "grid",
+  gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) minmax(230px, .55fr)" },
+  p: 0,
+  my: 2,
+};
+export const CONSOLE_TICKET_FORM_SX = {
+  ...CONSOLE_FORM_SX,
+  gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(4, minmax(0, 1fr))" },
+  gap: 1.5,
+};
+export const CONSOLE_TICKET_CHECK_SX = {
+  p: 2,
+  minWidth: 0,
+  bgcolor: "var(--surface-2)",
+  borderTop: { xs: "1px solid var(--rule)", md: 0 },
+  borderLeft: { md: "1px solid var(--rule)" },
+};
+
+export function ConsoleSummary({ label, items }: {
+  label: string;
+  items: { label: string; value: ReactNode }[];
+}) {
+  return (
+    <Box component="dl" aria-label={label} sx={{
+      display: { xs: "grid", md: "flex" }, gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+      flexWrap: "wrap", gap: "8px 24px", my: 2, py: 1.25,
+      borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)",
+    }}>
+      {items.map((item) => <Box key={item.label} sx={{ minWidth: 0, display: "flex", gap: .75, flexWrap: "wrap", alignItems: "baseline" }}>
+        <Typography component="dt" variant="body2" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{item.label}</Typography>
+        <Typography component="dd" variant="body2" sx={{ m: 0, fontSize: ".8rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{item.value}</Typography>
+      </Box>)}
+    </Box>
+  );
+}
+
 export const CONSOLE_RAIL_SX = {
   ...CONSOLE_PANEL_SX,
   bgcolor: "#2c2429",
