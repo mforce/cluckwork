@@ -1736,6 +1736,7 @@ export const tl = {
   // elsewhere in this file, e.g. sales.confirmOrderButton); "Audit Log"
   // kept as a loanword heading, same treatment as settings.localeLabel.
   audit: {
+    eyebrow: "Rekord na read-only",
     heading: "Audit Log",
     intro:
       "Bawat corrective, destructive, o configuration na pagbabago — sino "

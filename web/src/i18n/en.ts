@@ -2301,6 +2301,9 @@ export const en = {
   // em-dash fallback for a null reason (same convention as
   // customers/expenses/users/flocks/history's raw "—").
   audit: {
+    // Concept C "Focus panels" (#833 redesign) shell chrome — matches #93's
+    // own read-only guarantee.
+    eyebrow: "Read-only record",
     heading: "Audit log",
     intro:
       "Every corrective, destructive, or configuration change — who did it, "

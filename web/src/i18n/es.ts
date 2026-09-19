@@ -1668,6 +1668,7 @@ export const es = {
   // namespace — the action/entity table cells route through the already-
   // translated enums:auditAction.*/entityType.* labels, not this namespace).
   audit: {
+    eyebrow: "Registro de solo lectura",
     heading: "Registro de auditoría",
     intro:
       "Todo cambio correctivo, destructivo o de configuración — quién lo "
