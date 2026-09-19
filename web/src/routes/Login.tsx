@@ -108,12 +108,20 @@ export function Login() {
   const [farmCode, setFarmCode] = useState(
     () => urlFarmCode ?? (rememberedCodes.length === 1 ? rememberedCodes[0] : ""),
   );
+  // Codex finding 2 (#833 follow-up) — a `?farm=<code>` link must never show
+  // a cached banner (GLOSSARY.md's "deliberately narrower than the palette"
+  // note): whoever merely holds a link is not this device's remembered
+  // farm, and a banner is farm-supplied imagery unlike the palette colour.
+  // Set the instant the field is edited by typing, so the suppression covers
+  // exactly the untouched link-prefill and nothing the operator actually typed.
+  const [farmCodeEdited, setFarmCodeEdited] = useState(false);
   // #833 — owner decision 2026-09-19: show the device's cached banner from a
   // prior sign-in, never a fresh authenticated fetch. Keyed to the farm-code
   // FIELD's own current value, not "exactly one remembered farm" — that
   // rule kept showing one farm's banner while the field held a DIFFERENT
   // typed or picked code, until the mismatched one was actually submitted.
-  const cachedBanner = useCachedBannerUrl(farmCode);
+  const bannerLookupCode = urlFarmCode !== null && !farmCodeEdited ? "" : farmCode;
+  const cachedBanner = useCachedBannerUrl(bannerLookupCode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -324,7 +332,10 @@ export function Login() {
           name="farmCode"
           inputRef={farmCodeInputRef}
           value={farmCode}
-          onChange={(e) => setFarmCode(e.target.value)}
+          onChange={(e) => {
+            setFarmCodeEdited(true);
+            setFarmCode(e.target.value);
+          }}
           required
           // #587 — stable identifiers for tests and browser heuristics. There
           // is no standard autocomplete token for a tenant identifier, so the

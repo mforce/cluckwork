@@ -102,6 +102,12 @@ async function getBannerRecord(slug: string): Promise<BannerRecord | null> {
       const req = tx.objectStore(STORE_NAME).get(bannerKeyFor(slug));
       req.onsuccess = () => resolve((req.result as BannerRecord | undefined) ?? null);
       req.onerror = () => reject(req.error ?? new Error("IndexedDB read failed"));
+      // Backstop alongside req.onerror, not a replacement for it: a real
+      // abort normally errors the request too, but nothing then rejects
+      // this promise if the transaction aborts WITHOUT the request itself
+      // erroring first (Codex review) — the same gap putBanner already
+      // closed below.
+      tx.onabort = () => reject(tx.error ?? new Error("IndexedDB read aborted"));
     });
   } finally {
     db.close();
@@ -116,6 +122,9 @@ async function deleteBannerRecord(slug: string): Promise<void> {
       tx.objectStore(STORE_NAME).delete(bannerKeyFor(slug));
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error("IndexedDB delete failed"));
+      // Without this, an abort-only failure (no onerror fired) left the
+      // promise pending forever instead of rejecting (Codex review).
+      tx.onabort = () => reject(tx.error ?? new Error("IndexedDB delete aborted"));
     });
   } finally {
     db.close();
@@ -149,8 +158,12 @@ export async function cacheBannerBytes(blob: Blob, tokenAt: string): Promise<voi
     if (tokenAt !== farmBindingToken()) return;
     await putBanner(slug, { accountId, bytes, type: blob.type });
   } catch {
-    // Quota exceeded or storage unavailable — nothing more to do; Login
-    // falls back to neutral branding on its next read.
+    // Quota exceeded or storage unavailable — the put never landed. For a
+    // FRESH slug (no prior entry) that leaves Login neutral on its next
+    // read, same as before; for a REPLACEMENT it does NOT clear what was
+    // already there — a failed write changes nothing, so the previous
+    // banner's bytes persist and Login keeps showing them until a write
+    // actually succeeds.
     return;
   }
   // Re-checked after the async write: a farm switch or logout mid-write must

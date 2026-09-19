@@ -6,8 +6,8 @@ import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Box, Paper, Stack, TextField, Typography,
 } from "@mui/material";
 import {
-  BANNER_ACCEPT, LOGO_ACCEPT, getFarmSettings, listEggUnitConversions, removeFarmBanner,
-  removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
+  BANNER_ACCEPT, LOGO_ACCEPT, getFarmBanner, getFarmSettings, listEggUnitConversions,
+  removeFarmBanner, removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
 } from "../api/cluckwork";
 import type { EggUnitConversion, FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -522,11 +522,17 @@ export function SettingsPage() {
         bannerUploadAttempt.current = null;
         applyBannerHash(stored.contentHash);
         setBannerMessage(i18n.t("settings:bannerUpdatedMessage"));
-        // #833 finding 4 — the file already in hand IS the new banner's
-        // bytes, so cache it directly rather than leave the pre-login cache
-        // holding the REPLACED image until some later sign-in's splash
-        // happens to re-fetch and re-cache it.
-        void cacheBannerBytes(file, farmBindingToken());
+        // #833 finding 4, corrected by Codex finding 1 — cache the server's
+        // SANITIZED bytes, not the raw File: the server strips EXIF and can
+        // re-encode on upload, so caching the File directly could show Login
+        // metadata or an orientation the server already removed. getFarmBanner
+        // is the same authenticated read BrandSplash's post-login fetch uses.
+        // Fire-and-forget: a fetch/cache failure here costs one stale pre-auth
+        // image at most, never surfaced as a Settings error.
+        const tokenAt = farmBindingToken();
+        void getFarmBanner()
+          .then(({ blob }) => cacheBannerBytes(blob, tokenAt))
+          .catch(() => {});
         await refresh();
       } catch (err) {
         setBannerError(errText(err));

@@ -1143,12 +1143,24 @@ describe("SettingsPage banner", () => {
   // #833 finding 4 — replacing or removing the banner must also update the
   // device's pre-login cache (lib/bannerCache.ts), or Login can keep
   // showing an image the server no longer serves.
-  it("re-caches the banner's bytes on upload, for Login's pre-auth display", async () => {
+  //
+  // Codex review (finding 1) — what gets cached must be the server's
+  // SANITIZED bytes (a fresh authenticated getFarmBanner() read), never the
+  // raw File the input picked: the server strips EXIF and can re-encode on
+  // upload, so caching the File directly could show Login metadata or an
+  // orientation the server already removed. Proven by making the uploaded
+  // File and the getFarmBanner() response DIFFERENT byte sequences and
+  // asserting the cache holds the latter.
+  it("re-caches the SERVER'S sanitized bytes on upload, not the raw uploaded file", async () => {
     bindAccount("acct-A");
     bindFarm("sunny-acres");
     mockUploadBanner.mockResolvedValue({
       contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
       byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    mockGetBanner.mockResolvedValue({
+      blob: new Blob(["sanitized-by-server"], { type: "image/png" }),
+      filename: null,
     });
     await renderReady(SETTINGS({ bannerContentHash: null }));
 
@@ -1157,7 +1169,12 @@ describe("SettingsPage banner", () => {
         { target: { files: [imageOfSize(900)] } });
     });
 
-    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull());
+    const cached = await waitFor(async () => {
+      const found = await readCachedBannerBlob("sunny-acres");
+      expect(found).not.toBeNull();
+      return found;
+    });
+    expect(await cached!.text()).toBe("sanitized-by-server");
   });
 
   it("clears the cached banner on remove, so Login stops showing it before 'Forget this farm'", async () => {

@@ -593,8 +593,12 @@ export function AuditPage() {
                               prefix label would corrupt every one of those
                               exact-string comparisons. The row's own "Details"
                               toggle button already names what this reveals;
-                              `headers` below gives the cell itself a real
-                              accessible name without adding visible text. */}
+                              `aria-labelledby` below gives the cell itself a
+                              real accessible name (the ARIA accname algorithm
+                              testing-library computes from) without adding
+                              visible text — `headers` alone is invisible to
+                              it and exists only for real screen readers'
+                              table-navigation mode, confirmed by mutation. */}
                           <TableCell headers={detailsColumnHeaderId} aria-labelledby={detailsColumnHeaderId}>
                             <AuditDetails event={e} />
                           </TableCell>
