@@ -144,6 +144,7 @@ export const en = {
     setPasswordTooShortError: "The new password must be at least {{min}} characters.",
   },
   account: {
+    eyebrow: "Personal preferences",
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",

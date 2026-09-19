@@ -100,6 +100,7 @@ export const tl = {
     setPasswordTooShortError: "Dapat hindi bababa sa {{min}} karakter ang bagong password.",
   },
   account: {
+    eyebrow: "Personal na kagustuhan",
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
