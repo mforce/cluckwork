@@ -490,7 +490,7 @@ export const tl = {
   // The entry-locked banner's status word goes through the `enums`
   // statusLabel helper, not a key here.
   dailyEntry: {
-    title: "Araw-araw na Tala",
+    title: "Bilangin at i-grade ang mga itlog ngayong araw",
 
     // Imperative messages
     loadFlocksGradesFailed: "Hindi na-load ang mga kawan/grado. Gumagana ba ang API?",
@@ -533,6 +533,10 @@ export const tl = {
     eggCountsHeading: "Bilang ng Itlog",
     gradingHeading: "Pag-grade",
     gradedCountCaption: "Binilang {{graded}}",
+    collectionHeading: "1 · Bilangin ang nakolekta",
+    collectionCaption: "Mga itlog at nawala",
+    gradingWorkbenchHeading: "2 · I-grade ang mga itlog na nabebenta",
+    gradingTargetCaption: "Target {{target}}",
 
     attentionHeading_one: "{{count}} bagay.",
     attentionHeading_other: "{{count}} bagay.",
@@ -546,6 +550,8 @@ export const tl = {
     dirtyLabel: "Madumi",
     discardedLabel: "Itinapon",
     mortalityLabel: "Pagkamatay",
+    totalEggsCaption: "Lahat ng itlog na nakolekta ngayon",
+    mortalityEventCaption: "Hiwalay na pangyayari sa kawan · mga ibon",
 
     // Reconciliation readouts (counts pane)
     countsExceedTotalMessage:
@@ -553,6 +559,13 @@ export const tl = {
       + "itlog ({{total}}).",
     sellableLabel: "Nabebenta",
     sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
+    collectionTotalsLabel: "Kabuuan ng nakolekta",
+    gradingTotalsLabel: "Kabuuan ng pag-grade",
+    nonSellableLabel: "Mga itlog na hindi nabebenta",
+    sellableTargetLabel: "Target na nabebenta",
+    gradedLabel: "Na-grade",
+    stillToGradeLabel: "Iga-grade pa",
+    gradingProgress: "{{graded}} sa {{target}}",
     deactivatedGradeSuffix: " (naka-deactivate)",
 
     // Remainder-assignment gesture (grading pane)

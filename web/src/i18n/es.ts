@@ -470,7 +470,7 @@ export const es = {
   // The entry-locked banner's status word goes through the `enums`
   // statusLabel helper, not a key here.
   dailyEntry: {
-    title: "Registro diario",
+    title: "Cuente y clasifique los huevos de hoy",
 
     // Imperative messages
     loadFlocksGradesFailed: "No se pudieron cargar los lotes/grados. ¿Está la API activa?",
@@ -512,6 +512,10 @@ export const es = {
     eggCountsHeading: "Conteo de huevos",
     gradingHeading: "Clasificación",
     gradedCountCaption: "Contados {{graded}}",
+    collectionHeading: "1 · Cuente la recolección",
+    collectionCaption: "Huevos y pérdidas",
+    gradingWorkbenchHeading: "2 · Clasifique los huevos vendibles",
+    gradingTargetCaption: "Objetivo {{target}}",
 
     attentionHeading_one: "{{count}} cosa.",
     attentionHeading_other: "{{count}} cosas.",
@@ -525,12 +529,21 @@ export const es = {
     dirtyLabel: "Sucios",
     discardedLabel: "Descartados",
     mortalityLabel: "Mortalidad",
+    totalEggsCaption: "Todos los huevos recogidos hoy",
+    mortalityEventCaption: "Evento separado del lote · aves",
 
     // Reconciliation readouts (counts pane)
     countsExceedTotalMessage:
       "Rotos + sucios + descartados ({{losses}}) superan el total de huevos ({{total}}).",
     sellableLabel: "Vendibles",
     sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
+    collectionTotalsLabel: "Totales de recolección",
+    gradingTotalsLabel: "Totales de clasificación",
+    nonSellableLabel: "Huevos no vendibles",
+    sellableTargetLabel: "Objetivo vendible",
+    gradedLabel: "Clasificados",
+    stillToGradeLabel: "Faltan por clasificar",
+    gradingProgress: "{{graded}} de {{target}}",
     deactivatedGradeSuffix: " (desactivado)",
 
     // Remainder-assignment gesture (grading pane)

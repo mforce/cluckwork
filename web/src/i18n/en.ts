@@ -629,7 +629,7 @@ export const en = {
   // (the entry-locked banner's status word) goes through the `enums`
   // `statusLabel` helper, not a key here — see DailyEntryPage.tsx.
   dailyEntry: {
-    title: "Daily entry",
+    title: "Count and grade today's eggs",
 
     // Imperative messages (event handlers / promise callbacks — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
@@ -676,6 +676,10 @@ export const en = {
     // the grading pane's gradesSum read the other way from GradingChip's own
     // count-DOWN wording.
     gradedCountCaption: "Counted {{graded}}",
+    collectionHeading: "1 · Count the collection",
+    collectionCaption: "Eggs and losses",
+    gradingWorkbenchHeading: "2 · Grade the sellable eggs",
+    gradingTargetCaption: "Target {{target}}",
 
     // #830 — the attention line under the title (mockup: daily-entry.html
     // `.attn`). i18next selects the plural form on {{count}} (same pattern
@@ -703,12 +707,21 @@ export const en = {
     dirtyLabel: "Dirty",
     discardedLabel: "Discarded",
     mortalityLabel: "Mortality",
+    totalEggsCaption: "All eggs collected today",
+    mortalityEventCaption: "Separate flock event · birds",
 
     // Reconciliation readouts (counts pane)
     countsExceedTotalMessage:
       "Cracked + dirty + discarded ({{losses}}) exceed total eggs ({{total}}).",
     sellableLabel: "Sellable",
     sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
+    collectionTotalsLabel: "Collection totals",
+    gradingTotalsLabel: "Grading totals",
+    nonSellableLabel: "Non-sellable eggs",
+    sellableTargetLabel: "Sellable target",
+    gradedLabel: "Graded",
+    stillToGradeLabel: "Still to grade",
+    gradingProgress: "{{graded}} of {{target}}",
     deactivatedGradeSuffix: " (deactivated)",
 
     // F134 remainder-assignment gesture (grading pane)
