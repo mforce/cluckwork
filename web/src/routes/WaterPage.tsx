@@ -611,7 +611,7 @@ export function WaterPage() {
                     <TableCell>{r.note ?? ""}</TableCell>
                     <TableCell sx={NOWRAP}>
                       {isAdmin && (
-                        <button className="link" disabled={busy} onClick={() => startEdit(r)}>{t("correctButton")}</button>
+                        <Button color="warning" size="small" disabled={busy} onClick={() => startEdit(r)}>{t("correctButton")}</Button>
                       )}
                     </TableCell>
                   </TableRow>

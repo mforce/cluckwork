@@ -722,7 +722,7 @@ export function HistoryPage() {
             />
             {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
             <DialogError errors={errors} scope="adjust" />
-            <DialogActions sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, p: 0, "& > :not(style) ~ :not(style)": { ml: 0 }, "& button": { width: "100%", minHeight: 44 } }}>
+            <DialogActions sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, p: 0, "& > :not(style) ~ :not(style)": { ml: 0 }, "& button": { width: "100%", height: 44, minHeight: 44, px: 1, fontSize: ".75rem", whiteSpace: "nowrap" } }}>
               <Button variant="outlined" type="button" onClick={closeAdjust}>{tc("cancel")}</Button>
               {/* #394: an adjustment has no draft state — Save stays disabled
                   until grading reconciles exactly, the same rule Daily
@@ -813,10 +813,10 @@ export function HistoryPage() {
                       {/* Drafts are edited on the Daily entry screen (#85) —
                           open to workers too; adjust/void stay admin-only. */}
                       {e.status === "Draft" && flockEditable(e) && (
-                        <Link className="link"
+                        <Button component={Link} variant="outlined" size="small" sx={{ ml: 1 }}
                           to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
                           {t("editButton")}
-                        </Link>
+                        </Button>
                       )}
                       {isAdmin && correctable(e) && (
                         <>
