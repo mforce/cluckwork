@@ -424,6 +424,19 @@ describe("SalesPage quantity must be a whole number (#398)", () => {
 // preview, and the unit size on the product option. All display-only — the
 // unit math itself is the server's (snapshotted per line, spec §9.7).
 describe("SalesPage quantity unit clarity (#445)", () => {
+  it("previews stock commitment while a line changes without writing", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(row).getByRole("spinbutton", { name: "Edit quantity" }), { target: { value: "4" } });
+    expect(within(settlement).getByText("(108 eggs)")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "cancel" }));
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+    expect(mockUpdateOrderItem).not.toHaveBeenCalled();
+    expect(confirmOrder).not.toHaveBeenCalled();
+  });
+
   it("names the selected unit in the quantity label and follows the Per picker", async () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
