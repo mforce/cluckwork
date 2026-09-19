@@ -1114,44 +1114,12 @@ export const MUTANTS: Record<string, Mutant> = {
       insertCssRule(page, "@media (max-width: 900px) { .MuiBottomNavigation-root a { pointer-events: none } }"),
   },
 
-  "phone-table-overflow-unclipped": {
-    breaks:
-      "#441's containment on a raw `table.data` table — `contain: layout` and the block-level "
-      + "scroller are both reverted inside the same media block #441 lives in (web/src/styles.css), "
-      + "so an unconverted screen's table lays its full content width out into the page instead of "
-      + "scrolling within itself. #832 gave `Customers`/`Flocks` (and `Products`/`Grades`/`Users`) "
-      + "the same containment through a different mechanism — a `MuiTableContainer` theme override, "
-      + "not this class — and #831 did the same for `Stock`/`History` — so this mutant's "
-      + "`table.data`-scoped rule no longer reaches any of them; see the note on EXPECT_MSG_FOR in "
-      + "mutation-check.sh.",
+  "phone-mui-table-overflow-unclipped": {
+    breaks: "#441's phone containment: MUI ledger tables paint their intrinsic width outside their scroll container.",
     caughtBy: "phone.spec.ts — no walked screen overflows the viewport horizontally",
-    apply: (page) =>
-      // Only ONE of the six walked routes overflows under this now — /sales
-      // — narrowed from two (/sales and /history) once #831 converted
-      // History. /daily-entry and /stock render no wide data table (Stock
-      // moved off `table.data` in #831 too); /customers, /flocks and
-      // /history moved onto MUI's `TableContainer` (#832, #831 — see
-      // `breaks` above), which this mutant's rule does not reach. That
-      // per-route spread is why the spec's walk asserts PER ROUTE and
-      // asserts SOFTLY: a hard assertion stops at the first and reports
-      // only part of the damage. The exact widths are deliberately not
-      // recorded here; they drift with fixture content, and a stale copy of
-      // them in this file is a defect this file has already had once. Once
-      // /sales converts too this mutant proves nothing at all and needs a
-      // new CSS target (MUI's `TableContainer`) or retirement (#824's
-      // "retire only with a named successor" rule).
-      //
-      // Desktop-green, stated honestly rather than claimed as containment:
-      // the rule is inside `@media (max-width: 900px)`, so it cannot apply at
-      // 1280 — and separately, no desktop test asserts document overflow at
-      // all, so even an unscoped version of this would survive there. Only the
-      // first of those two is a property of the mutant; the second is a gap in
-      // the desktop suite, and it is a gap this mutant is not evidence about.
-      insertCssRule(
-        page,
-        "@media (max-width: 900px) { table.data { display: table; overflow-x: visible; "
-          + "contain: none; white-space: nowrap } }",
-      ),
+    apply: (page) => insertCssRule(page,
+      "@media (max-width: 900px) { .MuiTableContainer-root { overflow: visible !important; contain: none !important } "
+      + ".MuiTableContainer-root > table { width: max-content !important; white-space: nowrap } }"),
   },
 };
 
