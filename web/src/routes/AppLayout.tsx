@@ -29,17 +29,7 @@ function matches(pathname: string, entry: NavEntry): boolean {
   return entry.end ? pathname === entry.to : pathname.startsWith(entry.to);
 }
 
-// Authenticated shell (#52 redesign, #829 MUI conversion): a permanent
-// `Drawer` — the brand's navigation spine, tinted `--lavender` paper per the
-// confirmed direction (DIRECTION.md), not the aubergine `--brand` slab this
-// screen painted before — with the destinations grouped by job, each with a
-// lucide glyph. Role-tiered (#103): links and whole groups hide per role; the
-// API enforces the policy on every gated endpoint regardless.
-//
-// Below 900px the sidebar gives way to a bottom tab bar + More sheet
-// (BottomNav) — the wrapping top bar it used to become ate a third of a
-// phone screen. Both navs render from the same nav model (nav.tsx, D5), so
-// the role gates live in one place.
+// Desktop rail and phone tabs share the role-filtered navigation model.
 export function AppLayout() {
   const { t } = useTranslation("nav");
   const { t: tc } = useTranslation("common");
@@ -95,6 +85,13 @@ export function AppLayout() {
           "& .MuiDrawer-paper": {
             width: "var(--sidebar-w)", boxSizing: "border-box", position: "sticky", top: 0, height: "100dvh",
             display: "flex", flexDirection: "column",
+            ...(location.pathname === "/" ? {
+              bgcolor: "var(--brand)", color: "var(--on-brand)",
+              "& .brand, & .brand-name, & .MuiListItemIcon-root, & .nav-group-label, & .MuiTypography-root": { color: "inherit" },
+              "& .Mui-selected, & .Mui-selected:hover": { bgcolor: "var(--on-brand)", color: "var(--brand)", borderLeftColor: "var(--on-brand)" },
+              "& .MuiListItemButton-root:hover": { bgcolor: "var(--brand-press)" },
+              "& :focus-visible": { outlineColor: "var(--on-brand)" },
+            } : {}),
           },
         }}
       >
@@ -140,7 +137,7 @@ export function AppLayout() {
         </Box>
       </Drawer>
 
-      <Box component="main" className="content" id="main-content" tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
+      <Box component="main" className="content" id="main-content" tabIndex={-1} sx={(theme) => ({ flexGrow: 1, minWidth: 0, ...(location.pathname === "/" ? { bgcolor: theme.palette.mode === "light" ? "#faf7f2" : "#211b1e" } : {}) })}>
         {/* Carries the warning the banner below could not announce because a
             dialog had it inert (#485), and stays empty otherwise so the two
             never say the same thing twice.

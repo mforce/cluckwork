@@ -586,6 +586,19 @@ export const es = {
   // placeholder (no <Trans> tags in this namespace). The two status pills on
   // this screen go through the `enums` statusLabel helper, not a key here.
   dashboard: {
+    morningHeading: "Buenos días. Así está la granja.",
+    morningBrief: "Resumen de la mañana",
+    farmTime: "{{time}} hora de la granja",
+    allHousesRecorded: "Todas las naves tienen un registro hoy.",
+    collectionTitle: "Recolección de la mañana",
+    collectedToday: "Recolectados hoy",
+    availableStockTitle: "Existencias disponibles",
+    recentOrdersTitle: "Pedidos recientes",
+    layRateTitle: "Tasa de postura",
+    gradeColumn: "Grado",
+    countColumn: "Cantidad",
+    shareColumn: "Proporción",
+
     title: "Panel",
 
     // Imperative messages
@@ -600,6 +613,7 @@ export const es = {
     noEntryBadge: "Sin registro",
     todaySoFarLabel: "Hoy hasta ahora",
     yesterdayByClose: "Ayer al cierre: {{total}}",
+    recordAction: "Registrar",
     recordHouseAction: "Registrar {{flock}}",
     continueHouseAction: "Continuar {{flock}}",
     entryStateRecordedTime: "Registrado {{time}}",
@@ -2023,13 +2037,9 @@ export const es = {
       + "muestra <strong>No disponible</strong> con Reintentar.",
 
     dashboardHeading: "Panel",
-    dashboardTiles:
-      "<strong>Hoy</strong>: una tarjeta por lote activo con los huevos y el estado de hoy, primero los que "
-      + "no tienen registro. Una tarjeta marcada <strong>Sin registro</strong> es la nave que nadie ha "
-      + "registrado todavía — tóquela para abrir el Registro diario de ese lote y ese día. Pasadas doce "
-      + "tarjetas, un enlace lleva al resto.",
+    dashboardTiles: "<strong>Recolección de la mañana</strong> muestra el progreso y una fila por lote activo, primero los que indican <strong>Sin registro</strong>. Use <strong>Registrar</strong> para un registro pendiente o <strong>Continuar</strong> para un borrador. Se muestran hasta doce naves, con un enlace al resto. El resumen de la mañana combina las naves pendientes con el total de hoy, incluidos los borradores.",
     dashboardTrend:
-      "<strong>Últimos 14 días</strong>: huevos por día del informe de producción, con el <strong>% de "
+      "<strong>Tasa de postura</strong>: huevos por día del informe de producción, con el <strong>% de "
       + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. "
       + "Señale un día, o entre al gráfico con el tabulador y use las flechas, para leerlo por separado. "
       + "Un día que la granja envió sin huevos conserva una marca en la base; un día que nadie envió queda "
@@ -2040,10 +2050,8 @@ export const es = {
       + "reduce sobre cuánto se mide la cifra, nunca la cifra misma. La ventana es fija (desde ayer hacia "
       + "atrás) y cuenta <strong>solo días enviados</strong> — un día aún en borrador se lee como Sin "
       + "registro hasta que se envía, a diferencia de Informes, donde usted elige el rango.",
-    dashboardStock:
-      "<strong>Existencias</strong>: una <strong>barra apilada</strong> de lo disponible por grado, con "
-      + "las cifras al lado; los huevos restringidos se anotan tras el total. Es el mismo total que "
-      + "muestra la pantalla de Existencias.",
+    dashboardOrders: "<strong>Pedidos recientes</strong> muestra el cliente, importe y estado, con la cantidad de la primera línea y el nombre actual de su grado. +N indica líneas adicionales. Renombrar un grado también cambia su nombre en pedidos antiguos; si no está disponible, solo se muestra la cantidad.",
+    dashboardStock: "<strong>Existencias disponibles</strong> muestra el total y una <strong>barra apilada</strong> de su composición por grado, seguida de una tabla de <strong>Grado</strong>, <strong>Cantidad</strong> y <strong>Proporción</strong>. Pase el puntero o enfoque una fila para resaltarla. Los huevos restringidos se indican aparte. Las cantidades coinciden con Existencias.",
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
@@ -2902,10 +2910,7 @@ export const es = {
     glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Clasificar por encima del total lo eleva para igualarlo. Borrador hasta que se envía.",
 
     glossaryCaptureStatusTerm: "Estado de captura",
-    glossaryCaptureStatusDef:
-      "Si cada lote activo tiene un registro diario de hoy. El panel lo muestra como una tarjeta por "
-      + "lote, primero los que faltan; \"Sin registro\" es el estado de alarma y enlaza al Registro diario "
-      + "de ese lote y ese día.",
+    glossaryCaptureStatusDef: "Si cada lote activo tiene un registro diario de hoy. Recolección de la mañana muestra una fila por lote, primero los que faltan, y cuenta los borradores como registrados. Sin registro enlaza al Registro diario de ese lote y ese día.",
 
     glossaryEggLotTerm: "Lote de huevos",
     glossaryEggLotDef:

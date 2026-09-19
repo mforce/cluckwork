@@ -25,8 +25,8 @@ The business-record census includes the 25 domain record types other than
 and the operational refresh-token, idempotency, durable-job, and simulation-seed
 tables retain their own lifecycle fields and do not join this convention.
 
-Eleven chronological tables also carry a shadow `bigint GENERATED ALWAYS AS
-IDENTITY` property named `Sequence`: `SalesOrders`, `Expenses`, `DailyEntries`,
+Twelve chronological tables also carry a shadow `bigint GENERATED ALWAYS AS
+IDENTITY` property named `Sequence`: `SalesOrders`, `SalesOrderItems`, `Expenses`, `DailyEntries`,
 `EggLots`, `BirdMovements`, `Payments`, `InventoryLots`, `FeedUsages`,
 `WaterUsages`, `InventoryMovements`, and `EggInventoryMovements`. Each table has
 a unique constraint on `Sequence`. Interactive lists with a business date order
@@ -106,3 +106,13 @@ production-sized copy before running the pre-deploy job.
 An executable model census classifies every mapped type as mutable,
 create-only, or excluded. It also fixes the set of chronological tables. A new
 mapped type cannot rely on a developer remembering this document alone.
+
+## Sales line display order (#906)
+
+Sales order list and detail reads load lines by `CreatedAtUtc`, then the shadow
+`Sequence`, ascending. SalesPage renders that array as received; the Dashboard
+uses its first line. The aggregate appends new lines, and timestamp ties now
+retain database insertion order rather than an arbitrary UUID order. No position
+field existed previously. The sequence migration gives existing rows a stable
+tie-breaker but cannot recover the original insertion order of legacy ties.
+The sequence is not returned by the API. Allocation lock ordering is unchanged.

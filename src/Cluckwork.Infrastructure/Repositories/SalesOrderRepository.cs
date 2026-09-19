@@ -9,13 +9,13 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
 {
     public Task<SalesOrder?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.SalesOrders
-            .Include(o => o.Items)
+            .Include(o => o.Items.OrderBy(i => i.CreatedAtUtc).ThenBy(i => EF.Property<long>(i, "Sequence")))
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
     public Task<SalesOrder?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
         db.SalesOrders
             .AsNoTracking()
-            .Include(o => o.Items)
+            .Include(o => o.Items.OrderBy(i => i.CreatedAtUtc).ThenBy(i => EF.Property<long>(i, "Sequence")))
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
     // FOR UPDATE row lock + fresh load (call inside an open transaction). The
@@ -34,7 +34,8 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
             .FirstOrDefaultAsync(ct);
         if (order is null) return null;
 
-        await db.Entry(order).Collection(o => o.Items).LoadAsync(ct);
+        await db.Entry(order).Collection(o => o.Items).Query()
+            .OrderByCreationChronology().LoadAsync(ct);
         return order;
     }
 
@@ -69,7 +70,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
         var to = filter.To;
         return db.SalesOrders
             .AsNoTracking()
-            .Include(o => o.Items)
+            .Include(o => o.Items.OrderBy(i => i.CreatedAtUtc).ThenBy(i => EF.Property<long>(i, "Sequence")))
             .Where(o => (status == null || o.Status == status)
                      && (customerId == null || o.CustomerId == customerId)
                      && (from == null || o.OrderDate >= from)

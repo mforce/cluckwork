@@ -11,7 +11,8 @@
 // against a database with nothing in it. That is the whole reason #277 shares
 // #243's fixture rather than standing up an empty app.
 
-import { expect, test } from "../src/fixtures";
+import { expect } from "../src/fixtures";
+import { test } from "../src/dashboard-fixtures";
 import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
@@ -39,64 +40,83 @@ test.describe("Owner", () => {
     await expect(page.getByRole("group").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noFlocksMessage"))).toBeHidden();
 
-    // Stock: the stacked bar has at least one segment (a grade with available
-    // eggs), and the caption — the text of record — is the availability sentence.
-    await expect(page.locator(".meter-stack > span").first()).toBeVisible();
+    await expect(page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") }).getByRole("row").nth(1)).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noStockMessage"))).toBeHidden();
 
-    // The test's name promises sales data, so it has to actually look at it.
-    // Without this, deleting the Sales panel outright left the spec green — it
-    // asserted production and stock and called that "and sales" (PR #390
-    // review). #829 — the list carries its own accessible name now (the
-    // stock ledger renders `role="list"` too, on the same page), so this
-    // scopes to the named one rather than a `.dash-list` class locator.
-    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
+    // Stock is a table; sales has a named list inside its panel.
+    // This is the positive control for ReadOnly's absent-panel assertion.
+    const salesPanel = page.locator("section").filter({
+      has: page.getByRole("link", { name: tEn("dashboard:recentOrdersTitle"), exact: true }),
+    });
+    await expect(salesPanel).toBeVisible();
+    const salesList = salesPanel.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
     await expect(salesList.getByRole("listitem").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
   });
 
-  // #883 round 4, finding B. `.content a` in styles.css (un-`:where()`'d)
-  // outranked MUI's own generated class regardless of Emotion's injection
-  // order, so the contained Record button — an `<a>` under `.content` via
-  // `component={Link}` — rendered its label in `--link` blue instead of the
-  // theme's `--on-brand` white contrastText. jsdom cannot see styles.css at
-  // all (Dashboard.test.tsx never renders real CSS), so this can only be
-  // proven against a real browser over the built stylesheet. The seeder's
-  // catalog flocks guarantee at least one missing house every day, so a
-  // "Record <flock>" link is always on screen for the Owner's own farm —
-  // no need for a second farm just to reach this assertion.
-  test("the filled Record button's label is on-brand, not link-blue (#883 finding B)", async ({ page }) => {
-    const recordButton = page.getByRole("link", { name: /^Record / }).first();
-    await expect(recordButton).toBeVisible();
-
-    const [buttonColor, onBrandColor] = await recordButton.evaluate((el) => {
-      const probe = document.createElement("span");
-      probe.style.color = "var(--on-brand)";
-      document.body.appendChild(probe);
-      const resolved = getComputedStyle(probe).color;
-      probe.remove();
-      return [getComputedStyle(el).color, resolved];
-    });
-    expect(buttonColor).toBe(onBrandColor);
+  test("stock rows highlight on hover and keyboard focus", async ({ page }) => {
+    await page.goto("/");
+    const stock = page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") });
+    const row = stock.getByRole("row").nth(1);
+    await expect(row).toBeVisible();
+    await row.hover();
+    const highlight = () => row.evaluate((element) => ({
+      outline: getComputedStyle(element).outlineStyle,
+      width: getComputedStyle(element).outlineWidth,
+      text: getComputedStyle(element.querySelector("th")!).textDecorationLine,
+    }));
+    expect(await highlight()).toEqual({ outline: "solid", width: "2px", text: "underline" });
+    await page.mouse.move(0, 0);
+    await page.getByRole("heading", { name: tEn("dashboard:stockPanelTitle"), exact: true }).getByRole("link").focus();
+    await page.keyboard.press("Tab");
+    await expect(row).toBeFocused();
+    expect(await highlight()).toEqual({ outline: "solid", width: "2px", text: "underline" });
+    await page.keyboard.press("Tab");
+    await expect(stock.getByRole("row").nth(2)).toBeFocused();
   });
 
-  // #883 round 5 — the owner's read of the PR's screenshots: a Draft row's
-  // status cell ("Draft, saved 05:26") wrapped onto a second line at 1280
-  // because the action column was a fixed 200px, squeezing the status track.
-  // Dashboard.tsx now gives the row the mockup's own column model (name
-  // 150px, status 1fr, action auto, count 110px) plus an explicit
-  // `white-space: nowrap` on the status cell — this proves it holds by
-  // reading the CELL'S OWN computed line-height and asserting its rendered
-  // height matches it, rather than pinning a pixel figure that would drift
-  // with the type scale.
-  //
-  // SimulationDataSeeder only backfills PAST days (DraftWindowDays covers
-  // yesterday and the day before, never today), so there is no seeded Draft
-  // row on the live TODAY panel to read. This creates its own flock and
-  // saves — never submits — a draft, the same re-runnable shape
-  // manager.spec.ts uses for its own Draft entry: a fresh, timestamp-named
-  // flock every run, so this never collides with another spec or a
-  // previous run.
+  test("the outlined Record action is legible and thumb-sized in both themes", async ({ page, signIn, recordedHouse }) => {
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(readmeFarmOwner());
+    for (const theme of ["dark", "light"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.goto("/");
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      const recordButton = page.getByRole("link", { name: /^Record / }).first();
+      await expect(recordButton).toBeVisible();
+      const [buttonColor, textColor] = await recordButton.evaluate((el) => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--ink)";
+        document.body.appendChild(probe);
+        const resolved = getComputedStyle(probe).color;
+        probe.remove();
+        return [getComputedStyle(el).color, resolved];
+      });
+      expect(buttonColor).toBe(textColor);
+      await expect(recordButton).toHaveText(tEn("dashboard:recordAction"));
+      await expect(recordButton).toHaveClass(/MuiButton-outlined/);
+      const box = await recordButton.boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+      const missingRow = page.getByRole("group").filter({ has: page.getByRole("link", { name: /^Record / }) }).first();
+      const recordedRow = page.getByRole("group", { name: recordedHouse, exact: true });
+      await expect(missingRow).toBeVisible();
+      await expect(recordedRow).toBeVisible();
+      const missingHeight = await missingRow.evaluate((el) => el.getBoundingClientRect().height);
+      const recordedHeight = await recordedRow.evaluate((el) => el.getBoundingClientRect().height);
+      expect(missingHeight).toBeGreaterThanOrEqual(44);
+      expect(recordedHeight).toBeGreaterThanOrEqual(44);
+      expect(Math.abs(missingHeight - recordedHeight)).toBeLessThanOrEqual(1);
+      const placement = await recordButton.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.gridColumn, style.gridRow];
+      });
+      expect(placement).toEqual(["3", "1"]);
+    }
+  });
+
+  // The three-column collection row holds the icon, name/status and count.
+  // Its draft status must still fit on one line at desktop width (#883).
   test("a Draft row's status cell never wraps at 1280 (#883 round 5)", async ({ page, signIn }) => {
     // The simulation farm caps Today at twelve rows and every one of its
     // 101 houses is unrecorded, so a draft created here never reaches the

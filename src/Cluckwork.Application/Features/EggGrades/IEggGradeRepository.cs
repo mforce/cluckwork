@@ -9,6 +9,9 @@ public interface IEggGradeRepository : IRepository<EggGrade, Guid>
     // Pass farmId to filter server-side (grades are farm-scoped, spec §9.1).
     Task<IReadOnlyList<EggGrade>> ListActiveAsync(Guid? farmId = null, CancellationToken ct = default);
 
+    Task<IReadOnlyDictionary<Guid, string>> GetDisplayNamesAsync(
+        IReadOnlyCollection<Guid> gradeIds, CancellationToken ct = default);
+
     // Management view: every grade of the tenant, inactive included.
     Task<IReadOnlyList<EggGrade>> ListAllAsync(CancellationToken ct = default);
 

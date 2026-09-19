@@ -777,6 +777,19 @@ export const en = {
   // HistoryPage's own bespoke badge for the same state (see the `enums`
   // header comment below).
   dashboard: {
+    morningHeading: "Good morning. Here’s the farm.",
+    morningBrief: "Morning brief",
+    farmTime: "{{time}} farm time",
+    allHousesRecorded: "Every house has an entry today.",
+    collectionTitle: "Morning collection",
+    collectedToday: "Collected today",
+    availableStockTitle: "Available stock",
+    recentOrdersTitle: "Recent orders",
+    layRateTitle: "Lay rate",
+    gradeColumn: "Grade",
+    countColumn: "Count",
+    shareColumn: "Share",
+
     title: "Dashboard",
 
     // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
@@ -799,7 +812,7 @@ export const en = {
     todayInCount_one: "{{in}} of {{count}} house in",
     todayInCount_other: "{{in}} of {{count}} houses in",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
-    noEntryBadge: "No entry",
+    noEntryBadge: "Not recorded",
     // Fixed text beside the numeral, not a sentence the total is
     // interpolated into (owner's read of the #883 screenshots, 2026-09-16,
     // amending D3.3's "{{total}} eggs today"). The figure renders separately,
@@ -809,9 +822,7 @@ export const en = {
     // total, sourced from the 14-day strip's own last (yesterday) slot —
     // never a second fetch, and only rendered when that day is complete.
     yesterdayByClose: "Yesterday by close: {{total}}",
-    // The single filled button on the desktop screen (#829, amending
-    // DIRECTION.md's "ruled text at 1280" for exactly this one row) and the
-    // 48px full-width phone action for the missing house.
+    recordAction: "Record",
     recordHouseAction: "Record {{flock}}",
     // Ruled-text row action for a Draft entry — one already started, not
     // finished. Missing (`recordHouseAction`) and Draft are the only two
@@ -833,7 +844,7 @@ export const en = {
     // aria-label of a tile link; the visible tile shows name, eggs and status.
     tileLinkLabel: "{{flock}}: open today's entry",
     // The missing state has to be IN the accessible name: `aria-label` replaces
-    // the link's content, so the visible "no entry" badge is never announced.
+    // the link's content, so the visible "Not recorded" state is never announced.
     // Shares the "open today's entry" suffix with the recorded label so a test
     // matching tiles generically still matches both.
     tileLinkLabelMissing: "{{flock}}: no entry yet, open today's entry",
@@ -2717,12 +2728,9 @@ export const en = {
 
     // Dashboard (#654) — the landing screen's three questions.
     dashboardHeading: "Dashboard",
-    dashboardTiles:
-      "<strong>Today</strong>: one tile per active flock with today's eggs and status, the ones without "
-      + "an entry first. A tile marked <strong>No entry</strong> is the house nobody has recorded yet — tap "
-      + "it to open Daily entry for that flock and day. Past twelve tiles, a link carries the rest.",
+    dashboardTiles: "<strong>Morning collection</strong> shows progress and one row per active flock, with <strong>No entry</strong> rows first. Use <strong>Record</strong> for a missing entry or <strong>Continue</strong> for a draft. The list shows up to twelve houses, with a link to the rest. The morning brief combines missing houses with today’s total, including drafts.",
     dashboardTrend:
-      "<strong>Last 14 days</strong>: eggs per day from the production report, with <strong>hen-day %"
+      "<strong>Lay rate</strong>: eggs per day from the production report, with <strong>hen-day %"
       + "</strong> for the last 7 finished days and how it moved against the 7 before. Point at a day, "
       + "or tab into the chart and use the arrow keys, to read that day on its own. A day the farm "
       + "submitted with no eggs keeps a mark on the baseline; a day nobody submitted is an empty slot "
@@ -2733,10 +2741,8 @@ export const en = {
       + "what the figure is measured over, never the rate itself. The window is fixed (yesterday back) and counts "
       + "<strong>submitted days only</strong> — a day still in Draft reads as No entry until it is "
       + "submitted, unlike Reports where you choose the range.",
-    dashboardStock:
-      "<strong>Stock</strong>: one <strong>stacked bar</strong> of what is available by grade, with the "
-      + "figures beside it; restricted eggs are noted after the total. It is the same total the Stock "
-      + "screen shows.",
+    dashboardOrders: "<strong>Recent orders</strong> shows each customer, amount and status, with the first line’s quantity and current grade name. +N counts additional lines. Renaming a grade also changes its name here on old orders; an unavailable grade leaves the quantity alone.",
+    dashboardStock: "<strong>Available stock</strong> shows the total and a <strong>stacked bar</strong> of its grade composition, followed by a <strong>Grade</strong>, <strong>Count</strong> and <strong>Share</strong> table. Hover or focus a row to highlight it. Restricted eggs are listed separately. These are the same available counts as Stock.",
 
     // Signing in
     signingInHeading: "Signing in",
@@ -3565,9 +3571,7 @@ export const en = {
     glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Grading past the total raises it to match. Draft until submitted.",
 
     glossaryCaptureStatusTerm: "Capture status",
-    glossaryCaptureStatusDef:
-      "Whether each active flock has a daily entry for today. The dashboard shows it as one tile per "
-      + "flock, missing ones first; \"No entry\" is the alarm state and links to Daily entry for that flock and day.",
+    glossaryCaptureStatusDef: "Whether each active flock has a daily entry for today. Morning collection shows one row per flock, missing ones first, and counts drafts as recorded. No entry links to Daily entry for that flock and day.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:

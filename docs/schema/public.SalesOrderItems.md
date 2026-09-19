@@ -21,6 +21,7 @@
 | ListPriceBasis | varchar(16) |  | false |  |  |  |
 | CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -43,6 +44,7 @@
 | SalesOrderItems_QuantityBase_not_null | n | NOT NULL "QuantityBase" |
 | SalesOrderItems_Quantity_not_null | n | NOT NULL "Quantity" |
 | SalesOrderItems_SalesOrderId_not_null | n | NOT NULL "SalesOrderId" |
+| SalesOrderItems_Sequence_not_null | n | NOT NULL "Sequence" |
 | SalesOrderItems_UnitPriceCurrencyCode_not_null | n | NOT NULL "UnitPriceCurrencyCode" |
 | SalesOrderItems_UnitPriceCurrencyMinorUnit_not_null | n | NOT NULL "UnitPriceCurrencyMinorUnit" |
 | SalesOrderItems_UnitPriceMinorUnits_not_null | n | NOT NULL "UnitPriceMinorUnits" |
@@ -61,6 +63,7 @@
 | IX_SalesOrderItems_EggGradeId | CREATE INDEX "IX_SalesOrderItems_EggGradeId" ON public."SalesOrderItems" USING btree ("EggGradeId") |
 | IX_SalesOrderItems_ProductId | CREATE INDEX "IX_SalesOrderItems_ProductId" ON public."SalesOrderItems" USING btree ("ProductId") |
 | IX_SalesOrderItems_SalesOrderId | CREATE INDEX "IX_SalesOrderItems_SalesOrderId" ON public."SalesOrderItems" USING btree ("SalesOrderId") |
+| IX_SalesOrderItems_Sequence | CREATE UNIQUE INDEX "IX_SalesOrderItems_Sequence" ON public."SalesOrderItems" USING btree ("Sequence") |
 
 ## Triggers
 
@@ -96,6 +99,7 @@ erDiagram
   varchar_16_ ListPriceBasis
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.SalesOrderAllocations" {
   uuid Id

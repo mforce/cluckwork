@@ -987,6 +987,7 @@
       "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.GetSalesOrder",
       "reaches": [
         "Commerce",
+        "EggOperations",
         "Insights"
       ]
     },
@@ -994,6 +995,7 @@
       "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.ListSalesOrders",
       "reaches": [
         "Commerce",
+        "EggOperations",
         "Insights"
       ]
     },

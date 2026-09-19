@@ -1,6 +1,7 @@
 // web/src/routes/Dashboard.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Dashboard } from "./Dashboard";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
@@ -142,15 +143,24 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
     for (const id of ["f2", "f3"]) {
       const row = todayRow(`Flock ${id}`);
-      // The single filled button on the page (#829/#864 owner amendment) —
-      // its presence in the row IS the missing marker; there is no longer a
-      // classList to assert on.
       expect(within(row).getByRole("link", { name: `Record Flock ${id}` })).toBeInTheDocument();
-      expect(within(row).getByText("No entry")).toBeInTheDocument();
-      expect(within(row).getByText("—")).toBeInTheDocument();
+      expect(within(row).getByText("Not recorded")).toBeInTheDocument();
+      expect(within(row).queryByText("—")).not.toBeInTheDocument();
       expect(within(row).queryByText("999")).not.toBeInTheDocument();
     }
     expect(within(todayRow("Flock f1")).queryByRole("link", { name: /^Record/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps a missing house's short Record action in the count column on the name row", async () => {
+    renderWithProviders(<Dashboard />);
+    const action = await screen.findByRole("link", { name: "Record Flock f2" });
+    const row = todayRow("Flock f2");
+    expect(action).toHaveTextContent(/^Record$/);
+    expect(action).toHaveClass("MuiButton-outlined", "MuiButton-colorInherit");
+    expect(row.children).toHaveLength(3);
+    expect(row.children[2]).toBe(action);
+    expect(action).toHaveStyle({ gridColumn: "3", gridRow: "1", minHeight: "44px" });
+    expect(within(row).queryByText("—")).not.toBeInTheDocument();
   });
 
   it("offers 'Record today' on hover for a row with no entry, and not on one that has an entry", async () => {
@@ -169,6 +179,13 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(screen.queryByRole("link", { name: "Flock f3: open today's entry" })).not.toBeInTheDocument();
     // A recorded flock keeps the plain name.
     expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).toBeInTheDocument();
+  });
+
+  it("reads the short Record label from the catalog while retaining the house in its accessible name", async () => {
+    await withOverride("dashboard", "recordAction", "SHORT-RECORD", async () => {
+      renderWithProviders(<Dashboard />);
+      expect(await screen.findByRole("link", { name: "Record Flock f2" })).toHaveTextContent("SHORT-RECORD");
+    });
   });
 
   it("reads the hover text from the catalog, not a hardcoded literal", async () => {
@@ -395,6 +412,22 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(screen.getByText("Hen-day, last 7 days against the 7 before")).toBeInTheDocument();
   });
 
+  it("keeps fourteen days in one flex row at 390px", async () => {
+    vi.stubGlobal("innerWidth", 390);
+    stubMatchMedia(false);
+    try {
+      renderWithProviders(<Dashboard />);
+      const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+      expect(within(strip).getAllByRole("button")).toHaveLength(14);
+      const styles = Array.from(document.styleSheets)
+        .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
+      expect(styles).toMatch(/\.daystrip\s*\{[^}]*display:\s*flex/);
+      expect(styles).not.toMatch(/\.daystrip\s*\{[^}]*display:\s*grid/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   // Days 4..6 of each window hold no entry at all. `entryCount` is the only
   // field that says so — before #780 these arrived as totalEggs 0, identical
   // to a day the farm recorded as having produced nothing.
@@ -543,9 +576,9 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     const spans = Array.from(stock.querySelectorAll(".meter-stack > span")) as HTMLElement[];
     expect(spans.map((s) => [s.style.width, s.className])).toEqual([["79.5%", "grade-1"], ["20.5%", "grade-2"]]);
     // The ledger, not the band, is what names a grade and carries its share.
-    // #829 — a plain `role="list"`, not a `.stock-ledger` class hook.
-    const rows = within(stock).getAllByRole("listitem")
-      .map((li) => Array.from(li.querySelectorAll("span")).slice(1).map((s) => s.textContent));
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Grade", "Count", "Share"]);
+    const rows = within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((cell) => cell.textContent));
     expect(rows).toEqual([["Grade A", "1,240", "79.5%"], ["Grade B", "320", "20.5%"]]);
     expect(within(stock).queryByText(/restricted/)).not.toBeInTheDocument();
   });
@@ -570,7 +603,8 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(within(stock).queryAllByRole("listitem")).toHaveLength(0);
+    expect(within(stock).queryByRole("row", { name: /Grade A/ })).not.toBeInTheDocument();
+    expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
 });
@@ -664,7 +698,7 @@ describe("Dashboard sales panel role gate (#127)", () => {
   });
   it("fetches and shows the sales panel for a non-ReadOnly user", async () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
-    expect(await screen.findByText("Recent sales")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Recent sales" })).toBeInTheDocument();
     expect(mockOrders).toHaveBeenCalled();
   });
 });
@@ -767,9 +801,10 @@ describe("Dashboard follows the farm's day and locale", () => {
 // the screen reads the catalog rather than a literal that happens to match.
 describe("Dashboard i18n wiring (#654)", () => {
   it("reads the heading, the trend title and the today total from the catalog", async () => {
-    await withOverride("dashboard", "title", "TITLE-MARKER", async () => {
+    await withOverride("dashboard", "morningHeading", "TITLE-MARKER", async () => {
       renderWithProviders(<Dashboard />);
-      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      await panel("Today");
+      expect(screen.getByRole("heading", { name: "Dashboard" })).toHaveTextContent("TITLE-MARKER");
     });
     await withOverride("dashboard", "trendPanelTitle", "TREND-MARKER", async () => {
       renderWithProviders(<Dashboard />);
@@ -799,10 +834,62 @@ describe("Dashboard status rendering (#864, dot not badge)", () => {
     expect(recordedDot?.className).not.toMatch(/badge/);
 
     // f3 has no entry in the default fixture — the missing-house state.
-    const missingDot = within(todayRow("Flock f3")).getByText("No entry").previousElementSibling;
+    const missingDot = within(todayRow("Flock f3")).getByText("Not recorded").previousElementSibling;
     expect(missingDot).toHaveAttribute("aria-hidden", "true");
 
     const salesStatus = await screen.findByText("Draft");
     expect(salesStatus.previousElementSibling).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+describe("Operations desk", () => {
+  it("puts collection, stock, orders and lay rate in reading order", async () => {
+    renderWithProviders(<Dashboard />);
+    await panel("Today");
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent))
+      .toEqual(["Morning brief", "Morning collection", "Available stock", "Recent orders", "Lay rate"]);
+  });
+
+  it("lets a keyboard user focus each whole stock row", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    const table = await screen.findByRole("table", { name: "Stock by grade" });
+    const row = within(table).getByRole("row", { name: "Grade A 1,240 79.5%" });
+    row.focus();
+    expect(row).toHaveFocus();
+    await user.tab();
+    expect(within(table).getByRole("row", { name: "Grade B 320 20.5%" })).toHaveFocus();
+  });
+
+  it.each([
+    ["Large", 1, "3,600 Large"],
+    ["Large", 3, "3,600 Large +2"],
+    ["", 1, "3,600"],
+  ])("shows the first order quantity and grade (%s, %i lines)", async (eggGradeName, lines, expected) => {
+    const sale = order("o1", "SO-GRADES", "Ramos Grocery");
+    sale.items = Array.from({ length: lines }, (_, i) => ({
+      id: `i${i}`, productId: `p${i}`, eggGradeId: `g${i}`, eggGradeName: i === 0 ? eggGradeName : ["Medium", "Small"][i - 1],
+      unit: "Piece", baseUnitFactor: 1, quantity: i === 0 ? 3600 : i * 120, quantityBase: i === 0 ? 3600 : i * 120,
+      unitPriceMinorUnits: 100, currencyCode: "USD", currencyMinorUnit: 2,
+      listUnitPriceMinorUnits: null, listPriceBasis: "NoDefault",
+    }));
+    mockOrders.mockResolvedValue([sale]);
+    renderWithProviders(<Dashboard />);
+    const row = await screen.findByRole("listitem", { name: "SO-GRADES" });
+    expect(within(row).getByText(expected)).toBeInTheDocument();
+  });
+
+  it("labels missing, partial and complete production days and navigates them with arrows", async () => {
+    const user = userEvent.setup();
+    mockReport.mockImplementation((from) => Promise.resolve(from === daysBefore(today, 14)
+      ? report(80, [day("2026-07-01", 0, 0, 2), day("2026-07-02", 40, 1, 2), day("2026-07-03", 80, 2, 2)])
+      : report(85, [])));
+    renderWithProviders(<Dashboard />);
+    const missing = await screen.findByRole("button", { name: "07/01/2026 – no entry" });
+    missing.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("button", { name: "07/02/2026 – 40 eggs, 1 of 2 flocks" })).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("button", { name: "07/03/2026 – 80 eggs" })).toHaveFocus();
   });
 });

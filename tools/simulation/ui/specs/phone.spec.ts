@@ -21,8 +21,9 @@
 // holds the most and whose tables are the widest — the hardest case for all
 // four assertions rather than a representative one.
 
-import { expect, test, type Locator, type Page } from "../src/fixtures";
-import { owner } from "../src/cast";
+import { expect, type Locator, type Page } from "../src/fixtures";
+import { test } from "../src/dashboard-fixtures";
+import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
 /** Owner's four thumb tabs, in the order `tabEntries` picks them (nav.tsx TAB_PRIORITY). */
@@ -633,6 +634,63 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }
   });
 
+  test("dashboard actions meet the 44px target floor outside the day-strip group", async ({ page, signIn, recordedHouse }) => {
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(readmeFarmOwner());
+    await page.goto("/");
+    const dashboard = page.getByRole("main");
+    const days = dashboard.getByRole("group").and(page.locator(".daystrip")).getByRole("button");
+    await expect(days).toHaveCount(14);
+    const record = dashboard.getByRole("link", { name: /^Record / }).first();
+    await expect(record).toHaveText(tEn("dashboard:recordAction"));
+    const missingRow = page.getByRole("group").filter({ has: page.getByRole("link", { name: /^Record / }) }).first();
+    const recordedRow = page.getByRole("group", { name: recordedHouse, exact: true });
+    await expect(missingRow).toBeVisible();
+    await expect(recordedRow).toBeVisible();
+    const missingHeight = await missingRow.evaluate((el) => el.getBoundingClientRect().height);
+    const recordedHeight = await recordedRow.evaluate((el) => el.getBoundingClientRect().height);
+    expect(missingHeight).toBeGreaterThanOrEqual(44);
+    expect(recordedHeight).toBeGreaterThanOrEqual(44);
+    expect(Math.abs(missingHeight - recordedHeight)).toBeLessThanOrEqual(1);
+    expect(await record.evaluate((el) => [getComputedStyle(el).gridColumn, getComputedStyle(el).gridRow])).toEqual(["3", "1"]);
+    const controls = dashboard.getByRole("link").or(dashboard.getByRole("button")).filter({ visible: true });
+    expect(await dashboard.getByRole("link").count()).toBeGreaterThan(0);
+    for (const control of await controls.all()) {
+      if (await control.and(days).count() > 0) continue;
+      const name = await control.innerText();
+      const box = await rectOf(control, name);
+      expect.soft(box.width, `${name} is below the 44px target width`).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+      expect.soft(box.height, `${name} is below the 44px target height`).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    }
+  });
+
+  test("lay rate keeps fourteen full-height days on one phone row", async ({ page, signIn }) => {
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(readmeFarmOwner());
+    await page.goto("/");
+    const strip = page.getByRole("group").and(page.locator(".daystrip"));
+    const days = strip.getByRole("button");
+    await expect(days).toHaveCount(14);
+    const boxes = await days.evaluateAll((elements) => elements.map((el) => {
+      const box = el.getBoundingClientRect();
+      return { top: box.top, width: box.width, height: box.height };
+    }));
+    expect(new Set(boxes.map((box) => box.top)).size).toBe(1);
+    expect((await rectOf(strip, "the day strip")).width).toBeCloseTo(342, 0);
+    for (const box of boxes) {
+      expect(box.width).toBeCloseTo(22, 0);
+      expect(box.height).toBe(80);
+    }
+    await expect(strip.locator(".avgline")).toBeVisible();
+    expect(await strip.locator(".day-week").evaluate((el) => getComputedStyle(el, "::before").display)).not.toBe("none");
+    await expect(days.and(page.locator('[tabindex="0"]'))).toHaveCount(1);
+    await days.first().focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(days.nth(1)).toBeFocused();
+  });
+
   // #883 round 5 — the owner's read of the PR's screenshots: at 390 the
   // dashboard's recent-sales row used to force customer name, order number,
   // amount and status onto one line, and `.cust` (styles.css:
@@ -646,7 +704,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
   // and an untruncated one never is.
   test("the recent-sales customer name is not truncated at phone width", async ({ page }) => {
     await page.goto("/");
-    const salesList = page.locator("ul.dash-sales-list");
+    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
     const firstRow = salesList.locator("li").first();
     await expect(firstRow, "the dashboard rendered no recent-sales rows to measure").toBeVisible();
 

@@ -2,9 +2,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bird, Egg, ShoppingCart } from "lucide-react";
+import { Bird, Check, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
 import {
-  Alert, Box, Button, Container, Stack, Typography, useMediaQuery,
+  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -17,7 +17,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
 import { useAuth } from "../auth/useAuth";
-import { useFarmToday } from "../farm/useFarm";
+import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import {
@@ -33,23 +33,13 @@ const RECENT_ORDERS = 5;
 // day comes.
 const MAX_PAGE = 500;
 
-// F5 (#41) → #654 → #829: the landing page answers the 6 am question — which
-// houses have no entry yet, and is lay rate normal? A ruled Today list, the
-// missing ones first and at most 12 (a link carries the rest), the last 14
-// days as a bar strip with the production report's own hen-day % for the
-// last 7 complete days against the 7 before, stock as one stacked bar by
-// grade, and recent sales as a ruled list. #829 converts the shell to MUI
-// (DIRECTION.md, the confirmed mockup at docs/designs/864-visual-language/)
-// without changing any of the data pipeline below.
-//
-// Composed client-side from existing read endpoints (6 parallel GETs). The
-// trend is the production report — computed server-side in one place, so the
-// page never sums report rows: two calls, one per 7-day window, and the
-// server's periodHenDayPct from each. Panels degrade independently: one
-// failed fetch blanks its section, not the page.
+// Six parallel reads; failed panels degrade independently. The server owns
+// the hen-day calculation for each seven-day reporting window.
 export function Dashboard() {
   const { t } = useTranslation("dashboard");
   const fmt = useFormat();
+  const { farm } = useFarm();
+  const [openedAt] = useState(() => new Date().toISOString());
   const { t: tc } = useTranslation("common");
   // Captured once at mount so the header date always matches the queried day
   // even if the tab stays open across midnight. Farm-local, not browser-local
@@ -73,11 +63,7 @@ export function Dashboard() {
   const canSeeSales = role !== "ReadOnly" && role !== "Denied";
   // END PROTECTED
 
-  // The attention line never wraps: DIRECTION.md's fold point is two items at
-  // 1280 and ONE at 390 — the same md (900px) boundary the sidebar/tab-bar
-  // switch uses, not a flat cap at every width (#883 round 2, finding 1: the
-  // desktop count was overcounting on a phone, wrapping or truncating a line
-  // that must stay one line).
+  // Match the navigation breakpoint when folding the missing-house summary.
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
 
@@ -100,8 +86,10 @@ export function Dashboard() {
       // Only the fetches we actually issued count toward "everything failed":
       // the sales read is an inert placeholder when the role can't see it.
       const issued = canSeeSales ? [f, e, s, o, cur, prev] : [f, e, s, cur, prev];
-      if (issued.every((r) => r.status === "rejected")) {
-        const reason = (issued[0] as PromiseRejectedResult).reason;
+      const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      const firstRejected = rejected[0];
+      if (rejected.length === issued.length && firstRejected) {
+        const reason = firstRejected.reason;
         setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
       }
       setLoading(false);
@@ -152,13 +140,7 @@ export function Dashboard() {
     delta === null ? "—"
       : delta < 0 ? t("henDayDeltaDown", { delta: fmt.count(Math.abs(delta), 1) })
         : t("henDayDeltaUp", { delta: fmt.count(delta, 1) });
-  // Lay rate falling IS the bad direction here, so the delta carries the
-  // semantic colour. An unknown delta stays neutral rather than reading as good.
-  // The strip's whole change is that a day with nothing recorded is an empty
-  // slot, so the accessible name has to say how many there are — otherwise a
-  // screen-reader user still gets "lowest 0", the conflation the redraw
-  // removed for everyone else. Two complete sentences rather than one built by
-  // concatenation, so each locale can order its own clauses.
+  // A missing day is not zero production; its accessible label must say so.
   const trendLabel = (line: DayStripData) => {
     // Four states, none of which may report a figure it does not have. max and
     // average are null together — both come from the COMPLETE days — so a
@@ -190,11 +172,6 @@ export function Dashboard() {
       case "unrecorded":
         return t("trendDayTipNone", { date });
       case "partial":
-        // Plural on the EGG count, which is what the noun beside it is. It
-        // selected on the flock count, so a partly recorded day with one egg
-        // rendered "1 eggs". The flock noun stays plural unconditionally and is
-        // safe there: `partial` requires 1 <= recorded < expected, so `expected`
-        // is never below 2.
         return t("trendDayTipPartial", {
           date, count: slot.eggs, total: fmt.count(slot.eggs),
           recorded: fmt.count(slot.filedFlocks), expected: fmt.count(slot.expectedFlocks),
@@ -210,12 +187,7 @@ export function Dashboard() {
   const deltaClass = (delta: number | null) =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 
-  // Owner amendment on #864 (2026-09-16): a caption under "Today so far" that
-  // gives the running total a reference — "Yesterday by close: N" — sourced
-  // from the SAME data the 14-day strip already reads (its last slot, since
-  // the strip runs oldest-first and ends on yesterday), never a second fetch.
-  // Only when yesterday was a COMPLETE day: a partial or unrecorded yesterday
-  // has no figure honest enough to caption "by close".
+  // Only a complete yesterday can be described as its closing total.
   const yesterdaySlot = trendData?.line.slots.at(-1) ?? null;
   const yesterdayByClose = yesterdaySlot?.kind === "recorded" ? yesterdaySlot.eggs : null;
 
@@ -227,296 +199,164 @@ export function Dashboard() {
   const attentionShown = missingHouses.slice(0, attentionCap);
   const attentionMore = missingHouses.length - attentionShown.length;
 
+  const recordedHouses = allTiles === null ? 0 : allTiles.length - missingHouses.length;
+  const sectionSx = { p: { xs: 2, md: 2.25 }, minWidth: 0, borderColor: "var(--rule)", borderRadius: "var(--r-panel)" };
+  const headingSx = { "& h3": { fontSize: "0.9rem", fontWeight: 700 }, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1.5 };
+
   return (
-    <Container maxWidth={false} disableGutters sx={{ maxWidth: 1120, py: { xs: 3, md: 4.5 } }}>
-      <Typography variant="h2">{t("title")}</Typography>
-      <Typography className="muted"><FarmDate iso={today} /></Typography>
-
-      {/* #829/#864 — a plain text line, not a boxed `Alert`: DIRECTION.md's
-          confirmed mockup renders this as a hairline-weight status line (a
-          dot mark, ruled separators between items), which an `Alert`'s fill
-          and padding would read heavier than. This amends D3.3's "Alert
-          severity='warning'" row — the owner confirmed the lighter mockup
-          later (#864 issue comments, 2026-09-16) — D3.3 is amended in the PR
-          body per AGENTS.md's "DIRECTION.md wins" rule. */}
-      {missingHouses.length > 0 && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 1.5, minHeight: 24, overflow: "hidden", whiteSpace: "nowrap" }}>
-          <Box component="span" aria-hidden sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "var(--warn)", flexShrink: 0 }} />
-          {attentionShown.map((flock, i) => (
-            <Box key={flock.id} sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              {i > 0 && <Box component="span" aria-hidden sx={{ width: "1px", height: 12, bgcolor: "var(--rule-strong)" }} />}
-              <Typography component="span" variant="body1">{t("attentionHouseNotRecorded", { flock: flock.name })}</Typography>
-            </Box>
-          ))}
-          {attentionMore > 0 && (
-            <Typography component={Link} to="/daily-entry" variant="body1">
-              {t("attentionMore", { count: attentionMore })}
-            </Typography>
-          )}
+    <Container maxWidth={false} disableGutters sx={{
+      maxWidth: 1120, py: { xs: 2.5, md: 3 },
+      "& a": { minHeight: { xs: 44, md: "auto" }, display: "inline-flex", alignItems: "center" },
+    }}>
+      <Box component="header" sx={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 2, mb: 2.5 }}>
+        <Box>
+          <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600 }}>{farm?.name ?? t("title")}</Typography>
+          <Typography variant="h2" aria-label={t("title")} sx={{ maxWidth: 650, mt: 0.5, fontSize: { xs: "1.75rem", md: "1.9rem" }, lineHeight: 1.15 }}>{t("morningHeading")}</Typography>
         </Box>
-      )}
+        <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right", flexShrink: 0, display: { xs: "none", md: "block" } }}>
+          <FarmDate iso={today} /><br />{t("farmTime", { time: fmt.time(openedAt) ?? "—" })}
+        </Typography>
+      </Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "block", md: "none" }, mb: 2 }}>
+        <FarmDate iso={today} /> · {t("farmTime", { time: fmt.time(openedAt) ?? "—" })}
+      </Typography>
 
-      <Box sx={{
-        display: "grid",
-        gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 320px" },
-        columnGap: 5, mt: { xs: 4, md: 4.5 },
-      }}
-      >
-        <Stack spacing={5} sx={{ minWidth: 0 }}>
-          {/* -------------------------------------------------------- Today */}
-          <Box component="section">
-            <Box sx={{
-              display: "flex", justifyContent: "space-between", alignItems: "baseline",
-              pb: 1, borderBottom: "1px solid var(--rule-strong)",
-            }}
-            >
-              <Typography variant="h3"><Link to="/daily-entry">{t("todayPanelTitle")}</Link></Typography>
-              {allTiles !== null && entries !== null && (
-                <Typography variant="caption" className="muted">
-                  {t("todayInCount", { in: allTiles.length - missingHouses.length, count: allTiles.length })}
+      <Box component="section" aria-label={t("morningBrief")} sx={{
+        display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) auto" }, gap: 2,
+        p: 2.5, mb: 3, borderRadius: "var(--r-panel)", bgcolor: "#2b2328", color: "#fffaf4",
+      }}>
+        <Box>
+          <Typography variant="h3" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", mb: 1 }}>{t("morningBrief")}</Typography>
+          {allTiles === null ? <Typography>{t("panelLoadError")}</Typography> : missingHouses.length > 0 ? (
+            <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
+              {attentionShown.map((flock) => (
+                <Typography key={flock.id} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <TriangleAlert size={15} aria-hidden />{t("attentionHouseNotRecorded", { flock: flock.name })}
                 </Typography>
-              )}
+              ))}
+              {attentionMore > 0 && <Typography component={Link} to="/daily-entry" sx={{ color: "inherit" }}>{t("attentionMore", { count: attentionMore })}</Typography>}
             </Box>
-            {tiles === null || entries === null ? panelError : (
-              tiles.shown.length === 0 ? (
-                <EmptyState icon={Bird} message={t("noFlocksMessage")} />
-              ) : (
-                <>
-                  {tiles.shown.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
-                  <Box sx={{
-                    display: "flex", justifyContent: "space-between", mt: -0.125,
-                    borderTop: "3px double var(--rule-strong)", pt: 1.25, fontWeight: 600,
-                  }}
-                  >
-                    <Typography component="span" sx={{ fontWeight: 600 }}>{t("todaySoFarLabel")}</Typography>
-                    <Typography component="span" className="num" sx={{ fontWeight: 600, fontSize: "1.25rem" }}>{fmt.count(todaysEggs(entries))}</Typography>
-                  </Box>
-                  {yesterdayByClose !== null && (
-                    <Typography variant="caption" className="muted" sx={{ display: "block", mt: 0.5 }}>
-                      {t("yesterdayByClose", { total: fmt.count(yesterdayByClose) })}
-                    </Typography>
-                  )}
-                  {tiles.hidden > 0 && (
-                    <Typography component={Link} to="/daily-entry" variant="body2" sx={{ display: "inline-block", mt: 1 }}>
-                      {t("moreFlocks", { count: tiles.hidden, total: fmt.count(tiles.hidden) })}
-                    </Typography>
-                  )}
-                </>
-              )
-            )}
-          </Box>
+          ) : <Typography>{t(allTiles.length === 0 ? "noFlocksMessage" : "allHousesRecorded")}</Typography>}
+        </Box>
+        {allTiles !== null && entries !== null && <Box sx={{ borderLeft: { md: "1px solid #62535e" }, borderTop: { xs: "1px solid #62535e", md: 0 }, pl: { md: 2.5 }, pt: { xs: 1.5, md: 0 }, minWidth: 150 }}>
+          <Typography variant="caption">{t("todaySoFarLabel")}</Typography>
+          <Typography className="num" sx={{ fontFamily: "Georgia, serif", fontSize: "2rem", fontWeight: 600, lineHeight: 1.15 }}>
+            {entries === null ? "—" : fmt.count(todaysEggs(entries))}
+          </Typography>
+        </Box>}
+      </Box>
 
-          {/* --------------------------------------------------- Recent sales */}
-          {canSeeSales && (
-            <Box component="section">
-              <Box sx={{
-                display: "flex", justifyContent: "space-between", alignItems: "baseline",
-                pb: 1, borderBottom: "1px solid var(--rule-strong)",
-              }}
-              >
-                <Typography variant="h3"><Link to="/sales">{t("salesPanelTitle")}</Link></Typography>
-              </Box>
-              {orders === null ? panelError : orders.length === 0 ? (
-                <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} />
-              ) : (
-                // #883 round 5 (owner's read of the #883 screenshots): a
-                // shared grid, not a flex row per `<li>` — a flex row lets
-                // each row's cells take whatever width their own content
-                // needs, so the amount sat at a different x position on every
-                // row. `display: grid` on the LIST plus `subgrid` on each row
-                // (mockup: `.rows.sales`/`.sale`) makes every row share the
-                // same column tracks, so amounts align down the page the same
-                // way the mockup's table does. DIRECTION.md line 9's row is
-                // customer/order number, eggs and grade, amount, status,
-                // action — the eggs-and-grade column is still not rendered:
-                // `listOrders`'s `OrderItem`s carry a line's `quantity` but
-                // only an `eggGradeId`, never a grade NAME, and resolving one
-                // needs a `listEggGrades()` fetch this screen does not
-                // otherwise make (recorded on the PR and on #829; not built
-                // in this round), so the grid below has one fewer column than
-                // the mockup's until that lands.
-                <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{
-                  listStyle: "none", m: 0, p: 0,
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr auto", md: "minmax(0,1fr) auto auto minmax(150px,auto)" },
-                  columnGap: 1.5,
-                }}
-                >
-                  {orders.map((o) => (
-                    <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
-                      display: "grid",
-                      gridColumn: "1 / -1",
-                      gridTemplateColumns: "subgrid",
-                      // At 390 there is no shared subgrid (the list itself
-                      // reverts to a plain 2-column track above), so this
-                      // stacks: customer + amount on one line, status +
-                      // action on the next — the phone shape DIRECTION.md's
-                      // mockup draws for `.sale`, minus the qty row this
-                      // screen does not render yet.
-                      gridTemplateAreas: { xs: '"who amt" "state act"', md: '"who amt state act"' },
-                      columnGap: 1.5, rowGap: { xs: 0.25, md: 0 },
-                      alignItems: "center",
-                      py: 1, borderBottom: "1px solid var(--rule)",
-                    }}
-                    >
-                      <Box sx={{ gridArea: "who", minWidth: 0 }}>
-                        {/* Not `.cust` (styles.css: `overflow:hidden;
-                            white-space:nowrap;text-overflow:ellipsis`) — that
-                            truncated a real customer name to "KC…" once four
-                            cells were forced onto one 390px line (#883 round
-                            5 finding). The row now stacks at 390, so the name
-                            gets its own full-width line and truncation is no
-                            longer needed there; kept nowrap+ellipsis at
-                            desktop, where the column is genuinely narrow. */}
-                        <Typography component={Link} className="link" to={`/sales?customerId=${o.customerId}`} sx={{
-                          display: "block", fontWeight: 500,
-                          whiteSpace: { xs: "normal", md: "nowrap" },
-                          overflow: { xs: "visible", md: "hidden" },
-                          textOverflow: { xs: "clip", md: "ellipsis" },
-                        }}
-                        >
-                          {rowCustomerName(o)}
-                        </Typography>
-                        <Typography variant="caption" className="muted">{o.referenceNumber}</Typography>
-                      </Box>
-                      {/* Right-aligned with tabular numerals so every row's
-                          amount lines up on its ones digit — `.num` itself
-                          stays un-right-aligned (styles.css, #829: scoped
-                          narrow on purpose), so the alignment is this cell's
-                          own, not a widened class. */}
-                      <Typography component="span" className="num" sx={{ gridArea: "amt", textAlign: "right" }}>
-                        {fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}
-                      </Typography>
-                      <Box sx={{ gridArea: "state" }}>
-                        <StatusDot status={o.status} label={statusLabel(o.status)} />
-                      </Box>
-                      {/* A draft order's row action (#883 round 2, finding
-                          5; wording tightened in round 2's own Codex re-
-                          review, finding 3). There is no per-order deep link
-                          into Sales yet, so this lands on the customer's
-                          WHOLE filtered order list, not the one order — that
-                          list can hold several drafts for the same customer,
-                          so the label says "review", never "confirm": this
-                          control does not confirm anything itself, and a
-                          word that claimed it did would be a real behavior
-                          mismatch, not just one extra expected click (unlike
-                          the Today row's Record/Continue, which land on the
-                          one exact form for that flock and date). */}
-                      {o.status === "Draft" && (
-                        <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ gridArea: "act", justifySelf: { md: "end" } }}>
-                          {t("salesRowConfirmAction")}
-                        </Typography>
-                      )}
-                    </Box>
-                  ))}
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1.6fr) minmax(300px,1fr)" }, gap: 2.5, alignItems: "start" }}>
+        <Card component="section" sx={sectionSx}>
+          <Box sx={headingSx}>
+            <Typography variant="h3" aria-label={t("todayPanelTitle")}><Link to="/daily-entry">{t("collectionTitle")}</Link></Typography>
+            {allTiles !== null && <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>{t("todayInCount", { in: recordedHouses, count: allTiles.length })}</Typography>}
+          </Box>
+          {tiles === null || entries === null ? panelError : tiles.shown.length === 0 ? (
+            <EmptyState icon={Bird} message={t("noFlocksMessage")} />
+          ) : (
+            <>
+              <LinearProgress variant="determinate" value={recordedHouses / (tiles.shown.length + tiles.hidden) * 100} aria-label={t("collectionTitle")}
+                sx={{ height: 5, borderRadius: 2, mb: 1, bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--success)" } }} />
+              {tiles.shown.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
+              <Box sx={{ bgcolor: "var(--surface-2)", mx: { xs: -2, md: -2.25 }, mb: { xs: -2, md: -2.25 }, mt: 1.5, px: 2.25, py: 1.5 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <Typography>{t("collectedToday")}</Typography>
+                  <Typography className="num" sx={{ fontFamily: "Georgia, serif", fontWeight: 600, fontSize: "1.8rem" }}>{fmt.count(todaysEggs(entries))}</Typography>
                 </Box>
+                {yesterdayByClose !== null && <Typography variant="caption" color="text.secondary">{t("yesterdayByClose", { total: fmt.count(yesterdayByClose) })}</Typography>}
+                {tiles.hidden > 0 && <Typography component={Link} to="/daily-entry" variant="body2" sx={{ display: "block" }}>{t("moreFlocks", { count: tiles.hidden, total: fmt.count(tiles.hidden) })}</Typography>}
+              </Box>
+            </>
+          )}
+        </Card>
+
+        <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 2 }, gridRow: { md: 1 } }}>
+          <Box sx={headingSx}>
+            <Typography variant="h3" aria-label={t("stockPanelTitle")}><Link to="/stock">{t("availableStockTitle")}</Link></Typography>
+          </Box>
+          {bar === null || stock === null ? panelError : stock.length === 0 ? <EmptyState icon={Egg} message={t("noStockMessage")} /> : (
+            <>
+              <Typography className="stock-total" sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1, mb: 2,
+                "& .stock-fig": { fontFamily: "Georgia, serif", fontSize: "2.5rem" } }}>
+                <span className="stock-fig">{fmt.count(bar.totalAvailable)}</span>{" "}{t("eggsAvailableLabel", { count: bar.totalAvailable })}
+              </Typography>
+              <StockBar data={bar} />
+              {bar.segments.length > 0 && (
+                <Table aria-label={t("stockLedgerLabel")} size="small" sx={{ mt: 1.5, tableLayout: "fixed", "& th, & td": { px: 0.75, py: 1, overflowWrap: "anywhere" } }}>
+                  <TableHead><TableRow>
+                    <TableCell sx={{ width: "46%" }}>{t("gradeColumn")}</TableCell>
+                    <TableCell align="right">{t("countColumn")}</TableCell>
+                    <TableCell align="right">{t("shareColumn")}</TableCell>
+                  </TableRow></TableHead>
+                  <TableBody>{bar.segments.map((s) => (
+                    <TableRow key={s.eggGradeId} tabIndex={0} sx={{
+                      "&:hover, &:focus": { bgcolor: "var(--surface-2)", outline: "2px solid var(--focus)", outlineOffset: -2 },
+                      "&:hover th, &:focus th": { textDecoration: "underline", textUnderlineOffset: "3px" },
+                    }}>
+                      <TableCell component="th" scope="row"><Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}><span className={`swatch grade-${s.colorIndex}`} aria-hidden="true" />{s.gradeName}</Box></TableCell>
+                      <TableCell align="right">{fmt.count(s.available)}</TableCell>
+                      <TableCell align="right">{`${fmt.count(s.pct, 1)}%`}</TableCell>
+                    </TableRow>
+                  ))}</TableBody>
+                </Table>
               )}
+              {bar.totalRestricted > 0 && <Typography color="text.secondary" variant="caption" sx={{ display: "block", mt: 1 }}>{t("stockCaptionRestricted", { restricted: fmt.count(bar.totalRestricted) })}</Typography>}
+            </>
+          )}
+        </Card>
+
+        {canSeeSales && <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 1 } }}>
+          <Box sx={headingSx}><Typography variant="h3" aria-label={t("salesPanelTitle")}><Link to="/sales">{t("recentOrdersTitle")}</Link></Typography></Box>
+          {orders === null ? panelError : orders.length === 0 ? <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} /> : (
+            <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
+              {orders.map((o) => <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
+                display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 1.5, py: 1.25, borderTop: "1px solid var(--rule)",
+              }}>
+                <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                  <Typography component={Link} to={`/sales?customerId=${o.customerId}`} sx={{ fontWeight: 600 }}>{rowCustomerName(o)}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{o.referenceNumber}</Typography>
+                  {o.items[0] && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    {fmt.count(o.items[0].quantity)}{o.items[0].eggGradeName ? ` ${o.items[0].eggGradeName}` : ""}{o.items.length > 1 ? ` +${fmt.count(o.items.length - 1)}` : ""}
+                  </Typography>}
+                </Box>
+                <Box sx={{ textAlign: "right" }}>
+                  <Typography className="num" sx={{ fontWeight: 600 }}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
+                  <StatusDot status={o.status} label={statusLabel(o.status)} />
+                  {o.status === "Draft" && <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ width: "100%", justifyContent: "flex-end" }}>{t("salesRowConfirmAction")}</Typography>}
+                </Box>
+              </Box>)}
             </Box>
           )}
-        </Stack>
+        </Card>}
 
-        <Stack spacing={5} sx={{ borderLeft: { md: "1px solid var(--rule)" }, pl: { md: 5 }, mt: { xs: 4, md: 0 } }}>
-          {/* ------------------------------------------------------- Stock */}
-          <Box component="section">
-            <Box sx={{
-              display: "flex", justifyContent: "space-between", alignItems: "baseline",
-              pb: 1, borderBottom: "1px solid var(--rule-strong)",
-            }}
-            >
-              <Typography variant="h3"><Link to="/stock">{t("stockPanelTitle")}</Link></Typography>
-            </Box>
-            {bar === null || stock === null ? panelError : stock.length === 0 ? (
-              <EmptyState icon={Egg} message={t("noStockMessage")} />
-            ) : (
-              <>
-                {/* #777 — the total is the whole the bar divides, so it leads. */}
-                <Typography className="stock-total" sx={{ mt: 1.5 }}>
-                  <span className="stock-fig">{fmt.count(bar.totalAvailable)}</span>
-                  {/* The space matters: .stock-fig is display:block so the two
-                      never touch on screen, but the paragraph's text is what a
-                      copy-paste and any text consumer gets, and without it that
-                      reads "1egg available". */}
-                  {" "}{t("eggsAvailableLabel", { count: bar.totalAvailable })}
-                </Typography>
-                <StockBar data={bar} />
-                {/* The ledger is the bar's text of record (the track itself is
-                    aria-hidden). It replaces the grade run-on the caption used to
-                    carry, which asked the reader to count segments and trust the
-                    order matched, and it carries each grade's share so a grade
-                    worth well under a percent is readable as a number. */}
-                {bar.segments.length > 0 && (
-                  <Box component="ul" role="list" aria-label={t("stockLedgerLabel")} sx={{ listStyle: "none", m: "12px 0 0", p: 0 }}>
-                    {bar.segments.map((s) => (
-                      <Box component="li" key={s.eggGradeId} sx={{
-                        display: "flex", alignItems: "center", gap: 1.25,
-                        py: 1, borderBottom: "1px solid var(--rule)",
-                      }}
-                      >
-                        <span className={`swatch grade-${s.colorIndex}`} aria-hidden="true" />
-                        <Typography component="span" sx={{ flexGrow: 1 }}>{s.gradeName}</Typography>
-                        <Typography component="span" className="num">{fmt.count(s.available)}</Typography>
-                        <Typography component="span" className="num muted" sx={{ width: "3.5rem", textAlign: "right" }}>{`${fmt.count(s.pct, 1)}%`}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                )}
-                {bar.totalRestricted > 0 && (
-                  <Typography className="muted" variant="caption" sx={{ display: "block", mt: 1 }}>
-                    {t("stockCaptionRestricted", { restricted: fmt.count(bar.totalRestricted) })}
-                  </Typography>
-                )}
-              </>
-            )}
+        <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 2 }, gridRow: { md: 2 },
+          mx: { xs: "calc(7px - 1.15rem)", md: 0 },
+          "& .trend-fig": { fontFamily: "Georgia, serif", fontSize: "2.5rem" },
+          "& .trend-kpi": { mt: 0, mb: 1 },
+          "& .daystrip": { display: "flex", gap: { xs: "2px", md: "4px" }, height: 80 },
+          "& .day": { height: 80 },
+          "& .day > i": { maxWidth: { xs: "none", md: 18 } },
+          "& .tipdock .tip": { whiteSpace: "normal", overflow: "visible", maxWidth: "100%" },
+        }}>
+          <Box sx={headingSx}>
+            <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
+            <Typography variant="caption" color="text.secondary">{t("trendPanelTitle")}</Typography>
           </Box>
-
-          {/* -------------------------------------------------- Last 14 days */}
-          <Box component="section">
-            <Box sx={{
-              display: "flex", justifyContent: "space-between", alignItems: "baseline",
-              pb: 1, borderBottom: "1px solid var(--rule-strong)",
-            }}
-            >
-              <Typography variant="h3"><Link to="/reports">{t("trendPanelTitle")}</Link></Typography>
-            </Box>
-            {trendData === null ? panelError : (
-              <>
-                <DayStrip
-                  data={trendData.line}
-                  label={trendLabel(trendData.line)}
-                  title={t("trendScaleTitle")}
-                  peak={trendData.line.max === null ? "—" : t("trendPeak", { total: fmt.count(trendData.line.max) })}
-                  average={trendData.line.average === null
-                    ? null
-                    : t("trendAvg", { total: fmt.count(trendData.line.average, 1) })}
-                  tip={trendTip}
-                  from={<FarmDate iso={daysBefore(today, 14)} />}
-                  to={<FarmDate iso={daysBefore(today, 1)} />}
-                />
-                {/* #777 — hen-day is what this panel measures, so it is a figure.
-                    It used to be the smallest text on the panel, inside a muted
-                    sentence describing a quantity the chart above did not plot. */}
-                <Typography className="trend-kpi">
-                  <span className="trend-fig">
-                    {trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}
-                  </span>
-                  <span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span>
-                </Typography>
-                <Typography className="trend-sub" variant="caption">{t("henDaySubLabel")}</Typography>
-              </>
-            )}
-          </Box>
-        </Stack>
+          {trendData === null ? panelError : <>
+            <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
+            <Typography className="trend-sub" variant="caption" sx={{ display: "block", mb: 1.5 }}>{t("henDaySubLabel")}</Typography>
+            <DayStrip data={trendData.line} label={trendLabel(trendData.line)} title={t("trendScaleTitle")}
+              peak={trendData.line.max === null ? "—" : t("trendPeak", { total: fmt.count(trendData.line.max) })}
+              average={trendData.line.average === null ? null : t("trendAvg", { total: fmt.count(trendData.line.average, 1) })}
+              tip={trendTip} from={<FarmDate iso={daysBefore(today, 14)} />} to={<FarmDate iso={daysBefore(today, 1)} />} />
+          </>}
+        </Card>
       </Box>
     </Container>
   );
 }
 
-// One Today row: name, entry state, action, count. The missing house carries
-// a 3px `--warn` left rule and its action is the page's single filled
-// button (owner amendment on #864, 2026-09-16 — amends DIRECTION.md's
-// "ruled text at 1280" for this one row); a Draft entry gets a ruled-text
-// "Continue" action; a submitted/locked/voided entry has no action cell,
-// only its name links through.
 function TodayRow({ tile, today, fmt, t }: {
   tile: CaptureTile;
   today: string;
@@ -528,14 +368,8 @@ function TodayRow({ tile, today, fmt, t }: {
   const missing = entry === null;
   const draft = entry !== null && entry.status === "Draft";
 
-  // DIRECTION.md line 6 — the entry state with its time ("Recorded 06:40",
-  // "Draft, saved 06:52"), farm-local (#883 round 2, finding 4). A Draft's
-  // time is the last save (lastChangedAtUtc, falling back to createdAtUtc for
-  // a Draft that has never been edited since); a submitted/locked/adjusted
-  // entry's time is when it became official — madeOfficialAtUtc, sent only
-  // for a record that has actually reached that step. A record with neither
-  // timestamp (data predating #494, or a fixture that doesn't care) falls
-  // back to the bare status word, exactly as before this slice.
+  // Drafts use their last save; official entries use their submission time.
+  // Older records without provenance retain the bare status label.
   const stateTime = missing
     ? null
     : fmt.time(draft ? (entry.lastChangedAtUtc ?? entry.createdAtUtc) : (entry.madeOfficialAtUtc ?? null));
@@ -543,91 +377,32 @@ function TodayRow({ tile, today, fmt, t }: {
     ? (missing ? undefined : statusLabel(entry.status))
     : t(draft ? "entryStateDraftTime" : "entryStateRecordedTime", { time: stateTime });
 
-  // A CSS grid, not a flex row: the DIRECTION.md phone layout reflows the
-  // SAME four pieces (name, state, action, count) into three lines instead
-  // of shrinking them onto one — a flex row with fixed minWidths overflowed
-  // a 390px viewport (measured: 475px, phone.spec.ts's viewport-overflow
-  // walk). `gridTemplateAreas` names the reflow directly rather than
-  // reordering flex children with `order`.
   return (
     <Box role="group" aria-label={flock.name} sx={{
-      display: "grid",
-      // The mockup's own model (dashboard.html `.house`): name 150px, status
-      // 1fr, action auto, count 110px. #883 round 5's owner read: a fixed
-      // 200px action column (this row's previous shape) squeezed the status
-      // column so "Draft, saved 05:26" wrapped onto two lines. `auto` is safe
-      // here because the two actions that can render are no longer
-      // budget-hungry: Record only ever renders for the seeder's never-filing
-      // catalog flocks, whose names are short and fixed, and Continue is now
-      // ruled text with no button chrome to balloon (see below) — an
-      // arbitrarily long flock name racing a real action is a residual risk
-      // this model accepts, same as the mockup does.
-      gridTemplateColumns: { xs: "1fr auto", md: "minmax(0,1fr) auto auto 110px" },
-      gridTemplateAreas: { xs: '"name num" "meta meta" "act act"', md: '"name meta act num"' },
-      columnGap: 1.5, rowGap: { xs: 0.25, md: 0 },
-      alignItems: "center",
-      minHeight: { xs: 52, md: 36 }, py: { xs: 1, md: 0.5 },
-      borderBottom: "1px solid var(--rule)",
-      borderLeft: missing ? "3px solid var(--warn)" : "3px solid transparent",
-      pl: missing ? 1 : 0,
-      bgcolor: missing ? { xs: "var(--tint-warn)", md: "transparent" } : "transparent",
-    }}
-    >
-      <Typography component={Link} to={href} sx={{ gridArea: "name", fontWeight: 500, overflow: { md: "hidden" }, textOverflow: { md: "ellipsis" }, whiteSpace: { md: "nowrap" } }}
-        aria-label={missing
-          ? t("tileLinkLabelMissing", { flock: flock.name })
-          : t("tileLinkLabel", { flock: flock.name })}
-        title={missing ? t("recordTodayHint") : undefined}
-      >
-        {flock.name}
-      </Typography>
-      {/* `white-space: nowrap` (#883 round 5): the status cell is the one
-          piece of this row that must never wrap — "Draft, saved 05:26" onto a
-          second line is the defect this fix pins. */}
-      <Box sx={{ gridArea: "meta", whiteSpace: "nowrap" }}>
-        {missing
-          ? <StatusDot label={t("noEntryBadge")} forceColor="var(--warn)" />
-          : <StatusDot status={entry.status} label={stateLabel} />}
+      display: "grid", gridTemplateColumns: "28px minmax(0,1fr) auto", gap: 1.25,
+      alignItems: "center", minHeight: 66, py: 1, borderTop: "1px solid var(--rule)",
+    }}>
+      <Box aria-hidden sx={{ display: "grid", placeItems: "center", width: 26, height: 26, borderRadius: "50%",
+        color: missing ? "var(--warn)" : draft ? "var(--muted)" : "var(--success)",
+        bgcolor: missing ? "var(--tint-warn)" : draft ? "var(--surface-2)" : "var(--tint-ok)",
+      }}>{missing ? <TriangleAlert size={15} /> : draft ? <CircleDashed size={15} /> : <Check size={15} />}</Box>
+      <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+        <Typography component={Link} to={href} sx={{ fontWeight: 600 }}
+          aria-label={missing ? t("tileLinkLabelMissing", { flock: flock.name }) : t("tileLinkLabel", { flock: flock.name })}
+          title={missing ? t("recordTodayHint") : undefined}>{flock.name}</Typography>
+        <Box>{missing ? <StatusDot label={t("noEntryBadge")} forceColor="var(--warn)" /> : <StatusDot status={entry.status} label={stateLabel} />}</Box>
+        {draft && <Typography component={Link} to={href} variant="body2">{t("continueHouseAction", { flock: flock.name })}</Typography>}
       </Box>
-      {(missing || draft) && (
-        <Box sx={{ gridArea: "act", textAlign: { xs: "stretch", md: "right" }, whiteSpace: { md: "nowrap" } }}>
-          {missing && (
-            // The single filled button on the page at 1280 (owner amendment,
-            // #864) and the 48px full-width phone action (DIRECTION.md).
-            <Button component={Link} to={href} variant="contained" size="small"
-              sx={{ width: { xs: "100%", md: "auto" }, minHeight: { xs: 48, md: "auto" } }}
-            >
-              {t("recordHouseAction", { flock: flock.name })}
-            </Button>
-          )}
-          {draft && (
-            // Ruled text (DIRECTION.md line 7), not a filled/text Button:
-            // `Button variant="text"` rendered bold and brand-coloured, the
-            // #883 round 5 owner finding — the same ruled-text Typography+Link
-            // pattern the sales row's "Review to confirm" action already
-            // uses below, so this row and that one share one convention.
-            <Typography component={Link} to={href} variant="body2"
-              sx={{ display: { xs: "inline-block", md: "inline" } }}
-            >
-              {t("continueHouseAction", { flock: flock.name })}
-            </Typography>
-          )}
-        </Box>
-      )}
-      <Typography component="span" className="num" sx={{ gridArea: "num", textAlign: "right" }}>
-        {entry ? fmt.count(entry.totalEggs) : "—"}
-      </Typography>
+      {missing ? <Button component={Link} to={href} variant="outlined" color="inherit" size="small"
+        aria-label={t("recordHouseAction", { flock: flock.name })}
+        sx={{ gridColumn: "3", gridRow: "1", "&&": { minHeight: 44 } }}>{t("recordAction")}</Button> : <Box sx={{ textAlign: "right" }}>
+        <Typography component="span" className="num" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", fontWeight: 600 }}>{fmt.count(entry.totalEggs)}</Typography>
+      </Box>}
     </Box>
   );
 }
 
-// DIRECTION.md line 15: status is a word with an 8px dot, never a filled
-// badge — success (recorded, paid), --stat-accent (allocated), a hollow ring
-// (draft and anything else with no mapped colour), --warn (not recorded,
-// low). Dashboard-local: `StatusBadge` (../components/StatusBadge) stays
-// untouched for the other screens, its own conversion is #831's, so this
-// duplicates StatusBadge's small VARIANT table rather than exporting it —
-// the two are expected to diverge until #831 unifies them.
+// A hollow dot marks states without a semantic colour.
 const STATUS_DOT_COLOR: Record<string, string> = {
   active: "var(--success)", submitted: "var(--success)", confirmed: "var(--success)",
   saleable: "var(--success)", paid: "var(--success)",
