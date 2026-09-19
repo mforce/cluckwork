@@ -53,8 +53,11 @@ describe("Login", () => {
     renderWithProviders(tree(), { route: "/login", token: null });
 
     // Pinned to i18n.t, not the literal — proves the screen is reading the
-    // catalog rather than a string that happens to still match it.
-    expect(await screen.findByText(i18n.t("auth:title"))).toBeInTheDocument();
+    // catalog rather than a string that happens to still match it. #833: the
+    // shared AuthShell's left panel ALSO reads auth:title for its own
+    // wordmark, so "Cluckwork" now renders twice — this asserts the screen's
+    // own heading specifically, not just that the text exists somewhere.
+    expect(await screen.findByRole("heading", { name: i18n.t("auth:title"), level: 2 })).toBeInTheDocument();
     // MUI's required indicator adds its own trailing " *" to the label text
     // (repo convention, e.g. GradesPage.test.tsx's "Name *"), so a required
     // field's accessible name is matched by prefix rather than by equality.
@@ -662,5 +665,56 @@ describe("Login — forgetting a remembered farm", () => {
     expect(selectStyle.color).not.toBe("var(--danger)");
     expect(selectStyle.color).not.toBe("var(--error)");
     expect(selectStyle.background).not.toBe("var(--danger)");
+  });
+});
+
+// #833 — owner decision, 2026-09-19: the shell shows the device's CACHED
+// banner from a prior sign-in, never a live fetch (/account/banner stays
+// authenticated). Three paths: first visit (nothing cached), cached (exactly
+// one remembered farm with a cached banner), and after forgetting that farm.
+describe("Login — cached pre-auth banner (#833)", () => {
+  it("first visit: shows no banner image when nothing is cached", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("cached: shows the cached banner for the one remembered farm", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    localStorage.setItem("cluckwork.banner:farm-a", "data:image/png;base64,AAAA");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    // Decorative (the shell panel already names the app) — alt="" is the
+    // deliberate accessible-name choice, asserted directly rather than by role.
+    const img = document.querySelector("img[alt='']") as HTMLImageElement | null;
+    expect(img).not.toBeNull();
+    expect(img!.src).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("does not show a cached banner when two or more farms are remembered — which one is ambiguous", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    localStorage.setItem("cluckwork.banner:farm-a", "data:image/png;base64,AAAA");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(document.querySelector("img[alt='']")).toBeNull();
+  });
+
+  it("forget: the banner disappears once its farm is forgotten", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    localStorage.setItem("cluckwork.banner:farm-a", "data:image/png;base64,AAAA");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(document.querySelector("img[alt='']")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    expect(document.querySelector("img[alt='']")).toBeNull();
+    expect(localStorage.getItem("cluckwork.banner:farm-a")).toBeNull();
   });
 });

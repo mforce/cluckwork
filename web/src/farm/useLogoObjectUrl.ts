@@ -27,6 +27,11 @@ export interface FarmLogoImage {
 function useImageObjectUrl(
   hash: string | null,
   fetchImage: () => Promise<{ blob: Blob }>,
+  // #833 — optional, fired with the raw blob once, right after a successful
+  // fetch. Only BrandSplash's banner caller uses it (to cache the bytes for
+  // Login's pre-auth banner, #586-style); every other caller passes nothing,
+  // so this is additive and does not change the hook's existing contract.
+  onBlob?: (blob: Blob) => void,
 ): FarmLogoImage {
   const [url, setUrl] = useState<string | null>(null);
   // The hash whose request has finished, whichever way it went. Compared
@@ -53,6 +58,7 @@ function useImageObjectUrl(
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
         setSettledHash(hash);
+        onBlob?.(blob);
       })
       .catch(() => {
         if (cancelled) return;
@@ -94,7 +100,9 @@ export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
 }
 
 // The farm banner as an object URL (#179) — same contract as the logo above,
-// for the post-login splash.
-export function useBannerObjectUrl(bannerHash: string | null): FarmLogoImage {
-  return useImageObjectUrl(bannerHash, getFarmBanner);
+// for the post-login splash. `onBlob` (#833) is BrandSplash's hook for
+// caching the bytes so Login can show them pre-auth on this device's next
+// visit; every other caller omits it.
+export function useBannerObjectUrl(bannerHash: string | null, onBlob?: (blob: Blob) => void): FarmLogoImage {
+  return useImageObjectUrl(bannerHash, getFarmBanner, onBlob);
 }

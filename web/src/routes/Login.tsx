@@ -1,18 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
-import { Alert, Box, IconButton, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, IconButton, Stack, TextField, Typography } from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
+import { AuthShell } from "../components/AuthShell";
 import { BusyButton } from "../components/BusyButton";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
 import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCodeCache";
 import { applyDeviceBrand } from "../lib/brand";
+import { readCachedBanner } from "../lib/bannerCache";
 
 interface LocationState {
   from?: { pathname: string };
@@ -104,6 +105,11 @@ export function Login() {
   // picker disappears the moment the last entry is forgotten rather than on the
   // next reload.
   const [rememberedCodes, setRememberedCodes] = useState(() => (urlFarmCode === null ? readFarmCodes() : []));
+  // #833 — owner decision 2026-09-19: show the device's cached banner from a
+  // prior sign-in, never a fresh authenticated fetch. Re-read whenever the
+  // roster changes (a forget can drop the one farm that justified showing
+  // it), matching applyDeviceBrand's own "exactly one remembered farm" rule.
+  const cachedBanner = useMemo(() => readCachedBanner(rememberedCodes), [rememberedCodes]);
   const [farmCode, setFarmCode] = useState(
     () => urlFarmCode ?? (rememberedCodes.length === 1 ? rememberedCodes[0] : ""),
   );
@@ -210,33 +216,26 @@ export function Login() {
   }
 
   return (
-    <Box
-      component="main"
-      sx={{
-        position: "relative", minHeight: "100dvh", display: "grid", placeItems: "center",
-        padding: "1.5rem",
-        // `--auth-bg` is a four-stop gradient, not a flat colour (styles.test.ts's
-        // own comment says so) — `backgroundColor` silently drops a gradient
-        // value, which is why this rendered as the plain canvas. D3.3: the
-        // gradient stays at 1280, the phone card is full-width with no bleed.
-        background: { xs: "var(--canvas)", md: "var(--auth-bg)" },
-      }}
+    <AuthShell
+      footerNote={t("loginShellFooter")}
+      bannerSlot={cachedBanner !== null ? (
+        // #833 — the cached banner, never a live fetch: /account/banner stays
+        // authenticated. Decorative: the shell panel already names the app,
+        // and a mis-cached image is not information a screen reader needs to
+        // announce as content.
+        <Box
+          component="img"
+          src={cachedBanner}
+          alt=""
+          sx={{
+            marginTop: 3, width: "100%", maxHeight: "10rem", objectFit: "cover",
+            borderRadius: "var(--r-panel)",
+          }}
+        />
+      ) : undefined}
     >
-      <Box sx={{ position: "absolute", top: "1.1rem", right: "1.1rem" }}>
-        <ThemeToggle showLabel={false} iconSize={18} />
-      </Box>
-      <Paper
-        component="form"
-        elevation={0}
-        onSubmit={onSubmit}
-        sx={{
-          width: "min(380px, 100%)", padding: "2.5rem", display: "flex", flexDirection: "column",
-          gap: 2, border: "1px solid var(--auth-card-border)", boxShadow: "var(--auth-card-shadow)",
-        }}
-      >
-        <Typography variant="h1" align="center" sx={{ color: "var(--auth-brand)" }}>
-          {t("title")}
-        </Typography>
+      <Stack component="form" spacing={2} onSubmit={onSubmit}>
+        <Typography variant="h2">{t("title")}</Typography>
         {needsSetup && (
           // No command is shown, deliberately. Earlier drafts printed the setup
           // invocation here and it was wrong twice over: the bare verb was not
@@ -367,8 +366,8 @@ export function Login() {
         <BusyButton type="submit" busy={busy}>
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
-      </Paper>
+      </Stack>
       {confirmDialog}
-    </Box>
+    </AuthShell>
   );
 }
