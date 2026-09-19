@@ -1,3 +1,4 @@
+import { responsiveStyle } from "../test/renderedStyle";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { ExpensesPage } from "./ExpensesPage";
@@ -1129,15 +1130,15 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
 });
 
 describe("ExpensesPage date-range filter (#667)", () => {
-  // #653/#662/#831 — mirrors StockPage's structural guard: the width cap
-  // moved from `.toolbar input[type="date"]` to FilterDateField's own `sx`,
-  // so the wrapper the field renders inside is the only honest thing jsdom
-  // (no layout engine) can assert here.
+  // #653: inspect the date field's generated bound, not just its container.
   it("puts the date range in the bounded FilterBar, not a bare filters row", async () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
     await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
     const fromInput = screen.getByLabelText("From");
     expect(fromInput.closest(".MuiPaper-outlined")).not.toBeNull();
+    const field = fromInput.closest(".MuiFormControl-root");
+    expect(field).not.toBeNull();
+    expect(responsiveStyle(field!, "(min-width:900px)", "max-width")).toBe("12rem");
   });
 
 

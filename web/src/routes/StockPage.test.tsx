@@ -1,3 +1,4 @@
+import { responsiveStyle } from "../test/renderedStyle";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { act, screen, waitFor, within, fireEvent } from "@testing-library/react";
@@ -168,11 +169,7 @@ describe("StockPage drill-down", () => {
   });
 
   it("puts the lot date range in the bounded FilterBar, not a bare filters row", async () => {
-    // #653/#662/#831 — this is a structural guard on purpose. The width cap
-    // moved from `.toolbar input[type="date"]` (12rem) to FilterDateField's
-    // own `sx`, and jsdom computes no layout so the only honest assertion
-    // here is the wrapper the field is rendered inside. The rendered result
-    // is checked by the before/after screenshot pair on the PR.
+    // #653: the field's generated rule carries the bound; a Paper ancestor does not.
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
     const gradeA = screen.getByRole("region", { name: /Grade A\b/ });
@@ -181,6 +178,9 @@ describe("StockPage drill-down", () => {
 
     const fromInput = screen.getByLabelText("From");
     expect(fromInput.closest(".MuiPaper-outlined")).not.toBeNull();
+    const field = fromInput.closest(".MuiFormControl-root");
+    expect(field).not.toBeNull();
+    expect(responsiveStyle(field!, "(min-width:900px)", "max-width")).toBe("12rem");
   });
 
   it("collapses the lots again on 'hide lots'", async () => {

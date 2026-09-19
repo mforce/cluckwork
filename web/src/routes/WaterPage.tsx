@@ -91,6 +91,8 @@ export function WaterPage() {
   const [quantity, setQuantity] = useState("");
   const [meterStart, setMeterStart] = useState("");
   const [meterEnd, setMeterEnd] = useState("");
+  // #831: meter readings are stored to three decimal places.
+  const meterQuantity = (Math.round(Number(meterEnd) * 1000) - Math.round(Number(meterStart) * 1000)) / 1000;
   const [note, setNote] = useState("");
 
   // list filters — initialized from the URL (?flockId=&from=&to=) so the
@@ -511,7 +513,7 @@ export function WaterPage() {
               <Typography component="dt">{t("result")}</Typography>
               <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                 {useMeters
-                  ? meterStart !== "" && meterEnd !== "" ? `${fmt.count(Number(meterEnd) - Number(meterStart))} ${waterUnitLabel(unit)}` : "—"
+                  ? meterStart !== "" && meterEnd !== "" ? `${fmt.count(meterQuantity)} ${waterUnitLabel(unit)}` : "—"
                   : quantity !== "" ? `${fmt.count(Number(quantity))} ${waterUnitLabel(unit)}` : "—"}
               </Typography>
             </Box>

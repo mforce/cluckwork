@@ -91,6 +91,15 @@ function filterFlockTrigger() {
 }
 
 describe("WaterPage loading + list", () => {
+  it("previews 0.1 L between meter readings 100.1 and 100.2", async () => {
+    await renderReadyForm(WORKER);
+    fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
+    fireEvent.change(screen.getByLabelText("Meter start"), { target: { value: "100.1" } });
+    fireEvent.change(screen.getByLabelText("Meter end"), { target: { value: "100.2" } });
+    expect(within(screen.getByRole("complementary", { name: "Reading check" })).getByText("0.1 L")).toBeInTheDocument();
+    expect(mockRecordWaterUsage).not.toHaveBeenCalled();
+  });
+
   it("switches entry modes and previews the meter difference without saving", async () => {
     await renderReadyForm(WORKER);
     fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
