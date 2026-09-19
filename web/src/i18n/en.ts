@@ -1204,6 +1204,8 @@ export const en = {
   // names are free-form farm DATA, not client copy, and stay raw — never
   // routed through a catalog or enum helper.
   inventory: {
+    movementHeading: "Movement ledger",
+    chooseAnotherItem: "Choose another item",
     title: "Feed & inventory",
     intro:
       "Receive stock as purchases; every change lands in the item's movement "

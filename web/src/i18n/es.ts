@@ -868,6 +868,8 @@ export const es = {
   // of "lote" already established for nav.flocks/dailyEntry's "lote(s) de
   // huevos".
   inventory: {
+    movementHeading: "Registro de movimientos",
+    chooseAnotherItem: "Elegir otro artículo",
     title: "Alimento e inventario",
     intro:
       "Reciba existencias como compras; cada cambio queda en el registro de "

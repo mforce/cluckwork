@@ -482,17 +482,18 @@ export function InventoryPage() {
 
   return (
     <FieldConsole>
-      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h2">{t("title")}</Typography>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) auto" }, gap: 1, alignItems: "start", mb: 2 }}>
+        <Box>
+          <Typography variant="h2">{t("title")}</Typography>
+          <Typography component="p" variant="body2" sx={{ color: "text.secondary" }}>{t("intro")}</Typography>
+        </Box>
         {isAdmin && (
-          <button type="button" onClick={() => { closeEdit(); openDialog("create"); setCreating(true); }}>
-            <Plus size={16} aria-hidden /> {t("newItemButton")}
-          </button>
+          <Button variant="contained" startIcon={<Plus size={16} aria-hidden />} sx={{ width: { xs: "100%", md: "auto" }, minHeight: 44 }}
+            onClick={() => { closeEdit(); openDialog("create"); setCreating(true); }}>
+            {t("newItemButton")}
+          </Button>
         )}
-      </Stack>
-      <p className="muted">
-        {t("intro")}
-      </p>
+      </Box>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
       <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={closeCreate}>
@@ -729,6 +730,10 @@ export function InventoryPage() {
                 copied here. A failed REPLACEMENT still shows the message alone,
                 because the hook has emptied `rows` by then and the empty branch
                 below does not fire on `error`. */}
+            <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 1, mb: 1 }}>
+              <Typography component="h3" variant="h3" sx={{ m: "0 !important" }}>{t("movementHeading")}</Typography>
+              <Button size="small" color="inherit" sx={{ minHeight: 44, flexShrink: 0, fontSize: ".75rem" }} onClick={() => setActive(null)}>{t("chooseAnotherItem")}</Button>
+            </Stack>
             {ledger.error && <p className="error">{ledger.error}</p>}
             {ledger.rows === null || ledger.reloading ? (
               <p className="muted">{tc("loading")}</p>
@@ -763,11 +768,6 @@ export function InventoryPage() {
                 {t("loadMoreButton")}
               </button>
             )}
-            {/* `.actions` stays: it carries a real phone-stacking rule
-                (styles.css, D3.4's default), not a bare layout hook. */}
-            <div className="actions">
-              <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>
-            </div>
           </Box>
         </Box>
       )}

@@ -905,6 +905,8 @@ export const tl = {
   // already used in dailyEntry's "lote ng itlog", distinct from "kawan"
   // (the word used for bird flocks).
   inventory: {
+    movementHeading: "Talaan ng galaw",
+    chooseAnotherItem: "Pumili ng ibang item",
     title: "Feed at Imbentaryo",
     intro:
       "Tumanggap ng stock bilang pagbili; bawat pagbabago ay napupunta sa "

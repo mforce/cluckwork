@@ -734,11 +734,7 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     const form = openDialog("Record purchase");
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
 
-    // The PANEL's own close link ("close", lowercase) — not the purchase
-    // dialog's own "X" (accessible name "Close"), which already runs
-    // `closePurchase` via `onClose` and would pass this test regardless of
-    // the guard under test.
-    fireEvent.click(screen.getByRole("button", { name: "close", hidden: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose another item", hidden: true }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await openItem(FEED);
@@ -1288,7 +1284,7 @@ describe("InventoryPage — the panel belongs to the user, not to the write (#63
       fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "close", hidden: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose another item", hidden: true }));
     expect(screen.queryByRole("heading", { name: /Layer Feed/ })).not.toBeInTheDocument();
 
     await act(async () => {
