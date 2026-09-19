@@ -42,13 +42,13 @@ test.describe("Owner", () => {
     await expect(page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") }).getByRole("row").nth(1)).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noStockMessage"))).toBeHidden();
 
-    // The test's name promises sales data, so it has to actually look at it.
-    // Without this, deleting the Sales panel outright left the spec green — it
-    // asserted production and stock and called that "and sales" (PR #390
-    // review). #829 — the list carries its own accessible name now (the
-    // stock ledger renders `role="list"` too, on the same page), so this
-    // scopes to the named one rather than a `.dash-list` class locator.
-    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
+    // Stock is a table; sales has a named list inside its panel.
+    // This is the positive control for ReadOnly's absent-panel assertion.
+    const salesPanel = page.locator("section").filter({
+      has: page.getByRole("link", { name: tEn("dashboard:recentOrdersTitle"), exact: true }),
+    });
+    await expect(salesPanel).toBeVisible();
+    const salesList = salesPanel.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
     await expect(salesList.getByRole("listitem").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
   });
@@ -99,23 +99,8 @@ test.describe("Owner", () => {
     expect(buttonColor).toBe(onBrandColor);
   });
 
-  // #883 round 5 — the owner's read of the PR's screenshots: a Draft row's
-  // status cell ("Draft, saved 05:26") wrapped onto a second line at 1280
-  // because the action column was a fixed 200px, squeezing the status track.
-  // Dashboard.tsx now gives the row the mockup's own column model (name
-  // 150px, status 1fr, action auto, count 110px) plus an explicit
-  // `white-space: nowrap` on the status cell — this proves it holds by
-  // reading the CELL'S OWN computed line-height and asserting its rendered
-  // height matches it, rather than pinning a pixel figure that would drift
-  // with the type scale.
-  //
-  // SimulationDataSeeder only backfills PAST days (DraftWindowDays covers
-  // yesterday and the day before, never today), so there is no seeded Draft
-  // row on the live TODAY panel to read. This creates its own flock and
-  // saves — never submits — a draft, the same re-runnable shape
-  // manager.spec.ts uses for its own Draft entry: a fresh, timestamp-named
-  // flock every run, so this never collides with another spec or a
-  // previous run.
+  // The three-column collection row holds the icon, name/status and count.
+  // Its draft status must still fit on one line at desktop width (#883).
   test("a Draft row's status cell never wraps at 1280 (#883 round 5)", async ({ page, signIn }) => {
     // The simulation farm caps Today at twelve rows and every one of its
     // 101 houses is unrecorded, so a draft created here never reaches the

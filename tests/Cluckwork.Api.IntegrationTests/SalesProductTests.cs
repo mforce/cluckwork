@@ -80,6 +80,61 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(3600, item.Quantity);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task OrderItems_ReadInCreationOrder_WithInsertionOrderForTies(bool detail, bool tied)
+    {
+        var (client, accountId, farmId, grades, largeProduct) = await SetupAsync();
+        var mediumProduct = await factory.SeedProductAsync(
+            accountId, farmId, grades["Medium"], "Medium Eggs", 100);
+        var orderId = await CreateDraftAsync(client);
+        var first = await AddLineAsync(client, orderId, mediumProduct, 120);
+        var second = await AddLineAsync(client, orderId, largeProduct, 3600);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        var firstId = (await first.Content.ReadFromJsonAsync<ItemCreated>())!.ItemId;
+        var secondId = (await second.Content.ReadFromJsonAsync<ItemCreated>())!.ItemId;
+        var suffix = Guid.NewGuid().ToString("N")[8..];
+        var firstKey = Guid.Parse("ffffffff" + suffix);
+        var secondKey = Guid.Parse("00000000" + suffix);
+        var early = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
+        var late = tied ? early : early.AddDays(1);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            await db.Database.ExecuteSqlRawAsync(
+                """ALTER TABLE "SalesOrderItems" DISABLE TRIGGER "TR_SalesOrderItems_BusinessRecordTimestamps";""");
+            // Physical and UUID order oppose insertion order for the tied case.
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE "SalesOrderItems" SET "Id" = {firstKey}, "CreatedAtUtc" = {late}
+                WHERE "Id" = {firstId};
+                """);
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE "SalesOrderItems" SET "Id" = {secondKey}, "CreatedAtUtc" = {early}
+                WHERE "Id" = {secondId};
+                """);
+            if (tied)
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    UPDATE "SalesOrderItems" SET "Quantity" = "Quantity" WHERE "Id" = {firstKey};
+                    """);
+            await db.Database.ExecuteSqlRawAsync(
+                """ALTER TABLE "SalesOrderItems" ENABLE TRIGGER "TR_SalesOrderItems_BusinessRecordTimestamps";""");
+            await transaction.CommitAsync();
+        });
+
+        var read = detail
+            ? await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}")
+            : (await client.GetFromJsonAsync<List<OrderDto>>("/api/v1/sales"))!.Single(o => o.Id == orderId);
+        Assert.Equal(tied ? new[] { "Medium", "Large" } : ["Large", "Medium"],
+            read!.Items.Select(item => item.EggGradeName));
+        Assert.Equal(tied ? new[] { 120, 3600 } : [3600, 120],
+            read.Items.Select(item => item.Quantity));
+    }
+
     // Spec §9.7: the factor is snapshotted at line creation — redefining the
     // carton later must never reinterpret an existing line.
     [Fact]

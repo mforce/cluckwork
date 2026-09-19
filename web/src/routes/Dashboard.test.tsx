@@ -571,7 +571,8 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(within(stock).queryAllByRole("listitem")).toHaveLength(0);
+    expect(within(stock).queryByRole("row", { name: /Grade A/ })).not.toBeInTheDocument();
+    expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
 });
@@ -768,10 +769,10 @@ describe("Dashboard follows the farm's day and locale", () => {
 // the screen reads the catalog rather than a literal that happens to match.
 describe("Dashboard i18n wiring (#654)", () => {
   it("reads the heading, the trend title and the today total from the catalog", async () => {
-    await withOverride("dashboard", "title", "TITLE-MARKER", async () => {
+    await withOverride("dashboard", "morningHeading", "TITLE-MARKER", async () => {
       renderWithProviders(<Dashboard />);
       await panel("Today");
-      expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Dashboard" })).toHaveTextContent("TITLE-MARKER");
     });
     await withOverride("dashboard", "trendPanelTitle", "TREND-MARKER", async () => {
       renderWithProviders(<Dashboard />);
@@ -835,8 +836,8 @@ describe("Operations desk", () => {
   ])("shows the first order quantity and grade (%s, %i lines)", async (eggGradeName, lines, expected) => {
     const sale = order("o1", "SO-GRADES", "Ramos Grocery");
     sale.items = Array.from({ length: lines }, (_, i) => ({
-      id: `i${i}`, productId: `p${i}`, eggGradeId: `g${i}`, eggGradeName,
-      unit: "Piece", baseUnitFactor: 1, quantity: 3600, quantityBase: 3600,
+      id: `i${i}`, productId: `p${i}`, eggGradeId: `g${i}`, eggGradeName: i === 0 ? eggGradeName : ["Medium", "Small"][i - 1],
+      unit: "Piece", baseUnitFactor: 1, quantity: i === 0 ? 3600 : i * 120, quantityBase: i === 0 ? 3600 : i * 120,
       unitPriceMinorUnits: 100, currencyCode: "USD", currencyMinorUnit: 2,
       listUnitPriceMinorUnits: null, listPriceBasis: "NoDefault",
     }));

@@ -21,6 +21,7 @@ internal static class BusinessRecordModel
     private static readonly Type[] ChronologicalListTypes =
     [
         typeof(SalesOrder),
+        typeof(SalesOrderItem),
         typeof(Expense),
         typeof(DailyEntry),
         typeof(EggLot),

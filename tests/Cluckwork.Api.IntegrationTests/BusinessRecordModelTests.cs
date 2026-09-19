@@ -21,7 +21,7 @@ public sealed class BusinessRecordModelTests
 
     private static readonly Type[] ChronologicalListTypes =
     [
-        typeof(SalesOrder), typeof(Expense), typeof(DailyEntry), typeof(EggLot),
+        typeof(SalesOrder), typeof(SalesOrderItem), typeof(Expense), typeof(DailyEntry), typeof(EggLot),
         typeof(BirdMovement), typeof(Payment), typeof(InventoryLot), typeof(FeedUsage),
         typeof(WaterUsage), typeof(InventoryMovement), typeof(EggInventoryMovement)
     ];
