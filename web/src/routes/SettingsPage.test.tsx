@@ -1193,6 +1193,52 @@ describe("SettingsPage banner", () => {
 
     await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
   });
+
+  // Codex review round 4 — the post-upload getFarmBanner() re-fetch is
+  // fire-and-forget and farmBindingToken() doesn't change between two
+  // banner operations on the SAME farm, so nothing stopped a SLOW re-fetch
+  // from landing after a LATER remove and re-caching the just-removed
+  // banner's bytes. bannerOpGeneration closes that: proven by starting an
+  // upload's re-fetch, removing before it resolves, THEN letting it
+  // resolve, and confirming the cache stays empty throughout.
+  it("does not resurrect a removed banner from a slow post-upload re-fetch", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    let resolveFetch!: (value: { blob: Blob; filename: string | null }) => void;
+    mockGetBanner.mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+    mockRemoveBanner.mockResolvedValue(undefined);
+    // No banner set yet — "Upload a banner" is the label before one exists;
+    // once the upload below succeeds, hasBanner flips true and the button
+    // relabels to "Replace banner" (with Remove appearing alongside it).
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+    // The upload succeeded; its post-upload getFarmBanner() re-fetch is now
+    // stuck (resolveFetch not yet called).
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
+    });
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
+
+    // The STALE upload re-fetch resolves only now, well after the remove
+    // completed — it must not write anything back.
+    await act(async () => {
+      resolveFetch({ blob: new Blob(["stale-bytes-from-the-superseded-upload"]), filename: null });
+    });
+
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
+  });
 });
 
 // #236 — one usePendingAction now carries what `saving` + `logoBusy` used to,
