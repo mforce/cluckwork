@@ -435,7 +435,7 @@ describe("ExpensesPage category filter", () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     await renderReady("USD");
     const labels = screen.getAllByText("Category", { selector: "label" });
-    expect(labels.length).toBeGreaterThan(0);
+    expect(labels).toHaveLength(2);
     for (const label of labels) expect(label).toHaveClass("MuiInputLabel-shrink");
   });
 });

@@ -129,10 +129,11 @@ const SCREENS = [
       const period = production.getByRole("row").filter({
         has: page.getByRole("columnheader", { name: tEn("reports:periodRowLabel"), exact: true }),
       });
-      await expect(
-        period.getByRole("columnheader").nth(1),
-        "the widened report totals zero eggs — a range with production in it came back empty",
-      ).not.toHaveText(/^0$/);
+      const total = await period.getByRole("columnheader").nth(1).innerText();
+      expect(
+        Number(total.replaceAll(",", "")),
+        "the widened report must contain a positive production total",
+      ).toBeGreaterThan(0);
     },
     // MEASURED, and it does not: a `<input type="date">` produces no Event
     // Timing entry for a programmatic click+fill, so this screen's interaction

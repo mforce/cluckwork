@@ -341,12 +341,15 @@ export function FeedPage() {
           <h3>{t("rationCheck")}</h3>
           <Typography sx={{ fontWeight: 700 }}>{selectedItem?.name}</Typography>
           <Box component="dl" sx={{ m: 0 }}>
-            {[
-              [t("onHand"), selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
-              [t("issue"), selectedItem && quantity !== "" ? `${fmt.count(Number(quantity))} ${selectedItem.unit}` : "—"],
-              [t("afterIssue"), selectedItem && afterIssueQuantity !== null ? `${fmt.count(afterIssueQuantity)} ${selectedItem.unit}` : "—"],
-            ].map(([label, value]) => <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
-              <Typography component="dt" sx={{ fontSize: ".8rem" }}>{label}</Typography>
+            {([
+              ["onHand", selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
+              ["issue", selectedItem && quantity !== "" ? `${fmt.count(Number(quantity))} ${selectedItem.unit}` : "—"],
+              ["afterIssue", selectedItem && afterIssueQuantity !== null ? `${fmt.count(afterIssueQuantity)} ${selectedItem.unit}` : "—"],
+            ] as const).map(([key, value]) => <Box key={key}
+              aria-live={key === "afterIssue" ? "polite" : undefined}
+              aria-atomic={key === "afterIssue" ? true : undefined}
+              sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
+              <Typography component="dt" sx={{ fontSize: ".8rem" }}>{t(key)}</Typography>
               <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
             </Box>)}
           </Box>
