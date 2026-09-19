@@ -611,6 +611,19 @@ export const tl = {
   // treatment as nav.dashboard/nav.stock and sales.reference above; flag for
   // native review.
   dashboard: {
+    morningHeading: "Magandang umaga. Kumusta ang bukid?",
+    morningBrief: "Buod ngayong umaga",
+    farmTime: "{{time}} oras sa bukid",
+    allHousesRecorded: "May tala na ang bawat bahay ngayong araw.",
+    collectionTitle: "Koleksyon ngayong umaga",
+    collectedToday: "Nakolekta ngayong araw",
+    availableStockTitle: "Magagamit na stock",
+    recentOrdersTitle: "Mga kamakailang order",
+    layRateTitle: "Dami ng itlog bawat inahin",
+    gradeColumn: "Grado",
+    countColumn: "Bilang",
+    shareColumn: "Bahagi",
+
     title: "Dashboard",
 
     // Imperative messages
@@ -2107,13 +2120,9 @@ export const tl = {
       + "ang Subukan ulit.",
 
     dashboardHeading: "Dashboard",
-    dashboardTiles:
-      "<strong>Ngayon</strong>: isang tile bawat aktibong kawan na may itlog at katayuan ngayong araw, "
-      + "una ang mga walang tala. Ang tile na may <strong>Walang tala</strong> ang bahay na wala pang "
-      + "nagtatala — pindutin ito para buksan ang Araw-araw na Tala para sa kawan at araw na iyon. Lampas "
-      + "sa labindalawang tile, isang link ang magdadala sa iba.",
+    dashboardTiles: "Ipinapakita ng <strong>Koleksyon ngayong umaga</strong> ang progreso at isang hanay bawat aktibong kawan, una ang may <strong>Walang tala</strong>. Gamitin ang <strong>Itala</strong> para sa walang tala o <strong>Ituloy</strong> para sa draft. Hanggang labindalawang bahay ang nakalista, na may link sa iba. Pinagsasama ng buod ngayong umaga ang mga bahay na walang tala at ang kabuuan ngayon, kasama ang mga draft.",
     dashboardTrend:
-      "<strong>Huling 14 araw</strong>: itlog bawat araw mula sa report ng produksyon, na may "
+      "<strong>Dami ng itlog bawat inahin</strong>: itlog bawat araw mula sa report ng produksyon, na may "
       + "<strong>hen-day %</strong> para sa huling 7 kumpletong araw at kung paano ito gumalaw kumpara "
       + "sa 7 araw bago nito. Ituro ang isang araw, o pumasok sa tsart gamit ang tab at gamitin ang mga "
       + "arrow key, para basahin ito nang mag-isa. Ang araw na isinumite nang walang itlog ay may marka sa "
@@ -2125,10 +2134,8 @@ export const tl = {
       + "hindi sa mismong porsyento. Nakapirmi ang window (mula kahapon pabalik) at binibilang lang ang "
       + "<strong>mga naisumiteng araw</strong> — ang araw na Draft pa ay mababasang Walang tala hanggang "
       + "maisumite, hindi tulad sa Mga Report kung saan pinipili mo ang saklaw.",
-    dashboardStock:
-      "<strong>Stock</strong>: isang <strong>stacked bar</strong> ng available bawat grado, na may mga "
-      + "bilang sa tabi; ang restricted na itlog ay nakatala pagkatapos ng kabuuan. Ito rin ang kabuuang "
-      + "ipinapakita ng screen ng Stock.",
+    dashboardOrders: "Ipinapakita ng <strong>Mga kamakailang order</strong> ang customer, halaga at katayuan, kasama ang bilang at kasalukuyang pangalan ng grado sa unang linya. Ang +N ay bilang ng dagdag na linya. Kapag pinalitan ang pangalan ng grado, magbabago rin ito sa lumang order; bilang lang ang makikita kung hindi available ang grado.",
+    dashboardStock: "Ipinapakita ng <strong>Magagamit na stock</strong> ang kabuuan at isang <strong>stacked bar</strong> ayon sa grado, kasunod ang talahanayan ng <strong>Grado</strong>, <strong>Bilang</strong> at <strong>Bahagi</strong>. Itapat ang pointer o ituon ang keyboard sa hanay para markahan ito. Hiwalay na nakalista ang restricted na itlog. Pareho ang mga bilang sa Stock.",
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
@@ -3014,10 +3021,7 @@ export const tl = {
     glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Ang pag-grade nang lampas sa kabuuan ay nagpapataas nito para tumugma. Draft hanggang isumite.",
 
     glossaryCaptureStatusTerm: "Katayuan ng pagtatala",
-    glossaryCaptureStatusDef:
-      "Kung may araw-araw na tala ngayong araw ang bawat aktibong kawan. Ipinapakita ito ng dashboard "
-      + "bilang isang tile bawat kawan, una ang mga kulang; ang \"Walang tala\" ang alarm state at "
-      + "nakalink sa Araw-araw na Tala para sa kawan at araw na iyon.",
+    glossaryCaptureStatusDef: "Kung may araw-araw na tala ngayong araw ang bawat aktibong kawan. Ipinapakita ng Koleksyon ngayong umaga ang isang hanay bawat kawan, una ang mga walang tala, at itinuturing na may tala ang mga draft. Ang Walang tala ay nakalink sa Araw-araw na Tala para sa kawan at araw na iyon.",
 
     glossaryEggLotTerm: "Lote ng itlog",
     glossaryEggLotDef:

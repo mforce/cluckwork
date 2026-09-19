@@ -13,7 +13,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
     private sealed record Created(Guid Id);
     private sealed record ItemCreated(Guid OrderId, Guid ItemId);
     private sealed record ItemDto(
-        Guid Id, Guid ProductId, Guid EggGradeId, string Unit, int BaseUnitFactor,
+        Guid Id, Guid ProductId, Guid EggGradeId, string EggGradeName, string Unit, int BaseUnitFactor,
         int Quantity, int QuantityBase, long UnitPriceMinorUnits,
         // #773 — typed `string`, not a defaulted one: the wire carries the enum
         // MEMBER NAME, so a numeric basis fails to deserialize here instead of
@@ -53,6 +53,32 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         string? unit = null, long? price = null, int? expectedFactor = null) =>
         client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
             new { productId, quantity, unit, unitPriceMinorUnits = price, expectedEggsPerUnit = expectedFactor });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OrderItems_ReadCurrentGradeName_EvenWhenInactive(bool detail)
+    {
+        var (client, _, _, grades, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+        Assert.Equal(HttpStatusCode.Created, (await AddLineAsync(client, orderId, productId, 3600)).StatusCode);
+        var path = detail ? $"/api/v1/sales/{orderId}" : "/api/v1/sales";
+        async Task<OrderDto> ReadOrderAsync() => detail
+            ? (await client.GetFromJsonAsync<OrderDto>(path))!
+            : (await client.GetFromJsonAsync<List<OrderDto>>(path))!.Single(o => o.Id == orderId);
+        Assert.Equal("Large", Assert.Single((await ReadOrderAsync()).Items).EggGradeName);
+
+        var rename = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-grades/{grades["Large"]}")
+        { Content = JsonContent.Create(new { name = "Farm large", sortOrder = 1, isSaleable = true }) };
+        rename.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(rename)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostWithKeyAsync(
+            $"/api/v1/egg-grades/{grades["Large"]}/deactivate", Guid.NewGuid().ToString())).StatusCode);
+
+        var item = Assert.Single((await ReadOrderAsync()).Items);
+        Assert.Equal("Farm large", item.EggGradeName);
+        Assert.Equal(3600, item.Quantity);
+    }
 
     // Spec §9.7: the factor is snapshotted at line creation — redefining the
     // carton later must never reinterpret an existing line.

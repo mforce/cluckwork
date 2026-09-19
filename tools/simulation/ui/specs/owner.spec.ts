@@ -41,7 +41,7 @@ test.describe("Owner", () => {
 
     // Stock: the stacked bar has at least one segment (a grade with available
     // eggs), and the caption — the text of record — is the availability sentence.
-    await expect(page.locator(".meter-stack > span").first()).toBeVisible();
+    await expect(page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") }).getByRole("row").nth(1)).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noStockMessage"))).toBeHidden();
 
     // The test's name promises sales data, so it has to actually look at it.
@@ -53,6 +53,27 @@ test.describe("Owner", () => {
     const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
     await expect(salesList.getByRole("listitem").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
+  });
+
+  test("stock rows highlight on hover and keyboard focus", async ({ page }) => {
+    await page.goto("/");
+    const stock = page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") });
+    const row = stock.getByRole("row").nth(1);
+    await expect(row).toBeVisible();
+    await row.hover();
+    const highlight = () => row.evaluate((element) => ({
+      outline: getComputedStyle(element).outlineStyle,
+      width: getComputedStyle(element).outlineWidth,
+      text: getComputedStyle(element.querySelector("th")!).textDecorationLine,
+    }));
+    expect(await highlight()).toEqual({ outline: "solid", width: "2px", text: "underline" });
+    await page.mouse.move(0, 0);
+    await page.getByRole("heading", { name: tEn("dashboard:stockPanelTitle"), exact: true }).getByRole("link").focus();
+    await page.keyboard.press("Tab");
+    await expect(row).toBeFocused();
+    expect(await highlight()).toEqual({ outline: "solid", width: "2px", text: "underline" });
+    await page.keyboard.press("Tab");
+    await expect(stock.getByRole("row").nth(2)).toBeFocused();
   });
 
   // #883 round 4, finding B. `.content a` in styles.css (un-`:where()`'d)

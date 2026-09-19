@@ -322,6 +322,9 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="dashboardStock" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="dashboardOrders" components={{ strong: <strong /> }} />
+        </li>
       </ul>
       </section>
 

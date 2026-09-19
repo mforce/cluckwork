@@ -646,9 +646,18 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
   // and an untruncated one never is.
   test("the recent-sales customer name is not truncated at phone width", async ({ page }) => {
     await page.goto("/");
-    const salesList = page.locator("ul.dash-sales-list");
+    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
     const firstRow = salesList.locator("li").first();
     await expect(firstRow, "the dashboard rendered no recent-sales rows to measure").toBeVisible();
+
+    const trend = page.locator("section").filter({ has: page.getByRole("heading", { name: tEn("dashboard:trendPanelTitle"), exact: true }) });
+    const days = trend.getByRole("button");
+    await expect(days).toHaveCount(14);
+    for (const day of await days.all()) {
+      const box = await day.boundingBox();
+      expect(box?.width).toBeGreaterThanOrEqual(44);
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+    }
 
     const customerName = firstRow.getByRole("link").first();
     const [scrollWidth, clientWidth] = await customerName.evaluate((el) => [el.scrollWidth, el.clientWidth]);
