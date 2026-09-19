@@ -676,6 +676,7 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="waterCorrecting" components={{ strong: <strong /> }} />
         </li>
+        <li>{t("waterModes")}</li>
         <li>{t("waterLifecycle")}</li>
       </ul>
 

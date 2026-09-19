@@ -1012,6 +1012,12 @@ export const en = {
     loadMoreButton: "load more",
   },
   water: {
+    directMode: "Direct amount",
+    meterMode: "Meter readings",
+    entryMode: "Entry mode",
+    readingCheck: "Reading check",
+    result: "Result",
+
     title: "Water",
 
     // Imperative messages (event handlers / promise callbacks — see
@@ -3057,6 +3063,7 @@ export const en = {
       + "ties them together.",
 
     // Water
+    waterModes: "Choose Direct amount to enter a quantity, or Meter readings to enter Meter start and Meter end. Reading check previews the Result before you record.",
     waterHeading: "Water",
     waterRecording:
       "Record what each flock drank per day: either a direct amount (liters or gallons) or <strong>meter "

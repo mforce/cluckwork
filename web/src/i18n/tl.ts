@@ -742,6 +742,12 @@ export const tl = {
     loadMoreButton: "mag-load pa",
   },
   water: {
+    directMode: "Direktang dami",
+    meterMode: "Mga pagbasa ng metro",
+    entryMode: "Paraan ng pagtatala",
+    readingCheck: "Suriin ang pagbasa",
+    result: "Resulta",
+
     title: "Tubig",
 
     // Imperative messages
@@ -2477,6 +2483,7 @@ export const tl = {
       + "sa isang sulyap, na may link dito. Ang tala ng pakain o tubig na ginawa habang umiiral na ang "
       + "entry ng araw na iyon ay naaalala rin ang entry na iyon — ang mga ginawa bago nito ay sadyang "
       + "hindi naka-link; ang araw mismo ang nag-uugnay sa kanila.",
+    waterModes: "Piliin ang Direktang dami upang ilagay ang dami, o Mga pagbasa ng metro upang ilagay ang una at huling pagbasa. Ipinapakita ng Suriin ang pagbasa ang Resulta bago itala.",
     waterHeading: "Tubig",
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
