@@ -156,7 +156,7 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     const action = await screen.findByRole("link", { name: "Record Flock f2" });
     const row = todayRow("Flock f2");
     expect(action).toHaveTextContent(/^Record$/);
-    expect(action).toHaveClass("MuiButton-outlined");
+    expect(action).toHaveClass("MuiButton-outlined", "MuiButton-colorInherit");
     expect(row.children).toHaveLength(3);
     expect(row.children[2]).toBe(action);
     expect(action).toHaveStyle({ gridColumn: "3", gridRow: "1", minHeight: "44px" });

@@ -393,7 +393,7 @@ function TodayRow({ tile, today, fmt, t }: {
         <Box>{missing ? <StatusDot label={t("noEntryBadge")} forceColor="var(--warn)" /> : <StatusDot status={entry.status} label={stateLabel} />}</Box>
         {draft && <Typography component={Link} to={href} variant="body2">{t("continueHouseAction", { flock: flock.name })}</Typography>}
       </Box>
-      {missing ? <Button component={Link} to={href} variant="outlined" size="small"
+      {missing ? <Button component={Link} to={href} variant="outlined" color="inherit" size="small"
         aria-label={t("recordHouseAction", { flock: flock.name })}
         sx={{ gridColumn: "3", gridRow: "1", "&&": { minHeight: 44 } }}>{t("recordAction")}</Button> : <Box sx={{ textAlign: "right" }}>
         <Typography component="span" className="num" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", fontWeight: 600 }}>{fmt.count(entry.totalEggs)}</Typography>

@@ -74,28 +74,32 @@ test.describe("Owner", () => {
     await expect(stock.getByRole("row").nth(2)).toBeFocused();
   });
 
-  test("the outlined Record action stays in the count column with its brand colour", async ({ page }) => {
-    const recordButton = page.getByRole("link", { name: /^Record / }).first();
-    await expect(recordButton).toBeVisible();
-
-    const [buttonColor, brandColor] = await recordButton.evaluate((el) => {
-      const probe = document.createElement("span");
-      probe.style.color = "var(--brand)";
-      document.body.appendChild(probe);
-      const resolved = getComputedStyle(probe).color;
-      probe.remove();
-      return [getComputedStyle(el).color, resolved];
-    });
-    expect(buttonColor).toBe(brandColor);
-    await expect(recordButton).toHaveText(tEn("dashboard:recordAction"));
-    await expect(recordButton).toHaveClass(/MuiButton-outlined/);
-    const box = await recordButton.boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
-    const placement = await recordButton.evaluate((el) => {
-      const style = getComputedStyle(el);
-      return [style.gridColumn, style.gridRow];
-    });
-    expect(placement).toEqual(["3", "1"]);
+  test("the outlined Record action is legible and thumb-sized in both themes", async ({ page }) => {
+    for (const theme of ["dark", "light"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.goto("/");
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      const recordButton = page.getByRole("link", { name: /^Record / }).first();
+      await expect(recordButton).toBeVisible();
+      const [buttonColor, textColor] = await recordButton.evaluate((el) => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--ink)";
+        document.body.appendChild(probe);
+        const resolved = getComputedStyle(probe).color;
+        probe.remove();
+        return [getComputedStyle(el).color, resolved];
+      });
+      expect(buttonColor).toBe(textColor);
+      await expect(recordButton).toHaveText(tEn("dashboard:recordAction"));
+      await expect(recordButton).toHaveClass(/MuiButton-outlined/);
+      const box = await recordButton.boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+      const placement = await recordButton.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.gridColumn, style.gridRow];
+      });
+      expect(placement).toEqual(["3", "1"]);
+    }
   });
 
   // The three-column collection row holds the icon, name/status and count.
