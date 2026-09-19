@@ -750,7 +750,7 @@ export function InventoryPage() {
                       <TableRow key={m.id}>
                         <TableCell sx={NOWRAP}><FarmDate iso={m.date} /></TableCell>
                         <TableCell>{inventoryMovementLabel(m.type)}</TableCell>
-                        <TableCell align="right" sx={{ color: m.quantityDelta > 0 ? "var(--success)" : "var(--danger)", fontWeight: 700 }}>{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</TableCell>
+                        <TableCell align="right" sx={{ color: m.quantityDelta > 0 ? "var(--success)" : "var(--error)", fontWeight: 700 }}>{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</TableCell>
                         <TableCell>{m.note ?? ""}</TableCell>
                       </TableRow>
                     ))}

@@ -38,7 +38,7 @@ export function FieldConsole({ children }: { children: ReactNode }) {
       "&& h2": { fontSize: { xs: "1.75rem", md: "2rem" }, mb: 1 },
       "& h3": { fontSize: "1.25rem", mt: 2.5, mb: 1 },
       "& > p": { fontSize: ".8125rem", lineHeight: 1.45 },
-      "& aside p": { fontSize: ".75rem", lineHeight: 1.45 },
+      "& aside p.muted": { fontSize: ".75rem", lineHeight: 1.45 },
       "& aside h3": { mt: 0 },
       "& .MuiTableCell-root": { fontSize: "0.75rem", py: 1.25, px: 1 },
       "& .MuiTableCell-head": {
