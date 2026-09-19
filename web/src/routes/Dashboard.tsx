@@ -395,7 +395,7 @@ function TodayRow({ tile, today, fmt, t }: {
       </Box>
       {missing ? <Button component={Link} to={href} variant="outlined" size="small"
         aria-label={t("recordHouseAction", { flock: flock.name })}
-        sx={{ gridColumn: "3", gridRow: "1", minHeight: 44 }}>{t("recordAction")}</Button> : <Box sx={{ textAlign: "right" }}>
+        sx={{ gridColumn: "3", gridRow: "1", "&&": { minHeight: 44 } }}>{t("recordAction")}</Button> : <Box sx={{ textAlign: "right" }}>
         <Typography component="span" className="num" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", fontWeight: 600 }}>{fmt.count(entry.totalEggs)}</Typography>
       </Box>}
     </Box>

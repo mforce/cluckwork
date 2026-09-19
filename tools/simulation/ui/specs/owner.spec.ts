@@ -89,6 +89,8 @@ test.describe("Owner", () => {
     expect(buttonColor).toBe(brandColor);
     await expect(recordButton).toHaveText(tEn("dashboard:recordAction"));
     await expect(recordButton).toHaveClass(/MuiButton-outlined/);
+    const box = await recordButton.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
     const placement = await recordButton.evaluate((el) => {
       const style = getComputedStyle(el);
       return [style.gridColumn, style.gridRow];
