@@ -74,6 +74,13 @@ export const en = {
   },
   auth: {
     title: "Cluckwork",
+    // #833 — the shared AuthShell's left brand panel (D&D "Working desk",
+    // Concept B): the tagline and eyebrow are fixed shell chrome, not
+    // per-screen copy, so both Login and SetPasswordPage read the same keys.
+    shellEyebrow: "Poultry farm management",
+    shellTagline: "Daily entry · Stock · Sales",
+    loginShellFooter: "Farm code identifies the farm you are signing into.",
+    setPasswordShellFooter: "Set your password before entering the farm.",
     farmCode: "Farm code",
     // #535 — the device remembers every farm code that has SUCCESSFULLY signed
     // in here, so a phone shared between farms offers them instead of retyping.
