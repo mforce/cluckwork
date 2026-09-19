@@ -60,7 +60,7 @@ describe("StockPage write-off dialog ends its session on demotion (#703 r2)", ()
     // would.
     const view = render(<MemoryRouter><StockPage /></MemoryRouter>);
     await screen.findByText("Grade A");
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("region", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     const lotRow = await screen.findByRole("row", { name: /2026/ });
     fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
     fireEvent.change(within(dialog()).getByRole("spinbutton"), { target: { value: "7" } });

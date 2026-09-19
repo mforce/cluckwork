@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Egg, FilterX } from "lucide-react";
 import {
-  DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  Box, Button, List, ListItem, LinearProgress, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   getStock, listEggLotMovements, listEggLots, recordEggLotMovement,
@@ -23,6 +23,7 @@ import { NumberField } from "../components/NumberField";
 import { useDialogAction } from "../components/useDialogAction";
 import i18n from "../i18n";
 import { stockMovementLabel } from "../i18n/enums";
+import { FieldConsole, LedgerTableContainer } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 
 // Matches the API's default page size — a full page means there may be more.
@@ -477,9 +478,9 @@ export function StockPage() {
   }
 
   if (errors.page && rows === null) {
-    return <section><Typography variant="h2">{t("title")}</Typography><p className="error">{errors.page}</p></section>;
+    return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{errors.page}</p></FieldConsole>;
   }
-  if (rows === null) return <section><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></section>;
+  if (rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
 
   const totalAvailable = rows.reduce((a, r) => a + r.available, 0);
   // Largest available across the loaded rows scales every meter fill so the bars
@@ -487,7 +488,7 @@ export function StockPage() {
   const maxAvailable = rows.reduce((m, r) => Math.max(m, r.available), 0);
 
   return (
-    <section>
+    <FieldConsole>
       <Typography variant="h2">{t("title")}</Typography>
       {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success" role="status">{message}</p>}
@@ -497,38 +498,29 @@ export function StockPage() {
         <EmptyState icon={Egg} message={t("noStockMessage")} />
       ) : (
         <>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>{t("gradeHeader")}</TableCell>
-                  <TableCell align="right">{t("availableHeader")}</TableCell>
-                  <TableCell align="right">{t("restrictedHeader")}<GlossaryLink term="WithdrawalRestriction" /></TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.eggGradeId}>
-                    <TableCell>{r.gradeName}</TableCell>
-                    <TableCell align="right">
-                      {fmt.count(r.available)}
-                      <div className="meter" aria-hidden="true">
-                        <span style={{ width: (maxAvailable > 0 ? (r.available / maxAvailable) * 100 : 0) + "%" }} />
-                      </div>
-                    </TableCell>
-                    <TableCell align="right">{r.restricted > 0 ? <span className="badge badge-warn">{fmt.count(r.restricted)}</span> : "—"}</TableCell>
-                    <TableCell sx={NOWRAP}>
-                      <button className="link" onClick={() => void toggleGrade(r.eggGradeId)}>
-                        {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <p className="muted">{t("totalAvailableMessage", { available: fmt.count(totalAvailable), grades: rows.length })}</p>
+          <Typography component="p" sx={{ py: 1.25, my: 2, borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+            {t("totalAvailableMessage", { available: fmt.count(totalAvailable), grades: rows.length })}
+          </Typography>
+          <List aria-label={t("title")} disablePadding sx={{ borderTop: "2px solid var(--ink)" }}>
+            {rows.map((r) => (
+              <ListItem key={r.eggGradeId} disablePadding sx={{ borderBottom: "1px solid var(--rule)" }}>
+                <Box role="region" aria-label={r.gradeName} sx={{ width: "100%", display: "grid", gridTemplateColumns: { xs: "80px 60px minmax(0, 1fr)", md: "110px 100px minmax(80px, 1fr) 120px 120px" }, gap: 1.5, alignItems: "center", py: 2, px: 1 }}>
+                  <Typography component="strong" sx={{ fontFamily: "Georgia, serif", fontSize: "1.1rem", fontWeight: 700 }}>{r.gradeName}</Typography>
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.count(r.available)}</Typography>
+                    <Typography sx={{ fontSize: ".65rem", color: "text.secondary" }}>{t("availableHeader")}</Typography>
+                  </Box>
+                  <LinearProgress variant="determinate" value={maxAvailable > 0 ? r.available / maxAvailable * 100 : 0} aria-label={r.gradeName} sx={{ height: 8, borderRadius: "var(--r-pill)" }} />
+                  <Box sx={{ gridColumn: { xs: "2 / -1", md: "auto" }, fontSize: ".75rem", color: r.restricted > 0 ? "var(--warn)" : "text.secondary" }}>
+                    <span>{r.restricted > 0 ? fmt.count(r.restricted) : "—"}</span>{" "}{t("restrictedHeader")}<GlossaryLink term="WithdrawalRestriction" />
+                  </Box>
+                  <Button variant="outlined" aria-expanded={openGrade === r.eggGradeId} sx={{ gridColumn: { xs: "2 / -1", md: "auto" } }} onClick={() => void toggleGrade(r.eggGradeId)}>
+                    {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
+                  </Button>
+                </Box>
+              </ListItem>
+            ))}
+          </List>
 
           {openGrade !== null && (
             <>
@@ -552,7 +544,7 @@ export function StockPage() {
                       action={{ label: tc("clearFiltersButton"), onClick: () => void changeLotsFilter("", "") }} />
                   : <EmptyState icon={Egg} message={t("noLotsMessage")} />
               ) : (
-                <TableContainer>
+                <LedgerTableContainer>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -609,7 +601,7 @@ export function StockPage() {
                       ))}
                     </TableBody>
                   </Table>
-                </TableContainer>
+                </LedgerTableContainer>
               )}
               {hasMoreLots && !lotsLoading && (
                 <button className="link" onClick={() => void loadMoreLots()}>
@@ -627,7 +619,7 @@ export function StockPage() {
                   <p className="muted">
                     {t("movementLedgerIntro")}
                   </p>
-                  <TableContainer>
+                  <LedgerTableContainer>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
@@ -648,7 +640,7 @@ export function StockPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  </TableContainer>
+                  </LedgerTableContainer>
                 </>
               )}
             </>
@@ -721,6 +713,6 @@ export function StockPage() {
           </Stack>
         </Dialog>
       )}
-    </section>
+    </FieldConsole>
   );
 }
