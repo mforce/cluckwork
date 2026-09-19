@@ -1022,7 +1022,7 @@ export const MUTANTS: Record<string, Mutant> = {
       // narrower than it sounds: no EXISTING desktop scenario noticed.
       insertCssRule(
         page,
-        "@media (max-width: 900px) { .actions, .dialog .dialog-foot { flex-direction: row } }",
+        "@media (max-width: 900px) { .actions, .dialog .dialog-foot { flex-direction: row } aside[aria-label] .actions { flex-direction: row !important } }",
       ),
   },
 
