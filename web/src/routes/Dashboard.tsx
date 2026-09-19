@@ -331,7 +331,7 @@ export function Dashboard() {
         </Card>}
 
         <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 2 }, gridRow: { md: 2 },
-          width: { xs: "calc(100vw - 14px)", md: "auto" }, justifySelf: { xs: "center", md: "stretch" },
+          mx: { xs: "calc(7px - 1.15rem)", md: 0 },
           "& .trend-fig": { fontFamily: "Georgia, serif", fontSize: "2.5rem" },
           "& .trend-kpi": { mt: 0, mb: 1 },
           "& .daystrip": { display: "flex", gap: { xs: "2px", md: "4px" }, height: 80 },
