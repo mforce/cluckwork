@@ -775,6 +775,7 @@ export const tl = {
     loadMoreButton: "mag-load pa",
   },
   water: {
+    contextLabel: "Konteksto ng tubig",
     directMode: "Direktang dami",
     meterMode: "Mga pagbasa ng metro",
     entryMode: "Paraan ng pagtatala",

@@ -784,3 +784,13 @@ describe("WaterPage list races (#469)", () => {
     expect(screen.queryByText("Could not load water records.")).not.toBeInTheDocument();
   });
 });
+
+
+it("updates the water context when the reading mode changes", async () => {
+  await renderReadyForm(ADMIN);
+  const summary = screen.getByLabelText("Water context");
+  expect(summary).toHaveTextContent("Direct amount");
+  fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
+  expect(summary).toHaveTextContent("Meter readings");
+  expect(summary).toHaveTextContent("L");
+});

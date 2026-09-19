@@ -1039,6 +1039,7 @@ export const en = {
     loadMoreButton: "load more",
   },
   water: {
+    contextLabel: "Water context",
     directMode: "Direct amount",
     meterMode: "Meter readings",
     entryMode: "Entry mode",

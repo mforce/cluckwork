@@ -20,7 +20,7 @@ import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
-import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX } from "../components/FieldConsole";
+import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { waterSourceLabel, waterUnitLabel } from "../i18n/enums";
@@ -371,14 +371,19 @@ export function WaterPage() {
         {t("intro")}
       </p>
 
-      <Box sx={CONSOLE_SPLIT_SX}>
-        <Box sx={CONSOLE_PANEL_SX}>
-          <ToggleButtonGroup exclusive value={useMeters ? "meter" : "direct"} aria-label={t("entryMode")} fullWidth sx={{ mb: 2 }}>
+      <ConsoleSummary label={t("contextLabel")} items={[
+        { label: t("entryMode"), value: t(useMeters ? "meterMode" : "directMode") },
+        { label: t("sourceLabel"), value: waterSourceLabel(source) },
+        { label: t("unitLabel"), value: waterUnitLabel(unit) },
+      ]} />
+      <Box sx={CONSOLE_TICKET_SX}>
+        <Box sx={{ p: 2, minWidth: 0 }}>
+          <ToggleButtonGroup exclusive value={useMeters ? "meter" : "direct"} aria-label={t("entryMode")} fullWidth sx={{ mb: 2, "&& .MuiToggleButton-root.Mui-selected, && .MuiToggleButton-root.Mui-selected:hover": { bgcolor: "var(--brand)", color: "var(--on-brand)" } }}>
             <ToggleButton value="direct" onClick={() => setUseMeters(false)}>{t("directMode")}</ToggleButton>
             <ToggleButton value="meter" onClick={() => setUseMeters(true)}>{t("meterMode")}</ToggleButton>
           </ToggleButtonGroup>
-        <Stack component="form" sx={CONSOLE_FORM_SX} onSubmit={onSubmit}>
-          <Box sx={PICKER_SX}>
+        <Stack component="form" sx={CONSOLE_TICKET_FORM_SX} onSubmit={onSubmit}>
+          <Box sx={{ minWidth: 0, width: "100%" }}>
             <FlockPicker
               label={t("flockLabel")}
               eligibility="active-and-depleted"
@@ -488,6 +493,7 @@ export function WaterPage() {
           )}
           <TextField
             label={t("noteLabel")}
+            sx={{ gridColumn: { md: useMeters ? "auto" : "span 2" } }}
             value={note}
             size="small"
             slotProps={{ htmlInput: { maxLength: 500 } }}
@@ -502,7 +508,7 @@ export function WaterPage() {
           )}
         </Stack>
         </Box>
-        <Box component="aside" aria-label={t("readingCheck")} sx={{ ...CONSOLE_PANEL_SX, bgcolor: "var(--surface-2)" }}>
+        <Box component="aside" aria-label={t("readingCheck")} sx={CONSOLE_TICKET_CHECK_SX}>
           <h3>{t("readingCheck")}</h3>
           <Box component="dl" sx={{ m: 0 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>

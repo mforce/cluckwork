@@ -740,6 +740,7 @@ export const es = {
     loadMoreButton: "cargar más",
   },
   water: {
+    contextLabel: "Contexto del agua",
     directMode: "Cantidad directa",
     meterMode: "Lecturas del medidor",
     entryMode: "Modo de registro",
