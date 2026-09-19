@@ -1253,6 +1253,8 @@ export const es = {
 
     // Localization form
     localizationSectionHeading: "Localización",
+    countingSalesSectionHeading: "Conteo y ventas",
+    dateTimeFormatsSectionHeading: "Formatos de fecha y hora",
     farmNameLabel: "Nombre de la granja",
     timezoneLabel: "Zona horaria",
     timezoneUnknownWarning:

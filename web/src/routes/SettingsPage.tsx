@@ -644,17 +644,8 @@ export function SettingsPage() {
         {t("intro")}
       </Typography>
 
-      {/* Concept C "Focus panels" (#833 redesign): expandable sections. Both
-          default open — unlike Account's Preferences/Change-password split,
-          nothing here is a security action to tuck away, and Localization's
-          fields are exactly what an Owner opens this screen to reach, not a
-          secondary one. Kept open (rather than mirroring the mockup's
-          collapsed Localization) so the existing field-level test suite,
-          written against a flat screen, still finds every control without
-          first expanding a section. The whole page is ONE save: logo/banner
-          stay their own immediate actions (onPickLogo/onRemoveLogo/…, never
-          part of this form's submit) even though they now sit inside the
-          same Accordion/form nesting as the fields Save actually writes. */}
+      {/* Logo and banner writes remain independent actions even though the
+          four settings groups share this form. */}
       <Stack component="form" spacing={2} sx={{ mt: 3 }} onSubmit={(e) => void onSave(e)}>
         <Accordion defaultExpanded disableGutters>
           <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
@@ -802,7 +793,7 @@ export function SettingsPage() {
           </AccordionDetails>
         </Accordion>
 
-        <Accordion defaultExpanded disableGutters>
+        <Accordion disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
           <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
             <Typography variant="h3" component="span">{t("localizationSectionHeading")}</Typography>
           </AccordionSummary>
@@ -870,6 +861,16 @@ export function SettingsPage() {
           slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}>
           {UNIT_SYSTEMS.map((u) => <option key={u} value={u}>{unitSystemLabel(u)}</option>)}
         </TextField>
+      </Stack>
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
+          <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+            <Typography variant="h3" component="span">{t("countingSalesSectionHeading")}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+      <Stack spacing={2} sx={{ maxWidth: "40rem" }}>
 
         {/* #444 — the pack unit Daily Entry's steppers bump by, e.g. "+30/-30"
             for Tray, unless a user overrides it for themselves (Header). Codes
@@ -908,6 +909,16 @@ export function SettingsPage() {
           sx={{ maxWidth: "12rem" }}
           slotProps={{ htmlInput: { min: 0, max: 100, step: 1 } }}
         />
+      </Stack>
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
+          <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+            <Typography variant="h3" component="span">{t("dateTimeFormatsSectionHeading")}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+      <Stack spacing={2} sx={{ maxWidth: "40rem" }}>
 
         <TextField select label={t("firstDayOfWeekLabel")} value={firstDayOfWeek}
           onChange={(e) => setFirstDayOfWeek(e.target.value)}

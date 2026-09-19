@@ -94,7 +94,15 @@ const SETTINGS = (
 let refreshed = 0;
 let refreshOk = true;
 
-async function renderReady(payload: FarmSettings = SETTINGS()) {
+type CollapsedSettingsSection = "Localization" | "Counting & sales" | "Date & time formats";
+const LOCALIZATION = ["Localization"] as const;
+const COUNTING_SALES = ["Counting & sales"] as const;
+const DATE_TIME_FORMATS = ["Date & time formats"] as const;
+
+async function renderReady(
+  payload: FarmSettings = SETTINGS(),
+  sections: readonly CollapsedSettingsSection[] = [],
+) {
   mockGetSettings.mockResolvedValue(payload);
   const value = farmState({
     farm: payload.settings,
@@ -102,9 +110,10 @@ async function renderReady(payload: FarmSettings = SETTINGS()) {
   });
   const result = render(
     <FarmContext.Provider value={value}><SettingsPage /></FarmContext.Provider>);
-  // MUI's required indicator appends its own trailing " *" to the label text
-  // (repo convention, e.g. GradesPage.test.tsx's "Name *").
-  expect(await screen.findByLabelText("Farm name *")).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Localization" })).toBeInTheDocument();
+  for (const section of sections) {
+    fireEvent.click(screen.getByRole("button", { name: section }));
+  }
   return result;
 }
 
@@ -139,7 +148,10 @@ describe("SettingsPage loading", () => {
     render(<SettingsPage />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
 
-    expect(await screen.findByLabelText("Farm name *")).toHaveValue("Hen House");
+    await screen.findByRole("button", { name: "Localization" });
+    fireEvent.click(screen.getByRole("button", { name: "Localization" }));
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Hen House");
     expect(screen.getByLabelText("Timezone *")).toHaveValue("America/Los_Angeles");
     expect(screen.getByLabelText("Locale *")).toHaveValue("en-US");
     expect(screen.getByLabelText("Currency *")).toHaveValue("USD");
@@ -155,7 +167,8 @@ describe("SettingsPage loading", () => {
       dateFormatOverride: "dd-MM-yy", timeFormatOverride: "HHmm",
     }));
     render(<SettingsPage />);
-    await screen.findByLabelText("Farm name *");
+    await screen.findByRole("button", { name: "Date & time formats" });
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
 
     expect(screen.getByLabelText("Date format")).toHaveValue("__custom__");
     expect(screen.getByLabelText("Custom date format")).toHaveValue("dd-MM-yy");
@@ -168,7 +181,8 @@ describe("SettingsPage loading", () => {
       dateFormatOverride: "yyyy-MM-dd", timeFormatOverride: "HH:mm",
     }));
     render(<SettingsPage />);
-    await screen.findByLabelText("Farm name *");
+    await screen.findByRole("button", { name: "Date & time formats" });
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
 
     expect(screen.getByLabelText("Date format")).toHaveValue("yyyy-MM-dd");
     expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
@@ -187,7 +201,7 @@ describe("SettingsPage loading", () => {
 describe("SettingsPage saving", () => {
   it("sends every field, the base version, and an idempotency key", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), ["Localization", "Date & time formats"]);
 
     fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     fireEvent.change(screen.getByLabelText("Unit system"), { target: { value: "Imperial" } });
@@ -217,7 +231,10 @@ describe("SettingsPage saving", () => {
 
   it("sends a blank override as null, not an empty string", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady(SETTINGS({ firstDayOfWeek: "Monday", dateFormatOverride: "dd/MM/yyyy" }));
+    await renderReady(
+      SETTINGS({ firstDayOfWeek: "Monday", dateFormatOverride: "dd/MM/yyyy" }),
+      DATE_TIME_FORMATS,
+    );
 
     fireEvent.change(screen.getByLabelText("First day of week"), { target: { value: "" } });
     // #452 — realistic path: switch the dropdown to "Custom…", which reveals
@@ -234,7 +251,7 @@ describe("SettingsPage saving", () => {
 
   it("sends a preset picked directly from the date/time format dropdowns, no custom field involved (#452)", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), DATE_TIME_FORMATS);
 
     fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "yyyy-MM-dd" } });
     fireEvent.change(screen.getByLabelText("Time format"), { target: { value: "HH:mm" } });
@@ -249,7 +266,7 @@ describe("SettingsPage saving", () => {
 
   it("reveals the custom field on Custom…, and re-hides it (discarding the typed value) if a preset is picked afterward (#452)", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), DATE_TIME_FORMATS);
 
     fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "__custom__" } });
     const customField = screen.getByLabelText("Custom date format");
@@ -266,7 +283,7 @@ describe("SettingsPage saving", () => {
 
   it("uppercases the currency and trims the text fields", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
 
     fireEvent.change(screen.getByLabelText("Currency *"), { target: { value: "eur" } });
     fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "  Coop Co  " } });
@@ -279,7 +296,7 @@ describe("SettingsPage saving", () => {
 
   it("re-reads the settings and refreshes the shell, so the change shows without a reload", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     mockGetSettings.mockResolvedValue(SETTINGS({ name: "Coop Co", version: 8 }));
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -292,7 +309,7 @@ describe("SettingsPage saving", () => {
 
   it("carries a fresh idempotency key into the second save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -305,7 +322,7 @@ describe("SettingsPage saving", () => {
   });
 
   it("re-uses the key when the SAME payload is retried after a failure", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     mockUpdate.mockRejectedValueOnce(new Error("connection lost"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
@@ -318,7 +335,7 @@ describe("SettingsPage saving", () => {
   });
 
   it("takes a NEW key when the payload changed after a failure", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     mockUpdate.mockRejectedValueOnce(new Error("connection lost"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
@@ -386,7 +403,7 @@ describe("SettingsPage saving", () => {
   });
 
   it("warns when the timezone is one this browser cannot format", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     fireEvent.change(screen.getByLabelText("Timezone *"), { target: { value: "Mars/Olympus_Mons" } });
 
     // The server validates against ITS tzdata. A zone it accepts but the
@@ -400,7 +417,7 @@ describe("SettingsPage saving", () => {
   });
 
   it("says nothing about a timezone the browser does know", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     fireEvent.change(screen.getByLabelText("Timezone *"), { target: { value: "Asia/Tokyo" } });
     expect(screen.queryByText(/does not know that timezone/)).not.toBeInTheDocument();
   });
@@ -438,7 +455,7 @@ describe("SettingsPage stepper unit (#444)", () => {
       ...CONVERSIONS,
       { id: "c4", unitCode: "Case", eggsPerUnit: 360, active: false, version: 0 },
     ]);
-    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }), COUNTING_SALES);
 
     expect(select()).toHaveValue("Tray");
     const options = within(select()).getAllByRole("option").map((o) => o.textContent);
@@ -447,7 +464,7 @@ describe("SettingsPage stepper unit (#444)", () => {
 
   it("sends the picked unit on save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(select(), { target: { value: "Tray" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -462,7 +479,7 @@ describe("SettingsPage stepper unit (#444)", () => {
       { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
       { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: false, version: 0 },
     ]);
-    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }), COUNTING_SALES);
 
     expect(select()).toHaveValue("Individual");
   });
@@ -474,7 +491,7 @@ describe("SettingsPage worker sale allocation policy (#612)", () => {
   const select = () => screen.getByLabelText("Worker sale allocation");
 
   it("shows both policy choices and selects the stored default", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly"));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly"), COUNTING_SALES);
 
     expect(select()).toHaveValue("AssignedFlocksOnly");
     const options = within(select()).getAllByRole("option").map((o) => o.textContent);
@@ -482,13 +499,13 @@ describe("SettingsPage worker sale allocation policy (#612)", () => {
   });
 
   it("selects the opted-in farm-wide policy when that is what is stored", async () => {
-    await renderReady(SETTINGS({}, true, "AllFarmFlocks"));
+    await renderReady(SETTINGS({}, true, "AllFarmFlocks"), COUNTING_SALES);
     expect(select()).toHaveValue("AllFarmFlocks");
   });
 
   it("sends the picked policy on save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(select(), { target: { value: "AllFarmFlocks" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -506,22 +523,22 @@ describe("SettingsPage maximum discount (#727)", () => {
   const field = () => screen.getByLabelText("Maximum discount");
 
   it("leaves the field blank for a farm with no ceiling", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", null));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", null), COUNTING_SALES);
     expect(field()).toHaveValue(null);
   });
 
   it("loads a stored ceiling of 0 as 0, not as blank", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 0));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 0), COUNTING_SALES);
     expect(field()).toHaveValue(0);
   });
 
   it("loads a stored ceiling", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10), COUNTING_SALES);
     expect(field()).toHaveValue(10);
   });
 
   it("accepts only whole percents from 0 to 100", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
     expect(field()).toHaveAttribute("type", "number");
     expect(field()).toHaveAttribute("min", "0");
     expect(field()).toHaveAttribute("max", "100");
@@ -530,7 +547,7 @@ describe("SettingsPage maximum discount (#727)", () => {
 
   it("sends null when the field is cleared, which removes the ceiling", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10), COUNTING_SALES);
 
     fireEvent.change(field(), { target: { value: "" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -540,7 +557,7 @@ describe("SettingsPage maximum discount (#727)", () => {
 
   it("sends 0 when the field holds 0, which is a ceiling and not an absence", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(field(), { target: { value: "0" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -550,7 +567,7 @@ describe("SettingsPage maximum discount (#727)", () => {
 
   it("sends the typed percent on save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(field(), { target: { value: "15" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -559,7 +576,7 @@ describe("SettingsPage maximum discount (#727)", () => {
   });
 
   it("reads its hint from the settings catalog, not a hardcoded literal", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
     expect(screen.getByText(i18n.t("settings:maxDiscountPercentHint"))).toBeInTheDocument();
   });
 });
@@ -627,7 +644,7 @@ describe("SettingsPage palette (#149)", () => {
 
 describe("SettingsPage currency lock (§4.6)", () => {
   it("leaves the field editable while the farm has recorded nothing", async () => {
-    await renderReady(SETTINGS({}, true));
+    await renderReady(SETTINGS({}, true), LOCALIZATION);
     const currency = screen.getByLabelText("Currency *");
     expect(currency).not.toHaveAttribute("readonly");
     expect(currency).not.toHaveAttribute("aria-describedby");
@@ -635,7 +652,7 @@ describe("SettingsPage currency lock (§4.6)", () => {
   });
 
   it("locks it with the reason once amounts exist — before the user meets the 422", async () => {
-    await renderReady(SETTINGS({}, false));
+    await renderReady(SETTINGS({}, false), LOCALIZATION);
     const currency = screen.getByLabelText("Currency *");
     // readOnly rather than disabled: a disabled control leaves the tab order,
     // taking the explanation with it.
@@ -645,7 +662,7 @@ describe("SettingsPage currency lock (§4.6)", () => {
   });
 
   it("names the field 'Currency' and carries the reason as a DESCRIPTION", async () => {
-    await renderReady(SETTINGS({}, false));
+    await renderReady(SETTINGS({}, false), LOCALIZATION);
     const currency = screen.getByLabelText("Currency *");
     // A note nested inside the <label> would join the accessible name, so the
     // field would announce itself as "Currency The currency is fixed at USD…".
@@ -785,7 +802,7 @@ describe("SettingsPage logo", () => {
       contentType: "image/png", contentHash: "newhash", width: 64, height: 64,
       byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
     });
-    await renderReady(SETTINGS({ logoContentHash: null }));
+    await renderReady(SETTINGS({ logoContentHash: null }), LOCALIZATION);
 
     fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     fireEvent.change(screen.getByLabelText("Locale *"), { target: { value: "es-MX" } });
@@ -802,7 +819,7 @@ describe("SettingsPage logo", () => {
 
   it("keeps unsaved form edits when the logo is removed", async () => {
     mockRemove.mockResolvedValue(undefined);
-    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }), LOCALIZATION);
 
     fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
@@ -1128,7 +1145,7 @@ describe("SettingsPage banner", () => {
       contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
       byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
     });
-    await renderReady(SETTINGS({ bannerContentHash: null }));
+    await renderReady(SETTINGS({ bannerContentHash: null }), LOCALIZATION);
 
     fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     await act(async () => {
@@ -1369,7 +1386,7 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
     await withOverride(
       "settings", "currencyLockedNote", "LOCKED-MARKER {{code}} MARKER-END",
       async () => {
-        await renderReady(SETTINGS({}, false));
+        await renderReady(SETTINGS({}, false), LOCALIZATION);
         expect(screen.getByText("LOCKED-MARKER USD MARKER-END")).toBeInTheDocument();
         expect(screen.queryByText(/The currency is fixed at USD/)).not.toBeInTheDocument();
       },
@@ -1381,7 +1398,7 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
   // and not the raw wire value coincidentally matching it.
   it("reads the unit-system option labels from the enums catalog, not a hardcoded literal", async () => {
     await withOverride("enums", "unitSystem.Metric", "METRIC-MARKER", async () => {
-      await renderReady();
+      await renderReady(SETTINGS(), LOCALIZATION);
       const select = screen.getByLabelText("Unit system");
       expect(within(select).getByRole("option", { name: "METRIC-MARKER" })).toBeInTheDocument();
       expect(within(select).queryByRole("option", { name: "Metric" })).not.toBeInTheDocument();
@@ -1392,7 +1409,7 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
   // weekdayLabel).
   it("reads the first-day-of-week option labels from the enums catalog, not a hardcoded literal", async () => {
     await withOverride("enums", "weekday.Monday", "MONDAY-MARKER", async () => {
-      await renderReady();
+      await renderReady(SETTINGS(), DATE_TIME_FORMATS);
       const select = screen.getByLabelText("First day of week");
       expect(within(select).getByRole("option", { name: "MONDAY-MARKER" })).toBeInTheDocument();
       expect(within(select).queryByRole("option", { name: "Monday" })).not.toBeInTheDocument();
@@ -1488,11 +1505,6 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
 // ---------------------------------------------------------------------------
 
 describe("SettingsPage — expandable sections (#833 Concept C)", () => {
-  // Both sections open by default (unlike Account's Preferences/Change-password
-  // split): nothing here is a security action to tuck away, and every field a
-  // test above reaches lives in one or the other, always visible from a fresh
-  // render — this it.each is what makes that assumption an assertion rather
-  // than a hope.
   it("the Identity & images section starts expanded, with its own content reachable", async () => {
     await renderReady();
     expect(screen.getByRole("button", { name: "Identity & images" }))
@@ -1500,11 +1512,11 @@ describe("SettingsPage — expandable sections (#833 Concept C)", () => {
     expect(screen.getByText("Farm palette")).toBeInTheDocument();
   });
 
-  it("the Localization section starts expanded, with its own content reachable", async () => {
+  it("starts the other three settings sections collapsed", async () => {
     await renderReady();
-    expect(screen.getByRole("button", { name: "Localization" }))
-      .toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByLabelText("Farm name *")).toBeInTheDocument();
+    for (const name of ["Localization", "Counting & sales", "Date & time formats"]) {
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-expanded", "false");
+    }
   });
 
   it("collapses and re-expands the Identity & images section on click", async () => {
@@ -1519,17 +1531,29 @@ describe("SettingsPage — expandable sections (#833 Concept C)", () => {
     expect(summary).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("collapses and re-expands the Localization section independently of Identity & images", async () => {
+  it("expands Localization independently of the other sections", async () => {
     await renderReady();
     const identitySummary = screen.getByRole("button", { name: "Identity & images" });
     const localizationSummary = screen.getByRole("button", { name: "Localization" });
 
     fireEvent.click(localizationSummary);
-    expect(localizationSummary).toHaveAttribute("aria-expanded", "false");
-    expect(identitySummary).toHaveAttribute("aria-expanded", "true");
-
-    fireEvent.click(localizationSummary);
     expect(localizationSummary).toHaveAttribute("aria-expanded", "true");
+    expect(identitySummary).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Farm name *")).toBeInTheDocument();
+  });
+
+  it("puts policy fields in Counting & sales and formats in Date & time formats", async () => {
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "Counting & sales" }));
+    expect(screen.getByLabelText("Daily Entry counting unit")).toBeInTheDocument();
+    expect(screen.getByLabelText("Worker sale allocation")).toBeInTheDocument();
+    expect(screen.getByLabelText("Maximum discount")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
+    expect(screen.getByLabelText("First day of week")).toBeInTheDocument();
+    expect(screen.getByLabelText("Date format")).toBeInTheDocument();
+    expect(screen.getByLabelText("Time format")).toBeInTheDocument();
   });
 
   // Logo/Banner stay their own immediate actions even now that they sit

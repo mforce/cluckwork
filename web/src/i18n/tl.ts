@@ -1304,6 +1304,8 @@ export const tl = {
 
     // Localization form
     localizationSectionHeading: "Localization",
+    countingSalesSectionHeading: "Pagbibilang at mga benta",
+    dateTimeFormatsSectionHeading: "Mga format ng petsa at oras",
     farmNameLabel: "Pangalan ng bukid",
     timezoneLabel: "Time zone",
     timezoneUnknownWarning:

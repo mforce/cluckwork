@@ -1688,6 +1688,8 @@ export const en = {
 
     // Localization form
     localizationSectionHeading: "Localization",
+    countingSalesSectionHeading: "Counting & sales",
+    dateTimeFormatsSectionHeading: "Date & time formats",
     farmNameLabel: "Farm name",
     timezoneLabel: "Timezone",
     timezoneUnknownWarning:
