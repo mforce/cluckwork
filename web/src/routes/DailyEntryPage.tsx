@@ -99,7 +99,7 @@ function EntryRow({
       sx={{
         display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto",
         alignItems: "center",
-        gap: 2, minHeight: { xs: 64, md: 52 }, px: 2, py: 1,
+        gap: 2, minHeight: { xs: 64, md: 44 }, px: 2, py: 1,
         borderBottom: "1px solid var(--rule)",
         ...(variant === "primary" ? {
           minHeight: { xs: 76, md: 68 },
@@ -131,7 +131,9 @@ function EntryRow({
         </Box>
         {caption && (
           <Typography component="span" variant="caption" className="muted" sx={{
-            display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            display: "block", overflow: "hidden", textOverflow: "ellipsis",
+            whiteSpace: variant === "flock-event" ? "normal" : "nowrap",
+            lineHeight: 1.25,
           }}
           >
             {caption}

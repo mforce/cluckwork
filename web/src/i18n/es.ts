@@ -530,7 +530,7 @@ export const es = {
     discardedLabel: "Descartados",
     mortalityLabel: "Mortalidad",
     totalEggsCaption: "Todos los huevos recogidos hoy",
-    mortalityEventCaption: "Evento separado del lote · aves",
+    mortalityEventCaption: "Evento del lote · aves",
 
     // Reconciliation readouts (counts pane)
     countsExceedTotalMessage:

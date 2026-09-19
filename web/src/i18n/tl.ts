@@ -551,7 +551,7 @@ export const tl = {
     discardedLabel: "Itinapon",
     mortalityLabel: "Pagkamatay",
     totalEggsCaption: "Lahat ng itlog na nakolekta ngayon",
-    mortalityEventCaption: "Hiwalay na pangyayari sa kawan · mga ibon",
+    mortalityEventCaption: "Pangyayari sa kawan · ibon",
 
     // Reconciliation readouts (counts pane)
     countsExceedTotalMessage:

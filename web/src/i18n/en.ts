@@ -708,7 +708,7 @@ export const en = {
     discardedLabel: "Discarded",
     mortalityLabel: "Mortality",
     totalEggsCaption: "All eggs collected today",
-    mortalityEventCaption: "Separate flock event · birds",
+    mortalityEventCaption: "Flock event · birds",
 
     // Reconciliation readouts (counts pane)
     countsExceedTotalMessage:
