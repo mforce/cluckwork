@@ -812,7 +812,7 @@ export const en = {
     todayInCount_one: "{{in}} of {{count}} house in",
     todayInCount_other: "{{in}} of {{count}} houses in",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
-    noEntryBadge: "No entry",
+    noEntryBadge: "Not recorded",
     // Fixed text beside the numeral, not a sentence the total is
     // interpolated into (owner's read of the #883 screenshots, 2026-09-16,
     // amending D3.3's "{{total}} eggs today"). The figure renders separately,
@@ -825,6 +825,7 @@ export const en = {
     // The single filled button on the desktop screen (#829, amending
     // DIRECTION.md's "ruled text at 1280" for exactly this one row) and the
     // 48px full-width phone action for the missing house.
+    recordAction: "Record",
     recordHouseAction: "Record {{flock}}",
     // Ruled-text row action for a Draft entry — one already started, not
     // finished. Missing (`recordHouseAction`) and Draft are the only two

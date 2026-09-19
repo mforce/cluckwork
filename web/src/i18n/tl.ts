@@ -640,6 +640,7 @@ export const tl = {
     noEntryBadge: "Walang tala",
     todaySoFarLabel: "Ngayon, hanggang ngayon",
     yesterdayByClose: "Kahapon sa pagsara: {{total}}",
+    recordAction: "Itala",
     recordHouseAction: "Itala ang {{flock}}",
     continueHouseAction: "Ituloy ang {{flock}}",
     entryStateRecordedTime: "Naitala {{time}}",

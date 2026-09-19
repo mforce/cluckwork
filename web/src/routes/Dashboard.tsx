@@ -330,14 +330,13 @@ export function Dashboard() {
           )}
         </Card>}
 
-        <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 2 }, gridRow: { md: 2 },
+        <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 2 }, gridRow: { md: 2 }, mx: { xs: -1.5, md: 0 },
           "& .trend-fig": { fontFamily: "Georgia, serif", fontSize: "2.5rem" },
           "& .trend-kpi": { mt: 0, mb: 1 },
-          "& .daystrip": { display: { xs: "grid", md: "flex" }, gridTemplateColumns: "repeat(7, minmax(0,1fr))", gridTemplateRows: "repeat(2, 80px)", gap: { xs: "8px 2px", md: "4px" }, height: { xs: 168, md: 80 } },
-          "& .day": { minWidth: { xs: 44, md: 0 } },
+          "& .daystrip": { display: "flex", gap: { xs: "2px", md: "4px" }, height: 80 },
+          "& .day": { height: 80 },
+          "& .day > i": { maxWidth: { xs: "none", md: 18 } },
           "& .tipdock .tip": { whiteSpace: "normal", overflow: "visible", maxWidth: "100%" },
-          "& .day-week": { marginLeft: { xs: 0, md: "9px" } },
-          "& .day-week::before, & .avgline": { display: { xs: "none", md: "block" } },
         }}>
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
@@ -393,10 +392,11 @@ function TodayRow({ tile, today, fmt, t }: {
         <Box>{missing ? <StatusDot label={t("noEntryBadge")} forceColor="var(--warn)" /> : <StatusDot status={entry.status} label={stateLabel} />}</Box>
         {draft && <Typography component={Link} to={href} variant="body2">{t("continueHouseAction", { flock: flock.name })}</Typography>}
       </Box>
-      <Box sx={{ textAlign: "right" }}>
-        <Typography component="span" className="num" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", fontWeight: 600 }}>{entry ? fmt.count(entry.totalEggs) : "—"}</Typography>
-      </Box>
-      {missing && <Button component={Link} to={href} variant="contained" size="small" sx={{ gridColumn: "2 / -1", justifySelf: { xs: "stretch", md: "end" }, minHeight: 44 }}>{t("recordHouseAction", { flock: flock.name })}</Button>}
+      {missing ? <Button component={Link} to={href} variant="outlined" size="small"
+        aria-label={t("recordHouseAction", { flock: flock.name })}
+        sx={{ gridColumn: "3", gridRow: "1", minHeight: 44 }}>{t("recordAction")}</Button> : <Box sx={{ textAlign: "right" }}>
+        <Typography component="span" className="num" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", fontWeight: 600 }}>{fmt.count(entry.totalEggs)}</Typography>
+      </Box>}
     </Box>
   );
 }

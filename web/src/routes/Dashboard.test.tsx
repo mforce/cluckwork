@@ -143,15 +143,24 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
     for (const id of ["f2", "f3"]) {
       const row = todayRow(`Flock ${id}`);
-      // The single filled button on the page (#829/#864 owner amendment) —
-      // its presence in the row IS the missing marker; there is no longer a
-      // classList to assert on.
       expect(within(row).getByRole("link", { name: `Record Flock ${id}` })).toBeInTheDocument();
-      expect(within(row).getByText("No entry")).toBeInTheDocument();
-      expect(within(row).getByText("—")).toBeInTheDocument();
+      expect(within(row).getByText("Not recorded")).toBeInTheDocument();
+      expect(within(row).queryByText("—")).not.toBeInTheDocument();
       expect(within(row).queryByText("999")).not.toBeInTheDocument();
     }
     expect(within(todayRow("Flock f1")).queryByRole("link", { name: /^Record/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps a missing house's short Record action in the count column on the name row", async () => {
+    renderWithProviders(<Dashboard />);
+    const action = await screen.findByRole("link", { name: "Record Flock f2" });
+    const row = todayRow("Flock f2");
+    expect(action).toHaveTextContent(/^Record$/);
+    expect(action).toHaveClass("MuiButton-outlined");
+    expect(row.children).toHaveLength(3);
+    expect(row.children[2]).toBe(action);
+    expect(action).toHaveStyle({ gridColumn: "3", gridRow: "1", minHeight: "44px" });
+    expect(within(row).queryByText("—")).not.toBeInTheDocument();
   });
 
   it("offers 'Record today' on hover for a row with no entry, and not on one that has an entry", async () => {
@@ -170,6 +179,13 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(screen.queryByRole("link", { name: "Flock f3: open today's entry" })).not.toBeInTheDocument();
     // A recorded flock keeps the plain name.
     expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).toBeInTheDocument();
+  });
+
+  it("reads the short Record label from the catalog while retaining the house in its accessible name", async () => {
+    await withOverride("dashboard", "recordAction", "SHORT-RECORD", async () => {
+      renderWithProviders(<Dashboard />);
+      expect(await screen.findByRole("link", { name: "Record Flock f2" })).toHaveTextContent("SHORT-RECORD");
+    });
   });
 
   it("reads the hover text from the catalog, not a hardcoded literal", async () => {
@@ -394,6 +410,22 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(screen.getByText("87.4%")).toBeInTheDocument();
     expect(screen.getByText("+2.3 pts")).toBeInTheDocument();
     expect(screen.getByText("Hen-day, last 7 days against the 7 before")).toBeInTheDocument();
+  });
+
+  it("keeps fourteen days in one flex row at 390px", async () => {
+    vi.stubGlobal("innerWidth", 390);
+    stubMatchMedia(false);
+    try {
+      renderWithProviders(<Dashboard />);
+      const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+      expect(within(strip).getAllByRole("button")).toHaveLength(14);
+      const styles = Array.from(document.styleSheets)
+        .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
+      expect(styles).toMatch(/\.daystrip\s*\{[^}]*display:\s*flex/);
+      expect(styles).not.toMatch(/\.daystrip\s*\{[^}]*display:\s*grid/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   // Days 4..6 of each window hold no entry at all. `entryCount` is the only
@@ -802,7 +834,7 @@ describe("Dashboard status rendering (#864, dot not badge)", () => {
     expect(recordedDot?.className).not.toMatch(/badge/);
 
     // f3 has no entry in the default fixture — the missing-house state.
-    const missingDot = within(todayRow("Flock f3")).getByText("No entry").previousElementSibling;
+    const missingDot = within(todayRow("Flock f3")).getByText("Not recorded").previousElementSibling;
     expect(missingDot).toHaveAttribute("aria-hidden", "true");
 
     const salesStatus = await screen.findByText("Draft");

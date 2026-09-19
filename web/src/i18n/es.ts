@@ -613,6 +613,7 @@ export const es = {
     noEntryBadge: "Sin registro",
     todaySoFarLabel: "Hoy hasta ahora",
     yesterdayByClose: "Ayer al cierre: {{total}}",
+    recordAction: "Registrar",
     recordHouseAction: "Registrar {{flock}}",
     continueHouseAction: "Continuar {{flock}}",
     entryStateRecordedTime: "Registrado {{time}}",

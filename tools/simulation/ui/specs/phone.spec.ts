@@ -22,7 +22,7 @@
 // four assertions rather than a representative one.
 
 import { expect, test, type Locator, type Page } from "../src/fixtures";
-import { owner } from "../src/cast";
+import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
 /** Owner's four thumb tabs, in the order `tabEntries` picks them (nav.tsx TAB_PRIORITY). */
@@ -633,6 +633,51 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }
   });
 
+  test("dashboard actions meet the 44px target floor outside the day-strip group", async ({ page }) => {
+    await page.goto("/");
+    const dashboard = page.getByRole("main");
+    const days = dashboard.getByRole("group").and(page.locator(".daystrip")).getByRole("button");
+    await expect(days).toHaveCount(14);
+    const record = dashboard.getByRole("link", { name: /^Record / }).first();
+    await expect(record).toHaveText(tEn("dashboard:recordAction"));
+    expect(await record.evaluate((el) => [getComputedStyle(el).gridColumn, getComputedStyle(el).gridRow])).toEqual(["3", "1"]);
+    const controls = dashboard.getByRole("link").or(dashboard.getByRole("button")).filter({ visible: true });
+    expect(await dashboard.getByRole("link").count()).toBeGreaterThan(0);
+    for (const control of await controls.all()) {
+      if (await control.and(days).count() > 0) continue;
+      const name = await control.innerText();
+      const box = await rectOf(control, name);
+      expect.soft(box.width, `${name} is below the 44px target width`).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+      expect.soft(box.height, `${name} is below the 44px target height`).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    }
+  });
+
+  test("lay rate keeps fourteen full-height days on one phone row", async ({ page, signIn }) => {
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(readmeFarmOwner());
+    await page.goto("/");
+    const strip = page.getByRole("group").and(page.locator(".daystrip"));
+    const days = strip.getByRole("button");
+    await expect(days).toHaveCount(14);
+    const boxes = await days.evaluateAll((elements) => elements.map((el) => {
+      const box = el.getBoundingClientRect();
+      return { top: box.top, width: box.width, height: box.height };
+    }));
+    expect(new Set(boxes.map((box) => box.top)).size).toBe(1);
+    expect((await rectOf(strip, "the day strip")).width).toBeCloseTo(342, 0);
+    for (const box of boxes) {
+      expect(box.width).toBeCloseTo(22, 0);
+      expect(box.height).toBe(80);
+    }
+    await expect(strip.locator(".avgline")).toBeVisible();
+    expect(await strip.locator(".day-week").evaluate((el) => getComputedStyle(el, "::before").display)).not.toBe("none");
+    await expect(days.and(page.locator('[tabindex="0"]'))).toHaveCount(1);
+    await days.first().focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(days.nth(1)).toBeFocused();
+  });
+
   // #883 round 5 — the owner's read of the PR's screenshots: at 390 the
   // dashboard's recent-sales row used to force customer name, order number,
   // amount and status onto one line, and `.cust` (styles.css:
@@ -649,15 +694,6 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
     const firstRow = salesList.locator("li").first();
     await expect(firstRow, "the dashboard rendered no recent-sales rows to measure").toBeVisible();
-
-    const trend = page.locator("section").filter({ has: page.getByRole("heading", { name: tEn("dashboard:trendPanelTitle"), exact: true }) });
-    const days = trend.getByRole("button");
-    await expect(days).toHaveCount(14);
-    for (const day of await days.all()) {
-      const box = await day.boundingBox();
-      expect(box?.width).toBeGreaterThanOrEqual(44);
-      expect(box?.height).toBeGreaterThanOrEqual(44);
-    }
 
     const customerName = firstRow.getByRole("link").first();
     const [scrollWidth, clientWidth] = await customerName.evaluate((el) => [el.scrollWidth, el.clientWidth]);

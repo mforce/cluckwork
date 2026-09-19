@@ -8,7 +8,7 @@ low-stock warning is deliberately absent.
 ## Sub-features
 
 - Morning brief: missing houses, folding into "+N more", beside today's total.
-- Morning collection: missing-first rows, Record for an unrecorded house, Continue for
+- Morning collection: missing-first rows, an outlined Record action in the count column for an unrecorded house, Continue for
   a draft, and submitted-entry links. Progress counts any non-voided entry, including
   drafts. The list is capped at twelve rows. Yesterday's total appears only for a
   complete day.
@@ -18,7 +18,9 @@ low-stock warning is deliberately absent.
   line shows quantity and current grade name, followed by +N for additional lines.
 - Lay rate: the server's hen-day figure and comparison, followed by fourteen daily
   bars. Missing days are empty, partial days hatched, complete days solid. On a phone
-  the bars reflow into two weeks to retain 44px targets.
+  all fourteen days stay in one row, with 22×80px slots, the average and week break.
+  The owner accepted the narrower targets on 2026-09-19: a wrong tap only changes
+  the day readout, and one tab stop plus arrow keys reaches every day.
 
 ## How to get to it (user POV)
 
