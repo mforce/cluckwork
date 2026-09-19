@@ -74,6 +74,13 @@ export const en = {
   },
   auth: {
     title: "Cluckwork",
+    // #833 — the shared AuthShell's left brand panel (D&D "Working desk",
+    // Concept B): the tagline and eyebrow are fixed shell chrome, not
+    // per-screen copy, so both Login and SetPasswordPage read the same keys.
+    shellEyebrow: "Poultry farm management",
+    shellTagline: "Daily entry · Stock · Sales",
+    loginShellFooter: "Farm code identifies the farm you are signing into.",
+    setPasswordShellFooter: "Set your password before entering the farm.",
     farmCode: "Farm code",
     // #535 — the device remembers every farm code that has SUCCESSFULLY signed
     // in here, so a phone shared between farms offers them instead of retyping.
@@ -144,6 +151,7 @@ export const en = {
     setPasswordTooShortError: "The new password must be at least {{min}} characters.",
   },
   account: {
+    eyebrow: "Personal preferences",
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
@@ -1586,11 +1594,16 @@ export const en = {
   // is their only render site), so their display names are flat keys here
   // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
   settings: {
+    // Concept C "Focus panels" (#833 redesign) shell chrome.
+    eyebrow: "Farm configuration",
     heading: "Farm settings",
     intro:
       "How this farm names itself, and the locale, timezone and currency it "
       + "records and reads its work in.",
     loadFailedMessage: "Could not load farm settings.",
+
+    // Accordion heading grouping the Logo/Banner panels and the palette below.
+    identityImagesHeading: "Identity & images",
 
     // Logo panel
     logoSectionHeading: "Logo",
@@ -1719,6 +1732,9 @@ export const en = {
       + "system and the format overrides are recorded against the farm and "
       + "will drive how amounts, dates and measurements are displayed once "
       + "that formatting lands.",
+    // Sits beside the Save button (#833 redesign) — logo/banner uploads and
+    // removals happen immediately when clicked and are never held for Save.
+    saveScopeNote: "Image actions are separate from Save settings.",
     savedMessage: "Settings saved.",
 
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
@@ -2285,6 +2301,9 @@ export const en = {
   // em-dash fallback for a null reason (same convention as
   // customers/expenses/users/flocks/history's raw "—").
   audit: {
+    // Concept C "Focus panels" (#833 redesign) shell chrome — matches #93's
+    // own read-only guarantee.
+    eyebrow: "Read-only record",
     heading: "Audit log",
     intro:
       "Every corrective, destructive, or configuration change — who did it, "
@@ -2346,6 +2365,7 @@ export const en = {
   // stay raw, unkeyed — they're functional identifiers, not display copy, and
   // changing them would be a download-mechanics change (out of scope).
   export: {
+    eyebrow: "Your farm data",
     heading: "Export",
     intro:
       "Download your account's data as CSV files — a manual backup you can "
@@ -2355,12 +2375,15 @@ export const en = {
     fullBackupHeading: "Full backup",
     fullBackupButton: "Download full backup (zip)",
     fullBackupHint: "One zip with every dataset below plus a manifest of row counts.",
-    // Shared between the full-backup button and every dataset button (each
-    // uses its own `busy === <key>` check) — one in-flight-download label,
-    // not a per-button duplicate.
+    // Shared between the full-backup button and the single-dataset button
+    // (each uses its own `busy === <key>` check) — one in-flight-download
+    // label, not a per-button duplicate.
     preparingButton: "Preparing…",
 
     singleDatasetsHeading: "Single datasets",
+    datasetHint: "Select one dataset. The full backup remains available above.",
+    datasetLabel: "Dataset",
+    downloadCsvButton: "Download CSV",
 
     // Dataset picker labels — one flat "dataset.<slug>" key per
     // EXPORT_DATASETS member (../api/cluckwork), text IDENTICAL to the raw
@@ -3767,7 +3790,13 @@ export const en = {
       "A second, independent image shown full-size on a splash screen right after signing in, once per "
       + "sign-in. Separate from the farm logo above — a farm can have a logo, a banner, both, or neither. "
       + "Same PNG/JPEG/WebP still-image rules, its own larger size limit (5 MB by default), uploaded from "
-      + "Farm settings.",
+      + "Farm settings. The device that shows it caches the image after that splash, so on a later visit "
+      + "it can also appear on the sign-in screen before entering a password — but only while the farm "
+      + "code field names that same farm; typing or picking a different code hides it right away, and a "
+      + "link that only names a farm code never shows its banner. If a farm code is later reassigned to a "
+      + "different farm, a device that already cached the previous holder's banner may still show it "
+      + "briefly, until that device's next sign-in confirms which farm the code belongs to now and clears "
+      + "the mismatch — never a new disclosure, only a stale image on a device that already had it.",
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:

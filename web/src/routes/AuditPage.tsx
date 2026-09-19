@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
+  Typography,
+} from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
+import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { usePagedList } from "../components/usePagedList";
 import { isIsoCalendarDate } from "../lib/dates";
 import {
@@ -16,6 +22,11 @@ import {
 } from "../i18n/enums";
 
 const PAGE = 100;
+
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (the timestamp, the actor, the action, the entity) are
+// pinned; free text (Details) wraps. Matches GradesPage's own NOWRAP (#832).
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // Canonical 8-4-4-4-12 hex form only, not full Guid.TryParse permissiveness
 // (which also accepts braced/no-hyphen forms). This is a correctness guard,
@@ -161,6 +172,17 @@ function AuditDetails({ event }: { event: AuditEvent }) {
 export function AuditPage() {
   const { t } = useTranslation("audit");
   const { t: tc } = useTranslation("common");
+  // #833 finding 6 — the expanded Details cell has no column header of its
+  // own (the head row only ever declares four columns; Details is a fifth
+  // that only exists once a row expands), so it announces to assistive tech
+  // as unlabeled content. A visually hidden header cell, referenced BOTH
+  // ways — `headers`/`id` for a screen reader's native table-navigation
+  // announcements, `aria-labelledby` for the cell's own computed accessible
+  // name (what `getByRole(..., {name})` checks; `headers` alone is invisible
+  // to the ARIA accname algorithm) — gives it a name without adding visible
+  // text that would corrupt the exact-string price-summary assertions
+  // (#758) reading this cell's own textContent.
+  const detailsColumnHeaderId = useId();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawActionFilter = searchParams.get("action") ?? "";
@@ -398,47 +420,70 @@ export function AuditPage() {
     ? events.rows?.[0]?.entityType
     : undefined;
 
+  // #833 redesign — Concept C "Focus panels": each row is a collapsed summary
+  // (When/Who/Action) by default, expanding IN PLACE to reveal Entity and
+  // Details. A Set of expanded ids, not a single "which row" value: nothing
+  // stops a reader opening more than one row at once, and #93's read-only
+  // guarantee only needs disclosure state, not mutation, to survive a filter
+  // reload — reloads replace `events.rows` by id, and this state is keyed the
+  // same way, so an expanded row that's still on the new page stays expanded.
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
   return (
     <section>
-      <h2>
+      <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
+        {t("eyebrow")}
+      </Typography>
+      <Typography variant="h2">
         {entityId
           ? (scopedEntityType
               ? t("scopedHeading", { entityType: entityTypeLabel(scopedEntityType) })
               : t("scopedHeadingFallback"))
           : t("heading")}
-      </h2>
+      </Typography>
       <p className="muted">{t("intro")}</p>
 
-      <div className="filters">
-        <label>{t("entityTypeFilterLabel")}
-          <select value={entityTypeFilter} onChange={(e) => updateEntityTypeFilter(e.target.value)}>
-            <option value="">{t("allEntityTypesOption")}</option>
-            {ENTITY_TYPE_VALUES.map((et) => (
-              <option key={et} value={et}>{entityTypeLabel(et)}</option>
-            ))}
-          </select>
-        </label>
-        <label>{t("actionFilterLabel")}
-          <select value={actionFilter} onChange={(e) => updateActionFilter(e.target.value)}>
-            <option value="">{t("allActionsOption")}</option>
-            {availableActions.map((a) => (
-              <option key={a} value={a}>{auditActionLabel(a)}</option>
-            ))}
-          </select>
-        </label>
-        {/* #666/#653 — the date range gets its own bounded toolbar; the two
-            dropdowns above are not date controls and stay outside it. Mirrors
-            FeedPage/WaterPage/HistoryPage. */}
-        <div className="toolbar">
-          <label>{t("fromLabel")}
-            <input type="date" value={fromFilter}
-              onChange={(e) => updateDateFilter("from", e.target.value)} />
-          </label>
-          <label>{t("toLabel")}
-            <input type="date" value={toFilter}
-              onChange={(e) => updateDateFilter("to", e.target.value)} />
-          </label>
-        </div>
+      <FilterBar>
+        <TextField
+          select
+          label={t("entityTypeFilterLabel")}
+          value={entityTypeFilter}
+          size="small"
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+          onChange={(e) => updateEntityTypeFilter(e.target.value)}
+        >
+          <option value="">{t("allEntityTypesOption")}</option>
+          {ENTITY_TYPE_VALUES.map((et) => (
+            <option key={et} value={et}>{entityTypeLabel(et)}</option>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label={t("actionFilterLabel")}
+          value={actionFilter}
+          size="small"
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+          onChange={(e) => updateActionFilter(e.target.value)}
+        >
+          <option value="">{t("allActionsOption")}</option>
+          {availableActions.map((a) => (
+            <option key={a} value={a}>{auditActionLabel(a)}</option>
+          ))}
+        </TextField>
+        {/* #666/#653 — the date range's own bounded width, carried by
+            FilterDateField now rather than a `.toolbar` wrapper. Mirrors
+            FeedPage/WaterPage/HistoryPage/StockPage (#831). */}
+        <FilterDateField label={t("fromLabel")} value={fromFilter}
+          onChange={(e) => updateDateFilter("from", e.target.value)} />
+        <FilterDateField label={t("toLabel")} value={toFilter}
+          onChange={(e) => updateDateFilter("to", e.target.value)} />
         {/* #679 — persistent, and that is the whole point: this screen's empty
             state is a bare muted paragraph by #655's classification, so a
             control living there would appear only once the filters had already
@@ -448,7 +493,7 @@ export function AuditPage() {
             {tc("clearFiltersButton")}
           </button>
         )}
-      </div>
+      </FilterBar>
 
       {events.error && <p className="error" role="alert">{events.error}</p>}
 
@@ -491,29 +536,80 @@ export function AuditPage() {
         </p>
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>{t("whenHeader")}</th><th>{t("whoHeader")}</th><th>{t("actionHeader")}</th>
-                {/* #493, Slice 2 — every row in a scoped view shares the same
-                    entity; repeating it up to 100 times is noise, not a
-                    neutral no-op, so it's hidden rather than left in. */}
-                {!entityId && <th>{t("entityHeader")}</th>}
-                <th>{t("detailsHeader")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.rows.map((e) => (
-                <tr key={e.id} title={e.detailsJson ?? undefined}>
-                  <td>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</td>
-                  <td>{e.actorEmail}</td>
-                  <td>{auditActionLabel(e.action)}</td>
-                  {!entityId && <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>}
-                  <td><AuditDetails event={e} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {/* Header-less disclosure column: each row's own toggle
+                      carries its own accessible name (#833), so the column
+                      needs no visible or accessible header of its own. */}
+                  <TableCell padding="checkbox" />
+                  <TableCell>{t("whenHeader")}</TableCell>
+                  <TableCell>{t("whoHeader")}</TableCell>
+                  <TableCell>{t("actionHeader")}</TableCell>
+                  {/* Visually hidden: this column has no visible header (it
+                      only appears once a row expands), but still needs a
+                      real id for the Details cell's `headers` attribute to
+                      point at. */}
+                  <TableCell id={detailsColumnHeaderId} className="sr-only">
+                    {t("detailsHeader")}
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {events.rows.map((e) => {
+                  const expanded = expandedIds.has(e.id);
+                  return (
+                    <TableRow key={e.id} title={e.detailsJson ?? undefined}>
+                      <TableCell padding="checkbox">
+                        <IconButton size="small" aria-expanded={expanded}
+                          aria-label={t("detailsHeader")}
+                          onClick={() => toggleExpanded(e.id)}>
+                          {expanded ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell sx={NOWRAP}>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</TableCell>
+                      <TableCell sx={NOWRAP}>{e.actorEmail}</TableCell>
+                      <TableCell sx={NOWRAP}>{auditActionLabel(e.action)}</TableCell>
+                      {expanded && (
+                        <>
+                          {/* #493, Slice 2 — every row in a scoped view shares
+                              the same entity; repeating it up to 100 times is
+                              noise, not a neutral no-op, so it's hidden rather
+                              than left in. */}
+                          {!entityId && (
+                            <TableCell sx={NOWRAP}>
+                              <Typography variant="caption" color="text.secondary" component="div">
+                                {t("entityHeader")}
+                              </Typography>
+                              <Typography component="span" variant="body2">
+                                {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
+                              </Typography>
+                            </TableCell>
+                          )}
+                          {/* No inline "Details" label here (unlike Entity
+                              above): several tests pin this cell's exact
+                              textContent (#758's price-summary cases), and a
+                              prefix label would corrupt every one of those
+                              exact-string comparisons. The row's own "Details"
+                              toggle button already names what this reveals;
+                              `aria-labelledby` below gives the cell itself a
+                              real accessible name (the ARIA accname algorithm
+                              testing-library computes from) without adding
+                              visible text — `headers` alone is invisible to
+                              it and exists only for real screen readers'
+                              table-navigation mode, confirmed by mutation. */}
+                          <TableCell headers={detailsColumnHeaderId} aria-labelledby={detailsColumnHeaderId}>
+                            <AuditDetails event={e} />
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
           {events.canLoadMore && (
             <button className="link" onClick={() => void events.loadMore()}>
               {t("loadMoreButton")}

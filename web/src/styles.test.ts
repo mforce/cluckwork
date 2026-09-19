@@ -181,17 +181,64 @@ describe.each(BRANDS)("palette: %s", (brand) => {
   });
 
   it.each(MODES)("%s: the login Forget glyph clears WCAG AA on its rest fill", (mode) => {
-    // #587 — .auth-forget-farm draws its × over --surface-2 at rest. The
-    // destructive FILL token (--danger) does not clear 4.5:1 for that glyph in
-    // the dark theme (2.76:1 over aubergine's dark --surface-2), so the at-rest
-    // colour is the TEXT token --error, which clears in every theme and
-    // palette. The hover state fills with --danger and its white label is
-    // checked here too, so a hover edit that darkened the fill cannot
-    // silently break the pair.
+    // #587/#833 — the Forget IconButton (web/src/routes/Login.tsx) draws its
+    // "x" over --surface-2 at rest. The destructive FILL token (--danger)
+    // does not clear 4.5:1 for that glyph in the dark theme (2.76:1 over
+    // aubergine's dark --surface-2), so the at-rest colour is the TEXT token
+    // --error, which clears in every theme and palette. The hover state
+    // fills with --danger and its white label is checked here too, so a
+    // hover edit that darkened the fill cannot silently break the pair. This
+    // is a TOKEN-VALUE check only — it says --error is safe to use, not that
+    // Login.tsx actually uses it; the source-shape test right below is what
+    // pins that, so the pair cannot pass while the component quietly reaches
+    // for `error.main` (which resolves to --danger) instead.
     const t = resolveTokens(attrFor(brand), mode);
     const at = (k: string) => t.get(k)!;
     expect(contrast(at("--error"), at("--surface-2"))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(at("--on-danger"), at("--danger"))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+// #833 — the contrast pair above proves --error is safe, not which token
+// the component paints with; `error.main` resolves to --danger instead
+// (FarmThemeProvider.tsx: one MUI slot for two separate colours) and would
+// silently regress the Forget glyph to 2.76:1 in dark aubergine.
+describe("the login Forget glyph's source uses --error, not the error.main palette slot", () => {
+  it("Login.tsx's rest-state colour is var(--error)", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/routes/Login.tsx"), "utf8",
+    );
+    // Scoped to the Forget IconButton specifically: its aria-label is the
+    // one JSX attribute unique to this control, so the match window opens
+    // there and closes at the icon element that ends the button — short and
+    // unambiguous, unlike bounding on "&:hover" (which legitimately DOES use
+    // error.main for the --danger hover fill and sits behind a comment block
+    // long enough to overrun a tighter window).
+    const forgetButton = /aria-label=\{t\("forgetFarm"[\s\S]{0,1500}?<X size=\{16\}/.exec(source)?.[0];
+    expect(forgetButton, "could not find the Forget IconButton in Login.tsx — has it moved or been renamed?")
+      .toBeTruthy();
+    expect(forgetButton).toMatch(/color:\s*"var\(--error\)"/);
+    // And the hover fill still legitimately reaches for the palette slot —
+    // proves this guard distinguishes the two `color:` declarations rather
+    // than matching whichever comes first.
+    expect(forgetButton).toMatch(/"&:hover":\s*\{[^}]*color:\s*"error\.contrastText"/);
+  });
+});
+
+// #833 — Login.styles.test.ts (retired with the deleted `.auth` CSS block)
+// also carried "does not make the farm-selection chip destructive": the
+// select chip and Forget control share one entry wrapper, so a copy-paste
+// of the Forget button's destructive styling onto the chip itself would
+// tell a farm operator that picking a remembered farm is dangerous.
+describe("the login farm-selection chip carries no destructive colour", () => {
+  it("Login.tsx's select-chip sx names no error/danger token", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/routes/Login.tsx"), "utf8",
+    );
+    const selectChip = /onClick=\{\(\) => setFarmCode\(code\)\}[\s\S]{0,600}?\{code\}/.exec(source)?.[0];
+    expect(selectChip, "could not find the farm-selection chip in Login.tsx — has it moved or been renamed?")
+      .toBeTruthy();
+    expect(selectChip).not.toMatch(/error|danger/i);
   });
 });
 

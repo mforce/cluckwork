@@ -6,8 +6,9 @@ import { ApiError } from "../api/client";
 import i18n from "../i18n";
 
 // Network seam only: stub the two download fns the screen can call, but keep
-// EXPORT_DATASETS real (the list the screen maps into buttons) via importOriginal.
-// ApiError comes from ../api/client and stays real (errText branches on it).
+// EXPORT_DATASETS real (the list the screen maps into the select's options)
+// via importOriginal. ApiError comes from ../api/client and stays real
+// (errText branches on it).
 vi.mock("../api/cluckwork", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/cluckwork")>();
   return {
@@ -15,8 +16,8 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     downloadExportCsv: vi.fn(),
     downloadFullBackup: vi.fn(),
     getFlock: vi.fn(),
-  getCustomer: vi.fn(),
-};
+    getCustomer: vi.fn(),
+  };
 });
 
 const mockCsv = vi.mocked(downloadExportCsv);
@@ -35,6 +36,10 @@ vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
 
 const blob = () => new Blob(["data"]);
 
+const datasetSelect = () => screen.getByRole("combobox", { name: "Dataset" });
+const csvButton = () => screen.getByRole("button", { name: "Download CSV" });
+const backupButton = () => screen.getByRole("button", { name: "Download full backup (zip)" });
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
@@ -47,31 +52,31 @@ beforeEach(() => {
 });
 
 describe("ExportPage rendering", () => {
-  it("renders a download button for every dataset plus the full-backup button", () => {
+  it("renders the dataset select (defaulted to the first dataset), the CSV button and the full-backup button", () => {
     render(<ExportPage />);
 
-    expect(
-      screen.getByRole("button", { name: "Download full backup (zip)" }),
-    ).toBeInTheDocument();
-    // Every dataset in the real list is offered as its own button.
+    expect(backupButton()).toBeInTheDocument();
+    const select = datasetSelect() as HTMLSelectElement;
+    expect(select).toHaveValue(EXPORT_DATASETS[0]);
+    // Every dataset in the real list is offered as an option.
     for (const d of EXPORT_DATASETS) {
-      expect(screen.getByRole("button", { name: d })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: d })).toBeInTheDocument();
     }
-    // One button per dataset + the single full-backup button, nothing extra.
-    expect(screen.getAllByRole("button")).toHaveLength(EXPORT_DATASETS.length + 1);
+    expect(csvButton()).toBeInTheDocument();
   });
 });
 
 describe("ExportPage single-dataset download", () => {
-  it("downloads the clicked dataset via downloadExportCsv with that dataset key", async () => {
+  it("downloads the SELECTED dataset via downloadExportCsv with that dataset key", async () => {
     mockCsv.mockResolvedValue({ blob: blob(), filename: "customers.csv" });
     render(<ExportPage />);
 
+    fireEvent.change(datasetSelect(), { target: { value: "customers" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "customers" }));
+      fireEvent.click(csvButton());
     });
 
-    // The ARGUMENT is the behavior: the clicked dataset, and only that one.
+    // The ARGUMENT is the behavior: the selected dataset, and only that one.
     expect(mockCsv).toHaveBeenCalledTimes(1);
     expect(mockCsv).toHaveBeenCalledWith("customers");
     expect(mockBackup).not.toHaveBeenCalled();
@@ -85,12 +90,21 @@ describe("ExportPage single-dataset download", () => {
     // mockCsv default resolves with filename: null → screen supplies the fallback.
     render(<ExportPage />);
 
+    fireEvent.change(datasetSelect(), { target: { value: "flocks" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "flocks" }));
+      fireEvent.click(csvButton());
     });
 
     expect(mockCsv).toHaveBeenCalledWith("flocks");
     expect(anchorClicks[0].download).toBe("cluckwork-flocks.csv");
+  });
+
+  it("downloads the FIRST dataset when the selection is never changed", async () => {
+    render(<ExportPage />);
+    await act(async () => {
+      fireEvent.click(csvButton());
+    });
+    expect(mockCsv).toHaveBeenCalledWith(EXPORT_DATASETS[0]);
   });
 });
 
@@ -99,7 +113,7 @@ describe("ExportPage full backup", () => {
     render(<ExportPage />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Download full backup (zip)" }));
+      fireEvent.click(backupButton());
     });
 
     expect(mockBackup).toHaveBeenCalledTimes(1);
@@ -115,7 +129,7 @@ describe("ExportPage full backup", () => {
     render(<ExportPage />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Download full backup (zip)" }));
+      fireEvent.click(backupButton());
     });
 
     expect(anchorClicks[0].download).toBe("cluckwork-backup.zip");
@@ -129,8 +143,9 @@ describe("ExportPage errors", () => {
     mockCsv.mockRejectedValue(new ApiError(500, "Export failed", "the export ran out of eggs"));
     render(<ExportPage />);
 
+    fireEvent.change(datasetSelect(), { target: { value: "egg-grades" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "egg-grades" }));
+      fireEvent.click(csvButton());
     });
 
     const alert = await screen.findByRole("alert");
@@ -142,7 +157,7 @@ describe("ExportPage errors", () => {
 });
 
 describe("ExportPage busy state", () => {
-  it("shows Preparing… and disables every button while a download is in flight", async () => {
+  it("shows Preparing… and disables the select and both buttons while a download is in flight", async () => {
     let resolve!: (v: { blob: Blob; filename: string | null }) => void;
     mockBackup.mockReturnValue(
       new Promise<{ blob: Blob; filename: string | null }>((r) => (resolve = r)),
@@ -150,28 +165,22 @@ describe("ExportPage busy state", () => {
     render(<ExportPage />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Download full backup (zip)" }));
+      fireEvent.click(backupButton());
     });
 
-    // While the backup is in flight EVERY export button is disabled — the
-    // button that initiated the download (now "Preparing…") and every dataset
-    // button — so no second download can start.
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(EXPORT_DATASETS.length + 1);
-    for (const b of buttons) {
-      expect(b).toBeDisabled();
-    }
-    // The in-flight backup button flips to "Preparing…"; the rest keep their labels.
+    // While the backup is in flight EVERY export control is disabled — the
+    // button that initiated the download (now "Preparing…"), the dataset
+    // select, and the CSV button — so no second download can start.
+    expect(datasetSelect()).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Download CSV" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Preparing…" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "customers" })).toBeDisabled();
 
     // Settle the pending download so it doesn't dangle past the test.
     await act(async () => {
       resolve({ blob: blob(), filename: null });
     });
-    expect(
-      screen.getByRole("button", { name: "Download full backup (zip)" }),
-    ).toBeInTheDocument();
+    expect(backupButton()).toBeInTheDocument();
+    expect(datasetSelect()).toBeEnabled();
   });
 });
 
@@ -195,6 +204,14 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
       i18n.addResource("en", ns, key, original);
     });
   }
+
+  it("reads the eyebrow from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "eyebrow", "EYEBROW-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByText("EYEBROW-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Your farm data")).not.toBeInTheDocument();
+    });
+  });
 
   it("reads the heading from the catalog, not a hardcoded literal", async () => {
     await withOverride("export", "heading", "HEADING-MARKER", async () => {
@@ -248,12 +265,32 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
     });
   });
 
+  it("reads the dataset hint from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "datasetHint", "DATASET-HINT-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByText("DATASET-HINT-MARKER")).toBeInTheDocument();
+    });
+  });
+
+  it("reads the dataset select's label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "datasetLabel", "DATASET-LABEL-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByRole("combobox", { name: "DATASET-LABEL-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads the CSV download button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "downloadCsvButton", "CSV-BUTTON-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByRole("button", { name: "CSV-BUTTON-MARKER" })).toBeInTheDocument();
+    });
+  });
+
   // Proves `preparingButton` is a SHARED key: overriding it once changes the
-  // busy label on BOTH the full-backup button AND a dataset button — the two
-  // separate `busy === <key> ? t("preparingButton") : ...` call sites in the
-  // component read the same catalog entry rather than each carrying its own
-  // hardcoded "Preparing…" literal.
-  it("reads the shared preparing label on both the full-backup and a dataset button", async () => {
+  // busy label on BOTH the full-backup button AND the CSV button — the two
+  // separate `busy === <key>` call sites in the component read the same
+  // catalog entry rather than each carrying its own hardcoded literal.
+  it("reads the shared preparing label on both the full-backup and the CSV button", async () => {
     let resolveBackup!: (v: { blob: Blob; filename: string | null }) => void;
     mockBackup.mockReturnValue(
       new Promise<{ blob: Blob; filename: string | null }>((r) => (resolveBackup = r)),
@@ -268,7 +305,7 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
 
       // Full-backup button, busy.
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Download full backup (zip)" }));
+        fireEvent.click(backupButton());
       });
       expect(screen.getByRole("button", { name: "BUSY-MARKER" })).toBeInTheDocument();
       expect(screen.queryByText("Preparing…")).not.toBeInTheDocument();
@@ -276,9 +313,9 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
         resolveBackup({ blob: blob(), filename: null });
       });
 
-      // Same tree, a dataset button, busy — same catalog key drives both.
+      // Same tree, the CSV button, busy — same catalog key drives both.
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "flocks" }));
+        fireEvent.click(screen.getByRole("button", { name: "Download CSV" }));
       });
       expect(screen.getByRole("button", { name: "BUSY-MARKER" })).toBeInTheDocument();
       expect(screen.queryByText("Preparing…")).not.toBeInTheDocument();
@@ -289,15 +326,15 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
   });
 
   // Per-dataset labels: overriding ONE dataset's key changes only that
-  // button, proving each of the 20 EXPORT_DATASETS members has its OWN
+  // option, proving each of the 20 EXPORT_DATASETS members has its OWN
   // catalog key ("dataset.<slug>"), not a single shared/derived string.
-  it("reads a single dataset's label from its own catalog key, leaving the rest untouched", async () => {
+  it("reads a single dataset's option label from its own catalog key, leaving the rest untouched", async () => {
     await withOverride("export", "dataset.customers", "CUSTOMERS-MARKER", async () => {
       render(<ExportPage />);
-      expect(await screen.findByRole("button", { name: "CUSTOMERS-MARKER" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "customers" })).not.toBeInTheDocument();
-      // A different dataset's button is untouched by this override.
-      expect(screen.getByRole("button", { name: "flocks" })).toBeInTheDocument();
+      expect(await screen.findByRole("option", { name: "CUSTOMERS-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "customers" })).not.toBeInTheDocument();
+      // A different dataset's option is untouched by this override.
+      expect(screen.getByRole("option", { name: "flocks" })).toBeInTheDocument();
     });
   });
 

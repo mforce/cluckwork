@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, use
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useInRouterContext, useLocation } from "react-router";
 import { Search } from "lucide-react";
+import { Container, Typography } from "@mui/material";
 import { AuthContext } from "../auth/AuthContext";
 import { navGroups } from "./nav";
 import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
@@ -237,12 +238,12 @@ export function HelpPage() {
       : t("searchMatches", { query: query.trim(), sections: matches.sections, terms: matches.terms });
 
   return (
-    <section className="help">
+    <Container maxWidth="md" component="section" className="help" disableGutters>
       {inRouter && <RouterHashScroll onHash={followHash} />}
       <div className="help-hero">
         <div className="help-head">
           <p className="help-kicker">{t("eyebrow")}</p>
-          <h2>{t("heading")}</h2>
+          <Typography variant="h2">{t("heading")}</Typography>
           <p className="help-lead">{t("lead")}</p>
         </div>
 
@@ -870,6 +871,6 @@ export function HelpPage() {
       </section>
         </div>
       </div>
-    </section>
+    </Container>
   );
 }

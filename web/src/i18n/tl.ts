@@ -50,6 +50,12 @@ export const tl = {
   },
   auth: {
     title: "Cluckwork",
+    // #833 — machine-drafted, pending native review, same as the rest of
+    // this file's auth strings.
+    shellEyebrow: "Pamamahala ng poultry farm",
+    shellTagline: "Araw-araw na entry · Stock · Sales",
+    loginShellFooter: "Kinikilala ng farm code kung aling farm ang iyong sinasabihan.",
+    setPasswordShellFooter: "Itakda ang iyong password bago pumasok sa farm.",
     // machine-drafted (#532) — pending native review.
     farmCode: "Code ng bukid",
     recentFarms: "Mga kamakailang bukid",
@@ -100,6 +106,7 @@ export const tl = {
     setPasswordTooShortError: "Dapat hindi bababa sa {{min}} karakter ang bagong password.",
   },
   account: {
+    eyebrow: "Personal na kagustuhan",
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
@@ -1205,11 +1212,14 @@ export const tl = {
   // common use in PH tech UIs for these; same treatment as sales.reference
   // above.
   settings: {
+    eyebrow: "Konpigurasyon ng bukid",
     heading: "Mga setting ng bukid",
     intro:
       "Kung paano tinatawag ng bukid na ito ang sarili nito, at ang locale, "
       + "time zone, at currency na ginagamit nito sa pagtala at pagbasa ng trabaho.",
     loadFailedMessage: "Hindi na-load ang mga setting ng bukid.",
+
+    identityImagesHeading: "Pagkakakilanlan at mga larawan",
 
     // Logo panel
     logoSectionHeading: "Logo",
@@ -1324,6 +1334,7 @@ export const tl = {
       + "sa format ay naitala laban sa bukid at magtatakda kung paano "
       + "ipapakita ang mga halaga, petsa, at sukat kapag dumating na ang "
       + "format na iyon.",
+    saveScopeNote: "Hiwalay ang mga aksyon sa larawan mula sa I-save ang mga setting.",
     savedMessage: "Na-save ang mga setting.",
 
     // Imperative messages
@@ -1725,6 +1736,7 @@ export const tl = {
   // elsewhere in this file, e.g. sales.confirmOrderButton); "Audit Log"
   // kept as a loanword heading, same treatment as settings.localeLabel.
   audit: {
+    eyebrow: "Rekord na read-only",
     heading: "Audit Log",
     intro:
       "Bawat corrective, destructive, o configuration na pagbabago — sino "
@@ -1765,6 +1777,7 @@ export const tl = {
   // dataset picker (the wire value stays the raw slug) — translated to
   // natural Filipino per the task brief.
   export: {
+    eyebrow: "Ang datos ng iyong farm",
     heading: "Export",
     intro:
       "I-download ang datos ng iyong account bilang mga CSV file — isang "
@@ -1778,6 +1791,9 @@ export const tl = {
     preparingButton: "Naghahanda…",
 
     singleDatasetsHeading: "Mga indibidwal na dataset",
+    datasetHint: "Pumili ng isang dataset. Available pa rin sa itaas ang buong backup.",
+    datasetLabel: "Dataset",
+    downloadCsvButton: "I-download ang CSV",
 
     "dataset.flocks": "Mga kawan",
     "dataset.bird-movements": "Mga paggalaw ng manok",
@@ -3251,7 +3267,15 @@ export const tl = {
       + "pagkatapos mag-log in, isang beses kada session. Hiwalay sa logo ng bukid sa itaas — puwedeng "
       + "magkaroon ang isang bukid ng logo, banner, pareho, o wala. Parehong panuntunan ng still image "
       + "na PNG/JPEG/WebP, may sarili itong mas malaking limitasyon sa laki (5 MB bilang default), "
-      + "ina-upload mula sa Mga Setting ng Bukid.",
+      + "ina-upload mula sa Mga Setting ng Bukid. Ang device na nagpapakita nito ay nag-ka-cache ng larawan "
+      + "pagkatapos ng splash screen na iyon, kaya sa susunod na pagbisita puwede rin itong lumabas sa "
+      + "sign-in screen bago pa maglagay ng password — pero habang pinangalanan ng field na Code ng Bukid "
+      + "ang parehong bukid na iyon; ang pag-type o pagpili ng ibang code ay agad itong nagtatago, at ang "
+      + "link na pangalan lang ng Code ng Bukid ay hindi kailanman nagpapakita ng banner nito. Kapag ang "
+      + "isang Code ng Bukid ay na-reassign sa ibang bukid, ang device na naka-cache na ng banner ng dating may-ari nito ay "
+      + "puwede pa ring magpakita nito nang maikli, hanggang sa kumpirmahin ng susunod na pag-sign-in sa "
+      + "device na iyon kung aling bukid na ngayon ang may-ari ng code at itama ang di-pagtutugma — hindi "
+      + "ito bagong pagsisiwalat, isang lumang larawan lamang sa device na mayroon na rito.",
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { BrandSplash } from "./BrandSplash";
 import { getFarmBanner } from "../api/cluckwork";
+import { bindAccount, bindFarm } from "../auth/tokenStore";
+import { readCachedBannerBlob } from "../lib/bannerCache";
 
 vi.mock("../api/cluckwork", async () => {
   const actual = await vi.importActual<typeof import("../api/cluckwork")>("../api/cluckwork");
@@ -12,6 +14,7 @@ const mockGetFarmBanner = vi.mocked(getFarmBanner);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   vi.stubGlobal("URL", {
     ...URL,
     createObjectURL: vi.fn(() => "blob:test/banner"),
@@ -60,5 +63,38 @@ describe("BrandSplash", () => {
     render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
 
     expect(screen.getByRole("dialog", { name: "Hen House" })).toBeInTheDocument();
+  });
+
+  // #833 — owner decision, 2026-09-19: the splash is where the banner is
+  // fetched, so it is where the bytes are cached for Login's own pre-auth
+  // display. Real bindAccount/bindFarm (not mocked), same as brand.test.ts,
+  // because cacheBannerBytes checks the live binding.
+  it("caches the fetched banner under the bound farm, once it loads", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockGetFarmBanner.mockResolvedValue({ blob: new Blob(["png-bytes"]), filename: null });
+    render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
+
+    await screen.findByAltText("Hen House banner");
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull());
+  });
+
+  it("does not cache anything while the fetch is still pending", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockGetFarmBanner.mockReturnValue(new Promise(() => {}));
+    render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
+
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
+  });
+
+  it("caches nothing on an unbound tab (a fresh tab restored from the refresh cookie)", async () => {
+    // Deliberately no bindAccount/bindFarm — mirrors applyBrand's own
+    // unbound-tab contract in brand.test.ts.
+    mockGetFarmBanner.mockResolvedValue({ blob: new Blob(["png-bytes"]), filename: null });
+    render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
+
+    await screen.findByAltText("Hen House banner");
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
   });
 });

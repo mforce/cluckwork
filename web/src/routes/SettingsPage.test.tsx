@@ -11,6 +11,8 @@ import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
 import { BRANDS } from "../lib/brand";
 import type { Brand } from "../lib/brand";
+import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
 
 // Mirrors PALETTE_LABEL_KEYS in SettingsPage.tsx — kept local to the test
@@ -100,7 +102,9 @@ async function renderReady(payload: FarmSettings = SETTINGS()) {
   });
   const result = render(
     <FarmContext.Provider value={value}><SettingsPage /></FarmContext.Provider>);
-  expect(await screen.findByLabelText("Farm name")).toBeInTheDocument();
+  // MUI's required indicator appends its own trailing " *" to the label text
+  // (repo convention, e.g. GradesPage.test.tsx's "Name *").
+  expect(await screen.findByLabelText("Farm name *")).toBeInTheDocument();
   return result;
 }
 
@@ -135,10 +139,10 @@ describe("SettingsPage loading", () => {
     render(<SettingsPage />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
 
-    expect(await screen.findByLabelText("Farm name")).toHaveValue("Hen House");
-    expect(screen.getByLabelText("Timezone")).toHaveValue("America/Los_Angeles");
-    expect(screen.getByLabelText("Locale")).toHaveValue("en-US");
-    expect(screen.getByLabelText("Currency")).toHaveValue("USD");
+    expect(await screen.findByLabelText("Farm name *")).toHaveValue("Hen House");
+    expect(screen.getByLabelText("Timezone *")).toHaveValue("America/Los_Angeles");
+    expect(screen.getByLabelText("Locale *")).toHaveValue("en-US");
+    expect(screen.getByLabelText("Currency *")).toHaveValue("USD");
     expect(screen.getByLabelText("Unit system")).toHaveValue("Metric");
     expect(screen.getByLabelText("First day of week")).toHaveValue("Monday");
     expect(screen.getByLabelText("Date format")).toHaveValue("dd/MM/yyyy");
@@ -151,7 +155,7 @@ describe("SettingsPage loading", () => {
       dateFormatOverride: "dd-MM-yy", timeFormatOverride: "HHmm",
     }));
     render(<SettingsPage />);
-    await screen.findByLabelText("Farm name");
+    await screen.findByLabelText("Farm name *");
 
     expect(screen.getByLabelText("Date format")).toHaveValue("__custom__");
     expect(screen.getByLabelText("Custom date format")).toHaveValue("dd-MM-yy");
@@ -164,7 +168,7 @@ describe("SettingsPage loading", () => {
       dateFormatOverride: "yyyy-MM-dd", timeFormatOverride: "HH:mm",
     }));
     render(<SettingsPage />);
-    await screen.findByLabelText("Farm name");
+    await screen.findByLabelText("Farm name *");
 
     expect(screen.getByLabelText("Date format")).toHaveValue("yyyy-MM-dd");
     expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
@@ -185,7 +189,7 @@ describe("SettingsPage saving", () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady();
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     fireEvent.change(screen.getByLabelText("Unit system"), { target: { value: "Imperial" } });
     fireEvent.change(screen.getByLabelText("First day of week"), { target: { value: "Sunday" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -264,8 +268,8 @@ describe("SettingsPage saving", () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady();
 
-    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "eur" } });
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "  Coop Co  " } });
+    fireEvent.change(screen.getByLabelText("Currency *"), { target: { value: "eur" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "  Coop Co  " } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
     const [body] = mockUpdate.mock.calls[0];
@@ -282,7 +286,7 @@ describe("SettingsPage saving", () => {
 
     // The new version is what the NEXT save must carry — a screen still holding
     // 7 would 409 against its own write.
-    expect(await screen.findByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(await screen.findByLabelText("Farm name *")).toHaveValue("Coop Co");
     expect(refreshed).toBe(1);
   });
 
@@ -318,7 +322,7 @@ describe("SettingsPage saving", () => {
     mockUpdate.mockRejectedValueOnce(new Error("connection lost"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     mockUpdate.mockResolvedValueOnce(undefined);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
@@ -383,13 +387,13 @@ describe("SettingsPage saving", () => {
 
   it("warns when the timezone is one this browser cannot format", async () => {
     await renderReady();
-    fireEvent.change(screen.getByLabelText("Timezone"), { target: { value: "Mars/Olympus_Mons" } });
+    fireEvent.change(screen.getByLabelText("Timezone *"), { target: { value: "Mars/Olympus_Mons" } });
 
     // The server validates against ITS tzdata. A zone it accepts but the
     // browser cannot format saves fine and then sends every date field back to
     // the device's day — silently, without this.
     expect(screen.getByText(/does not know that timezone/)).toBeInTheDocument();
-    const tz = screen.getByLabelText("Timezone");
+    const tz = screen.getByLabelText("Timezone *");
     const describedBy = tz.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy!)).toHaveTextContent(/does not know that timezone/);
@@ -397,7 +401,7 @@ describe("SettingsPage saving", () => {
 
   it("says nothing about a timezone the browser does know", async () => {
     await renderReady();
-    fireEvent.change(screen.getByLabelText("Timezone"), { target: { value: "Asia/Tokyo" } });
+    fireEvent.change(screen.getByLabelText("Timezone *"), { target: { value: "Asia/Tokyo" } });
     expect(screen.queryByText(/does not know that timezone/)).not.toBeInTheDocument();
   });
 
@@ -624,30 +628,25 @@ describe("SettingsPage palette (#149)", () => {
 describe("SettingsPage currency lock (§4.6)", () => {
   it("leaves the field editable while the farm has recorded nothing", async () => {
     await renderReady(SETTINGS({}, true));
-    const currency = screen.getByLabelText("Currency");
+    const currency = screen.getByLabelText("Currency *");
     expect(currency).not.toHaveAttribute("readonly");
-    expect(currency).not.toHaveClass("locked");
     expect(currency).not.toHaveAttribute("aria-describedby");
     expect(screen.queryByText(/currency is fixed at/i)).not.toBeInTheDocument();
   });
 
   it("locks it with the reason once amounts exist — before the user meets the 422", async () => {
     await renderReady(SETTINGS({}, false));
-    const currency = screen.getByLabelText("Currency");
+    const currency = screen.getByLabelText("Currency *");
     // readOnly rather than disabled: a disabled control leaves the tab order,
     // taking the explanation with it.
     expect(currency).toHaveAttribute("readonly");
     expect(currency).not.toBeDisabled();
-    // The locked LOOK hangs off this class, not off `input:read-only` — that
-    // pseudo-class also matches every checkbox, radio and file input in the
-    // app, which the blanket rule greyed out (round 2: codex + agent).
-    expect(currency).toHaveClass("locked");
     expect(screen.getByText(/The currency is fixed at USD/)).toBeInTheDocument();
   });
 
   it("names the field 'Currency' and carries the reason as a DESCRIPTION", async () => {
     await renderReady(SETTINGS({}, false));
-    const currency = screen.getByLabelText("Currency");
+    const currency = screen.getByLabelText("Currency *");
     // A note nested inside the <label> would join the accessible name, so the
     // field would announce itself as "Currency The currency is fixed at USD…".
     const describedBy = currency.getAttribute("aria-describedby");
@@ -788,15 +787,15 @@ describe("SettingsPage logo", () => {
     });
     await renderReady(SETTINGS({ logoContentHash: null }));
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
-    fireEvent.change(screen.getByLabelText("Locale"), { target: { value: "es-MX" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Locale *"), { target: { value: "es-MX" } });
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Upload a logo"),
         { target: { files: [imageOfSize(900)] } });
     });
 
-    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
-    expect(screen.getByLabelText("Locale")).toHaveValue("es-MX");
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Coop Co");
+    expect(screen.getByLabelText("Locale *")).toHaveValue("es-MX");
     // And no second read to land out of order with a save's.
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
   });
@@ -805,13 +804,13 @@ describe("SettingsPage logo", () => {
     mockRemove.mockResolvedValue(undefined);
     await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Remove logo" }));
     });
 
-    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Coop Co");
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
   });
 
@@ -1131,14 +1130,114 @@ describe("SettingsPage banner", () => {
     });
     await renderReady(SETTINGS({ bannerContentHash: null }));
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Upload a banner"),
         { target: { files: [imageOfSize(900)] } });
     });
 
-    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Coop Co");
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
+  });
+
+  // #833 finding 4 — replacing or removing the banner must also update the
+  // device's pre-login cache (lib/bannerCache.ts), or Login can keep
+  // showing an image the server no longer serves.
+  //
+  // Codex review (finding 1) — what gets cached must be the server's
+  // SANITIZED bytes (a fresh authenticated getFarmBanner() read), never the
+  // raw File the input picked: the server strips EXIF and can re-encode on
+  // upload, so caching the File directly could show Login metadata or an
+  // orientation the server already removed. Proven by making the uploaded
+  // File and the getFarmBanner() response DIFFERENT byte sequences and
+  // asserting the cache holds the latter.
+  it("re-caches the SERVER'S sanitized bytes on upload, not the raw uploaded file", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    mockGetBanner.mockResolvedValue({
+      blob: new Blob(["sanitized-by-server"], { type: "image/png" }),
+      filename: null,
+    });
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+
+    const cached = await waitFor(async () => {
+      const found = await readCachedBannerBlob("sunny-acres");
+      expect(found).not.toBeNull();
+      return found;
+    });
+    expect(await cached!.text()).toBe("sanitized-by-server");
+  });
+
+  it("clears the cached banner on remove, so Login stops showing it before 'Forget this farm'", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    await cacheBannerBytes(new Blob(["old-banner"]), farmBindingToken());
+    expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull(); // the fixture, proven present
+
+    mockRemoveBanner.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
+    });
+
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
+  });
+
+  // Codex review round 4 — the post-upload getFarmBanner() re-fetch is
+  // fire-and-forget and farmBindingToken() doesn't change between two
+  // banner operations on the SAME farm, so nothing stopped a SLOW re-fetch
+  // from landing after a LATER remove and re-caching the just-removed
+  // banner's bytes. bannerOpGeneration closes that: proven by starting an
+  // upload's re-fetch, removing before it resolves, THEN letting it
+  // resolve, and confirming the cache stays empty throughout.
+  it("does not resurrect a removed banner from a slow post-upload re-fetch", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    let resolveFetch!: (value: { blob: Blob; filename: string | null }) => void;
+    mockGetBanner.mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+    mockRemoveBanner.mockResolvedValue(undefined);
+    // No banner set yet — "Upload a banner" is the label before one exists;
+    // once the upload below succeeds, hasBanner flips true and the button
+    // relabels to "Replace banner" (with Remove appearing alongside it).
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+    // The upload succeeded; its post-upload getFarmBanner() re-fetch is now
+    // stuck (resolveFetch not yet called).
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
+    });
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
+
+    // The STALE upload re-fetch resolves only now, well after the remove
+    // completed — it must not write anything back.
+    await act(async () => {
+      resolveFetch({ blob: new Blob(["stale-bytes-from-the-superseded-upload"]), filename: null });
+    });
+
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
   });
 });
 
@@ -1172,14 +1271,14 @@ describe("SettingsPage pending scopes (#236)", () => {
     // The palette radios bind to the settings scope only — a logo flight
     // leaves them alone.
     expect(screen.getByRole("radio", { name: "Aubergine" })).toBeEnabled();
-    // The logo's own status region (first p.success in the document) carries
-    // the announcement, exactly as before the consolidation.
-    expect(document.querySelector("p.success")).toHaveTextContent("Working…");
+    // The logo's own status region carries the announcement, exactly as
+    // before the consolidation.
+    expect(document.getElementById("logo-status")).toHaveTextContent("Working…");
     expect(screen.getByLabelText("Upload a logo")).toBeDisabled();
 
     await act(async () => { finishUpload(); });
     expect(screen.getByRole("button", { name: "Save settings" })).toBeEnabled();
-    expect(document.querySelector("p.success")).toHaveTextContent("Logo updated.");
+    expect(document.getElementById("logo-status")).toHaveTextContent("Logo updated.");
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 
@@ -1202,7 +1301,7 @@ describe("SettingsPage pending scopes (#236)", () => {
     expect(remove).toBeDisabled();
     expect(remove).not.toHaveAttribute("aria-busy");
     expect(screen.getByLabelText("Replace the logo")).toBeDisabled();
-    expect(document.querySelector("p.success")?.textContent).toBe("");
+    expect(document.getElementById("logo-status")?.textContent).toBe("");
 
     await act(async () => { finishSave(); });
     expect(screen.getByRole("button", { name: "Save settings" })).toBeEnabled();
@@ -1356,6 +1455,104 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("CONFLICT-MARKER");
       expect(screen.queryByText(/Someone else changed these settings/i)).not.toBeInTheDocument();
     });
+  });
+
+  // #833 redesign — Concept C shell chrome added around the pre-existing form.
+  it("reads the eyebrow from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "eyebrow", "EYEBROW-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByText("EYEBROW-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Farm configuration")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the Identity & images accordion heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "identityImagesHeading", "IDENTITY-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByRole("button", { name: "IDENTITY-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Identity & images" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the save-scope note from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "saveScopeNote", "SCOPE-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByText("SCOPE-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Image actions are separate from Save settings.")).not.toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Expandable sections (#833 redesign, Concept C "Focus panels")
+// ---------------------------------------------------------------------------
+
+describe("SettingsPage — expandable sections (#833 Concept C)", () => {
+  // Both sections open by default (unlike Account's Preferences/Change-password
+  // split): nothing here is a security action to tuck away, and every field a
+  // test above reaches lives in one or the other, always visible from a fresh
+  // render — this it.each is what makes that assumption an assertion rather
+  // than a hope.
+  it("the Identity & images section starts expanded, with its own content reachable", async () => {
+    await renderReady();
+    expect(screen.getByRole("button", { name: "Identity & images" }))
+      .toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Farm palette")).toBeInTheDocument();
+  });
+
+  it("the Localization section starts expanded, with its own content reachable", async () => {
+    await renderReady();
+    expect(screen.getByRole("button", { name: "Localization" }))
+      .toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Farm name *")).toBeInTheDocument();
+  });
+
+  it("collapses and re-expands the Identity & images section on click", async () => {
+    await renderReady();
+    const summary = screen.getByRole("button", { name: "Identity & images" });
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("collapses and re-expands the Localization section independently of Identity & images", async () => {
+    await renderReady();
+    const identitySummary = screen.getByRole("button", { name: "Identity & images" });
+    const localizationSummary = screen.getByRole("button", { name: "Localization" });
+
+    fireEvent.click(localizationSummary);
+    expect(localizationSummary).toHaveAttribute("aria-expanded", "false");
+    expect(identitySummary).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(localizationSummary);
+    expect(localizationSummary).toHaveAttribute("aria-expanded", "true");
+  });
+
+  // Logo/Banner stay their own immediate actions even now that they sit
+  // inside the same <form> as Save (#833 redesign moved them in visually) —
+  // clicking Remove must never submit the settings form.
+  it("does not submit the settings form when Remove (logo) is clicked", async () => {
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    // The confirm dialog opened instead — the destructive click's only effect.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // #833 finding 7 — the logo case above proves nothing about the banner's
+  // OWN Remove button; they are two separate controls in two separate
+  // panels, and a fix or regression in one is not visible through the other.
+  it("does not submit the settings form when Remove (banner) is clicked", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 

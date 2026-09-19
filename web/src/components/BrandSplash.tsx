@@ -1,6 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useBannerObjectUrl } from "../farm/useLogoObjectUrl";
+import { farmBindingToken } from "../auth/tokenStore";
+import { cacheBannerBytes } from "../lib/bannerCache";
 
 interface BrandSplashProps {
   farmName: string;
@@ -20,7 +22,16 @@ interface BrandSplashProps {
 // showing what it was given.
 export function BrandSplash({ farmName, bannerContentHash, onDismiss }: BrandSplashProps) {
   const { t } = useTranslation("splash");
-  const { url, failed } = useBannerObjectUrl(bannerContentHash);
+  // #833 — captured BEFORE the hook's own fetch starts (this render), not
+  // inside the callback below (which would run once the fetch already
+  // resolved, making cacheBannerBytes' own staleness check a no-op against
+  // itself). Re-memoized only when the hash changes, matching the hook's own
+  // fetch-per-hash lifecycle.
+  const boundAt = useMemo(() => farmBindingToken(), [bannerContentHash]);
+  const { url, failed } = useBannerObjectUrl(
+    bannerContentHash,
+    (blob) => void cacheBannerBytes(blob, boundAt),
+  );
   const continueRef = useRef<HTMLButtonElement>(null);
 
   // The only focusable control, so a full focus trap is unnecessary — nothing

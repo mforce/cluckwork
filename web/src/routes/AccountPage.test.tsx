@@ -27,13 +27,31 @@ const WORKER = { sub: "u1", role: "Worker" };
 
 beforeEach(() => vi.resetAllMocks());
 
+// D&D "Focus panels": Change password is a collapsed Accordion section by
+// default (unmounted while closed, so its own submit button's accessible
+// name — "Change password", identical to the section's summary heading —
+// never collides with the summary until this opens it).
+function expandChangePassword() {
+  const summary = screen.getByRole("button", { name: "Change password" });
+  if (summary.getAttribute("aria-expanded") !== "true") fireEvent.click(summary);
+}
+
 function fill(current: string, next: string, confirm: string) {
+  expandChangePassword();
   fireEvent.change(screen.getByLabelText(/Current password/), { target: { value: current } });
   fireEvent.change(screen.getByLabelText(/New password/), { target: { value: next } });
   fireEvent.change(screen.getByLabelText(/Confirm new password/), { target: { value: confirm } });
 }
 
-const submit = () => fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+const submit = () => {
+  const buttons = screen.getAllByRole("button", { name: "Change password" });
+  // The summary (aria-expanded) and the submit button (type="submit") share
+  // an accessible name once the section is open; the submit button is the
+  // one WITHOUT aria-expanded.
+  const submitButton = buttons.find((b) => !b.hasAttribute("aria-expanded"));
+  if (!submitButton) throw new Error("Change password submit button not found — is the section expanded?");
+  fireEvent.click(submitButton);
+};
 
 describe("AccountPage (#165 self-service password change)", () => {
   it("changes the password and reports the other devices were signed out", async () => {
@@ -173,6 +191,7 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("reads the change-password hint prose from the catalog, not a hardcoded literal", async () => {
     await withOverride("changePasswordHint", "CHANGE-PW-HINT-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       expect(screen.getByText("CHANGE-PW-HINT-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/signs you out everywhere else/)).not.toBeInTheDocument();
     });
@@ -181,6 +200,7 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("reads the current-password label from the catalog, not a hardcoded literal", async () => {
     await withOverride("currentPasswordLabel", "CURRENT-PW-MARKER *", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       expect(screen.getByLabelText(/CURRENT-PW-MARKER/)).toBeInTheDocument();
       expect(screen.queryByLabelText(/^Current password/)).not.toBeInTheDocument();
     });
@@ -189,10 +209,13 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("interpolates {{min}} into the new-password label from the catalog", async () => {
     await withOverride("newPasswordLabel", "NEW-PW-MARKER {{min}} MARKER-END", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       // MIN_LENGTH is 12 (AccountPage.tsx) — asserting the exact number, not
       // just that A number appears, is what would catch a mutation that
       // dropped the interpolation and always rendered a literal "12".
-      expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END")).toBeInTheDocument();
+      // MUI's required indicator appends its own trailing " *" to the label
+      // text (repo convention, e.g. GradesPage.test.tsx's "Name *").
+      expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END *")).toBeInTheDocument();
       expect(screen.queryByLabelText(/^New password/)).not.toBeInTheDocument();
     });
   });
@@ -200,6 +223,7 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("reads the confirm-password label from the catalog, not a hardcoded literal", async () => {
     await withOverride("confirmPasswordLabel", "CONFIRM-PW-MARKER *", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       expect(screen.getByLabelText(/CONFIRM-PW-MARKER/)).toBeInTheDocument();
       expect(screen.queryByLabelText(/^Confirm new password/)).not.toBeInTheDocument();
     });
@@ -208,8 +232,15 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("reads the submit button label from the catalog, not a hardcoded literal", async () => {
     await withOverride("changePasswordButton", "SUBMIT-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       expect(screen.getByRole("button", { name: "SUBMIT-MARKER" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Change password" })).not.toBeInTheDocument();
+      // Exactly one button still reads "Change password" once expanded — the
+      // section's own summary (a separate catalog key, changePasswordHeading,
+      // not overridden here). Its aria-expanded attribute is what proves it
+      // is the summary and not a stray un-overridden submit button.
+      const remaining = screen.getAllByRole("button", { name: "Change password" });
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]).toHaveAttribute("aria-expanded", "true");
     });
   });
 
