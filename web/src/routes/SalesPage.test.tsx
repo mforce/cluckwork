@@ -1344,9 +1344,9 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     const cell = within(row).getAllByRole("cell")[4];
     // The em dash means "sold at list". This order was not fully measured, so
     // the cell must carry the note instead.
+    expect(cell).toHaveAccessibleName("—");
     expect(cell).toHaveAccessibleDescription("part of this order has no list price");
     expect(cell).toHaveAttribute("title", "part of this order has no list price");
-    expect(within(cell).getByText("—", { exact: true })).toBeInTheDocument();
   });
 
   // The BELOW-list partial branch: a discounted order that also carries an
@@ -1415,6 +1415,7 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
     expect(cell).toHaveTextContent("$9.00");
     // `discount-note` is the wrap class: this note sits inside td.num, which
     // #650 pins to white-space: nowrap.
+    expect(cell).toHaveAccessibleName("$9.00");
     expect(cell).toHaveAccessibleDescription("part of this order is paid");
     expect(cell).toHaveAttribute("title", "part of this order is paid");
     expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
@@ -3301,14 +3302,14 @@ describe("SalesPage panel liveness (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close") });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => {
       resolveWrite();
       resolveRead({ ...DRAFT_TWO, items: [ITEM_B] });
     });
     expect(mockGetOrder).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "open" })).toBeEnabled();
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   });
 });
 
@@ -3329,7 +3330,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   };
   const openButton = () => screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true });
 
@@ -3386,7 +3387,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
       expect(openButton()).toBeDisabled();
       await act(async () => { read.resolve({ ...order, status: action === "confirm" ? "Confirmed" : action === "void" ? "Voided" : "Draft" }); });
       expect(openButton()).toBeEnabled();
-      expect(screen.queryByRole("region")).toBeNull();
+      expect(screen.queryByRole("region", { hidden: true })).toBeNull();
       if (action === "confirm" || action === "void") {
         expect(screen.queryByText(i18n.t(action === "confirm" ? "sales:orderConfirmed" : "sales:orderVoided", { ref: order.referenceNumber }))).not.toBeInTheDocument();
         expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
@@ -3405,7 +3406,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     closePanel();
     await act(async () => { write.resolve(); });
     expect(openButton()).toBeEnabled();
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.queryByText(i18n.t("sales:draftOrderCancelled"))).not.toBeInTheDocument();
     expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
   });
@@ -3416,7 +3417,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     const listCalls = mockListOrders.mock.calls.length;
     await submit("cancel");
     expect(vi.mocked(cancelOrder)).toHaveBeenCalledWith(DRAFT_TWO.id, expect.any(String));
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText(i18n.t("sales:draftOrderCancelled"))).toBeInTheDocument();
     expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
   });
@@ -3464,7 +3465,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     await act(async () => { write.resolve({ orderId: DRAFT_TWO.id, itemId: ITEM_A.id }); });
     expect(mockGetOrder).toHaveBeenCalledTimes(2);
     expect(mockGetOrder).toHaveBeenLastCalledWith(DRAFT_TWO.id);
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(openButton()).toBeEnabled();
     // The fixture deliberately remains a draft, allowing the identical add
     // request after reopening without simulating backend line merging.
@@ -3548,14 +3549,14 @@ describe("SalesPage payment panel contracts (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeDisabled();
     await act(async () => { resolveWrite(undefined as never); });
     expect(mockListOrderPayments).toHaveBeenCalledTimes(2);
     expect(mockListOrderPayments).toHaveBeenLastCalledWith(order.id);
     await act(async () => { resolveRead({ ...ledger, items: [{ ...ledger.items[0], referenceNumber: "late receipt", voided: true }] }); });
     expect(screen.getByText(i18n.t("sales:paymentVoided"))).toBeInTheDocument();
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.queryByText("late receipt")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeEnabled();
     // DOM absence cannot observe a hidden setPayments overwrite: reopening
@@ -3576,9 +3577,9 @@ it.each([false, true])("discards the line editor on Close before same-order relo
   fireEvent.click(within(row).getByRole("button", { name: "edit" }));
   if (pending) await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "save" })); });
   fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
-  expect(screen.queryByRole("region")).toBeNull();
+  expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   if (pending) await act(async () => { settle(); });
-  expect(screen.queryByRole("region")).toBeNull();
+  expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   // Another writer changed the line while this panel was closed. A fresh Open
   // must show that fetched row, not the dismissed editor's old quantity/price.
   mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, items: [{ ...ITEM_A, quantity: 9, quantityBase: 108, unitPriceMinorUnits: 400 }, ITEM_B] });
@@ -3607,7 +3608,7 @@ describe.each(["Draft", "Confirmed"] as const)("Sales Open dismissal (#712), %s 
       });
     };
     await openRow(original);
-    expect(screen.queryByRole("region")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
 
     let resolveRead!: (order: SalesOrder) => void;
     mockGetOrder.mockReturnValueOnce(new Promise<SalesOrder>((resolve) => { resolveRead = resolve; }));
@@ -3617,13 +3618,13 @@ describe.each(["Draft", "Confirmed"] as const)("Sales Open dismissal (#712), %s 
     expect(within(screen.getByRole("row", { name: new RegExp(target.referenceNumber) }))
       .getByRole("button", { name: i18n.t("sales:open") })).toBeDisabled();
     fireEvent.click(close);
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => { resolveRead(target); });
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
 
     mockGetOrder.mockResolvedValue(target);
     await openRow(target);
-    expect(screen.queryByRole("region")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
     expect(within(screen.getByRole("region"))
       .getByText(new RegExp(target.referenceNumber))).toBeInTheDocument();
   });
@@ -3634,9 +3635,9 @@ describe("Sales primary Open controls (#712)", () => {
     mockListOrders.mockResolvedValue([DRAFT_TWO]);
     mockGetOrder.mockResolvedValue(DRAFT_TWO);
     await renderReady();
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(screen.queryByRole("region")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
   });
 
   it("shows an Open failure and allows retry", async () => {
@@ -3644,10 +3645,10 @@ describe("Sales primary Open controls (#712)", () => {
     mockGetOrder.mockRejectedValueOnce(new Error("Order read failed")).mockResolvedValue(DRAFT_TWO);
     await renderReady();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText("Order read failed")).toBeInTheDocument();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(screen.queryByRole("region")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
     expect(screen.queryByText("Order read failed")).not.toBeInTheDocument();
   });
 
@@ -3658,7 +3659,7 @@ describe("Sales primary Open controls (#712)", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
     fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
     await act(async () => { rejectRead(new Error("Dismissed order read failed")); });
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText("Dismissed order read failed")).toBeInTheDocument();
   });
 });
