@@ -1354,6 +1354,93 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
       expect(screen.queryByText(/Someone else changed these settings/i)).not.toBeInTheDocument();
     });
   });
+
+  // #833 redesign — Concept C shell chrome added around the pre-existing form.
+  it("reads the eyebrow from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "eyebrow", "EYEBROW-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByText("EYEBROW-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Farm configuration")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the Identity & images accordion heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "identityImagesHeading", "IDENTITY-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByRole("button", { name: "IDENTITY-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Identity & images" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the save-scope note from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "saveScopeNote", "SCOPE-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByText("SCOPE-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Image actions are separate from Save settings.")).not.toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Expandable sections (#833 redesign, Concept C "Focus panels")
+// ---------------------------------------------------------------------------
+
+describe("SettingsPage — expandable sections (#833 Concept C)", () => {
+  // Both sections open by default (unlike Account's Preferences/Change-password
+  // split): nothing here is a security action to tuck away, and every field a
+  // test above reaches lives in one or the other, always visible from a fresh
+  // render — this it.each is what makes that assumption an assertion rather
+  // than a hope.
+  it("the Identity & images section starts expanded, with its own content reachable", async () => {
+    await renderReady();
+    expect(screen.getByRole("button", { name: "Identity & images" }))
+      .toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Farm palette")).toBeInTheDocument();
+  });
+
+  it("the Localization section starts expanded, with its own content reachable", async () => {
+    await renderReady();
+    expect(screen.getByRole("button", { name: "Localization" }))
+      .toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Farm name *")).toBeInTheDocument();
+  });
+
+  it("collapses and re-expands the Identity & images section on click", async () => {
+    await renderReady();
+    const summary = screen.getByRole("button", { name: "Identity & images" });
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("collapses and re-expands the Localization section independently of Identity & images", async () => {
+    await renderReady();
+    const identitySummary = screen.getByRole("button", { name: "Identity & images" });
+    const localizationSummary = screen.getByRole("button", { name: "Localization" });
+
+    fireEvent.click(localizationSummary);
+    expect(localizationSummary).toHaveAttribute("aria-expanded", "false");
+    expect(identitySummary).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(localizationSummary);
+    expect(localizationSummary).toHaveAttribute("aria-expanded", "true");
+  });
+
+  // Logo/Banner stay their own immediate actions even now that they sit
+  // inside the same <form> as Save (#833 redesign moved them in visually) —
+  // clicking Remove must never submit the settings form.
+  it("does not submit the settings form when Remove (logo) is clicked", async () => {
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    // The confirm dialog opened instead — the destructive click's only effect.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
 });
 
 describe("formatByteCap", () => {

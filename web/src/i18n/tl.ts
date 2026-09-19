@@ -1239,11 +1239,14 @@ export const tl = {
   // common use in PH tech UIs for these; same treatment as sales.reference
   // above.
   settings: {
+    eyebrow: "Konpigurasyon ng bukid",
     heading: "Mga setting ng bukid",
     intro:
       "Kung paano tinatawag ng bukid na ito ang sarili nito, at ang locale, "
       + "time zone, at currency na ginagamit nito sa pagtala at pagbasa ng trabaho.",
     loadFailedMessage: "Hindi na-load ang mga setting ng bukid.",
+
+    identityImagesHeading: "Pagkakakilanlan at mga larawan",
 
     // Logo panel
     logoSectionHeading: "Logo",
@@ -1358,6 +1361,7 @@ export const tl = {
       + "sa format ay naitala laban sa bukid at magtatakda kung paano "
       + "ipapakita ang mga halaga, petsa, at sukat kapag dumating na ang "
       + "format na iyon.",
+    saveScopeNote: "Hiwalay ang mga aksyon sa larawan mula sa I-save ang mga setting.",
     savedMessage: "Na-save ang mga setting.",
 
     // Imperative messages

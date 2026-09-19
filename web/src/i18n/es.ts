@@ -1189,11 +1189,14 @@ export const es = {
   // {{cap}}/{{actualKb}}/{{limitKb}}/{{code}} placeholders and the <strong>
   // tag in logoSquareHint.
   settings: {
+    eyebrow: "Configuración de la granja",
     heading: "Configuración de la granja",
     intro:
       "Cómo se llama esta granja, y la configuración regional, la zona "
       + "horaria y la moneda en que registra y lee su trabajo.",
     loadFailedMessage: "No se pudo cargar la configuración de la granja.",
+
+    identityImagesHeading: "Identidad e imágenes",
 
     // Logo panel
     logoSectionHeading: "Logotipo",
@@ -1304,6 +1307,7 @@ export const es = {
       + "personalizados se registran contra la granja y determinarán cómo "
       + "se muestran los montos, las fechas y las medidas una vez que ese "
       + "formato esté disponible.",
+    saveScopeNote: "Las acciones sobre las imágenes son independientes de Guardar configuración.",
     savedMessage: "Configuración guardada.",
 
     // Imperative messages

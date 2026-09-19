@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Trash2, Upload } from "lucide-react";
-import { Alert, Box, Stack, TextField, Typography } from "@mui/material";
+import { ChevronDown, Trash2, Upload } from "lucide-react";
+import {
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Paper, Stack, TextField, Typography,
+} from "@mui/material";
 import {
   BANNER_ACCEPT, LOGO_ACCEPT, getFarmSettings, listEggUnitConversions, removeFarmBanner,
   removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
@@ -597,103 +599,178 @@ export function SettingsPage() {
 
   return (
     <section>
+      <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
+        {t("eyebrow")}
+      </Typography>
       <Typography variant="h2">{t("heading")}</Typography>
       <Typography variant="body2" color="text.secondary">
         {t("intro")}
       </Typography>
 
-      <Typography variant="h3" sx={{ mt: 3 }}>{t("logoSectionHeading")}</Typography>
-      <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
-        {logo.url !== null ? (
-          <Box component="img" src={logo.url} alt={t("logoAlt")} sx={previewImgSx} />
-        ) : (
-          // Three different reasons there is no image on screen, and only one
-          // of them is "no logo set" — saying that while a Remove button sits
-          // beside it is a contradiction the reader cannot resolve.
-          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
-            {logo.loading ? t("logoLoadingMessage")
-              : logo.failed ? t("logoLoadFailedMessage")
-                : t("logoNoneMessage")}
-          </Typography>
-        )}
-        <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap" }}>
-          {/* A real labelled file input rather than a button driving a hidden
-              one: the picker is the control, and wrapping it in its own label
-              keeps it reachable by keyboard and by name. */}
-          {/* Carve-out (#236): a labelled file input is not a button, so it
-              cannot be a BusyButton — it keeps the plain disable and the
-              existing logo status region below carries the announcement. */}
-          <Box component="label" sx={fileButtonSx}>
-            <Upload size={16} aria-hidden /> {hasLogo ? t("replaceLogoButton") : t("uploadLogoButton")}
-            <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={busy}
-              aria-describedby={logoRulesId}
-              onChange={(e) => void onPickLogo(e)} />
-          </Box>
-          {hasLogo && (
-            <BusyButton type="button" className="btn-danger" disabled={busy}
-              busy={isPending("logo:remove")}
-              onClick={() => void onRemoveLogo()}>
-              <Trash2 size={16} aria-hidden /> {t("removeLogoButton")}
-            </BusyButton>
-          )}
-        </Stack>
-      </Stack>
-      <Typography variant="body2" color="text.secondary" id={logoRulesId}>
-        {t("logoRulesHint", { cap: formatByteCap(maxUploadBytes) })}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        <Trans ns="settings" i18nKey="logoSquareHint" components={{ strong: <strong /> }} />
-      </Typography>
-      {/* The upload is silent otherwise — a file input cannot be a BusyButton,
-          so this region carries its "Working…". The removal is deliberately
-          NOT announced here: the Remove BusyButton's own live region already
-          says it, and both speaking would double the announcement (#242).
-          Results (logoMessage) still land here for both writes. Always
-          mounted, empty or not: a live region inserted at the same moment as
-          its text is not reliably announced. */}
-      <Typography id="logo-status" variant="body2" role="status" color="success.main">
-        {isPending("logo:upload") ? t("logoWorkingMessage") : logoMessage ?? ""}
-      </Typography>
-      {logoError !== null && <Alert severity="error">{logoError}</Alert>}
+      {/* Concept C "Focus panels" (#833 redesign): expandable sections. Both
+          default open — unlike Account's Preferences/Change-password split,
+          nothing here is a security action to tuck away, and Localization's
+          fields are exactly what an Owner opens this screen to reach, not a
+          secondary one. Kept open (rather than mirroring the mockup's
+          collapsed Localization) so the existing field-level test suite,
+          written against a flat screen, still finds every control without
+          first expanding a section. The whole page is ONE save: logo/banner
+          stay their own immediate actions (onPickLogo/onRemoveLogo/…, never
+          part of this form's submit) even though they now sit inside the
+          same Accordion/form nesting as the fields Save actually writes. */}
+      <Stack component="form" spacing={2} sx={{ mt: 3 }} onSubmit={(e) => void onSave(e)}>
+        <Accordion defaultExpanded disableGutters>
+          <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+            <Typography variant="h3" component="span">{t("identityImagesHeading")}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2.5}>
+              <Paper variant="outlined" sx={{ flex: 1, borderRadius: "var(--r-panel)", p: 2.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t("logoSectionHeading")}</Typography>
+                <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
+                  {logo.url !== null ? (
+                    <Box component="img" src={logo.url} alt={t("logoAlt")} sx={previewImgSx} />
+                  ) : (
+                    // Three different reasons there is no image on screen, and
+                    // only one of them is "no logo set" — saying that while a
+                    // Remove button sits beside it is a contradiction the
+                    // reader cannot resolve.
+                    <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
+                      {logo.loading ? t("logoLoadingMessage")
+                        : logo.failed ? t("logoLoadFailedMessage")
+                          : t("logoNoneMessage")}
+                    </Typography>
+                  )}
+                </Stack>
+                <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap", mb: 1.5 }}>
+                  {/* A real labelled file input rather than a button driving a
+                      hidden one: the picker is the control, and wrapping it in
+                      its own label keeps it reachable by keyboard and by name. */}
+                  {/* Carve-out (#236): a labelled file input is not a button,
+                      so it cannot be a BusyButton — it keeps the plain disable
+                      and the existing logo status region below carries the
+                      announcement. */}
+                  <Box component="label" sx={fileButtonSx}>
+                    <Upload size={16} aria-hidden /> {hasLogo ? t("replaceLogoButton") : t("uploadLogoButton")}
+                    <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={busy}
+                      aria-describedby={logoRulesId}
+                      onChange={(e) => void onPickLogo(e)} />
+                  </Box>
+                  {hasLogo && (
+                    <BusyButton type="button" className="btn-danger" disabled={busy}
+                      busy={isPending("logo:remove")}
+                      onClick={() => void onRemoveLogo()}>
+                      <Trash2 size={16} aria-hidden /> {t("removeLogoButton")}
+                    </BusyButton>
+                  )}
+                </Stack>
+                <Typography variant="body2" color="text.secondary" id={logoRulesId}>
+                  {t("logoRulesHint", { cap: formatByteCap(maxUploadBytes) })}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <Trans ns="settings" i18nKey="logoSquareHint" components={{ strong: <strong /> }} />
+                </Typography>
+                {/* The upload is silent otherwise — a file input cannot be a
+                    BusyButton, so this region carries its "Working…". The
+                    removal is deliberately NOT announced here: the Remove
+                    BusyButton's own live region already says it, and both
+                    speaking would double the announcement (#242). Results
+                    (logoMessage) still land here for both writes. Always
+                    mounted, empty or not: a live region inserted at the same
+                    moment as its text is not reliably announced. */}
+                <Typography id="logo-status" variant="body2" role="status" color="success.main">
+                  {isPending("logo:upload") ? t("logoWorkingMessage") : logoMessage ?? ""}
+                </Typography>
+                {logoError !== null && <Alert severity="error">{logoError}</Alert>}
+              </Paper>
 
-      <Typography variant="h3" sx={{ mt: 3 }}>{t("bannerSectionHeading")}</Typography>
-      <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
-        {banner.url !== null ? (
-          <Box component="img" src={banner.url} alt={t("bannerAlt")}
-            sx={{ ...previewImgSx, maxWidth: "100%", width: 360, maxHeight: 160 }} />
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
-            {banner.loading ? t("bannerLoadingMessage")
-              : banner.failed ? t("bannerLoadFailedMessage")
-                : t("bannerNoneMessage")}
-          </Typography>
-        )}
-        <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap" }}>
-          <Box component="label" sx={fileButtonSx}>
-            <Upload size={16} aria-hidden /> {hasBanner ? t("replaceBannerButton") : t("uploadBannerButton")}
-            <input ref={bannerUploadInput} type="file" accept={BANNER_ACCEPT} disabled={busy}
-              aria-describedby={bannerRulesId}
-              onChange={(e) => void onPickBanner(e)} />
-          </Box>
-          {hasBanner && (
-            <BusyButton type="button" className="btn-danger" disabled={busy}
-              busy={isPending("banner:remove")}
-              onClick={() => void onRemoveBanner()}>
-              <Trash2 size={16} aria-hidden /> {t("removeBannerButton")}
-            </BusyButton>
-          )}
-        </Stack>
-      </Stack>
-      <Typography variant="body2" color="text.secondary" id={bannerRulesId}>
-        {t("bannerRulesHint", { cap: formatByteCap(bannerMaxUploadBytes) })}
-      </Typography>
-      <Typography id="banner-status" variant="body2" role="status" color="success.main">
-        {isPending("banner:upload") ? t("bannerWorkingMessage") : bannerMessage ?? ""}
-      </Typography>
-      {bannerError !== null && <Alert severity="error">{bannerError}</Alert>}
+              <Paper variant="outlined" sx={{ flex: 1, borderRadius: "var(--r-panel)", p: 2.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t("bannerSectionHeading")}</Typography>
+                <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
+                  {banner.url !== null ? (
+                    <Box component="img" src={banner.url} alt={t("bannerAlt")}
+                      sx={{ ...previewImgSx, maxWidth: "100%", width: 360, maxHeight: 160 }} />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
+                      {banner.loading ? t("bannerLoadingMessage")
+                        : banner.failed ? t("bannerLoadFailedMessage")
+                          : t("bannerNoneMessage")}
+                    </Typography>
+                  )}
+                </Stack>
+                <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap", mb: 1.5 }}>
+                  <Box component="label" sx={fileButtonSx}>
+                    <Upload size={16} aria-hidden /> {hasBanner ? t("replaceBannerButton") : t("uploadBannerButton")}
+                    <input ref={bannerUploadInput} type="file" accept={BANNER_ACCEPT} disabled={busy}
+                      aria-describedby={bannerRulesId}
+                      onChange={(e) => void onPickBanner(e)} />
+                  </Box>
+                  {hasBanner && (
+                    <BusyButton type="button" className="btn-danger" disabled={busy}
+                      busy={isPending("banner:remove")}
+                      onClick={() => void onRemoveBanner()}>
+                      <Trash2 size={16} aria-hidden /> {t("removeBannerButton")}
+                    </BusyButton>
+                  )}
+                </Stack>
+                <Typography variant="body2" color="text.secondary" id={bannerRulesId}>
+                  {t("bannerRulesHint", { cap: formatByteCap(bannerMaxUploadBytes) })}
+                </Typography>
+                <Typography id="banner-status" variant="body2" role="status" color="success.main">
+                  {isPending("banner:upload") ? t("bannerWorkingMessage") : bannerMessage ?? ""}
+                </Typography>
+                {bannerError !== null && <Alert severity="error">{bannerError}</Alert>}
+              </Paper>
+            </Stack>
 
-      <Typography variant="h3" sx={{ mt: 3 }}>{t("localizationSectionHeading")}</Typography>
-      <Stack component="form" spacing={2} sx={{ maxWidth: "40rem", mt: 1.5 }} onSubmit={(e) => void onSave(e)}>
+            {/* Farm palette picker (#149): a colour swatch has no MUI control
+                of its own (pair 21's reasoning), so the fieldset/legend
+                structure stays and only its styling moves to sx. */}
+            <Box component="fieldset" sx={{
+              border: "1px solid", borderColor: "divider", borderRadius: "var(--r-panel)",
+              padding: "1rem", margin: 0, marginTop: "1.25rem",
+            }}>
+              <Typography component="legend" variant="subtitle2">{t("paletteLegend")}</Typography>
+              <Typography variant="body2" color="text.secondary" id="palette-hint">
+                {t("paletteHint")}
+              </Typography>
+              <Stack direction="row" sx={{ flexWrap: "wrap", gap: "0.75rem", mt: 1 }} aria-describedby="palette-hint">
+                {BRANDS.map((id) => (
+                  <Box component="label" key={id} sx={{
+                    display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem",
+                    border: "1px solid", borderColor: brand === id ? "info.main" : "divider",
+                    borderRadius: "var(--r-pill)", cursor: saving ? "default" : "pointer",
+                    opacity: saving ? 0.6 : 1,
+                    boxShadow: brand === id ? (theme) => `inset 0 0 0 1px ${theme.palette.info.main}` : "none",
+                  }}>
+                    <input
+                      type="radio"
+                      name="brand"
+                      value={id}
+                      checked={brand === id}
+                      onChange={() => setBrand(id)}
+                      disabled={saving}
+                    />
+                    {/* The swatch is decorative: the visible name is what names
+                        the option, so selection never depends on seeing colour. */}
+                    <Box aria-hidden sx={{
+                      width: 18, height: 18, borderRadius: "var(--r-pill)", border: "1px solid",
+                      borderColor: "divider", backgroundColor: PALETTE_SWATCH_COLORS[id],
+                    }} />
+                    <Typography component="span" variant="body2">{t(PALETTE_LABEL_KEYS[id])}</Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion defaultExpanded disableGutters>
+          <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+            <Typography variant="h3" component="span">{t("localizationSectionHeading")}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+      <Stack spacing={2} sx={{ maxWidth: "40rem" }}>
         <TextField label={t("farmNameLabel")} value={name} required
           onChange={(e) => setName(e.target.value)}
           slotProps={{ htmlInput: { maxLength: MAX_NAME } }} />
@@ -802,46 +879,6 @@ export function SettingsPage() {
           {WEEKDAYS.map((d) => <option key={d} value={d}>{weekdayLabel(d)}</option>)}
         </TextField>
 
-        {/* Farm palette picker (#149): a colour swatch has no MUI control of
-            its own (pair 21's reasoning), so the fieldset/legend structure
-            stays and only its styling moves to sx. */}
-        <Box component="fieldset" sx={{
-          border: "1px solid", borderColor: "divider", borderRadius: "var(--r-panel)",
-          padding: "1rem", margin: 0,
-        }}>
-          <Typography component="legend" variant="subtitle2">{t("paletteLegend")}</Typography>
-          <Typography variant="body2" color="text.secondary" id="palette-hint">
-            {t("paletteHint")}
-          </Typography>
-          <Stack direction="row" sx={{ flexWrap: "wrap", gap: "0.75rem", mt: 1 }} aria-describedby="palette-hint">
-            {BRANDS.map((id) => (
-              <Box component="label" key={id} sx={{
-                display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem",
-                border: "1px solid", borderColor: brand === id ? "info.main" : "divider",
-                borderRadius: "var(--r-pill)", cursor: saving ? "default" : "pointer",
-                opacity: saving ? 0.6 : 1,
-                boxShadow: brand === id ? (theme) => `inset 0 0 0 1px ${theme.palette.info.main}` : "none",
-              }}>
-                <input
-                  type="radio"
-                  name="brand"
-                  value={id}
-                  checked={brand === id}
-                  onChange={() => setBrand(id)}
-                  disabled={saving}
-                />
-                {/* The swatch is decorative: the visible name is what names the
-                    option, so selection never depends on seeing colour. */}
-                <Box aria-hidden sx={{
-                  width: 18, height: 18, borderRadius: "var(--r-pill)", border: "1px solid",
-                  borderColor: "divider", backgroundColor: PALETTE_SWATCH_COLORS[id],
-                }} />
-                <Typography component="span" variant="body2">{t(PALETTE_LABEL_KEYS[id])}</Typography>
-              </Box>
-            ))}
-          </Stack>
-        </Box>
-
         <TextField select label={t("dateFormatLabel")}
           value={dateFormatCustom ? CUSTOM_FORMAT_OPTION : dateFormat}
           onChange={(e) => {
@@ -879,8 +916,23 @@ export function SettingsPage() {
             onChange={(e) => setTimeFormat(e.target.value)}
             slotProps={{ htmlInput: { maxLength: MAX_FORMAT } }} />
         )}
+      </Stack>
+          </AccordionDetails>
+        </Accordion>
 
-        <div className="actions">
+        {/* What actually acts on a save today. The timezone reaches every date
+            field immediately (#123); the rest are stored on the farm and take
+            effect as the screens that would render through them adopt them (#45
+            carries the display formatting). Saying "everywhere, straight away"
+            would be a promise the app does not keep. */}
+        <Typography variant="body2" color="text.secondary">
+          {t("effectNote")}
+        </Typography>
+
+        <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
+            {t("saveScopeNote")}
+          </Typography>
           {/* Disabled while a logo write is in flight too (`busy` covers every
               scope): the save issues its own GET, and a delayed one landing
               after the logo write would restore the hash the logo write had
@@ -890,25 +942,16 @@ export function SettingsPage() {
           <BusyButton type="submit" busy={saving} disabled={busy || stale}>
             {saving ? t("savingButton") : t("saveButton")}
           </BusyButton>
-        </div>
+        </Stack>
+
+        {saveError !== null && <Alert severity="error">{saveError}</Alert>}
+        {/* Always mounted, like the logo's — a live region inserted at the same
+            moment as its text is not reliably announced, and the logo panel two
+            sections up already says so. */}
+        <Typography id="settings-status" variant="body2" role="status" color="success.main">
+          {saved && saveError === null ? t("savedMessage") : ""}
+        </Typography>
       </Stack>
-
-      {/* What actually acts on a save today. The timezone reaches every date
-          field immediately (#123); the rest are stored on the farm and take
-          effect as the screens that would render through them adopt them (#45
-          carries the display formatting). Saying "everywhere, straight away"
-          would be a promise the app does not keep. */}
-      <Typography variant="body2" color="text.secondary">
-        {t("effectNote")}
-      </Typography>
-
-      {saveError !== null && <Alert severity="error">{saveError}</Alert>}
-      {/* Always mounted, like the logo's — a live region inserted at the same
-          moment as its text is not reliably announced, and the logo panel two
-          sections up already says so. */}
-      <Typography id="settings-status" variant="body2" role="status" color="success.main">
-        {saved && saveError === null ? t("savedMessage") : ""}
-      </Typography>
 
       {confirmDialog}
     </section>
