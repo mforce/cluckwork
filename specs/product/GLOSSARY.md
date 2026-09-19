@@ -976,14 +976,29 @@ splash is skipped entirely when no banner is set — it is never shown empty.
 The pre-login screen itself has no farm to fetch a banner for — `/account/banner`
 stays authenticated, and signing in is exactly what has not happened yet — but it
 can still show one (#833): the device caches the banner's bytes locally the moment
-the post-login splash fetches them, storing them the same way the cached **farm
-palette** (below) already stores its colour. On a later visit, Login reads that
-cache and shows the image before any credentials are entered, but only when the
-device *remembers* exactly one farm from a prior sign-in — with two or more
-remembered farm codes it is ambiguous which banner belongs on screen, so neither
-shows and Login falls back to plain Cluckwork branding. Forgetting a remembered
-farm clears its cached banner alongside its cached palette; a first-time visit on
-a device with no prior sign-in shows no banner either, for the same reason.
+the post-login splash fetches them. Not the same mechanism the cached **farm
+palette** (below) uses: a colour is a few bytes of text and fits localStorage, but
+production's Content-Security-Policy allows images only from this origin or a
+`blob:` URL, never a `data:` one — so the banner's actual bytes live in IndexedDB
+and are shown through a `blob:` object URL, the same mechanism the authenticated
+logo/banner fetch already uses once signed in.
+
+On a later visit, Login shows the cached image only when the farm-code field's
+CURRENT value — typed, prefilled from a link, or picked from the remembered-farm
+list — names the farm that cache entry belongs to; typing or picking a different
+code hides it immediately, without waiting for the form to be submitted. A field
+naming no cached farm at all (nothing typed yet, or a farm never signed in on
+this device) shows plain Cluckwork branding instead. Forgetting a remembered farm
+clears its cached banner alongside its cached palette.
+
+Each cache entry also remembers WHICH account wrote it, not just the farm code:
+a **farm code** can be reassigned to a different farm after a rename (#732 — see
+above), so the code alone cannot tell "still the same farm" from "a different
+farm now using this farm's old code". The moment a sign-in proves which account a
+code belongs to today, a mismatched cache entry is cleared. Until that sign-in
+happens, a device that already held one farm's banner may show it briefly under a
+code since reassigned to a different farm — a stale attribution to a device that
+already had those bytes, not a new disclosure to a device that never held them.
 
 Deliberately narrower than the palette's own pre-login reach: the palette also
 shows for a farm a `?farm=<code>` link merely *names*, even on a device that has

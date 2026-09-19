@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { BrandSplash } from "./BrandSplash";
 import { getFarmBanner } from "../api/cluckwork";
 import { bindAccount, bindFarm } from "../auth/tokenStore";
-import { readCachedBanner } from "../lib/bannerCache";
+import { readCachedBannerBlob } from "../lib/bannerCache";
 
 vi.mock("../api/cluckwork", async () => {
   const actual = await vi.importActual<typeof import("../api/cluckwork")>("../api/cluckwork");
@@ -76,16 +76,16 @@ describe("BrandSplash", () => {
     render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
 
     await screen.findByAltText("Hen House banner");
-    await waitFor(() => expect(readCachedBanner(["sunny-acres"])).not.toBeNull());
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull());
   });
 
-  it("does not cache anything while the fetch is still pending", () => {
+  it("does not cache anything while the fetch is still pending", async () => {
     bindAccount("acct-A");
     bindFarm("sunny-acres");
     mockGetFarmBanner.mockReturnValue(new Promise(() => {}));
     render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
 
-    expect(readCachedBanner(["sunny-acres"])).toBeNull();
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
   });
 
   it("caches nothing on an unbound tab (a fresh tab restored from the refresh cookie)", async () => {
@@ -95,6 +95,6 @@ describe("BrandSplash", () => {
     render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
 
     await screen.findByAltText("Hen House banner");
-    expect(readCachedBanner(["sunny-acres"])).toBeNull();
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
@@ -172,6 +172,17 @@ function AuditDetails({ event }: { event: AuditEvent }) {
 export function AuditPage() {
   const { t } = useTranslation("audit");
   const { t: tc } = useTranslation("common");
+  // #833 finding 6 — the expanded Details cell has no column header of its
+  // own (the head row only ever declares four columns; Details is a fifth
+  // that only exists once a row expands), so it announces to assistive tech
+  // as unlabeled content. A visually hidden header cell, referenced BOTH
+  // ways — `headers`/`id` for a screen reader's native table-navigation
+  // announcements, `aria-labelledby` for the cell's own computed accessible
+  // name (what `getByRole(..., {name})` checks; `headers` alone is invisible
+  // to the ARIA accname algorithm) — gives it a name without adding visible
+  // text that would corrupt the exact-string price-summary assertions
+  // (#758) reading this cell's own textContent.
+  const detailsColumnHeaderId = useId();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawActionFilter = searchParams.get("action") ?? "";
@@ -536,6 +547,13 @@ export function AuditPage() {
                   <TableCell>{t("whenHeader")}</TableCell>
                   <TableCell>{t("whoHeader")}</TableCell>
                   <TableCell>{t("actionHeader")}</TableCell>
+                  {/* Visually hidden: this column has no visible header (it
+                      only appears once a row expands), but still needs a
+                      real id for the Details cell's `headers` attribute to
+                      point at. */}
+                  <TableCell id={detailsColumnHeaderId} className="sr-only">
+                    {t("detailsHeader")}
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -574,8 +592,10 @@ export function AuditPage() {
                               textContent (#758's price-summary cases), and a
                               prefix label would corrupt every one of those
                               exact-string comparisons. The row's own "Details"
-                              toggle button already names what this reveals. */}
-                          <TableCell>
+                              toggle button already names what this reveals;
+                              `headers` below gives the cell itself a real
+                              accessible name without adding visible text. */}
+                          <TableCell headers={detailsColumnHeaderId} aria-labelledby={detailsColumnHeaderId}>
                             <AuditDetails event={e} />
                           </TableCell>
                         </>

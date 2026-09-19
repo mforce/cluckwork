@@ -6,6 +6,8 @@ import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { login as apiLogin, ApiError, setOnUnauthenticated } from "../api/client";
 import { setStoredToken } from "../test/jwt";
+import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount } from "../auth/tokenStore";
+import { cacheBannerBytes } from "../lib/bannerCache";
 import i18n from "../i18n";
 
 // Keep the real ApiError (Login branches on `instanceof ApiError`) but stub the
@@ -663,8 +665,19 @@ describe("Login — forgetting a remembered farm", () => {
 
 // #833 — owner decision, 2026-09-19: the shell shows the device's CACHED
 // banner from a prior sign-in, never a live fetch (/account/banner stays
-// authenticated). Three paths: first visit (nothing cached), cached (exactly
-// one remembered farm with a cached banner), and after forgetting that farm.
+// authenticated). Three paths: first visit (nothing cached), cached (the
+// farm-code field's value matches a cached entry), and after forgetting
+// that farm. Cached via the real cacheBannerBytes (IndexedDB), never by
+// poking localStorage directly — that stopped being the storage mechanism
+// at all (finding 1: production's CSP is `img-src 'self' blob:`, so the
+// cached image must render from a blob: object URL, never a data: URL).
+async function cacheBannerFor(slug: string, bytes = "AAAA") {
+  bindAccount("acct-A");
+  bindFarm(slug);
+  await cacheBannerBytes(new Blob([bytes], { type: "image/png" }), farmBindingToken());
+  clearBoundAccount(); // Login itself starts unbound, before any sign-in
+}
+
 describe("Login — cached pre-auth banner (#833)", () => {
   it("first visit: shows no banner image when nothing is cached", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
@@ -674,40 +687,77 @@ describe("Login — cached pre-auth banner (#833)", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
-  it("cached: shows the cached banner for the one remembered farm", async () => {
+  it("cached: shows the cached banner for the remembered farm, from a blob: URL, never data:", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
-    localStorage.setItem("cluckwork.banner:farm-a", "data:image/png;base64,AAAA");
+    await cacheBannerFor("farm-a");
     renderWithProviders(tree(), { route: "/login", token: null });
     await screen.findByRole("button", { name: "Sign in" });
 
     // Decorative (the shell panel already names the app) — alt="" is the
     // deliberate accessible-name choice, asserted directly rather than by role.
-    const img = document.querySelector("img[alt='']") as HTMLImageElement | null;
-    expect(img).not.toBeNull();
-    expect(img!.src).toBe("data:image/png;base64,AAAA");
+    const img = await waitFor(() => {
+      const found = document.querySelector("img[alt='']") as HTMLImageElement | null;
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    // #833 finding 1 — production's CSP is `img-src 'self' blob:`; a
+    // `data:` src here would paint fine in this CSP-less jsdom test and
+    // still be refused in production. This is the test Codex's review asked
+    // for: the rendered src must start with blob: and never data:.
+    expect(img.src).toMatch(/^blob:/);
+    expect(img.src).not.toMatch(/^data:/);
   });
 
-  it("does not show a cached banner when two or more farms are remembered — which one is ambiguous", async () => {
+  it("does not show a cached banner when the field holds a DIFFERENT code (two remembered farms — no single prefill)", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
-    localStorage.setItem("cluckwork.banner:farm-a", "data:image/png;base64,AAAA");
+    await cacheBannerFor("farm-a");
     renderWithProviders(tree(), { route: "/login", token: null });
     await screen.findByRole("button", { name: "Sign in" });
 
     expect(document.querySelector("img[alt='']")).toBeNull();
   });
 
-  it("forget: the banner disappears once its farm is forgotten", async () => {
-    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
-    localStorage.setItem("cluckwork.banner:farm-a", "data:image/png;base64,AAAA");
+  // #833 finding 2 — the banner follows the FIELD's current value, not just
+  // "how many farms are remembered": picking farm-a from the roster must
+  // show its banner even though the field started on neither.
+  it("shows the banner once its farm is picked from the roster, with two farms remembered", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    await cacheBannerFor("farm-a");
     renderWithProviders(tree(), { route: "/login", token: null });
     await screen.findByRole("button", { name: "Sign in" });
-    expect(document.querySelector("img[alt='']")).not.toBeNull();
+    expect(document.querySelector("img[alt='']")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "farm-a" }));
+
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
+  });
+
+  // #833 finding 2 — typing OVER a prefilled single remembered code must
+  // hide that farm's banner the moment the field no longer names it; it
+  // must not persist until submission.
+  it("hides the banner once the field is typed away from the cached farm", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    await cacheBannerFor("farm-a");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
+
+    fireEvent.change(screen.getByLabelText(/Farm code/), { target: { value: "farm-b" } });
+
+    await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
+  });
+
+  it("forget: the banner disappears once its farm is forgotten", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    await cacheBannerFor("farm-a");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
 
     fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
     fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
-    expect(document.querySelector("img[alt='']")).toBeNull();
-    expect(localStorage.getItem("cluckwork.banner:farm-a")).toBeNull();
+    await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
   });
 });

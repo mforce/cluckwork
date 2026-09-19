@@ -517,6 +517,19 @@ describe("AuditPage — expandable rows (#833 Concept C)", () => {
 
     expect(mockListAuditEvents).not.toHaveBeenCalled();
   });
+
+  // #833 finding 6 — the head row only ever declares four columns; Details
+  // is a fifth that only exists once a row expands, so it has no natural
+  // column header. A hidden header cell plus aria-labelledby gives it a
+  // real accessible name rather than announcing as unlabeled content.
+  it("names the expanded Details cell 'Details' via its accessible name", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit();
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expandRow(row);
+
+    expect(within(row).getByRole("cell", { name: "Details" })).toBeInTheDocument();
+  });
 });
 
 describe("AuditPage filter", () => {

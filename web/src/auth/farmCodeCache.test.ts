@@ -6,6 +6,8 @@ import {
   rememberFarmCode,
   removeFarmCode,
 } from "./farmCodeCache";
+import { bindAccount, bindFarm, farmBindingToken } from "./tokenStore";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 
 const KEY = "cluckwork.farmCodes";
 
@@ -479,12 +481,18 @@ describe("farmCodeCache", () => {
   // the palette's own #586 lifecycle exactly, so it gets the same test.
   it("forgetting a farm removes its cached banner too (#833)", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
-    localStorage.setItem("cluckwork.banner:farm-a", "data:image/png;base64,AAA");
-    localStorage.setItem("cluckwork.banner:farm-b", "data:image/png;base64,BBB");
+    bindAccount("acct-A");
+    bindFarm("farm-a");
+    await cacheBannerBytes(new Blob(["AAA"]), farmBindingToken());
+    bindFarm("farm-b");
+    await cacheBannerBytes(new Blob(["BBB"]), farmBindingToken());
 
     await removeFarmCode("farm-b");
 
-    expect(localStorage.getItem("cluckwork.banner:farm-b")).toBeNull();
-    expect(localStorage.getItem("cluckwork.banner:farm-a")).toBe("data:image/png;base64,AAA");
+    // forgetBannerFor's IndexedDB delete is fire-and-forget under
+    // removeFarmCode, so this settles asynchronously rather than by the time
+    // removeFarmCode's own promise resolves.
+    await vi.waitFor(async () => expect(await readCachedBannerBlob("farm-b")).toBeNull());
+    expect(await readCachedBannerBlob("farm-a")).not.toBeNull();
   });
 });

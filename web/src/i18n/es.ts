@@ -3150,9 +3150,9 @@ export const es = {
       + "PNG/JPEG/WebP, su propio límite de tamaño más grande (5 MB por defecto), se sube desde "
       + "Configuración de la granja. El dispositivo que la muestra guarda la imagen en caché después de esa "
       + "pantalla de bienvenida, así que en una visita posterior también puede aparecer en la pantalla de "
-      + "inicio de sesión antes de iniciar sesión — pero solo cuando el dispositivo recuerda exactamente "
-      + "una granja por haber iniciado sesión allí antes; un enlace que solo nombra un código de granja "
-      + "nunca muestra su banner.",
+      + "inicio de sesión antes de ingresar una contraseña — pero solo mientras el campo de código de granja "
+      + "nombre esa misma granja; escribir o elegir un código distinto lo oculta de inmediato, y un enlace "
+      + "que solo nombra un código de granja nunca muestra su banner.",
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:
