@@ -1887,8 +1887,8 @@ export function SalesPage() {
                                 })}
                           </Box>
                         ) : <span>{atList ? t("atListShort") : "—"}</span>}
-                        {discountDescription && <span id={`${rowId}-discount`} className="sr-only">{discountDescription}</span>}
-                        {reason && <span id={`${rowId}-reason`} className="sr-only" data-testid="row-discount-reason">{reason}</span>}
+                        {discountDescription && <span id={`${rowId}-discount`} className="sr-only" aria-hidden="true">{discountDescription}</span>}
+                        {reason && <span id={`${rowId}-reason`} className="sr-only" aria-hidden="true" data-testid="row-discount-reason">{reason}</span>}
                       </TableCell>
                       <TableCell align="right" sx={NOWRAP}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>
                       {canSettle && (
@@ -1899,7 +1899,7 @@ export function SalesPage() {
                             : o.outstandingMinorUnits === 0
                               ? <span className="badge badge-ok">{t("settledBadge")}</span>
                               : fmt.money(o.outstandingMinorUnits, o.currencyCode, o.currencyMinorUnit)}
-                          {partlyPaid && <span id={`${rowId}-payment`} className="sr-only">{t("partlyPaidNote")}</span>}
+                          {partlyPaid && <span id={`${rowId}-payment`} className="sr-only" aria-hidden="true">{t("partlyPaidNote")}</span>}
                         </TableCell>
                       )}
                       <ProvenanceCell history={o} official="confirmed" />
