@@ -44,6 +44,12 @@ export const es = {
   },
   auth: {
     title: "Cluckwork",
+    // #833 — machine-drafted, pending native review, same as the rest of
+    // this file's auth strings.
+    shellEyebrow: "Gestión de granjas avícolas",
+    shellTagline: "Registro diario · Existencias · Ventas",
+    loginShellFooter: "El código de granja identifica la granja en la que está iniciando sesión.",
+    setPasswordShellFooter: "Establezca su contraseña antes de entrar a la granja.",
     // machine-drafted (#532) — pending native review.
     farmCode: "Código de granja",
     recentFarms: "Granjas recientes",
