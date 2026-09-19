@@ -102,14 +102,22 @@ describe("WaterPage loading + list", () => {
 
   it("switches entry modes and previews the meter difference without saving", async () => {
     await renderReadyForm(WORKER);
+    const reading = screen.getByRole("complementary", { name: "Reading check" });
+    const announcement = within(reading).getByText("Result").parentElement;
+    expect(announcement).toHaveAttribute("aria-live", "polite");
+    expect(announcement).toHaveAttribute("aria-atomic", "true");
+    expect(announcement).toHaveTextContent("Result—");
     fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
     expect(screen.getByRole("button", { name: "Meter readings" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(screen.getByLabelText("Meter start"), { target: { value: "100.5" } });
     fireEvent.change(screen.getByLabelText("Meter end"), { target: { value: "175.25" } });
-    expect(within(screen.getByRole("complementary", { name: "Reading check" })).getByText("74.75 L")).toBeInTheDocument();
+    expect(announcement).toHaveTextContent("Result74.75 L");
+    expect(within(reading).getByText("Result").parentElement).toBe(announcement);
     fireEvent.click(screen.getByRole("button", { name: "Direct amount" }));
     expect(screen.queryByLabelText("Meter start")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Quantity (L)")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Quantity (L)"), { target: { value: "12.5" } });
+    expect(announcement).toHaveTextContent("Result12.5 L");
+    expect(within(reading).getByText("Result").parentElement).toBe(announcement);
     expect(mockRecordWaterUsage).not.toHaveBeenCalled();
   });
 
