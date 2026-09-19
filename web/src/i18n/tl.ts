@@ -1639,6 +1639,8 @@ export const tl = {
   // (statusVoided/statusAdjusted/statusLocked/statusSubmitted/statusDraft)
   // reuse the same words already chosen for enums.status.* for consistency.
   history: {
+    reconciliation: "Pagtutugma",
+    reconciliationLine: "{{total}} nakolekta − {{cracked}} basag − {{dirty}} marumi − {{discarded}} itinapon = {{sellable}} naibebenta {{comparison}} {{graded}} nagrado",
     loadingTitle: "Kasaysayan",
     title: "Kasaysayan ng araw-araw na entry",
 
@@ -2639,6 +2641,7 @@ export const tl = {
       "Data ng pera ang mga gastos, kaya ang buong screen — kasama ang pagtingin — ay para sa admin lang, "
       + "hindi tulad ng mga production screen kung saan nagtatala ang manggagawa.",
 
+    historyReconciliation: "Inihahambing ng Pagtutugma ang mga nakolektang itlog na binawasan ng mga nawala sa naibebenta at nagrado. Ang ≠ ay nangangahulugang hindi pa tugma ang bilang. Hiwalay ang bilang ng namatay.",
     historyHeading: "History",
     historyBrowse:
       "Tumingin sa mga naitalang araw-araw na entry, pinakabago muna, na-filter kada kawan at date range. "

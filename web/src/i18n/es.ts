@@ -1578,6 +1578,8 @@ export const es = {
   // unexternalized screen's name untranslated until dailyEntry itself is
   // added to TRANSLATED_NAMESPACES.
   history: {
+    reconciliation: "Conciliación",
+    reconciliationLine: "{{total}} recolectados − {{cracked}} rotos − {{dirty}} sucios − {{discarded}} descartados = {{sellable}} vendibles {{comparison}} {{graded}} clasificados",
     loadingTitle: "Historial",
     title: "Historial de entradas diarias",
 
@@ -2537,6 +2539,7 @@ export const es = {
       "Los gastos son datos de dinero, así que toda la pantalla — incluida la visualización — es solo "
       + "para administradores, a diferencia de las pantallas de producción donde los trabajadores registran.",
 
+    historyReconciliation: "La línea de Conciliación compara los huevos recolectados menos las pérdidas con los vendibles y clasificados. El signo ≠ indica que las cantidades aún difieren. La mortalidad se cuenta por separado.",
     historyHeading: "Historial",
     historyBrowse:
       "Explore las entradas diarias registradas de más reciente a más antigua, filtradas por lote y rango "
