@@ -47,15 +47,9 @@ const MANIFEST_ACTIONS_SX = {
   minWidth: { xs: 100, md: "auto" },
   "& button": { display: { xs: "block", md: "inline-flex" }, minHeight: { xs: 44, md: "auto" } },
 };
-// #831 — replicates the retired `.form-grid .named-picker` rule: without a
-// fixed flex-basis the picker's closed (button) and open (input) states have
-// different intrinsic widths, which used to shift every sibling field. Only
-// for a picker in a horizontal filter/capture row — a dialog's vertical
-// Stack already stretches every child full width by default.
+// #831: bound picker widths so opening a filter does not move sibling fields.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
-// #723 round 3 (styles.css) — the below-list chip sits ON a discounted row's
-// tint, not blended into it; lifting its background back to the surface
-// colour restores the pill exactly where the CSS override did.
+// #723: lift the below-list chip off the row tint.
 const DISCOUNTED_ROW_SX = { bgcolor: "var(--tint-warn)" };
 const DISCOUNTED_BADGE_SX = { bgcolor: "var(--surface)" };
 
