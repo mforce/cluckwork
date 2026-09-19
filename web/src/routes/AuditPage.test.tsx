@@ -1190,9 +1190,9 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     const scopedRow = await screen.findByRole("row", { name: /admin@farm\.test/ });
     expandRow(scopedRow);
     // Entity's gate (`!entityId`) and Details' own cell are two separate
-    // conditionals in the JSX (review round 1 finding, #493) — checking the
-    // row's actual rendered content, not just that SOMETHING expanded, is
-    // what would catch a regression that drops one gate but not the other.
+    // conditionals in the JSX (#493) — checking the row's actual rendered
+    // content, not just that SOMETHING expanded, is what would catch a
+    // regression that drops one gate but not the other.
     expect(within(scopedRow).queryByText(/Flock f1234567/)).not.toBeInTheDocument();
     unmount();
 
