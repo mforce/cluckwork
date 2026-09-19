@@ -2346,6 +2346,7 @@ export const en = {
   // stay raw, unkeyed — they're functional identifiers, not display copy, and
   // changing them would be a download-mechanics change (out of scope).
   export: {
+    eyebrow: "Your farm data",
     heading: "Export",
     intro:
       "Download your account's data as CSV files — a manual backup you can "
@@ -2355,12 +2356,15 @@ export const en = {
     fullBackupHeading: "Full backup",
     fullBackupButton: "Download full backup (zip)",
     fullBackupHint: "One zip with every dataset below plus a manifest of row counts.",
-    // Shared between the full-backup button and every dataset button (each
-    // uses its own `busy === <key>` check) — one in-flight-download label,
-    // not a per-button duplicate.
+    // Shared between the full-backup button and the single-dataset button
+    // (each uses its own `busy === <key>` check) — one in-flight-download
+    // label, not a per-button duplicate.
     preparingButton: "Preparing…",
 
     singleDatasetsHeading: "Single datasets",
+    datasetHint: "Select one dataset. The full backup remains available above.",
+    datasetLabel: "Dataset",
+    downloadCsvButton: "Download CSV",
 
     // Dataset picker labels — one flat "dataset.<slug>" key per
     // EXPORT_DATASETS member (../api/cluckwork), text IDENTICAL to the raw

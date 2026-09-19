@@ -1765,6 +1765,7 @@ export const tl = {
   // dataset picker (the wire value stays the raw slug) — translated to
   // natural Filipino per the task brief.
   export: {
+    eyebrow: "Ang datos ng iyong farm",
     heading: "Export",
     intro:
       "I-download ang datos ng iyong account bilang mga CSV file — isang "
@@ -1778,6 +1779,9 @@ export const tl = {
     preparingButton: "Naghahanda…",
 
     singleDatasetsHeading: "Mga indibidwal na dataset",
+    datasetHint: "Pumili ng isang dataset. Available pa rin sa itaas ang buong backup.",
+    datasetLabel: "Dataset",
+    downloadCsvButton: "I-download ang CSV",
 
     "dataset.flocks": "Mga kawan",
     "dataset.bird-movements": "Mga paggalaw ng manok",

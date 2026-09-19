@@ -1697,6 +1697,7 @@ export const es = {
   // picker (the wire value stays the raw slug) — translated to natural
   // Spanish per the task brief.
   export: {
+    eyebrow: "Los datos de su granja",
     heading: "Exportar",
     intro:
       "Descargue los datos de su cuenta como archivos CSV — una copia de "
@@ -1710,6 +1711,9 @@ export const es = {
     preparingButton: "Preparando…",
 
     singleDatasetsHeading: "Conjuntos de datos individuales",
+    datasetHint: "Seleccione un conjunto de datos. La copia de seguridad completa sigue disponible arriba.",
+    datasetLabel: "Conjunto de datos",
+    downloadCsvButton: "Descargar CSV",
 
     "dataset.flocks": "Parvadas",
     "dataset.bird-movements": "Movimientos de aves",
