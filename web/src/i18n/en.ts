@@ -1183,7 +1183,7 @@ export const en = {
     title: "Feed & inventory",
     intro:
       "Receive stock as purchases; every change lands in the item's movement "
-      + "ledger. Recording feed usage against flocks arrives next.",
+      + "ledger. Record feed usage against flocks on the Feed page.",
 
     // Imperative messages (event handlers / promise callbacks — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
