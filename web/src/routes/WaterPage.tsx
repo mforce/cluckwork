@@ -509,7 +509,7 @@ export function WaterPage() {
               <Typography component="dt">{t("sourceLabel")}</Typography>
               <Typography component="dd" sx={{ m: 0, fontWeight: 700 }}>{waterSourceLabel(source)}</Typography>
             </Box>
-            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
+            <Box aria-live="polite" aria-atomic="true" sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
               <Typography component="dt">{t("result")}</Typography>
               <Typography component="dd" sx={{ m: 0, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                 {useMeters

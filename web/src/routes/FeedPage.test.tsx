@@ -84,8 +84,14 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
 
   it("previews the stock remaining after the entered ration without recording it", async () => {
     await renderReady();
-    fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "18" } });
     const ration = screen.getByRole("complementary", { name: "Ration check" });
+    const announcement = within(ration).getByText("After issue").parentElement;
+    expect(announcement).toHaveAttribute("aria-live", "polite");
+    expect(announcement).toHaveAttribute("aria-atomic", "true");
+    expect(announcement).toHaveTextContent("After issue—");
+    fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "18" } });
+    expect(announcement).toHaveTextContent("After issue102 kg");
+    expect(within(ration).getByText("After issue").parentElement).toBe(announcement);
     expect(within(ration).getByText("120 kg")).toBeInTheDocument();
     expect(within(ration).getByText("18 kg")).toBeInTheDocument();
     expect(within(ration).getByText("102 kg")).toBeInTheDocument();
