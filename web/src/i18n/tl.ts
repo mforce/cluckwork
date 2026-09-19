@@ -299,6 +299,10 @@ export const tl = {
   },
 
   sales: {
+    manifestHeading: "Mga produkto sa order",
+    settlementHeading: "Pagbabayad",
+    stockCommitment: "Mga itlog para sa order",
+
     // Headings
     title: "Benta",
     loading: "Naglo-load…",
@@ -2594,6 +2598,7 @@ export const tl = {
       + "kumpirmahin ito nang walang binabago. Hindi kailanman nililimitahan ang mga Owner at Manager. "
       + "Owner lang ang nagtatakda ng limitasyon sa Mga setting ng bukid bilang <strong>Pinakamataas na "
       + "diskwento</strong>.",
+    salesCommitment: "Ipinapakita ng Mga itlog para sa order ang bilang ng itlog sa order, kasama ang pagbabago sa dami na hindi pa nai-save. Naglalaan lang ng stock kapag matagumpay ang Kumpirmahin ang order.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",

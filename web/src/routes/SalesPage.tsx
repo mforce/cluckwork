@@ -3,7 +3,7 @@ import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import {
-  Box, Checkbox, DialogActions, Divider, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder,
@@ -18,6 +18,7 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { CustomerPicker } from "../components/CustomerPicker";
+import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { FilterBar } from "../components/FilterBar";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
@@ -39,6 +40,11 @@ import type { DiscountReasonValue } from "../i18n/enums";
 
 const PAGE = 50;
 const NOWRAP = { whiteSpace: "nowrap" as const };
+const MANIFEST_ACTIONS_SX = {
+  position: { xs: "sticky", md: "static" }, right: 0, zIndex: 1,
+  minWidth: { xs: 100, md: "auto" },
+  "& button": { display: { xs: "block", md: "inline-flex" }, minHeight: { xs: 44, md: "auto" } },
+};
 // #831 — replicates the retired `.form-grid .named-picker` rule: without a
 // fixed flex-basis the picker's closed (button) and open (input) states have
 // different intrinsic widths, which used to shift every sibling field. Only
@@ -1090,11 +1096,11 @@ export function SalesPage() {
   // is part-way through editing (#469). Only the setup reads — customers and
   // products, without which no form on this screen can function — still gate
   // the page.
-  if (setupError) return <section><Typography variant="h2">{t("title")}</Typography><p className="error">{setupError}</p></section>;
-  if (orders.rows === null) return <section><Typography variant="h2">{t("title")}</Typography><p className="muted">{t("loading")}</p></section>;
+  if (setupError) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{setupError}</p></FieldConsole>;
+  if (orders.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{t("loading")}</p></FieldConsole>;
 
   return (
-    <section>
+    <FieldConsole>
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
         <Typography variant="h2">{t("title")}</Typography>
         {/* #655 — also withheld exactly when the truly-empty state below is
@@ -1199,13 +1205,7 @@ export function SalesPage() {
       </Dialog>
 
       {active && (
-        // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —
-        // a Box between two Dividers, an h3, no fill, no radius. Sales was
-        // the last remaining `.order-panel` consumer (Inventory/Expenses/
-        // Flocks already converted); its CSS retires with this commit.
         <Box sx={{ my: 3 }} role="region" aria-labelledby={orderPanelHeadingId}>
-          <Divider />
-          <Box sx={{ py: 3 }}>
           <Typography variant="h3" component="h3" id={orderPanelHeadingId}>
             {active.referenceNumber} — {rowCustomerName(active)}{" "}
             <span className={active.status === "Draft" ? "muted" : "warn"}>
@@ -1213,8 +1213,11 @@ export function SalesPage() {
             </span>
           </Typography>
 
+          <Box sx={CONSOLE_SPLIT_SX}>
+            <Box sx={CONSOLE_PANEL_SX}>
+              <Typography component="h4" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.25rem", mb: 2 }}>{t("manifestHeading")}</Typography>
           {active.items.length > 0 && (
-            <TableContainer>
+            <LedgerTableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -1316,10 +1319,10 @@ export function SalesPage() {
                             above-list line's ONLY marker for the whole edit. */}
                         <TableCell align="right">{discountCell}</TableCell>
                         <TableCell align="right">—</TableCell>
-                        <TableCell sx={NOWRAP}>
-                          <BusyButton className="link" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
+                        <TableCell sx={{ ...MANIFEST_ACTIONS_SX, bgcolor: discount.kind === "below" ? "var(--tint-warn)" : "var(--surface)" }}>
+                          <BusyButton component={Button} variant="contained" size="small" sx={{ minWidth: 0, p: .5 }} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
                             onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
-                          <button className="link" onClick={() => setEditor(null)}>{t("cancelEdit")}</button>
+                          <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, p: .5 }} onClick={() => setEditor(null)}>{t("cancelEdit")}</Button>
                           {editConflict && (
                             <div role="status">
                               {t("editConflict")} {" "}
@@ -1342,13 +1345,13 @@ export function SalesPage() {
                         <TableCell align="right">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</TableCell>
                         <TableCell align="right">{discountCell}</TableCell>
                         <TableCell align="right">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</TableCell>
-                        <TableCell sx={NOWRAP}>
+                        <TableCell sx={{ ...MANIFEST_ACTIONS_SX, bgcolor: discount.kind === "below" ? "var(--tint-warn)" : "var(--surface)" }}>
                           {active.status === "Draft" && (
                             <>
-                              <button className="link" disabled={busy} onClick={() => {
+                              <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, p: .5 }} disabled={busy} onClick={() => {
                                 setEditor(lineDraft(active, i));
-                              }}>{t("edit")}</button>
-                              <BusyButton className="link" disabled={busy} busy={isPending(`remove-item:${i.id}`)}
+                              }}>{t("edit")}</Button>
+                              <BusyButton component={Button} size="small" sx={{ minWidth: 0, p: .5, color: "var(--error)" }} disabled={busy} busy={isPending(`remove-item:${i.id}`)}
                                 onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
                             </>
                           )}
@@ -1360,72 +1363,11 @@ export function SalesPage() {
                 })}
               </TableBody>
             </Table>
-          </TableContainer>
+          </LedgerTableContainer>
           )}
-          {/* #723 — the order's give-away, directly above the total it was
-              taken from. A sibling <p>, not a <tfoot>: the order total has
-              never been a table footer and the only <tfoot> in the app is
-              ReportsPage's. Rendered ONLY for a below-list order — #723's
-              acceptance is that an at-list order carries no treatment at all. */}
-          {(() => {
-            const orderLevel = orderDiscount(active.items);
-            // Round 1 — read `partial` BEFORE bailing on kind. An order with
-            // nothing discounted but a line we cannot measure is not an at-list
-            // order, and rendering nothing here let it read as one.
-            if (orderLevel.kind === "atList" && orderLevel.partial) {
-              return (
-                <p className="discount-note" data-testid="order-discount-partial">
-                  {t("discountPartialOnly")}
-                </p>
-              );
-            }
-            // Round 2 — `unknown` reached this bail and rendered nothing, while
-            // the Orders list said "Unknown" for the same order. Two screens
-            // disagreeing about whether an order is measurable is worse than
-            // either answer alone.
-            if (orderLevel.kind === "unknown") {
-              return (
-                <p className="discount-note" data-testid="order-discount-unknown">
-                  {{
-                    allPreDating: t("discountUnrecordedOrder"),
-                    nonePreDating: t("discountUnknownOrder"),
-                    mixed: t("discountPartlyUnrecordedOrder"),
-                  }[orderListPriceBasis(active.items)]}
-                </p>
-              );
-            }
-            if (orderLevel.kind !== "below") return null;
-            const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
-            return (
-              <p className="discount" data-testid="order-discount">
-                {orderLevel.percent === null
-                  ? t("discountTotalNoPct", { amount })
-                  : t("discountTotal", { amount, percent: discountPercent(orderLevel.percent) })}
-                {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
-              </p>
-            );
-          })()}
-          {/* #721 — the reason the order was allowed below list, beside the
-              give-away it explains. Absent on an order confirmed before that
-              shipped: no backfill, so nothing here means "not recorded". */}
-          {active.discountReasonCode && (
-            <p className="discount-note" data-testid="order-discount-reason">
-              {active.discountReasonNote
-                ? t("discountReasonSummaryWithNote", {
-                    reason: discountReasonLabel(active.discountReasonCode),
-                    note: active.discountReasonNote,
-                  })
-                : t("discountReasonSummary", {
-                    reason: discountReasonLabel(active.discountReasonCode),
-                  })}
-            </p>
-          )}
-          <p><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
-
           {active.status === "Draft" && (
             <>
-              <Stack direction="row" useFlexGap spacing={2}
-                sx={{ flexWrap: "wrap", alignItems: "flex-end", my: "0.75rem" }}>
+              <Stack sx={{ ...CONSOLE_FORM_SX, my: 2 }}>
                 <TextField
                   select
                   label={t("product")}
@@ -1495,7 +1437,7 @@ export function SalesPage() {
                   slotProps={{ htmlInput: { min: 0, step: 10 ** -active.currencyMinorUnit } }}
                   onChange={(e) => setPrice(e.target.value)}
                 />
-                <BusyButton disabled={busy || !productId} busy={isPending("add-item")}
+                <BusyButton component={Button} variant="outlined" color="inherit" disabled={busy || !productId} busy={isPending("add-item")}
                   onClick={onAddItem}>{t("addLine")}</BusyButton>
               </Stack>
               {/* #720 R11 — AFTER the row, not a grid cell: a third child in a
@@ -1534,6 +1476,88 @@ export function SalesPage() {
                       {t("listPriceHintAbove", { amount, percent: discountPercent((perUnit * 100) / list) })}
                     </p>;
               })()}
+            </>
+          )}
+            </Box>
+            <Box component="aside" aria-label={t("settlementHeading")} sx={{
+              ...CONSOLE_RAIL_SX,
+              "& .muted, & .discount-note": { color: "#cfc4cb" },
+              "& .discount, & .warn": { color: "#ffcf85" },
+              "& .MuiTableCell-root": { color: "inherit" },
+              "& .actions": { flexDirection: "column", alignItems: "stretch" },
+              "& .actions > button": { minHeight: 44 },
+            }}>
+              <Typography component="h4" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.25rem", mb: 2 }}>{t("settlementHeading")}</Typography>
+              {(active.status === "Draft" || active.status === "Confirmed") && (
+                <Box sx={{ borderBottom: "1px solid #6b5b65", pb: 2, mb: 2 }}>
+                  <Typography variant="body2">{t("stockCommitment")}</Typography>
+                  <Typography variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.75rem" }}>
+                    {t("eggsCount", { count: active.items.reduce((sum, item) => sum + (editor && editingLine?.id === item.id ? editor.quantity * item.baseUnitFactor : item.quantityBase), 0) })}
+                  </Typography>
+                </Box>
+              )}
+          {/* #723 — the order's give-away, directly above the total it was
+              taken from. A sibling <p>, not a <tfoot>: the order total has
+              never been a table footer and the only <tfoot> in the app is
+              ReportsPage's. Rendered ONLY for a below-list order — #723's
+              acceptance is that an at-list order carries no treatment at all. */}
+          {(() => {
+            const orderLevel = orderDiscount(active.items);
+            // Round 1 — read `partial` BEFORE bailing on kind. An order with
+            // nothing discounted but a line we cannot measure is not an at-list
+            // order, and rendering nothing here let it read as one.
+            if (orderLevel.kind === "atList" && orderLevel.partial) {
+              return (
+                <p className="discount-note" data-testid="order-discount-partial">
+                  {t("discountPartialOnly")}
+                </p>
+              );
+            }
+            // Round 2 — `unknown` reached this bail and rendered nothing, while
+            // the Orders list said "Unknown" for the same order. Two screens
+            // disagreeing about whether an order is measurable is worse than
+            // either answer alone.
+            if (orderLevel.kind === "unknown") {
+              return (
+                <p className="discount-note" data-testid="order-discount-unknown">
+                  {{
+                    allPreDating: t("discountUnrecordedOrder"),
+                    nonePreDating: t("discountUnknownOrder"),
+                    mixed: t("discountPartlyUnrecordedOrder"),
+                  }[orderListPriceBasis(active.items)]}
+                </p>
+              );
+            }
+            if (orderLevel.kind !== "below") return null;
+            const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
+            return (
+              <p className="discount" data-testid="order-discount">
+                {orderLevel.percent === null
+                  ? t("discountTotalNoPct", { amount })
+                  : t("discountTotal", { amount, percent: discountPercent(orderLevel.percent) })}
+                {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
+              </p>
+            );
+          })()}
+          {/* #721 — the reason the order was allowed below list, beside the
+              give-away it explains. Absent on an order confirmed before that
+              shipped: no backfill, so nothing here means "not recorded". */}
+          {active.discountReasonCode && (
+            <p className="discount-note" data-testid="order-discount-reason">
+              {active.discountReasonNote
+                ? t("discountReasonSummaryWithNote", {
+                    reason: discountReasonLabel(active.discountReasonCode),
+                    note: active.discountReasonNote,
+                  })
+                : t("discountReasonSummary", {
+                    reason: discountReasonLabel(active.discountReasonCode),
+                  })}
+            </p>
+          )}
+          <Typography component="p" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.5rem" }}><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></Typography>
+
+          {active.status === "Draft" && (
+            <>
               {/* #727 — a WARNING beside Confirm, not a gate on it.
                   This number can be wrong in two ways the server's cannot: it
                   is fetched once per session, so an owner RAISING the ceiling
@@ -1552,13 +1576,13 @@ export function SalesPage() {
                 </p>
               )}
               <div className="actions">
-                <BusyButton disabled={busy || active.items.length === 0}
+                <BusyButton component={Button} variant="contained" disabled={busy || active.items.length === 0}
                   busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                   {t("confirmOrderButton")}
                 </BusyButton>
-                <BusyButton className="link" disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
                   onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
-                <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
+                <Button variant="outlined" color="inherit" onClick={closeOrderPanel}>{t("close")}</Button>
               </div>
             </>
           )}
@@ -1566,7 +1590,7 @@ export function SalesPage() {
             <>
               <h4>{t("payments")}</h4>
               {payments.items.length > 0 && (
-                <TableContainer>
+                <LedgerTableContainer>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -1589,7 +1613,7 @@ export function SalesPage() {
                             {p.voided
                               ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
                               : isAdmin ? (
-                                <BusyButton className="link" disabled={busy} busy={isPending(`void-payment:${p.id}`)}
+                                <BusyButton component={Button} size="small" sx={{ color: "#ffb4a2" }} disabled={busy} busy={isPending(`void-payment:${p.id}`)}
                                   onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
                               ) : null}
                           </TableCell>
@@ -1597,7 +1621,7 @@ export function SalesPage() {
                       ))}
                     </TableBody>
                   </Table>
-                </TableContainer>
+                </LedgerTableContainer>
               )}
               <p>
                 <Trans
@@ -1612,7 +1636,7 @@ export function SalesPage() {
               </p>
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
-                  <button type="button" onClick={() => {
+                  <Button variant="contained" type="button" onClick={() => {
                     setPayDate(today);
                     // A new session starts clean: an earlier attempt that
                     // succeeded after being abandoned leaves its amount in
@@ -1629,7 +1653,7 @@ export function SalesPage() {
                     setPaying(true);
                   }}>
                     {t("recordPayment")}
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -1696,7 +1720,7 @@ export function SalesPage() {
           {active.status !== "Draft" && (
             <div className="actions">
               {active.status === "Confirmed" && isAdmin && (
-                <BusyButton className="link" disabled={busy} busy={isPending(`void:${active.id}`)}
+                <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`void:${active.id}`)}
                   onClick={() => void onVoid()}>
                   {t("voidOrderButton")}
                 </BusyButton>
@@ -1704,11 +1728,11 @@ export function SalesPage() {
               {active.status === "Confirmed" && !isAdmin && (
                 <span className="muted">{t("voidingNeedsAdmin")}</span>
               )}
-              <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
+              <Button variant="outlined" color="inherit" onClick={closeOrderPanel}>{t("close")}</Button>
             </div>
           )}
+            </Box>
           </Box>
-          <Divider />
         </Box>
       )}
 
@@ -1859,7 +1883,7 @@ export function SalesPage() {
               } : undefined} />
       ) : (
         <>
-          <TableContainer>
+          <LedgerTableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -1944,7 +1968,7 @@ export function SalesPage() {
                     <TableCell>
                       <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: "wrap" }}>
                         <Box component="span" sx={NOWRAP}>
-                          <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>
+                          <Button variant="outlined" color="inherit" size="small" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</Button>
                         </Box>
                         {/* #493 — full audit trail for this record, distinct from
                             the created/last-changed summary in ProvenanceCell.
@@ -1964,7 +1988,7 @@ export function SalesPage() {
                 ))}
               </TableBody>
             </Table>
-          </TableContainer>
+          </LedgerTableContainer>
           {orders.canLoadMore && (
             // A guarded READ — the hook withdraws this control for the
             // duration of any load, so it cannot mix two windows (#469).
@@ -1975,6 +1999,6 @@ export function SalesPage() {
       )}
 
       {confirmDialog}
-    </section>
+    </FieldConsole>
   );
 }

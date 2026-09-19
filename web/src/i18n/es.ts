@@ -287,6 +287,10 @@ export const es = {
   },
 
   sales: {
+    manifestHeading: "Detalle del pedido",
+    settlementHeading: "Liquidación",
+    stockCommitment: "Huevos comprometidos",
+
     // Headings
     title: "Ventas",
     loading: "Cargando…",
@@ -2493,6 +2497,7 @@ export const es = {
       + "pídaselo a un propietario o gerente, que puede confirmarlo sin tocarlo. Los propietarios y "
       + "gerentes nunca están limitados. Solo un propietario fija el límite en Configuración de la granja como "
       + "<strong>Descuento máximo</strong>.",
+    salesCommitment: "Huevos comprometidos muestra los huevos del pedido, incluidos los cambios de cantidad aún sin guardar. Las existencias solo se asignan al completar Confirmar pedido.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
