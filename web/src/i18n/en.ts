@@ -3793,7 +3793,10 @@ export const en = {
       + "Farm settings. The device that shows it caches the image after that splash, so on a later visit "
       + "it can also appear on the sign-in screen before entering a password — but only while the farm "
       + "code field names that same farm; typing or picking a different code hides it right away, and a "
-      + "link that only names a farm code never shows its banner.",
+      + "link that only names a farm code never shows its banner. If a farm code is later reassigned to a "
+      + "different farm, a device that already cached the previous holder's banner may still show it "
+      + "briefly, until that device's next sign-in confirms which farm the code belongs to now and clears "
+      + "the mismatch — never a new disclosure, only a stale image on a device that already had it.",
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:

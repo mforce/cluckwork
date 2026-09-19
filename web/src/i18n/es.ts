@@ -3152,7 +3152,11 @@ export const es = {
       + "pantalla de bienvenida, así que en una visita posterior también puede aparecer en la pantalla de "
       + "inicio de sesión antes de ingresar una contraseña — pero solo mientras el campo de código de granja "
       + "nombre esa misma granja; escribir o elegir un código distinto lo oculta de inmediato, y un enlace "
-      + "que solo nombra un código de granja nunca muestra su banner.",
+      + "que solo nombra un código de granja nunca muestra su banner. Si un código de granja se reasigna "
+      + "después a otra granja, un dispositivo que ya guardó en caché el banner del titular anterior puede "
+      + "seguir mostrándolo brevemente, hasta que el siguiente inicio de sesión de ese dispositivo confirme "
+      + "a qué granja pertenece el código ahora y corrija la discrepancia — nunca una divulgación nueva, "
+      + "solo una imagen obsoleta en un dispositivo que ya la tenía.",
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:

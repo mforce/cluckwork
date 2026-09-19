@@ -3271,7 +3271,11 @@ export const tl = {
       + "pagkatapos ng splash screen na iyon, kaya sa susunod na pagbisita puwede rin itong lumabas sa "
       + "sign-in screen bago pa maglagay ng password — pero habang ang farm code field ay pangalan ng "
       + "parehong bukid na iyon; ang pag-type o pagpili ng ibang code ay agad itong nagtatago, at ang link "
-      + "na pangalan lang ng farm code ay hindi kailanman nagpapakita ng banner nito.",
+      + "na pangalan lang ng farm code ay hindi kailanman nagpapakita ng banner nito. Kapag ang isang farm "
+      + "code ay na-reassign sa ibang bukid, ang device na naka-cache na ng banner ng dating may-ari nito ay "
+      + "puwede pa ring magpakita nito nang maikli, hanggang sa kumpirmahin ng susunod na pag-sign-in sa "
+      + "device na iyon kung aling bukid na ngayon ang may-ari ng code at itama ang di-pagtutugma — hindi "
+      + "ito bagong pagsisiwalat, isang lumang larawan lamang sa device na mayroon na rito.",
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:

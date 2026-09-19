@@ -747,6 +747,37 @@ describe("Login — cached pre-auth banner (#833)", () => {
     await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
   });
 
+  // Codex review, finding 2 — GLOSSARY.md is explicit that a `?farm=<code>`
+  // link must show no banner, cached or otherwise: unlike the palette
+  // (which carries no private information), a banner is farm-supplied
+  // imagery, and showing one to whoever merely holds a link — rather than
+  // only a device that has actually signed in there before — is a
+  // disclosure #833's design note never approved.
+  it("shows no banner for a link-prefilled code, even when this device has that farm's banner cached", async () => {
+    await cacheBannerFor("link-farm");
+    renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(document.querySelector("img[alt='']")).toBeNull();
+  });
+
+  // The suppression covers the untouched link value ONLY: once the operator
+  // actually types the code themselves — even retyping the exact same
+  // value — it is a typed code like any other, and the normal field-match
+  // rule applies again.
+  it("shows the banner once the link-prefilled code is retyped by hand", async () => {
+    await cacheBannerFor("link-farm");
+    renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(document.querySelector("img[alt='']")).toBeNull();
+
+    const field = screen.getByLabelText(/Farm code/);
+    fireEvent.change(field, { target: { value: "link-far" } });
+    fireEvent.change(field, { target: { value: "link-farm" } });
+
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
+  });
+
   it("forget: the banner disappears once its farm is forgotten", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
     await cacheBannerFor("farm-a");
