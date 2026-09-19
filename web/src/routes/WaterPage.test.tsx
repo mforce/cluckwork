@@ -91,6 +91,19 @@ function filterFlockTrigger() {
 }
 
 describe("WaterPage loading + list", () => {
+  it("switches entry modes and previews the meter difference without saving", async () => {
+    await renderReadyForm(WORKER);
+    fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
+    expect(screen.getByRole("button", { name: "Meter readings" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(screen.getByLabelText("Meter start"), { target: { value: "100.5" } });
+    fireEvent.change(screen.getByLabelText("Meter end"), { target: { value: "175.25" } });
+    expect(within(screen.getByRole("complementary", { name: "Reading check" })).getByText("74.75 L")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Direct amount" }));
+    expect(screen.queryByLabelText("Meter start")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Quantity (L)")).toBeInTheDocument();
+    expect(mockRecordWaterUsage).not.toHaveBeenCalled();
+  });
+
   it("shows a loading placeholder before the water list resolves", async () => {
     mockListWaterUsage.mockResolvedValue([ROW]);
     renderWithProviders(<WaterPage />, { token: WORKER });
@@ -242,7 +255,7 @@ describe("WaterPage record water", () => {
     mockRecordWaterUsage.mockResolvedValue({ id: "w9" });
     await renderReadyForm(WORKER);
 
-    fireEvent.click(screen.getByRole("checkbox")); // "from meter readings"
+    fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
     fireEvent.change(screen.getByLabelText("Meter start"), { target: { value: "100.5" } });
     fireEvent.change(screen.getByLabelText("Meter end"), { target: { value: "175.25" } });
 

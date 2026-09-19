@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
-  Box, DialogActions, Divider, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, getAccount,
@@ -15,6 +15,7 @@ import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "..
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
+import { FieldConsole, LedgerTableContainer, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -471,16 +472,16 @@ export function InventoryPage() {
       : "—";
 
   if (errors.page && items === null) {
-    return <section><Typography variant="h2">{t("title")}</Typography><p className="error">{errors.page}</p></section>;
+    return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{errors.page}</p></FieldConsole>;
   }
   if (items === null) {
-    return <section><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></section>;
+    return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
   }
 
   const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
 
   return (
-    <section>
+    <FieldConsole>
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
         <Typography variant="h2">{t("title")}</Typography>
         {isAdmin && (
@@ -571,37 +572,32 @@ export function InventoryPage() {
       {message && <p className="success">{message}</p>}
 
       {active && (
-        // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —
-        // a Box between two Dividers, an h3, no fill, no radius. Same shape
-        // FlocksPage (#897) and Expenses (#831) already use for their own
-        // `.order-panel` drill-downs.
         <Box sx={{ my: 3 }}>
-          <Divider />
-          <Box sx={{ py: 3 }}>
-            <Typography variant="h3" component="h3">
-              {t("itemPanelHeading", { name: active.name, quantity: active.quantityOnHand, unit: active.unit })}
-            </Typography>
-
-            {/* One row of actions; each opens its own dialog so the ledger below
-                stays put instead of being pushed down by three stacked forms. */}
-            <Stack direction="row" useFlexGap spacing={1.5} sx={{ flexWrap: "wrap", alignItems: "center", my: 1.5 }}>
-              <button type="button" onClick={() => { openDialog("purchase"); setPurchasing(true); }}>
-                <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
-              </button>
-              {canFeed && (
-                // #446 — feed usage lives on its own page now; the deep link
-                // keeps the one thing the old dialog had over it: the item you
-                // are looking at arrives preselected.
-                <Link className="link" to={`/feed?item=${active.id}`}>
-                  {t("recordUsageLink")}
-                </Link>
-              )}
-              {isAdmin && lots.length > 0 && (
-                <button type="button" className="link" onClick={() => { openDialog("adjust"); setAdjusting(true); }}>
-                  {t("correctStockButton")}
-                </button>
-              )}
-            </Stack>
+          <Box sx={{ py: 1 }}>
+            <Box sx={{ ...CONSOLE_RAIL_SX, display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) auto minmax(250px, 1fr)" }, gap: 2, alignItems: "center" }}>
+              <Typography variant="h3" component="h3" aria-label={t("itemPanelHeading", { name: active.name, quantity: active.quantityOnHand, unit: active.unit })}>
+                {active.name}
+              </Typography>
+              <Box>
+                <Typography sx={{ fontSize: ".75rem" }}>{t("onHandHeader")}</Typography>
+                <Typography variant="body2" sx={{ fontSize: "2rem", fontFamily: "Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{fmt.count(active.quantityOnHand)} {active.unit}</Typography>
+              </Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, "& button, & a": { height: 44, minHeight: 44, p: 1, fontSize: { xs: ".7rem", md: ".8rem" }, lineHeight: 1.2 } }}>
+                <Button variant="outlined" sx={{ bgcolor: "#fff", color: "#2c2429", borderColor: "#fff" }} onClick={() => { openDialog("purchase"); setPurchasing(true); }}>
+                  <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
+                </Button>
+                {canFeed && (
+                  <Button component={Link} variant="outlined" sx={{ bgcolor: "#fff", color: "#2c2429", borderColor: "#fff" }} to={`/feed?item=${active.id}`}>
+                    {t("recordUsageLink")}
+                  </Button>
+                )}
+                {isAdmin && lots.length > 0 && (
+                  <Button variant="contained" sx={{ gridColumn: "1 / -1" }} onClick={() => { openDialog("adjust"); setAdjusting(true); }}>
+                    {t("correctStockButton")}
+                  </Button>
+                )}
+              </Box>
+            </Box>
 
             {/* Why an action is unavailable, in the place the button would be. */}
             {!canFeed && (
@@ -739,7 +735,7 @@ export function InventoryPage() {
             ) : ledger.rows.length === 0 && !ledger.error ? (
               <p className="muted">{t("noMovementsMessage")}</p>
             ) : (
-              <TableContainer>
+              <LedgerTableContainer>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -754,13 +750,13 @@ export function InventoryPage() {
                       <TableRow key={m.id}>
                         <TableCell sx={NOWRAP}><FarmDate iso={m.date} /></TableCell>
                         <TableCell>{inventoryMovementLabel(m.type)}</TableCell>
-                        <TableCell align="right">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</TableCell>
+                        <TableCell align="right" sx={{ color: m.quantityDelta > 0 ? "var(--success)" : "var(--error)", fontWeight: 700 }}>{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</TableCell>
                         <TableCell>{m.note ?? ""}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </TableContainer>
+              </LedgerTableContainer>
             )}
             {ledger.canLoadMore && (
               <button className="link" onClick={() => void ledger.loadMore()}>
@@ -773,11 +769,10 @@ export function InventoryPage() {
               <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>
             </div>
           </Box>
-          <Divider />
         </Box>
       )}
 
-      <TableContainer>
+      <LedgerTableContainer>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -823,7 +818,7 @@ export function InventoryPage() {
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
-    </section>
+      </LedgerTableContainer>
+    </FieldConsole>
   );
 }

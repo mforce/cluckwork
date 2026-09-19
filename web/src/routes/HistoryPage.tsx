@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Inbox } from "lucide-react";
 import {
-  Box, DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
@@ -18,6 +18,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
+import { FieldConsole, LedgerTableContainer } from "../components/FieldConsole";
 import { EntryRow } from "../components/EntryRow";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
@@ -539,7 +540,7 @@ export function HistoryPage() {
     return <section><Typography variant="h2">{t("loadingTitle")}</Typography><p className="error">{errors.page}</p></section>;
 
   return (
-    <section>
+    <FieldConsole>
       <Typography variant="h2">{t("title")}</Typography>
       {isAdmin && (
         <p className="muted">
@@ -621,6 +622,12 @@ export function HistoryPage() {
                 the same grid DailyEntryPage's own capture form renders
                 through (#831 extracted it precisely so the two never drift). */}
             <Stack component="form" spacing={2} onSubmit={onAdjustSubmit}>
+            {!lossesExceedTotal && <Box role="group" aria-label={t("reconciliation")} sx={{ p: 1.5, bgcolor: gradesReconciled ? "var(--tint-ok)" : "var(--tint-warn)", color: gradesReconciled ? "var(--success)" : "var(--warn)", fontWeight: 700, fontVariantNumeric: "tabular-nums", borderRadius: "var(--r-input)" }}>
+              {t("reconciliationLine", {
+                total: fmt.count(total), cracked: fmt.count(cracked), dirty: fmt.count(dirty), discarded: fmt.count(discarded),
+                sellable: fmt.count(sellable), graded: fmt.count(gradesSum), comparison: gradesReconciled ? "=" : "≠",
+              })}
+            </Box>}
             {/* #444 — same caption as the capture screen; the dialog IS that
                 form, so the taps count the same way and say so the same way. */}
             {stepSize > 1 && (
@@ -707,7 +714,7 @@ export function HistoryPage() {
               </Box>
             </Box>
 
-            <TextField
+            <TextField fullWidth
               label={t("reasonLabel")}
               value={reason}
               slotProps={{ htmlInput: { maxLength: 500, required: true } }}
@@ -715,12 +722,12 @@ export function HistoryPage() {
             />
             {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
             <DialogError errors={errors} scope="adjust" />
-            <DialogActions>
-              <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
+            <DialogActions sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, p: 0, "& > :not(style) ~ :not(style)": { ml: 0 }, "& button": { width: "100%", height: 44, minHeight: 44, px: 1, fontSize: ".75rem", whiteSpace: "nowrap" } }}>
+              <Button variant="outlined" color="inherit" type="button" onClick={closeAdjust}>{tc("cancel")}</Button>
               {/* #394: an adjustment has no draft state — Save stays disabled
                   until grading reconciles exactly, the same rule Daily
                   Entry's submit uses. */}
-              <BusyButton type="submit" busy={isPending("adjust")}
+              <BusyButton component={Button} variant="contained" type="submit" busy={isPending("adjust")}
                 disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
             </DialogActions>
             </Stack>
@@ -757,7 +764,7 @@ export function HistoryPage() {
           : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
         <>
-          <TableContainer>
+          <LedgerTableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -806,18 +813,18 @@ export function HistoryPage() {
                       {/* Drafts are edited on the Daily entry screen (#85) —
                           open to workers too; adjust/void stay admin-only. */}
                       {e.status === "Draft" && flockEditable(e) && (
-                        <Link className="link"
+                        <Button component={Link} variant="outlined" color="inherit" size="small" sx={{ ml: 1 }}
                           to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
                           {t("editButton")}
-                        </Link>
+                        </Button>
                       )}
                       {isAdmin && correctable(e) && (
                         <>
                           {/* Opens the dialog — the mutation's own trigger (and
                               its spinner) is the dialog's Save adjustment. */}
-                          <button className="link" disabled={busy}
-                            onClick={() => startAdjust(e)}>{t("adjustButton")}</button>
-                          <BusyButton className="link" busy={isPending(`void:${e.id}`)}
+                          <Button size="small" color="warning" disabled={busy}
+                            onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
+                          <BusyButton component={Button} size="small" color="error" busy={isPending(`void:${e.id}`)}
                             disabled={busy}
                             onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
                         </>
@@ -827,7 +834,7 @@ export function HistoryPage() {
                 ))}
               </TableBody>
             </Table>
-          </TableContainer>
+          </LedgerTableContainer>
           {entries.canLoadMore && (
             <button className="link" disabled={busy}
               onClick={() => void entries.loadMore()}>
@@ -838,6 +845,6 @@ export function HistoryPage() {
       )}
 
       {confirmDialog}
-    </section>
+    </FieldConsole>
   );
 }

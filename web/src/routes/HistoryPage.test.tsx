@@ -87,6 +87,16 @@ async function openAdjustPanel() {
   fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
 }
 
+it("updates the reconciliation equation when grading reaches sellable eggs", async () => {
+  mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+  await openAdjustPanel();
+  const equation = screen.getByRole("group", { name: "Reconciliation" });
+  expect(equation).toHaveTextContent("100 collected − 2 cracked − 3 dirty − 5 discarded = 90 sellable ≠ 60 graded");
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "50" } });
+  expect(equation).toHaveTextContent("100 collected − 2 cracked − 3 dirty − 5 discarded = 90 sellable = 90 graded");
+  expect(mockAdjustDailyEntry).not.toHaveBeenCalled();
+});
+
 // #396 — the Condition column answers "how many of this day's cracked/dirty
 // eggs became stock", read from the ENTRY's own snapshot. It must never be
 // re-derived from the current grade catalog: a farm that switches Cracked off
