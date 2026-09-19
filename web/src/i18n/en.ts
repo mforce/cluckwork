@@ -822,9 +822,6 @@ export const en = {
     // total, sourced from the 14-day strip's own last (yesterday) slot —
     // never a second fetch, and only rendered when that day is complete.
     yesterdayByClose: "Yesterday by close: {{total}}",
-    // The single filled button on the desktop screen (#829, amending
-    // DIRECTION.md's "ruled text at 1280" for exactly this one row) and the
-    // 48px full-width phone action for the missing house.
     recordAction: "Record",
     recordHouseAction: "Record {{flock}}",
     // Ruled-text row action for a Draft entry — one already started, not
