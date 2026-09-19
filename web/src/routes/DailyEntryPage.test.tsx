@@ -588,9 +588,8 @@ describe("DailyEntryPage submit confirmation", () => {
   });
 });
 
-// F134: the screen is one undifferentiated pile of fields no more — three
-// numbered steps in the order the work actually happens, with the
-// reconciliation line and both saves pinned in a footer.
+// Collection and grading are distinct work steps, with their reconciliation
+// beside the fields and both saves pinned in the footer.
 describe("DailyEntryPage structure", () => {
   it("names the two workbench steps in the order the collection is counted", async () => {
     await renderReady();
@@ -622,11 +621,7 @@ describe("DailyEntryPage structure", () => {
   it("puts each readout with the fields it describes, and the saves in the footer", async () => {
     await renderReady();
 
-    // Sellable belongs to the counts that produce it; the remainder belongs to
-    // the grades that consume it. Reading one while the other was a screen away
-    // was the whole complaint. #830: pane-scoped by heading instead of
-    // `.entry-pane` (the class stays for HistoryPage, but #830's own markup no
-    // longer carries it).
+    // Each derived readout stays in the section containing its inputs.
     const gradingSection = screen.getByRole("heading", { name: /Grade the sellable eggs/ }).closest("section") as HTMLElement;
     expect(within(countsSection()).getByRole("status")).toBeInTheDocument();
     expect(gradingSection.querySelector(".entry-chip")).not.toBeNull();
