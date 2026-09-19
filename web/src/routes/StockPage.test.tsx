@@ -169,11 +169,7 @@ describe("StockPage drill-down", () => {
   });
 
   it("puts the lot date range in the bounded FilterBar, not a bare filters row", async () => {
-    // #653/#662/#831 — this is a structural guard on purpose. The width cap
-    // moved from `.toolbar input[type="date"]` (12rem) to FilterDateField's
-    // own `sx`, and jsdom computes no layout so the only honest assertion
-    // here is the wrapper the field is rendered inside. The rendered result
-    // is checked by the before/after screenshot pair on the PR.
+    // #653: the field's generated rule carries the bound; a Paper ancestor does not.
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
     const gradeA = screen.getByRole("region", { name: /Grade A\b/ });
