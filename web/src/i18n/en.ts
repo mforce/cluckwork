@@ -1928,6 +1928,8 @@ export const en = {
   // task brief — a cross-screen consolidation is a tracked native-pass
   // deferral, not this task's job.
   expenses: {
+    ledgerHeading: "Expense ledger",
+    wholePeriod: "Whole filtered period, including rows not yet loaded.",
     title: "Expenses",
 
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's

@@ -1423,6 +1423,8 @@ export const es = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    ledgerHeading: "Registro de gastos",
+    wholePeriod: "Todo el período filtrado, incluidas las filas aún no cargadas.",
     title: "Gastos",
 
     // Imperative messages
