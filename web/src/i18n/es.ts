@@ -3148,7 +3148,11 @@ export const es = {
       + "justo después de iniciar sesión, una vez por sesión. Separada del logotipo de la granja anterior "
       + "— una granja puede tener un logotipo, un banner, ambos, o ninguno. Mismas reglas de imagen fija "
       + "PNG/JPEG/WebP, su propio límite de tamaño más grande (5 MB por defecto), se sube desde "
-      + "Configuración de la granja.",
+      + "Configuración de la granja. El dispositivo que la muestra guarda la imagen en caché después de esa "
+      + "pantalla de bienvenida, así que en una visita posterior también puede aparecer en la pantalla de "
+      + "inicio de sesión antes de iniciar sesión — pero solo cuando el dispositivo recuerda exactamente "
+      + "una granja por haber iniciado sesión allí antes; un enlace que solo nombra un código de granja "
+      + "nunca muestra su banner.",
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:

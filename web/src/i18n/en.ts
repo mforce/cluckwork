@@ -3790,7 +3790,10 @@ export const en = {
       "A second, independent image shown full-size on a splash screen right after signing in, once per "
       + "sign-in. Separate from the farm logo above — a farm can have a logo, a banner, both, or neither. "
       + "Same PNG/JPEG/WebP still-image rules, its own larger size limit (5 MB by default), uploaded from "
-      + "Farm settings.",
+      + "Farm settings. The device that shows it caches the image after that splash, so on a later visit "
+      + "it can also appear on the sign-in screen before anyone signs in — but only when the device "
+      + "remembers exactly one farm from having signed in there before; a link that only names a farm "
+      + "code never shows its banner.",
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:
