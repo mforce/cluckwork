@@ -132,7 +132,7 @@ function EntryRow({
         {caption && (
           <Typography component="span" variant="caption" className="muted" sx={{
             display: "block", overflow: "hidden", textOverflow: "ellipsis",
-            whiteSpace: variant === "flock-event" ? "normal" : "nowrap",
+            whiteSpace: variant === "standard" ? "nowrap" : "normal",
             lineHeight: 1.25,
           }}
           >
