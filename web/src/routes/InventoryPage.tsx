@@ -731,7 +731,7 @@ export function InventoryPage() {
                 because the hook has emptied `rows` by then and the empty branch
                 below does not fire on `error`. */}
             <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 1, mb: 1 }}>
-              <Typography component="h3" variant="h3" sx={{ m: "0 !important" }}>{t("movementHeading")}</Typography>
+              <Typography component="h3" variant="h3" sx={{ "&&": { m: 0 }, minWidth: 0 }}>{t("movementHeading")}</Typography>
               <Button size="small" color="inherit" sx={{ minHeight: 44, flexShrink: 0, fontSize: ".75rem" }} onClick={() => setActive(null)}>{t("chooseAnotherItem")}</Button>
             </Stack>
             {ledger.error && <p className="error">{ledger.error}</p>}

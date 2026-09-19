@@ -291,9 +291,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
     });
   });
 
-  // Proves the muted summary reads BOTH totals (the client-side reduce over
-  // `rows`) from the catalog template — a hardcoded literal would fail to pick
-  // up the marker text even though the numbers would still look right.
+  // The summary name retains the localized stock totals and withdrawal explanation.
   it("interpolates the stock totals into the summary message from the catalog", async () => {
     await withOverride(
       "stock", "totalAvailableMessage", "TOTAL-MARKER {{available}} of {{grades}} MARKER-END",
