@@ -1286,7 +1286,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     )).toHaveClass("badge");
   });
 
-  it("shows an em dash for an order sold entirely at list", async () => {
+  it("names an order sold entirely at list", async () => {
     const atList: OrderItem = { ...ITEM_A, id: "at1", listUnitPriceMinorUnits: 300 };
     mockListOrders.mockResolvedValue([listedOrder("atlist", [atList], 900)]);
     await renderReady();
@@ -1297,7 +1297,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // Discount, Total, Provenance, actions — so the new column is index 4.
     // Without this, an implementation returning null for every non-below order
     // leaves the cell EMPTY and both negative assertions still pass.
-    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("At list");
     expect(within(row).queryByText(/%/)).toBeNull();
   });
 
@@ -1331,8 +1331,8 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
     // The wrap class is applied here, not just declared in the stylesheet: this
     // cell is inside td.num, which is pinned white-space: nowrap.
-    expect(within(within(row).getAllByRole("cell")[4]).getByText(i18n.t("enums:listPriceBasis.PreDating")))
-      .toHaveClass("discount-note");
+    expect(within(row).getAllByRole("cell")[4])
+      .toHaveAccessibleDescription(i18n.t("enums:listPriceBasis.PreDating"));
   });
 
   it("does not print a bare em dash for an order only part of which can be measured", async () => {
@@ -1344,8 +1344,9 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     const cell = within(row).getAllByRole("cell")[4];
     // The em dash means "sold at list". This order was not fully measured, so
     // the cell must carry the note instead.
-    expect(cell).toHaveTextContent(i18n.t("sales:discountPartialNote"));
-    expect(cell.textContent?.trim()).not.toBe("—");
+    expect(cell).toHaveAccessibleDescription("part of this order has no list price");
+    expect(cell).toHaveAttribute("title", "part of this order has no list price");
+    expect(within(cell).getByText("—", { exact: true })).toBeInTheDocument();
   });
 
   // The BELOW-list partial branch: a discounted order that also carries an
@@ -1362,7 +1363,8 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     const cell = within(row).getAllByRole("cell")[4];
     // The badge renders (it IS discounted) AND the partial note is present and wrappable.
     expect(within(cell).getByText(/%/)).toHaveClass("badge");
-    expect(within(cell).getByText(i18n.t("sales:discountPartialNote"))).toHaveClass("discount-note");
+    expect(cell).toHaveAccessibleDescription("part of this order has no list price");
+    expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
 });
 
@@ -1413,8 +1415,8 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
     expect(cell).toHaveTextContent("$9.00");
     // `discount-note` is the wrap class: this note sits inside td.num, which
     // #650 pins to white-space: nowrap.
-    expect(within(cell).getByTestId("row-partly-paid"))
-      .toHaveClass("muted", "discount-note");
+    expect(cell).toHaveAccessibleDescription("part of this order is paid");
+    expect(cell).toHaveAttribute("title", "part of this order is paid");
     expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
   });
 
@@ -1426,7 +1428,7 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
     expect(cell).toHaveTextContent("$29.00");
     // The three states must be distinguishable from each other, not just from
     // empty: no part-paid note and no settled pill on an order owing all of it.
-    expect(within(cell).queryByTestId("row-partly-paid")).toBeNull();
+    expect(cell).not.toHaveAccessibleDescription();
     expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
   });
 

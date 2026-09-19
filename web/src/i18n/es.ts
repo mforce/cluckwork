@@ -339,6 +339,7 @@ export const es = {
     unitPrice: "Precio unitario",
     discount: "Descuento",
     aboveList: "Sobre el precio de lista",
+    atListShort: "Precio de lista",
     belowListBadge: "Por debajo de lista",
     // #727
     overMaximumBadge: "Sobre el máximo",

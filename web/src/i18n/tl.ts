@@ -355,6 +355,7 @@ export const tl = {
     unitPrice: "Presyo bawat yunit",
     discount: "Diskwento",
     aboveList: "Higit sa presyo sa listahan",
+    atListShort: "Presyo sa listahan",
     belowListBadge: "Mas mababa sa lista",
     // #727
     overMaximumBadge: "Higit sa pinakamataas",
