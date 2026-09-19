@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import {
-  Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TableRow, Typography,
+  Box, List, ListItem, LinearProgress, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Typography,
 } from "@mui/material";
 import {
   getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
@@ -13,6 +13,7 @@ import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
+import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX } from "../components/FieldConsole";
 import { daysBefore } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
 import { useAuth } from "../auth/useAuth";
@@ -84,12 +85,9 @@ export function ReportsPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <section>
+    <FieldConsole>
       <Typography variant="h2">{t("title")}</Typography>
 
-      {/* #653 — the only controls on this screen are the date range, so the
-          whole bar is the filter bar (Reports has no other filter to keep
-          separate, unlike History/Feed/Water below). */}
       <FilterBar>
         <FilterDateField
           label={t("fromLabel")}
@@ -123,8 +121,20 @@ export function ReportsPage() {
 
       {production && (
         <>
+          <Box component="dl" aria-label={t("periodRowLabel")} sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(5, minmax(0, 1fr))" }, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)", my: 2 }}>
+            {[
+              [t("eggsHeader"), fmt.count(production.totalEggs)],
+              [t("sellableHeader"), fmt.count(production.totalSellable)],
+              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : `${fmt.count(production.periodHenDayPct, 1)}%`],
+              ...(isAdmin && profit ? [[t("profitRowLabel"), fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)]] : []),
+              [t("lossesHeader"), fmt.count(production.days.reduce((sum, day) => sum + day.cracked + day.dirty + day.discarded, 0))],
+            ].map(([label, value]) => <Box key={label} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
+              <Typography component="dt" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
+              <Typography component="dd" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
+            </Box>)}
+          </Box>
           <h3>{t("productionHeading")}</h3>
-          <TableContainer>
+          <LedgerTableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -181,25 +191,33 @@ export function ReportsPage() {
                 </TableRow>
               </TableFooter>
             </Table>
-          </TableContainer>
-          {production.gradeTotals.length > 0 && (
-            <p className="muted">
-              {t("gradeTotalsLabel")}{" "}
-              {production.gradeTotals.map((g) => `${g.name} ${fmt.count(g.quantity)}`).join(", ")}
-            </p>
-          )}
+          </LedgerTableContainer>
+
         </>
       )}
 
+      <Box sx={CONSOLE_SPLIT_SX}>
+        {production && production.gradeTotals.length > 0 && (
+          <Box sx={CONSOLE_PANEL_SX}>
+            <h3>{t("gradeTotalsLabel")}</h3>
+            <List aria-label={t("gradeTotalsLabel")} disablePadding>
+              {production.gradeTotals.map((grade) => (
+                <ListItem key={grade.name} sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(50px, 1fr)", gap: 2, px: 0, py: 1.5, borderBottom: "1px solid var(--rule)" }}>
+                  <Typography component="span" sx={{ fontFamily: "Georgia, serif", fontWeight: 600 }}>{grade.name}</Typography>
+                  <strong>{fmt.count(grade.quantity)}</strong>
+                  <LinearProgress variant="determinate" value={100 * grade.quantity / Math.max(1, ...production.gradeTotals.map((g) => g.quantity))} aria-label={grade.name} sx={{ height: 8, borderRadius: "var(--r-pill)" }} />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        )}
       {isAdmin && sales && expenses && profit && (
-        <>
+        <Box sx={CONSOLE_PANEL_SX}>
           <h3>{t("moneyHeading")}</h3>
-          <TableContainer>
-            <Table size="small">
-              <TableBody>
-                <TableRow>
-                  <TableCell component="th">{t("salesRowLabel")}</TableCell>
-                  <TableCell>
+          <Box component="dl" sx={{ m: 0 }}>
+                <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
+                  <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("salesRowLabel")}</Typography>
+                  <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
                     {t("salesSummary", {
                       count: sales.confirmedCount,
                       confirmed: fmt.count(sales.confirmedCount),
@@ -208,11 +226,11 @@ export function ReportsPage() {
                       outstanding: fmt.money(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
                     })}
                     {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount, voided: fmt.count(sales.voidedCount) }) : ""}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell component="th">{t("expensesRowLabel")}</TableCell>
-                  <TableCell>
+                  </Typography>
+                </Box>
+                <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
+                  <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("expensesRowLabel")}</Typography>
+                  <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
                     {expenses.categories.length === 0
                       ? t("expensesNone")
                       : expenses.categories
@@ -221,11 +239,11 @@ export function ReportsPage() {
                     {t("expensesTotalSuffix", {
                       total: fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit),
                     })}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell component="th">{t("profitRowLabel")}</TableCell>
-                  <TableCell>
+                  </Typography>
+                </Box>
+                <Box sx={{ py: 1, borderBottom: "1px solid var(--rule)" }}>
+                  <Typography component="dt" sx={{ fontWeight: 700, mb: .5 }}>{t("profitRowLabel")}</Typography>
+                  <Typography component="dd" sx={{ m: 0, fontSize: ".8rem" }}>
                     <Trans ns="reports" i18nKey="profitLine"
                       values={{
                         revenue: fmt.money(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
@@ -234,16 +252,15 @@ export function ReportsPage() {
                       }}
                       components={{ strong: <strong /> }}
                     />
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  </Typography>
+                </Box>
+          </Box>
           <p className="muted">
             {t("profitFootnote")}
           </p>
-        </>
+        </Box>
       )}
-    </section>
+      </Box>
+    </FieldConsole>
   );
 }

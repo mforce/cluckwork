@@ -115,7 +115,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     expect(within(periodRow).getAllByText("196")).toHaveLength(2); // totalHenDays, totalRecordedHenDays
     within(periodRow).getByText("92.3"); // periodHenDayPct
 
-    expect(screen.getByText("By grade: Grade A 60, Grade B 30")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "By grade:" })).toHaveTextContent("Grade A60Grade B30");
   });
 
   // #396 — Condition sits BESIDE Sellable, never folded into it. The fixture
@@ -238,7 +238,7 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
     )).toBeInTheDocument();
     expect(screen.getByText("Feed $50.00, Utilities $15.00 — total $65.00")).toBeInTheDocument();
     expect(screen.getByText(/revenue \$100\.00 − expenses \$65\.00 =/)).toBeInTheDocument();
-    expect(screen.getByText("$35.00").tagName).toBe("STRONG");
+    expect(screen.getByText("$35.00", { selector: "strong" }).tagName).toBe("STRONG");
 
     expect(mockGetSalesSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
     expect(mockGetExpenseSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
@@ -352,7 +352,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   it("reads the grade-totals prefix from the catalog, not a hardcoded literal", async () => {
     await withOverride("gradeTotalsLabel", "GRADE-TOTALS-MARKER", async () => {
       renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
-      expect(await screen.findByText("GRADE-TOTALS-MARKER Grade A 60, Grade B 30")).toBeInTheDocument();
+      expect(await screen.findByRole("list", { name: "GRADE-TOTALS-MARKER" })).toHaveTextContent("Grade A60Grade B30");
       expect(screen.queryByText(/By grade:/)).not.toBeInTheDocument();
     });
   });
@@ -372,7 +372,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   ])("reads the %s row label from the catalog, not a hardcoded literal", async (key, original) => {
     await withOverride(key, `${key.toUpperCase()}-MARKER`, async () => {
       renderWithProviders(<ReportsPage />, { token: ADMIN });
-      expect(await screen.findByText(`${key.toUpperCase()}-MARKER`)).toBeInTheDocument();
+      expect((await screen.findAllByText(`${key.toUpperCase()}-MARKER`)).length).toBeGreaterThan(0);
       expect(screen.queryByText(original)).not.toBeInTheDocument();
     });
   });
@@ -443,7 +443,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   // right number but never inside a real <strong>.
   it("wraps the profit figure in a real <strong> element via the <Trans> components mapping", async () => {
     renderWithProviders(<ReportsPage />, { token: ADMIN });
-    expect(await screen.findByText("$35.00")).toHaveProperty("tagName", "STRONG");
+    expect(await screen.findByText("$35.00", { selector: "strong" })).toHaveProperty("tagName", "STRONG");
   });
 
   it("reads the profit footnote from the catalog, not a hardcoded literal", async () => {

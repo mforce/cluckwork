@@ -10,6 +10,7 @@
 //   label, until that screen itself is externalized to the catalog (#182).
 export const tl = {
   common: {
+    swipeColumns: "I-swipe ang mga column ↔",
     whatDoesTermMean: "Ano ang ibig sabihin ng “{{term}}”?",
     "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
