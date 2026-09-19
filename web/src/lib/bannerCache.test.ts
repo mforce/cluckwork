@@ -55,6 +55,67 @@ describe("bannerCache", () => {
       set.mockRestore();
       remove.mockRestore();
     });
+
+    it("caches nothing when the FileReader fails to read the blob", async () => {
+      class FailingFileReader {
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        error = new Error("read failed");
+        readAsDataURL() {
+          queueMicrotask(() => this.onerror?.());
+        }
+      }
+      vi.stubGlobal("FileReader", FailingFileReader);
+      await expect(cacheBannerBytes(blob(), farmBindingToken())).resolves.not.toThrow();
+      vi.unstubAllGlobals();
+      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
+    });
+
+    // A real FileReader can fire onerror with `.error` still null (e.g. an
+    // abort before the error is populated) — the `?? new Error(...)` fallback
+    // is for that case, distinct from the "has a real error" case above.
+    it("still caches nothing when the FileReader fails with no .error set", async () => {
+      class FailingFileReaderNoError {
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        error = null;
+        readAsDataURL() {
+          queueMicrotask(() => this.onerror?.());
+        }
+      }
+      vi.stubGlobal("FileReader", FailingFileReaderNoError);
+      await expect(cacheBannerBytes(blob(), farmBindingToken())).resolves.not.toThrow();
+      vi.unstubAllGlobals();
+      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
+    });
+
+    it("does nothing when the token goes stale WHILE the FileReader read is in flight (not just before it starts)", async () => {
+      // Distinct from the "stale before the call" case above: this rebinds
+      // the farm AFTER cacheBannerBytes has already captured its token and
+      // started the read, but BEFORE the read resolves — the only way to
+      // exercise the SECOND staleness check (after the `await`), not the
+      // first one (before it).
+      let resolveRead: (() => void) | undefined;
+      class DelayedFileReader {
+        result = "data:image/png;base64,AAAA";
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        readAsDataURL() {
+          resolveRead = () => this.onload?.();
+        }
+      }
+      vi.stubGlobal("FileReader", DelayedFileReader);
+
+      const staleToken = farmBindingToken();
+      const pending = cacheBannerBytes(blob(), staleToken);
+      bindFarm("other-farm"); // rebinds mid-read, after the token was captured
+      resolveRead?.();
+      await pending;
+
+      vi.unstubAllGlobals();
+      expect(localStorage.getItem(bannerKeyFor("sunny-acres"))).toBeNull();
+      expect(localStorage.getItem(bannerKeyFor("other-farm"))).toBeNull();
+    });
   });
 
   describe("readCachedBanner — the first-visit and cached paths", () => {
