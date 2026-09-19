@@ -14,7 +14,7 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
-import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
+import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
@@ -554,7 +554,18 @@ export function ExpensesPage() {
 
   return (
     <FieldConsole>
-      <Typography variant="h2">{t("title")}</Typography>
+      <Stack direction={{ xs: "column", md: "row" }} sx={{ justifyContent: "space-between", gap: 1, mb: 2 }}>
+        <Typography variant="h2">{t("title")}</Typography>
+        <Button variant="outlined" color="inherit" sx={{ minHeight: 44 }} onClick={() => setShowCategories((v) => !v)}>
+          {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
+        </Button>
+      </Stack>
+      <ConsoleSummary label={t("contextLabel")} items={[
+        { label: t("periodHeading"), value: !expenses.reloading && expenses.meta !== null ? fmt.money(expenses.meta.total, currencyCode, currencyMinor) : "—" },
+        { label: t("fromLabel"), value: from ? fmt.date(from) : "—" },
+        { label: t("toLabel"), value: to ? fmt.date(to) : "—" },
+        { label: t("categoryLabel"), value: categories.find((category) => category.id === filterCategory)?.name ?? t("allCategoriesOption") },
+      ]} />
 
       {/* #667/#831 — a from/to pair matching every sibling list screen, the
           category filter beside it in the same bar now that FilterBar governs
@@ -586,9 +597,6 @@ export function ExpensesPage() {
             <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
           ))}
         </TextField>
-        <button className="link" type="button" onClick={() => setShowCategories((v) => !v)}>
-          {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
-        </button>
         {/* #679 — persistent, not empty-state-only: before this, the sole way
             back to the default view was to narrow the range until the list
             emptied so the empty state's button appeared. */}
@@ -749,11 +757,15 @@ export function ExpensesPage() {
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
       </Box>
-      <Box component="aside" sx={{ ...CONSOLE_RAIL_SX, gridRow: { xs: 1, md: "auto" } }}>
+      <Box component="aside" sx={CONSOLE_RAIL_SX}
+        aria-label={!expenses.reloading && expenses.meta !== null
+          ? t("periodTotalLabel", { amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor) })
+          : undefined}>
         {!expenses.reloading && expenses.meta !== null && (
           <>
-            <Typography component="p" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.9rem" }}>
-              <strong>{t("periodTotalLabel", { amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor) })}</strong>
+            <Typography component="p" variant="body2">{t("periodHeading")}</Typography>
+            <Typography component="p" variant="body2" sx={{ fontSize: "2rem", fontWeight: 700, fontVariantNumeric: "tabular-nums", my: 1 }}>
+              {fmt.money(expenses.meta.total, currencyCode, currencyMinor)}
             </Typography>
             <Typography sx={{ fontSize: ".8rem" }}>{t("wholePeriod")}</Typography>
           </>

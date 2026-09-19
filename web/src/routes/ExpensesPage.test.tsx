@@ -241,7 +241,7 @@ describe("ExpensesPage list + totals", () => {
     expect(within(row).getByText("BHD 1.500")).toBeInTheDocument(); // 1500 @ 3dp, not "15.00"
     // month total is its own value (12345), rendered at 3dp → "BHD 12.345"; a
     // hard-coded 2dp formatter would read "123.45", so this pins the scale.
-    expect(screen.getByText(/Total for this period: BHD 12\.345/)).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /Total for this period: BHD\s12\.345/ })).toBeInTheDocument();
   });
 
   it("shows the filtered empty state when the default month has no expenses", async () => {
@@ -774,8 +774,8 @@ describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
     mockListExpenses.mockResolvedValue({ items: [], totalMinorUnits: 12345, currencyCode: "BHD", currencyMinorUnit: 3 });
     await withOverride("expenses", "periodTotalLabel", "TOTAL-MARKER {{amount}} END", async () => {
       renderWithProviders(<ExpensesPage />, { token: ADMIN });
-      expect(await screen.findByText("TOTAL-MARKER BHD 12.345 END")).toBeInTheDocument();
-      expect(screen.queryByText(/Total for this period:/)).not.toBeInTheDocument();
+      expect(await screen.findByRole("complementary", { name: /^TOTAL-MARKER BHD\s12\.345 END$/ })).toBeInTheDocument();
+      expect(screen.queryByRole("complementary", { name: /Total for this period:/ })).not.toBeInTheDocument();
     });
   });
 
@@ -894,7 +894,7 @@ describe("ExpensesPage list failures (#469)", () => {
       items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
     });
     await renderReady();
-    expect(screen.getByText(/Total for this period: \$999\.00/)).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /Total for this period: \$999\.00/ })).toBeInTheDocument();
 
     // From and To are two separate controls, so setting a range fires two
     // separate change events (unlike the single month picker this replaced)
@@ -936,12 +936,12 @@ describe("ExpensesPage list failures (#469)", () => {
       fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-05-01" } });
       fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-05-31" } });
     });
-    expect(screen.getByText(/Total for this period: \$5\.00/)).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /Total for this period: \$5\.00/ })).toBeInTheDocument();
 
     await act(async () => {
       releaseStale({ items: [], totalMinorUnits: 88800, currencyCode: "USD", currencyMinorUnit: 2 });
     });
-    expect(screen.getByText(/Total for this period: \$5\.00/)).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /Total for this period: \$5\.00/ })).toBeInTheDocument();
     expect(screen.queryByText(/\$888\.00/)).not.toBeInTheDocument();
   });
 });
@@ -1055,7 +1055,7 @@ describe("ExpensesPage cross-period display while loading (#469, codex P2)", () 
       items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
     });
     await renderReady();
-    expect(screen.getByText(/Total for this period: \$999\.00/)).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /Total for this period: \$999\.00/ })).toBeInTheDocument();
 
     // The replacement hangs: nothing about the old month may still show. A
     // harmless interim placeholder absorbs the From-only request; the final
@@ -1113,7 +1113,7 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
       .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2 })
       .mockRejectedValue(new Error("boom"));
     await renderReady();
-    expect(screen.getByText(/Total for this period: \$999\.00/)).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /Total for this period: \$999\.00/ })).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-05-01" } });
@@ -1121,7 +1121,7 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
     });
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText(/Total for this period:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: /Total for this period:/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/0\.00/)).not.toBeInTheDocument();
   });
 });

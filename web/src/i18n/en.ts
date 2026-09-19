@@ -1965,6 +1965,8 @@ export const en = {
   // task brief — a cross-screen consolidation is a tracked native-pass
   // deferral, not this task's job.
   expenses: {
+    contextLabel: "Expense context",
+    periodHeading: "Period total",
     ledgerHeading: "Expense ledger",
     wholePeriod: "Whole filtered period, including rows not yet loaded.",
     title: "Expenses",

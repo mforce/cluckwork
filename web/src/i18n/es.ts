@@ -1465,6 +1465,8 @@ export const es = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    contextLabel: "Contexto de gastos",
+    periodHeading: "Total del período",
     ledgerHeading: "Registro de gastos",
     wholePeriod: "Todo el período filtrado, incluidas las filas aún no cargadas.",
     title: "Gastos",
