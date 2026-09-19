@@ -1594,11 +1594,16 @@ export const en = {
   // is their only render site), so their display names are flat keys here
   // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
   settings: {
+    // Concept C "Focus panels" (#833 redesign) shell chrome.
+    eyebrow: "Farm configuration",
     heading: "Farm settings",
     intro:
       "How this farm names itself, and the locale, timezone and currency it "
       + "records and reads its work in.",
     loadFailedMessage: "Could not load farm settings.",
+
+    // Accordion heading grouping the Logo/Banner panels and the palette below.
+    identityImagesHeading: "Identity & images",
 
     // Logo panel
     logoSectionHeading: "Logo",
@@ -1727,6 +1732,9 @@ export const en = {
       + "system and the format overrides are recorded against the farm and "
       + "will drive how amounts, dates and measurements are displayed once "
       + "that formatting lands.",
+    // Sits beside the Save button (#833 redesign) — logo/banner uploads and
+    // removals happen immediately when clicked and are never held for Save.
+    saveScopeNote: "Image actions are separate from Save settings.",
     savedMessage: "Settings saved.",
 
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
