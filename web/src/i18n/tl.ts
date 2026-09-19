@@ -1521,6 +1521,8 @@ export const tl = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    ledgerHeading: "Talaan ng mga gastos",
+    wholePeriod: "Buong napiling panahon, kasama ang mga row na hindi pa na-load.",
     title: "Mga Gastos",
 
     // Imperative messages

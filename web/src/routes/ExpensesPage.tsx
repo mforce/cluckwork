@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Receipt } from "lucide-react";
 import {
-  Box, DialogActions, Divider, List, ListItem, ListItemText, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  Box, Button, DialogActions, Divider, List, ListItem, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
@@ -14,6 +14,7 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
+import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
@@ -552,7 +553,7 @@ export function ExpensesPage() {
   }
 
   return (
-    <section>
+    <FieldConsole>
       <Typography variant="h2">{t("title")}</Typography>
 
       {/* #667/#831 — a from/to pair matching every sibling list screen, the
@@ -597,23 +598,6 @@ export function ExpensesPage() {
           </button>
         )}
       </FilterBar>
-
-      {/* The total belongs to the rows below it: it lands and clears with
-          them, so it can never describe a period they do not (#469). It is
-          also WITHHELD while a replacement is in flight — the hook keeps the
-          previous window until the new one lands, and a figure from last
-          month sitting under this month's picker is the very thing this
-          change exists to stop, pending or settled (codex review). */}
-      {/* ...and only when there IS an authoritative figure. A failed load
-          clears the metadata, and `?? 0` then rendered a definitive
-          "Month total: 0.00" beside the error — stating that a period whose
-          spend is UNKNOWN is zero, which on a money screen is a wrong number
-          rather than a degraded display (codex review). */}
-      {!expenses.reloading && expenses.meta !== null && (
-        <p><strong>{t("periodTotalLabel", {
-          amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor),
-        })}</strong></p>
-      )}
 
       {showCategories && (
         // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —
@@ -678,9 +662,10 @@ export function ExpensesPage() {
         </Box>
       )}
 
+      <Box sx={{ ...CONSOLE_SPLIT_SX, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, .9fr) minmax(0, 1.1fr)" } }}>
+      <Box sx={CONSOLE_PANEL_SX}>
       <h3>{t("recordExpenseHeading")}</h3>
-      <Stack component="form" direction="row" useFlexGap spacing={2}
-        sx={{ flexWrap: "wrap", alignItems: "flex-end", my: "0.75rem" }} onSubmit={onAdd}>
+      <Stack component="form" sx={CONSOLE_FORM_SX} onSubmit={onAdd}>
         <TextField
           type="date"
           label={t("dateLabel")}
@@ -755,7 +740,7 @@ export function ExpensesPage() {
             amount would have to guess the scale (#469 codex review).
             #512 (T028): the picker's canSubmit gates the write too — an
             exploring/uninitialized picker must not submit a stale flock. */}
-        <BusyButton type="submit" busy={isPending("add")}
+        <BusyButton component={Button} variant="contained" type="submit" busy={isPending("add")}
           disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>
           {t("recordExpenseButton")}
         </BusyButton>
@@ -763,6 +748,18 @@ export function ExpensesPage() {
       {activeCategories.length === 0 && (
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
+      </Box>
+      <Box component="aside" sx={CONSOLE_RAIL_SX}>
+        {!expenses.reloading && expenses.meta !== null && (
+          <>
+            <Typography component="p" sx={{ fontFamily: "Georgia, serif", fontSize: "1.9rem" }}>
+              <strong>{t("periodTotalLabel", { amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor) })}</strong>
+            </Typography>
+            <Typography sx={{ fontSize: ".8rem" }}>{t("wholePeriod")}</Typography>
+          </>
+        )}
+      </Box>
+      </Box>
 
       {/* Unconditional since #479: this slot is the page's alone now, so there
           is nothing a dialog's own message could double up with. */}
@@ -895,6 +892,7 @@ export function ExpensesPage() {
 
       {expenses.error && <p className="error" role="alert">{expenses.error}</p>}
 
+      <h3>{t("ledgerHeading")}</h3>
       {expenses.rows === null || expenses.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : expenses.rows.length === 0 ? (
@@ -915,7 +913,7 @@ export function ExpensesPage() {
                 : { label: t("showAllTimeButton"), onClick: showAllTime }} />
           : <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
       ) : (
-        <TableContainer>
+        <LedgerTableContainer>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -947,16 +945,16 @@ export function ExpensesPage() {
                     </Link>
                     {/* Opens the correction dialog — non-mutating, so the
                         spinner belongs to the dialog's Save, not here (#242). */}
-                    <button className="link" disabled={busy}
+                    <Button size="small" color="warning" disabled={busy}
                       onClick={() => { openDialog("edit"); startEdit(x); }}>
                       {t("correctButton")}
-                    </button>
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </TableContainer>
+        </LedgerTableContainer>
       )}
       {expenses.canLoadMore && (
         <button className="link" disabled={busy}
@@ -964,6 +962,6 @@ export function ExpensesPage() {
           {t("loadMoreButton")}
         </button>
       )}
-    </section>
+    </FieldConsole>
   );
 }
