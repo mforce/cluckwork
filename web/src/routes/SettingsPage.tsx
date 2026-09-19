@@ -236,6 +236,15 @@ export function SettingsPage() {
   const bannerUploadAttempt = useRef<Attempt | null>(null);
   const bannerRemoveAttempt = useRef<Attempt | null>(null);
   const bannerUploadInput = useRef<HTMLInputElement>(null);
+  // Codex review round 4 — farmBindingToken() alone can't detect a LATER
+  // banner operation on the SAME farm (upload then remove, or two uploads
+  // back to back): it only changes on a farm/account rebind, and the
+  // post-upload re-fetch below is fire-and-forget. Bumped by every
+  // banner-mutating operation before it starts and captured going into the
+  // re-fetch; the fetch's cache write is skipped once a later operation has
+  // moved the counter on, so a slow re-fetch can never resurrect or
+  // overwrite what a newer operation already did.
+  const bannerOpGeneration = useRef(0);
 
   const currencyNoteId = useId();
   const timeZoneNoteId = useId();
@@ -515,6 +524,7 @@ export function SettingsPage() {
 
     const attempt = keyFor(bannerUploadAttempt.current, `${file.name}:${file.size}:${file.lastModified}`);
     bannerUploadAttempt.current = attempt;
+    const generation = ++bannerOpGeneration.current;
 
     await run("banner:upload", async () => {
       try {
@@ -528,10 +538,16 @@ export function SettingsPage() {
         // metadata or an orientation the server already removed. getFarmBanner
         // is the same authenticated read BrandSplash's post-login fetch uses.
         // Fire-and-forget: a fetch/cache failure here costs one stale pre-auth
-        // image at most, never surfaced as a Settings error.
+        // image at most, never surfaced as a Settings error. Guarded by
+        // bannerOpGeneration (Codex review round 4) so a later operation —
+        // another upload, or a remove — can't be overwritten or resurrected
+        // by this fetch landing after it.
         const tokenAt = farmBindingToken();
         void getFarmBanner()
-          .then(({ blob }) => cacheBannerBytes(blob, tokenAt))
+          .then(({ blob }) => {
+            if (bannerOpGeneration.current !== generation) return;
+            return cacheBannerBytes(blob, tokenAt);
+          })
           .catch(() => {});
         await refresh();
       } catch (err) {
@@ -554,6 +570,10 @@ export function SettingsPage() {
     setBannerMessage(null);
     const attempt = keyFor(bannerRemoveAttempt.current, `remove:${bannerHash ?? ""}`);
     bannerRemoveAttempt.current = attempt;
+    // Invalidates a still-in-flight upload's post-upload re-fetch (Codex
+    // review round 4) — without this, that fetch resolving AFTER this
+    // remove completes would re-cache the just-removed banner's bytes.
+    bannerOpGeneration.current += 1;
 
     await run("banner:remove", async () => {
       try {

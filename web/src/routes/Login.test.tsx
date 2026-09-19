@@ -7,7 +7,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import { login as apiLogin, ApiError, setOnUnauthenticated } from "../api/client";
 import { setStoredToken } from "../test/jwt";
 import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount } from "../auth/tokenStore";
-import { cacheBannerBytes } from "../lib/bannerCache";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
 
 // Keep the real ApiError (Login branches on `instanceof ApiError`) but stub the
@@ -757,6 +757,18 @@ describe("Login — cached pre-auth banner (#833)", () => {
     await cacheBannerFor("link-farm");
     renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });
     await screen.findByRole("button", { name: "Sign in" });
+
+    // Codex review — asserting immediately after the button appears races
+    // useCachedBannerUrl's own async IndexedDB read (findByRole can resolve
+    // before that read's microtasks have even run), which would let this
+    // pass vacuously whether or not the suppression actually works. A real,
+    // unsuppressed read for the same farm takes AT LEAST as many ticks as
+    // the suppressed path (which short-circuits on a blank lookup code
+    // without touching IndexedDB at all), so awaiting one first guarantees
+    // the component's own read has already settled by the time we check.
+    await act(async () => {
+      await readCachedBannerBlob("link-farm");
+    });
 
     expect(document.querySelector("img[alt='']")).toBeNull();
   });
