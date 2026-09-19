@@ -50,12 +50,15 @@ export function FieldConsole({ children }: { children: ReactNode }) {
   );
 }
 
-export function LedgerTableContainer({ children }: { children: ReactNode }) {
+export function LedgerTableContainer({ children, alwaysShowSwipeCue = false }: {
+  children: ReactNode;
+  alwaysShowSwipeCue?: boolean;
+}) {
   const { t } = useTranslation("common");
   return (
     <Box sx={{ minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)" }}>
       <Typography component="p" variant="body2" sx={{
-        display: { xs: "block", md: "none" },
+        display: alwaysShowSwipeCue ? "block" : { xs: "block", md: "none" },
         m: 0, py: .5, px: 1,
         fontSize: ".65rem",
         textAlign: "right",
