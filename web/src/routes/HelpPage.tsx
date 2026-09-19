@@ -658,6 +658,7 @@ export function HelpPage() {
         </li>
         <li>
           <Trans ns="help" i18nKey="feedCorrecting" components={{ strong: <strong /> }} />
+          <p>{t("feedRationPreview")}</p>
         </li>
         <li>
           <Trans ns="help" i18nKey="feedDailyEntry" components={{ strong: <strong /> }} />
