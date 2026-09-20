@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
-  IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
-  Typography,
+  Accordion, AccordionDetails, AccordionSummary, Box, Stack, TextField, Typography,
 } from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
@@ -22,11 +21,6 @@ import {
 } from "../i18n/enums";
 
 const PAGE = 100;
-
-// MUI's auto table layout shrinks any wrappable cell below its content width,
-// so short values (the timestamp, the actor, the action, the entity) are
-// pinned; free text (Details) wraps. Matches GradesPage's own NOWRAP (#832).
-const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // Canonical 8-4-4-4-12 hex form only, not full Guid.TryParse permissiveness
 // (which also accepts braced/no-hyphen forms). This is a correctness guard,
@@ -172,8 +166,6 @@ function AuditDetails({ event }: { event: AuditEvent }) {
 export function AuditPage() {
   const { t } = useTranslation("audit");
   const { t: tc } = useTranslation("common");
-  // The hidden header supports native table navigation and ARIA naming.
-  const detailsColumnHeaderId = useId();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawActionFilter = searchParams.get("action") ?? "";
@@ -425,7 +417,7 @@ export function AuditPage() {
       <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
         {t("eyebrow")}
       </Typography>
-      <Typography variant="h2">
+      <Typography variant="h1">
         {entityId
           ? (scopedEntityType
               ? t("scopedHeading", { entityType: entityTypeLabel(scopedEntityType) })
@@ -435,36 +427,42 @@ export function AuditPage() {
       <p className="muted">{t("intro")}</p>
 
       <FilterBar>
-        <TextField
-          select
-          label={t("entityTypeFilterLabel")}
-          value={entityTypeFilter}
-          size="small"
-          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-          onChange={(e) => updateEntityTypeFilter(e.target.value)}
-        >
-          <option value="">{t("allEntityTypesOption")}</option>
-          {ENTITY_TYPE_VALUES.map((et) => (
-            <option key={et} value={et}>{entityTypeLabel(et)}</option>
-          ))}
-        </TextField>
-        <TextField
-          select
-          label={t("actionFilterLabel")}
-          value={actionFilter}
-          size="small"
-          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-          onChange={(e) => updateActionFilter(e.target.value)}
-        >
-          <option value="">{t("allActionsOption")}</option>
-          {availableActions.map((a) => (
-            <option key={a} value={a}>{auditActionLabel(a)}</option>
-          ))}
-        </TextField>
-        <FilterDateField label={t("fromLabel")} value={fromFilter}
-          onChange={(e) => updateDateFilter("from", e.target.value)} />
-        <FilterDateField label={t("toLabel")} value={toFilter}
-          onChange={(e) => updateDateFilter("to", e.target.value)} />
+        <Box sx={{
+          display: "grid", gap: 2, width: "100%", flex: "1 1 100% !important",
+          gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
+          "& .MuiFormControl-root": { minWidth: 0 },
+        }}>
+          <TextField
+            select
+            label={t("entityTypeFilterLabel")}
+            value={entityTypeFilter}
+            size="small"
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => updateEntityTypeFilter(e.target.value)}
+          >
+            <option value="">{t("allEntityTypesOption")}</option>
+            {ENTITY_TYPE_VALUES.map((et) => (
+              <option key={et} value={et}>{entityTypeLabel(et)}</option>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label={t("actionFilterLabel")}
+            value={actionFilter}
+            size="small"
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => updateActionFilter(e.target.value)}
+          >
+            <option value="">{t("allActionsOption")}</option>
+            {availableActions.map((a) => (
+              <option key={a} value={a}>{auditActionLabel(a)}</option>
+            ))}
+          </TextField>
+          <FilterDateField label={t("fromLabel")} value={fromFilter}
+            onChange={(e) => updateDateFilter("from", e.target.value)} />
+          <FilterDateField label={t("toLabel")} value={toFilter}
+            onChange={(e) => updateDateFilter("to", e.target.value)} />
+        </Box>
         {/* #679 — persistent, and that is the whole point: this screen's empty
             state is a bare muted paragraph by #655's classification, so a
             control living there would appear only once the filters had already
@@ -517,66 +515,54 @@ export function AuditPage() {
         </p>
       ) : (
         <>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell padding="checkbox" />
-                  <TableCell>{t("whenHeader")}</TableCell>
-                  <TableCell>{t("whoHeader")}</TableCell>
-                  <TableCell>{t("actionHeader")}</TableCell>
-                  {/* Visually hidden: this column has no visible header (it
-                      only appears once a row expands), but still needs a
-                      real id for the Details cell's `headers` attribute to
-                      point at. */}
-                  <TableCell id={detailsColumnHeaderId} className="sr-only">
-                    {t("detailsHeader")}
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {events.rows.map((e) => {
-                  const expanded = expandedIds.has(e.id);
-                  return (
-                    <TableRow key={e.id} title={e.detailsJson ?? undefined}>
-                      <TableCell padding="checkbox">
-                        <IconButton size="small" aria-expanded={expanded}
-                          aria-label={t("detailsHeader")}
-                          onClick={() => toggleExpanded(e.id)}>
-                          {expanded ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
-                        </IconButton>
-                      </TableCell>
-                      <TableCell sx={NOWRAP}>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</TableCell>
-                      <TableCell sx={NOWRAP}>{e.actorEmail}</TableCell>
-                      <TableCell sx={NOWRAP}>{auditActionLabel(e.action)}</TableCell>
-                      {expanded && (
+          <Stack spacing={1.5}>
+            {events.rows.map((e) => {
+              const expanded = expandedIds.has(e.id);
+              const timestamp = e.occurredAtUtc.replace("T", " ").slice(0, 19);
+              const action = auditActionLabel(e.action);
+              return (
+                <Accordion
+                  component="article"
+                  key={e.id}
+                  expanded={expanded}
+                  onChange={() => toggleExpanded(e.id)}
+                  disableGutters
+                  title={e.detailsJson ?? undefined}
+                  aria-label={`${timestamp} UTC · ${action} · ${e.actorEmail}`}
+                  slotProps={{ transition: { unmountOnExit: true } }}
+                >
+                  <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.25, sm: 2 }}
+                      sx={{ width: "100%", alignItems: { sm: "baseline" } }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+                        {timestamp} UTC
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700 }}>{action}</Typography>
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box component="dl" sx={{
+                      display: "grid", gridTemplateColumns: { xs: "5rem minmax(0, 1fr)", sm: "7.5rem minmax(0, 1fr)" },
+                      gap: 1, m: 0, "& dd": { m: 0, overflowWrap: "anywhere" },
+                    }}>
+                      <Typography component="dt" variant="caption" color="text.secondary">{t("whoHeader")}</Typography>
+                      <Typography component="dd" variant="body2">{e.actorEmail}</Typography>
+                      {!entityId && (
                         <>
-                          {/* #493, Slice 2 — every row in a scoped view shares
-                              the same entity; repeating it up to 100 times is
-                              noise, not a neutral no-op, so it's hidden rather
-                              than left in. */}
-                          {!entityId && (
-                            <TableCell sx={NOWRAP}>
-                              <Typography variant="caption" color="text.secondary" component="div">
-                                {t("entityHeader")}
-                              </Typography>
-                              <Typography component="span" variant="body2">
-                                {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
-                              </Typography>
-                            </TableCell>
-                          )}
-                          {/* Name the cell without changing its pinned visible text. */}
-                          <TableCell headers={detailsColumnHeaderId} aria-labelledby={detailsColumnHeaderId}>
-                            <AuditDetails event={e} />
-                          </TableCell>
+                          <Typography component="dt" variant="caption" color="text.secondary">{t("entityHeader")}</Typography>
+                          <Typography component="dd" variant="body2">
+                            {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
+                          </Typography>
                         </>
                       )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      <Typography component="dt" variant="caption" color="text.secondary">{t("detailsHeader")}</Typography>
+                      <Typography component="dd" variant="body2"><AuditDetails event={e} /></Typography>
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              );
+            })}
+          </Stack>
           {events.canLoadMore && (
             <button className="link" onClick={() => void events.loadMore()}>
               {t("loadMoreButton")}

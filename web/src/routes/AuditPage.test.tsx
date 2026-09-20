@@ -34,8 +34,8 @@ function renderAudit(route = "/audit") {
   );
 }
 
-function expandRow(row: HTMLElement) {
-  fireEvent.click(within(row).getByRole("button", { name: "Details" }));
+function expandPanel(panel: HTMLElement) {
+  fireEvent.click(within(panel).getByRole("button"));
 }
 
 function LocationProbe() {
@@ -86,6 +86,35 @@ beforeEach(() => {
 });
 
 describe("AuditPage load + render", () => {
+  it("renders expandable event panels with timestamp and action in the summary", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit();
+
+    const panel = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    const summary = within(panel).getByRole("button", {
+      name: /2026-07-19 14:30:05 UTC.*Flock depleted/,
+    });
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(summary);
+    expect(within(panel).getByText("admin@farm.test")).toBeInTheDocument();
+    expect(within(panel).getByText("Flock f1234567")).toBeInTheDocument();
+    expect(within(panel).getByText("culled sick birds")).toBeInTheDocument();
+  });
+
+  it("lays out filters two across on phones and four across on desktop", async () => {
+    renderAudit();
+    await screen.findByText("No audit events yet.");
+
+    const grid = screen.getByLabelText("Record type").closest(".MuiFormControl-root")?.parentElement;
+    const gridClass = [...(grid?.classList ?? [])].find((name) => name.startsWith("css-"));
+    expect(gridClass).toBeDefined();
+    const styles = Array.from(document.styleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
+    expect(styles).toMatch(new RegExp(`\\.${gridClass}\\s*\\{[^}]*grid-template-columns:\\s*repeat\\(2`));
+    expect(styles).toMatch(new RegExp(`@media[^}]*\\.${gridClass}\\s*\\{[^}]*grid-template-columns:\\s*repeat\\(4`));
+  });
+
   it("shows a loading state until the first audit page resolves", async () => {
     let resolve!: (events: AuditEvent[]) => void;
     mockListAuditEvents.mockReturnValue(new Promise<AuditEvent[]>((r) => (resolve = r)));
@@ -187,10 +216,10 @@ describe("AuditPage load + render", () => {
     mockListAuditEvents.mockResolvedValue([LOGO_EVENT]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
     // Action cell: friendly label, not the raw "Account.SetLogo".
     expect(within(row).getByText("Farm logo set")).toBeInTheDocument();
-    expandRow(row);
+    expandPanel(row);
     // Entity cell: entityTypeLabel("FarmLogo") + first 8 chars of the id.
     expect(within(row).getByText("Farm logo fl123456")).toBeInTheDocument();
     expect(within(row).queryByText("FarmLogo fl123456")).not.toBeInTheDocument();
@@ -200,21 +229,21 @@ describe("AuditPage load + render", () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
     renderAudit();
 
-    const rowA = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    const rowA = await screen.findByRole("article", { name: /admin@farm\.test/ });
     // occurredAtUtc: "T" → space, truncated to the first 19 chars (drops ms/Z).
-    expect(within(rowA).getByText("2026-07-19 14:30:05")).toBeInTheDocument();
+    expect(within(rowA).getByText("2026-07-19 14:30:05 UTC")).toBeInTheDocument();
     // Action cell renders auditActionLabel(e.action), not the raw code.
     expect(within(rowA).getByText("Flock depleted")).toBeInTheDocument();
     expect(within(rowA).queryByText("Flock.Deplete")).not.toBeInTheDocument();
-    expandRow(rowA);
+    expandPanel(rowA);
     // entityTypeLabel(entityType) + first 8 chars of entityId. "Flock" is an
     // identity label (enums:entityType.Flock === "Flock"), so this also
     // covers the entity cell reading through entityTypeLabel.
     expect(within(rowA).getByText("Flock f1234567")).toBeInTheDocument();
     expect(within(rowA).getByText("culled sick birds")).toBeInTheDocument();
 
-    const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
-    expandRow(rowB);
+    const rowB = screen.getByRole("article", { name: /manager@farm\.test/ });
+    expandPanel(rowB);
     expect(within(rowB).getByText("User u9abcdef")).toBeInTheDocument();
     expect(within(rowB).getByText("—")).toBeInTheDocument(); // null reason → em dash
   });
@@ -222,15 +251,14 @@ describe("AuditPage load + render", () => {
   it("renders a read-only view with no mutation controls (and no paging on a short page)", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]); // 2 < PAGE ⇒ no 'load more'
     renderAudit();
-    await screen.findByRole("row", { name: /admin@farm\.test/ });
+    await screen.findByRole("article", { name: /admin@farm\.test/ });
     // #93: the audit trail is deliberately read-only — no adjust/void/delete
     // controls — and 'load more' only appears when a full page came back.
     const buttons = screen.getAllByRole("button");
     expect(buttons).toHaveLength(2);
-    for (const button of buttons) {
-      expect(button).toHaveAccessibleName("Details");
-      expect(button).toHaveAttribute("aria-expanded", "false");
-    }
+    expect(buttons[0]).toHaveAccessibleName(/2026-07-19 14:30:05 UTC.*Flock depleted/);
+    expect(buttons[1]).toHaveAccessibleName(/2026-07-18 09:15:00 UTC.*User created/);
+    expect(buttons.every((button) => button.getAttribute("aria-expanded") === "false")).toBe(true);
   });
 
   // #758 — the four AddItem price cases. Each asserts the cell's LITERAL text,
@@ -259,10 +287,10 @@ describe("AuditPage load + render", () => {
   // rather than matching one node — that is what pins the ORDER of the two
   // prices, and it is the assertion the bug would have failed.
   const detailsText = async () => {
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(row);
-    const cells = within(row).getAllByRole("cell");
-    return cells[cells.length - 1].textContent;
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(row);
+    const definitions = within(row).getAllByRole("definition");
+    return definitions[definitions.length - 1].textContent;
   };
 
   it("shows the SALE price, and the list price beside it, on a below-list AddItem row", async () => {
@@ -335,8 +363,8 @@ describe("AuditPage load + render", () => {
     }]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(row);
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(row);
     expect(within(row).getByText("Medium Eggs", { exact: false })).toBeInTheDocument();
     // The artboard strikes the OLD price and bolds the NEW one. Asserting the
     // element, not just the text, is what makes that a real check.
@@ -364,8 +392,8 @@ describe("AuditPage load + render", () => {
     }]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(row);
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(row);
     // #720: a null list price is "no list price", never a zero discount.
     expect(within(row).getByText(/no list price/i)).toBeInTheDocument();
     expect(within(row).queryByText("$0.00")).not.toBeInTheDocument();
@@ -378,11 +406,11 @@ describe("AuditPage load + render", () => {
     ]);
     renderAudit();
 
-    const rowA = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(rowA);
+    const rowA = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(rowA);
     expect(within(rowA).getByText("culled sick birds")).toBeInTheDocument();
-    const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
-    expandRow(rowB);
+    const rowB = screen.getByRole("article", { name: /manager@farm\.test/ });
+    expandPanel(rowB);
     expect(within(rowB).getByText("—")).toBeInTheDocument();
   });
 
@@ -407,8 +435,8 @@ describe("AuditPage load + render", () => {
     }]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(row);
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(row);
     expect(within(row).getByText("Discount reason: Damaged stock (Cracked in transit)")).toBeInTheDocument();
   });
 
@@ -425,8 +453,8 @@ describe("AuditPage load + render", () => {
     }]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(row);
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(row);
     expect(within(row).getByText("Discount reason: Volume")).toBeInTheDocument();
   });
 
@@ -443,8 +471,8 @@ describe("AuditPage load + render", () => {
     }]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(row);
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(row);
     expect(within(row).getByText("—")).toBeInTheDocument();
   });
 });
@@ -454,8 +482,8 @@ describe("AuditPage — expandable rows (#833 Concept C)", () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expect(within(row).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expect(within(row).getByRole("button")).toHaveAttribute("aria-expanded", "false");
     expect(within(row).queryByText("Flock f1234567")).not.toBeInTheDocument();
     expect(within(row).queryByText("culled sick birds")).not.toBeInTheDocument();
   });
@@ -464,8 +492,8 @@ describe("AuditPage — expandable rows (#833 Concept C)", () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    const toggle = within(row).getByRole("button", { name: "Details" });
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    const toggle = within(row).getByRole("button");
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -474,41 +502,44 @@ describe("AuditPage — expandable rows (#833 Concept C)", () => {
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(within(row).queryByText("Flock f1234567")).not.toBeInTheDocument();
-    expect(within(row).queryByText("culled sick birds")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(row).queryByText("Flock f1234567")).not.toBeInTheDocument();
+      expect(within(row).queryByText("culled sick birds")).not.toBeInTheDocument();
+    });
   });
 
   it("expands each row independently — opening one leaves the other collapsed", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
     renderAudit();
 
-    const rowA = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
-    expandRow(rowA);
+    const rowA = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    const rowB = screen.getByRole("article", { name: /manager@farm\.test/ });
+    expandPanel(rowA);
 
-    expect(within(rowA).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "true");
-    expect(within(rowB).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
+    expect(within(rowA).getByRole("button")).toHaveAttribute("aria-expanded", "true");
+    expect(within(rowB).getByRole("button")).toHaveAttribute("aria-expanded", "false");
     expect(within(rowB).queryByText("User u9abcdef")).not.toBeInTheDocument();
   });
 
   it("does not call listAuditEvents again when a row is expanded", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
     mockListAuditEvents.mockClear();
 
-    expandRow(row);
+    expandPanel(row);
 
     expect(mockListAuditEvents).not.toHaveBeenCalled();
   });
 
-  it("names the expanded Details cell 'Details' via its accessible name", async () => {
+  it("labels the expanded details value", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(row);
+    const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(row);
 
-    expect(within(row).getByRole("cell", { name: "Details" })).toBeInTheDocument();
+    expect(within(row).getByText("Details")).toBeInTheDocument();
+    expect(within(row).getAllByRole("definition").at(-1)).toHaveTextContent("culled sick birds");
   });
 });
 
@@ -747,7 +778,7 @@ describe("AuditPage clear filters (#679)", () => {
   it("offers no clear control until something is narrowing the list", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
-    await screen.findByText(/admin@farm.test/);
+    await screen.findByRole("article", { name: /admin@farm\.test/ });
 
     expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
   });
@@ -758,7 +789,7 @@ describe("AuditPage clear filters (#679)", () => {
   it("shows the clear control beside the filters while rows are still listed", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit("/audit?action=Flock.Deplete");
-    await screen.findByText(/admin@farm.test/);
+    await screen.findByRole("article", { name: /admin@farm\.test/ });
 
     expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
   });
@@ -768,7 +799,7 @@ describe("AuditPage clear filters (#679)", () => {
     renderAuditWithProbe(
       "/audit?entityId=11111111-1111-1111-1111-111111111111&entityType=Flock&action=Flock.Deplete&from=2026-01-01&to=2026-01-31",
     );
-    await screen.findByText(/admin@farm.test/);
+    await screen.findByRole("article", { name: /admin@farm\.test/ });
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -790,7 +821,7 @@ describe("AuditPage clear filters (#679)", () => {
   it("re-queries unfiltered after clearing", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit("/audit?action=Flock.Deplete&from=2026-01-01");
-    await screen.findByText(/admin@farm.test/);
+    await screen.findByRole("article", { name: /admin@farm\.test/ });
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -822,7 +853,7 @@ describe("AuditPage paging", () => {
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
       expect.objectContaining({ offset: 100 }),
     );
-    expect(await screen.findByText("next@farm.test")).toBeInTheDocument(); // appended page row
+    expect(await screen.findByRole("article", { name: /next@farm\.test/ })).toBeInTheDocument();
   });
 });
 
@@ -921,39 +952,32 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     });
   });
 
-  it("reads every table column header from the audit catalog, not a hardcoded literal", async () => {
-    // At least one event, so the table (with its <thead>) actually renders —
-    // the empty-state branch renders no headers at all.
+  it("reads every expanded detail label from the audit catalog", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
-    // Headers are checked one at a time (each override restored before the
-    // next) so a single shared render can't mask one key silently falling
-    // back to English while another is overridden.
     for (const [key, marker, original] of [
-      ["whenHeader", "WHEN-MARKER", "When (UTC)"],
       ["whoHeader", "WHO-MARKER", "Who"],
-      ["actionHeader", "ACTION-HEADER-MARKER", "Action"],
+      ["entityHeader", "ENTITY-MARKER", "Entity"],
+      ["detailsHeader", "DETAILS-MARKER", "Details"],
     ] as const) {
       await withOverride("audit", key, marker, async () => {
-        // Unmounted at the end of this iteration (afterEach's cleanup() only
-        // runs between `it()` blocks, not between loop iterations) — without
-        // it, a prior iteration's un-overridden headers would stay in the
-        // DOM and falsely satisfy/defeat the next iteration's queries.
         const { unmount } = renderAudit();
-        await screen.findByRole("row", { name: /admin@farm\.test/ });
-        expect(screen.getByRole("columnheader", { name: marker })).toBeInTheDocument();
-        expect(screen.queryByRole("columnheader", { name: original })).not.toBeInTheDocument();
+        const panel = await screen.findByRole("article", { name: /admin@farm\.test/ });
+        expandPanel(panel);
+        expect(within(panel).getByText(marker)).toBeInTheDocument();
+        expect(within(panel).queryByText(original)).not.toBeInTheDocument();
         unmount();
       });
     }
   });
 
-  it("reads the disclosure toggle's accessible name from detailsHeader, not a hardcoded literal", async () => {
+  it("reads the expanded details label from detailsHeader", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     await withOverride("audit", "detailsHeader", "DETAILS-MARKER", async () => {
       renderAudit();
-      const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-      expect(within(row).getByRole("button", { name: "DETAILS-MARKER" })).toBeInTheDocument();
-      expect(within(row).queryByRole("button", { name: "Details" })).not.toBeInTheDocument();
+      const panel = await screen.findByRole("article", { name: /admin@farm\.test/ });
+      expandPanel(panel);
+      expect(within(panel).getByText("DETAILS-MARKER")).toBeInTheDocument();
+      expect(within(panel).queryByText("Details")).not.toBeInTheDocument();
     });
   });
 
@@ -961,8 +985,8 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     await withOverride("audit", "entityHeader", "ENTITY-LABEL-HEADER-MARKER", async () => {
       renderAudit();
-      const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-      expandRow(row);
+      const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
+      expandPanel(row);
       expect(within(row).getByText("ENTITY-LABEL-HEADER-MARKER")).toBeInTheDocument();
       expect(within(row).queryByText("Entity")).not.toBeInTheDocument();
     });
@@ -994,7 +1018,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]); // action: "Flock.Deplete"
     await withOverride("enums", "auditAction.Flock.Deplete", "ACTION-LABEL-MARKER", async () => {
       renderAudit();
-      const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+      const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
       expect(within(row).getByText("ACTION-LABEL-MARKER")).toBeInTheDocument();
       expect(within(row).queryByText("Flock depleted")).not.toBeInTheDocument();
       expect(within(row).queryByText("Flock.Deplete")).not.toBeInTheDocument();
@@ -1025,8 +1049,8 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     mockListAuditEvents.mockResolvedValue([EVENT_B]); // entityType: "User", entityId: "u9abcdef-0000"
     await withOverride("enums", "entityType.User", "ENTITY-LABEL-MARKER", async () => {
       renderAudit();
-      const row = await screen.findByRole("row", { name: /manager@farm\.test/ });
-      expandRow(row);
+      const row = await screen.findByRole("article", { name: /manager@farm\.test/ });
+      expandPanel(row);
       expect(within(row).getByText("ENTITY-LABEL-MARKER u9abcdef")).toBeInTheDocument();
       expect(within(row).queryByText("User u9abcdef")).not.toBeInTheDocument();
     });
@@ -1095,7 +1119,7 @@ describe("AuditPage entity-scoped mode (#493)", () => {
 
     expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("row", { name: /admin@farm\.test/ })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /admin@farm\.test/ })).toBeInTheDocument();
     expect(mockListAuditEvents).toHaveBeenCalledWith(
       expect.objectContaining({ entityId: SCOPED_ENTITY_ID }), // normalized, not the raw uppercase URL value
     );
@@ -1164,14 +1188,14 @@ describe("AuditPage entity-scoped mode (#493)", () => {
       { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
     ]);
     const { unmount } = renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
-    const scopedRow = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(scopedRow);
+    const scopedRow = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(scopedRow);
     expect(within(scopedRow).queryByText(/Flock f1234567/)).not.toBeInTheDocument();
     unmount();
 
     renderAudit("/audit");
-    const unscopedRow = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expandRow(unscopedRow);
+    const unscopedRow = await screen.findByRole("article", { name: /admin@farm\.test/ });
+    expandPanel(unscopedRow);
     expect(within(unscopedRow).getByText(/Flock f1234567/)).toBeInTheDocument();
   });
 
@@ -1265,7 +1289,7 @@ describe("AuditPage Flow A' — switching records without leaving /audit (#493)"
       expect.objectContaining({ entityId: OTHER_ENTITY_ID }),
     );
     // Not stale-blended: the row shown belongs to the NEW entity only.
-    expect(await screen.findByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /manager@farm\.test/ })).toBeInTheDocument();
   });
 
   it("shows the generic fallback while the switch is in flight, not the previous record's type", async () => {
@@ -1358,8 +1382,8 @@ describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
     // showing only the previous single-entity scope's row under the global
     // heading, which is what the old content-based check could do (it never
     // treated entityId -> undefined as stale).
-    expect(await screen.findByRole("row", { name: /admin@farm\.test/ })).toBeInTheDocument();
-    expect(screen.getByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /admin@farm\.test/ })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /manager@farm\.test/ })).toBeInTheDocument();
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
       expect.objectContaining({ entityId: undefined }),
     );
@@ -1389,7 +1413,7 @@ describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Sales order history" })).toBeInTheDocument();
-    expect(await screen.findByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /manager@farm\.test/ })).toBeInTheDocument();
   });
 
   // codex review of #516, round 5 — the exact bug a ref-based version of
@@ -1426,7 +1450,7 @@ describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
 
     expect(await screen.findByRole("heading", { name: "Sales order history" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /manager@farm\.test/ })).toBeInTheDocument();
   });
 
   it("recovers correctly through a THREE-way switch (B, then C, then D — B and C both superseded before either settles)", async () => {
@@ -1460,6 +1484,6 @@ describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
 
     expect(await screen.findByRole("heading", { name: "Expense history" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("row", { name: /d-actor@farm\.test/ })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /d-actor@farm\.test/ })).toBeInTheDocument();
   });
 });
