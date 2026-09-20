@@ -43,9 +43,6 @@ function fill(current: string, next: string, confirm: string) {
 
 const submit = () => {
   const buttons = screen.getAllByRole("button", { name: "Change password" });
-  // The summary (aria-expanded) and the submit button (type="submit") share
-  // an accessible name once the section is open; the submit button is the
-  // one WITHOUT aria-expanded.
   const submitButton = buttons.find((b) => !b.hasAttribute("aria-expanded"));
   if (!submitButton) throw new Error("Change password submit button not found — is the section expanded?");
   fireEvent.click(submitButton);

@@ -1481,7 +1481,7 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
   });
 });
 
-describe("SettingsPage — expandable sections (#833 Concept C)", () => {
+describe("SettingsPage expandable sections", () => {
   it("the Identity & images section starts expanded, with its own content reachable", async () => {
     await renderReady();
     expect(screen.getByRole("button", { name: "Identity & images" }))

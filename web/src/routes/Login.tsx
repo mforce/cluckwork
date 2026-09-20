@@ -286,7 +286,6 @@ export function Login() {
                     sx={{
                       minWidth: 44, minHeight: 44, borderRadius: "0 var(--r-pill) var(--r-pill) 0",
                       border: "1px solid", borderColor: "divider", background: "var(--surface-2)",
-                      // The text token clears dark-surface contrast; danger is fill-only.
                       color: "var(--error)",
                       "&:hover": { background: "error.main", color: "error.contrastText" },
                     }}

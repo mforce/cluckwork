@@ -265,8 +265,6 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // card-like surface reads --r-panel instead. A generic "some r-* token"
   // pattern match (above) would stay green if one of these silently reverted
   // to --r-card, so this pins the SPECIFIC token per surface.
-  // Settings preview selectors retired with their sx replacements. Help and
-  // farm-warning still render page-owned panel-radius surfaces.
   it.each([
     ".card", ".order-panel", ".entry-pane", ".farm-warning", ".help-hero",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {

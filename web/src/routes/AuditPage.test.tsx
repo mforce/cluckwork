@@ -217,10 +217,8 @@ describe("AuditPage load + render", () => {
     renderAudit();
 
     const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
-    // Action cell: friendly label, not the raw "Account.SetLogo".
     expect(within(row).getByText("Farm logo set")).toBeInTheDocument();
     expandPanel(row);
-    // Entity cell: entityTypeLabel("FarmLogo") + first 8 chars of the id.
     expect(within(row).getByText("Farm logo fl123456")).toBeInTheDocument();
     expect(within(row).queryByText("FarmLogo fl123456")).not.toBeInTheDocument();
   });
@@ -232,13 +230,9 @@ describe("AuditPage load + render", () => {
     const rowA = await screen.findByRole("article", { name: /admin@farm\.test/ });
     // occurredAtUtc: "T" → space, truncated to the first 19 chars (drops ms/Z).
     expect(within(rowA).getByText("2026-07-19 14:30:05 UTC")).toBeInTheDocument();
-    // Action cell renders auditActionLabel(e.action), not the raw code.
     expect(within(rowA).getByText("Flock depleted")).toBeInTheDocument();
     expect(within(rowA).queryByText("Flock.Deplete")).not.toBeInTheDocument();
     expandPanel(rowA);
-    // entityTypeLabel(entityType) + first 8 chars of entityId. "Flock" is an
-    // identity label (enums:entityType.Flock === "Flock"), so this also
-    // covers the entity cell reading through entityTypeLabel.
     expect(within(rowA).getByText("Flock f1234567")).toBeInTheDocument();
     expect(within(rowA).getByText("culled sick birds")).toBeInTheDocument();
 
@@ -283,9 +277,6 @@ describe("AuditPage load + render", () => {
     }),
   });
 
-  // The cell is a fragment of text nodes, so read the whole cell's textContent
-  // rather than matching one node — that is what pins the ORDER of the two
-  // prices, and it is the assertion the bug would have failed.
   const detailsText = async () => {
     const row = await screen.findByRole("article", { name: /admin@farm\.test/ });
     expandPanel(row);
@@ -477,7 +468,7 @@ describe("AuditPage load + render", () => {
   });
 });
 
-describe("AuditPage — expandable rows (#833 Concept C)", () => {
+describe("AuditPage expandable event panels", () => {
   it("starts every row collapsed, with Entity and Details not in the document", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
@@ -1012,9 +1003,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     });
   });
 
-  // Proves the action table cell reads enums:auditAction.* through
-  // auditActionLabel(e.action) rather than rendering e.action raw.
-  it("reads the action cell from the enums catalog via auditActionLabel, not the raw wire code", async () => {
+  it("reads the action from the enums catalog via auditActionLabel, not the raw wire code", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]); // action: "Flock.Deplete"
     await withOverride("enums", "auditAction.Flock.Deplete", "ACTION-LABEL-MARKER", async () => {
       renderAudit();
@@ -1040,12 +1029,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     });
   });
 
-  // Proves the entity table cell reads enums:entityType.* through
-  // entityTypeLabel(e.entityType) rather than rendering e.entityType raw.
-  // EVENT_B's entityType is "User" (also an identity label in en, so this
-  // override is the only way to distinguish "reads the catalog" from
-  // "renders the raw value that happens to equal the label").
-  it("reads the entity cell from the enums catalog via entityTypeLabel, not the raw wire value", async () => {
+  it("reads the entity from the enums catalog via entityTypeLabel, not the raw wire value", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_B]); // entityType: "User", entityId: "u9abcdef-0000"
     await withOverride("enums", "entityType.User", "ENTITY-LABEL-MARKER", async () => {
       renderAudit();
