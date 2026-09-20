@@ -14,7 +14,7 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
-import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
+import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, CONSOLE_PAPER_HEAD_SX, LedgerTableContainer, ConsoleSummary, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
@@ -553,9 +553,11 @@ export function ExpensesPage() {
   return (
     <FieldConsole>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ justifyContent: "space-between", gap: 1, mb: 2 }}>
-        <Typography variant="h2">{t("title")}</Typography>
-        <Button variant="outlined" color="inherit" sx={{ minHeight: 44 }} onClick={() => setShowCategories((v) => !v)}>
-          {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
+        <Box><Typography variant="h2">{t("title")}</Typography>
+          <Typography component="p" sx={{ m: 0, maxWidth: 700, color: "text.secondary", fontSize: "13px", lineHeight: 1.45 }}>{t("intro")}</Typography>
+        </Box>
+        <Button variant="contained" sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0, alignSelf: { md: "flex-start" } }} onClick={() => setShowCategories((v) => !v)}>
+          {showCategories ? t("hideCategoriesButton") : `+ ${t("manageCategoriesButton")}`}
         </Button>
       </Stack>
       <ConsoleSummary label={t("contextLabel")} items={[
@@ -583,14 +585,7 @@ export function ExpensesPage() {
             <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
           ))}
         </TextField>
-        {/* #679 — persistent, not empty-state-only: before this, the sole way
-            back to the default view was to narrow the range until the list
-            emptied so the empty state's button appeared. */}
-        {isFiltered && (
-          <button className="link" type="button" onClick={resetFilters}>
-            {tc("clearFiltersButton")}
-          </button>
-        )}
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={resetFilters}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
 
       {showCategories && (
@@ -647,7 +642,10 @@ export function ExpensesPage() {
 
       <Box sx={{ ...CONSOLE_SPLIT_SX, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, .9fr) minmax(0, 1.1fr)" } }}>
       <Box sx={CONSOLE_PANEL_SX}>
-      <h3>{t("recordExpenseHeading")}</h3>
+      <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}>
+        <h3>{t("recordExpenseHeading")}</h3>
+        <Button sx={{ ...CONSOLE_LINK_SX, fontSize: ".75rem" }} onClick={() => setShowCategories(true)}>{t("manageCategoriesButton")}</Button>
+      </Box>
       <Stack component="form" sx={CONSOLE_FORM_SX} onSubmit={onAdd}>
         <TextField
           type="date"
@@ -858,7 +856,7 @@ export function ExpensesPage() {
 
       {expenses.error && <p className="error" role="alert">{expenses.error}</p>}
 
-      <h3>{t("ledgerHeading")}</h3>
+      <ConsoleSubhead title={t("ledgerHeading")} caption={t("ledgerCaption")} />
       {expenses.rows === null || expenses.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : expenses.rows.length === 0 ? (
@@ -875,7 +873,7 @@ export function ExpensesPage() {
           // filter row's button deliberately does not mean: show every period.
           ? <EmptyState icon={FilterX} message={t("noExpensesMatch")}
               action={isFiltered
-                ? { label: tc("clearFiltersButton"), onClick: resetFilters }
+                ? undefined
                 : { label: t("showAllTimeButton"), onClick: showAllTime }} />
           : <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
       ) : (
@@ -907,7 +905,7 @@ export function ExpensesPage() {
                     <Link className="link" to={`/audit?entityId=${x.id}`}>
                       {tc("recordHistory.viewHistoryLink")}
                     </Link>
-                    <Button size="small" color="warning" disabled={busy}
+                    <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: "9px" }} disabled={busy}
                       onClick={() => { openDialog("edit"); startEdit(x); }}>
                       {t("correctButton")}
                     </Button>

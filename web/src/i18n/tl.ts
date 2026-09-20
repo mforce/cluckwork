@@ -1529,6 +1529,8 @@ export const tl = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    intro: "Itala ang gastos sa bukid, suriin ang kabuuan ng panahon, pamahalaan ang mga kategorya, at iwasto ang talaan ng pag-audit.",
+    ledgerCaption: "Nananatili ang pinagmulan ng mga pagwawasto",
     contextLabel: "Konteksto ng gastos",
     periodHeading: "Kabuuan ng panahon",
     ledgerHeading: "Talaan ng mga gastos",
@@ -1557,7 +1559,7 @@ export const tl = {
     categoryLabel: "Kategorya",
     allCategoriesOption: "Lahat ng kategorya",
     hideCategoriesButton: "itago ang mga kategorya",
-    manageCategoriesButton: "pamahalaan ang mga kategorya",
+    manageCategoriesButton: "Pamahalaan ang mga kategorya",
     periodTotalLabel: "Kabuuan sa panahong ito: {{amount}}",
 
     // Category-management panel

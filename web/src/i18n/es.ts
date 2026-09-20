@@ -1470,6 +1470,8 @@ export const es = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    intro: "Registre los costos de la granja, revise el total del período, gestione categorías y corrija el historial de auditoría.",
+    ledgerCaption: "Las correcciones conservan la procedencia",
     contextLabel: "Contexto de gastos",
     periodHeading: "Total del período",
     ledgerHeading: "Registro de gastos",
@@ -1498,7 +1500,7 @@ export const es = {
     categoryLabel: "Categoría",
     allCategoriesOption: "Todas las categorías",
     hideCategoriesButton: "ocultar categorías",
-    manageCategoriesButton: "gestionar categorías",
+    manageCategoriesButton: "Gestionar categorías",
     periodTotalLabel: "Total de este período: {{amount}}",
 
     // Category-management panel

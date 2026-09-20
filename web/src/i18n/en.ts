@@ -1970,6 +1970,8 @@ export const en = {
   // task brief — a cross-screen consolidation is a tracked native-pass
   // deferral, not this task's job.
   expenses: {
+    intro: "Post farm costs, review the period total, manage categories, and correct the audit trail.",
+    ledgerCaption: "Corrections retain provenance",
     contextLabel: "Expense context",
     periodHeading: "Period total",
     ledgerHeading: "Expense ledger",
@@ -2006,7 +2008,7 @@ export const en = {
     categoryLabel: "Category",
     allCategoriesOption: "All categories",
     hideCategoriesButton: "hide categories",
-    manageCategoriesButton: "manage categories",
+    manageCategoriesButton: "Manage categories",
     // {{amount}} is formatMoney's already-formatted total — farm-locale DATA,
     // never routed through i18n.language.
     periodTotalLabel: "Total for this period: {{amount}}",
@@ -2025,7 +2027,7 @@ export const en = {
     noCategoriesMessage: "No categories yet — add one above.",
 
     // Record-expense form
-    recordExpenseHeading: "Record an expense",
+    recordExpenseHeading: "Post an expense",
     dateLabel: "Date", // shared by the add and edit forms
     pickOption: "— pick —",
     descriptionLabel: "Description", // shared by the add and edit forms

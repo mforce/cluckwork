@@ -138,7 +138,7 @@ describe("ExpensesPage persistent clear filters (#679)", () => {
     mockListExpenses.mockResolvedValue({ items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
     await renderReady("BHD");
 
-    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
   });
 
   // The gap: before this, the only clear control lived in the ZERO-ROWS empty
@@ -184,7 +184,7 @@ describe("ExpensesPage persistent clear filters (#679)", () => {
         expect.objectContaining({ from: defaultFrom, to: defaultTo, categoryId: undefined }),
       ),
     );
-    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
   });
 
   // Sitting ON the default with nothing this month, "clear filters" would be a
@@ -207,7 +207,7 @@ describe("ExpensesPage persistent clear filters (#679)", () => {
     );
   });
 
-  it("offers the default-restoring clear from the empty state once narrowed past the default", async () => {
+  it("restores the default from the toolbar when the filtered ledger is empty", async () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     await renderReady("USD");
     const defaultFrom = dateInputs().from.value;
@@ -219,7 +219,7 @@ describe("ExpensesPage persistent clear filters (#679)", () => {
     // Two controls with the same label must not mean two different things: the
     // empty state's button and the filter row's button are one handler.
     const emptyStateClear = screen.getAllByRole("button", { name: "Clear filters" });
-    expect(emptyStateClear.length).toBeGreaterThanOrEqual(2);
+    expect(emptyStateClear).toHaveLength(1);
     await act(async () => {
       fireEvent.click(emptyStateClear[emptyStateClear.length - 1]);
     });
@@ -526,7 +526,7 @@ describe("ExpensesPage categories", () => {
     mockCreateCategory.mockResolvedValue({ id: "cat-new" });
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
 
-    fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Manage categories" }));
     // F131: the category form is a dialog opened from the panel.
     const openNewCategory = () => fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dialog = () => screen.getByRole("dialog");
@@ -552,7 +552,7 @@ describe("ExpensesPage pending states (#236)", () => {
     mockUpdateCategory.mockReturnValue(gate.promise);
     await renderReady();
 
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     // Feed first, Utilities second — the categories render in fixture order.
     const [feedToggle, utilToggle] = screen.getAllByRole("button", { name: "deactivate" });
     await act(async () => {
@@ -582,7 +582,7 @@ describe("ExpensesPage pending states (#236)", () => {
     mockCreateCategory.mockReturnValue(gate.promise);
     await renderReady();
 
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dialog = () => screen.getByRole("dialog");
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Fuel" } });
@@ -630,7 +630,7 @@ describe("ExpensesPage error placement (#479)", () => {
     mockCreateCategory.mockRejectedValue(new ApiError(422, "Validation failed", "Name already in use."));
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
 
-    fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Manage categories" }));
     fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dlg = screen.getByRole("dialog");
     fireEvent.change(within(dlg).getByLabelText("Category name"), { target: { value: "Feed" } });
@@ -669,7 +669,7 @@ describe("ExpensesPage error placement (#479)", () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
     await screen.findByRole("heading", { name: "Expenses" });
 
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dlg = screen.getByRole("dialog");
 
@@ -687,7 +687,7 @@ describe("ExpensesPage error placement (#479)", () => {
     mockAdjustExpense.mockRejectedValue(new ApiError(500, "Server error", "Correction failed."));
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
 
-    fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Manage categories" }));
     const rows = screen.getAllByRole("listitem");
     const feedRow = rows.find((li) => li.textContent?.includes("Feed"))!;
     await act(async () => {
@@ -803,7 +803,7 @@ describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
   it("reads the deactivated-category suffix from the catalog on the category-list row", async () => {
     await withOverride("expenses", "deactivatedSuffix", " SUFFIX-MARKER", async () => {
       renderWithProviders(<ExpensesPage />, { token: ADMIN });
-      fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+      fireEvent.click(await screen.findByRole("button", { name: "+ Manage categories" }));
       const rows = screen.getAllByRole("listitem");
       const legacyRow = rows.find((li) => li.textContent?.includes("Legacy"));
       expect(legacyRow?.textContent).toContain("SUFFIX-MARKER");
@@ -834,7 +834,7 @@ describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
     mockUpdateCategory.mockResolvedValue(undefined);
     await withOverride("expenses", "categoryDeactivatedMessage", "DEACT-MARKER {{name}} END", async () => {
       renderWithProviders(<ExpensesPage />, { token: ADMIN });
-      fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+      fireEvent.click(await screen.findByRole("button", { name: "+ Manage categories" }));
       const rows = screen.getAllByRole("listitem");
       const feedRow = rows.find((li) => li.textContent?.includes("Feed"))!;
       await act(async () => {
@@ -1274,7 +1274,7 @@ describe("ExpensesPage messages that had nowhere to land (#491)", () => {
     // and not the screen's own first read.
     mockListCategories.mockRejectedValueOnce(new ApiError(500, "Server error", "Could not reload categories."));
 
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Category name"), { target: { value: "Bedding" } });
     await act(async () => {
@@ -1478,7 +1478,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     const gate = deferred<{ id: string }>();
     mockCreateCategory.mockReturnValueOnce(gate.promise);
     await renderReady();
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     openNewCategory();
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
     submitCategory();
@@ -1496,7 +1496,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     const gate = deferred<{ id: string }>();
     mockCreateCategory.mockReturnValueOnce(gate.promise);
     await renderReady();
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     openNewCategory();
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
     submitCategory();
@@ -1514,7 +1514,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     const gate = deferred<{ id: string }>();
     mockCreateCategory.mockReturnValueOnce(gate.promise);
     await renderReady();
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     openNewCategory();
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
     submitCategory();
@@ -1565,7 +1565,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
   it("spends the toggle's key when the update lands but the categories reload fails", async () => {
     mockUpdateCategory.mockResolvedValue(undefined);
     await renderReady();
-    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Manage categories" }));
     const feedRow = screen.getAllByRole("listitem").find((li) => li.textContent?.includes("Feed"))!;
     mockListCategories.mockRejectedValueOnce(new TypeError("Failed to fetch")); // the reload, not the toggle
     await act(async () => {
@@ -1660,4 +1660,14 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     fireEvent.click(within(row).getByRole("button", { name: "correct" }));
     expect(screen.queryByText("late correction failure")).not.toBeInTheDocument();
   });
+});
+
+it("offers category management from the page and the expense paper header", async () => {
+  await renderReady();
+  expect(screen.getByText("Post farm costs, review the period total, manage categories, and correct the audit trail.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "+ Manage categories" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Post an expense" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Manage categories" }));
+  expect(screen.getByRole("heading", { name: "Expense categories" })).toBeInTheDocument();
+  expect(screen.getByText("Corrections retain provenance")).toBeInTheDocument();
 });
