@@ -1010,8 +1010,7 @@ export const MUTANTS: Record<string, Mutant> = {
       + "`flex-direction: row` (F134, and the confirmed #864 mockup) and outranks this rule",
     caughtBy: "phone.spec.ts — no action control is taller than it is wide",
     apply: (page) =>
-      // #831: the settlement rail's sx rule outranks plain .actions.
-      // Keep the stronger override inside the phone breakpoint.
+      // Override the settlement rail selector, whose specificity exceeds plain .actions.
       insertCssRule(
         page,
         "@media (max-width: 900px) { .actions, .dialog .dialog-foot { flex-direction: row } aside[aria-label] .actions { flex-direction: row !important } }",

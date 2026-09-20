@@ -691,8 +691,6 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     const hint = screen.getByText("$1.00 below list (33.3%)");
     const priceField = screen.getByLabelText(/Unit price/);
     const addLineBtn = screen.getByRole("button", { name: "Add line" });
-    // #831 — the retired `.form-grid` row is now a bare MUI Stack; the hint
-    // sits after it in normal flow (#720 R11), same structural claim.
     const row = priceField.closest(".MuiStack-root");
 
     expect(row).not.toBeNull();
@@ -779,8 +777,6 @@ describe("SalesPage line display", () => {
     // line total = unitPrice × quantity (300 × 3), NOT the order total
     expect(within(rowA).getByText("$3.00")).toBeInTheDocument();
     expect(within(rowA).getByText("$9.00")).toBeInTheDocument();
-    // #650/#831 — money and quantity cells are numeric cells, right-aligned
-    // (MUI owns the class name now; textAlign is the actual observable effect).
     expect(within(rowA).getByText("$9.00")).toHaveStyle({ textAlign: "right" });
     expect(within(rowA).getByText("36")).toHaveStyle({ textAlign: "right" });
     expect(within(rowA).getByText(/Grade A Dozen/)).not.toHaveStyle({ textAlign: "right" });
@@ -890,26 +886,13 @@ describe("SalesPage list price and discount (#720)", () => {
     expect(within(row).getByText(i18n.t("sales:aboveList"))).not.toHaveClass("discount");
   });
 
-  // #723 — colour is not the only signal. A discounted row carries a text chip
-  // and a struck-through list price, both of which survive greyscale; the tint
-  // is the third layer, asserted through the row's computed background-color
-  // (jsdom resolves an emotion-injected rule's declared value, though not the
-  // custom property behind it).
+  // jsdom exposes declared backgrounds but does not resolve their custom properties.
   it("marks a below-list row with a chip, a struck list price and the row tint", async () => {
     // ITEM_B: sold 1000 against a list of 1200 → below list.
     const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
-    // Both classes: `badge` is the pill, `badge-warn` names it as a warning
-    // chip. Asserting only `badge` let the JSX drop `badge-warn`, orphaning
-    // its semantics and restoring the invisible-chip defect with the suite
-    // green.
     const badge = within(row).getByText(i18n.t("sales:belowListBadge"));
     expect(badge).toHaveClass("badge", "badge-warn");
     expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
-    // #831 — the retired `tr.discounted .badge-warn` CSS rule lifted the chip
-    // off the row's own tint; DISCOUNTED_BADGE_SX (SalesPage.tsx) replicates
-    // it inline now, so the chip's own background has to be asserted here or
-    // an edit dropping that sx would ship an invisible chip with this suite
-    // still green.
     expect(badge).toHaveStyle({ backgroundColor: "var(--surface)" });
     // The list-price money is struck through — the <s> element, not a class, so
     // it survives a stylesheet change and reads as struck to a screen reader.
@@ -2487,10 +2470,7 @@ describe("SalesPage empty states (#655)", () => {
   });
 });
 
-// The Status filter starts at "" with a placeholder option, so without an
-// explicit shrink the label sat on top of that text. jsdom cannot show the
-// overlap; the shrink class is the DOM fact that stands in for it (same
-// pattern as #897's Grade select and #833's Audit filters).
+// jsdom cannot measure placeholder overlap; the shrink class verifies label placement.
 describe("SalesPage status filter label", () => {
   it("shrinks the Status select's label instead of sitting it on top of the placeholder option text", async () => {
     await renderReady();

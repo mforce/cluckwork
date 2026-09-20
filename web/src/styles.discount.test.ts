@@ -6,18 +6,7 @@ import type { Rule } from "postcss";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 import { contrast, resolveTokens, type Mode } from "./test/cssTokens";
 
-// #723/#831 — the discount treatment's two token-only declarations. Neither is
-// reachable from jsdom (it computes no layout), so without this file a mutant
-// that changes either one leaves the entire suite green — which is exactly what
-// the driver's Phase 11 mutation M13 observed against the row tint.
-//
-// #831 moved the row tint and the chip's surface-lift from `tr.discounted td`/
-// `tr.discounted .badge-warn` in styles.css to `DISCOUNTED_ROW_SX`/
-// `DISCOUNTED_BADGE_SX` inline in SalesPage.tsx — the last screen that needed
-// the CSS rule, which retired with it. The TOKENS those constants use
-// (`--tint-warn`, `--surface`) are unchanged, so this file keeps asserting the
-// same cross-brand/mode contrast invariant directly against those token names
-// rather than reading a selector that no longer exists.
+// Resolve token contrast per brand and mode because jsdom does not resolve custom properties.
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const root = postcss.parse(css);
 
@@ -34,14 +23,6 @@ function declarationsFor(selector: string): Map<string, string> {
 const MODES: Mode[] = ["light", "dark"];
 const attrFor = (brand: string) => (brand === DEFAULT_BRAND ? null : brand);
 
-// The row tint's token, exactly as SalesPage.tsx's DISCOUNTED_ROW_SX hardcodes
-// it. Three revisions of this guard asserted, in turn, that the value was a
-// var(), then that it was a --tint-* var, then that the token was declared.
-// Each was one level further from the only thing that matters — whether a
-// discounted row LOOKS different from an undiscounted one — and each was
-// defeated by a change one level further out. This resolves the token per
-// brand and mode, the way styles.caps.test.ts already does, and asserts the
-// thing itself.
 describe("the discounted-row tint (DISCOUNTED_ROW_SX) is real in every brand and mode", () => {
   const token = "--tint-warn";
 
@@ -82,9 +63,6 @@ describe("the below-list chip's surface lift (DISCOUNTED_BADGE_SX) stays visible
   const rowToken = "--tint-warn";
 
   it("does not repaint the chip in the row's own tint", () => {
-    // The whole point: DISCOUNTED_BADGE_SX and DISCOUNTED_ROW_SX must name
-    // DIFFERENT tokens — a discounted row and an un-lifted chip both reading
-    // --tint-warn is what made the chip invisible against its own cell.
     expect(chipToken).not.toBe(rowToken);
   });
 
@@ -104,13 +82,7 @@ describe("the below-list chip's surface lift (DISCOUNTED_BADGE_SX) stays visible
   );
 });
 
-// #727 — the over-maximum chip sits on a row that is ALWAYS also tinted, because
-// a line cannot breach the ceiling without being below list. The below-list chip
-// needed DISCOUNTED_BADGE_SX for exactly that reason: it and the row tint share
-// --tint-warn, so un-lifted it was invisible against its own cell. This chip
-// uses a different token instead of a second override, and that is only an
-// improvement while the two tints are genuinely different — which jsdom cannot
-// see, so it is asserted here.
+// An over-ceiling line is also below list, so its chip must contrast with the discounted row.
 describe(".badge-danger — the over-maximum chip on the discounted row it always sits on", () => {
   const chip = declarationsFor(".badge-danger");
   const rowTintToken = "--tint-warn";

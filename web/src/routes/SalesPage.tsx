@@ -47,9 +47,9 @@ const MANIFEST_ACTIONS_SX = {
   minWidth: { xs: 100, md: "auto" },
   "& button": { display: { xs: "block", md: "inline-flex" }, minHeight: { xs: 44, md: "auto" } },
 };
-// #831: bound picker widths so opening a filter does not move sibling fields.
+// Keep picker width stable when its trigger switches between a button and input.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
-// #723: lift the below-list chip off the row tint.
+// Keep the below-list chip distinct from the row tint.
 const DISCOUNTED_ROW_SX = { bgcolor: "var(--tint-warn)" };
 const DISCOUNTED_BADGE_SX = { bgcolor: "var(--surface)" };
 
@@ -423,9 +423,6 @@ export function SalesPage() {
   const fieldId = useId();
   const addQtyId = `${fieldId}-qty`;
   const editQtyId = `${fieldId}-edit-qty`;
-  // #831 — the open order panel's own landmark, replacing the retired
-  // `.order-panel` class as the structural test hook: a named region whose
-  // accessible name is the panel's own heading (the reference number).
   const orderPanelHeadingId = `${fieldId}-order-panel-heading`;
   const [price, setPrice] = useState("");
 
@@ -1145,10 +1142,7 @@ export function SalesPage() {
       {/* Deliberately NOT a <form>: these controls were button-driven, so
           wrapping them in one would newly enforce min/step and swallow the
           screen's own money messages (codex review of #132). */}
-      {/* Deliberately not `component="form"`: these controls were
-          button-driven, so wrapping them in a form would newly enforce
-          min/step and swallow the screen's own money messages (codex review
-          of #132) — the same reason the original div was never a <form>. */}
+      {/* Native form validation would intercept the page's own money validation messages. */}
       <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}>
         <Stack spacing={2}>
           <CustomerPicker
@@ -1229,8 +1223,7 @@ export function SalesPage() {
                     </TableHead>
                     <TableBody>
                     {active.items.map((i) => {
-                      // #752: derive the tint, chip and discount cell from the same edited line.
-                      // An incomplete price retains the saved line’s display.
+                      // Incomplete edited prices retain the saved line display.
                       const editingThis = !!editor && editingLine?.id === i.id;
                       const typed = editingThis
                         ? parseMoneyToMinorUnits(editor.price, active.currencyMinorUnit)
@@ -1239,9 +1232,6 @@ export function SalesPage() {
                         ? { ...i, unitPriceMinorUnits: typed, quantity: editor.quantity }
                         : i;
                       const discount = lineDiscount(shown);
-                      // #727 — measured against the SAME line the Discount cell
-                      // describes, so the badge cannot report a line as within the
-                      // ceiling while the cell beside it shows the typed give-away.
                       const overMaximum = ceiling !== null
                         && lineExceedsCeiling(shown.listUnitPriceMinorUnits, shown.unitPriceMinorUnits, ceiling);
 
@@ -1257,14 +1247,10 @@ export function SalesPage() {
                         <TableCell>{productName(i.productId)}{" "}
                           <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
                             {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span>
-                          {/* #723 — the text marker, beside the product rather than
-                              in the Discount cell, so it is legible on a row whose
-                              numeric cells are being scanned as a column. */}
                           {discount.kind === "below" && (
                             <> <Box component="span" className="badge badge-warn" sx={DISCOUNTED_BADGE_SX}>{t("belowListBadge")}</Box></>
                           )}
-                          {/* #727: the below-list marker describes the price; the ceiling marker
-                              warns that confirmation may be refused. Keep both meanings visible. */}
+                          {/* Below-list describes the price; over-ceiling warns that confirmation may fail. */}
                           {overMaximum && (
                             <> <span className="badge badge-danger">{t("overMaximumBadge")}</span></>
                           )}
@@ -1281,9 +1267,6 @@ export function SalesPage() {
                                   if (draft) setEditor({ ...draft, quantity: typeof quantity === "function" ? quantity(draft.quantity) : quantity });
                                 }} min={1} />
                             </TableCell>
-                            {/* #445 — live: the eggs column tracks the edited
-                                quantity instead of going blank, so a unit/count
-                                mix-up is visible mid-edit too. */}
                             <TableCell align="right" className="muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</TableCell>
                             <TableCell align="right" className="muted">
                               {i.listUnitPriceMinorUnits === null
@@ -1364,10 +1347,7 @@ export function SalesPage() {
                       }}
                     >
                       {products.map((p) => {
-                        // Unit size visible BEFORE quantity entry starts (#445):
-                        // "Grade A Tray (30 eggs/tray)". Only the per-egg unit
-                        // is bare — by identity, not factor, so "1 egg/dozen"
-                        // still shows (see eggsPerUnit above).
+                        // Suppress the unit only for Egg; a configured one-egg dozen still needs its label.
                         const f = p.defaultUnit === "Egg" ? null : eggsPerUnit(p.defaultUnit);
                         return (
                           <option key={p.id} value={p.id}>
@@ -1391,10 +1371,6 @@ export function SalesPage() {
                     </TextField>
                     {/* Keep the label beside the stepper: it cannot wrap the two buttons. */}
                     <div className="numfield-field">
-                      {/* #445 — the label names the unit ("Quantity (trays)" not
-                          bare "Quantity"), and the live hint shows the resulting
-                          egg count while typing, so "2 trays" typed as 60 is
-                          visibly 1,800 eggs before Add line is pressed. */}
                       <label htmlFor={addQtyId}>{t("quantityWithUnit", { unit: unitWord(unit) })}</label>
                       <NumberField id={addQtyId} label={t("quantityWithUnit", { unit: unitWord(unit) }).toLowerCase()}
                         value={qty} onChange={setQty} min={1} />
@@ -1417,10 +1393,9 @@ export function SalesPage() {
                     <BusyButton component={Button} variant="outlined" color="inherit" disabled={busy || !productId} busy={isPending("add-item")}
                       onClick={onAddItem}>{t("addLine")}</BusyButton>
                   </Stack>
-                  {/* #720: keep the price hint outside the grid so translations cannot overlap the input. */}
+                  {/* Keep the hint outside the grid so translations cannot overlap the input. */}
                   {(() => {
-                    // #720 — the same amount AddOrderItemHandler would snapshot
-                    // as ListUnitPriceMinorUnits if Add line were pressed now.
+                    // Match the list-price snapshot AddOrderItemHandler would save.
                     const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
                     if (list === null) return null;
                     const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
@@ -1504,9 +1479,7 @@ export function SalesPage() {
                   </p>
                 );
               })()}
-              {/* #721 — the reason the order was allowed below list, beside the
-                  give-away it explains. Absent on an order confirmed before that
-                  shipped: no backfill, so nothing here means "not recorded". */}
+              {/* Older orders have no backfilled discount reason; absence means it was not recorded. */}
               {active.discountReasonCode && (
                 <p className="discount-note" data-testid="order-discount-reason">
                   {active.discountReasonNote
@@ -1523,8 +1496,7 @@ export function SalesPage() {
 
               {active.status === "Draft" && (
                 <>
-                  {/* #727: the cached ceiling can be stale. Keep Confirm enabled so the
-                      server can apply its authoritative check. */}
+                  {/* Keep Confirm enabled: the server checks the ceiling, which may differ from this cache. */}
                   {orderOverCeiling && (
                     <p className="warn" role="status" data-testid="order-ceiling-warning">
                       {t("discountCeilingWarning", { percent: ceilingPercent })}
@@ -1649,9 +1621,7 @@ export function SalesPage() {
                         slotProps={{ htmlInput: { maxLength: 500 } }}
                         onChange={(e) => setPayNote(e.target.value)}
                       />
-                      {/* #474 — this dialog's own write only: see the new-order
-                          dialog above. A void raised from the payments table can
-                          land while this is open, and is not this form's failure. */}
+                      {/* A payment void can fail while this form is open; show only this dialog's error. */}
                       <DialogError errors={errors} scope="record-payment" />
                       <DialogActions>
                         <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
@@ -1694,20 +1664,13 @@ export function SalesPage() {
       {message && <p className="success">{message}</p>}
 
       <h3>{t("ordersHeading")}</h3>
-      {/* #831 — Sales carries no date range, so pair 7's FilterBar started as
-          a bare Stack here (no bounded-width field to own). Coordinator
-          review of the rendered frames caught the inconsistency it left: an
-          unbordered row beside every other screen's outlined filter surface.
-          FilterBar owns the visual surface regardless of whether any child
-          is a date field, so this row moves onto it too. */}
       <FilterBar>
         <TextField
           select
           label={t("status")}
           value={statusFilter}
           size="small"
-          // The placeholder option shows text while `value` is "", so MUI
-          // would leave the label resting on top of it (#897/#833).
+          // Shrink the label so it does not overlap the empty-value placeholder.
           slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
