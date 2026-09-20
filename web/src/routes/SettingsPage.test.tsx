@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SettingsPage, formatByteCap } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
@@ -14,6 +17,34 @@ import type { Brand } from "../lib/brand";
 import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
+
+const stylesCss = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const srOnlyCss = stylesCss.match(/\.sr-only\s*\{[^}]*\}/)?.[0] ?? "";
+
+function renderedStyleRules(): CSSStyleRule[] {
+  const collect = (rules: CSSRuleList): CSSStyleRule[] => Array.from(rules).flatMap((rule) => {
+    if ("selectorText" in rule && "style" in rule) return [rule as CSSStyleRule];
+    return "cssRules" in rule ? collect((rule as CSSMediaRule).cssRules) : [];
+  });
+
+  return Array.from(document.styleSheets).flatMap((sheet) => collect(sheet.cssRules));
+}
+
+function renderedDeclaration(element: Element, property: string): string {
+  const generatedClasses = Array.from(element.classList).filter((name) => name.startsWith("css-"));
+  return renderedStyleRules().reduce((value, rule) => {
+    const matches = !rule.selectorText.includes(":")
+      && generatedClasses.some((name) => rule.selectorText.includes(`.${name}`));
+    return matches ? rule.style.getPropertyValue(property).trim() || value : value;
+  }, "");
+}
+
+function renderedRule(element: Element, selectorSuffix: string): CSSStyleRule | undefined {
+  const generatedClass = Array.from(element.classList).find((name) => name.startsWith("css-"));
+  return generatedClass
+    ? renderedStyleRules().find((rule) => rule.selectorText.includes(`.${generatedClass}${selectorSuffix}`))
+    : undefined;
+}
 
 // Mirrors PALETTE_LABEL_KEYS in SettingsPage.tsx — kept local to the test
 // rather than imported, since the production module no longer exports a
@@ -109,7 +140,10 @@ async function renderReady(
     refresh: async () => { refreshed += 1; return refreshOk; },
   });
   const result = render(
-    <FarmContext.Provider value={value}><SettingsPage /></FarmContext.Provider>);
+    <>
+      <style>{srOnlyCss}</style>
+      <FarmContext.Provider value={value}><SettingsPage /></FarmContext.Provider>
+    </>);
   expect(await screen.findByRole("button", { name: "Localization" })).toBeInTheDocument();
   for (const section of sections) {
     fireEvent.click(screen.getByRole("button", { name: section }));
@@ -1499,17 +1533,52 @@ describe("SettingsPage expandable sections", () => {
     expect(getComputedStyle(screen.getByTestId("settings-banner-card")).borderRadius).toBe("0px");
   });
 
-  it("uses outlined error-text image removal controls", async () => {
+  it("uses neutral outlined image removal controls with error text", async () => {
     await renderReady(SETTINGS({ logoContentHash: "logo", bannerContentHash: "banner" }));
     for (const remove of screen.getAllByRole("button", { name: /Remove/ })) {
-      expect(remove).toHaveClass("MuiButton-outlined", "MuiButton-colorError");
-      expect(remove).not.toHaveClass("btn-danger");
+      const card = remove.closest(".MuiPaper-root");
+      if (!(card instanceof HTMLElement)) throw new Error("Remove control is outside its media card");
+
+      const neutralBorder = getComputedStyle(card).borderColor;
+      const rest = getComputedStyle(remove);
+      expect(rest.borderColor).toBe(neutralBorder);
+      expect(rest.backgroundColor).toBe("var(--variant-outlinedBg)");
+      expect(renderedDeclaration(remove, "--variant-outlinedBg")).toBe("");
+      expect(rest.color.toLowerCase()).toBe("var(--variant-outlinedcolor)");
+      expect(renderedDeclaration(remove, "--variant-outlinedColor")).toBe("#d32f2f");
     }
   });
 
-  it("shows palette selection with the swatch outline, not a radio glyph", async () => {
+  it("hides radio glyphs and shows palette selection and keyboard focus on the swatch label", async () => {
+    const user = userEvent.setup();
     await renderReady();
-    for (const radio of screen.getAllByRole("radio")) expect(radio).toHaveClass("sr-only");
+    const aubergine = screen.getByRole("radio", { name: "Aubergine" });
+    const forest = screen.getByRole("radio", { name: "Forest" });
+    const hiddenRadio = getComputedStyle(aubergine);
+    expect(hiddenRadio.position).toBe("absolute");
+    expect(hiddenRadio.width).toBe("1px");
+    expect(hiddenRadio.height).toBe("1px");
+    expect(hiddenRadio.overflow).toBe("hidden");
+    expect(hiddenRadio.clipPath).toBe("inset(50%)");
+
+    aubergine.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(forest).toBeChecked();
+    expect(forest).toHaveFocus();
+
+    const aubergineLabel = aubergine.closest("label");
+    const forestLabel = forest.closest("label");
+    if (!(aubergineLabel instanceof HTMLLabelElement) || !(forestLabel instanceof HTMLLabelElement)) {
+      throw new Error("Palette radios are outside their swatch labels");
+    }
+    const unselected = getComputedStyle(aubergineLabel);
+    const selected = getComputedStyle(forestLabel);
+    expect(selected.borderColor).not.toBe(unselected.borderColor);
+    expect(selected.boxShadow).not.toBe("none");
+    const focusRule = renderedRule(forestLabel, ":has(input:focus-visible)");
+    expect(focusRule?.style.outline).toBe("2px solid");
+    expect(focusRule?.style.outlineColor).toBe("rgb(2, 136, 209)");
+    expect(focusRule?.style.outlineOffset).toBe("2px");
   });
 
   it("the Identity & images section starts expanded, with its own content reachable", async () => {
