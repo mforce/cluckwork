@@ -794,3 +794,14 @@ it("updates the water context when the reading mode changes", async () => {
   expect(summary).toHaveTextContent("Meter readings");
   expect(summary).toHaveTextContent("L");
 });
+
+it("keeps one filter reset available with the chronological ledger", async () => {
+  await renderReadyForm(ADMIN);
+  await screen.findByRole("heading", { name: "Water log" });
+  expect(screen.getByText("Chronological record")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
+  fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-02" } });
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(screen.getByLabelText("From")).toHaveValue("");
+  expect(screen.getByLabelText("To")).toHaveValue("");
+});

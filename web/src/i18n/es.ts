@@ -793,7 +793,8 @@ export const es = {
     filterFlockUnavailable:
       "El lote registrado en estos registros ya no está disponible.",
     rowFlockUnavailable: "Este lote ya no está disponible.",
-    recordsHeading: "Registros",
+    recordsHeading: "Registro de agua",
+    recordsCaption: "Registro cronológico",
     fromLabel: "Desde",
     toLabel: "Hasta",
     noRecordsMatch: "Ningún registro de agua coincide.",

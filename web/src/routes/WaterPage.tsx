@@ -20,7 +20,7 @@ import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
-import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
+import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { waterSourceLabel, waterUnitLabel } from "../i18n/enums";
@@ -525,7 +525,7 @@ export function WaterPage() {
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
-      <h3>{t("recordsHeading")}</h3>
+      <ConsoleSubhead title={t("recordsHeading")} caption={t("recordsCaption")} />
       <FilterBar>
         <Box sx={PICKER_SX}>
           <FlockPicker
@@ -564,6 +564,7 @@ export function WaterPage() {
         </Box>
         <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
         <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
 
       {usage.error && <p className="error">{usage.error}</p>}
@@ -575,11 +576,7 @@ export function WaterPage() {
       ) : usage.rows.length === 0 ? (
         // No page-head create action — water capture is the inline form above.
         (flockFilter || from || to)
-          ? <EmptyState icon={FilterX} message={t("noRecordsMatch")}
-              action={{
-                label: tc("clearFiltersButton"),
-                onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
-              }} />
+          ? <EmptyState icon={FilterX} message={t("noRecordsMatch")} />
           : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
@@ -607,7 +604,7 @@ export function WaterPage() {
                     <TableCell>{r.note ?? ""}</TableCell>
                     <TableCell sx={NOWRAP}>
                       {isAdmin && (
-                        <Button color="warning" size="small" disabled={busy} onClick={() => startEdit(r)}>{t("correctButton")}</Button>
+                        <Button sx={CONSOLE_LINK_SX} size="small" disabled={busy} onClick={() => startEdit(r)}>{t("correctButton")}</Button>
                       )}
                     </TableCell>
                   </TableRow>

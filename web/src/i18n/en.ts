@@ -1102,7 +1102,8 @@ export const en = {
     // (the flock left the caller's tenant/flock scope between reads).
     // Row-owned, independent of the filter's own unavailable state above.
     rowFlockUnavailable: "This flock is no longer available.",
-    recordsHeading: "Records",
+    recordsHeading: "Water log",
+    recordsCaption: "Chronological record",
     fromLabel: "From",
     toLabel: "To",
     noRecordsMatch: "No water records match.",

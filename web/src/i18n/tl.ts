@@ -828,7 +828,8 @@ export const tl = {
     filterFlockUnavailable:
       "Ang kalahi na kawan sa mga tala na ito ay hindi na available.",
     rowFlockUnavailable: "Hindi na available ang kawan na ito.",
-    recordsHeading: "Mga Tala",
+    recordsHeading: "Talaan ng tubig",
+    recordsCaption: "Talaan ayon sa petsa",
     fromLabel: "Mula",
     toLabel: "Hanggang",
     noRecordsMatch: "Walang tumugmang tala ng tubig.",
