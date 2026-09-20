@@ -52,6 +52,22 @@ beforeEach(() => {
 });
 
 describe("ExportPage rendering", () => {
+  it("uses the artifact heading hierarchy and full-width dataset controls", () => {
+    render(<ExportPage />);
+
+    expect(screen.getByRole("heading", { name: "Export", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Full backup", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Single datasets", level: 2 })).toBeInTheDocument();
+    const controls = datasetSelect().closest(".MuiFormControl-root")?.parentElement;
+    expect(controls).not.toBeNull();
+    expect(getComputedStyle(controls!).width).toBe("100%");
+    const buttonClass = [...backupButton().classList].find((name) => name.startsWith("css-"));
+    expect(buttonClass).toBeDefined();
+    const styles = Array.from(document.styleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
+    expect(styles).toMatch(new RegExp(`\\.${buttonClass}\\s*\\{[^}]*width:\\s*100%`));
+  });
+
   it("renders the dataset select (defaulted to the first dataset), the CSV button and the full-backup button", () => {
     render(<ExportPage />);
 

@@ -52,7 +52,7 @@ export function ExportPage() {
       <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
         {t("eyebrow")}
       </Typography>
-      <Typography variant="h2">{t("heading")}</Typography>
+      <Typography variant="h1">{t("heading")}</Typography>
       <Typography variant="body2" color="text.secondary">{t("intro")}</Typography>
       <Divider sx={{ my: 2 }} />
 
@@ -62,11 +62,12 @@ export function ExportPage() {
         variant="outlined"
         sx={{ bgcolor: "var(--surface-2)", borderRadius: "var(--r-panel)", p: 3, mb: 3 }}
       >
-        <Typography variant="h3">{t("fullBackupHeading")}</Typography>
+        <Typography variant="h2">{t("fullBackupHeading")}</Typography>
         <Typography variant="body2" sx={{ mb: 2 }}>{t("fullBackupHint")}</Typography>
         <Button
           variant="contained"
           disabled={busy !== null}
+          sx={{ width: { xs: "100%", md: "auto" } }}
           onClick={() =>
             void download("all", downloadFullBackup, "cluckwork-backup.zip")
           }
@@ -75,9 +76,9 @@ export function ExportPage() {
         </Button>
       </Paper>
 
-      <Typography variant="h3">{t("singleDatasetsHeading")}</Typography>
+      <Typography variant="h2">{t("singleDatasetsHeading")}</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t("datasetHint")}</Typography>
-      <Stack spacing={2} sx={{ alignItems: "flex-start", maxWidth: "24rem" }}>
+      <Stack spacing={2} sx={{ alignItems: "flex-start", width: "100%" }}>
         <TextField
           select
           fullWidth
