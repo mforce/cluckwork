@@ -89,8 +89,6 @@ test.describe("Sales", () => {
     await orderDialog.getByRole("button", { name: tEn("sales:newDraftOrder") }).click();
     await expect(orderDialog).toBeHidden();
 
-    // The order panel's heading carries "{reference} — {customer} [{status}]",
-    // so finding the customer's name in a heading IS the order having opened.
     const panelHeading = page.getByRole("heading", { name: new RegExp(escapeRegExp(customerName)) });
     await expect(panelHeading).toBeVisible();
 
@@ -127,7 +125,8 @@ test.describe("Sales", () => {
 
     // Status moved. `statusLabel("Confirmed")` is the app's own enum labelling,
     // so this reads the same string the screen renders.
-    await expect(panelHeading).toContainText(tEn("enums:status.Confirmed"));
+    await expect(page.getByRole("region", { name: new RegExp(escapeRegExp(customerName)) })
+      .locator("header").getByText(tEn("enums:status.Confirmed"), { exact: true })).toBeVisible();
     // And the draft-only affordances are gone, which is what "confirmed" means
     // to the user: no more editing.
     await expect(page.getByRole("button", { name: tEn("sales:addLine") })).toBeHidden();

@@ -29,7 +29,6 @@ import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useDialogAction } from "../components/useDialogAction";
 import { useConfirm } from "../components/useConfirm";
 import { usePagedList } from "../components/usePagedList";
-import { StatusBadge } from "../components/StatusBadge";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
 import { discountCeiling, lineExceedsCeiling } from "../lib/discountCeiling";
@@ -40,19 +39,24 @@ import type { DiscountReasonValue } from "../i18n/enums";
 
 const PAGE = 50;
 const NOWRAP = { whiteSpace: "nowrap" as const };
+const LINK_ACTION_SX = {
+  minWidth: 0, p: 0, fontWeight: 700, borderRadius: 0, color: "var(--link)",
+  textDecoration: "underline", textDecorationColor: "var(--rule-strong)", textUnderlineOffset: "3px",
+  "&:hover": { textDecoration: "underline", bgcolor: "transparent" },
+};
 const MANIFEST_ACTIONS_SX = {
-  position: { xs: "sticky", md: "static" },
-  right: 0,
-  zIndex: 1,
-  minWidth: { xs: 100, md: "auto" },
   whiteSpace: { md: "nowrap" },
   "& [role=status]": { whiteSpace: "normal" },
-  "& button": { display: { xs: "block", md: "inline-flex" }, minHeight: { xs: 44, md: "auto" } },
+  "& button": { display: "inline-flex", minHeight: { xs: 44, md: "auto" }, mr: .75 },
 };
-// Keep picker width stable when its trigger switches between a button and input.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
-const DISCOUNTED_ROW_SX = { bgcolor: "var(--tint-warn)" };
-const DISCOUNTED_BADGE_SX = { bgcolor: "var(--surface)" };
+
+function OrderStatus({ status }: { status: SalesOrder["status"] }) {
+  return <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap",
+    "&::before": { content: '\'\'', width: "6px", height: "6px", borderRadius: "50%",
+      bgcolor: status === "Draft" ? "var(--warn)" : status === "Confirmed" ? "var(--success)" : "var(--error)" },
+  }}>{statusLabel(status)}</Box>;
+}
 
 // The egg selling units, in picker order — one list for the Per picker and
 // the #445 unit-label/preview helpers, mirroring the server's ProductUnit
@@ -1106,6 +1110,15 @@ export function SalesPage() {
   if (setupError) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{setupError}</p></FieldConsole>;
   if (orders.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{t("loading")}</p></FieldConsole>;
 
+  const clearFilters = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("customerId");
+    next.delete("unpaid");
+    setCustomerFilterEntity(null);
+    setStatusFilter("");
+    setSearchParams(next);
+  };
+
   const listValue = active ? orderListValue(active.items) : null;
   const outstanding = active?.status === "Confirmed" && payments
     ? payments.outstandingMinorUnits : active?.outstandingMinorUnits;
@@ -1122,7 +1135,7 @@ export function SalesPage() {
           // farm-midnight would otherwise offer yesterday as the order date
           // while the picker's own ceiling had already moved on (codex review
           // of #123).
-          <Button variant="contained" type="button" sx={{ minHeight: 44, width: { xs: "100%", md: "auto" } }} onClick={() => {
+          <Button variant="contained" type="button" sx={{ minHeight: 44, width: { xs: "100%", md: "auto" }, borderRadius: "4px" }} onClick={() => {
             // Nothing to clear on the way in: #479 moved that onto the
             // dismissal, so the slot is already empty before a reopen.
             setOrderDate(today);
@@ -1217,19 +1230,35 @@ export function SalesPage() {
 
       {active && (
         <Box sx={{ my: 3 }} role="region" aria-labelledby={orderPanelHeadingId}>
-          <Box sx={CONSOLE_SPLIT_SX}>
+          <Box sx={{ ...CONSOLE_SPLIT_SX, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1.6fr) minmax(240px, .65fr)" } }}>
             <Box sx={CONSOLE_PANEL_SX}>
-              <Box component="header" sx={{ pb: 1.5, mb: 1.5, borderBottom: "1px solid var(--rule)" }}>
-                <Typography variant="h3" component="h3" id={orderPanelHeadingId} sx={{ "&&": { m: 0 }, display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
-                  {active.referenceNumber} — {rowCustomerName(active)}{" "}
-                  <span className={active.status === "Draft" ? "muted" : "warn"}>
-                    [{statusLabel(active.status)}]
-                  </span>
-                </Typography>
+              <Box component="header" sx={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: "15px", pb: 1.75, mb: 1.75, borderBottom: "1px solid var(--rule)" }}>
+                <Box>
+                  <Typography variant="overline" sx={{ fontSize: ".625rem", letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 750, color: "text.secondary" }}>{active.status === "Draft" ? t("draftOrderHeading") : t("orderHeading")}</Typography>
+                  <Typography variant="h3" component="h3" id={orderPanelHeadingId} sx={{ "&&": { m: 0 } }}>
+                    {active.referenceNumber} — {rowCustomerName(active)}
+                  </Typography>
+                </Box>
+                <OrderStatus status={active.status} />
               </Box>
               {active.items.length > 0 && (
-                <LedgerTableContainer>
-                  <Table size="small" sx={{ "& .MuiTableCell-root": { px: .75, py: .75 } }}>
+                <Box sx={{ borderTop: "2px solid var(--ink)", "& .discount": { fontWeight: 750 } }}>
+                  <Table size="small" sx={{
+                    "& .MuiTableCell-root": { px: .75, py: .75 },
+                    display: { xs: "block", md: "table" },
+                    "& thead, & tbody": { display: { xs: "block", md: "table-row-group" } },
+                    "& tr": { display: { xs: "grid", md: "table-row" }, gridTemplateColumns: "minmax(0, 1fr) 32px 38px 112px", height: { xs: "auto", md: 36 }, borderBottom: { xs: "1px solid var(--rule)" } },
+                    "& th, & td": { minWidth: 0, borderBottom: { xs: 0, md: "1px solid var(--rule)" }, overflowWrap: { xs: "anywhere", md: "normal" } },
+                    "& th": { whiteSpace: "nowrap" },
+                    "& td:nth-child(2)": { gridColumn: 2 },
+                    "& td:nth-child(3)": { gridColumn: 3 },
+                    "& :is(th, td):nth-child(5), & :is(th, td):nth-child(7), & th:nth-child(4), & th:nth-child(6)": { display: { xs: "none", md: "table-cell" } },
+                    "& td:nth-child(4)": { gridColumn: "1 / 3", gridRow: 2, textAlign: { xs: "left", md: "right" } },
+                    "& td:nth-child(6)": { gridColumn: "3 / 5", gridRow: 2 },
+                    "& :is(th, td):last-child": { gridColumn: 4, gridRow: 1 },
+                    "& tr[data-editing=true] td:nth-child(2)": { gridColumn: "1 / 4", gridRow: 5, "& .numfield": { maxWidth: 180 } },
+                    "& tr[data-editing=true] td:nth-child(5)": { display: { xs: "block", md: "table-cell" }, gridColumn: "1 / 4", "& input": { width: "100%" } },
+                  }}>
                     <TableHead>
                       <TableRow>
                         <TableCell>{t("product")}</TableCell>
@@ -1264,12 +1293,12 @@ export function SalesPage() {
                           : discount.kind === "none" ? listPriceBasisLabel(i.listPriceBasis)
                             : "—";
                       return (
-                      <TableRow key={i.id} sx={discount.kind === "below" ? DISCOUNTED_ROW_SX : undefined}>
+                      <TableRow key={i.id} data-editing={editingThis}>
                         <TableCell>{productName(i.productId)}{" "}
                           <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
                             {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span>
                           {discount.kind === "below" && (
-                            <> <Box component="span" className="badge badge-warn" sx={DISCOUNTED_BADGE_SX}>{t("belowListBadge")}</Box></>
+                            <> <Box component="span" className="discount">{t("belowListBadge")}</Box></>
                           )}
                           {/* Below-list describes the price; over-ceiling warns that confirmation may fail. */}
                           {overMaximum && (
@@ -1290,20 +1319,20 @@ export function SalesPage() {
                             </TableCell>
                             <TableCell align="right" className="muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</TableCell>
                             <TableCell align="right" className="muted">
-                              {i.listUnitPriceMinorUnits === null
+                              <Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("listPrice")}: </Box>{i.listUnitPriceMinorUnits === null
                                 ? "—"
                                 : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
                             </TableCell>
-                            <TableCell align="right"><input className="cell" type="number" min={0}
+                            <TableCell align="right"><Box component="span" sx={{ display: { xs: "block", md: "none" } }}>{t("unitPrice")}</Box><input className="cell" type="number" min={0}
                               aria-label={t("editUnitPriceAriaLabel")}
                               step={10 ** -active.currencyMinorUnit} value={editor.price}
                               onChange={(e) => {
                                 const draft = editorRef.current;
                                 if (draft) setEditor({ ...draft, price: e.target.value });
                               }} /></TableCell>
-                            <TableCell align="right">{discountCell}</TableCell>
+                            <TableCell align="right"><Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("discount")}: </Box>{discountCell}</TableCell>
                             <TableCell align="right">—</TableCell>
-                            <TableCell sx={{ ...MANIFEST_ACTIONS_SX, bgcolor: discount.kind === "below" ? "var(--tint-warn)" : "var(--surface)" }}>
+                            <TableCell sx={MANIFEST_ACTIONS_SX}>
                               <BusyButton component={Button} variant="contained" size="small" sx={{ minWidth: 0, p: .5 }} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
                                 onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
                               <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, p: .5 }} onClick={() => setEditor(null)}>{t("cancelEdit")}</Button>
@@ -1320,22 +1349,22 @@ export function SalesPage() {
                             <TableCell align="right">{fmt.count(i.quantity)}</TableCell>
                             <TableCell align="right">{fmt.count(i.quantityBase)}</TableCell>
                             <TableCell align="right">
-                              {i.listUnitPriceMinorUnits === null
+                              <Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("listPrice")}: </Box>{i.listUnitPriceMinorUnits === null
                                 ? "—"
                                 : discount.kind === "below"
                                   ? <s>{fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</s>
                                   : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
                             </TableCell>
                             <TableCell align="right">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</TableCell>
-                            <TableCell align="right">{discountCell}</TableCell>
+                            <TableCell align="right"><Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("discount")}: </Box>{discountCell}</TableCell>
                             <TableCell align="right">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</TableCell>
-                            <TableCell sx={{ ...MANIFEST_ACTIONS_SX, bgcolor: discount.kind === "below" ? "var(--tint-warn)" : "var(--surface)" }}>
+                            <TableCell sx={MANIFEST_ACTIONS_SX}>
                               {active.status === "Draft" && (
                                 <>
-                                  <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, p: .5 }} disabled={busy} onClick={() => {
+                                  <Button variant="text" size="small" sx={LINK_ACTION_SX} disabled={busy} onClick={() => {
                                     setEditor(lineDraft(active, i));
                                   }}>{t("edit")}</Button>
-                                  <BusyButton component={Button} size="small" sx={{ minWidth: 0, p: .5, color: "var(--error)" }} disabled={busy} busy={isPending(`remove-item:${i.id}`)}
+                                  <BusyButton component={Button} size="small" sx={{ ...LINK_ACTION_SX, color: "var(--error)" }} disabled={busy} busy={isPending(`remove-item:${i.id}`)}
                                     onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
                                 </>
                               )}
@@ -1347,7 +1376,7 @@ export function SalesPage() {
                     })}
                   </TableBody>
                 </Table>
-              </LedgerTableContainer>
+              </Box>
               )}
               {active.status === "Draft" && (
                 <>
@@ -1450,15 +1479,17 @@ export function SalesPage() {
               "--surface": "#2c2429",
               "--surface-2": "#433840",
               "& .muted, & .discount-note": { color: "#cfc4cb" },
-              "& .discount, & .warn": { color: "#ffcf85" },
+              "& .discount, & .warn": { color: "#ffcf85", fontWeight: 750 },
               "& .MuiTableCell-root": { color: "inherit" },
+              "& .MuiTableContainer-root": { background: "var(--surface)", backgroundImage: "none" },
+              "& p:has(+ .MuiTableContainer-root)": { bgcolor: "var(--surface-2)", color: "inherit" },
               "& .actions": { alignItems: "stretch" },
               "& .actions:not([role=group])": { flexDirection: "column" },
               "& .actions > button": { minHeight: 44 },
             }}>
               <Typography component="p" variant="body2" aria-label={t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })} sx={{ mt: 0, mb: 2 }}>
-                <Box component="span" sx={{ display: "block", fontSize: ".8rem" }}>{t("total")}</Box>
-                <Box component="strong" sx={{ display: "block", fontSize: "1.75rem", fontVariantNumeric: "tabular-nums" }}>{fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit)}</Box>
+                <Box component="span" sx={{ display: "block", fontSize: ".8rem" }}>{t("settlementHeading")}</Box>
+                <Box component="strong" sx={{ display: "block", fontSize: "1.75rem", fontFamily: 'Georgia, "Times New Roman", serif', fontVariantNumeric: "tabular-nums" }}>{fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit)}</Box>
               </Typography>
               <Box component="dl" sx={{ m: 0,
                 "& > div": { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 1.5, py: 1, borderTop: "1px solid var(--rule)", fontSize: ".8rem" },
@@ -1546,10 +1577,10 @@ export function SalesPage() {
                     </p>
                   )}
                   <Box className="actions" role="group" aria-label={t("draftActions")} sx={{
-                    "&&": { flexDirection: "row", flexWrap: "nowrap" },
-                    "& > button": { flex: "1 1 50%", boxSizing: "border-box", minWidth: 0, minHeight: 44, px: 1, fontSize: ".8rem" },
+                    "&&": { flexDirection: "row", flexWrap: "nowrap", justifyContent: "flex-end", gap: 1 },
+                    "& > button": { flex: { xs: "1 1 50%", md: "0 1 auto" }, borderRadius: "4px", boxSizing: "border-box", minWidth: 0, minHeight: 44, px: 1, fontSize: ".8rem" },
                   }}>
-                    <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                    <BusyButton component={Button} variant="outlined" sx={{ bgcolor: "common.white", color: "var(--surface)", borderColor: "common.white", "&:hover": { bgcolor: "common.white", borderColor: "common.white" } }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
                       onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
                     <BusyButton component={Button} variant="contained" disabled={busy || active.items.length === 0}
                       busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
@@ -1561,7 +1592,7 @@ export function SalesPage() {
               )}
               {active.status === "Confirmed" && canSettle && payments && (
                 <>
-                  <h4>{t("payments")}</h4>
+                  <Typography component="h4" sx={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "1.125rem", my: 2 }}>{t("payments")}</Typography>
                   {payments.items.length > 0 && (
                     <LedgerTableContainer alwaysShowSwipeCue>
                       <Table size="small">
@@ -1804,6 +1835,7 @@ export function SalesPage() {
             }
           />
         )}
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={clearFilters}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
       {/* The list's own failure, beside the workspace rather than instead of
           it — and self-healing on the next successful load (#469). */}
@@ -1816,18 +1848,7 @@ export function SalesPage() {
         <p className="muted">{t("loading")}</p>
       ) : orders.rows.length === 0 ? (
         hasActiveFilter
-          ? <EmptyState icon={FilterX} message={t("noOrdersMatch")}
-              action={{
-                label: tc("clearFiltersButton"),
-                onClick: () => {
-                  const next = new URLSearchParams(searchParams);
-                  next.delete("customerId");
-                  next.delete("unpaid");
-                  setCustomerFilterEntity(null);
-                  setStatusFilter("");
-                  setSearchParams(next);
-                },
-              }} />
+          ? <EmptyState icon={FilterX} message={t("noOrdersMatch")} />
           // Same condition AND same handler as the page-head New order button
           // above — a customer-less farm gets the sentence alone there too.
           : <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")}
@@ -1873,14 +1894,14 @@ export function SalesPage() {
                       <TableCell sx={NOWRAP}>{o.referenceNumber}</TableCell>
                       <TableCell sx={NOWRAP}><FarmDate iso={o.orderDate} /></TableCell>
                       <TableCell sx={NOWRAP}>{rowCustomerName(o)}</TableCell>
-                      <TableCell sx={NOWRAP}><StatusBadge status={o.status} label={statusLabel(o.status)} /></TableCell>
+                      <TableCell sx={NOWRAP}><OrderStatus status={o.status} /></TableCell>
                       <TableCell align="right" sx={NOWRAP}
                         title={[discountDescription, reason].filter(Boolean).join(". ") || undefined}
                         aria-describedby={[
                           discountDescription && `${rowId}-discount`, reason && `${rowId}-reason`,
                         ].filter(Boolean).join(" ") || undefined}>
                         {discount.kind === "below" ? (
-                          <Box component="span" className="badge badge-warn" sx={NOWRAP}>
+                          <Box component="span" className="discount" sx={{ ...NOWRAP, fontWeight: 750 }}>
                             {discount.percent === null
                               ? t("discountBadgeNoPct", { amount: fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit) })
                               : t("discountBadge", {
@@ -1899,7 +1920,7 @@ export function SalesPage() {
                           aria-describedby={partlyPaid ? `${rowId}-payment` : undefined}>
                           {o.outstandingMinorUnits === null ? "—"
                             : o.outstandingMinorUnits === 0
-                              ? <span className="badge badge-ok">{t("settledBadge")}</span>
+                              ? <span>{t("settledBadge")}</span>
                               : fmt.money(o.outstandingMinorUnits, o.currencyCode, o.currencyMinorUnit)}
                           {partlyPaid && <span id={`${rowId}-payment`} className="sr-only" aria-hidden="true">{t("partlyPaidNote")}</span>}
                         </TableCell>
@@ -1912,7 +1933,7 @@ export function SalesPage() {
                               {tc("recordHistory.viewHistoryLink")}
                             </Link>
                           )}
-                          <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, px: .5 }}
+                          <Button variant="text" size="small" sx={LINK_ACTION_SX}
                             disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</Button>
                         </Stack>
                       </TableCell>

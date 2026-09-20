@@ -287,6 +287,8 @@ export const es = {
   },
 
   sales: {
+    draftOrderHeading: "Pedido en borrador",
+    orderHeading: "Pedido",
     intro: "Cree pedidos, asigne existencias, liquide saldos y conserve el registro comercial.",
     orderContext: "Contexto del pedido",
     listValue: "Valor de lista",

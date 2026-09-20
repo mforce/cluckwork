@@ -887,13 +887,13 @@ describe("SalesPage list price and discount (#720)", () => {
   });
 
   // jsdom exposes declared backgrounds but does not resolve their custom properties.
-  it("marks a below-list row with a chip, a struck list price and the row tint", async () => {
+  it("marks a below-list price with exception text and no row tint", async () => {
     // ITEM_B: sold 1000 against a list of 1200 → below list.
     const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
     const badge = within(row).getByText(i18n.t("sales:belowListBadge"));
-    expect(badge).toHaveClass("badge", "badge-warn");
-    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
-    expect(badge).toHaveStyle({ backgroundColor: "var(--surface)" });
+    expect(badge).toHaveClass("discount");
+    expect(badge).not.toHaveClass("badge");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     // The list-price money is struck through — the <s> element, not a class, so
     // it survives a stylesheet change and reads as struck to a screen reader.
     expect(within(row).getByText("$12.00").closest("s")).not.toBeNull();
@@ -1255,7 +1255,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     };
   }
 
-  it("badges a discounted order with the percent leading the amount", async () => {
+  it("emphasises a discounted order with plain exception text", async () => {
     mockListOrders.mockResolvedValue([listedOrder("disc", [ITEM_A, ITEM_B], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-disc/ });
@@ -1265,7 +1265,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     const cell = within(row).getAllByRole("cell")[4];
     expect(within(cell).getByText(
       i18n.t("sales:discountBadge", { percent: "17.7", amount: "$6.25" }),
-    )).toHaveClass("badge");
+    )).toHaveClass("discount");
   });
 
   it("names an order sold entirely at list", async () => {
@@ -1338,7 +1338,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-belowpartial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    expect(within(cell).getByText(/%/)).toHaveClass("badge");
+    expect(within(cell).getByText(/%/)).toHaveClass("discount");
     expect(cell).toHaveAccessibleDescription("part of this order has no list price");
     expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
@@ -1370,13 +1370,13 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
   const outstandingCell = (reference: RegExp) =>
     within(screen.getByRole("row", { name: reference })).getAllByRole("cell")[6];
 
-  it("badges a fully settled order and shows no amount beside it", async () => {
+  it("labels a fully settled order and shows no amount beside it", async () => {
     mockListOrders.mockResolvedValue([settled("paid", 0)]);
     await renderReady();
 
     const cell = outstandingCell(/SO-paid/);
     expect(within(cell).getByText(i18n.t("sales:settledBadge")))
-      .toHaveClass("badge", "badge-ok");
+      .not.toHaveClass("badge");
     // Nothing owed, so no money at all in the cell — a "$0.00" here reads as a
     // debt at a glance, which is the misreading the badge exists to prevent.
     expect(cell).not.toHaveTextContent("$0.00");
@@ -3987,10 +3987,10 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
   const typePrice = (value: string) =>
     fireEvent.change(screen.getByLabelText(i18n.t("sales:editUnitPriceAriaLabel")), { target: { value } });
 
-  it("keeps the tint, the chip and the Discount cell agreeing as the price is edited", async () => {
+  it("keeps the exception label and Discount cell agreeing as the price is edited", async () => {
     const row = await beginEdit();
     // ITEM_A: 3 x $3.00 against a $3.75 list — below list before a key is pressed.
-    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
     expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("$2.25");
 
@@ -4008,14 +4008,14 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
 
     // Back below list: the markers come back rather than sticking.
     typePrice("2.00");
-    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
     expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
   });
 
   it("falls back to the saved line rather than flickering when the price box is unparseable", async () => {
     const row = await beginEdit();
     typePrice("");
-    expect(row).toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).not.toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
   });
 
@@ -4177,6 +4177,22 @@ describe("SalesPage discount ceiling (#727)", () => {
 });
 
 describe("Sales Field Console context and settlement", () => {
+  it("offers Clear filters even when the commercial ledger is populated", async () => {
+    await renderReadyWithProbe("/sales?unpaid=1&foo=bar");
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(probeSearch()).toBe("?foo=bar"));
+    expect(screen.getByLabelText("Status")).toHaveValue("");
+  });
+
+  it("labels the paper separately from its status and names the settlement", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const region = screen.getByRole("region", { name: "SO-2 — Acme Eggs" });
+    expect(within(region).getByText("Draft order")).toBeInTheDocument();
+    expect(within(region).getByText("Draft", { exact: true })).not.toHaveClass("MuiChip-root");
+    expect(within(screen.getByRole("complementary", { name: "Settlement" })).getByText("Settlement")).toBeInTheDocument();
+  });
+
   it.each([
     { price: 1100, label: "Above list" },
     { price: 1000, label: "At list" },

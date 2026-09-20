@@ -299,6 +299,8 @@ export const tl = {
   },
 
   sales: {
+    draftOrderHeading: "Draft na order",
+    orderHeading: "Order",
     intro: "Gumawa ng mga order, maglaan ng stock, bayaran ang mga balanse, at panatilihin ang talaan ng benta.",
     orderContext: "Konteksto ng order",
     listValue: "Halaga sa listahan",
