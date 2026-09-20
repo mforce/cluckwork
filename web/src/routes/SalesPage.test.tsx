@@ -206,7 +206,7 @@ async function createDraft(order: SalesOrder) {
   await act(async () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
   });
-  await screen.findByRole("heading", { name: new RegExp(order.referenceNumber) }); // panel header
+  await screen.findByRole("heading", { name: new RegExp(order.referenceNumber) });
   // MUI defers the dialog's DOM removal to its exit transition — wait for it
   // to actually leave before the caller starts querying the page behind it.
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
