@@ -474,3 +474,14 @@ it("shows the selected ration and on-hand balance in the feeding context", async
   expect(summary).toHaveTextContent("120 kg");
   expect(summary).toHaveTextContent("Barn A");
 });
+
+it("keeps one filter reset available with the chronological ledger", async () => {
+  await renderReady();
+  await screen.findByRole("heading", { name: "Feed usage" });
+  expect(screen.getByText("Chronological record")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
+  fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-02" } });
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(screen.getByLabelText("From")).toHaveValue("");
+  expect(screen.getByLabelText("To")).toHaveValue("");
+});

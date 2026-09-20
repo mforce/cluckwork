@@ -21,7 +21,7 @@ import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
-import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
+import { FieldConsole, ConsoleSubhead, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
@@ -363,7 +363,7 @@ export function FeedPage() {
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
-      <h3>{t("recordsHeading")}</h3>
+      <ConsoleSubhead title={t("recordsHeading")} caption={t("recordsCaption")} />
       {/* List failures degrade the LIST only — the capture form must stay
           usable through a transient history read failure (review of #446). */}
       {usage.error && <p className="error">{usage.error}</p>}
@@ -405,6 +405,7 @@ export function FeedPage() {
         </Box>
         <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
         <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
 
       {/* One window's rows must never sit under another window's controls,
@@ -415,11 +416,7 @@ export function FeedPage() {
       ) : usage.rows.length === 0 ? (
         // No page-head create action — feed capture is the inline form above.
         (flockFilter || from || to)
-          ? <EmptyState icon={FilterX} message={t("noRecordsMatch")}
-              action={{
-                label: tc("clearFiltersButton"),
-                onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
-              }} />
+          ? <EmptyState icon={FilterX} message={t("noRecordsMatch")} />
           : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
