@@ -197,13 +197,26 @@ test.describe("Owner", () => {
     await expect(page.getByText(tEn("audit:emptyMessage"))).toBeHidden();
 
     const firstPanel = panels.first();
-    await firstPanel.getByRole("button").click();
-    await expect(firstPanel.getByText(tEn("audit:whoHeader"), { exact: true })).toBeVisible();
-    await expect(firstPanel.getByText(tEn("audit:detailsHeader"), { exact: true })).toBeVisible();
+    const firstSummary = firstPanel.locator("summary");
+    const firstSummaryText = await firstSummary.innerText();
+    await expect(firstSummary).toBeVisible();
+    await expect(firstPanel).toHaveAccessibleName(firstSummaryText);
+    const summaryId = await firstSummary.getAttribute("id");
+    if (!summaryId) throw new Error("the first Audit summary has no id");
+    await expect(firstPanel).toHaveAttribute("aria-labelledby", summaryId);
+    const actorId = await firstPanel.getAttribute("aria-describedby");
+    if (!actorId) throw new Error("the first Audit panel has no actor description");
+    const actor = page.locator(`#${actorId}`);
+    const actorText = await actor.textContent();
+    if (!actorText) throw new Error("the first Audit panel has no actor text");
+    await expect(firstPanel).toHaveAccessibleDescription(actorText);
+    await firstSummary.click();
+    await expect(firstPanel).toHaveAttribute("open", "");
+    await expect(actor).toBeVisible();
 
     const filter = page.getByLabel(tEn("audit:actionFilterLabel"));
-    const before = await panels.evaluateAll((nodes) => nodes.map((node) =>
-      node.getAttribute("aria-label")?.split(" · ")[1] ?? ""));
+    const before = (await panels.locator("summary").allTextContents())
+      .map((summary) => summary.split(" UTC · ")[1] ?? "");
     const counts = new Map<string, number>();
     for (const action of before) counts.set(action, (counts.get(action) ?? 0) + 1);
     expect(
@@ -221,8 +234,8 @@ test.describe("Owner", () => {
     await expect
       .poll(
         async () => {
-          const actions = await panels.evaluateAll((nodes) => nodes.map((node) =>
-            node.getAttribute("aria-label")?.split(" · ")[1] ?? ""));
+          const actions = (await panels.locator("summary").allTextContents())
+            .map((summary) => summary.split(" UTC · ")[1] ?? "");
           if (actions.length === 0) return "still-loading";
           return actions.every((action) => action === chosenLabel) ? "settled" : "mixed";
         },

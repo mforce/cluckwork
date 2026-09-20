@@ -362,6 +362,7 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.625rem;
   margin-top: 0.875rem;
+  margin-bottom: 14px;
 }
 
 .audit-filters .MuiFormControl-root {
@@ -375,6 +376,7 @@ body {
 .audit-events {
   display: grid;
   gap: 0.75rem;
+  max-width: 760px;
 }
 
 .audit-event {

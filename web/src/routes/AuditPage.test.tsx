@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { AuditPage, isFetchStale } from "./AuditPage";
@@ -25,6 +27,13 @@ vi.mock("../api/cluckwork", () => ({
 }));
 
 const mockListAuditEvents = vi.mocked(listAuditEvents);
+const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+
+function auditFilterColumnCountAt(width: number) {
+  const base = /\.audit-filters\s*\{[^}]*grid-template-columns:\s*repeat\((\d+),/.exec(stylesheet)?.[1];
+  const phone = /@media\s*\(max-width:\s*900px\)\s*\{[\s\S]*?\.audit-filters\s*\{[^}]*grid-template-columns:\s*repeat\((\d+),/.exec(stylesheet)?.[1];
+  return Number(width <= 900 ? phone : base);
+}
 
 function renderAudit(route = "/audit") {
   return render(
@@ -112,6 +121,8 @@ describe("AuditPage load + render", () => {
     await screen.findByText("No audit events yet.");
 
     expect(screen.getByTestId("audit-filters")).toHaveClass("audit-filters");
+    expect(auditFilterColumnCountAt(390)).toBe(2);
+    expect(auditFilterColumnCountAt(1280)).toBe(4);
   });
 
   it("shows a loading state until the first audit page resolves", async () => {
