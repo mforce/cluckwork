@@ -1082,6 +1082,7 @@ export const tl = {
   // short Filipino equivalent in common PH farm-software use; flag for
   // native review.
   stock: {
+    restrictionPolicy: "May stock na may restriksyon, ngunit hindi ito maaaring ilaan sa mga benta.",
     gradesLabel: "Mga grado",
     noRestrictions: "Walang restriksyon",
     title: "Stock",

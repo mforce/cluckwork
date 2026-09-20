@@ -1416,6 +1416,7 @@ export const en = {
   // and quantity/delta values are free-form farm DATA, not client copy, and
   // stay raw — never routed through the catalog or an enum helper.
   stock: {
+    restrictionPolicy: "Restricted stock is present but cannot be allocated to sales.",
     gradesLabel: "Grades",
     noRestrictions: "No restrictions",
     title: "Stock",

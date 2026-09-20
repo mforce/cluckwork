@@ -523,6 +523,7 @@ export function StockPage() {
               </ListItem>
             ))}
           </List>
+          <Typography component="p" sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>{t("restrictionPolicy")}</Typography>
 
           {openGrade !== null && (
             <>
@@ -533,14 +534,14 @@ export function StockPage() {
                   onChange={(e) => void changeLotsFilter(e.target.value, lotsTo)} />
                 <FilterDateField label={t("toLabel")} value={lotsTo}
                   onChange={(e) => void changeLotsFilter(lotsFrom, e.target.value)} />
+                <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => void changeLotsFilter("", "")}>{tc("clearFiltersButton")}</Button>
               </FilterBar>
               {lots.length === 0 ? (
                 // lotsFrom/lotsTo are this section's own filter, unrelated to
                 // any page-head action — "filtered to nothing" offers Clear
                 // filters only when a filter is actually set.
                 (lotsFrom || lotsTo)
-                  ? <EmptyState icon={FilterX} message={t("noLotsMatch")}
-                      action={{ label: tc("clearFiltersButton"), onClick: () => void changeLotsFilter("", "") }} />
+                  ? <EmptyState icon={FilterX} message={t("noLotsMatch")} />
                   : <EmptyState icon={Egg} message={t("noLotsMessage")} />
               ) : (
                 <LedgerTableContainer>

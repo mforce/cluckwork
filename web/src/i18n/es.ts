@@ -1040,6 +1040,7 @@ export const es = {
   // `enums` stockMovementLabel helper, not a key here. Grade/lot names and
   // quantity values are free-form farm data and stay raw.
   stock: {
+    restrictionPolicy: "Las existencias restringidas están presentes, pero no se pueden asignar a ventas.",
     gradesLabel: "Clasificaciones",
     noRestrictions: "Sin restricciones",
     title: "Existencias",

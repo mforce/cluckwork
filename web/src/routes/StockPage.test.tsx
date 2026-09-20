@@ -1628,3 +1628,13 @@ it("separates stock totals and states when a grade has no restrictions", async (
   const summary = screen.getByLabelText(/^150 eggs available across 2 grade\(s\)\./);
   expect(summary).toHaveTextContent("Restricted5");
 });
+
+it("keeps the restriction policy and lot filter reset visible", async () => {
+  mockGetStock.mockResolvedValue(ROWS);
+  mockListEggLots.mockResolvedValue(LOTS);
+  render(<StockPage />);
+  await screen.findByRole("list", { name: "Stock" });
+  expect(screen.getByText("Restricted stock is present but cannot be allocated to sales.")).toBeInTheDocument();
+  fireEvent.click(within(screen.getByRole("region", { name: "Grade A" })).getByRole("button", { name: "lots" }));
+  expect(await screen.findByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+});
