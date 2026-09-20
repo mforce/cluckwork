@@ -7,6 +7,14 @@ import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 // Non-default palettes carry a data-brand attribute; the default carries none.
 const attrFor = (brand: string) => (brand === DEFAULT_BRAND ? null : brand);
 const MODES: Mode[] = ["light", "dark"];
+const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+
+describe("Field Console heading typography", () => {
+  it("gives raw page and section headings the shared serif family", () => {
+    const headingRule = /:where\(h1, h2, h3\)\s*\{([^}]*)\}/.exec(stylesheet)?.[1];
+    expect(headingRule).toContain("font-family: Georgia, serif");
+  });
+});
 
 // The dark base declares these as LITERAL colours, breaking the var() chain
 // that carries the palette through in light. Every palette's dark block must

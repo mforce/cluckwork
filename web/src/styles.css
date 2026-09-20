@@ -322,9 +322,6 @@
    so Emotion's injected stylesheet is refused and no MUI style reaches the
    screen at all. Until that is settled this file IS the baseline.
 
-   `h1`-`h4` is demoted rather than deleted for a different reason: no screen
-   renders `Typography` yet, so deleting it would restyle every heading in the
-   app. It dies with the last screen slice (#833).
    ------------------------------------------------------------------------ */
 * {
   box-sizing: border-box;
@@ -335,6 +332,10 @@ body {
   background: var(--canvas);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+}
+
+:where(h1, h2, h3) {
+  font-family: Georgia, serif;
 }
 
 :where(h1, h2, h3, h4) {

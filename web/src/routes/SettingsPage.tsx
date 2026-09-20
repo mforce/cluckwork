@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronDown, Trash2, Upload } from "lucide-react";
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Paper, Stack, TextField, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Paper, Stack, TextField, Typography,
 } from "@mui/material";
 import {
   BANNER_ACCEPT, LOGO_ACCEPT, getFarmBanner, getFarmSettings, listEggUnitConversions,
@@ -590,7 +590,7 @@ export function SettingsPage() {
   const fileButtonSx = {
     display: "inline-flex", flexDirection: "row", alignItems: "center", gap: "0.4rem",
     cursor: "pointer", fontWeight: 600, fontSize: "0.92rem", color: "primary.contrastText",
-    backgroundColor: "primary.main", borderRadius: "var(--r-pill)", padding: "0.6rem 1.15rem",
+    backgroundColor: "primary.main", padding: "0.6rem 1.15rem",
     "&:hover": { backgroundColor: "primary.dark" },
     "&:has(input:disabled)": { opacity: 0.55, cursor: "default" },
     "&:focus-within": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: "2px" },
@@ -634,12 +634,12 @@ export function SettingsPage() {
                   )}
                 </Stack>
                 <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap", mb: 1.5 }}>
-                  <Box component="label" sx={fileButtonSx}>
+                  <Button component="label" variant="contained" sx={fileButtonSx}>
                     <Upload size={16} aria-hidden /> {hasLogo ? t("replaceLogoButton") : t("uploadLogoButton")}
                     <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={busy}
                       aria-describedby={logoRulesId}
                       onChange={(e) => void onPickLogo(e)} />
-                  </Box>
+                  </Button>
                   {hasLogo && (
                     <BusyButton type="button" className="btn-danger" disabled={busy}
                       busy={isPending("logo:remove")}
@@ -683,12 +683,12 @@ export function SettingsPage() {
                   )}
                 </Stack>
                 <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap", mb: 1.5 }}>
-                  <Box component="label" sx={fileButtonSx}>
+                  <Button component="label" variant="contained" sx={fileButtonSx}>
                     <Upload size={16} aria-hidden /> {hasBanner ? t("replaceBannerButton") : t("uploadBannerButton")}
                     <input ref={bannerUploadInput} type="file" accept={BANNER_ACCEPT} disabled={busy}
                       aria-describedby={bannerRulesId}
                       onChange={(e) => void onPickBanner(e)} />
-                  </Box>
+                  </Button>
                   {hasBanner && (
                     <BusyButton type="button" className="btn-danger" disabled={busy}
                       busy={isPending("banner:remove")}

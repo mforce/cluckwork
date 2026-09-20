@@ -683,6 +683,16 @@ describe("SettingsPage currency lock (§4.6)", () => {
 });
 
 describe("SettingsPage logo", () => {
+  it("uses the shared rectangular action radius for image uploads", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: null }));
+
+    for (const name of ["Upload a logo", "Upload a banner"]) {
+      const label = screen.getByLabelText(name).closest("label");
+      expect(label).not.toBeNull();
+      expect(getComputedStyle(label!).borderRadius).toBe("4px");
+    }
+  });
+
   it("says there is none, offers upload only, and never fetches bytes", async () => {
     await renderReady(SETTINGS({ logoContentHash: null }));
     expect(screen.getByText(/No logo set/)).toBeInTheDocument();
