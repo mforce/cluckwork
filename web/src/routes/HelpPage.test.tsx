@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -458,6 +460,30 @@ describe("HelpPage", () => {
     expect(flocks).toHaveClass("active");
     expect(flocks).toHaveAttribute("aria-current", "location");
     expect(within(toc).getByRole("link", { name: "Getting around" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps a late active topic visible in the phone contents strip", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(<HelpPage />);
+    scrollIntoView.mockClear();
+
+    act(() => ioCallback?.([{ isIntersecting: true, target: { id: "export" }, boundingClientRect: { top: 12 } }]));
+
+    const exportLink = screen.getByRole("navigation", { name: "Help contents" })
+      .querySelector<HTMLAnchorElement>('a[href="#export"]');
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+    expect(scrollIntoView.mock.instances.at(-1)).toBe(exportLink);
+  });
+
+  it("bounds the long desktop contents rail and gives it independent vertical scrolling", () => {
+    render(<HelpPage />);
+    expect(within(screen.getByRole("navigation", { name: "Help contents" })).getAllByRole("link").length)
+      .toBeGreaterThan(20);
+    const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+    const railRule = css.match(/\.help-toc\s*\{(?<body>[^}]*)\}/)?.groups?.body ?? "";
+    expect(railRule).toMatch(/max-height:\s*calc\(100dvh - 3rem\)/);
+    expect(railRule).toMatch(/overflow-y:\s*auto/);
   });
 });
 
@@ -969,6 +995,9 @@ describe("HelpPage glossary + search (#657)", () => {
     await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "zzqxv");
     expect(screen.getByRole("status")).toHaveTextContent("Nothing matches “zzqxv”.");
     expect(screen.getByText("FIFO", { selector: "dt a" })).not.toBeVisible();
+    const toc = screen.getByRole("navigation", { name: "Help contents" });
+    expect(within(toc).queryByRole("link", { current: "location" })).not.toBeInTheDocument();
+    expect(toc.querySelector("a.active")).toBeNull();
   });
 
   it("scrolls to the term named in the URL hash when the hash changes after mount", () => {

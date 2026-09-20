@@ -9,6 +9,8 @@ import { cleanup } from "@testing-library/react";
 import { createFakeIndexedDb } from "./fakeIndexedDb";
 import { clearAccessToken } from "../auth/tokenStore";
 
+Element.prototype.scrollIntoView ??= vi.fn();
+
 beforeEach(() => {
   // Default to "no session": any fetch a test doesn't explicitly mock — notably
   // the AuthProvider load-time silent refresh (#145) — resolves 401, so the

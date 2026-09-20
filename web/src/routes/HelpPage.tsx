@@ -113,6 +113,7 @@ export function HelpPage() {
   const { t: tn } = useTranslation("nav");
   const searchId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
+  const tocRef = useRef<HTMLElement>(null);
 
   // #657 — "Open <screen>" beside a section heading. Null outside a session
   // (the page is also reachable before sign-in in tests) and outside a router.
@@ -144,7 +145,21 @@ export function HelpPage() {
   }, []);
 
   // Scroll-spy the contents rail: highlight the section currently in view.
-  const [activeId, setActiveId] = useState<string>(TOC[0][0]);
+  const [activeId, setActiveId] = useState<string | null>(TOC[0][0]);
+  const lastActiveId = useRef<string>(TOC[0][0]);
+  const previousActiveId = useRef<string | null>(TOC[0][0]);
+  const activate = useCallback((id: string) => {
+    lastActiveId.current = id;
+    setActiveId(id);
+  }, []);
+
+  useEffect(() => {
+    if (activeId === previousActiveId.current) return;
+    previousActiveId.current = activeId;
+    if (activeId === null) return;
+    tocRef.current?.querySelector<HTMLAnchorElement>("a.active")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeId]);
 
   useEffect(() => {
     // jsdom (tests) has no IntersectionObserver — the rail still works as plain
@@ -155,7 +170,7 @@ export function HelpPage() {
         const inView = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (inView[0]) setActiveId(inView[0].target.id);
+        if (inView[0]) activate(inView[0].target.id);
       },
       // "active" once a heading reaches the top ~30% of the viewport
       { rootMargin: "0px 0px -70% 0px", threshold: 0 },
@@ -165,7 +180,7 @@ export function HelpPage() {
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
-  }, []);
+  }, [activate]);
 
   // #657 — a deep link (`/help#glossary-egg-lot`, from a GlossaryLink or a
   // pasted URL). The browser only scrolls to a fragment on a full load; a
@@ -226,10 +241,13 @@ export function HelpPage() {
     for (const group of Array.from(body.querySelectorAll<HTMLElement>(".glossary-group"))) {
       group.hidden = q !== "" && group.querySelector(".glossary-entry:not([hidden])") === null;
     }
-    setMatches(q === "" ? null : { sections, terms });
+    const nextMatches = { sections, terms };
+    setMatches(q === "" ? null : nextMatches);
+    if (q !== "" && sections + terms === 0) setActiveId(null);
+    else if (activeId === null) setActiveId(lastActiveId.current);
     // i18n.language: a language switch re-renders every section's text, so an
     // active query is re-applied to the new words.
-  }, [query, i18n.language]);
+  }, [query, i18n.language, activeId]);
 
   const searchStatus = matches === null
     ? ""
@@ -263,7 +281,7 @@ export function HelpPage() {
       </div>
 
       <div className="help-layout">
-        <nav className="help-toc" aria-label={t("contentsAriaLabel")}>
+        <nav ref={tocRef} className="help-toc" aria-label={t("contentsAriaLabel")}>
           <p className="help-kicker">{t("contentsEyebrow")}</p>
           {RAIL.map((group) => (
             <div key={group.labelKey}>
@@ -275,7 +293,7 @@ export function HelpPage() {
                       href={`#${id}`}
                       className={activeId === id ? "active" : undefined}
                       aria-current={activeId === id ? "location" : undefined}
-                      onClick={() => setActiveId(id)}
+                      onClick={() => activate(id)}
                     >
                       {t(labelKey)}
                     </a>

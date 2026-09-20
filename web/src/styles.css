@@ -2114,6 +2114,9 @@ dl.glossary {
 .help-toc {
   position: sticky;
   top: 1.5rem;
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .help-toc ul {
@@ -2294,6 +2297,8 @@ dl.glossary {
     margin: 0 -1.15rem;
     padding: 0.5rem 1.15rem;
     overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
     background: var(--canvas);
     border-bottom: 1px solid var(--hairline);
   }
