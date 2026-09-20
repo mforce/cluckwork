@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
-  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Box, List, ListItem, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, getAccount,
@@ -15,7 +15,7 @@ import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "..
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
-import { FieldConsole, LedgerTableContainer, CONSOLE_RAIL_SX } from "../components/FieldConsole";
+import { FieldConsole, CONSOLE_LINK_SX, LedgerTableContainer, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -716,7 +716,7 @@ export function InventoryPage() {
             {/* A failed load-more keeps the loaded rows visible and allows retry. */}
             <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 1, mb: 1 }}>
               <Typography component="h3" variant="h3" sx={{ "&&": { m: 0 }, minWidth: 0 }}>{t("movementHeading")}</Typography>
-              <Button size="small" color="inherit" sx={{ minHeight: 44, flexShrink: 0, fontSize: ".75rem" }} onClick={() => setActive(null)}>{t("chooseAnotherItem")}</Button>
+              <Button size="small" color="inherit" sx={{ ...CONSOLE_LINK_SX, minHeight: 44, flexShrink: 0, fontSize: ".75rem" }} onClick={() => setActive(null)}>{t("chooseAnotherItem")}</Button>
             </Stack>
             {ledger.error && <p className="error">{ledger.error}</p>}
             {ledger.rows === null || ledger.reloading ? (
@@ -724,34 +724,23 @@ export function InventoryPage() {
             ) : ledger.rows.length === 0 && !ledger.error ? (
               <p className="muted">{t("noMovementsMessage")}</p>
             ) : (
-              <LedgerTableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>{t("ledgerDateHeader")}</TableCell>
-                      <TableCell>{t("ledgerTypeHeader")}</TableCell>
-                      <TableCell align="right">{t("ledgerQuantityHeader")}</TableCell>
-                      <TableCell>{t("ledgerNoteHeader")}</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {ledger.rows.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell sx={NOWRAP}><FarmDate iso={m.date} /></TableCell>
-                        <TableCell>{inventoryMovementLabel(m.type)}</TableCell>
-                        <TableCell align="right" sx={{ color: m.quantityDelta > 0 ? "var(--success)" : "var(--error)", fontWeight: 700 }}>{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</TableCell>
-                        <TableCell>{m.note ?? ""}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </LedgerTableContainer>
+              <List aria-label={t("movementHeading")} disablePadding>
+                {ledger.rows.map((m) => (
+                  <ListItem key={m.id} sx={{ display: "grid", gridTemplateColumns: { xs: "72px 75px 70px minmax(0, 1fr)", md: "86px 90px 90px minmax(140px, 1fr)" }, gap: "10px", p: "10px 8px", borderBottom: "1px solid var(--rule)", fontSize: "12px", alignItems: "start", "& > *": { minWidth: 0, overflowWrap: "anywhere" } }}>
+                    <FarmDate iso={m.date} />
+                    <strong>{inventoryMovementLabel(m.type)}</strong>
+                    <Box component="span" sx={{ color: m.quantityDelta > 0 ? "var(--success)" : "var(--error)", fontWeight: 800 }}>{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</Box>
+                    <span>{m.note ?? ""}</span>
+                  </ListItem>
+                ))}
+              </List>
             )}
             {ledger.canLoadMore && (
               <button className="link" onClick={() => void ledger.loadMore()}>
                 {t("loadMoreButton")}
               </button>
             )}
+            <Typography component="p" sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>{t("movementPolicy")}</Typography>
           </Box>
         </Box>
       )}

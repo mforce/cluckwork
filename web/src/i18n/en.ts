@@ -1206,6 +1206,7 @@ export const en = {
   // names are free-form farm DATA, not client copy, and stay raw — never
   // routed through a catalog or enum helper.
   inventory: {
+    movementPolicy: "Usage is recorded on Feed. Stock corrections remain auditable.",
     movementHeading: "Movement ledger",
     chooseAnotherItem: "Choose another item",
     title: "Feed & inventory",

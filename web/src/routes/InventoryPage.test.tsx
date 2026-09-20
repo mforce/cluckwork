@@ -352,7 +352,7 @@ describe("InventoryPage lot & movement drill-down", () => {
     expect(mockListMovements).toHaveBeenCalledWith("it1", { limit: 100, offset: 0 });
     expect(mockListLots).toHaveBeenCalledWith("it1");
 
-    const mvRow = screen.getByRole("row", { name: /Purchase/ });
+    const mvRow = within(screen.getByRole("list", { name: "Movement ledger" })).getByRole("listitem");
     expect(within(mvRow).getByText("07/01/2026")).toBeInTheDocument();
     expect(within(mvRow).getByText("+100 kg")).toBeInTheDocument(); // signed positive delta
     expect(within(mvRow).getByText("initial receive")).toBeInTheDocument();
@@ -868,7 +868,7 @@ describe("InventoryPage i18n wiring (#182, Task 16)", () => {
     await withOverride("enums", "inventoryMovement.Purchase", "PURCHASE-MARKER", async () => {
       await renderReady(ADMIN);
       await openItem(FEED);
-      const mvRow = screen.getByRole("row", { name: /PURCHASE-MARKER/ });
+      const mvRow = within(screen.getByRole("list", { name: "Movement ledger" })).getByRole("listitem");
       expect(within(mvRow).getByText("PURCHASE-MARKER")).toBeInTheDocument();
     });
   });
@@ -1541,4 +1541,14 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     expect(mockAdjust).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("late correction failure")).not.toBeInTheDocument();
   });
+});
+
+it("shows movements as a headerless chronological list with its usage policy", async () => {
+  mockListMovements.mockResolvedValue([MOVEMENT]);
+  await renderReady(ADMIN);
+  await openItem(FEED);
+  const list = await screen.findByRole("list", { name: "Movement ledger" });
+  expect(within(list).queryByRole("columnheader")).toBeNull();
+  expect(within(list).getByRole("listitem")).toHaveTextContent("07/01/2026Purchase+100 kginitial receive");
+  expect(screen.getByText("Usage is recorded on Feed. Stock corrections remain auditable.")).toBeInTheDocument();
 });

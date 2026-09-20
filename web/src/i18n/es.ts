@@ -870,6 +870,7 @@ export const es = {
   // of "lote" already established for nav.flocks/dailyEntry's "lote(s) de
   // huevos".
   inventory: {
+    movementPolicy: "El uso se registra en Alimento. Las correcciones de existencias siguen siendo auditables.",
     movementHeading: "Registro de movimientos",
     chooseAnotherItem: "Elegir otro artículo",
     title: "Alimento e inventario",
