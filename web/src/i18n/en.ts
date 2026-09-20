@@ -2337,6 +2337,9 @@ export const en = {
     // loaded, or if the entity has zero audit events — deliberately not
     // distinguishing those two cases (Gate 3).
     scopedHeadingFallback: "Record history",
+    utcTimestampsCaption: "UTC timestamps",
+    scopeRetainedCaption: "Record scope retained when clearing filters",
+    previewRecordHistoryLabel: "Preview one record's history",
     entityTypeFilterLabel: "Record type",
     allEntityTypesOption: "All types",
     actionFilterLabel: "Action",

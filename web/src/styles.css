@@ -33,6 +33,7 @@
   --canvas: #f3eee8;
   --surface: #fffdf9;
   --surface-2: #f3eee8;
+  --soft: var(--surface-2);
   --lavender: #f9f0ff;
   --hairline: #ded3ca;
   /* Ruled lists (#864 direction): --rule between rows, --rule-strong (28% ink)
@@ -332,6 +333,77 @@ body {
   background: var(--canvas);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+}
+
+.audit-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.audit-scope small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.audit-scope .audit-scope-control {
+  margin: 0;
+  flex-direction: row;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin-top: 0.875rem;
+}
+
+.audit-filters .MuiFormControl-root {
+  min-width: 0;
+}
+
+.audit-clear-filters {
+  margin: 0.5rem 0 1.5rem;
+}
+
+.audit-events {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.audit-event {
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-input);
+}
+
+.audit-event > summary {
+  padding: 1rem;
+  cursor: pointer;
+  font-weight: 700;
+  background: var(--soft);
+}
+
+.audit-event > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.audit-event-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.125rem;
+}
+
+.audit-event-body > * {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 :where(h1, h2, h3) {
@@ -2216,6 +2288,15 @@ dl.glossary {
   .content > section > h2,
   .content .page-head h2 {
     font-size: 1.5rem;
+  }
+
+  .audit-scope {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .audit-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   table.data {

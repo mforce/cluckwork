@@ -2,12 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
-import { ChevronDown } from "lucide-react";
 import {
-  Accordion, AccordionDetails, AccordionSummary, Box, Stack, TextField, Typography,
+  Box, Checkbox, FormControlLabel, TextField, Typography,
 } from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
-import { FilterBar, FilterDateField } from "../components/FilterBar";
+import { FilterDateField } from "../components/FilterBar";
 import { usePagedList } from "../components/usePagedList";
 import { isIsoCalendarDate } from "../lib/dates";
 import {
@@ -67,8 +66,8 @@ export function isFetchStale(committedFetchPage: unknown, currentFetchPage: unkn
 // `updateActionFilter`, `updateEntityTypeFilter` and `updateDateFilter` —
 // builds a full copy from the CURRENT params rather than a partial object
 // (INV-2).
-// #745 — the Details cell. Renders the sales-line audit payloads as the summary
-// the #722 artboard draws, and falls back to the row's reason, then an em dash.
+// #745 — the Details line. Renders the sales-line audit payloads as the summary
+// the #722 artboard draws, and falls back to the row's reason.
 // #756 — also renders the discount reason on a SalesOrder.Confirm row, when the
 // order was confirmed below list; absent on an order with no discount, and on
 // every row confirmed before this payload shipped (no backfill).
@@ -160,7 +159,9 @@ function AuditDetails({ event }: { event: AuditEvent }) {
     return null;
   })();
 
-  return <>{summary ?? event.reason ?? "—"}</>;
+  const details = summary ?? event.reason;
+  if (details === null) return null;
+  return <Typography component="p" variant="body2">{details}</Typography>;
 }
 
 export function AuditPage() {
@@ -403,18 +404,13 @@ export function AuditPage() {
     ? events.rows?.[0]?.entityType
     : undefined;
 
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const toggleExpanded = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
+  const previewEntityId = isScopedReloading ? undefined : events.rows?.[0]?.entityId;
+  const updateRecordPreview = useCallback((checked: boolean) => {
+    const next = new URLSearchParams(searchParams);
+    if (checked && previewEntityId) next.set("entityId", previewEntityId);
+    else next.delete("entityId");
+    setSearchParams(next);
+  }, [previewEntityId, searchParams, setSearchParams]);
 
   return (
     <section>
@@ -430,12 +426,23 @@ export function AuditPage() {
       </Typography>
       <p className="muted">{t("intro")}</p>
 
-      <FilterBar>
-        <Box sx={{
-          display: "grid", gap: 2, width: "100%", flex: "1 1 100% !important",
-          gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
-          "& .MuiFormControl-root": { minWidth: 0 },
-        }}>
+      <div className="audit-scope" data-testid="audit-scope">
+        <small>{entityId ? t("scopeRetainedCaption") : t("utcTimestampsCaption")}</small>
+        <FormControlLabel
+          className="audit-scope-control"
+          label={t("previewRecordHistoryLabel")}
+          control={(
+            <Checkbox
+              size="small"
+              checked={entityId !== undefined}
+              disabled={entityId === undefined && previewEntityId === undefined}
+              onChange={(event) => updateRecordPreview(event.target.checked)}
+            />
+          )}
+        />
+      </div>
+
+      <Box className="audit-filters" data-testid="audit-filters">
           <TextField
             select
             label={t("entityTypeFilterLabel")}
@@ -466,17 +473,12 @@ export function AuditPage() {
             onChange={(e) => updateDateFilter("from", e.target.value)} />
           <FilterDateField label={t("toLabel")} value={toFilter}
             onChange={(e) => updateDateFilter("to", e.target.value)} />
-        </Box>
-        {/* #679 — persistent, and that is the whole point: this screen's empty
-            state is a bare muted paragraph by #655's classification, so a
-            control living there would appear only once the filters had already
-            hidden every row. Here it exists while rows are still showing. */}
-        {hasFilters && (
-          <button className="link" type="button" onClick={clearFilters}>
-            {tc("clearFiltersButton")}
-          </button>
-        )}
-      </FilterBar>
+      </Box>
+      {hasFilters && (
+        <button className="link audit-clear-filters" type="button" onClick={clearFilters}>
+          {tc("clearFiltersButton")}
+        </button>
+      )}
 
       {events.error && <p className="error" role="alert">{events.error}</p>}
 
@@ -519,54 +521,36 @@ export function AuditPage() {
         </p>
       ) : (
         <>
-          <Stack spacing={1.5}>
+          <div className="audit-events">
             {events.rows.map((e) => {
-              const expanded = expandedIds.has(e.id);
               const timestamp = e.occurredAtUtc.replace("T", " ").slice(0, 19);
               const action = auditActionLabel(e.action);
+              const summaryId = `audit-event-${e.id}`;
+              const actorId = `audit-event-actor-${e.id}`;
               return (
-                <Accordion
-                  component="article"
+                <details
+                  className="audit-event"
+                  role="article"
                   key={e.id}
-                  expanded={expanded}
-                  onChange={() => toggleExpanded(e.id)}
-                  disableGutters
                   title={e.detailsJson ?? undefined}
-                  aria-label={`${timestamp} UTC · ${action} · ${e.actorEmail}`}
-                  slotProps={{ transition: { unmountOnExit: true } }}
+                  aria-labelledby={summaryId}
+                  aria-describedby={actorId}
                 >
-                  <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.25, sm: 2 }}
-                      sx={{ width: "100%", alignItems: { sm: "baseline" } }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
-                        {timestamp} UTC
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 700 }}>{action}</Typography>
-                    </Stack>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Box component="dl" sx={{
-                      display: "grid", gridTemplateColumns: { xs: "5rem minmax(0, 1fr)", sm: "7.5rem minmax(0, 1fr)" },
-                      gap: 1, m: 0, "& dd": { m: 0, overflowWrap: "anywhere" },
-                    }}>
-                      <Typography component="dt" variant="caption" color="text.secondary">{t("whoHeader")}</Typography>
-                      <Typography component="dd" variant="body2">{e.actorEmail}</Typography>
-                      {!entityId && (
-                        <>
-                          <Typography component="dt" variant="caption" color="text.secondary">{t("entityHeader")}</Typography>
-                          <Typography component="dd" variant="body2">
-                            {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
-                          </Typography>
-                        </>
-                      )}
-                      <Typography component="dt" variant="caption" color="text.secondary">{t("detailsHeader")}</Typography>
-                      <Typography component="dd" variant="body2"><AuditDetails event={e} /></Typography>
-                    </Box>
-                  </AccordionDetails>
-                </Accordion>
+                  <summary id={summaryId}>
+                    {timestamp} UTC · {action}
+                  </summary>
+                  <div className="audit-event-body">
+                    <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>
+                    <Typography component="p" variant="body2">{action}</Typography>
+                    <Typography component="p" variant="body2">
+                      {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
+                    </Typography>
+                    <AuditDetails event={e} />
+                  </div>
+                </details>
               );
             })}
-          </Stack>
+          </div>
           {events.canLoadMore && (
             <button className="link" onClick={() => void events.loadMore()}>
               {t("loadMoreButton")}
