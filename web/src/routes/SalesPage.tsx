@@ -248,6 +248,10 @@ function orderListPriceBasis(items: OrderItem[]): OrderListPriceBasis {
   return preDating === items.length ? "allPreDating" : "mixed";
 }
 
+function orderIsAtList(items: OrderItem[]): boolean {
+  return items.length > 0 && items.every((item) => item.unitPriceMinorUnits === item.listUnitPriceMinorUnits);
+}
+
 function orderListValue(items: OrderItem[]): number | null {
   let total = 0;
   for (const item of items) {
@@ -1472,6 +1476,7 @@ export function SalesPage() {
                   <Box component="dd">
                     {(() => {
                       const orderLevel = orderDiscount(active.items);
+                      if (active.items.length === 0) return <span>—</span>;
                       // Unpriced lines make an otherwise at-list order only partially measurable.
                       if (orderLevel.kind === "atList" && orderLevel.partial) {
                         return (
@@ -1492,7 +1497,9 @@ export function SalesPage() {
                           </p>
                         );
                       }
-                      if (orderLevel.kind !== "below") return <span>{t("atListShort")}</span>;
+                      if (orderLevel.kind !== "below") {
+                        return <span>{orderIsAtList(active.items) ? t("atListShort") : t("aboveList")}</span>;
+                      }
                       const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
                       return (
                         <p className="discount" data-testid="order-discount">
@@ -1857,8 +1864,7 @@ export function SalesPage() {
                     ? listPriceBasisLabel(orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")
                     : discount.partial ? t("discountPartialNote") : "";
                   const reason = o.discountReasonCode ? discountReasonLabel(o.discountReasonCode) : "";
-                  const atList = discount.kind === "atList" && !discount.partial && o.items.length > 0
-                    && o.items.every((item) => item.unitPriceMinorUnits === item.listUnitPriceMinorUnits);
+                  const atList = orderIsAtList(o.items);
                   const partlyPaid = o.outstandingMinorUnits !== null && o.outstandingMinorUnits > 0
                     && o.outstandingMinorUnits < o.totalMinorUnits;
                   const rowId = `${fieldId}-${o.id}`;
