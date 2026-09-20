@@ -426,11 +426,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
           root: {
             [phone]: {
               contain: "layout",
-              // #150/#831 — the same scroll-shadow affordance `table.data`
-              // carries for every unconverted ledger (styles.css §2.2,
-              // verbatim): a wide MUI table on phone gets the "more to
-              // scroll" edge cue instead of silently clipping its last
-              // column with no sign anything is cut off.
+              // Local covers hide the scroll shadows when the corresponding edge is reached.
               background:
                 "linear-gradient(to right, var(--surface) 40%, transparent) 0 0 / 2.25rem 100% no-repeat local,"
                 + "linear-gradient(to left, var(--surface) 40%, transparent) 100% 0 / 2.25rem 100% no-repeat local,"

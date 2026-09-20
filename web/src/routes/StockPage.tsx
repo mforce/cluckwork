@@ -527,10 +527,7 @@ export function StockPage() {
           {openGrade !== null && (
             <>
               <h3>{t("lotsHeading")}</h3>
-              {/* #465 — a server-side production-date window, so an old lot is
-                  findable without paging the whole history to it. This
-                  section has no non-date filter, so the whole bar is the
-                  filter bar — the same shape ReportsPage uses. */}
+              {/* Filter on the server so older lots are reachable without paging through history. */}
               <FilterBar>
                 <FilterDateField label={t("fromLabel")} value={lotsFrom}
                   onChange={(e) => void changeLotsFilter(e.target.value, lotsTo)} />
@@ -563,28 +560,8 @@ export function StockPage() {
                           <TableCell align="right">{fmt.count(l.quantityProduced)}</TableCell>
                           <TableCell align="right">{fmt.count(l.quantityAvailable)}</TableCell>
                           <TableCell sx={NOWRAP}>
-                            {/* #493 — the audit trail for MANUAL ADJUSTMENTS to
-                                this lot (write-offs, recounts), distinct from
-                                the button below: that one toggles the
-                                inventory MOVEMENT ledger in place (quantities
-                                in/out), a different and older trail. Two
-                                affordances on the same row on purpose — kept
-                                visibly separate by label so they don't read as
-                                the same thing.
-                                Deliberately NOT "Audit history"/viewHistoryLink
-                                (codex review of #516): the only audit action
-                                ever written against an EggLot's own entityId is
-                                a manual write-off/recount
-                                (RecordEggLotMovementHandler) — creation is
-                                recorded against the Daily Entry that produced
-                                the lot, allocation/restoration against the
-                                Sales Order, so
-                                a normal never-adjusted lot would show nothing
-                                under the generic "full audit trail" label the
-                                other five screens use accurately. */}
-                            {/* Admin-gated: /api/v1/audit is AdminOnly, and
-                                this screen is readable by non-admins too
-                                (codex review of #516). */}
+                            {/* Lot audit records only manual adjustments; production and sales audit their own entities. */}
+                            {/* The audit endpoint is AdminOnly. */}
                             {isAdmin && (
                               <Link className="link" to={`/audit?entityId=${l.id}`}>
                                 {tc("recordHistory.viewAdjustmentHistoryLink")}
@@ -679,10 +656,7 @@ export function StockPage() {
                 <option value="add">{t("writeOffDirectionAddOption")}</option>
               </TextField>
             )}
-            {/* Sibling label, not wrapping — the stepper carries two buttons
-                and a <label> may not contain interactive content other than
-                its own control (#250). NumberField is its own component
-                (pair 8), unconverted here on purpose. */}
+            {/* A wrapping label would contain the stepper buttons as well as its input. */}
             <div className="numfield-field">
               <label htmlFor="write-off-qty">{t("writeOffQuantityLabel")}</label>
               <NumberField id="write-off-qty" label={t("writeOffQuantityLabel").toLowerCase()}

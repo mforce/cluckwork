@@ -27,9 +27,7 @@ import i18n from "../i18n";
 
 const PAGE = 50;
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// #831 — replicates the retired `.form-grid .named-picker` rule: without a
-// fixed flex-basis the picker's closed (button) and open (input) states have
-// different intrinsic widths, which used to shift every sibling field.
+// Keep picker width stable when its trigger switches between a button and input.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 // Client-side mirror of RecordFeedUsageHandler.FeedableCategories — one copy
@@ -206,7 +204,7 @@ export function FeedPage() {
     (x) => FEEDABLE_CATEGORIES.includes(x.category)
       && (x.active || x.quantityOnHand > 0 || x.id === requestedItemId));
   const selectedItem = items.find((x) => x.id === itemId);
-  // #831: inventory quantities are stored to three decimal places.
+  // Inventory quantities are stored to three decimal places.
   const afterIssueQuantity = selectedItem && quantity !== ""
     ? (Math.round(selectedItem.quantityOnHand * 1000) - Math.round(Number(quantity) * 1000)) / 1000
     : null;

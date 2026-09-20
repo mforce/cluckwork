@@ -18,8 +18,7 @@ import { daysBefore } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
 import { useAuth } from "../auth/useAuth";
 
-// MUI's auto table layout shrinks any wrappable cell below its content width,
-// so a short value (a date) is pinned; free text wraps (#897 convention).
+// Prevent short values shrinking under auto table layout; free text can wrap.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
 function errText(err: unknown): string {
@@ -142,19 +141,11 @@ export function ReportsPage() {
                   <TableCell align="right">{t("eggsHeader")}</TableCell>
                   <TableCell align="right">{t("lossesHeader")}</TableCell>
                   <TableCell align="right">{t("sellableHeader")}</TableCell>
-                  {/* #396 — beside Sellable, not folded into it: Sellable is the
-                      hand-graded remainder, Condition is what the cracked/dirty
-                      counters contributed as stock. */}
+                  {/* Condition is loss stock, separate from the hand-graded Sellable remainder. */}
                   <TableCell align="right">{t("conditionHeader")}</TableCell>
                   <TableCell align="right">{t("deathsHeader")}</TableCell>
                   <TableCell align="right">{t("henDaysHeader")}</TableCell>
-                  {/* #780 — the percentage's own numerator and denominator. Eggs
-                      ÷ Hen-days stopped reproducing Hen-day %: Hen-days is every
-                      bird alive, the rate divides by the flocks that recorded,
-                      and its numerator excludes any flock whose birds it excludes.
-                      Showing only one half left the row inviting a division that
-                      gives the wrong answer. The gap between Hen-days and Recorded
-                      is what the period is missing. */}
+                  {/* The rate uses only flocks that recorded; Hen-days includes every live bird. */}
                   <TableCell align="right">{t("recordedHenDaysHeader")}</TableCell>
                   <TableCell align="right">{t("ratedEggsHeader")}</TableCell>
                   <TableCell align="right">{t("henDayPctHeader")}</TableCell>

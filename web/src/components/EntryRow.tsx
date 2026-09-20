@@ -1,7 +1,6 @@
 import { Box, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { remainderDropProps } from "./GradingChip";
-// #830: fixed stepper widths keep count controls aligned in History adjustments.
 export const STEPPER_SX = {
   "& .numfield": { width: "100%", justifyContent: "space-between" },
   "& .numfield-step": {

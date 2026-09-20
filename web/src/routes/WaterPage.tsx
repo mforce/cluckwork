@@ -29,9 +29,7 @@ const PAGE = 50;
 const SOURCES = ["Well", "Municipal", "Tank", "Other"];
 const UNITS = ["L", "gal"];
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// #831 — replicates the retired `.form-grid .named-picker` rule: without a
-// fixed flex-basis the picker's closed (button) and open (input) states have
-// different intrinsic widths, which used to shift every sibling field.
+// Keep picker width stable when its trigger switches between a button and input.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 function errText(err: unknown): string {
@@ -91,7 +89,7 @@ export function WaterPage() {
   const [quantity, setQuantity] = useState("");
   const [meterStart, setMeterStart] = useState("");
   const [meterEnd, setMeterEnd] = useState("");
-  // #831: meter readings are stored to three decimal places.
+  // Meter readings are stored to three decimal places.
   const meterQuantity = (Math.round(Number(meterEnd) * 1000) - Math.round(Number(meterStart) * 1000)) / 1000;
   const [note, setNote] = useState("");
 
@@ -395,8 +393,7 @@ export function WaterPage() {
               requestedId={captureFlockRequestId}
               onSnapshot={(snap) => {
                 setCaptureFlockSnapshot(snap);
-                // #512: only the requested row's exact lookup may replace its flock;
-                // controlled re-emissions can still carry the previous default.
+                // Controlled re-emissions may carry the previous default until the exact lookup resolves.
                 if (
                   snap.committed &&
                   captureFlockRequestId &&
@@ -423,10 +420,7 @@ export function WaterPage() {
                 >
                   {captureFlock
                     ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
-                    // #512 (T037) — while the row-owned id's exact GET is in
-                    // flight (or the list doesn't carry it), the trigger shows the
-                    // ROW's own flockName for display only — never another flock's
-                    // metadata. Once the exact read commits, `captureFlock` wins.
+                    // Display the saved flock name until its exact lookup resolves.
                     : (editingRow && captureFlockRequestId ? editingRow.flockName : null)
                       ?? t("selectFlockOption")}
                 </button>

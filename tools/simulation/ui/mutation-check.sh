@@ -261,7 +261,6 @@ declare -A FALSE_KILLS=(
 # does — this mutant still dies inside sign-in, still proves nothing about the
 # nav gate, and is still counted as a false kill rather than as coverage.
 #
-# #831 replaces the retired table.data mutant with the MUI-container successor.
 # Require failures from separate tables so the overflow walk must continue
 # after its first offender. Stock's grade board has no comparison table.
 #

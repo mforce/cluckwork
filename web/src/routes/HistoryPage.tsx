@@ -40,9 +40,7 @@ import i18n from "../i18n";
 
 const PAGE = 50;
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// #831 — replicates the retired `.form-grid .named-picker` rule: without a
-// fixed flex-basis the picker's closed (button) and open (input) states have
-// different intrinsic widths, which used to shift every sibling field.
+// Keep picker width stable when its trigger switches between a button and input.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 // The scope that owns a dialog (#703). `run` routes a failure by this and gates
@@ -630,12 +628,6 @@ export function HistoryPage() {
                 })}
               </p>
             )}
-            {/* The same two steps as the Daily entry screen, in the same order,
-                reconciling the same way — a correction replaces the day's
-                official numbers, so reading it should not be a different job
-                from recording them. #250's steppers throughout; EntryRow is
-                the same grid DailyEntryPage's own capture form renders
-                through (#831 extracted it precisely so the two never drift). */}
             <Stack component="form" spacing={2} onSubmit={onAdjustSubmit}>
             {!lossesExceedTotal && <Box role="group" aria-label={t("reconciliation")} sx={{ p: 1.5, bgcolor: gradesReconciled ? "var(--tint-ok)" : "var(--tint-warn)", color: gradesReconciled ? "var(--success)" : "var(--warn)", fontWeight: 700, fontVariantNumeric: "tabular-nums", borderRadius: "var(--r-input)" }}>
               {t("reconciliationLine", {
@@ -652,12 +644,7 @@ export function HistoryPage() {
             )}
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3.5, md: 4 } }}>
               <Box component="section">
-                {/* The word boundaries live in the h3's own text nodes, not at
-                    the edges of the sr-only span: accessible-name computation
-                    trims each nested element's contribution. This dialog keeps
-                    the visible `.step-n` pill DailyEntryPage's own heading made
-                    sr-only (#830) — its comment names this screen as the
-                    reason that CSS rule stays declared. */}
+                {/* Accessible-name computation trims nested spans; keep word spaces in the heading. */}
                 <Typography variant="h3" component="h3">
                   <span className="step-n">{te("stepLabel", { n: 1 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("eggCountsHeading")}
                 </Typography>
@@ -677,8 +664,7 @@ export function HistoryPage() {
                   <NumberField id={idFor("discarded")} label={te("discardedLabel").toLowerCase()}
                     value={discarded} onChange={setDiscarded} step={stepSize} />
                 </EntryRow>
-                {/* NO step — deaths are birds, not eggs; see the capture
-                    screen's identical comment (codex P1 review of #451). */}
+                {/* Mortality counts individual birds, regardless of the egg step size. */}
                 <EntryRow htmlFor={idFor("mortality")} label={te("mortalityLabel")}>
                   <NumberField id={idFor("mortality")} label={te("mortalityLabel").toLowerCase()}
                     value={mortality} onChange={setMortality} />
@@ -689,8 +675,6 @@ export function HistoryPage() {
                     {te("countsExceedTotalMessage", { losses: grading.losses, total })}
                   </Typography>
                 ) : (
-                  /* Shown as a value, not buried in a sentence — it is the
-                     target the grading pane has to hit. */
                   <Typography component="p" role="status" sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, mt: 2, pt: 1.5, borderTop: "1px dashed var(--hairline)" }}>
                     <span className="muted">{te("sellableLabel")}<br />{te("sellableFormula", { total, cracked, dirty, discarded })}</span>
                     <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{sellable}</Box>
@@ -708,9 +692,7 @@ export function HistoryPage() {
                     groupLabel={te("gradeRowLabel", { grade: g.name })} armed={armed}
                     dropProps={remainderDropProps(armed, () => assignRest(g.id))}
                   >
-                    {/* #443 — no max=: same as the capture screen, the old
-                        ceiling refused to let a grade run ahead of the
-                        total. setLine raises the total to fit instead. */}
+                    {/* Allow a grade to exceed the current total; setLine raises the total to fit. */}
                     <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
                       value={lineQty[g.id] ?? 0} onChange={setLine(g.id)} step={stepSize} />
                     {armed && (
@@ -720,8 +702,6 @@ export function HistoryPage() {
                   </EntryRow>
                 ))}
 
-                {/* The same chip the capture screen uses — here it is also
-                    exactly what the Save button is gated on (#394). */}
                 <GradingChip tone={grading.tone} count={grading.count}
                   says={te(grading.saysKey)}
                   canAssign={canAssign} remaining={remaining}
@@ -788,9 +768,7 @@ export function HistoryPage() {
                   <TableCell>{t("statusHeader")}<GlossaryLink term="LockedEntry" /></TableCell>
                   <TableCell align="right">{t("totalHeader")}</TableCell>
                   <TableCell align="right">{t("lossesHeader")}</TableCell>
-                  {/* #396 — Losses shows the cracked/dirty/discarded COUNTS
-                      whatever became of them; this shows how many of those
-                      actually became stock, per the entry's own snapshot. */}
+                  {/* Condition counts only losses added to stock; Losses includes all recorded losses. */}
                   <TableCell align="right">{t("conditionHeader")}</TableCell>
                   <TableCell align="right">{t("mortalityHeader")}</TableCell>
                   <TableCell>{t("gradedHeader")}</TableCell>
@@ -815,18 +793,12 @@ export function HistoryPage() {
                     </TableCell>
                     <ProvenanceCell history={e} official="submitted" />
                     <TableCell sx={NOWRAP}>
-                      {/* #493 — full audit trail for this record, distinct from
-                          the created/last-changed summary in ProvenanceCell.
-                          Admin-gated: /api/v1/audit is AdminOnly, and this
-                          screen is open to workers too (codex review of
-                          #516). */}
+                      {/* The audit endpoint is AdminOnly, even when this ledger is readable by workers. */}
                       {isAdmin && (
                         <Link className="link" to={`/audit?entityId=${e.id}`}>
                           {tc("recordHistory.viewHistoryLink")}
                         </Link>
                       )}
-                      {/* Drafts are edited on the Daily entry screen (#85) —
-                          open to workers too; adjust/void stay admin-only. */}
                       {e.status === "Draft" && flockEditable(e) && (
                         <Button component={Link} variant="outlined" color="inherit" size="small" sx={{ ml: 1 }}
                           to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
@@ -835,8 +807,6 @@ export function HistoryPage() {
                       )}
                       {isAdmin && correctable(e) && (
                         <>
-                          {/* Opens the dialog — the mutation's own trigger (and
-                              its spinner) is the dialog's Save adjustment. */}
                           <Button size="small" color="warning" disabled={busy}
                             onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
                           <BusyButton component={Button} size="small" color="error" busy={isPending(`void:${e.id}`)}

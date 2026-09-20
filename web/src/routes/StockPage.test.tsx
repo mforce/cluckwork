@@ -164,7 +164,6 @@ describe("StockPage drill-down", () => {
   });
 
   it("puts the lot date range in the bounded FilterBar, not a bare filters row", async () => {
-    // #653: the field's generated rule carries the bound; a Paper ancestor does not.
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
     const gradeA = screen.getByRole("region", { name: /Grade A\b/ });
@@ -291,7 +290,6 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
     });
   });
 
-  // The summary name retains the localized stock totals and withdrawal explanation.
   it("interpolates the stock totals into the summary message from the catalog", async () => {
     await withOverride(
       "stock", "totalAvailableMessage", "TOTAL-MARKER {{available}} of {{grades}} MARKER-END",

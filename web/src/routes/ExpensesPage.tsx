@@ -36,9 +36,7 @@ function errText(err: unknown): string {
 
 const PAGE = 100;
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// #831 — replicates the retired `.form-grid .named-picker` rule: without a
-// fixed flex-basis the picker's closed (button) and open (input) states have
-// different intrinsic widths, which used to shift every sibling field.
+// Keep picker width stable when its trigger switches between a button and input.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 // The scopes that own a dialog (#703). `run` routes a failure by this and gates
@@ -567,18 +565,8 @@ export function ExpensesPage() {
         { label: t("categoryLabel"), value: categories.find((category) => category.id === filterCategory)?.name ?? t("allCategoriesOption") },
       ]} />
 
-      {/* #667/#831 — a from/to pair matching every sibling list screen, the
-          category filter beside it in the same bar now that FilterBar governs
-          the whole filter row rather than only the bounded dates. */}
       <FilterBar>
-        {/* No `max` on either bound. The month picker this replaced capped at
-            the current MONTH, which contained its own month-end default; a
-            day-granularity control capped at TODAY does not — the default
-            `to` is month-end, so the cap made the input render a value it
-            forbade, and made the default unreachable once changed. The
-            sibling range filters (Feed, Water, History) ship uncapped for the
-            same reason: a future window is empty by construction, which is
-            cheaper than a control that argues with its own value. */}
+        {/* Do not cap at today: the default end date is month-end. */}
         <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
         <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
         <TextField
@@ -586,9 +574,7 @@ export function ExpensesPage() {
           label={t("categoryLabel")}
           value={filterCategory}
           size="small"
-          // The placeholder option shows text while `value` is "", so MUI
-          // would leave the label resting on top of it (#897/#833 caught
-          // this on Products' grade select and Audit's filters).
+          // Shrink the label so it does not overlap the empty-value placeholder.
           slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
           onChange={(e) => setFilterCategory(e.target.value)}
         >
@@ -608,11 +594,6 @@ export function ExpensesPage() {
       </FilterBar>
 
       {showCategories && (
-        // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —
-        // a Box between two Dividers, an h3, no fill, no radius. Same shape
-        // #897 gave Flocks' ledger panel; Expenses was the last remaining
-        // `.order-panel` consumer besides Sales/Inventory (#831 converts all
-        // three in this slice).
         <Box sx={{ my: 3 }}>
           <Divider />
           <Box sx={{ py: 3 }}>
@@ -625,10 +606,6 @@ export function ExpensesPage() {
 
             <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={closeAddCategory}>
               <Stack component="form" spacing={2} onSubmit={onAddCategory}>
-                {/* Disabled during any flight — kept as shipped (#242 review);
-                    since #703 the spinner reads the fixed "add-category" scope,
-                    so the original re-pointing hazard is gone, and the field
-                    stays inert during a flight like every other trigger here. */}
                 <TextField
                   label={t("categoryNameLabel")}
                   value={newCategoryName}
@@ -644,8 +621,6 @@ export function ExpensesPage() {
               </Stack>
             </Dialog>
 
-            {/* Direction A: ruled rows, not bullets — a small ruled list
-                mirrors the table shape every other list on this screen uses. */}
             <List disablePadding>
               {categories.map((c, i) => (
                 <ListItem key={c.id} disableGutters divider={i < categories.length - 1}
@@ -687,8 +662,7 @@ export function ExpensesPage() {
           label={t("categoryLabel")}
           value={categoryId}
           size="small"
-          // The placeholder option shows text while `value` is "", so MUI
-          // would leave the label resting on top of it (#897/#833).
+          // Shrink the label so it does not overlap the empty-value placeholder.
           slotProps={{ select: { native: true }, htmlInput: { required: true }, inputLabel: { shrink: true } }}
           onChange={(e) => setCategoryId(e.target.value)}
         >
@@ -716,9 +690,7 @@ export function ExpensesPage() {
             eligibility="all"
             required={false}
             open={addFlockPickerOpen}
-            // Controlled sync only for the post-success reset (gen bump): the
-            // engine owns its discovery lifecycle otherwise, so a later Escape
-            // cannot resurrect the just-saved flock (US2).
+            // Sync only after a successful reset so Escape cannot restore the saved flock.
             controlledCommitted={addFlock}
             controlledGeneration={addFlockGen}
             onSnapshot={setAddFlockSnapshot}
@@ -744,10 +716,7 @@ export function ExpensesPage() {
           slotProps={{ htmlInput: { maxLength: 500 } }}
           onChange={(e) => setNote(e.target.value)}
         />
-        {/* No known denomination means no recording: converting the typed
-            amount would have to guess the scale (#469 codex review).
-            #512 (T028): the picker's canSubmit gates the write too — an
-            exploring/uninitialized picker must not submit a stale flock. */}
+        {/* Unknown currency precision or an unresolved flock prevents a valid write. */}
         <BusyButton component={Button} variant="contained" type="submit" busy={isPending("add")}
           disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>
           {t("recordExpenseButton")}
@@ -825,28 +794,13 @@ export function ExpensesPage() {
               } }}
               onChange={(e) => setEditAmount(e.target.value)}
             />
-            {/* #512 (T038) — the correction's flock is a ROW-OWNED identity:
-                requestedId resolves it exactly (archived / outside the
-                discovery window included), a failed exact read enters the
-                explicit unavailable state with a Retry, and the picker's
-                clear restores the account-wide (blank) choice.
-                No PICKER_SX here: inside a vertical dialog Stack every child
-                stretches full width by default (flex align-items: stretch),
-                which is the same full-width behaviour the retired
-                `.dialog .form-grid .named-picker` override gave it — the
-                15rem row cap is for a horizontal filter/capture row only. */}
+            {/* Resolve the saved flock by ID, including archived flocks outside discovery. */}
             <Box>
               <FlockPicker
                 label={t("flockOptionalLabel")}
                 eligibility="all"
                 required={false}
-                // #512 (T038) — the picker's discovery is OPEN-DRIVEN: the engine
-                // discovers only while `open`, and this dialog's picker never
-                // toggles its own open state (the dialog owns focus and
-                // dismissal). So it rides the dialog: while the dialog is up the
-                // picker is live and its requestedId effect can resolve the
-                // row-owned id (or report it unavailable); on close the dialog
-                // unmounts the form, so nothing lingers.
+                // Discovery needs an open picker; this dialog owns its visibility and dismissal.
                 open={true}
                 controlledCommitted={editFlockEntity}
                 controlledGeneration={editFlockGen}
@@ -950,13 +904,9 @@ export function ExpensesPage() {
                   <TableCell>{x.note ?? "—"}</TableCell>
                   <ProvenanceCell history={x} />
                   <TableCell sx={NOWRAP}>
-                    {/* #493 — full audit trail for this record, distinct from
-                        the created/last-changed summary in ProvenanceCell. */}
                     <Link className="link" to={`/audit?entityId=${x.id}`}>
                       {tc("recordHistory.viewHistoryLink")}
                     </Link>
-                    {/* Opens the correction dialog — non-mutating, so the
-                        spinner belongs to the dialog's Save, not here (#242). */}
                     <Button size="small" color="warning" disabled={busy}
                       onClick={() => { openDialog("edit"); startEdit(x); }}>
                       {t("correctButton")}

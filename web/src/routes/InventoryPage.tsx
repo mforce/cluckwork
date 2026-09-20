@@ -600,7 +600,6 @@ export function InventoryPage() {
               </Box>
             </Box>
 
-            {/* Why an action is unavailable, in the place the button would be. */}
             {!canFeed && (
               <p className="muted">
                 {t("notFeedableMessage", { category: inventoryCategoryLabel(active.category) })}
@@ -669,10 +668,6 @@ export function InventoryPage() {
 
             <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}>
               <Stack component="form" spacing={2} onSubmit={onAdjust}>
-                {/* Disabled during any flight — kept as shipped (#242); since
-                    #703 the spinner reads the fixed "adjust" scope, so the
-                    original re-pointing hazard is gone, and the field stays
-                    inert during a flight like every other trigger here. */}
                 <TextField
                   select
                   label={t("lotFieldLabel")}
@@ -710,8 +705,6 @@ export function InventoryPage() {
                 <DialogError errors={errors} scope="adjust" />
                 <DialogActions>
                   <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
-                  {/* The pending scope is the dialog's; the composite key scope is
-                      the idempotency key's alone since #703. */}
                   <BusyButton type="submit" busy={isPending("adjust")}
                     disabled={busy || !adjustLotId}>
                     {t("recordCorrectionButton")}
@@ -720,16 +713,7 @@ export function InventoryPage() {
               </Stack>
             </Dialog>
 
-            {/* #511 round 5 — the error renders BESIDE the rows, never instead of
-                them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
-                fails (only a failed REPLACEMENT empties them), so a branch that
-                swapped the table for the message threw away everything the user
-                had paged to over one transient load-more failure. That is AC3:
-                a failed extension keeps already-loaded rows and permits retry.
-                CustomersPage had this right from the start — it is the shape
-                copied here. A failed REPLACEMENT still shows the message alone,
-                because the hook has emptied `rows` by then and the empty branch
-                below does not fire on `error`. */}
+            {/* A failed load-more keeps the loaded rows visible and allows retry. */}
             <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 1, mb: 1 }}>
               <Typography component="h3" variant="h3" sx={{ "&&": { m: 0 }, minWidth: 0 }}>{t("movementHeading")}</Typography>
               <Button size="small" color="inherit" sx={{ minHeight: 44, flexShrink: 0, fontSize: ".75rem" }} onClick={() => setActive(null)}>{t("chooseAnotherItem")}</Button>
@@ -796,8 +780,6 @@ export function InventoryPage() {
                   <button className="link" disabled={busy} onClick={() => void onOpen(i)}>{t("openButton")}</button>
                   {isAdmin && (
                     <>
-                      {/* Opens the edit dialog — non-mutating, so the spinner
-                          belongs to the dialog's Save, not here (#242). */}
                       <button className="link" disabled={busy}
                         onClick={() => startEdit(i)}>{t("editButton")}</button>
                       {i.active ? (

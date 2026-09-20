@@ -342,16 +342,8 @@ describe("HistoryPage adjust — reconciliation guard", () => {
 // shows and what it allows would fail here.
 describe("HistoryPage adjust — mirrored daily-entry layout", () => {
   const dialog = () => screen.getByRole("dialog");
-  // `.entry-chip` is GradingChip's own class (component untouched by #831,
-  // shared with DailyEntryPage) — still class-selected for the same reason
-  // DailyEntryPage.test.tsx gives: every BusyButton renders its own sr-only
-  // role="status" for the "Working…" announcement, so the chip's live region
-  // is one of several and a role alone would not disambiguate it.
+  // BusyButton also renders a status region, so select the grading chip by its own class.
   const chip = () => dialog().querySelector(".entry-chip") as HTMLElement;
-  // #831 dropped `.entry-readout` in favor of the same role-scoped lookup
-  // DailyEntryPage.test.tsx uses for its converted counterpart: `role="alert"`
-  // once losses exceed the total, `role="status"` in the normal case, both
-  // scoped to the Egg counts section so they cannot match the chip's status.
   const countsSection = () =>
     within(dialog()).getByRole("heading", { name: /Egg counts/ }).closest("section") as HTMLElement;
   const sellableReadout = () => {
@@ -451,8 +443,6 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     await openAdjustPanel();
 
     fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
-    // #831: the row is now a named `role="group"` (the F134 drop target),
-    // exactly as DailyEntryPage.test.tsx selects its own converted rows.
     const gradeBRow = within(dialog()).getByRole("group", { name: "Grade B row" });
 
     // A foreign drag (plain text — what dropping a link or a selection looks

@@ -1127,7 +1127,6 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
 });
 
 describe("ExpensesPage date-range filter (#667)", () => {
-  // #653: inspect the date field's generated bound, not just its container.
   it("puts the date range in the bounded FilterBar, not a bare filters row", async () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
     await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
