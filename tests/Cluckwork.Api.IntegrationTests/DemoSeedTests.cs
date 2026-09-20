@@ -76,7 +76,7 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
                 .Where(f => f.Id == house2.Id)
                 .Select(f => f.PlacementDate)
                 .SingleAsync();
-            var today = await db.DailyEntries.IgnoreQueryFilters()
+            var draftDate = await db.DailyEntries.IgnoreQueryFilters()
                 .Where(e => e.AccountId == SeedDefaults.AccountId && e.Status == DailyEntryStatus.Draft)
                 .Select(e => e.Date)
                 .SingleAsync();
@@ -84,7 +84,7 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
             Assert.Equal(0, house2Entries.Count(e => e.Date < house2PlacementDate));
             Assert.Equal(297, house2Entries.Max(e => e.TotalEggs));
             Assert.All(house2Entries, e => Assert.True(e.TotalEggs <= house2.CurrentBirds));
-            Assert.DoesNotContain(today, house2Entries.Select(e => e.Date));
+            Assert.DoesNotContain(draftDate, house2Entries.Select(e => e.Date));
         }
 
         var stock = await client.GetFromJsonAsync<List<StockDto>>("/api/v1/stock");

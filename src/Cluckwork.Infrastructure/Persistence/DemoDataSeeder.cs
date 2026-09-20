@@ -310,7 +310,7 @@ public sealed class DemoDataSeeder(
         await db.SaveChangesAsync(ct);
 
         // --- Submitted entries per active flock, deterministic variation (no
-        // Random: reproducible demos). House 1 carries ~8 months of history so
+        // Random: reproducible demos). Both active houses carry ~8 months of history so
         // every per-grade lot list OUT-PAGES the stock drill-down's 50-lot
         // page (#465 — the load-more pager and date filter are exercisable
         // straight from a demo farm). Today stays unrecorded for House 2 so the
