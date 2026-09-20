@@ -255,6 +255,7 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     ".order-panel",
     ".entry-pane",
     "input",
+    "button",
   ])("%s resolves its radius through a token, not a literal", (selector) => {
     const radius = declarationsFor(selector).get("border-radius");
     expect(radius).toMatch(/^var\(--r-[a-z]+\)$/);
@@ -270,6 +271,10 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     ".card", ".order-panel", ".entry-pane", ".farm-warning", ".help-hero",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {
     expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
+  });
+
+  it("keeps raw page actions rectangular", () => {
+    expect(declarationsFor("button").get("border-radius")).toBe("var(--r-input)");
   });
 
   // #827 retired both `.dialog` radius rules — MUI `Dialog`'s own paper now

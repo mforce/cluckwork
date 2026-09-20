@@ -51,6 +51,22 @@ function fillCredentials(email: string, password: string) {
 beforeEach(() => vi.resetAllMocks());
 
 describe("Login", () => {
+  it("uses the flat inset Field Console auth frame", async () => {
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    const main = screen.getByRole("main");
+    const frame = main.querySelector(".MuiPaper-root");
+    expect(frame).not.toBeNull();
+    const styles = Array.from(document.styleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
+    expect(styles).toContain("background: var(--surface-2)");
+    expect(styles).toContain("padding: 66px 14px 22px");
+    expect(styles).toContain("border: 1px solid var(--hairline)");
+    expect(styles).toContain("border-radius: 0");
+    expect(styles).toContain("box-shadow: none");
+  });
+
   it("renders its labels from the auth i18n catalog (#182)", async () => {
     renderWithProviders(tree(), { route: "/login", token: null });
 

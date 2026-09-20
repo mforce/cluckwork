@@ -347,7 +347,7 @@ body {
 :where(button) {
   padding: 0.66rem 1.5rem;
   border: none;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-input);
   background: var(--brand);
   color: var(--on-brand);
   font: inherit;
