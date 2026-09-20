@@ -299,7 +299,7 @@ public sealed class DemoDataSeeder(
         var house1 = Require(await createFlock.HandleAsync(new CreateFlockCommand(
             "House 1 layers", "ISA Brown", today.AddDays(-45 * 7), 500), accountId, ct));
         var house2 = Require(await createFlock.HandleAsync(new CreateFlockCommand(
-            "House 2 layers", "Lohmann Brown", today.AddDays(-20 * 7), 400), accountId, ct));
+            "House 2 layers", "Lohmann Brown", today.AddDays(-40 * 7), 400), accountId, ct));
         var oldBatch = Require(await createFlock.HandleAsync(new CreateFlockCommand(
             "2025 batch (sold)", "ISA Brown", today.AddDays(-90 * 7), 450), accountId, ct));
 
@@ -313,9 +313,9 @@ public sealed class DemoDataSeeder(
         // Random: reproducible demos). House 1 carries ~8 months of history so
         // every per-grade lot list OUT-PAGES the stock drill-down's 50-lot
         // page (#465 — the load-more pager and date filter are exercisable
-        // straight from a demo farm); House 2 keeps a single week. Today stays
-        // unrecorded for House 2 so the dashboard shows the "no entry" flag.
-        foreach (var (flockId, baseline, days) in new[] { (house1, 430, 240), (house2, 350, 7) })
+        // straight from a demo farm). Today stays unrecorded for House 2 so the
+        // dashboard shows the "no entry" flag.
+        foreach (var (flockId, baseline, days) in new[] { (house1, 430, 240), (house2, 275, 240) })
         {
             for (var d = days; d >= 0; d--)
             {

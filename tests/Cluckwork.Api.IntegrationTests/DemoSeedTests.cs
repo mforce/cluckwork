@@ -64,6 +64,29 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(flocks, f => f.Status == "Active" && f.CurrentBirds < f.InitialCount);
         Assert.Contains(flocks, f => f.Name.Contains("2025") && f.CurrentBirds == 20); // 450 - 430 cull
 
+        var house2 = flocks.Single(f => f.Name == "House 2 layers");
+        using (var readScope = factory.Services.CreateScope())
+        {
+            var db = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var house2Entries = await db.DailyEntries.IgnoreQueryFilters()
+                .Where(e => e.FlockId == house2.Id)
+                .Select(e => new { e.Date, e.TotalEggs })
+                .ToListAsync();
+            var house2PlacementDate = await db.Flocks.IgnoreQueryFilters()
+                .Where(f => f.Id == house2.Id)
+                .Select(f => f.PlacementDate)
+                .SingleAsync();
+            var today = await db.DailyEntries.IgnoreQueryFilters()
+                .Where(e => e.AccountId == SeedDefaults.AccountId && e.Status == DailyEntryStatus.Draft)
+                .Select(e => e.Date)
+                .SingleAsync();
+            Assert.Equal(240, house2Entries.Count);
+            Assert.Equal(0, house2Entries.Count(e => e.Date < house2PlacementDate));
+            Assert.Equal(297, house2Entries.Max(e => e.TotalEggs));
+            Assert.All(house2Entries, e => Assert.True(e.TotalEggs <= house2.CurrentBirds));
+            Assert.DoesNotContain(today, house2Entries.Select(e => e.Date));
+        }
+
         var stock = await client.GetFromJsonAsync<List<StockDto>>("/api/v1/stock");
         Assert.True(stock!.Sum(s => s.Available) > 0, "demo stock is empty");
 
