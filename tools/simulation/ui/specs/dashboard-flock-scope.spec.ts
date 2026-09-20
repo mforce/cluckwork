@@ -1,5 +1,10 @@
-// #916 — the Dashboard Lay rate card's flock scope, and the partial-day scale
-// it falls back to.
+// #916/#918 — the Dashboard Lay rate card's flock scope, the partial-day
+// scale it falls back to, and the fidelity round that made the card match
+// the approved mockup (production-flock-selector-v2.html) exactly: one
+// full-width selector (never a separate toggle plus a combobox), its "All
+// flocks" choice pinned above the picker's own scrolling result list, a
+// context caption, a three-item legend, and the hen-day KPI moved to the
+// bottom of the card.
 //
 // Both halves are about the SIMULATION fixture specifically, which is why they
 // live here rather than in web/'s unit suite. `default-farm` seeds ~100 catalog
@@ -11,13 +16,15 @@
 //
 // The scope control is proved against the network, not against the figures
 // alone: the point of #916's API half is that the browser never filters an
-// unscoped payload itself, so a spec that only watched the rendered numbers
-// would stay green if the filtering moved back into the client.
+// unscoped REPORT payload itself, so a spec that only watched the rendered
+// numbers would stay green if that filtering moved back into the client. Flock
+// NAME search, unlike the report, is a client-side filter over the already
+// page-scoped `flocks` list on purpose (#918) — there is no discovery network
+// call to watch there.
 
-import { test, expect, type Page } from "../src/fixtures";
+import { test, expect, type Page, type Locator } from "../src/fixtures";
 import { owner, restrictedWorker } from "../src/cast";
 import { signInForToken, apiGet } from "../src/api";
-import { commitNamedPicker } from "../src/dom";
 import { daysBefore, farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
 
@@ -30,19 +37,48 @@ function strip(page: Page) {
   return page.locator("figure.trend");
 }
 
-/** The `All flocks` toggle that returns the card to farm-wide. */
-function allFlocksButton(page: Page) {
-  return page.getByRole("button", { name: tEn("dashboard:allFlocksOption"), exact: true });
+/** The card element itself — the strip's closest MUI Card ancestor. */
+function layRateCard(page: Page) {
+  return page.locator(".MuiCard-root").filter({ has: strip(page) });
 }
 
 /**
- * The scope picker's CLOSED state: a read-only MUI field labelled
- * `dashboard:flockScopeLabel` whose value is the current scope's name. Its
- * absence is what the one-flock case asserts, so it is a locator rather than
- * an inline expression in one test.
+ * The single mockup selector: a full-width button whose accessible name is
+ * "Flock" (the eyebrow) plus the current scope, joined by aria-labelledby.
+ * Found by `aria-haspopup="dialog"` rather than by name text — a flock
+ * literally named "Sim House A" would otherwise be indistinguishable by name
+ * alone from a plain-text match once the dialog's own choice buttons exist.
+ * SCOPED to the Lay rate card: the app shell's own phone "More" tab also
+ * carries `aria-haspopup="dialog"` (it opens the nav sheet) and Playwright's
+ * role queries do not filter by CSS visibility, so an unscoped query is
+ * ambiguous even at a desktop viewport where that tab is not shown.
  */
-function scopeField(page: Page) {
-  return page.getByRole("textbox", { name: tEn("dashboard:flockScopeLabel") });
+function selectorButton(page: Page) {
+  return layRateCard(page).locator('button[aria-haspopup="dialog"]');
+}
+
+function pickerDialog(page: Page) {
+  return page.getByRole("dialog", { name: tEn("dashboard:chooseFlockTitle") });
+}
+
+/** Pinned ABOVE the scrolling result list — never a row inside it. */
+function pinnedAllFlocksChoice(page: Page) {
+  return page.getByRole("button", { name: new RegExp(`^${tEn("dashboard:allFlocksOption")}`) });
+}
+
+function resultsList(page: Page) {
+  return page.getByRole("list", { name: tEn("dashboard:flockScopeResultsLabel") });
+}
+
+async function openPicker(page: Page) {
+  await selectorButton(page).click();
+  await expect(pickerDialog(page)).toBeVisible();
+}
+
+async function pickAllFlocks(page: Page) {
+  await openPicker(page);
+  await pinnedAllFlocksChoice(page).click();
+  await expect(pickerDialog(page)).not.toBeVisible();
 }
 
 /** Every bar's inline height, in slot order. An unrecorded day contributes nothing. */
@@ -51,17 +87,29 @@ async function barHeights(page: Page): Promise<string[]> {
     (els) => els.map((e) => (e as HTMLElement).style.height));
 }
 
+/** The strip's DOM position relative to the hen-day KPI, for the DOM-order check. */
+async function kpiFollowsStrip(card: Locator): Promise<boolean> {
+  return card.evaluate((cardEl) => {
+    const stripEl = cardEl.querySelector(".daystrip");
+    const kpiEl = cardEl.querySelector(".trend-kpi");
+    if (!stripEl || !kpiEl) return false;
+    // DOCUMENT_POSITION_FOLLOWING = 4.
+    return (stripEl.compareDocumentPosition(kpiEl) & 4) === 4;
+  });
+}
+
 test.describe("Dashboard Lay rate flock scope", () => {
   test("farm-wide, no complete day: the strip scales to the largest partial day", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");
     await expect(strip(page)).toBeVisible();
 
-    // Farm-wide is the default, and it is a PRESSED toggle rather than merely
-    // the absence of a selection — a reader has to be able to see which scope
-    // produced the figures.
-    await expect(allFlocksButton(page)).toHaveAttribute("aria-pressed", "true");
-    await expect(scopeField(page)).toHaveValue(tEn("dashboard:allFlocksOption"));
+    // Farm-wide is the default — the selector's own accessible name says so.
+    await expect(selectorButton(page)).toHaveAccessibleName(`${tEn("dashboard:flockScopeLabel")} ${tEn("dashboard:allFlocksOption")}`);
+
+    // The context caption: "{count} accessible flocks · {range}" — matches
+    // the mockup's `.context` line exactly (#918).
+    await expect(page.locator(".trend-context")).toContainText("accessible flock");
 
     // The fixture's own shape: ~100 flocks are placed and never file, so every
     // day in the window owes a count nobody filed. If this stops being true the
@@ -78,7 +126,7 @@ test.describe("Dashboard Lay rate flock scope", () => {
     // "—". The largest partial day now defines the scale, which means exactly
     // one bar reaches 100% and the strip carries a real figure.
     const peak = strip(page).locator(".trend-peak");
-    await expect(peak, "the partial-day peak should be a figure, not an em dash").not.toHaveText("—");
+    await expect(peak, "the partial-day peak should be a figure, not an em dash").not.toHaveText("Peak —");
 
     const heights = await barHeights(page);
     expect(heights.length, "the fixture's window should draw at least a few bars").toBeGreaterThan(1);
@@ -90,9 +138,17 @@ test.describe("Dashboard Lay rate flock scope", () => {
       new Set(heights).size,
       `every bar is ${heights[0]} — this is the hairline-strip bug #916 fixed`,
     ).toBeGreaterThan(1);
+
+    // The mockup's three-item legend, and the hen-day KPI moved to the
+    // bottom of the card (#918 fidelity round).
+    const legendItems = await strip(page).locator(".trend-legend li").allInnerTexts();
+    expect(legendItems).toEqual([
+      tEn("dashboard:legendComplete"), tEn("dashboard:legendPartial"), tEn("dashboard:legendNoEntry"),
+    ]);
+    expect(await kpiFollowsStrip(layRateCard(page)), "the hen-day KPI should render AFTER the strip").toBe(true);
   });
 
-  test("the picker searches, and choosing a flock rescopes the card server-side", async ({ page, signIn }) => {
+  test("the picker's All flocks choice is pinned above the scrolling results, and search rescopes the card server-side", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");
     await expect(strip(page)).toBeVisible();
@@ -103,6 +159,15 @@ test.describe("Dashboard Lay rate flock scope", () => {
       heights: await barHeights(page),
     };
 
+    await openPicker(page);
+    // The mockup's #allChoice: a sibling of .choices, never a row inside it.
+    const results = resultsList(page);
+    await expect(
+      results.getByRole("button", { name: new RegExp(`^${tEn("dashboard:allFlocksOption")}`) }),
+      "All flocks must not also appear as a row inside the scrolling results",
+    ).toHaveCount(0);
+    await expect(pinnedAllFlocksChoice(page)).toBeVisible();
+
     // The two production reads must carry the chosen flock. This is the whole
     // API half of #916: a client-side filter of the farm-wide payload would
     // render plausible bars and could not produce a scoped hen-day rate.
@@ -112,17 +177,23 @@ test.describe("Dashboard Lay rate flock scope", () => {
       if (url.includes("/reports/production") && url.includes("flockId=")) scopedReports.push(url);
     });
 
-    // Opens the closed field, types, and commits the sole match — the same
-    // three steps a user takes, and the helper every other picker spec uses.
-    const flockId = await commitNamedPicker(page, tEn("dashboard:flockScopeLabel"), FIXTURE_FLOCK);
+    // The flock id comes from the server, not a DOM attribute minted for the
+    // test: `flocks` here is already-loaded, page-scoped data (#918's search
+    // is a client-side filter over it, not a new discovery request), so a
+    // second authenticated read resolves the same name to the same id.
+    const ownerTokenForId = await signInForToken(owner());
+    const accessible = await apiGet<Array<{ id: string; name: string }>>(ownerTokenForId, "/flocks?limit=500");
+    const flockId = accessible.find((f) => f.name === FIXTURE_FLOCK)?.id;
+    expect(flockId, `${FIXTURE_FLOCK} should be in the accessible flock list`).toBeTruthy();
 
-    // The commit closes the search (matches every other FlockPicker caller in
-    // the app), so the committed value shows on the closed, read-only field.
-    await expect(scopeField(page)).toHaveValue(FIXTURE_FLOCK);
-    await expect(
-      allFlocksButton(page),
-      "All flocks should un-press once a single flock owns the card",
-    ).toHaveAttribute("aria-pressed", "false");
+    await page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") }).fill(FIXTURE_FLOCK);
+    const choice = resultsList(page).getByRole("button", { name: FIXTURE_FLOCK });
+    await expect(choice).toBeVisible();
+    await choice.click();
+    await expect(pickerDialog(page)).not.toBeVisible();
+
+    // The commit closes the dialog and the selector's own name updates.
+    await expect(selectorButton(page)).toHaveAccessibleName(`${tEn("dashboard:flockScopeLabel")} ${FIXTURE_FLOCK}`);
 
     // One flock's own days ARE complete days — it is the only flock expected to
     // file — so the card leaves the partial-day fallback entirely. That is a
@@ -130,27 +201,36 @@ test.describe("Dashboard Lay rate flock scope", () => {
     // SERVER recomputed completeness against a one-flock expectation.
     await expect(strip(page).locator(".trend-scale > span").first())
       .toHaveText(tEn("dashboard:trendScaleTitle"));
-    await expect(strip(page).locator(".trend-peak")).not.toHaveText("—");
+    await expect(strip(page).locator(".trend-peak")).not.toHaveText("Peak —");
     expect(await barHeights(page), "the scoped strip should not be the farm-wide one")
       .not.toEqual(before.heights);
 
     expect(
-      scopedReports.filter((u) => u.includes(`flockId=${flockId}`)).length,
+      flockId && scopedReports.filter((u) => u.includes(`flockId=${flockId}`)).length,
       `both production reads should carry flockId=${flockId}; saw ${JSON.stringify(scopedReports)}`,
     ).toBeGreaterThanOrEqual(2);
 
-    // And back. The return path is its own assertion because the picker retains
-    // a committed entity: clearing the card's scope has to clear that too, or
-    // the field goes on naming a flock the figures no longer describe.
+    // And back. The return path is its own assertion: clearing the card's
+    // scope has to clear the selector's own displayed value too, or it goes
+    // on naming a flock the figures no longer describe (Codex review of
+    // #918, finding 1).
     const farmWideReads = page.waitForRequest((r) =>
       r.url().includes("/reports/production") && !r.url().includes("flockId="));
-    await allFlocksButton(page).click();
+    await pickAllFlocks(page);
     await farmWideReads;
 
-    await expect(allFlocksButton(page)).toHaveAttribute("aria-pressed", "true");
-    await expect(scopeField(page)).toHaveValue(tEn("dashboard:allFlocksOption"));
+    await expect(selectorButton(page)).toHaveAccessibleName(`${tEn("dashboard:flockScopeLabel")} ${tEn("dashboard:allFlocksOption")}`);
     await expect(strip(page).locator(".trend-scale > span").first()).toHaveText(before.caption);
     await expect(strip(page).locator(".trend-peak")).toHaveText(before.peak);
+  });
+
+  test("the picker shows a no-results state for a name nothing matches", async ({ page, signIn }) => {
+    await signIn(owner());
+    await page.goto("/");
+    await openPicker(page);
+    await page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") })
+      .fill("no such flock exists anywhere");
+    await expect(page.getByText(tEn("dashboard:noMatchingFlocksMessage"))).toBeVisible();
   });
 
   test("one accessible flock: its name, with no scope control at all", async ({ page, signIn }) => {
@@ -164,17 +244,15 @@ test.describe("Dashboard Lay rate flock scope", () => {
     await page.goto("/");
     await expect(strip(page)).toBeVisible();
 
-    const card = page.locator(".MuiCard-root").filter({ has: strip(page) });
+    const card = layRateCard(page);
     await expect(
       card.getByText(FIXTURE_FLOCK, { exact: true }),
       "the one accessible flock should be named in the card",
     ).toBeVisible();
 
-    // No choice to offer, so no control is offered: neither the toggle nor the
-    // picker field (whose chevron is what signals "this reopens a search").
-    await expect(allFlocksButton(page)).toHaveCount(0);
-    await expect(scopeField(page)).toHaveCount(0);
-    await expect(page.getByRole("combobox", { name: tEn("dashboard:flockScopeLabel") })).toHaveCount(0);
+    // No choice to offer, so no control is offered at all — no selector, no
+    // chevron, no dialog to open.
+    await expect(selectorButton(page)).toHaveCount(0);
 
     // The figures still arrive, and by the SAME scoped path a picked flock
     // takes — never a second "just show everything" branch.
@@ -208,12 +286,12 @@ test.describe("Dashboard Lay rate flock scope", () => {
 });
 
 test.describe("Dashboard Lay rate flock scope", { tag: "@phone" }, () => {
-  test("the scope control and the 14-day strip stay usable at 390", async ({ page, signIn }) => {
+  test("the selector, the picker dialog and the 14-day strip stay usable at 390", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");
     await expect(strip(page)).toBeVisible();
 
-    const card = page.locator(".MuiCard-root").filter({ has: strip(page) });
+    const card = layRateCard(page);
     const cardBox = await card.boundingBox();
     expect(cardBox, "the Lay rate card should have a box at 390").not.toBeNull();
 
@@ -229,24 +307,19 @@ test.describe("Dashboard Lay rate flock scope", { tag: "@phone" }, () => {
       (els) => [...new Set(els.map((e) => Math.round((e as HTMLElement).getBoundingClientRect().top)))]);
     expect(rows, `the strip wrapped into ${rows.length} rows at 390`).toHaveLength(1);
 
-    // Both scope controls are on screen and not stacked on top of each other.
-    // TARGET SIZE IS DELIBERATELY NOT ASSERTED HERE: phone.spec.ts's "dashboard
-    // actions meet the 44px target floor" already walks every visible link and
-    // button in `main` against the repo's 44px floor, and a second copy of that
-    // rule here could only ever agree with it or contradict it.
-    const toggle = await allFlocksButton(page).boundingBox();
-    const field = await scopeField(page).boundingBox();
-    expect(toggle, "the All flocks toggle is not on screen at 390").not.toBeNull();
-    expect(field, "the flock scope field is not on screen at 390").not.toBeNull();
-    expect(
-      toggle!.y + toggle!.height <= field!.y || toggle!.x + toggle!.width <= field!.x,
-      "the two scope controls overlap at 390",
-    ).toBe(true);
+    // The single selector is on screen. TARGET SIZE IS DELIBERATELY NOT
+    // ASSERTED HERE: phone.spec.ts's "dashboard actions meet the 44px target
+    // floor" already walks every visible link and button in `main` against
+    // the repo's 44px floor, and a second copy of that rule here could only
+    // ever agree with it or contradict it.
+    await expect(selectorButton(page)).toBeVisible();
 
-    // And the picker actually opens here, which the measurements above do not
-    // prove: a control laid out correctly behind an overlapping card would pass
-    // every box check and open nothing.
-    await scopeField(page).click();
-    await expect(page.getByRole("combobox", { name: tEn("dashboard:flockScopeLabel") })).toBeVisible();
+    // And the picker actually opens here, full width, with its own controls
+    // reachable — which the box checks above do not prove: a control laid
+    // out correctly behind an overlapping card would pass every box check
+    // and open nothing.
+    await openPicker(page);
+    await expect(page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") })).toBeVisible();
+    await expect(pinnedAllFlocksChoice(page)).toBeVisible();
   });
 });

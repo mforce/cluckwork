@@ -815,12 +815,32 @@ export const en = {
     availableStockTitle: "Available stock",
     recentOrdersTitle: "Recent orders",
     layRateTitle: "Lay rate",
-    // #916 — the Lay rate card's flock scope. `flockScopeLabel` is the
-    // picker's field label; `allFlocksOption` is the always-visible control
-    // that returns the card to farm-wide, kept outside the picker's own
-    // scrolling results (SELECTION.md) rather than as a row inside them.
+    // #916/#918 — the Lay rate card's flock scope, matching the approved
+    // mockup (production-flock-selector-v2.html) exactly: one full-width
+    // selector button (`flockScopeLabel` is its eyebrow) opens a picker whose
+    // "All flocks" choice (`allFlocksOption`) is pinned ABOVE the scrolling
+    // flock list, never a row inside it.
     flockScopeLabel: "Flock",
     allFlocksOption: "All flocks",
+    // The picker dialog itself.
+    chooseFlockTitle: "Choose flock",
+    closeFlockSelectorAction: "Close flock selector",
+    searchAccessibleFlocksLabel: "Search accessible flocks",
+    searchByNamePlaceholder: "Search by name",
+    matchingFlocksCount_one: "{{count}} matching flock",
+    matchingFlocksCount_other: "{{count}} matching flocks",
+    noMatchingFlocksMessage: "No matching flocks. Try another name.",
+    flockScopeResultsLabel: "Accessible flocks",
+    // The card's own scope-and-range caption, under the selector: "{scope} ·
+    // {date range}" — {{scope}} is either `accessibleFlocksCount` or the
+    // chosen flock's own name, pre-formatted by the caller (#650).
+    accessibleFlocksCount_one: "{{count}} accessible flock",
+    accessibleFlocksCount_other: "{{count}} accessible flocks",
+    layRateContext: "{{scope}} · {{from}}–{{to}}",
+    // The strip's key (DayStrip's own three-item legend).
+    legendComplete: "Complete",
+    legendPartial: "Partial",
+    legendNoEntry: "No entry",
     gradeColumn: "Grade",
     countColumn: "Count",
     shareColumn: "Share",
@@ -918,13 +938,21 @@ export const en = {
     // Nobody owed a filing in this window — no flock was placed yet, or the
     // last one has gone. Distinct from nobody having filed.
     trendStripLabelNoFlocks: "Eggs per day, last 14 days. No flock was on the farm in this window.",
-    trendScaleTitle: "Eggs per day",
+    // #918 — the three scale states, worded exactly as the approved mockup
+    // (production-flock-selector-v2.html's own `stats().caption`).
+    trendScaleTitle: "Eggs per day · complete-day scale",
     // #916 — no complete day in the window, so the bars scale to the largest
     // PARTIAL total instead: distinct wording so nobody reads them as
     // full-farm output.
-    trendScaleTitlePartial: "Eggs per day, partial days only",
+    trendScaleTitlePartial: "Eggs per day · partial days only",
+    trendScaleTitleNone: "Eggs per day · no recorded figures",
+    // Peak always renders, even as "Peak —" (fmt.count never runs on null;
+    // the caller passes the dash itself) — the mockup states the absence
+    // rather than omitting the word. Avg has the same rule: always one of
+    // these two sentences, never hidden.
     trendPeak: "Peak {{total}}",
-    trendAvg: "Avg {{total}}",
+    trendCompleteAvg: "Complete-day avg {{total}}",
+    trendNoCompleteAvg: "No complete-day average",
     // The readout for one day, and the accessible name of that day's slot.
     // The dash separates the date from the figure in every locale.
     trendDayTip_one: "{{date}} – {{total}} egg",

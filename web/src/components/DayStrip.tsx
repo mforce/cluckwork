@@ -18,12 +18,19 @@ import type { DayStripData, DayStripSlot } from "../lib/dashboard";
 // toolbar: Tab enters the strip at the selected day (the first, initially) and
 // the arrow keys move along it. Fourteen consecutive tab stops on the way past
 // a dashboard panel is not keyboard support, it is a keyboard obstacle.
-export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
+export function DayStrip({ data, label, title, peak, average, legend, tip, from, to }: {
   data: DayStripData;
   label: string;
   title: string;
   peak: string;
-  average: string | null;
+  // #916/#918 — always a sentence now ("Complete-day avg N" or "No
+  // complete-day average"), never hidden: the approved mockup shows the
+  // average's ABSENCE as a stated fact beside Peak, not as a blank space.
+  average: string;
+  // The strip's key, translated by the caller (DayStrip stays props-only,
+  // never importing i18n itself). Three fixed states; the mockup's own
+  // legend, added in the fidelity round on #918.
+  legend: { complete: string; partial: string; noEntry: string };
   tip: (slot: DayStripSlot) => string;
   from: React.ReactNode;
   to: React.ReactNode;
@@ -96,7 +103,7 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
       <figcaption className="trend-scale">
         <span>{title}</span>
         <span className="trend-figures">
-          {average !== null && <span className="trend-avg">{average}</span>}
+          <span className="trend-avg">{average}</span>
           <span className="trend-peak">{peak}</span>
         </span>
       </figcaption>
@@ -155,6 +162,11 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
         <span>{from}</span>
         <span>{to}</span>
       </div>
+      <ul className="trend-legend">
+        <li><span className="trend-legend-swatch" aria-hidden="true" />{legend.complete}</li>
+        <li><span className="trend-legend-swatch partial" aria-hidden="true" />{legend.partial}</li>
+        <li><span className="trend-legend-swatch missing" aria-hidden="true" />{legend.noEntry}</li>
+      </ul>
     </figure>
   );
 }

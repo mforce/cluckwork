@@ -461,8 +461,10 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     // No bars at all, and the scale shows a dash rather than a fabricated 0.
     expect(strip.querySelectorAll(".day > i")).toHaveLength(0);
     expect(strip.querySelectorAll(".day")).toHaveLength(14);
-    expect(screen.getByText("—", { selector: ".trend-peak" })).toBeInTheDocument();
-    expect(screen.queryByText(/^Avg/)).not.toBeInTheDocument();
+    // #918 — Peak and Avg are always sentences now, never hidden: the dash
+    // states the absence, it does not omit the word.
+    expect(screen.getByText("Peak —", { selector: ".trend-peak" })).toBeInTheDocument();
+    expect(screen.getByText("No complete-day average", { selector: ".trend-avg" })).toBeInTheDocument();
   });
 
   // Recorded, but never by every house — so there is still no complete day to
@@ -573,14 +575,76 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 });
 
-describe("Dashboard Lay rate flock scope (#916)", () => {
-  it("defaults to All flocks and offers a searchable picker when more than one flock is accessible", async () => {
+describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
+  // The single selector button, matching the approved mockup: its accessible
+  // name is the eyebrow ("Flock") plus the current scope, joined by
+  // aria-labelledby, so it changes with the scope rather than a caller
+  // guessing at a separately-maintained label. Found by `aria-haspopup`
+  // rather than by name text: a flock literally named "Flock f2" gives the
+  // picker's own choice button that same "Flock " prefix once its dialog is
+  // open, which a name-only query cannot tell apart from the trigger.
+  const selectorButton = () => screen.getAllByRole("button")
+    .find((b) => b.getAttribute("aria-haspopup") === "dialog") as HTMLElement;
+  const openPicker = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(selectorButton());
+    return screen.findByRole("list", { name: "Accessible flocks" });
+  };
+  // MUI's Dialog exit runs on real timers; the trigger stays aria-hidden (a
+  // sibling of the still-closing modal, portalled outside it) until the
+  // transition finishes, so any assertion reading the closed-state trigger
+  // must wait for the dialog to actually leave the DOM first.
+  const waitForPickerToClose = () => waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+  it("defaults to All flocks; the selector's accessible name and the context caption both say so", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
     expect(mockReport).toHaveBeenLastCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined);
-    const allButton = await screen.findByRole("button", { name: "All flocks" });
-    expect(allButton).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByLabelText("Flock")).toHaveValue("All flocks");
+    expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
+    // The context caption: "{count} accessible flocks · {range}" — the count
+    // is the same 3 the other panels' fixture already assumes.
+    expect(screen.getByText(/^3 accessible flocks · /)).toBeInTheDocument();
+  });
+
+  // The explicit test the fidelity round asked for: the trigger's own
+  // accessible name tracks the scope, not just the visible text.
+  it("the selector's accessible name reflects the scope after a pick", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const results = await openPicker(user);
+    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    await waitForPickerToClose();
+    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+  });
+
+  // The mockup's #allChoice sits ABOVE .choices, never a row inside it.
+  it("keeps the All flocks choice outside the scrolling results list", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const results = await openPicker(user);
+    const allFlocksChoice = screen.getByRole("button", { name: /^All flocks/ });
+    expect(within(results).queryByRole("button", { name: /^All flocks/ })).toBeNull();
+    expect(results.contains(allFlocksChoice)).toBe(false);
+  });
+
+  it("renders the strip's three-item legend, Complete/Partial/No entry", async () => {
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
+    const items = within(trendPanel).getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual(["Complete", "Partial", "No entry"]);
+  });
+
+  // Mockup DOM order: scope, context, scale+dock+strip+rule+legend, THEN the
+  // hen-day KPI — moved from the top of the card to the bottom.
+  it("renders the hen-day KPI after the strip, not before it", async () => {
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    const strip = await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
+    const kpi = trendPanel.querySelector(".trend-kpi");
+    expect(kpi).not.toBeNull();
+    expect(strip.compareDocumentPosition(kpi!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("scopes the whole card to a picked flock, then back to All flocks — never touching the other panels", async () => {
@@ -590,25 +654,26 @@ describe("Dashboard Lay rate flock scope (#916)", () => {
     mockReport.mockClear();
     mockEntries.mockClear();
 
-    await user.click(screen.getByLabelText("Flock"));
-    // Scoped to the option role: "Flock f2" also names the Today row's own
-    // link, ambiguous under a plain text query.
-    await user.click(await screen.findByRole("option", { name: "Flock f2" }));
+    const results = await openPicker(user);
+    // Scoped to the results list: "Flock f2" also names the Today row's own
+    // link, ambiguous under a plain, unscoped query.
+    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    await waitForPickerToClose();
 
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
       daysBefore(today, 7), daysBefore(today, 1), "f2"));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f2");
-    // A commit closes the picker (matches every other FlockPicker caller in
-    // the app), so the closed-state label query resolves unambiguously again.
-    expect(screen.getByLabelText("Flock")).toHaveValue("Flock f2");
+    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
     // Today's collection panel does not refetch on a Lay rate scope change.
     expect(mockEntries).not.toHaveBeenCalled();
 
     mockReport.mockClear();
-    await user.click(screen.getByRole("button", { name: "All flocks" }));
+    await openPicker(user);
+    await user.click(screen.getByRole("button", { name: /^All flocks/ }));
+    await waitForPickerToClose();
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
       daysBefore(today, 7), daysBefore(today, 1), undefined));
-    expect(screen.getByLabelText("Flock")).toHaveValue("All flocks");
+    expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
   });
 
   // #916 SELECTION.md — the only-one-flock view must report the SAME figures
@@ -621,11 +686,53 @@ describe("Dashboard Lay rate flock scope (#916)", () => {
     renderWithProviders(<Dashboard />);
     const trendPanel = await panel("Last 14 days");
     expect(within(trendPanel).getByText("Flock f1")).toBeInTheDocument();
-    expect(within(trendPanel).queryByRole("button", { name: "All flocks" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Flock")).not.toBeInTheDocument();
+    expect(within(trendPanel).queryByRole("button", { name: /All flocks/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button").some((b) => b.getAttribute("aria-haspopup") === "dialog")).toBe(false);
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
       daysBefore(today, 7), daysBefore(today, 1), "f1"));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f1");
+  });
+
+  // #918 — Codex review, finding 3. `cancelled` is what stops a stale scope's
+  // late response from overwriting a newer one; nothing in the suite
+  // exercised the race directly. Mutation-verified: deleting the `if
+  // (cancelled) return;` line in Dashboard.tsx's trend effect turns this red
+  // (the stale "all flocks" figures land last and overwrite "Flock f2"'s),
+  // confirmed locally then reverted.
+  it("keeps the newer scope's figures when an older scope's request resolves later", async () => {
+    const user = userEvent.setup();
+    const pending: { flockId: string | undefined; resolve: (r: ProductionReport) => void }[] = [];
+    mockReport.mockImplementation((_from, _to, flockId) => new Promise((resolve) => {
+      pending.push({ flockId, resolve });
+    }));
+
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    // The initial "all flocks" scope's two requests (current + previous window).
+    await waitFor(() => expect(pending.filter((p) => p.flockId === undefined)).toHaveLength(2));
+    const allRequests = pending.filter((p) => p.flockId === undefined);
+
+    const results = await openPicker(user);
+    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    await waitForPickerToClose();
+    await waitFor(() => expect(pending.filter((p) => p.flockId === "f2")).toHaveLength(2));
+    const f2Requests = pending.filter((p) => p.flockId === "f2");
+
+    // The NEWER scope (f2) resolves first, as it would for an ordinary fast
+    // response landing after a slow stale one is already in flight.
+    f2Requests[0]!.resolve(currentFor(today));
+    f2Requests[1]!.resolve(previousFor(today));
+    await screen.findByText("87.4%"); // currentFor's fixture hen-day figure
+
+    // The STALE "all flocks" request resolves late, with figures that would
+    // be obviously wrong if they landed.
+    allRequests[0]!.resolve(report(1.2, [day("2026-01-01", 1)]));
+    allRequests[1]!.resolve(report(1.2, [day("2026-01-01", 1)]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.getByText("87.4%")).toBeInTheDocument();
+    expect(screen.queryByText("1.2%")).not.toBeInTheDocument();
+    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
   });
 });
 
@@ -730,6 +837,25 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     renderWithProviders(<Dashboard />, asSales);
     expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
     expect(screen.queryByText("Could not load.")).not.toBeInTheDocument();
+  });
+
+  // #918 — Codex review, finding 2. The production report became its own
+  // effect (#916) so a scope change never re-fetches the other four; the
+  // page-level "everything failed" gate has to keep watching BOTH effects,
+  // or a farm where only the four failed would hide an already-loaded Lay
+  // rate card behind the full-page error the four alone used to justify.
+  it("the OTHER four failing does not hide a Lay rate card the production report loaded successfully", async () => {
+    for (const m of [mockFlocks, mockEntries, mockStock, mockOrders]) m.mockImplementation(boom);
+    renderWithProviders(<Dashboard />, asSales);
+    // The page itself renders — not the full-page error — and the Lay rate
+    // card carries real, successfully-fetched figures.
+    expect(await screen.findByText("87.4%")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument();
+    // The four that genuinely failed still show their own panel errors —
+    // "degrades one panel at a time" holds even when three of the four are
+    // the SAME failure.
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
+    expect(within(await panel("Stock")).getByText("Could not load.")).toBeInTheDocument();
   });
 
   it("every issued fetch failed for a ReadOnly user too — the inert sales placeholder does not count as a success", async () => {

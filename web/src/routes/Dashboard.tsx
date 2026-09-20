@@ -1,10 +1,10 @@
 // web/src/routes/Dashboard.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bird, Check, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
+import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert, X } from "lucide-react";
 import {
-  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
+  Alert, Box, Button, Card, Container, Dialog, IconButton, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -16,7 +16,6 @@ import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
-import { FlockPicker } from "../components/FlockPicker";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
@@ -69,14 +68,17 @@ export function Dashboard() {
   // which already renders `panelError` below — no separate error flag needed.
   const [scope, setScope] = useState<ProductionScope>({ kind: "all" });
   const [trendLoading, setTrendLoading] = useState(true);
-  const [flockPickerOpen, setFlockPickerOpen] = useState(false);
-  // Mirrors the engine's own committed entity so the CLOSED-state trigger can
-  // show it (same T036 pattern DailyEntryPage's FlockPicker uses), and so an
-  // external reset (the All flocks button) can clear the engine's retained
-  // name via `controlledCommitted`/`controlledGeneration` without it lingering
-  // the next time the search reopens.
-  const [pickerFlock, setPickerFlock] = useState<Flock | null>(null);
-  const [pickerFlockGen, setPickerFlockGen] = useState(0);
+  // #918 fidelity round — one full-width selector, matching the approved
+  // mockup exactly: `pickerOpen` drives its Dialog, `searchQuery` filters the
+  // already-loaded `flocks` list (the same page-scoped, 500-capped list the
+  // Today panel already reads — no second server round trip for search).
+  // There is exactly one reset path now (choosing "All flocks" inside the
+  // dialog), and it sets `scope` directly with nothing else to fall out of
+  // sync with it (Codex review of #918, finding 1: the old picker's Clear
+  // button had no handler, so it could empty the CONTROL while `scope`, a
+  // second independently-held value, kept the card scoped).
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
   // ReadOnly/Denied can't read customers or orders — the API now returns 403
@@ -90,6 +92,13 @@ export function Dashboard() {
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
 
+  // #918 fidelity round — stable ids for the selector's aria-labelledby pair
+  // and the picker dialog's own labelled elements.
+  const scopeLabelId = useId();
+  const scopeValueId = useId();
+  const pickerTitleId = useId();
+  const searchInputId = useId();
+
   // #916 — a PRIMITIVE, not the `flocks` array itself: the trend effect below
   // depends on this so a farm with more than one flock (the common case)
   // re-renders `flocks` exactly once (on load) without re-triggering a second,
@@ -97,6 +106,29 @@ export function Dashboard() {
   // value only changes on the one transition that actually matters (null →
   // an id, when the farm turns out to have exactly one accessible flock).
   const soleFlockId = flocks !== null && flocks.length === 1 ? flocks[0].id : null;
+
+  // #918 — Codex review, finding 2. The page-level "everything failed" gate
+  // used to look only at the four panel reads; once the production report
+  // became its own effect (so a scope change never re-fetches the other
+  // four), a farm where those four ALL failed hid an already-loaded Lay rate
+  // card behind the full-page error, even though the trend fetch had
+  // succeeded on its own. `loading` stays tied to the four-panel effect ONLY
+  // — the page still renders as soon as THEY settle, unchanged from before,
+  // so a slow production fetch never holds the whole page hostage. The
+  // combined "did EVERYTHING fail" decision is separate and may land a beat
+  // later, from whichever of the two effects settles last; the trend ref is
+  // written only ONCE, by its first completion — a later one is a scope
+  // change and must never re-open this.
+  const panelsOutcomeRef = useRef<{ rejected: number; issued: number; firstRejected?: PromiseRejectedResult } | null>(null);
+  const trendFailedRef = useRef<boolean | null>(null);
+  function evaluateTotalFailure() {
+    if (panelsOutcomeRef.current === null || trendFailedRef.current === null) return;
+    const panels = panelsOutcomeRef.current;
+    if (panels.rejected === panels.issued && trendFailedRef.current) {
+      const reason = panels.firstRejected?.reason;
+      setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
+    }
+  }
 
   useEffect(() => {
     Promise.allSettled([
@@ -113,11 +145,8 @@ export function Dashboard() {
       // the sales read is an inert placeholder when the role can't see it.
       const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
       const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      const firstRejected = rejected[0];
-      if (rejected.length === issued.length && firstRejected) {
-        const reason = firstRejected.reason;
-        setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
-      }
+      panelsOutcomeRef.current = { rejected: rejected.length, issued: issued.length, firstRejected: rejected[0] };
+      evaluateTotalFailure();
       setLoading(false);
     });
   }, [today, canSeeSales]);
@@ -143,10 +172,13 @@ export function Dashboard() {
       getProductionReport(daysBefore(today, 14), daysBefore(today, 8), flockId),
     ]).then(([cur, prev]) => {
       if (cancelled) return;
-      setTrend(cur.status === "fulfilled" && prev.status === "fulfilled"
-        ? { current: cur.value, previous: prev.value }
-        : null);
+      const ok = cur.status === "fulfilled" && prev.status === "fulfilled";
+      setTrend(ok ? { current: cur.value, previous: prev.value } : null);
       setTrendLoading(false);
+      if (trendFailedRef.current === null) {
+        trendFailedRef.current = !ok;
+        evaluateTotalFailure();
+      }
     });
     return () => { cancelled = true; };
   }, [today, scope, soleFlockId]);
@@ -190,6 +222,14 @@ export function Dashboard() {
   const soleFlock = flocks !== null && flocks.length === 1 ? flocks[0] : null;
   const scopedFlock = soleFlock ?? (scope.kind === "flock" ? scope.flock : null);
   const scopeName = scopedFlock ? scopedFlock.name : t("allFlocksOption");
+  // #918 fidelity round — the context caption's own scope text differs from
+  // the selector's: "All flocks" scoped reads as a count of accessible
+  // flocks here, matching the approved mockup's `.context` line exactly.
+  const accessibleCount = flocks?.length ?? 0;
+  const contextScope = scopedFlock ? scopedFlock.name : t("accessibleFlocksCount", { count: accessibleCount });
+  const filteredFlocks = flocks === null
+    ? []
+    : flocks.filter((f) => f.name.toLowerCase().includes(searchQuery.trim().toLowerCase()));
 
   const trendData = trend === null ? null : {
     line: dayStrip({
@@ -406,77 +446,123 @@ export function Dashboard() {
         <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 2 }, gridRow: { md: 2 },
           mx: { xs: "calc(7px - 1.15rem)", md: 0 },
           "& .trend-fig": { fontFamily: "Georgia, serif", fontSize: "2.5rem" },
-          "& .trend-kpi": { mt: 0, mb: 1 },
           "& .daystrip": { display: "flex", gap: { xs: "2px", md: "4px" }, height: 80 },
           "& .day": { height: 80 },
           "& .day > i": { maxWidth: { xs: "none", md: 18 } },
           "& .tipdock .tip": { whiteSpace: "normal", overflow: "visible", maxWidth: "100%" },
         }}>
+          {/* #916/#918 — matches the approved mockup's DOM order exactly
+              (production-flock-selector-v2.html): head, scope, context,
+              scale+dock+strip+rule+legend (all inside DayStrip), hen-day KPI
+              LAST. */}
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
             <Typography variant="caption" color="text.secondary">{t("trendPanelTitle")}</Typography>
           </Box>
-          {/* #916 — the card's own flock scope. Exactly one accessible flock:
-              plain text, no dropdown (SELECTION.md). More than one: a fast
-              "All flocks" toggle beside the searchable picker, so All stays
-              reachable without opening the search surface at all — which
-              also satisfies SELECTION.md's "All flocks stays available above
-              the scrolling results" without adding a synthetic option inside
-              the shared picker's own results list. */}
-          {soleFlock !== null ? (
-            <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{soleFlock.name}</Typography>
-          ) : flocks !== null && flocks.length > 1 ? (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+
+          <Box sx={{ mt: "18px", mb: "8px" }}>
+            <Typography
+              id={scopeLabelId} component="span"
+              sx={{ display: "block", textTransform: "uppercase", letterSpacing: "0.08em", fontSize: "10px", color: "text.secondary", mb: "5px" }}
+            >
+              {t("flockScopeLabel")}
+            </Typography>
+            {soleFlock !== null ? (
+              // The mockup's #fixedScope: plain text, no dropdown, no chevron,
+              // no redundant All flocks choice (SELECTION.md).
+              <Box sx={{ fontSize: "16px", fontWeight: 600, minHeight: "44px", display: "flex", alignItems: "center", borderBottom: "1px solid var(--rule)" }}>
+                {soleFlock.name}
+              </Box>
+            ) : (
               <Button
-                type="button" size="small" color="inherit"
-                variant={scope.kind === "all" ? "contained" : "outlined"}
-                aria-pressed={scope.kind === "all"}
-                onClick={() => {
-                  setScope({ kind: "all" });
-                  setPickerFlock(null);
-                  setPickerFlockGen((g) => g + 1);
+                aria-labelledby={`${scopeLabelId} ${scopeValueId}`}
+                aria-haspopup="dialog"
+                aria-expanded={pickerOpen}
+                onClick={() => { setSearchQuery(""); setPickerOpen(true); }}
+                sx={{
+                  width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                  fontWeight: 600, textAlign: "left", textTransform: "none", gap: 1.5, "&&": { minHeight: 44 },
                 }}
-                sx={{ "&&": { minHeight: 44 } }}
               >
-                {t("allFlocksOption")}
+                <Box component="span" id={scopeValueId} sx={{ overflowWrap: "anywhere" }}>{scopeName}</Box>
+                <ChevronRight size={18} aria-hidden focusable={false} />
               </Button>
-              <Box sx={{ minWidth: 160, flexGrow: 1 }}>
-                <FlockPicker
-                  label={t("flockScopeLabel")}
-                  eligibility="active-and-depleted"
-                  open={flockPickerOpen}
-                  controlledCommitted={pickerFlock}
-                  controlledGeneration={pickerFlockGen}
-                  onCommit={(f) => {
-                    setScope({ kind: "flock", flock: f });
-                    setPickerFlock(f);
-                    setPickerFlockGen((g) => g + 1);
-                    setFlockPickerOpen(false);
-                  }}
-                  onEscape={() => setFlockPickerOpen(false)}
-                  onOutsideClick={() => setFlockPickerOpen(false)}
-                  trigger={
-                    <button
-                      type="button"
-                      className="named-picker-trigger"
-                      onClick={() => setFlockPickerOpen(true)}
-                    >
-                      {scopeName}
-                    </button>
-                  }
+            )}
+          </Box>
+          <Typography className="trend-context" variant="caption" color="text.secondary" sx={{ display: "block" }}>
+            {t("layRateContext", { scope: contextScope, from: fmt.date(daysBefore(today, 14)), to: fmt.date(daysBefore(today, 1)) })}
+          </Typography>
+
+          {soleFlock === null && (
+            <Dialog open={pickerOpen} onClose={() => setPickerOpen(false)} fullWidth maxWidth="xs" aria-labelledby={pickerTitleId}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.25, p: 2, pb: 1 }}>
+                <Typography id={pickerTitleId} sx={{ fontWeight: 700 }}>{t("chooseFlockTitle")}</Typography>
+                <IconButton onClick={() => setPickerOpen(false)} aria-label={t("closeFlockSelectorAction")} sx={{ width: 44, height: 44 }}>
+                  <X size={22} />
+                </IconButton>
+              </Box>
+              <Box sx={{ px: 2 }}>
+                <Typography component="label" htmlFor={searchInputId} variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                  {t("searchAccessibleFlocksLabel")}
+                </Typography>
+                <TextField
+                  id={searchInputId} type="search" fullWidth size="small" autoComplete="off"
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t("searchByNamePlaceholder")}
                 />
               </Box>
-            </Box>
-          ) : null}
+              {/* Pinned ABOVE the scrolling result list, never a row inside
+                  it (SELECTION.md / the mockup's #allChoice). */}
+              <Button
+                fullWidth onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                aria-pressed={scope.kind === "all"}
+                sx={{ justifyContent: "space-between", textTransform: "none", mt: 1.5, mx: 2, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
+              >
+                <span>{t("allFlocksOption")}</span>
+                <Typography component="span" variant="caption" color="text.secondary">
+                  {t("accessibleFlocksCount", { count: accessibleCount })}
+                </Typography>
+              </Button>
+              <Typography variant="caption" color="text.secondary" role="status" sx={{ display: "block", px: 2, mt: 1.5, mb: 0.5 }}>
+                {t("matchingFlocksCount", { count: filteredFlocks.length })}
+              </Typography>
+              <Box component="ul" role="list" aria-label={t("flockScopeResultsLabel")}
+                sx={{ listStyle: "none", m: 0, p: 0, maxHeight: 180, overflow: "auto", borderTop: "1px solid var(--rule)" }}
+              >
+                {filteredFlocks.length === 0 ? (
+                  <Typography sx={{ p: 1.5, fontSize: "13px" }}>{t("noMatchingFlocksMessage")}</Typography>
+                ) : filteredFlocks.map((f) => (
+                  <Box component="li" key={f.id}>
+                    <Button
+                      fullWidth onClick={() => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
+                      aria-pressed={scope.kind === "flock" && scope.flock.id === f.id}
+                      sx={{
+                        justifyContent: "flex-start", textAlign: "left", textTransform: "none",
+                        borderRadius: 0, borderBottom: "1px solid var(--rule)", "&&": { minHeight: 44 },
+                      }}
+                    >
+                      {f.name}
+                    </Button>
+                  </Box>
+                ))}
+              </Box>
+            </Dialog>
+          )}
+
           {trendLoading ? <LinearProgress aria-label={t("trendPanelTitle")} sx={{ height: 5, borderRadius: 2, mb: 1 }} />
             : trendData === null ? panelError : <>
-              <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
-              <Typography className="trend-sub" variant="caption" sx={{ display: "block", mb: 1.5 }}>{t("henDaySubLabel")}</Typography>
               <DayStrip data={trendData.line} label={trendLabel(trendData.line)}
-                title={t(trendData.line.scale === "partial" ? "trendScaleTitlePartial" : "trendScaleTitle")}
-                peak={trendData.line.max === null ? "—" : t("trendPeak", { total: fmt.count(trendData.line.max) })}
-                average={trendData.line.average === null ? null : t("trendAvg", { total: fmt.count(trendData.line.average, 1) })}
+                title={t(
+                  trendData.line.scale === "partial" ? "trendScaleTitlePartial"
+                    : trendData.line.scale === "none" ? "trendScaleTitleNone"
+                      : "trendScaleTitle",
+                )}
+                peak={t("trendPeak", { total: trendData.line.max === null ? "—" : fmt.count(trendData.line.max) })}
+                average={trendData.line.average === null ? t("trendNoCompleteAvg") : t("trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
+                legend={{ complete: t("legendComplete"), partial: t("legendPartial"), noEntry: t("legendNoEntry") }}
                 tip={trendTip} from={<FarmDate iso={daysBefore(today, 14)} />} to={<FarmDate iso={daysBefore(today, 1)} />} />
+              <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
+              <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>{t("henDaySubLabel")}</Typography>
           </>}
         </Card>
       </Box>

@@ -29,9 +29,11 @@ const tip = (s: DayStripSlot) => {
   }
 };
 
+const legend = { complete: "Complete", partial: "Partial", noEntry: "No entry" };
+
 const strip = (d: DayStripData = data, label = "Eggs per day") => (
   <DayStrip
-    data={d} label={label} title="Eggs per day" peak="Peak 10" average="Avg 5"
+    data={d} label={label} title="Eggs per day" peak="Peak 10" average="Avg 5" legend={legend}
     tip={tip} from="1 Jul" to="3 Jul"
   />
 );
@@ -212,5 +214,13 @@ describe("DayStrip (#654, #777, #780)", () => {
   it("keeps the readout's row present with nothing selected", () => {
     const { container } = render(strip());
     expect(container.querySelector(".tipdock")).toBeInTheDocument();
+  });
+
+  // #918 fidelity round — the approved mockup's key, always present and
+  // always all three states regardless of what the window actually contains.
+  it("renders the three-item legend the caller translates", () => {
+    render(strip());
+    const items = screen.getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual(["Complete", "Partial", "No entry"]);
   });
 });
