@@ -142,7 +142,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // as a complete day that produced less.
   it("keeps a partly recorded day out of the peak and the average", () => {
     const d = dayStrip({ days: [day("2026-07-01", 300), partly("2026-07-02", 500, 2, 3), day("2026-07-03", 200)] });
-    expect(d).toMatchObject({ max: 300, average: 250, complete: 2, partial: 1, unrecorded: 0 });
+    expect(d).toMatchObject({ max: 300, average: 250, complete: 2, partial: 1, unrecorded: 0, scale: "complete" });
     expect(d.slots[1]).toMatchObject({ kind: "partial", eggs: 500, filedFlocks: 2, expectedFlocks: 3 });
     // 500 over a 300 peak would overflow the slot, so the bar caps at the top.
     expect(d.slots[1]).toMatchObject({ heightPct: 100 });
@@ -163,9 +163,55 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     expect(d).toMatchObject({ max: 900, average: 900, complete: 1, partial: 1 });
   });
 
-  it("has no peak or average when no day was recorded by every flock", () => {
+  // #916 — the bug: with no complete day, `max` used to fall straight to
+  // `null`, so `height()` drew the 2% floor for every bar regardless of how
+  // the partial days actually compared. The window still has ONE partial
+  // day with a real figure (500), so the strip must scale to it rather than
+  // collapse — the missing day beside it stays undrawable either way.
+  it("scales to the partial peak (not the 2% floor) when no day is complete, and keeps the average unset", () => {
     const d = dayStrip({ days: [partly("2026-07-01", 500, 2, 3), missing("2026-07-02")] });
-    expect(d).toMatchObject({ max: null, average: null, averagePct: null, complete: 0, partial: 1, unrecorded: 1 });
+    expect(d).toMatchObject({
+      max: 500, average: null, averagePct: null, complete: 0, partial: 1, unrecorded: 1, scale: "partial",
+    });
+    expect(d.slots[0]).toMatchObject({ kind: "partial", heightPct: 100 });
+    expect(d.slots[1].kind).toBe("unrecorded");
+  });
+
+  // #916 — three partial days, no complete day anywhere: the fallback peak is
+  // the largest PARTIAL total (600), and every bar scales against it, not
+  // against a floor that would draw all three as the same hairline stub.
+  it("scales every bar to the partial peak across a whole no-complete-day window", () => {
+    const d = dayStrip({
+      days: [
+        partly("2026-07-01", 300, 2, 3),
+        partly("2026-07-02", 600, 1, 3),
+        partly("2026-07-03", 450, 2, 3),
+      ],
+    });
+    expect(d).toMatchObject({ max: 600, average: null, complete: 0, partial: 3, scale: "partial" });
+    expect(d.slots.map((s) => (s.kind === "partial" ? s.heightPct : null))).toEqual([50, 100, 75]);
+  });
+
+  // #916 — a recorded zero stays a floor stub even under the fallback scale:
+  // 0 must not be misread as "nothing happened" (that is `unrecorded`).
+  it("keeps the 2% floor for a partial day that recorded zero, under the fallback scale", () => {
+    const d = dayStrip({ days: [partly("2026-07-01", 0, 2, 3), partly("2026-07-02", 400, 2, 3)] });
+    expect(d).toMatchObject({ max: 400, scale: "partial" });
+    expect(d.slots[0]).toMatchObject({ kind: "partial", heightPct: 2 });
+  });
+
+  // #916 — the ordinary complete-day window is untouched: one complete day
+  // among bigger partial totals still sets the peak, and the partial days
+  // still cap at 100% rather than pulling the peak up to their own total.
+  it("keeps the complete-day scale (never the partial fallback) when any complete day exists", () => {
+    const d = dayStrip({ days: [day("2026-07-01", 200), partly("2026-07-02", 900, 2, 3)] });
+    expect(d).toMatchObject({ max: 200, average: 200, complete: 1, partial: 1, scale: "complete" });
+    expect(d.slots[1]).toMatchObject({ kind: "partial", heightPct: 100 });
+  });
+
+  it("reports scale \"none\" when nothing in the window was recorded at all", () => {
+    const d = dayStrip({ days: [missing("2026-07-01"), missing("2026-07-02")] });
+    expect(d).toMatchObject({ max: null, average: null, scale: "none" });
   });
 
   it("owes nothing on a day the farm had no flocks, rather than counting a gap", () => {

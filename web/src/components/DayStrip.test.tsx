@@ -17,7 +17,7 @@ const part = (date: string, eggs: number, heightPct: number): DayStripSlot =>
 // all used to render as the same empty slot.
 const data: DayStripData = {
   slots: [rec("2026-07-01", 10, 100), rec("2026-07-02", 0, 2), part("2026-07-04", 6, 60), gap("2026-07-03", true)],
-  max: 10, average: 5, averagePct: 50, complete: 2, partial: 1, unrecorded: 1,
+  max: 10, average: 5, averagePct: 50, complete: 2, partial: 1, unrecorded: 1, scale: "complete",
 };
 
 const tip = (s: DayStripSlot) => {
@@ -67,7 +67,7 @@ describe("DayStrip (#654, #777, #780)", () => {
     expect(screen.getByText("Avg 5")).toBeInTheDocument();
     expect(screen.getByText("1 Jul")).toBeInTheDocument();
 
-    rerender(strip({ slots: [gap("2026-08-01")], max: null, average: null, averagePct: null, complete: 0, partial: 0, unrecorded: 1 }, "Flat"));
+    rerender(strip({ slots: [gap("2026-08-01")], max: null, average: null, averagePct: null, complete: 0, partial: 0, unrecorded: 1, scale: "none" }, "Flat"));
     expect(screen.getByRole("group", { name: "Flat" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Eggs per day" })).not.toBeInTheDocument();
   });
