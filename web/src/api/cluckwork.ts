@@ -1160,8 +1160,12 @@ export interface ProfitReport {
 
 const rangeQuery = (from: string, to: string) => `?from=${from}&to=${to}`;
 
-export const getProductionReport = (from: string, to: string) =>
-  apiGet<ProductionReport>(`/reports/production${rangeQuery(from, to)}`);
+// #916 — `flockId` scopes the whole report (days, totals, hen-day %) to one
+// flock, server-side (IReportQueries.cs / FlockScope's own query filter): the
+// browser never filters an unscoped payload itself. Omitted, the report
+// covers every flock the caller can see, exactly as before.
+export const getProductionReport = (from: string, to: string, flockId?: string) =>
+  apiGet<ProductionReport>(`/reports/production${rangeQuery(from, to)}${flockId ? `&flockId=${flockId}` : ""}`);
 export const getSalesSummary = (from: string, to: string) =>
   apiGet<SalesSummary>(`/reports/sales${rangeQuery(from, to)}`);
 export const getExpenseSummary = (from: string, to: string) =>

@@ -145,7 +145,7 @@ public sealed class ReportQueryBoundingTests(CluckworkWebApplicationFactory fact
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             reportQueries.GetProductionAsync(
-                Today.AddDays(-1), Today, new CancellationToken(canceled: true)));
+                Today.AddDays(-1), Today, ct: new CancellationToken(canceled: true)));
     }
 }
 
