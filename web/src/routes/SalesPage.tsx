@@ -18,7 +18,7 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { CustomerPicker } from "../components/CustomerPicker";
-import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
+import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { FilterBar } from "../components/FilterBar";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
@@ -45,6 +45,8 @@ const MANIFEST_ACTIONS_SX = {
   right: 0,
   zIndex: 1,
   minWidth: { xs: 100, md: "auto" },
+  whiteSpace: { md: "nowrap" },
+  "& [role=status]": { whiteSpace: "normal" },
   "& button": { display: { xs: "block", md: "inline-flex" }, minHeight: { xs: 44, md: "auto" } },
 };
 // Keep picker width stable when its trigger switches between a button and input.
@@ -245,6 +247,15 @@ function orderListPriceBasis(items: OrderItem[]): OrderListPriceBasis {
   const preDating = items.filter((i) => i.listPriceBasis === "PreDating").length;
   if (preDating === 0) return "nonePreDating";
   return preDating === items.length ? "allPreDating" : "mixed";
+}
+
+function orderListValue(items: OrderItem[]): number | null {
+  let total = 0;
+  for (const item of items) {
+    if (item.listUnitPriceMinorUnits === null) return null;
+    total += item.listUnitPriceMinorUnits * item.quantity;
+  }
+  return total;
 }
 
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
@@ -1092,10 +1103,14 @@ export function SalesPage() {
   if (setupError) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{setupError}</p></FieldConsole>;
   if (orders.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{t("loading")}</p></FieldConsole>;
 
+  const listValue = active ? orderListValue(active.items) : null;
+  const outstanding = active?.status === "Confirmed" && payments
+    ? payments.outstandingMinorUnits : active?.outstandingMinorUnits;
+
   return (
     <FieldConsole>
-      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h2">{t("title")}</Typography>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) auto" }, gap: 1.5, alignItems: "start" }}>
+        <Box><Typography variant="h2">{t("title")}</Typography><Typography variant="body2" className="muted" sx={{ fontSize: ".8125rem" }}>{t("intro")}</Typography></Box>
         {/* #655 — also withheld exactly when the truly-empty state below is
             offering this same action (never for the filtered-empty branch,
             which offers "Clear filters" instead — no duplicate there). */}
@@ -1104,7 +1119,7 @@ export function SalesPage() {
           // farm-midnight would otherwise offer yesterday as the order date
           // while the picker's own ceiling had already moved on (codex review
           // of #123).
-          <button type="button" onClick={() => {
+          <Button variant="contained" type="button" sx={{ minHeight: 44, width: { xs: "100%", md: "auto" } }} onClick={() => {
             // Nothing to clear on the way in: #479 moved that onto the
             // dismissal, so the slot is already empty before a reopen.
             setOrderDate(today);
@@ -1113,9 +1128,9 @@ export function SalesPage() {
             setCreatingOrder(true);
           }}>
             <Plus size={16} aria-hidden /> {t("newOrder")}
-          </button>
+          </Button>
         )}
-      </Stack>
+      </Box>
 
       {customers.length === 0 && (
         <p className="muted">{t("addCustomerFirst")}</p>
@@ -1194,21 +1209,27 @@ export function SalesPage() {
         </Stack>
       </Dialog>
 
+      {active && <ConsoleSummary label={t("orderContext")} items={[
+        { label: t("reference"), value: `${active.referenceNumber} · ${statusLabel(active.status)}` },
+        { label: t("total"), value: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) },
+        ...(canSettle ? [{ label: t("outstanding"), value: outstanding == null ? "—" : fmt.money(outstanding, active.currencyCode, active.currencyMinorUnit) }] : []),
+      ]} />}
+
       {active && (
         <Box sx={{ my: 3 }} role="region" aria-labelledby={orderPanelHeadingId}>
-          <Typography variant="h3" component="h3" id={orderPanelHeadingId}>
-            {active.referenceNumber} — {rowCustomerName(active)}{" "}
-            <span className={active.status === "Draft" ? "muted" : "warn"}>
-              [{statusLabel(active.status)}]
-            </span>
-          </Typography>
-
           <Box sx={CONSOLE_SPLIT_SX}>
             <Box sx={CONSOLE_PANEL_SX}>
-              <Typography component="h4" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.25rem", mb: 2 }}>{t("manifestHeading")}</Typography>
+              <Box component="header" sx={{ pb: 1.5, mb: 1.5, borderBottom: "1px solid var(--rule)" }}>
+                <Typography variant="h3" component="h3" id={orderPanelHeadingId} sx={{ "&&": { m: 0 }, display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+                  {active.referenceNumber} — {rowCustomerName(active)}{" "}
+                  <span className={active.status === "Draft" ? "muted" : "warn"}>
+                    [{statusLabel(active.status)}]
+                  </span>
+                </Typography>
+              </Box>
               {active.items.length > 0 && (
                 <LedgerTableContainer>
-                  <Table size="small">
+                  <Table size="small" sx={{ "& .MuiTableCell-root": { px: .75, py: .75 } }}>
                     <TableHead>
                       <TableRow>
                         <TableCell>{t("product")}</TableCell>
@@ -1330,7 +1351,11 @@ export function SalesPage() {
               )}
               {active.status === "Draft" && (
                 <>
-                  <Stack sx={{ ...CONSOLE_FORM_SX, my: 2 }}>
+                  <Stack sx={{ ...CONSOLE_FORM_SX, my: 2,
+                    gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1.2fr) minmax(0, .7fr) minmax(145px, 1fr) minmax(0, 1fr)" },
+                    gap: 1.5,
+                    "& .numfield input": { minWidth: 0, width: "100%" },
+                  }}>
                     <TextField
                       select
                       label={t("product")}
@@ -1390,7 +1415,7 @@ export function SalesPage() {
                       slotProps={{ htmlInput: { min: 0, step: 10 ** -active.currencyMinorUnit } }}
                       onChange={(e) => setPrice(e.target.value)}
                     />
-                    <BusyButton component={Button} variant="outlined" color="inherit" disabled={busy || !productId} busy={isPending("add-item")}
+                    <BusyButton component={Button} variant="contained" sx={{ gridColumn: "1 / -1", justifySelf: "start", "&&": { width: { xs: "100%", md: "auto" } } }} disabled={busy || !productId} busy={isPending("add-item")}
                       onClick={onAddItem}>{t("addLine")}</BusyButton>
                   </Stack>
                   {/* Keep the hint outside the grid so translations cannot overlap the input. */}
@@ -1427,58 +1452,74 @@ export function SalesPage() {
               "& .muted, & .discount-note": { color: "#cfc4cb" },
               "& .discount, & .warn": { color: "#ffcf85" },
               "& .MuiTableCell-root": { color: "inherit" },
-              "& .actions": { flexDirection: "column", alignItems: "stretch" },
+              "& .actions": { alignItems: "stretch" },
+              "& .actions:not([role=group])": { flexDirection: "column" },
               "& .actions > button": { minHeight: 44 },
             }}>
-              <Typography component="h4" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.25rem", mb: 2 }}>{t("settlementHeading")}</Typography>
-              {(active.status === "Draft" || active.status === "Confirmed") && (
-                <Box sx={{ borderBottom: "1px solid #6b5b65", pb: 2, mb: 2 }}>
-                  <Typography variant="body2">{t("stockCommitment")}</Typography>
-                  <Typography variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.75rem" }}>
-                    {t("eggsCount", {
+              <Typography component="p" variant="body2" aria-label={t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })} sx={{ mt: 0, mb: 2 }}>
+                <Box component="span" sx={{ display: "block", fontSize: ".8rem" }}>{t("total")}</Box>
+                <Box component="strong" sx={{ display: "block", fontSize: "1.75rem", fontVariantNumeric: "tabular-nums" }}>{fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit)}</Box>
+              </Typography>
+              <Box component="dl" sx={{ m: 0,
+                "& > div": { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 1.5, py: 1, borderTop: "1px solid var(--rule)", fontSize: ".8rem" },
+                "& dd": { m: 0, textAlign: "right", fontVariantNumeric: "tabular-nums" },
+                "& dd p": { m: 0 },
+              }}>
+                <Box>
+                  <Box component="dt">{t("listValue")}</Box>
+                  <Box component="dd" aria-label={t("listValue")} title={listValue === null ? t("listValueIncomplete") : undefined}>
+                    {listValue === null ? "—" : fmt.money(listValue, active.currencyCode, active.currencyMinorUnit)}
+                  </Box>
+                </Box>
+                <Box>
+                  <Box component="dt">{t("discount")}</Box>
+                  <Box component="dd">
+                    {(() => {
+                      const orderLevel = orderDiscount(active.items);
+                      // Unpriced lines make an otherwise at-list order only partially measurable.
+                      if (orderLevel.kind === "atList" && orderLevel.partial) {
+                        return (
+                          <p className="discount-note" data-testid="order-discount-partial">
+                            {t("discountPartialOnly")}
+                          </p>
+                        );
+                      }
+
+                      if (orderLevel.kind === "unknown") {
+                        return (
+                          <p className="discount-note" data-testid="order-discount-unknown">
+                            {{
+                              allPreDating: t("discountUnrecordedOrder"),
+                              nonePreDating: t("discountUnknownOrder"),
+                              mixed: t("discountPartlyUnrecordedOrder"),
+                            }[orderListPriceBasis(active.items)]}
+                          </p>
+                        );
+                      }
+                      if (orderLevel.kind !== "below") return <span>{t("atListShort")}</span>;
+                      const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
+                      return (
+                        <p className="discount" data-testid="order-discount">
+                          {orderLevel.percent === null
+                            ? t("discountTotalNoPct", { amount })
+                            : t("discountTotal", { amount, percent: discountPercent(orderLevel.percent) })}
+                          {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
+                        </p>
+                      );
+                    })()}
+                  </Box>
+                </Box>
+                {(active.status === "Draft" || active.status === "Confirmed") && <Box>
+                  <Box component="dt">{t("stockCommitment")}</Box>
+                  <Box component="dd">{t("eggsCount", {
                       count: active.items.reduce((sum, item) => sum + (
                         editor && editingLine?.id === item.id
                           ? editor.quantity * item.baseUnitFactor
                           : item.quantityBase
                       ), 0),
-                    })}
-                  </Typography>
-                </Box>
-              )}
-
-              {(() => {
-                const orderLevel = orderDiscount(active.items);
-                // Unpriced lines make an otherwise at-list order only partially measurable.
-                if (orderLevel.kind === "atList" && orderLevel.partial) {
-                  return (
-                    <p className="discount-note" data-testid="order-discount-partial">
-                      {t("discountPartialOnly")}
-                    </p>
-                  );
-                }
-
-                if (orderLevel.kind === "unknown") {
-                  return (
-                    <p className="discount-note" data-testid="order-discount-unknown">
-                      {{
-                        allPreDating: t("discountUnrecordedOrder"),
-                        nonePreDating: t("discountUnknownOrder"),
-                        mixed: t("discountPartlyUnrecordedOrder"),
-                      }[orderListPriceBasis(active.items)]}
-                    </p>
-                  );
-                }
-                if (orderLevel.kind !== "below") return null;
-                const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
-                return (
-                  <p className="discount" data-testid="order-discount">
-                    {orderLevel.percent === null
-                      ? t("discountTotalNoPct", { amount })
-                      : t("discountTotal", { amount, percent: discountPercent(orderLevel.percent) })}
-                    {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
-                  </p>
-                );
-              })()}
+                    })}</Box>
+                </Box>}
+              </Box>
               {/* Older orders have no backfilled discount reason; absence means it was not recorded. */}
               {active.discountReasonCode && (
                 <p className="discount-note" data-testid="order-discount-reason">
@@ -1492,7 +1533,6 @@ export function SalesPage() {
                       })}
                 </p>
               )}
-              <Typography component="p" variant="body2" sx={{ fontFamily: "Georgia, serif", fontSize: "1.5rem" }}><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></Typography>
 
               {active.status === "Draft" && (
                 <>
@@ -1502,15 +1542,18 @@ export function SalesPage() {
                       {t("discountCeilingWarning", { percent: ceilingPercent })}
                     </p>
                   )}
-                  <div className="actions">
+                  <Box className="actions" role="group" aria-label={t("draftActions")} sx={{
+                    "&&": { flexDirection: "row", flexWrap: "nowrap" },
+                    "& > button": { flex: "1 1 50%", boxSizing: "border-box", minWidth: 0, minHeight: 44, px: 1, fontSize: ".8rem" },
+                  }}>
+                    <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                      onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
                     <BusyButton component={Button} variant="contained" disabled={busy || active.items.length === 0}
                       busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                       {t("confirmOrderButton")}
                     </BusyButton>
-                    <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
-                      onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
-                    <Button variant="outlined" color="inherit" onClick={closeOrderPanel}>{t("close")}</Button>
-                  </div>
+                  </Box>
+                  <Button variant="outlined" color="inherit" fullWidth sx={{ minHeight: 44, mt: 1 }} onClick={closeOrderPanel}>{t("close")}</Button>
                 </>
               )}
               {active.status === "Confirmed" && canSettle && payments && (

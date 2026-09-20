@@ -112,7 +112,7 @@ declare -A SPEC_FOR=(
   [phone-tabbar-removed]="specs/phone.spec.ts"
   [phone-mui-table-overflow-unclipped]="specs/phone.spec.ts"
   [phone-tabs-inert]="specs/phone.spec.ts"
-  [phone-action-label-wrapped]="specs/phone.spec.ts"
+  [phone-sales-draft-actions-stacked]="specs/phone.spec.ts"
   [phone-entry-foot-stacked]="specs/phone.spec.ts"
   [phone-dialog-footer-stacked]="specs/phone.spec.ts"
 )
@@ -150,7 +150,7 @@ declare -A PROJECT_FOR=(
   [phone-tabbar-removed]="chromium-phone"
   [phone-mui-table-overflow-unclipped]="chromium-phone"
   [phone-tabs-inert]="chromium-phone"
-  [phone-action-label-wrapped]="chromium-phone"
+  [phone-sales-draft-actions-stacked]="chromium-phone"
   [phone-entry-foot-stacked]="chromium-phone"
   [phone-dialog-footer-stacked]="chromium-phone"
 )
@@ -164,7 +164,7 @@ declare -A MUST_STAY_GREEN_ON=(
   [phone-tabbar-removed]="chromium"
   [phone-mui-table-overflow-unclipped]="chromium"
   [phone-tabs-inert]="chromium"
-  [phone-action-label-wrapped]="chromium"
+  [phone-sales-draft-actions-stacked]="chromium"
   [phone-entry-foot-stacked]="chromium"
   [phone-dialog-footer-stacked]="chromium"
 )
@@ -221,7 +221,7 @@ declare -A GREP_FOR=(
   [phone-tabbar-removed]="the tab bar is the navigation at this width"
   [phone-mui-table-overflow-unclipped]="no walked screen overflows"
   [phone-tabs-inert]="the tab bar is the navigation at this width"
-  [phone-action-label-wrapped]="no action control is taller than it is wide"
+  [phone-sales-draft-actions-stacked]="no action control is taller than it is wide"
   [phone-entry-foot-stacked]="no action control is taller than it is wide"
   [phone-dialog-footer-stacked]="no action control is taller than it is wide"
 )
@@ -264,24 +264,8 @@ declare -A FALSE_KILLS=(
 # Require failures from separate tables so the overflow walk must continue
 # after its first offender. Stock's grade board has no comparison table.
 #
-# The two phone action mutants split the walk's rule between them, and each
-# declares only what it can actually redden. #823 stacks every action row below
-# 900px EXCEPT the daily-entry save bar, which stays side by side (F134, and the
-# #864 mockup the owner confirmed). So `phone-action-label-wrapped` un-stacks
-# the rows that must stack and reddens the Sales draft panel alone, while
-# `phone-entry-foot-stacked` stacks the one row that must not and reddens the
-# daily-entry bar alone. Neither can reach the other's assertion, which is why
-# there are two: with only the first, the walk's side-by-side branch was an
-# assertion nothing could falsify.
-#
-# `phone-action-label-wrapped` also declares the original taller-than-wide line,
-# observed on `close` at 54.0x65.2. Without it that assertion would be free to
-# rot behind the newer width check.
-#
-# No fragment carries a measurement or a control LABEL. The observed lines name
-# percentages and English button text, and pinning either would turn a font
-# shift or a re-worded label into a WRONG ASSERTION against a mutant that
-# worked. Row names are this file's own prose and are safe to pin.
+# Sales draft actions, Daily Entry saves and dialog footers each keep paired controls.
+# Separate mutants prove each row can fail without changing the desktop control.
 declare -A EXPECT_MSG_FOR=(
   [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
   [users-gate-removed]="/users rendered no error for a ReadOnly user"
@@ -314,8 +298,8 @@ SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [phone-action-bar-under-tabbar]="the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it"
   [phone-tabbar-removed]="there is no tab bar at phone width, so nothing can be navigated to"
   [phone-tabs-inert]="a tap at the centre of the Sales tab does not land on it"
-  [phone-action-label-wrapped]="in the Sales draft-order panel spans
-taller than it is wide, so its pill clamps into an ellipse"
+  [phone-sales-draft-actions-stacked]="the Sales draft-order panel's row is not laid out as a row (computed flex-direction: column)
+the Sales draft-order panel's buttons share no common vertical band"
   [phone-entry-foot-stacked]="in the daily-entry save bar spans"
   [phone-dialog-footer-stacked]="dialog footer's row is not laid out as a row (computed flex-direction: column)
 dialog footer's buttons share no common vertical band"
@@ -337,7 +321,7 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-probe-alert-control-broken a11y-probe-alert-control-silenced
            a11y-probe-off-role-dropped
            phone-action-bar-under-tabbar phone-tabbar-removed
-           phone-mui-table-overflow-unclipped phone-action-label-wrapped
+           phone-mui-table-overflow-unclipped phone-sales-draft-actions-stacked
            phone-entry-foot-stacked phone-dialog-footer-stacked
            phone-tabs-inert)
 fi
