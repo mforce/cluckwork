@@ -75,7 +75,7 @@ describe("below-list exception text", () => {
 // Over-ceiling warnings retain their destructive chip on the plain paper.
 describe(".badge-danger — over-maximum remains distinct from below-list text", () => {
   const chip = declarationsFor(".badge-danger");
-  const rowTintToken = "--surface";
+  const paperToken = "--surface";
 
   it("fills from a token, like every other chip", () => {
     expect(chip.get("background")).toMatch(/^var\(--[a-z0-9-]+\)$/);
@@ -83,20 +83,20 @@ describe(".badge-danger — over-maximum remains distinct from below-list text",
 
   it("does not reuse the paper surface token", () => {
     const tok = (v: string | undefined) => /^var\((--[a-z0-9-]+)\)$/.exec(v ?? "")?.[1];
-    expect(tok(chip.get("background"))).not.toBe(rowTintToken);
+    expect(tok(chip.get("background"))).not.toBe(paperToken);
   });
 
   describe.each(BRANDS.flatMap((brand) => MODES.map((mode) => [brand, mode] as const)))(
     "%s / %s",
     (brand, mode) => {
-      it("resolves to a colour that contrasts with the row tint", () => {
+      it("contrasts with the paper surface", () => {
         const resolved = resolveTokens(attrFor(brand), mode);
         const tok = (v: string | undefined) => /^var\((--[a-z0-9-]+)\)$/.exec(v ?? "")?.[1];
         const chipColour = resolved.get(tok(chip.get("background"))!);
-        const rowColour = resolved.get(rowTintToken);
+        const paperColour = resolved.get(paperToken);
         expect(chipColour, "chip fill does not resolve").toBeDefined();
-        expect(rowColour, "row tint does not resolve").toBeDefined();
-        expect(contrast(chipColour!, rowColour!), `chip ${chipColour} vs row ${rowColour}`)
+        expect(paperColour, "row tint does not resolve").toBeDefined();
+        expect(contrast(chipColour!, paperColour!), `chip ${chipColour} vs paper ${paperColour}`)
           .toBeGreaterThan(1.02);
       });
     },

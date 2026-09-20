@@ -53,7 +53,7 @@ const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidt
 
 function OrderStatus({ status }: { status: SalesOrder["status"] }) {
   return <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap",
-    "&::before": { content: '\'\'', width: "6px", height: "6px", borderRadius: "50%",
+    "&::before": { content: "''", width: "6px", height: "6px", borderRadius: "50%",
       bgcolor: status === "Draft" ? "var(--warn)" : status === "Confirmed" ? "var(--success)" : "var(--error)" },
   }}>{statusLabel(status)}</Box>;
 }
@@ -1273,7 +1273,6 @@ export function SalesPage() {
                     </TableHead>
                     <TableBody>
                     {active.items.map((i) => {
-                      // Incomplete edited prices retain the saved line display.
                       const editingThis = !!editor && editingLine?.id === i.id;
                       const typed = editingThis
                         ? parseMoneyToMinorUnits(editor.price, active.currencyMinorUnit)

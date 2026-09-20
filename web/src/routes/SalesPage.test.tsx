@@ -1259,9 +1259,6 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     mockListOrders.mockResolvedValue([listedOrder("disc", [ITEM_A, ITEM_B], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-disc/ });
-    // Cell 4 is the Discount column: Reference, Date, Customer, Status,
-    // Discount, Total, Provenance, actions. Scoping to the row alone let the
-    // text pass from any cell, and let a plain string pass as a badge.
     const cell = within(row).getAllByRole("cell")[4];
     expect(within(cell).getByText(
       i18n.t("sales:discountBadge", { percent: "17.7", amount: "$6.25" }),
@@ -1377,8 +1374,6 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
     const cell = outstandingCell(/SO-paid/);
     expect(within(cell).getByText(i18n.t("sales:settledBadge")))
       .not.toHaveClass("badge");
-    // Nothing owed, so no money at all in the cell — a "$0.00" here reads as a
-    // debt at a glance, which is the misreading the badge exists to prevent.
     expect(cell).not.toHaveTextContent("$0.00");
     expect(cell).not.toHaveTextContent("0.00");
   });
@@ -3991,7 +3986,6 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     const row = await beginEdit();
     // ITEM_A: 3 x $3.00 against a $3.75 list — below list before a key is pressed.
     expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("$2.25");
 
     // Typed UP to the list price: no longer a discount, so every marker goes.
@@ -4009,7 +4003,6 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     // Back below list: the markers come back rather than sticking.
     typePrice("2.00");
     expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
   });
 
   it("falls back to the saved line rather than flickering when the price box is unparseable", async () => {
