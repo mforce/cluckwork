@@ -1305,7 +1305,12 @@ export function SalesPage() {
                           )}
                           {discount.kind === "none" && (
                             <> <span className="badge">{listPriceBasisLabel(i.listPriceBasis)}</span></>
-                          )}</TableCell>
+                          )}
+                          {!editingThis && <Box component="span" className="sr-only" sx={{ display: { xs: "inline", md: "none" } }}>
+                            {t("unitPrice")} {fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}{", "}
+                            {t("lineTotal")} {fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}
+                          </Box>}
+                        </TableCell>
                         {editor && editingLine?.id === i.id ? (
                           <>
                             <TableCell align="right">
