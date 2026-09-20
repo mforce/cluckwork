@@ -137,9 +137,9 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
   const max = pool.length === 0 ? null : Math.max(...pool);
   const breakAt = recentCount > 0 && recentCount < days.length ? days.length - recentCount : -1;
 
-  // Height is a share of the complete-day peak. A partial day can therefore
-  // exceed 100% — two big houses out of three can beat a quiet complete day —
-  // so it is capped rather than allowed to overflow its slot.
+  // Height is a share of `max`, whichever pool it came from. A partial day
+  // can therefore exceed 100% — two big houses out of three can beat a quiet
+  // complete day — so it is capped rather than allowed to overflow its slot.
   const height = (eggs: number) =>
     max !== null && max > 0 ? Math.min(100, Math.max(2, r1((eggs / max) * 100))) : 2;
 

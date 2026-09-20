@@ -447,7 +447,6 @@ export function Dashboard() {
                   open={flockPickerOpen}
                   controlledCommitted={pickerFlock}
                   controlledGeneration={pickerFlockGen}
-                  onSnapshot={() => {}}
                   onCommit={(f) => {
                     setScope({ kind: "flock", flock: f });
                     setPickerFlock(f);
