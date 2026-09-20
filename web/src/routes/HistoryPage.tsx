@@ -18,7 +18,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
-import { FieldConsole, LedgerTableContainer, ConsoleSummary } from "../components/FieldConsole";
+import { FieldConsole, CONSOLE_LINK_SX, LedgerTableContainer, ConsoleSummary } from "../components/FieldConsole";
 import { EntryRow } from "../components/EntryRow";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
@@ -29,7 +29,6 @@ import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
-import { StatusBadge } from "../components/StatusBadge";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { useFarm } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
@@ -508,27 +507,17 @@ export function HistoryPage() {
   }
 
   function statusCell(e: DailyEntry) {
-    // Colored status pills (#52). The three states with tooltips keep an
-    // explicit <span> so the title survives (StatusBadge takes no title);
-    // plain states (Submitted → ok, Draft → neutral) go through StatusBadge.
-    // This pill's vocabulary (Draft/Submitted/Locked/ManagerAdjusted/Voided)
-    // is DISTINCT from the shared `enums` status family — its display text
-    // lives in this `history` namespace, not enums.ts (#182, Task 27).
-    if (e.status === "Voided")
-      return <span className="badge badge-danger" title={e.voidReason ?? undefined}>{t("statusVoided")}</span>;
-    if (e.status === "ManagerAdjusted")
-      return <span className="badge badge-warn" title={e.adjustReason ?? undefined}>{t("statusAdjusted")}</span>;
-    if (e.status === "Locked")
-      return (
-        <span className="badge badge-accent"
-          title={e.lockedAtUtc ? t("lockedAt", { time: e.lockedAtUtc }) : undefined}>
-          {t("statusLocked")}
-        </span>
-      );
-    return (
-      <StatusBadge status={e.status}
-        label={t(e.status === "Submitted" ? "statusSubmitted" : "statusDraft")} />
-    );
+    const states: Record<string, { label: string; color: string; title?: string }> = {
+      Voided: { label: t("statusVoided"), color: "var(--error)", title: e.voidReason ?? undefined },
+      ManagerAdjusted: { label: t("statusAdjusted"), color: "var(--warn)", title: e.adjustReason ?? undefined },
+      Locked: { label: t("statusLocked"), color: "var(--link)", title: e.lockedAtUtc ? t("lockedAt", { time: e.lockedAtUtc }) : undefined },
+      Submitted: { label: t("statusSubmitted"), color: "var(--success)" },
+    };
+    const state = states[e.status] ?? { label: t("statusDraft"), color: "var(--warn)" };
+    return <Box component="span" title={state.title} sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap" }}>
+      <Box component="span" aria-hidden="true" sx={{ width: "6px", height: "6px", borderRadius: "50%", bgcolor: state.color, flexShrink: 0 }} />
+      {state.label}
+    </Box>;
   }
 
   // The setup read (flocks + grades) failing with nothing to show is the one
@@ -598,6 +587,7 @@ export function HistoryPage() {
         </Box>
         <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
         <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
 
       <Dialog
@@ -751,11 +741,7 @@ export function HistoryPage() {
         // No page-head create action on this screen (entries come from Daily
         // Entry); with a filter set, the fix is clearing it back to "All".
         (flockFilter || from || to)
-          ? <EmptyState icon={FilterX} message={t("noEntriesMatch")}
-              action={{
-                label: tc("clearFiltersButton"),
-                onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
-              }} />
+          ? <EmptyState icon={FilterX} message={t("noEntriesMatch")} />
           : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
         <>
@@ -800,16 +786,16 @@ export function HistoryPage() {
                         </Link>
                       )}
                       {e.status === "Draft" && flockEditable(e) && (
-                        <Button component={Link} variant="outlined" color="inherit" size="small" sx={{ ml: 1 }}
+                        <Button component={Link} size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }}
                           to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
                           {t("editButton")}
                         </Button>
                       )}
                       {isAdmin && correctable(e) && (
                         <>
-                          <Button size="small" color="warning" disabled={busy}
+                          <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }} disabled={busy}
                             onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
-                          <BusyButton component={Button} size="small" color="error" busy={isPending(`void:${e.id}`)}
+                          <BusyButton component={Button} size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)", ml: 1 }} busy={isPending(`void:${e.id}`)}
                             disabled={busy}
                             onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
                         </>

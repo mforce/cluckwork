@@ -1512,3 +1512,14 @@ it("labels status counts as loaded records in the history window", async () => {
   expect(summary).toHaveTextContent("Draft1");
   expect(summary).toHaveTextContent("Locked1");
 });
+
+it("uses an unfilled status dot, preserving the reason, and always offers filter reset", async () => {
+  mockListDailyEntries.mockResolvedValue([VOIDED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const row = await screen.findByRole("row", { name: /Voided/ });
+  const status = within(row).getByText("Voided");
+  expect(status).not.toHaveClass("badge");
+  expect(status).toHaveAttribute("title", VOIDED.voidReason);
+  expect(status.querySelector('[aria-hidden="true"]')).toHaveStyle({ width: "6px", height: "6px" });
+  expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+});
