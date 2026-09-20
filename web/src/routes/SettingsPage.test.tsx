@@ -582,6 +582,16 @@ describe("SettingsPage maximum discount (#727)", () => {
 });
 
 describe("SettingsPage palette (#149)", () => {
+  it("uses compact rectangular labelled swatch buttons", async () => {
+    await renderReady(SETTINGS({ brand: "forest" }));
+
+    const label = screen.getByRole("radio", { name: "Forest" }).closest("label");
+    expect(label).not.toBeNull();
+    const style = getComputedStyle(label!);
+    expect(style.borderRadius).toBe("4px");
+    expect(style.padding).toBe("6px 10px");
+  });
+
   it("renders a swatch for every curated palette, with the current one selected", async () => {
     await renderReady(SETTINGS({ brand: "forest" }));
 

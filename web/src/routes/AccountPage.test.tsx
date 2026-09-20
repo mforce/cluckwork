@@ -28,7 +28,9 @@ const WORKER = { sub: "u1", role: "Worker" };
 beforeEach(() => vi.resetAllMocks());
 
 function expandChangePassword() {
-  const summary = screen.getByRole("button", { name: "Change password" });
+  const summary = screen.getAllByRole("button", { name: "Change password" })
+    .find((button) => button.hasAttribute("aria-expanded"));
+  if (summary === undefined) throw new Error("Change password summary not found");
   if (summary.getAttribute("aria-expanded") !== "true") fireEvent.click(summary);
 }
 
@@ -50,6 +52,17 @@ const submit = () => {
 };
 
 describe("AccountPage (#165 self-service password change)", () => {
+  it("uses the Focus-panel width and opens Change password initially", () => {
+    renderWithProviders(<AccountPage />, { token: WORKER });
+
+    const section = screen.getByRole("heading", { name: "Account" }).closest("section");
+    expect(section).not.toBeNull();
+    expect(getComputedStyle(section!).maxWidth).toBe("760px");
+    const summary = screen.getAllByRole("button", { name: "Change password" })
+      .find((button) => button.hasAttribute("aria-expanded"));
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("changes the password and reports the other devices were signed out", async () => {
     mockChangePassword.mockResolvedValue(undefined);
     renderWithProviders(<AccountPage />, { token: WORKER });
@@ -103,7 +116,8 @@ describe("AccountPage (#165 self-service password change)", () => {
 
   it("renders for any role — every user can change their own password", async () => {
     renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "ReadOnly" } });
-    expect(screen.getByRole("button", { name: "Change password" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Change password" })
+      .some((button) => button.hasAttribute("aria-expanded"))).toBe(true);
   });
 
   it("shows the Preferences section with the language selector now that more than one language pack is installed (#182)", async () => {

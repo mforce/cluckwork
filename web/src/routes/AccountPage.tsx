@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Stack, TextField, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Stack, TextField, Typography,
 } from "@mui/material";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
@@ -69,7 +69,7 @@ export function AccountPage() {
   }
 
   return (
-    <section>
+    <Box component="section" sx={{ maxWidth: "760px" }}>
       <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
         {t("eyebrow")}
       </Typography>
@@ -96,7 +96,7 @@ export function AccountPage() {
         </AccordionDetails>
       </Accordion>
 
-      <Accordion disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
+      <Accordion defaultExpanded disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
         <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
           <Typography variant="h3" component="span">{t("changePasswordHeading")}</Typography>
         </AccordionSummary>
@@ -140,6 +140,6 @@ export function AccountPage() {
           </Stack>
         </AccordionDetails>
       </Accordion>
-    </section>
+    </Box>
   );
 }

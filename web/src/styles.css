@@ -30,11 +30,11 @@
   --link-rule: #c0c0c0; /* 28% --ink flattened over --surface (#ffffff) */
 
   /* Surfaces */
-  --canvas: #faf7fc; /* app background — a whisper of lavender */
-  --surface: #ffffff;
-  --surface-2: #f6f1f8; /* subtle inset (toolbars, meter tracks) */
+  --canvas: #f3eee8;
+  --surface: #fffdf9;
+  --surface-2: #f3eee8;
   --lavender: #f9f0ff;
-  --hairline: #e6e6e6;
+  --hairline: #ded3ca;
   /* Ruled lists (#864 direction): --rule between rows, --rule-strong (28% ink)
      under headers, above totals and under fields. */
   --rule: var(--hairline);
@@ -144,8 +144,6 @@
   --on-brand: #ffffff;
   --on-brand-mute: #bcd9c6;
   --tint-accent: #e6f2ea;
-  --canvas: #f7fbf8;
-  --surface-2: #eef6f1;
   --lavender: #eefaf1;
   --row-hover: #f5faf7;
   --auth-card-shadow: 0 20px 60px rgba(20, 67, 42, 0.14);
@@ -164,8 +162,6 @@
   --on-brand: #ffffff;
   --on-brand-mute: #c0d4e6;
   --tint-accent: #e7eff7;
-  --canvas: #f7f9fc;
-  --surface-2: #eef3f9;
   --lavender: #eef4fb;
   --row-hover: #f5f8fc;
   --auth-card-shadow: 0 20px 60px rgba(27, 58, 92, 0.14);
@@ -184,8 +180,6 @@
   --on-brand: #ffffff;
   --on-brand-mute: #eec3b3;
   --tint-accent: #f8eae4;
-  --canvas: #fdf8f6;
-  --surface-2: #f9efea;
   --lavender: #fdf0e9;
   --row-hover: #fdf6f3;
   --auth-card-shadow: 0 20px 60px rgba(107, 39, 22, 0.14);
@@ -209,11 +203,11 @@
   --muted: #b3a8b8;
   --link: var(--ink);
   --link-rule: #5c5560; /* 28% --ink flattened over --surface (dark) */
-  --canvas: #17121a;
-  --surface: #221a26;
-  --surface-2: #2b2231;
+  --canvas: #302733;
+  --surface: #231d25;
+  --surface-2: #302733;
   --lavender: #241c2a;
-  --hairline: #3a2f40;
+  --hairline: #554655;
   --rule: var(--hairline);
   --rule-strong: rgba(242, 236, 244, 0.28);
   --row-hover: #2b2231;
@@ -271,8 +265,6 @@
   --stat-accent: #a8dcbb;
   --auth-brand: #a8dcbb;
   --tint-accent: #16301f;
-  --canvas: #111814;
-  --surface-2: #1e2a22;
   --row-hover: #1e2a22;
   --lavender: #17241b;
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -287,8 +279,6 @@
   --stat-accent: #aecfeb;
   --auth-brand: #aecfeb;
   --tint-accent: #182a3b;
-  --canvas: #101519;
-  --surface-2: #1d2731;
   --row-hover: #1d2731;
   --lavender: #16202a;
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -303,8 +293,6 @@
   --stat-accent: #f2b79c;
   --auth-brand: #f2b79c;
   --tint-accent: #36211a;
-  --canvas: #1a1210;
-  --surface-2: #2e211c;
   --row-hover: #2e211c;
   --lavender: #251a16;
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);

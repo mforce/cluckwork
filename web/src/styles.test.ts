@@ -13,8 +13,8 @@ const MODES: Mode[] = ["light", "dark"];
 // therefore redeclare all of them — the omission this set exists to catch is a
 // forest farm rendering aubergine-pink accents at night.
 const DARK_REQUIRED = [
-  "--stat-accent", "--auth-brand", "--tint-accent", "--canvas",
-  "--surface-2", "--row-hover", "--lavender", "--auth-bg", "--auth-card-shadow",
+  "--stat-accent", "--auth-brand", "--tint-accent",
+  "--row-hover", "--lavender", "--auth-bg", "--auth-card-shadow",
 ];
 
 // The light base's brand-scoped LITERALS: the brand family plus the
@@ -25,9 +25,14 @@ const DARK_REQUIRED = [
 // in the light block covers both modes.
 const LIGHT_REQUIRED = [
   "--brand", "--brand-press", "--brand-tint", "--on-brand", "--on-brand-mute",
-  "--tint-accent", "--canvas", "--surface-2", "--row-hover", "--lavender",
+  "--tint-accent", "--row-hover", "--lavender",
   "--auth-bg", "--auth-card-shadow",
 ];
+
+const FIELD_CONSOLE_NEUTRALS = {
+  light: { "--canvas": "#f3eee8", "--surface": "#fffdf9", "--surface-2": "#f3eee8" },
+  dark: { "--canvas": "#302733", "--surface": "#231d25", "--surface-2": "#302733" },
+} as const;
 
 describe("design tokens: the resolver itself", () => {
   it("resolves a var() alias to a concrete colour", () => {
@@ -88,6 +93,12 @@ describe("literalColourIn", () => {
 });
 
 describe.each(BRANDS)("palette: %s", (brand) => {
+  it.each(MODES)("%s: keeps the Field Console neutral surfaces independent of the farm palette", (mode) => {
+    const tokens = resolveTokens(attrFor(brand), mode);
+    for (const [name, value] of Object.entries(FIELD_CONSOLE_NEUTRALS[mode]))
+      expect(tokens.get(name), `${brand}/${mode} ${name}`).toBe(value);
+  });
+
   it("light block declares every brand-scoped literal the light base declares", () => {
     if (brand === DEFAULT_BRAND) return; // the default IS the base
     const declared = declaredKeys(brand, "light");
@@ -232,14 +243,14 @@ const GOLDEN: Record<string, { light: Record<string, string>; dark: Record<strin
       "--brand": "#4a154b", "--brand-press": "#611f69", "--brand-tint": "#592466",
       "--on-brand": "#ffffff", "--on-brand-mute": "#d9bdde",
       "--stat-accent": "#4a154b", "--focus": "#4a154b", "--auth-brand": "#4a154b",
-      "--tint-accent": "#f3e9f5", "--canvas": "#faf7fc", "--surface-2": "#f6f1f8",
+      "--tint-accent": "#f3e9f5",
       "--row-hover": "#faf5fc", "--lavender": "#f9f0ff",
     },
     dark: {
       "--brand": "#4a154b", "--brand-press": "#611f69", "--brand-tint": "#592466",
       "--on-brand": "#ffffff", "--on-brand-mute": "#d9bdde",
       "--stat-accent": "#e6c7ec", "--focus": "#e6c7ec", "--auth-brand": "#e6c7ec",
-      "--tint-accent": "#33203a", "--canvas": "#17121a", "--surface-2": "#2b2231",
+      "--tint-accent": "#33203a",
       "--row-hover": "#2b2231", "--lavender": "#241c2a",
     },
   },
@@ -248,14 +259,14 @@ const GOLDEN: Record<string, { light: Record<string, string>; dark: Record<strin
       "--brand": "#14432a", "--brand-press": "#1b5a38", "--brand-tint": "#1a5133",
       "--on-brand": "#ffffff", "--on-brand-mute": "#bcd9c6",
       "--stat-accent": "#14432a", "--focus": "#14432a", "--auth-brand": "#14432a",
-      "--tint-accent": "#e6f2ea", "--canvas": "#f7fbf8", "--surface-2": "#eef6f1",
+      "--tint-accent": "#e6f2ea",
       "--row-hover": "#f5faf7", "--lavender": "#eefaf1",
     },
     dark: {
       "--brand": "#14432a", "--brand-press": "#1b5a38", "--brand-tint": "#1a5133",
       "--on-brand": "#ffffff", "--on-brand-mute": "#bcd9c6",
       "--stat-accent": "#a8dcbb", "--focus": "#a8dcbb", "--auth-brand": "#a8dcbb",
-      "--tint-accent": "#16301f", "--canvas": "#111814", "--surface-2": "#1e2a22",
+      "--tint-accent": "#16301f",
       "--row-hover": "#1e2a22", "--lavender": "#17241b",
     },
   },
@@ -264,14 +275,14 @@ const GOLDEN: Record<string, { light: Record<string, string>; dark: Record<strin
       "--brand": "#1b3a5c", "--brand-press": "#254e79", "--brand-tint": "#22456b",
       "--on-brand": "#ffffff", "--on-brand-mute": "#c0d4e6",
       "--stat-accent": "#1b3a5c", "--focus": "#1b3a5c", "--auth-brand": "#1b3a5c",
-      "--tint-accent": "#e7eff7", "--canvas": "#f7f9fc", "--surface-2": "#eef3f9",
+      "--tint-accent": "#e7eff7",
       "--row-hover": "#f5f8fc", "--lavender": "#eef4fb",
     },
     dark: {
       "--brand": "#1b3a5c", "--brand-press": "#254e79", "--brand-tint": "#22456b",
       "--on-brand": "#ffffff", "--on-brand-mute": "#c0d4e6",
       "--stat-accent": "#aecfeb", "--focus": "#aecfeb", "--auth-brand": "#aecfeb",
-      "--tint-accent": "#182a3b", "--canvas": "#101519", "--surface-2": "#1d2731",
+      "--tint-accent": "#182a3b",
       "--row-hover": "#1d2731", "--lavender": "#16202a",
     },
   },
@@ -280,14 +291,14 @@ const GOLDEN: Record<string, { light: Record<string, string>; dark: Record<strin
       "--brand": "#6b2716", "--brand-press": "#8a3520", "--brand-tint": "#7d2f1c",
       "--on-brand": "#ffffff", "--on-brand-mute": "#eec3b3",
       "--stat-accent": "#6b2716", "--focus": "#6b2716", "--auth-brand": "#6b2716",
-      "--tint-accent": "#f8eae4", "--canvas": "#fdf8f6", "--surface-2": "#f9efea",
+      "--tint-accent": "#f8eae4",
       "--row-hover": "#fdf6f3", "--lavender": "#fdf0e9",
     },
     dark: {
       "--brand": "#6b2716", "--brand-press": "#8a3520", "--brand-tint": "#7d2f1c",
       "--on-brand": "#ffffff", "--on-brand-mute": "#eec3b3",
       "--stat-accent": "#f2b79c", "--focus": "#f2b79c", "--auth-brand": "#f2b79c",
-      "--tint-accent": "#36211a", "--canvas": "#1a1210", "--surface-2": "#2e211c",
+      "--tint-accent": "#36211a",
       "--row-hover": "#2e211c", "--lavender": "#251a16",
     },
   },

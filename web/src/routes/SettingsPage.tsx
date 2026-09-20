@@ -723,9 +723,9 @@ export function SettingsPage() {
               <Stack direction="row" sx={{ flexWrap: "wrap", gap: "0.75rem", mt: 1 }} aria-describedby="palette-hint">
                 {BRANDS.map((id) => (
                   <Box component="label" key={id} sx={{
-                    display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem",
+                    display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "6px 10px",
                     border: "1px solid", borderColor: brand === id ? "info.main" : "divider",
-                    borderRadius: "var(--r-pill)", cursor: saving ? "default" : "pointer",
+                    borderRadius: "4px", cursor: saving ? "default" : "pointer",
                     opacity: saving ? 0.6 : 1,
                     boxShadow: brand === id ? (theme) => `inset 0 0 0 1px ${theme.palette.info.main}` : "none",
                   }}>
@@ -738,7 +738,7 @@ export function SettingsPage() {
                       disabled={saving}
                     />
                     <Box aria-hidden sx={{
-                      width: 18, height: 18, borderRadius: "var(--r-pill)", border: "1px solid",
+                      width: 14, height: 14, borderRadius: "var(--r-pill)", border: "1px solid",
                       borderColor: "divider", backgroundColor: PALETTE_SWATCH_COLORS[id],
                     }} />
                     <Typography component="span" variant="body2">{t(PALETTE_LABEL_KEYS[id])}</Typography>
