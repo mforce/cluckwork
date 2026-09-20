@@ -299,6 +299,12 @@ export const tl = {
   },
 
   sales: {
+    intro: "Gumawa ng mga order, maglaan ng stock, bayaran ang mga balanse, at panatilihin ang talaan ng benta.",
+    orderContext: "Konteksto ng order",
+    listValue: "Halaga sa listahan",
+    listValueIncomplete: "Hindi available ang buong halaga sa listahan: may linyang walang maihahambing na presyong nasa listahan.",
+    draftActions: "Mga aksiyon sa draft",
+
     manifestHeading: "Mga produkto sa order",
     settlementHeading: "Pagbabayad",
     stockCommitment: "Mga itlog para sa order",

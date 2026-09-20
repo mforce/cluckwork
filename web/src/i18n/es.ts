@@ -287,6 +287,12 @@ export const es = {
   },
 
   sales: {
+    intro: "Cree pedidos, asigne existencias, liquide saldos y conserve el registro comercial.",
+    orderContext: "Contexto del pedido",
+    listValue: "Valor de lista",
+    listValueIncomplete: "Valor de lista completo no disponible: una o más líneas no tienen un precio de lista comparable.",
+    draftActions: "Acciones del borrador",
+
     manifestHeading: "Detalle del pedido",
     settlementHeading: "Liquidación",
     stockCommitment: "Huevos comprometidos",

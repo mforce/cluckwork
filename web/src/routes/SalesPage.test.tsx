@@ -206,7 +206,7 @@ async function createDraft(order: SalesOrder) {
   await act(async () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
   });
-  await screen.findByText(new RegExp(order.referenceNumber)); // panel header
+  await screen.findByRole("heading", { name: new RegExp(order.referenceNumber) }); // panel header
   // MUI defers the dialog's DOM removal to its exit transition — wait for it
   // to actually leave before the caller starts querying the page behind it.
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -727,7 +727,7 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     await createDraft(draftEmpty(2, "USD"));
 
     fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
-    expect(screen.queryByText(/list/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/(?:below|above) list/)).not.toBeInTheDocument();
   });
 
   it("tracks the edited quantity live in the eggs column during an inline edit", async () => {
@@ -787,7 +787,7 @@ describe("SalesPage line display", () => {
 
     // order total (2900) differs from both line totals (900, 2000) → this pins
     // that the line cell renders its own line, not active.totalMinorUnits
-    expect(screen.getByText(/Total: \$29\.00/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Total: $29.00")).toBeInTheDocument();
   });
 
   it("omits the egg-multiplier note and shows eggs === quantity for a per-egg line (factor 1)", async () => {
@@ -1083,13 +1083,12 @@ describe("SalesPage list price and discount (#720)", () => {
   // only: DRAFT_TWO is ITEM_A (3 x 300 against list 375) + ITEM_B (2 x 1000
   // against list 1200), so the give-away is 3x75 + 2x200 = 625 and the list
   // value is 3x375 + 2x1200 = 3525 → 17.7%.
-  it("totals the order's discount above the order total", async () => {
+  it("totals the order's discount below the order total", async () => {
     await openOrder(DRAFT_TWO, /Grade B Tray/);
     const paragraph = screen.getByTestId("order-discount");
     expect(paragraph).toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$6.25", percent: "17.7" }));
-    // ABOVE is half the requirement and was the untested half: the element
-    // immediately following the paragraph is the order total.
-    expect(paragraph.nextElementSibling?.textContent).toContain("$29.00");
+    const total = screen.getByLabelText("Total: $29.00");
+    expect(total.compareDocumentPosition(paragraph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // The one arithmetic error the PROTECTED helper exists to prevent: an
@@ -2200,7 +2199,7 @@ describe("SalesPage pending states (#236)", () => {
     // gone once MUI's exit transition finishes.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
-    await screen.findByText(new RegExp(order.referenceNumber));
+    await screen.findByRole("heading", { name: new RegExp(order.referenceNumber) });
     expect(errorSpy.mock.calls.filter(([first]) => String(first).includes("act("))).toEqual([]);
     errorSpy.mockRestore();
   });
@@ -4170,5 +4169,58 @@ describe("SalesPage discount ceiling (#727)", () => {
     } finally {
       i18n.addResource("en", "sales", "overMaximumBadge", original);
     }
+  });
+});
+
+describe("Sales Field Console context and settlement", () => {
+  it("shows draft context without inventing an outstanding balance and groups its actions", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const context = screen.getByLabelText("Order context");
+    expect(context).toHaveTextContent("SO-2 · Draft");
+    expect(context).toHaveTextContent("$29.00");
+    expect(context).toHaveTextContent("Outstanding—");
+    const actions = screen.getByRole("group", { name: "Draft actions" });
+    expect(within(actions).getAllByRole("button").map(button => button.textContent)).toEqual(["Cancel draft", "Confirm order (allocates stock)"]);
+    expect(within(actions).queryByRole("button", { name: "close" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "close" })).toBeInTheDocument();
+  });
+
+  it("shows the complete recorded list value before the discount and stock commitment", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    expect(within(settlement).getByLabelText("List value")).toHaveTextContent("$35.25");
+    expect(within(settlement).getAllByRole("term").map(term => term.textContent)).toEqual(["List value", "Discount", "Stock commitment"]);
+    expect(within(settlement).getByTestId("order-discount")).toHaveTextContent("$6.25");
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+  });
+
+  it.each(["partial", "unknown"] as const)("withholds a full list value when prices are %s", async (kind) => {
+    const order = { ...DRAFT_TWO, items: DRAFT_TWO.items.map((item, index) => kind === "unknown" || index === 0
+      ? { ...item, listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" as const } : item) };
+    await openOrder(order, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    const list = within(settlement).getByLabelText("List value");
+    expect(list).toHaveTextContent("—");
+    expect(list).toHaveAttribute("title", "Full list value unavailable: one or more lines have no comparable list price.");
+    expect(settlement).toHaveTextContent(kind === "partial" ? "part of this order has no list price" : "No list price on any line");
+  });
+
+  it("uses the loaded payment balance in the confirmed-order context", async () => {
+    mockListOrderPayments.mockResolvedValue({ items: [], paidMinorUnits: 2100, outstandingMinorUnits: 800,
+      totalMinorUnits: 2900, currencyCode: "USD", currencyMinorUnit: 2 });
+    await openOrder({ ...DRAFT_TWO, status: "Confirmed", outstandingMinorUnits: 2900 }, /Grade A Dozen/);
+    await waitFor(() => expect(screen.getByLabelText("Order context")).toHaveTextContent("Outstanding$8.00"));
+  });
+
+  it("keeps settlement balances out of a Worker's order context", async () => {
+    const order: SalesOrder = { ...DRAFT_TWO, status: "Confirmed", outstandingMinorUnits: 800 };
+    mockListOrders.mockResolvedValue([order]);
+    mockGetOrder.mockResolvedValue(order);
+    renderWithProviders(<SalesPage />, { token: { sub: "worker", role: "Worker" } });
+    fireEvent.click(await screen.findByRole("button", { name: "open" }));
+    const context = await screen.findByLabelText("Order context");
+    expect(context).toHaveTextContent("SO-2 · Confirmed");
+    expect(context).not.toHaveTextContent("Outstanding");
+    expect(mockListOrderPayments).not.toHaveBeenCalled();
   });
 });
