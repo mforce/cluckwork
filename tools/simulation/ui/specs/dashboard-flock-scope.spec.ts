@@ -17,10 +17,12 @@
 // The scope control is proved against the network, not against the figures
 // alone: the point of #916's API half is that the browser never filters an
 // unscoped REPORT payload itself, so a spec that only watched the rendered
-// numbers would stay green if that filtering moved back into the client. Flock
-// NAME search, unlike the report, is a client-side filter over the already
-// page-scoped `flocks` list on purpose (#918) — there is no discovery network
-// call to watch there.
+// numbers would stay green if that filtering moved back into the client.
+// Flock NAME search is now server-paged and debounced too (Codex review of
+// #918, round 3, finding 1): a name typed into the dialog re-issues
+// `listFlocks` with that query, so a flock past the first page is reachable
+// by search even on a large farm — this fixture's ~100 flocks stay under one
+// page, so the round-trip is exercised here without needing a 501st flock.
 
 import { test, expect, type Page, type Locator } from "../src/fixtures";
 import { owner, restrictedWorker } from "../src/cast";

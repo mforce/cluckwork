@@ -831,6 +831,9 @@ export const en = {
     matchingFlocksCount_other: "{{count}} matching flocks",
     noMatchingFlocksMessage: "No matching flocks. Try another name.",
     flockScopeResultsLabel: "Accessible flocks",
+    // #918 — Codex review, finding 4: shown instead of the selector when the
+    // flock list itself failed to load, with Retry alongside.
+    flockListUnavailableMessage: "Could not load the flock list.",
     // The card's own scope-and-range caption, under the selector: "{scope} ·
     // {date range}" — {{scope}} is either `accessibleFlocksCount` or the
     // chosen flock's own name, pre-formatted by the caller (#650).

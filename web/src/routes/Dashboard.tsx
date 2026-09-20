@@ -1,5 +1,6 @@
 // web/src/routes/Dashboard.tsx
 import { useEffect, useId, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert, X } from "lucide-react";
@@ -33,6 +34,14 @@ const RECENT_ORDERS = 5;
 // day comes.
 const MAX_PAGE = 500;
 
+// #918 — Codex review, finding 1. The picker's own discovery, server-paged
+// exactly like the shared NamedEntityPicker engine (50-row pages, 250ms
+// debounce): filtering the already-loaded, 500-capped `flocks` array made a
+// flock past the 500th unreachable by search on a large farm. This search is
+// independent of that array on purpose.
+const PICKER_PAGE_SIZE = 50;
+const PICKER_DEBOUNCE_MS = 250;
+
 // #916 — the Lay rate card's own scope, independent of every other panel.
 // Plain page state (not derived from anything that resets on reload) so
 // #914's range control can sit beside it later without clearing the choice.
@@ -46,6 +55,11 @@ export function Dashboard() {
   const { farm } = useFarm();
   const [openedAt] = useState(() => new Date().toISOString());
   const { t: tc } = useTranslation("common");
+  // #918 — Codex review, finding 1: the picker's Retry/Load more/loading
+  // strings reuse the shared picker catalog rather than minting new ones
+  // ("the picker-OWNED strings live here", NamedEntityPicker.tsx's own
+  // header) — the page namespace still owns anything page-specific.
+  const { t: tp } = useTranslation("namedEntityPicker");
   // Captured once at mount so the header date always matches the queried day
   // even if the tab stays open across midnight. Farm-local, not browser-local
   // (#123): the entries it queries are stamped in the farm's day.
@@ -69,16 +83,28 @@ export function Dashboard() {
   const [scope, setScope] = useState<ProductionScope>({ kind: "all" });
   const [trendLoading, setTrendLoading] = useState(true);
   // #918 fidelity round — one full-width selector, matching the approved
-  // mockup exactly: `pickerOpen` drives its Dialog, `searchQuery` filters the
-  // already-loaded `flocks` list (the same page-scoped, 500-capped list the
-  // Today panel already reads — no second server round trip for search).
-  // There is exactly one reset path now (choosing "All flocks" inside the
-  // dialog), and it sets `scope` directly with nothing else to fall out of
-  // sync with it (Codex review of #918, finding 1: the old picker's Clear
-  // button had no handler, so it could empty the CONTROL while `scope`, a
-  // second independently-held value, kept the card scoped).
+  // mockup exactly: `pickerOpen` drives its Dialog, `searchQuery` is the
+  // controlled search text. There is exactly one reset path (choosing "All
+  // flocks" inside the dialog), and it sets `scope` directly with nothing
+  // else to fall out of sync with it (Codex review of #918, finding 1: the
+  // old picker's Clear button had no handler, so it could empty the CONTROL
+  // while `scope`, a second independently-held value, kept the card scoped).
   const [pickerOpen, setPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // #918 — Codex review, finding 1 (round 3): server-paged discovery for the
+  // dialog's own results, independent of the page-scoped `flocks` list below
+  // (that one stays 500-capped for the Today panel; this one pages past it).
+  const [pickerResults, setPickerResults] = useState<Flock[]>([]);
+  const [pickerCursor, setPickerCursor] = useState(0);
+  const [pickerHasMore, setPickerHasMore] = useState(false);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  // #918 — Codex review, finding 4: the flock LIST read (not the picker's own
+  // search, which is independent per finding 1) can fail on its own even when
+  // the other three panels succeed. `flocksFailed` distinguishes that from
+  // "flocks is empty" or "still loading", so the scope selector can show an
+  // unavailable state with Retry instead of silently reading as "0 accessible
+  // flocks".
+  const [flocksFailed, setFlocksFailed] = useState(false);
 
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
   // ReadOnly/Denied can't read customers or orders — the API now returns 403
@@ -99,6 +125,42 @@ export function Dashboard() {
   const pickerTitleId = useId();
   const searchInputId = useId();
 
+  // #918 — Codex review, finding 3: arrow/Home/End move focus among the
+  // dialog's own choice buttons ("All flocks" reachable first, matching the
+  // mockup), mirroring the shared picker engine's own keyboard contract
+  // (FR-032/picker-ui.md) without adopting its Autocomplete/combobox markup —
+  // these stay plain, individually-focusable buttons, so this is a roving
+  // FOCUS move, not a roving tabindex/aria-activedescendant pattern. Declared
+  // here, alongside the other hooks and before any early return, not lower
+  // down where the render-only locals live (Rules of Hooks: `useRef` cannot
+  // sit after a conditional `return`).
+  const pickerBodyRef = useRef<HTMLDivElement>(null);
+  const onPickerKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    const container = pickerBodyRef.current;
+    if (!container) return;
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    if (buttons.length === 0) return;
+    let i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (i === -1) i = 0;
+    else if (e.key === "Home") i = 0;
+    else if (e.key === "End") i = buttons.length - 1;
+    else if (e.key === "ArrowDown") i = Math.min(buttons.length - 1, i + 1);
+    else if (e.key === "ArrowUp") i = Math.max(0, i - 1);
+    e.preventDefault();
+    buttons[i]?.focus();
+  };
+  // ArrowDown from the search field itself lands on the first choice ("All
+  // flocks" — reachable first, per the finding), matching the mockup's own
+  // search-to-results handoff.
+  const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "ArrowDown") return;
+    const first = pickerBodyRef.current?.querySelector<HTMLButtonElement>("button");
+    if (!first) return;
+    e.preventDefault();
+    first.focus();
+  };
+
   // #916 — a PRIMITIVE, not the `flocks` array itself: the trend effect below
   // depends on this so a farm with more than one flock (the common case)
   // re-renders `flocks` exactly once (on load) without re-triggering a second,
@@ -116,28 +178,58 @@ export function Dashboard() {
   // — the page still renders as soon as THEY settle, unchanged from before,
   // so a slow production fetch never holds the whole page hostage. The
   // combined "did EVERYTHING fail" decision is separate and may land a beat
-  // later, from whichever of the two effects settles last; the trend ref is
-  // written only ONCE, by its first completion — a later one is a scope
-  // change and must never re-open this.
-  const panelsOutcomeRef = useRef<{ rejected: number; issued: number; firstRejected?: PromiseRejectedResult } | null>(null);
-  const trendFailedRef = useRef<boolean | null>(null);
+  // later, from whichever of the two effects settles last.
+  //
+  // Round 3 (Codex, finding 2 again): keying that decision to a FIRST-EVER
+  // trend outcome meant a stale verdict could outlive the load it described
+  // — an earlier total failure stayed the verdict forever, even once a
+  // later refresh (a role change flipping `canSeeSales`, or #914's future
+  // range control) produced a fresh, successful one. Both outcomes are now
+  // keyed to `loadGenRef`, bumped once per genuine new load (a `[today,
+  // canSeeSales]` change) — never by an ordinary scope change, which does
+  // not touch `loadGenRef` at all. Only an outcome recorded for the CURRENT
+  // generation may decide; a stale one is silently ignored, and a new
+  // generation clears any previous verdict optimistically the moment it
+  // starts, so the page never sits on a resolved error while a fresh load
+  // is already in flight.
+  const loadGenRef = useRef(0);
+  const panelsOutcomeRef = useRef<{ gen: number; rejected: number; issued: number; firstRejected?: PromiseRejectedResult } | null>(null);
+  const trendOutcomeRef = useRef<{ gen: number; failed: boolean } | null>(null);
   function evaluateTotalFailure() {
-    if (panelsOutcomeRef.current === null || trendFailedRef.current === null) return;
+    const gen = loadGenRef.current;
     const panels = panelsOutcomeRef.current;
-    if (panels.rejected === panels.issued && trendFailedRef.current) {
+    const trend = trendOutcomeRef.current;
+    if (panels === null || panels.gen !== gen || trend === null || trend.gen !== gen) return;
+    if (panels.rejected === panels.issued && trend.failed) {
       const reason = panels.firstRejected?.reason;
       setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
+    } else {
+      setError(null);
     }
   }
 
+  // #918 — Codex review, finding 4: the flock list can fail on its own even
+  // when the other three panels succeed (`flocksFailed` below), and Retry
+  // re-issues ONLY this one read — the picker's own discovery (finding 1) is
+  // a separate, independent server call and is unaffected either way.
+  const fetchFlocks = () => {
+    setFlocksFailed(false);
+    listFlocks({ limit: MAX_PAGE })
+      .then((f) => setFlocks(f))
+      .catch(() => setFlocksFailed(true));
+  };
+
   useEffect(() => {
+    const gen = ++loadGenRef.current;
+    setError(null); // a fresh load starts clean, never on a stale verdict
     Promise.allSettled([
       listFlocks({ limit: MAX_PAGE }),
       listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
       getStock(),
       canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
     ]).then(([f, e, s, o]) => {
-      if (f.status === "fulfilled") setFlocks(f.value);
+      if (gen !== loadGenRef.current) return; // superseded by a newer load
+      if (f.status === "fulfilled") { setFlocks(f.value); setFlocksFailed(false); } else { setFlocksFailed(true); }
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
       if (o.status === "fulfilled") setOrders(o.value);
@@ -145,7 +237,7 @@ export function Dashboard() {
       // the sales read is an inert placeholder when the role can't see it.
       const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
       const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      panelsOutcomeRef.current = { rejected: rejected.length, issued: issued.length, firstRejected: rejected[0] };
+      panelsOutcomeRef.current = { gen, rejected: rejected.length, issued: issued.length, firstRejected: rejected[0] };
       evaluateTotalFailure();
       setLoading(false);
     });
@@ -163,6 +255,13 @@ export function Dashboard() {
     // selection would produce, never a separate "everything" branch (parity
     // requirement, SELECTION.md).
     const flockId = soleFlockId ?? (scope.kind === "flock" ? scope.flock.id : undefined);
+    // The generation this fetch belongs to, captured at DISPATCH time. Effects
+    // run in declaration order within one commit, so when `[today,
+    // canSeeSales]` change together with this effect's own deps, the panels
+    // effect above has already bumped `loadGenRef` by the time this line runs
+    // — this fetch is correctly attributed to the NEW generation, not the one
+    // it was dispatched under before.
+    const gen = loadGenRef.current;
     let cancelled = false;
     setTrendLoading(true);
     Promise.allSettled([
@@ -175,13 +274,62 @@ export function Dashboard() {
       const ok = cur.status === "fulfilled" && prev.status === "fulfilled";
       setTrend(ok ? { current: cur.value, previous: prev.value } : null);
       setTrendLoading(false);
-      if (trendFailedRef.current === null) {
-        trendFailedRef.current = !ok;
-        evaluateTotalFailure();
-      }
+      // Always updated, not written once — an ordinary scope change keeps
+      // re-deciding freshly rather than freezing at a first outcome. This is
+      // safe for the common case: `evaluateTotalFailure` only ever SETS the
+      // error when the four panel reads also failed, and that can only
+      // happen while `flocks` is null (no scope control exists to change
+      // `scope` at all), so a later settlement in a healthy session can only
+      // ever confirm `setError(null)`, never wrongly raise one.
+      trendOutcomeRef.current = { gen, failed: !ok };
+      evaluateTotalFailure();
     });
     return () => { cancelled = true; };
   }, [today, scope, soleFlockId]);
+
+  // #918 — Codex review, finding 1 (round 3). Server-paged, debounced
+  // discovery for the picker dialog — the same 50-row/250ms shape the shared
+  // NamedEntityPicker engine uses, so a flock past the first 500 is reachable
+  // by search on a large farm. Fires only while the dialog is open, and only
+  // for a multi-flock farm (the sole-flock case never renders a dialog at
+  // all). `cancelled` drops a stale replacement the way the trend effect's
+  // own flag does.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    let cancelled = false;
+    setPickerLoading(true);
+    const timer = window.setTimeout(() => {
+      listFlocks({ search: searchQuery.trim() || undefined, eligibility: "active-and-depleted", limit: PICKER_PAGE_SIZE, offset: 0 })
+        .then((page) => {
+          if (cancelled) return;
+          setPickerResults(page);
+          setPickerCursor(page.length);
+          setPickerHasMore(page.length === PICKER_PAGE_SIZE);
+          setPickerLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setPickerResults([]);
+          setPickerHasMore(false);
+          setPickerLoading(false);
+        });
+    }, PICKER_DEBOUNCE_MS);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [pickerOpen, searchQuery]);
+
+  // One click = one extension request, at the PAINTED cursor — matches the
+  // shared picker engine's own "Load more" contract (picker-ui.md).
+  const loadMorePickerResults = () => {
+    setPickerLoading(true);
+    listFlocks({ search: searchQuery.trim() || undefined, eligibility: "active-and-depleted", limit: PICKER_PAGE_SIZE, offset: pickerCursor })
+      .then((page) => {
+        setPickerResults((prev) => [...prev, ...page]);
+        setPickerCursor((c) => c + page.length);
+        setPickerHasMore(page.length === PICKER_PAGE_SIZE);
+        setPickerLoading(false);
+      })
+      .catch(() => setPickerLoading(false));
+  };
 
   // #512 US4 — a recent-sales row's own name: the row-owned `customerName` the
   // endpoint's scoped bulk read already resolved, or the translated
@@ -227,9 +375,6 @@ export function Dashboard() {
   // flocks here, matching the approved mockup's `.context` line exactly.
   const accessibleCount = flocks?.length ?? 0;
   const contextScope = scopedFlock ? scopedFlock.name : t("accessibleFlocksCount", { count: accessibleCount });
-  const filteredFlocks = flocks === null
-    ? []
-    : flocks.filter((f) => f.name.toLowerCase().includes(searchQuery.trim().toLowerCase()));
 
   const trendData = trend === null ? null : {
     line: dayStrip({
@@ -460,93 +605,126 @@ export function Dashboard() {
             <Typography variant="caption" color="text.secondary">{t("trendPanelTitle")}</Typography>
           </Box>
 
-          <Box sx={{ mt: "18px", mb: "8px" }}>
-            <Typography
-              id={scopeLabelId} component="span"
-              sx={{ display: "block", textTransform: "uppercase", letterSpacing: "0.08em", fontSize: "10px", color: "text.secondary", mb: "5px" }}
-            >
-              {t("flockScopeLabel")}
-            </Typography>
-            {soleFlock !== null ? (
-              // The mockup's #fixedScope: plain text, no dropdown, no chevron,
-              // no redundant All flocks choice (SELECTION.md).
-              <Box sx={{ fontSize: "16px", fontWeight: 600, minHeight: "44px", display: "flex", alignItems: "center", borderBottom: "1px solid var(--rule)" }}>
-                {soleFlock.name}
-              </Box>
-            ) : (
-              <Button
-                aria-labelledby={`${scopeLabelId} ${scopeValueId}`}
-                aria-haspopup="dialog"
-                aria-expanded={pickerOpen}
-                onClick={() => { setSearchQuery(""); setPickerOpen(true); }}
-                sx={{
-                  width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
-                  fontWeight: 600, textAlign: "left", textTransform: "none", gap: 1.5, "&&": { minHeight: 44 },
-                }}
-              >
-                <Box component="span" id={scopeValueId} sx={{ overflowWrap: "anywhere" }}>{scopeName}</Box>
-                <ChevronRight size={18} aria-hidden focusable={false} />
-              </Button>
-            )}
-          </Box>
-          <Typography className="trend-context" variant="caption" color="text.secondary" sx={{ display: "block" }}>
-            {t("layRateContext", { scope: contextScope, from: fmt.date(daysBefore(today, 14)), to: fmt.date(daysBefore(today, 1)) })}
-          </Typography>
-
-          {soleFlock === null && (
-            <Dialog open={pickerOpen} onClose={() => setPickerOpen(false)} fullWidth maxWidth="xs" aria-labelledby={pickerTitleId}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.25, p: 2, pb: 1 }}>
-                <Typography id={pickerTitleId} sx={{ fontWeight: 700 }}>{t("chooseFlockTitle")}</Typography>
-                <IconButton onClick={() => setPickerOpen(false)} aria-label={t("closeFlockSelectorAction")} sx={{ width: 44, height: 44 }}>
-                  <X size={22} />
-                </IconButton>
-              </Box>
-              <Box sx={{ px: 2 }}>
-                <Typography component="label" htmlFor={searchInputId} variant="caption" sx={{ display: "block", mb: 0.5 }}>
-                  {t("searchAccessibleFlocksLabel")}
+          {flocksFailed ? (
+            // #918 — Codex review, finding 4: a failed flock-list read used to
+            // silently read as "0 accessible flocks" / "No matching flocks",
+            // which looks like a genuinely empty farm rather than a read that
+            // failed. The existing panel-error pattern, with a Retry that
+            // re-issues only this read (the picker's own discovery, finding
+            // 1, is independent either way).
+            <Box sx={{ mt: "18px", mb: "8px" }}>
+              <Alert severity="error" className="error" action={
+                <Button color="inherit" size="small" onClick={fetchFlocks}>{tp("retry")}</Button>
+              }>
+                {t("flockListUnavailableMessage")}
+              </Alert>
+            </Box>
+          ) : (
+            <>
+              <Box sx={{ mt: "18px", mb: "8px" }}>
+                <Typography
+                  id={scopeLabelId} component="span"
+                  sx={{ display: "block", textTransform: "uppercase", letterSpacing: "0.08em", fontSize: "10px", color: "text.secondary", mb: "5px" }}
+                >
+                  {t("flockScopeLabel")}
                 </Typography>
-                <TextField
-                  id={searchInputId} type="search" fullWidth size="small" autoComplete="off"
-                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t("searchByNamePlaceholder")}
-                />
-              </Box>
-              {/* Pinned ABOVE the scrolling result list, never a row inside
-                  it (SELECTION.md / the mockup's #allChoice). */}
-              <Button
-                fullWidth onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
-                aria-pressed={scope.kind === "all"}
-                sx={{ justifyContent: "space-between", textTransform: "none", mt: 1.5, mx: 2, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
-              >
-                <span>{t("allFlocksOption")}</span>
-                <Typography component="span" variant="caption" color="text.secondary">
-                  {t("accessibleFlocksCount", { count: accessibleCount })}
-                </Typography>
-              </Button>
-              <Typography variant="caption" color="text.secondary" role="status" sx={{ display: "block", px: 2, mt: 1.5, mb: 0.5 }}>
-                {t("matchingFlocksCount", { count: filteredFlocks.length })}
-              </Typography>
-              <Box component="ul" role="list" aria-label={t("flockScopeResultsLabel")}
-                sx={{ listStyle: "none", m: 0, p: 0, maxHeight: 180, overflow: "auto", borderTop: "1px solid var(--rule)" }}
-              >
-                {filteredFlocks.length === 0 ? (
-                  <Typography sx={{ p: 1.5, fontSize: "13px" }}>{t("noMatchingFlocksMessage")}</Typography>
-                ) : filteredFlocks.map((f) => (
-                  <Box component="li" key={f.id}>
-                    <Button
-                      fullWidth onClick={() => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
-                      aria-pressed={scope.kind === "flock" && scope.flock.id === f.id}
-                      sx={{
-                        justifyContent: "flex-start", textAlign: "left", textTransform: "none",
-                        borderRadius: 0, borderBottom: "1px solid var(--rule)", "&&": { minHeight: 44 },
-                      }}
-                    >
-                      {f.name}
-                    </Button>
+                {soleFlock !== null ? (
+                  // The mockup's #fixedScope: plain text, no dropdown, no
+                  // chevron, no redundant All flocks choice (SELECTION.md).
+                  <Box sx={{ fontSize: "16px", fontWeight: 600, minHeight: "44px", display: "flex", alignItems: "center", borderBottom: "1px solid var(--rule)" }}>
+                    {soleFlock.name}
                   </Box>
-                ))}
+                ) : (
+                  <Button
+                    aria-labelledby={`${scopeLabelId} ${scopeValueId}`}
+                    aria-haspopup="dialog"
+                    aria-expanded={pickerOpen}
+                    onClick={() => { setSearchQuery(""); setPickerOpen(true); }}
+                    sx={{
+                      width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                      fontWeight: 600, textAlign: "left", textTransform: "none", gap: 1.5, "&&": { minHeight: 44 },
+                    }}
+                  >
+                    <Box component="span" id={scopeValueId} sx={{ overflowWrap: "anywhere" }}>{scopeName}</Box>
+                    <ChevronRight size={18} aria-hidden focusable={false} />
+                  </Button>
+                )}
               </Box>
-            </Dialog>
+              <Typography className="trend-context" variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                {t("layRateContext", { scope: contextScope, from: fmt.date(daysBefore(today, 14)), to: fmt.date(daysBefore(today, 1)) })}
+              </Typography>
+
+              {soleFlock === null && (
+                <Dialog open={pickerOpen} onClose={() => setPickerOpen(false)} fullWidth maxWidth="xs" aria-labelledby={pickerTitleId}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.25, p: 2, pb: 1 }}>
+                    <Typography id={pickerTitleId} sx={{ fontWeight: 700 }}>{t("chooseFlockTitle")}</Typography>
+                    <IconButton onClick={() => setPickerOpen(false)} aria-label={t("closeFlockSelectorAction")} sx={{ width: 44, height: 44 }}>
+                      <X size={22} />
+                    </IconButton>
+                  </Box>
+                  <Box sx={{ px: 2 }}>
+                    <Typography component="label" htmlFor={searchInputId} variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                      {t("searchAccessibleFlocksLabel")}
+                    </Typography>
+                    <TextField
+                      id={searchInputId} type="search" fullWidth size="small" autoComplete="off"
+                      value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={onSearchKeyDown}
+                      placeholder={t("searchByNamePlaceholder")}
+                    />
+                  </Box>
+                  {/* `pickerBodyRef`/`onPickerKeyDown`: arrow/Home/End move
+                      focus among every button below (Codex review of #918,
+                      finding 3), "All flocks" reachable first since it is the
+                      first button in DOM order — pinned ABOVE the scrolling
+                      result list, never a row inside it (SELECTION.md / the
+                      mockup's #allChoice). */}
+                  <div ref={pickerBodyRef} onKeyDown={onPickerKeyDown}>
+                    <Button
+                      fullWidth onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                      aria-pressed={scope.kind === "all"}
+                      sx={{ justifyContent: "space-between", textTransform: "none", mt: 1.5, mx: 2, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
+                    >
+                      <span>{t("allFlocksOption")}</span>
+                      <Typography component="span" variant="caption" color="text.secondary">
+                        {t("accessibleFlocksCount", { count: accessibleCount })}
+                      </Typography>
+                    </Button>
+                    <Typography variant="caption" color="text.secondary" role="status" sx={{ display: "block", px: 2, mt: 1.5, mb: 0.5 }}>
+                      {pickerLoading ? tp("loading") : t("matchingFlocksCount", { count: pickerResults.length })}
+                    </Typography>
+                    <Box component="ul" role="list" aria-label={t("flockScopeResultsLabel")}
+                      sx={{ listStyle: "none", m: 0, p: 0, maxHeight: 180, overflow: "auto", borderTop: "1px solid var(--rule)" }}
+                    >
+                      {pickerResults.length === 0 && !pickerLoading ? (
+                        <Typography sx={{ p: 1.5, fontSize: "13px" }}>{t("noMatchingFlocksMessage")}</Typography>
+                      ) : pickerResults.map((f) => (
+                        <Box component="li" key={f.id}>
+                          <Button
+                            fullWidth onClick={() => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
+                            aria-pressed={scope.kind === "flock" && scope.flock.id === f.id}
+                            sx={{
+                              justifyContent: "flex-start", textAlign: "left", textTransform: "none",
+                              borderRadius: 0, borderBottom: "1px solid var(--rule)", "&&": { minHeight: 44 },
+                            }}
+                          >
+                            {f.name}
+                          </Button>
+                        </Box>
+                      ))}
+                    </Box>
+                    {pickerHasMore && (
+                      <Button
+                        fullWidth onClick={loadMorePickerResults} disabled={pickerLoading}
+                        sx={{ textTransform: "none", "&&": { minHeight: 44 } }}
+                      >
+                        {tp("loadMore")}
+                      </Button>
+                    )}
+                  </div>
+                </Dialog>
+              )}
+            </>
           )}
 
           {trendLoading ? <LinearProgress aria-label={t("trendPanelTitle")} sx={{ height: 5, borderRadius: 2, mb: 1 }} />

@@ -1,9 +1,13 @@
 // web/src/routes/Dashboard.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import { Dashboard } from "./Dashboard";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { AuthContext } from "../auth/AuthContext";
+import type { Role } from "../auth/claims";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
@@ -12,6 +16,23 @@ import { daysBefore, todayIso } from "../lib/dates";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, account } from "../test/fixtures";
 import { stubMatchMedia } from "../test/matchMedia";
+
+// The rollover test (#918 round 3, finding 2) needs a role change the SAME
+// mounted Dashboard sees, so a hand-built AuthContext stands in for
+// AuthProvider — whose own role only updates through a real login/refresh,
+// too heavy to simulate for one generation-boundary test.
+function AuthOverride({ role, children }: { role: Role; children: ReactNode }) {
+  return (
+    <AuthContext.Provider value={{
+      isAuthenticated: true, isLoading: false,
+      isAdmin: role === "Admin" || role === "Manager",
+      role, userId: "u1", mustChangePassword: false, unauthenticatedReason: null,
+      login: async () => {}, logout: async () => {},
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
 
 // Keep the real formatters; stub the six read endpoints the dashboard fans out.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -587,13 +608,19 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     .find((b) => b.getAttribute("aria-haspopup") === "dialog") as HTMLElement;
   const openPicker = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(selectorButton());
-    return screen.findByRole("list", { name: "Accessible flocks" });
+    const results = await screen.findByRole("list", { name: "Accessible flocks" });
+    // #918 — Codex review, finding 1 (round 3): discovery is now server-paged
+    // and debounced (250ms), so the dialog opens before its results do —
+    // wait for the debounced fetch to actually land.
+    await waitFor(() => expect(within(results).queryAllByRole("button").length).toBeGreaterThan(0));
+    return results;
   };
   // MUI's Dialog exit runs on real timers; the trigger stays aria-hidden (a
   // sibling of the still-closing modal, portalled outside it) until the
   // transition finishes, so any assertion reading the closed-state trigger
   // must wait for the dialog to actually leave the DOM first.
   const waitForPickerToClose = () => waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  const boom = () => Promise.reject(new Error("down"));
 
   it("defaults to All flocks; the selector's accessible name and the context caption both say so", async () => {
     renderWithProviders(<Dashboard />);
@@ -733,6 +760,111 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(screen.getByText("87.4%")).toBeInTheDocument();
     expect(screen.queryByText("1.2%")).not.toBeInTheDocument();
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+  });
+
+  // #918 — Codex review, round 3, finding 1. The dialog's search used to
+  // filter only the first 500 already-loaded flocks, so a flock past that
+  // page was unreachable on a large farm. It is now server-paged: the
+  // unfiltered page the dialog opens with is a fixed 50-row fixture that
+  // never contains the 501st flock, and only a search naming it reaches the
+  // server with that query and finds it.
+  it("reaches a flock past the first page by searching the server, not by filtering an already-loaded list", async () => {
+    const user = userEvent.setup();
+    const firstPage = Array.from({ length: 50 }, (_, i) => flock(`p${i}`, "Active"));
+    const flock501 = flock("f501", "Active");
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve(params?.search === "f501" ? [flock501] : firstPage));
+
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const results = await openPicker(user);
+    expect(within(results).queryByRole("button", { name: "Flock f501" })).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole("searchbox", { name: "Search accessible flocks" }), "f501");
+    await waitFor(() => expect(within(results).getByRole("button", { name: "Flock f501" })).toBeInTheDocument());
+    expect(mockFlocks).toHaveBeenLastCalledWith(expect.objectContaining({ search: "f501", offset: 0, limit: 50 }));
+  });
+
+  // #918 — Codex review, round 3, finding 2. `trendOutcomeRef`/`panelsOutcomeRef`
+  // used to keep the FIRST-EVER outcome, so an early total failure raised a
+  // permanent page error even once a later refresh (a role change flipping
+  // `canSeeSales`, the same trigger the code comment names) produced a fresh
+  // success. Both are now keyed by `loadGenRef`, bumped once per genuine new
+  // load. Mounts Dashboard directly under a hand-built AuthContext so the
+  // SAME mounted component sees the role change, rather than a fresh mount
+  // that would reset every ref and prove nothing about staleness.
+  it("clears a page-level error once a later refresh succeeds — the rollover case", async () => {
+    for (const m of [mockFlocks, mockEntries, mockStock, mockReport]) m.mockImplementation(boom);
+    const { rerender } = render(
+      <MemoryRouter>
+        <AuthOverride role="ReadOnly"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
+
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockResolvedValue([]);
+    mockStock.mockResolvedValue(STOCK);
+    mockOrders.mockResolvedValue([]);
+    mockReport.mockImplementation(reportByWindow(today));
+    rerender(
+      <MemoryRouter>
+        <AuthOverride role="Admin"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument());
+    expect(await screen.findByText("87.4%")).toBeInTheDocument();
+  });
+
+  // #918 — Codex review, round 3, finding 3. The results were plain buttons
+  // with no Arrow/Home/End navigation; "All flocks" (pinned above the
+  // scrolling list) is the first stop, matching DOM order.
+  it("moves focus through the picker's choices with Arrow/Home/End, All flocks reachable first", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const results = await openPicker(user);
+    const allFlocks = screen.getByRole("button", { name: /^All flocks/ });
+    const f1 = within(results).getByRole("button", { name: "Flock f1" });
+    const f2 = within(results).getByRole("button", { name: "Flock f2" });
+    const f3 = within(results).getByRole("button", { name: "Flock f3" });
+
+    allFlocks.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(f1).toHaveFocus();
+
+    await user.keyboard("{End}");
+    expect(f3).toHaveFocus();
+
+    await user.keyboard("{Home}");
+    expect(allFlocks).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(f2).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    await waitForPickerToClose();
+    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+  });
+
+  // #918 — Codex review, round 3, finding 4. A failed flock-list read used to
+  // render as "0 accessible flocks" / "No matching flocks" — indistinguishable
+  // from a genuinely empty farm. It now shows the existing panel-error
+  // pattern with a Retry that re-issues only this read.
+  it("shows the flock list as unavailable, not an empty farm, when the flock read fails; Retry recovers it", async () => {
+    const user = userEvent.setup();
+    mockFlocks.mockRejectedValueOnce(new Error("down"));
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    expect(await within(trendPanel).findByText("Could not load the flock list.")).toBeInTheDocument();
+    expect(within(trendPanel).queryByText(/accessible flocks ·/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Flock /i })).not.toBeInTheDocument();
+
+    mockFlocks.mockResolvedValueOnce([flock("f1", "Active"), flock("f2", "Active"), flock("f3", "Active")]);
+    await user.click(within(trendPanel).getByRole("button", { name: "Retry" }));
+    expect(await within(trendPanel).findByText(/^3 accessible flocks · /)).toBeInTheDocument();
+    expect(within(trendPanel).queryByText("Could not load the flock list.")).not.toBeInTheDocument();
   });
 });
 
