@@ -118,11 +118,6 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
       await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
         .toBeVisible();
       await draft.getByRole("button", { name: tEn("sales:open") }).click();
-      // #831 — `.order-panel` retired; the draft panel is now a named
-      // `role="region"` landmark (SalesPage.tsx), so scope through that
-      // instead of the class the CSS selector used to key on. `.actions`
-      // itself is unchanged — a bare hook class with a real phone-stacking
-      // rule (styles.css) — so the row this measures is the same one.
       const row = page.getByRole("region").locator(".actions");
       await expect(row).toBeVisible();
       return row;

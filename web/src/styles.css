@@ -1178,7 +1178,6 @@ input.cell {
   font-weight: 600;
 }
 
-/* #723: discount explanations wrap inside otherwise unbroken money cells. */
 .discount-note {
   white-space: normal;
 }
@@ -1503,7 +1502,6 @@ label.check {
 }
 
 /* ------------------------------------------------------ Cards & panels */
-/* #829: Login still uses .card; ledger panels use MUI components. */
 .card {
   background: var(--surface);
   border: 1px solid var(--hairline);
