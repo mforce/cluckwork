@@ -1520,6 +1520,9 @@ it("uses an unfilled status dot, preserving the reason, and always offers filter
   const status = within(row).getByText("Voided");
   expect(status).not.toHaveClass("badge");
   expect(status).toHaveAttribute("title", VOIDED.voidReason);
-  expect(status.querySelector('[aria-hidden="true"]')).toHaveStyle({ width: "6px", height: "6px" });
+  expect(status).toHaveTextContent(/^Voided$/);
+  expect(status.querySelector('[aria-hidden="true"]')).toHaveStyle({
+    width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--error)",
+  });
   expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
 });

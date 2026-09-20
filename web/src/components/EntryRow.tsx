@@ -31,9 +31,9 @@ export function EntryRow({
       aria-label={groupLabel}
       {...dropProps}
       sx={{
-        display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto",
+        display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) auto" },
         alignItems: "center",
-        gap: 2, minHeight: { xs: 52, md: 44 }, py: 1,
+        gap: { xs: 1, md: 2 }, minHeight: { xs: 52, md: 44 }, py: 1,
         borderBottom: "1px solid var(--rule)",
         ...(armed ? {
           outline: "1px dashed var(--stat-accent)", outlineOffset: "4px",

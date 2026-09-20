@@ -716,10 +716,17 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
         + "it is clipped by ellipsis truncation",
     ).toBe(clientWidth);
   });
-  test("History adjustment displays a four-digit count without clipping", async ({ page }) => {
+  test("History adjustment displays full labels and a four-digit count without clipping", async ({ page }) => {
     await page.goto("/history");
     await page.getByRole("button", { name: tEn("history:adjustButton"), exact: true }).first().click();
-    const input = page.getByRole("dialog").getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true });
+    const dialog = page.getByRole("dialog");
+    for (const key of ["dailyEntry:totalEggsLabel", "dailyEntry:discardedLabel"] as const) {
+      const label = dialog.locator("label").getByText(tEn(key), { exact: true });
+      await expect(label).toBeVisible();
+      const fit = await label.evaluate(element => ({ scroll: element.scrollWidth, client: element.clientWidth }));
+      expect(fit.scroll, `${tEn(key)} must render in full`).toBeLessThanOrEqual(fit.client);
+    }
+    const input = dialog.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true });
     await input.fill("8542");
     const fit = await input.evaluate((element) => {
       const style = getComputedStyle(element);
