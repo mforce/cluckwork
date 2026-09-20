@@ -627,6 +627,8 @@ export const es = {
     availableStockTitle: "Existencias disponibles",
     recentOrdersTitle: "Pedidos recientes",
     layRateTitle: "Tasa de postura",
+    flockScopeLabel: "Lote",
+    allFlocksOption: "Todos los lotes",
     gradeColumn: "Grado",
     countColumn: "Cantidad",
     shareColumn: "Proporción",
@@ -668,6 +670,9 @@ export const es = {
     trendStripLabelNoComplete: "Huevos por día, últimos 14 días. Ningún día fue registrado por todos los lotes, así que no hay máximo ni promedio.",
     trendStripLabelNoFlocks: "Huevos por día, últimos 14 días. No hubo ningún lote en la granja en este período.",
     trendScaleTitle: "Huevos por día",
+    // #916 — sin día completo en el período: la escala usa el máximo PARCIAL,
+    // con una etiqueta distinta para que nadie lo lea como producción total.
+    trendScaleTitlePartial: "Huevos por día, solo días incompletos",
     trendPeak: "Máximo {{total}}",
     trendAvg: "Prom. {{total}}",
     trendDayTip_one: "{{date}} – {{total}} huevo",
@@ -2118,7 +2123,11 @@ export const es = {
       + "lotes. El % de postura divide entre los días-gallina de los lotes que registraron, así que un lote que olvida "
       + "reduce sobre cuánto se mide la cifra, nunca la cifra misma. La ventana es fija (desde ayer hacia "
       + "atrás) y cuenta <strong>solo días enviados</strong> — un día aún en borrador se lee como Sin "
-      + "registro hasta que se envía, a diferencia de Informes, donde usted elige el rango.",
+      + "registro hasta que se envía, a diferencia de Informes, donde usted elige el rango. Elija "
+      + "<strong>Todos los lotes</strong> o un solo lote encima del gráfico para acotar toda la tarjeta "
+      + "— barras, integridad, Prom. y ambos períodos de postura — a ese lote; con un solo lote accesible "
+      + "su nombre aparece sin selector. Cuando ningún día del período está completo, el Máximo se ajusta "
+      + "al día parcial más alto y dice \"solo días incompletos\".",
     dashboardOrders: "<strong>Pedidos recientes</strong> muestra el cliente, importe y estado, con la cantidad de la primera línea y el nombre actual de su grado. +N indica líneas adicionales. Renombrar un grado también cambia su nombre en pedidos antiguos; si no está disponible, solo se muestra la cantidad.",
     dashboardStock: "<strong>Existencias disponibles</strong> muestra el total y una <strong>barra apilada</strong> de su composición por grado, seguida de una tabla de <strong>Grado</strong>, <strong>Cantidad</strong> y <strong>Proporción</strong>. Pase el puntero o enfoque una fila para resaltarla. Los huevos restringidos se indican aparte. Las cantidades coinciden con Existencias.",
 
@@ -2984,6 +2993,12 @@ export const es = {
 
     glossaryCaptureStatusTerm: "Estado de captura",
     glossaryCaptureStatusDef: "Si cada lote activo tiene un registro diario de hoy. Recolección de la mañana muestra una fila por lote, primero los que faltan, y cuenta los borradores como registrados. Sin registro enlaza al Registro diario de ese lote y ese día.",
+
+    glossaryLayRateStripScaleTerm: "Escala de la franja de 14 días",
+    glossaryLayRateStripScaleDef: "La franja de Tasa de postura ajusta sus barras al día completo más alto. Cuando ningún día del período está completo, se ajusta al día parcial más alto y dice \"solo días incompletos\" para que las barras nunca se lean como producción total de la granja.",
+
+    glossaryLayRateFlockScopeTerm: "Ámbito de lote de la tasa de postura",
+    glossaryLayRateFlockScopeDef: "La tarjeta de Tasa de postura del panel puede mostrar Todos los lotes o un lote elegido. Toda la tarjeta sigue esa elección — la franja, la completitud, el promedio y ambos períodos de comparación de postura — y las cifras vienen del servidor, no de filtrar la vista de Todos los lotes. Los demás paneles del panel no cambian.",
 
     glossaryEggLotTerm: "Lote de huevos",
     glossaryEggLotDef:

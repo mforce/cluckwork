@@ -1,6 +1,6 @@
 // web/src/routes/Dashboard.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Dashboard } from "./Dashboard";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -385,8 +385,10 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
     expect(mockReport).toHaveBeenCalledTimes(2);
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8));
+    // #916 — the third argument is the flock scope; All flocks (the default)
+    // passes undefined, so the report stays farm-wide exactly as before.
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1), undefined);
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined);
   });
 
   it("draws the 14 report days oldest-first as bars sized off the peak, and the server's hen-day figures", async () => {
@@ -565,6 +567,67 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     const kpi = await screen.findByText("—", { selector: ".trend-fig" });
     expect(kpi).toBeInTheDocument();
     expect(screen.getByText("—", { selector: ".trend-delta" }).className).toBe("trend-delta");
+  });
+});
+
+describe("Dashboard Lay rate flock scope (#916)", () => {
+  it("defaults to All flocks and offers a searchable picker when more than one flock is accessible", async () => {
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(mockReport).toHaveBeenLastCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined);
+    const allButton = await screen.findByRole("button", { name: "All flocks" });
+    expect(allButton).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Flock")).toHaveValue("All flocks");
+  });
+
+  it("scopes the whole card to a picked flock, then back to All flocks — never touching the other panels", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    mockReport.mockClear();
+    mockEntries.mockClear();
+
+    await user.click(screen.getByLabelText("Flock"));
+    // Scoped to the option role: "Flock f2" also names the Today row's own
+    // link, ambiguous under a plain text query.
+    await user.click(await screen.findByRole("option", { name: "Flock f2" }));
+
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 7), daysBefore(today, 1), "f2"));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f2");
+    // Combobox role, not the label text: the picker stays open after a commit
+    // (matches the DailyEntryPage FlockPicker's own convention), and MUI's
+    // Autocomplete labels its open listbox with the same "Flock" text, which
+    // makes a bare label query ambiguous.
+    expect(screen.getByRole("combobox", { name: "Flock" })).toHaveValue("Flock f2");
+    // Today's collection panel does not refetch on a Lay rate scope change.
+    expect(mockEntries).not.toHaveBeenCalled();
+
+    mockReport.mockClear();
+    // Clicking All flocks lands outside the picker's own container, so the
+    // engine's outside-click handling closes it back to the plain trigger —
+    // hence the label query again, not the combobox role.
+    await user.click(screen.getByRole("button", { name: "All flocks" }));
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 7), daysBefore(today, 1), undefined));
+    expect(screen.getByLabelText("Flock")).toHaveValue("All flocks");
+  });
+
+  // #916 SELECTION.md — the only-one-flock view must report the SAME figures
+  // as picking that flock out of a longer list: both derive `flockId` through
+  // the identical code path (`soleFlockId` folds into the picker's own
+  // scope), so this pins the observable half of that parity — the exact same
+  // `getProductionReport` call, not a second "just show everything" branch.
+  it("shows the sole accessible flock as plain text, with no picker, and scopes to it exactly as a manual pick would", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    expect(within(trendPanel).getByText("Flock f1")).toBeInTheDocument();
+    expect(within(trendPanel).queryByRole("button", { name: "All flocks" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Flock")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 7), daysBefore(today, 1), "f1"));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f1");
   });
 });
 
@@ -789,8 +852,8 @@ describe("Dashboard follows the farm's day and locale", () => {
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
     expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
-    expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21");
-    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14");
+    expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21", undefined);
+    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14", undefined);
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
     expect(screen.getByText("+2,3 pts")).toBeInTheDocument();

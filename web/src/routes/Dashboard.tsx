@@ -16,6 +16,7 @@ import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
+import { FlockPicker } from "../components/FlockPicker";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
@@ -32,6 +33,11 @@ const RECENT_ORDERS = 5;
 // past 500 flocks the tail silently drops — revisit with real paging if that
 // day comes.
 const MAX_PAGE = 500;
+
+// #916 — the Lay rate card's own scope, independent of every other panel.
+// Plain page state (not derived from anything that resets on reload) so
+// #914's range control can sit beside it later without clearing the choice.
+type ProductionScope = { kind: "all" } | { kind: "flock"; flock: Flock };
 
 // Six parallel reads; failed panels degrade independently. The server owns
 // the hen-day calculation for each seven-day reporting window.
@@ -55,6 +61,23 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // #916 — the Lay rate card's own scope. `trendLoading` is separate from the
+  // page's `loading` above: a scope change refetches ONLY the two
+  // production-report calls (never the other panels), and must not blank the
+  // whole page while that refetch is in flight — "Other dashboard panels do
+  // not change" (SELECTION.md). A failed refetch clears `trend` to null,
+  // which already renders `panelError` below — no separate error flag needed.
+  const [scope, setScope] = useState<ProductionScope>({ kind: "all" });
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [flockPickerOpen, setFlockPickerOpen] = useState(false);
+  // Mirrors the engine's own committed entity so the CLOSED-state trigger can
+  // show it (same T036 pattern DailyEntryPage's FlockPicker uses), and so an
+  // external reset (the All flocks button) can clear the engine's retained
+  // name via `controlledCommitted`/`controlledGeneration` without it lingering
+  // the next time the search reopens.
+  const [pickerFlock, setPickerFlock] = useState<Flock | null>(null);
+  const [pickerFlockGen, setPickerFlockGen] = useState(0);
+
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
   // ReadOnly/Denied can't read customers or orders — the API now returns 403
   // (#127) — so skip those two fetches and hide the sales panel, matching the
@@ -67,25 +90,28 @@ export function Dashboard() {
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
 
+  // #916 — a PRIMITIVE, not the `flocks` array itself: the trend effect below
+  // depends on this so a farm with more than one flock (the common case)
+  // re-renders `flocks` exactly once (on load) without re-triggering a second,
+  // wasted report fetch — the array's reference changes every time, but this
+  // value only changes on the one transition that actually matters (null →
+  // an id, when the farm turns out to have exactly one accessible flock).
+  const soleFlockId = flocks !== null && flocks.length === 1 ? flocks[0].id : null;
+
   useEffect(() => {
     Promise.allSettled([
       listFlocks({ limit: MAX_PAGE }),
       listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
       getStock(),
       canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
-      // The last 7 complete days and the 7 before them — yesterday back, so an
-      // unsubmitted today never ends the line in a false dip (owner decision A).
-      getProductionReport(daysBefore(today, 7), daysBefore(today, 1)),
-      getProductionReport(daysBefore(today, 14), daysBefore(today, 8)),
-    ]).then(([f, e, s, o, cur, prev]) => {
+    ]).then(([f, e, s, o]) => {
       if (f.status === "fulfilled") setFlocks(f.value);
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
       if (o.status === "fulfilled") setOrders(o.value);
-      if (cur.status === "fulfilled" && prev.status === "fulfilled") setTrend({ current: cur.value, previous: prev.value });
       // Only the fetches we actually issued count toward "everything failed":
       // the sales read is an inert placeholder when the role can't see it.
-      const issued = canSeeSales ? [f, e, s, o, cur, prev] : [f, e, s, cur, prev];
+      const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
       const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
       const firstRejected = rejected[0];
       if (rejected.length === issued.length && firstRejected) {
@@ -95,6 +121,35 @@ export function Dashboard() {
       setLoading(false);
     });
   }, [today, canSeeSales]);
+
+  // #916 — the production report alone, re-run on every scope change (and on
+  // `today`/`soleFlockId`, exactly like the effect above). Separate from the
+  // effect above so choosing a flock never re-fetches the other four panels
+  // ("Other dashboard panels do not change", SELECTION.md). `cancelled` drops
+  // a superseded response: a slow "all flocks" request landing after a faster
+  // later scope change must not overwrite it.
+  useEffect(() => {
+    // With exactly one accessible flock there is no All-flocks scope to
+    // offer, so this always reports that flock — the SAME `flockId` a picker
+    // selection would produce, never a separate "everything" branch (parity
+    // requirement, SELECTION.md).
+    const flockId = soleFlockId ?? (scope.kind === "flock" ? scope.flock.id : undefined);
+    let cancelled = false;
+    setTrendLoading(true);
+    Promise.allSettled([
+      // The last 7 complete days and the 7 before them — yesterday back, so an
+      // unsubmitted today never ends the line in a false dip (owner decision A).
+      getProductionReport(daysBefore(today, 7), daysBefore(today, 1), flockId),
+      getProductionReport(daysBefore(today, 14), daysBefore(today, 8), flockId),
+    ]).then(([cur, prev]) => {
+      if (cancelled) return;
+      setTrend(cur.status === "fulfilled" && prev.status === "fulfilled"
+        ? { current: cur.value, previous: prev.value }
+        : null);
+      setTrendLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [today, scope, soleFlockId]);
 
   // #512 US4 — a recent-sales row's own name: the row-owned `customerName` the
   // endpoint's scoped bulk read already resolved, or the translated
@@ -126,6 +181,16 @@ export function Dashboard() {
   // missing houses undercounted both on the capped list (CodeRabbit, #883).
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
   const tiles = allTiles === null ? null : visibleTiles(allTiles);
+
+  // #916 — with exactly one accessible flock there is no All-flocks concept
+  // to offer (SELECTION.md), and its figures must come from the SAME code
+  // path as picking that flock out of a larger list — so `soleFlock` folds
+  // into the same `flockId` the fetch effect and every render below read,
+  // rather than being a second, parallel "just show everything" branch.
+  const soleFlock = flocks !== null && flocks.length === 1 ? flocks[0] : null;
+  const scopedFlock = soleFlock ?? (scope.kind === "flock" ? scope.flock : null);
+  const scopeName = scopedFlock ? scopedFlock.name : t("allFlocksOption");
+
   const trendData = trend === null ? null : {
     line: dayStrip({
       days: [...trend.previous.days, ...trend.current.days],
@@ -343,13 +408,67 @@ export function Dashboard() {
             <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
             <Typography variant="caption" color="text.secondary">{t("trendPanelTitle")}</Typography>
           </Box>
-          {trendData === null ? panelError : <>
-            <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
-            <Typography className="trend-sub" variant="caption" sx={{ display: "block", mb: 1.5 }}>{t("henDaySubLabel")}</Typography>
-            <DayStrip data={trendData.line} label={trendLabel(trendData.line)} title={t("trendScaleTitle")}
-              peak={trendData.line.max === null ? "—" : t("trendPeak", { total: fmt.count(trendData.line.max) })}
-              average={trendData.line.average === null ? null : t("trendAvg", { total: fmt.count(trendData.line.average, 1) })}
-              tip={trendTip} from={<FarmDate iso={daysBefore(today, 14)} />} to={<FarmDate iso={daysBefore(today, 1)} />} />
+          {/* #916 — the card's own flock scope. Exactly one accessible flock:
+              plain text, no dropdown (SELECTION.md). More than one: a fast
+              "All flocks" toggle beside the searchable picker, so All stays
+              reachable without opening the search surface at all — which
+              also satisfies SELECTION.md's "All flocks stays available above
+              the scrolling results" without adding a synthetic option inside
+              the shared picker's own results list. */}
+          {soleFlock !== null ? (
+            <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{soleFlock.name}</Typography>
+          ) : flocks !== null && flocks.length > 1 ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+              <Button
+                type="button" size="small" color="inherit"
+                variant={scope.kind === "all" ? "contained" : "outlined"}
+                aria-pressed={scope.kind === "all"}
+                onClick={() => {
+                  setScope({ kind: "all" });
+                  setPickerFlock(null);
+                  setPickerFlockGen((g) => g + 1);
+                }}
+                sx={{ "&&": { minHeight: 36 } }}
+              >
+                {t("allFlocksOption")}
+              </Button>
+              <Box sx={{ minWidth: 160, flexGrow: 1 }}>
+                <FlockPicker
+                  label={t("flockScopeLabel")}
+                  eligibility="active-and-depleted"
+                  open={flockPickerOpen}
+                  controlledCommitted={pickerFlock}
+                  controlledGeneration={pickerFlockGen}
+                  onSnapshot={() => {}}
+                  onCommit={(f) => {
+                    setScope({ kind: "flock", flock: f });
+                    setPickerFlock(f);
+                    setPickerFlockGen((g) => g + 1);
+                  }}
+                  onEscape={() => setFlockPickerOpen(false)}
+                  onOutsideClick={() => setFlockPickerOpen(false)}
+                  trigger={
+                    <button
+                      type="button"
+                      className="named-picker-trigger"
+                      onClick={() => setFlockPickerOpen(true)}
+                    >
+                      {scopeName}
+                    </button>
+                  }
+                />
+              </Box>
+            </Box>
+          ) : null}
+          {trendLoading ? <LinearProgress aria-label={t("trendPanelTitle")} sx={{ height: 5, borderRadius: 2, mb: 1 }} />
+            : trendData === null ? panelError : <>
+              <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
+              <Typography className="trend-sub" variant="caption" sx={{ display: "block", mb: 1.5 }}>{t("henDaySubLabel")}</Typography>
+              <DayStrip data={trendData.line} label={trendLabel(trendData.line)}
+                title={t(trendData.line.scale === "partial" ? "trendScaleTitlePartial" : "trendScaleTitle")}
+                peak={trendData.line.max === null ? "—" : t("trendPeak", { total: fmt.count(trendData.line.max) })}
+                average={trendData.line.average === null ? null : t("trendAvg", { total: fmt.count(trendData.line.average, 1) })}
+                tip={trendTip} from={<FarmDate iso={daysBefore(today, 14)} />} to={<FarmDate iso={daysBefore(today, 1)} />} />
           </>}
         </Card>
       </Box>

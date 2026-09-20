@@ -815,6 +815,12 @@ export const en = {
     availableStockTitle: "Available stock",
     recentOrdersTitle: "Recent orders",
     layRateTitle: "Lay rate",
+    // #916 — the Lay rate card's flock scope. `flockScopeLabel` is the
+    // picker's field label; `allFlocksOption` is the always-visible control
+    // that returns the card to farm-wide, kept outside the picker's own
+    // scrolling results (SELECTION.md) rather than as a row inside them.
+    flockScopeLabel: "Flock",
+    allFlocksOption: "All flocks",
     gradeColumn: "Grade",
     countColumn: "Count",
     shareColumn: "Share",
@@ -913,6 +919,10 @@ export const en = {
     // last one has gone. Distinct from nobody having filed.
     trendStripLabelNoFlocks: "Eggs per day, last 14 days. No flock was on the farm in this window.",
     trendScaleTitle: "Eggs per day",
+    // #916 — no complete day in the window, so the bars scale to the largest
+    // PARTIAL total instead: distinct wording so nobody reads them as
+    // full-farm output.
+    trendScaleTitlePartial: "Eggs per day, partial days only",
     trendPeak: "Peak {{total}}",
     trendAvg: "Avg {{total}}",
     // The readout for one day, and the accessible name of that day's slot.
@@ -2804,7 +2814,11 @@ export const en = {
       + "Hen-day % divides by the hen-days of the flocks that recorded, so a flock that forgets lowers "
       + "what the figure is measured over, never the rate itself. The window is fixed (yesterday back) and counts "
       + "<strong>submitted days only</strong> — a day still in Draft reads as No entry until it is "
-      + "submitted, unlike Reports where you choose the range.",
+      + "submitted, unlike Reports where you choose the range. Choose <strong>All flocks</strong> or "
+      + "a single flock above the chart to scope the whole card — bars, completeness, Avg and both "
+      + "hen-day periods — to that flock; with only one accessible flock its name shows without a "
+      + "picker. When no day in the window is fully recorded, Peak scales to the largest partial day "
+      + "instead and says \"partial days only\".",
     dashboardOrders: "<strong>Recent orders</strong> shows each customer, amount and status, with the first line’s quantity and current grade name. +N counts additional lines. Renaming a grade also changes its name here on old orders; an unavailable grade leaves the quantity alone.",
     dashboardStock: "<strong>Available stock</strong> shows the total and a <strong>stacked bar</strong> of its grade composition, followed by a <strong>Grade</strong>, <strong>Count</strong> and <strong>Share</strong> table. Hover or focus a row to highlight it. Restricted eggs are listed separately. These are the same available counts as Stock.",
 
@@ -3640,6 +3654,12 @@ export const en = {
 
     glossaryCaptureStatusTerm: "Capture status",
     glossaryCaptureStatusDef: "Whether each active flock has a daily entry for today. Morning collection shows one row per flock, missing ones first, and counts drafts as recorded. No entry links to Daily entry for that flock and day.",
+
+    glossaryLayRateStripScaleTerm: "14-day strip scale",
+    glossaryLayRateStripScaleDef: "The Lay rate strip scales its bars to the largest fully recorded day. When no day in the window is fully recorded, it scales to the largest partial day instead and says \"partial days only\" so the bars are never read as full-farm output.",
+
+    glossaryLayRateFlockScopeTerm: "Lay rate flock scope",
+    glossaryLayRateFlockScopeDef: "The Dashboard's Lay rate card can show All flocks or one chosen flock. The whole card follows the choice — the strip, completeness, the average and both hen-day comparison periods — and the figures come from the server, not from filtering the All flocks view. Other Dashboard panels do not change.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:

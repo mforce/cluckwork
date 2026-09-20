@@ -739,6 +739,27 @@ flocks that did file, so a missing flock lowers what the figure is measured
 over rather than the figure itself. Distinct from a day nobody recorded,
 which has no figure at all.
 
+**14-day strip scale (#916)** — Peak scales every bar to the largest
+**complete** day's total when the window has one. When it does not — every
+recorded day in the window is partial — Peak falls back to the largest
+**partial** day's total instead, and the caption says "partial days only" so
+the bars are never read as full-farm output. A window with no recorded day
+at all has no Peak and draws every bar at the 2% floor's absence (nothing to
+scale against). The Avg line never falls back: it stays complete-day-only in
+every case, because averaging a floor understates whatever the missing
+houses would have added.
+
+**Lay rate flock scope (#916)** — the Dashboard's Lay rate card reads one
+scope: **All flocks** (every flock the signed-in user can see) or one
+selected flock, chosen from a searchable picker. The scope applies to the
+whole card together — the strip, completeness, the complete-day average, and
+both hen-day comparison periods — never to only part of it, and the figures
+come from a server-scoped report, never from filtering the farm-wide one in
+the browser. With exactly one accessible flock the card shows that flock's
+name as plain text instead of a picker, and its figures equal choosing that
+same flock from a longer list. Other Dashboard panels do not follow this
+scope.
+
 **Production report (#91)** — per-day official production over a range
 (Draft entries aren't submitted, Voided ones vacated their day — neither
 counts): eggs, losses, sellable, deaths, hen-day %, period totals, grade
