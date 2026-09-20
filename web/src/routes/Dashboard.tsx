@@ -1,11 +1,10 @@
 // web/src/routes/Dashboard.tsx
 import { useEffect, useId, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert, X } from "lucide-react";
+import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
 import {
-  Alert, Box, Button, Card, Container, Dialog, IconButton, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
+  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -17,6 +16,8 @@ import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
+import { FlockPickerDialog } from "../components/FlockPickerDialog";
+import type { FlockScope } from "../components/FlockPickerDialog";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
@@ -33,19 +34,6 @@ const RECENT_ORDERS = 5;
 // past 500 flocks the tail silently drops — revisit with real paging if that
 // day comes.
 const MAX_PAGE = 500;
-
-// #918 — Codex review, finding 1. The picker's own discovery, server-paged
-// exactly like the shared NamedEntityPicker engine (50-row pages, 250ms
-// debounce): filtering the already-loaded, 500-capped `flocks` array made a
-// flock past the 500th unreachable by search on a large farm. This search is
-// independent of that array on purpose.
-const PICKER_PAGE_SIZE = 50;
-const PICKER_DEBOUNCE_MS = 250;
-
-// #916 — the Lay rate card's own scope, independent of every other panel.
-// Plain page state (not derived from anything that resets on reload) so
-// #914's range control can sit beside it later without clearing the choice.
-type ProductionScope = { kind: "all" } | { kind: "flock"; flock: Flock };
 
 // Six parallel reads; failed panels degrade independently. The server owns
 // the hen-day calculation for each seven-day reporting window.
@@ -80,31 +68,29 @@ export function Dashboard() {
   // whole page while that refetch is in flight — "Other dashboard panels do
   // not change" (SELECTION.md). A failed refetch clears `trend` to null,
   // which already renders `panelError` below — no separate error flag needed.
-  const [scope, setScope] = useState<ProductionScope>({ kind: "all" });
+  const [scope, setScope] = useState<FlockScope>({ kind: "all" });
   const [trendLoading, setTrendLoading] = useState(true);
   // #918 fidelity round — one full-width selector, matching the approved
-  // mockup exactly: `pickerOpen` drives its Dialog, `searchQuery` is the
-  // controlled search text. There is exactly one reset path (choosing "All
-  // flocks" inside the dialog), and it sets `scope` directly with nothing
-  // else to fall out of sync with it (Codex review of #918, finding 1: the
-  // old picker's Clear button had no handler, so it could empty the CONTROL
-  // while `scope`, a second independently-held value, kept the card scoped).
+  // mockup exactly: `pickerOpen` drives the extracted FlockPickerDialog
+  // (which owns its own search/results/paging state). There is exactly one
+  // reset path (choosing "All flocks" inside the dialog), and it sets `scope`
+  // directly with nothing else to fall out of sync with it (Codex review of
+  // #918, finding 1: the old picker's Clear button had no handler, so it
+  // could empty the CONTROL while `scope`, a second independently-held
+  // value, kept the card scoped).
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  // #918 — Codex review, finding 1 (round 3): server-paged discovery for the
-  // dialog's own results, independent of the page-scoped `flocks` list below
-  // (that one stays 500-capped for the Today panel; this one pages past it).
-  const [pickerResults, setPickerResults] = useState<Flock[]>([]);
-  const [pickerCursor, setPickerCursor] = useState(0);
-  const [pickerHasMore, setPickerHasMore] = useState(false);
-  const [pickerLoading, setPickerLoading] = useState(false);
-  // #918 — Codex review, finding 4: the flock LIST read (not the picker's own
-  // search, which is independent per finding 1) can fail on its own even when
-  // the other three panels succeed. `flocksFailed` distinguishes that from
-  // "flocks is empty" or "still loading", so the scope selector can show an
-  // unavailable state with Retry instead of silently reading as "0 accessible
-  // flocks".
+  // #918 — Codex review, finding 4: the flock LIST read (not the picker
+  // dialog's own discovery, which is independent) can fail on its own even
+  // when the other three panels succeed. `flocksFailed` distinguishes that
+  // from "flocks is empty" or "still loading", so the scope selector can
+  // show an unavailable state with Retry instead of silently reading as "0
+  // accessible flocks". Round 4, finding 4: `flocksRetrying` keeps that
+  // unavailable state up (with the Retry button now disabled) until the
+  // retried read actually SETTLES — clearing `flocksFailed` the instant
+  // Retry is clicked showed "0 accessible flocks" for the gap before the new
+  // data arrived, which is exactly the state this exists to avoid.
   const [flocksFailed, setFlocksFailed] = useState(false);
+  const [flocksRetrying, setFlocksRetrying] = useState(false);
 
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
   // ReadOnly/Denied can't read customers or orders — the API now returns 403
@@ -118,48 +104,11 @@ export function Dashboard() {
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
 
-  // #918 fidelity round — stable ids for the selector's aria-labelledby pair
-  // and the picker dialog's own labelled elements.
+  // #918 fidelity round — stable ids for the selector's own aria-labelledby
+  // pair. The picker dialog's own labelled elements are now internal to
+  // FlockPickerDialog.
   const scopeLabelId = useId();
   const scopeValueId = useId();
-  const pickerTitleId = useId();
-  const searchInputId = useId();
-
-  // #918 — Codex review, finding 3: arrow/Home/End move focus among the
-  // dialog's own choice buttons ("All flocks" reachable first, matching the
-  // mockup), mirroring the shared picker engine's own keyboard contract
-  // (FR-032/picker-ui.md) without adopting its Autocomplete/combobox markup —
-  // these stay plain, individually-focusable buttons, so this is a roving
-  // FOCUS move, not a roving tabindex/aria-activedescendant pattern. Declared
-  // here, alongside the other hooks and before any early return, not lower
-  // down where the render-only locals live (Rules of Hooks: `useRef` cannot
-  // sit after a conditional `return`).
-  const pickerBodyRef = useRef<HTMLDivElement>(null);
-  const onPickerKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-    const container = pickerBodyRef.current;
-    if (!container) return;
-    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
-    if (buttons.length === 0) return;
-    let i = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    if (i === -1) i = 0;
-    else if (e.key === "Home") i = 0;
-    else if (e.key === "End") i = buttons.length - 1;
-    else if (e.key === "ArrowDown") i = Math.min(buttons.length - 1, i + 1);
-    else if (e.key === "ArrowUp") i = Math.max(0, i - 1);
-    e.preventDefault();
-    buttons[i]?.focus();
-  };
-  // ArrowDown from the search field itself lands on the first choice ("All
-  // flocks" — reachable first, per the finding), matching the mockup's own
-  // search-to-results handoff.
-  const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "ArrowDown") return;
-    const first = pickerBodyRef.current?.querySelector<HTMLButtonElement>("button");
-    if (!first) return;
-    e.preventDefault();
-    first.focus();
-  };
 
   // #916 — a PRIMITIVE, not the `flocks` array itself: the trend effect below
   // depends on this so a farm with more than one flock (the common case)
@@ -210,13 +159,16 @@ export function Dashboard() {
 
   // #918 — Codex review, finding 4: the flock list can fail on its own even
   // when the other three panels succeed (`flocksFailed` below), and Retry
-  // re-issues ONLY this one read — the picker's own discovery (finding 1) is
-  // a separate, independent server call and is unaffected either way.
+  // re-issues ONLY this one read — the picker dialog's own discovery is a
+  // separate, independent server call and is unaffected either way. Round 4,
+  // finding 4: `flocksFailed` itself is left alone until the retried read
+  // SETTLES — clearing it up front (before the new data lands) let the
+  // selector render "0 accessible flocks" for the gap in between.
   const fetchFlocks = () => {
-    setFlocksFailed(false);
+    setFlocksRetrying(true);
     listFlocks({ limit: MAX_PAGE })
-      .then((f) => setFlocks(f))
-      .catch(() => setFlocksFailed(true));
+      .then((f) => { setFlocks(f); setFlocksFailed(false); setFlocksRetrying(false); })
+      .catch(() => { setFlocksFailed(true); setFlocksRetrying(false); });
   };
 
   useEffect(() => {
@@ -261,6 +213,16 @@ export function Dashboard() {
     // effect above has already bumped `loadGenRef` by the time this line runs
     // — this fetch is correctly attributed to the NEW generation, not the one
     // it was dispatched under before.
+    //
+    // Round 4, Codex finding 2: `canSeeSales` is in this effect's OWN deps
+    // below for the same reason it is in the panels effect's — a role change
+    // that flips it bumps `loadGenRef` without touching `today`, `scope` or
+    // `soleFlockId`, and this effect must rerun in lockstep or it never
+    // records ANY outcome for the new generation. Without that, a genuine
+    // total failure in the new generation went unreported forever:
+    // `evaluateTotalFailure`'s `trend.gen !== gen` guard stayed true across
+    // every future settlement, since nothing here ever wrote a fresh
+    // `trendOutcomeRef` for that generation.
     const gen = loadGenRef.current;
     let cancelled = false;
     setTrendLoading(true);
@@ -285,51 +247,7 @@ export function Dashboard() {
       evaluateTotalFailure();
     });
     return () => { cancelled = true; };
-  }, [today, scope, soleFlockId]);
-
-  // #918 — Codex review, finding 1 (round 3). Server-paged, debounced
-  // discovery for the picker dialog — the same 50-row/250ms shape the shared
-  // NamedEntityPicker engine uses, so a flock past the first 500 is reachable
-  // by search on a large farm. Fires only while the dialog is open, and only
-  // for a multi-flock farm (the sole-flock case never renders a dialog at
-  // all). `cancelled` drops a stale replacement the way the trend effect's
-  // own flag does.
-  useEffect(() => {
-    if (!pickerOpen) return;
-    let cancelled = false;
-    setPickerLoading(true);
-    const timer = window.setTimeout(() => {
-      listFlocks({ search: searchQuery.trim() || undefined, eligibility: "active-and-depleted", limit: PICKER_PAGE_SIZE, offset: 0 })
-        .then((page) => {
-          if (cancelled) return;
-          setPickerResults(page);
-          setPickerCursor(page.length);
-          setPickerHasMore(page.length === PICKER_PAGE_SIZE);
-          setPickerLoading(false);
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setPickerResults([]);
-          setPickerHasMore(false);
-          setPickerLoading(false);
-        });
-    }, PICKER_DEBOUNCE_MS);
-    return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [pickerOpen, searchQuery]);
-
-  // One click = one extension request, at the PAINTED cursor — matches the
-  // shared picker engine's own "Load more" contract (picker-ui.md).
-  const loadMorePickerResults = () => {
-    setPickerLoading(true);
-    listFlocks({ search: searchQuery.trim() || undefined, eligibility: "active-and-depleted", limit: PICKER_PAGE_SIZE, offset: pickerCursor })
-      .then((page) => {
-        setPickerResults((prev) => [...prev, ...page]);
-        setPickerCursor((c) => c + page.length);
-        setPickerHasMore(page.length === PICKER_PAGE_SIZE);
-        setPickerLoading(false);
-      })
-      .catch(() => setPickerLoading(false));
-  };
+  }, [today, scope, soleFlockId, canSeeSales]);
 
   // #512 US4 — a recent-sales row's own name: the row-owned `customerName` the
   // endpoint's scoped bulk read already resolved, or the translated
@@ -610,11 +528,16 @@ export function Dashboard() {
             // silently read as "0 accessible flocks" / "No matching flocks",
             // which looks like a genuinely empty farm rather than a read that
             // failed. The existing panel-error pattern, with a Retry that
-            // re-issues only this read (the picker's own discovery, finding
-            // 1, is independent either way).
+            // re-issues only this read (the picker dialog's own discovery is
+            // independent either way). Round 4, finding 4: the Retry button
+            // itself shows the shared "loading" label and disables while the
+            // retried read is in flight, instead of flipping straight back to
+            // the ordinary selector before the new data has landed.
             <Box sx={{ mt: "18px", mb: "8px" }}>
               <Alert severity="error" className="error" action={
-                <Button color="inherit" size="small" onClick={fetchFlocks}>{tp("retry")}</Button>
+                <Button color="inherit" size="small" disabled={flocksRetrying} onClick={fetchFlocks}>
+                  {flocksRetrying ? tp("loading") : tp("retry")}
+                </Button>
               }>
                 {t("flockListUnavailableMessage")}
               </Alert>
@@ -639,7 +562,7 @@ export function Dashboard() {
                     aria-labelledby={`${scopeLabelId} ${scopeValueId}`}
                     aria-haspopup="dialog"
                     aria-expanded={pickerOpen}
-                    onClick={() => { setSearchQuery(""); setPickerOpen(true); }}
+                    onClick={() => setPickerOpen(true)}
                     sx={{
                       width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
                       fontWeight: 600, textAlign: "left", textTransform: "none", gap: 1.5, "&&": { minHeight: 44 },
@@ -655,74 +578,14 @@ export function Dashboard() {
               </Typography>
 
               {soleFlock === null && (
-                <Dialog open={pickerOpen} onClose={() => setPickerOpen(false)} fullWidth maxWidth="xs" aria-labelledby={pickerTitleId}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.25, p: 2, pb: 1 }}>
-                    <Typography id={pickerTitleId} sx={{ fontWeight: 700 }}>{t("chooseFlockTitle")}</Typography>
-                    <IconButton onClick={() => setPickerOpen(false)} aria-label={t("closeFlockSelectorAction")} sx={{ width: 44, height: 44 }}>
-                      <X size={22} />
-                    </IconButton>
-                  </Box>
-                  <Box sx={{ px: 2 }}>
-                    <Typography component="label" htmlFor={searchInputId} variant="caption" sx={{ display: "block", mb: 0.5 }}>
-                      {t("searchAccessibleFlocksLabel")}
-                    </Typography>
-                    <TextField
-                      id={searchInputId} type="search" fullWidth size="small" autoComplete="off"
-                      value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={onSearchKeyDown}
-                      placeholder={t("searchByNamePlaceholder")}
-                    />
-                  </Box>
-                  {/* `pickerBodyRef`/`onPickerKeyDown`: arrow/Home/End move
-                      focus among every button below (Codex review of #918,
-                      finding 3), "All flocks" reachable first since it is the
-                      first button in DOM order — pinned ABOVE the scrolling
-                      result list, never a row inside it (SELECTION.md / the
-                      mockup's #allChoice). */}
-                  <div ref={pickerBodyRef} onKeyDown={onPickerKeyDown}>
-                    <Button
-                      fullWidth onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
-                      aria-pressed={scope.kind === "all"}
-                      sx={{ justifyContent: "space-between", textTransform: "none", mt: 1.5, mx: 2, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
-                    >
-                      <span>{t("allFlocksOption")}</span>
-                      <Typography component="span" variant="caption" color="text.secondary">
-                        {t("accessibleFlocksCount", { count: accessibleCount })}
-                      </Typography>
-                    </Button>
-                    <Typography variant="caption" color="text.secondary" role="status" sx={{ display: "block", px: 2, mt: 1.5, mb: 0.5 }}>
-                      {pickerLoading ? tp("loading") : t("matchingFlocksCount", { count: pickerResults.length })}
-                    </Typography>
-                    <Box component="ul" role="list" aria-label={t("flockScopeResultsLabel")}
-                      sx={{ listStyle: "none", m: 0, p: 0, maxHeight: 180, overflow: "auto", borderTop: "1px solid var(--rule)" }}
-                    >
-                      {pickerResults.length === 0 && !pickerLoading ? (
-                        <Typography sx={{ p: 1.5, fontSize: "13px" }}>{t("noMatchingFlocksMessage")}</Typography>
-                      ) : pickerResults.map((f) => (
-                        <Box component="li" key={f.id}>
-                          <Button
-                            fullWidth onClick={() => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
-                            aria-pressed={scope.kind === "flock" && scope.flock.id === f.id}
-                            sx={{
-                              justifyContent: "flex-start", textAlign: "left", textTransform: "none",
-                              borderRadius: 0, borderBottom: "1px solid var(--rule)", "&&": { minHeight: 44 },
-                            }}
-                          >
-                            {f.name}
-                          </Button>
-                        </Box>
-                      ))}
-                    </Box>
-                    {pickerHasMore && (
-                      <Button
-                        fullWidth onClick={loadMorePickerResults} disabled={pickerLoading}
-                        sx={{ textTransform: "none", "&&": { minHeight: 44 } }}
-                      >
-                        {tp("loadMore")}
-                      </Button>
-                    )}
-                  </div>
-                </Dialog>
+                <FlockPickerDialog
+                  open={pickerOpen}
+                  onClose={() => setPickerOpen(false)}
+                  scope={scope}
+                  accessibleCount={accessibleCount}
+                  onPickAll={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                  onPickFlock={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
+                />
               )}
             </>
           )}

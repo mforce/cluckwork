@@ -762,28 +762,12 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
   });
 
-  // #918 — Codex review, round 3, finding 1. The dialog's search used to
-  // filter only the first 500 already-loaded flocks, so a flock past that
-  // page was unreachable on a large farm. It is now server-paged: the
-  // unfiltered page the dialog opens with is a fixed 50-row fixture that
-  // never contains the 501st flock, and only a search naming it reaches the
-  // server with that query and finds it.
-  it("reaches a flock past the first page by searching the server, not by filtering an already-loaded list", async () => {
-    const user = userEvent.setup();
-    const firstPage = Array.from({ length: 50 }, (_, i) => flock(`p${i}`, "Active"));
-    const flock501 = flock("f501", "Active");
-    mockFlocks.mockImplementation((params) =>
-      Promise.resolve(params?.search === "f501" ? [flock501] : firstPage));
-
-    renderWithProviders(<Dashboard />);
-    await todayTotal();
-    const results = await openPicker(user);
-    expect(within(results).queryByRole("button", { name: "Flock f501" })).not.toBeInTheDocument();
-
-    await user.type(screen.getByRole("searchbox", { name: "Search accessible flocks" }), "f501");
-    await waitFor(() => expect(within(results).getByRole("button", { name: "Flock f501" })).toBeInTheDocument());
-    expect(mockFlocks).toHaveBeenLastCalledWith(expect.objectContaining({ search: "f501", offset: 0, limit: 50 }));
-  });
+  // #918 round 4 — the picker dialog's own discovery mechanics (server
+  // paging past the first page, keyboard navigation, debounce timing,
+  // stale-response rejection) now live in FlockPickerDialog.test.tsx, next
+  // to the component that owns them. What stays here is WIRING: the dialog
+  // renders when triggered and a pick updates the card, already covered by
+  // "scopes the whole card to a picked flock..." above.
 
   // #918 — Codex review, round 3, finding 2. `trendOutcomeRef`/`panelsOutcomeRef`
   // used to keep the FIRST-EVER outcome, so an early total failure raised a
@@ -817,35 +801,38 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(await screen.findByText("87.4%")).toBeInTheDocument();
   });
 
-  // #918 — Codex review, round 3, finding 3. The results were plain buttons
-  // with no Arrow/Home/End navigation; "All flocks" (pinned above the
-  // scrolling list) is the first stop, matching DOM order.
-  it("moves focus through the picker's choices with Arrow/Home/End, All flocks reachable first", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<Dashboard />);
-    await todayTotal();
-    const results = await openPicker(user);
-    const allFlocks = screen.getByRole("button", { name: /^All flocks/ });
-    const f1 = within(results).getByRole("button", { name: "Flock f1" });
-    const f2 = within(results).getByRole("button", { name: "Flock f2" });
-    const f3 = within(results).getByRole("button", { name: "Flock f3" });
+  // #918 — Codex review, round 4, finding 2. The rollover test above changes
+  // the ROLE alone, but its second generation also happens to drop to a sole
+  // flock — which changes `soleFlockId` too, and that alone was already
+  // enough to rerun the trend effect before this fix. This test holds THREE
+  // flocks across both generations, so `soleFlockId` stays null throughout
+  // and `canSeeSales` is the only thing that changes: without `canSeeSales`
+  // in the trend effect's own deps, no trend outcome is ever recorded for
+  // the second generation, and a genuine total failure there is silently
+  // swallowed rather than reported. Mutation-verified: dropping
+  // `canSeeSales` from that effect's dependency array turns this red
+  // (the error never appears), confirmed locally then reverted.
+  it("reruns production on a role change alone, so a genuine total failure in the new generation is still reported", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active"), flock("f2", "Active"), flock("f3", "Active")]);
+    mockEntries.mockResolvedValue([]);
+    mockStock.mockResolvedValue(STOCK);
+    mockOrders.mockResolvedValue([]);
+    mockReport.mockImplementation(reportByWindow(today));
+    const { rerender } = render(
+      <MemoryRouter>
+        <AuthOverride role="Admin"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("87.4%")).toBeInTheDocument(); // healthy first generation
 
-    allFlocks.focus();
-    await user.keyboard("{ArrowDown}");
-    expect(f1).toHaveFocus();
+    for (const m of [mockFlocks, mockEntries, mockStock, mockReport]) m.mockImplementation(boom);
+    rerender(
+      <MemoryRouter>
+        <AuthOverride role="ReadOnly"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
 
-    await user.keyboard("{End}");
-    expect(f3).toHaveFocus();
-
-    await user.keyboard("{Home}");
-    expect(allFlocks).toHaveFocus();
-
-    await user.keyboard("{ArrowDown}{ArrowDown}");
-    expect(f2).toHaveFocus();
-
-    await user.keyboard("{Enter}");
-    await waitForPickerToClose();
-    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+    expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
   });
 
   // #918 — Codex review, round 3, finding 4. A failed flock-list read used to
@@ -861,8 +848,23 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(within(trendPanel).queryByText(/accessible flocks ·/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Flock /i })).not.toBeInTheDocument();
 
-    mockFlocks.mockResolvedValueOnce([flock("f1", "Active"), flock("f2", "Active"), flock("f3", "Active")]);
+    // #918 — Codex review, round 4, finding 4. Retry used to clear
+    // `flocksFailed` the instant it was clicked, before the retried read
+    // settled, so the card briefly rendered the ordinary selector reading
+    // "0 accessible flocks" — indistinguishable from a genuinely empty farm.
+    // A deferred response holds that gap open long enough to assert the
+    // unavailable state (Retry now disabled, showing the shared "loading"
+    // label) stays up across it.
+    let resolveRetry: ((f: Flock[]) => void) | null = null;
+    mockFlocks.mockImplementationOnce(() => new Promise((resolve) => { resolveRetry = resolve; }));
     await user.click(within(trendPanel).getByRole("button", { name: "Retry" }));
+
+    expect(within(trendPanel).getByText("Could not load the flock list.")).toBeInTheDocument();
+    const retryButton = within(trendPanel).getByRole("button", { name: "Loading…" });
+    expect(retryButton).toBeDisabled();
+    expect(within(trendPanel).queryByText(/accessible flocks ·/)).not.toBeInTheDocument();
+
+    resolveRetry!([flock("f1", "Active"), flock("f2", "Active"), flock("f3", "Active")]);
     expect(await within(trendPanel).findByText(/^3 accessible flocks · /)).toBeInTheDocument();
     expect(within(trendPanel).queryByText("Could not load the flock list.")).not.toBeInTheDocument();
   });

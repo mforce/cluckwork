@@ -638,6 +638,7 @@ export const es = {
     noMatchingFlocksMessage: "Ningún lote coincide. Intente otro nombre.",
     flockScopeResultsLabel: "Lotes accesibles",
     flockListUnavailableMessage: "No se pudo cargar la lista de lotes.",
+    flockDiscoveryUnavailableMessage: "No se pudo buscar lotes.",
     accessibleFlocksCount_one: "{{count}} lote accesible",
     accessibleFlocksCount_other: "{{count}} lotes accesibles",
     layRateContext: "{{scope}} · {{from}}–{{to}}",

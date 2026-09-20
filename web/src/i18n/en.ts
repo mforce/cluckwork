@@ -834,6 +834,12 @@ export const en = {
     // #918 — Codex review, finding 4: shown instead of the selector when the
     // flock list itself failed to load, with Retry alongside.
     flockListUnavailableMessage: "Could not load the flock list.",
+    // #918 — Codex review, round 4, finding 3: the dialog's OWN discovery
+    // (search/page) failing is distinct from `flockListUnavailableMessage`
+    // above (the page-scoped list the Today panel reads) — shown inside the
+    // results area, with its own Retry, instead of reading as a real "no
+    // matching flocks" empty result.
+    flockDiscoveryUnavailableMessage: "Could not search flocks.",
     // The card's own scope-and-range caption, under the selector: "{scope} ·
     // {date range}" — {{scope}} is either `accessibleFlocksCount` or the
     // chosen flock's own name, pre-formatted by the caller (#650).

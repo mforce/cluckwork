@@ -663,6 +663,7 @@ export const tl = {
     noMatchingFlocksMessage: "Walang tumutugmang kawan. Subukan ang ibang pangalan.",
     flockScopeResultsLabel: "Mga accessible na kawan",
     flockListUnavailableMessage: "Hindi ma-load ang listahan ng kawan.",
+    flockDiscoveryUnavailableMessage: "Hindi mahanap ang mga kawan.",
     accessibleFlocksCount_one: "{{count}} accessible na kawan",
     accessibleFlocksCount_other: "{{count}} accessible na kawan",
     layRateContext: "{{scope}} · {{from}}–{{to}}",
