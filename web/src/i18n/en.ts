@@ -2291,7 +2291,9 @@ export const en = {
     fromLabel: "From",
     toLabel: "To",
 
-    productionHeading: "Production",
+    productionHeading: "Daily production",
+    productionCaption: "Raw auditable detail",
+    gradeUnit: "eggs",
     dateHeader: "Date",
     eggsHeader: "Eggs",
     lossesHeader: "Losses (cr/di/ds)",
@@ -2309,7 +2311,7 @@ export const en = {
     ratedEggsHeader: "Rated eggs",
     henDayPctHeader: "Hen-day %",
     periodRowLabel: "Period",
-    gradeTotalsLabel: "By grade:",
+    gradeTotalsLabel: "Reported grade totals",
 
     moneyHeading: "Money",
     salesRowLabel: "Sales",

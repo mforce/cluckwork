@@ -1687,7 +1687,9 @@ export const es = {
     fromLabel: "Desde",
     toLabel: "Hasta",
 
-    productionHeading: "Producción",
+    productionHeading: "Producción diaria",
+    productionCaption: "Detalle auditable sin procesar",
+    gradeUnit: "huevos",
     dateHeader: "Fecha",
     eggsHeader: "Huevos",
     lossesHeader: "Pérdidas (ag/su/de)",
@@ -1701,7 +1703,7 @@ export const es = {
     ratedEggsHeader: "Huevos contados",
     henDayPctHeader: "% días-gallina",
     periodRowLabel: "Período",
-    gradeTotalsLabel: "Por grado:",
+    gradeTotalsLabel: "Totales por clasificación registrados",
 
     moneyHeading: "Dinero",
     salesRowLabel: "Ventas",

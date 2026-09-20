@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import {
-  Box, List, ListItem, LinearProgress, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Typography,
+  Box, Button, List, ListItem, LinearProgress, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Typography,
 } from "@mui/material";
 import {
   getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
@@ -13,7 +13,7 @@ import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
-import { FieldConsole, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX } from "../components/FieldConsole";
+import { FieldConsole, ConsoleSubhead, CONSOLE_PAPER_HEAD_SX, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX } from "../components/FieldConsole";
 import { daysBefore } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
 import { useAuth } from "../auth/useAuth";
@@ -100,6 +100,7 @@ export function ReportsPage() {
           slotProps={{ htmlInput: { max: today } }}
           onChange={(e) => setTo(e.target.value)}
         />
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFrom(daysBefore(today, 6)); setTo(today); }}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
 
       {error && (
@@ -132,7 +133,7 @@ export function ReportsPage() {
               <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
             </Box>)}
           </Box>
-          <h3>{t("productionHeading")}</h3>
+          <ConsoleSubhead title={t("productionHeading")} caption={t("productionCaption")} />
           <LedgerTableContainer>
             <Table size="small">
               <TableHead>
@@ -190,13 +191,14 @@ export function ReportsPage() {
       <Box sx={CONSOLE_SPLIT_SX}>
         {production && production.gradeTotals.length > 0 && (
           <Box sx={CONSOLE_PANEL_SX}>
-            <h3>{t("gradeTotalsLabel")}</h3>
+            <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}><h3>{t("gradeTotalsLabel")}</h3></Box>
             <List aria-label={t("gradeTotalsLabel")} disablePadding>
               {production.gradeTotals.map((grade) => (
-                <ListItem key={grade.name} sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(50px, 1fr)", gap: 2, px: 0, py: 1.5, borderBottom: "1px solid var(--rule)" }}>
+                <ListItem key={grade.name} sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(50px, 1fr) auto", gap: 2, px: 0, py: 1.5, borderBottom: "1px solid var(--rule)" }}>
                   <Typography component="span" sx={{ fontFamily: "Georgia, serif", fontWeight: 600 }}>{grade.name}</Typography>
                   <strong>{fmt.count(grade.quantity)}</strong>
                   <LinearProgress variant="determinate" value={100 * grade.quantity / Math.max(1, ...production.gradeTotals.map((g) => g.quantity))} aria-label={grade.name} sx={{ height: 8, borderRadius: "var(--r-pill)", bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--stat-accent)" } }} />
+                  <Typography component="span" sx={{ fontSize: ".75rem", color: "text.secondary" }}>{t("gradeUnit")}</Typography>
                 </ListItem>
               ))}
             </List>
@@ -204,7 +206,7 @@ export function ReportsPage() {
         )}
         {isAdmin && sales && expenses && profit && (
           <Box component="section" aria-labelledby="reports-money-heading" sx={CONSOLE_PANEL_SX}>
-            <h3 id="reports-money-heading">{t("moneyHeading")}</h3>
+            <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}><h3 id="reports-money-heading">{t("moneyHeading")}</h3></Box>
             <Box component="dl" sx={{ m: 0 }}>
               <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
                 <Typography component="dt" sx={{ fontWeight: 700 }}>{t("revenueRowLabel")}</Typography>

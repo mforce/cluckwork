@@ -117,7 +117,7 @@ const SCREENS = [
       // A POSITIVE check, because the money section renders only once all three
       // of its reads land. Asserting the ABSENCE of an error here would pass in
       // the gap between a 500 arriving and React rendering it (#841).
-      const money = page.getByRole("heading", { name: tEn("reports:moneyHeading"), exact: true }).locator("..");
+      const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
       await expect(money.getByText(tEn("reports:profitRowLabel"), { exact: true })).toBeVisible();
       // The production table alone does not prove production: ReportQueries
       // emits a row per calendar day in the range whether or not anything was

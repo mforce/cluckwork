@@ -113,7 +113,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     expect(within(periodRow).getAllByText("196")).toHaveLength(2); // totalHenDays, totalRecordedHenDays
     within(periodRow).getByText("92.3"); // periodHenDayPct
 
-    expect(screen.getByRole("list", { name: "By grade:" })).toHaveTextContent("Grade A60Grade B30");
+    expect(screen.getByRole("list", { name: "Reported grade totals" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
   });
 
   // #396 — Condition sits BESIDE Sellable, never folded into it. The fixture
@@ -159,7 +159,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
 
     await screen.findByRole("row", { name: /07\/19\/2026/ });
-    expect(screen.queryByText(/By grade:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reported grade totals/)).not.toBeInTheDocument();
   });
 
   it("shows the shared common:loading copy while the initial fetch is in flight, not a duplicated literal", () => {
@@ -350,8 +350,8 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   it("reads the grade-totals prefix from the catalog, not a hardcoded literal", async () => {
     await withOverride("gradeTotalsLabel", "GRADE-TOTALS-MARKER", async () => {
       renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
-      expect(await screen.findByRole("list", { name: "GRADE-TOTALS-MARKER" })).toHaveTextContent("Grade A60Grade B30");
-      expect(screen.queryByText(/By grade:/)).not.toBeInTheDocument();
+      expect(await screen.findByRole("list", { name: "GRADE-TOTALS-MARKER" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
+      expect(screen.queryByText(/Reported grade totals/)).not.toBeInTheDocument();
     });
   });
 
@@ -480,4 +480,21 @@ it("keeps period KPIs in one phone strip and aligns primary Money amounts", asyn
     const row = within(money).getByText(label, { selector: "dt" }).parentElement!;
     expect(within(row).getByText(amount, { selector: "dd" })).toHaveStyle({ textAlign: "right" });
   }
+});
+
+it("restores the default report window and labels the auditable detail and grade units", async () => {
+  renderWithProviders(<ReportsPage />, { token: ADMIN });
+  await screen.findByRole("region", { name: "Money" });
+  const from = screen.getByLabelText("From");
+  const to = screen.getByLabelText("To");
+  const initialFrom = from.getAttribute("value");
+  const initialTo = to.getAttribute("value");
+  fireEvent.change(from, { target: { value: "2026-01-01" } });
+  fireEvent.change(to, { target: { value: "2026-01-02" } });
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(from).toHaveValue(initialFrom);
+  expect(to).toHaveValue(initialTo);
+  await screen.findByRole("heading", { name: "Daily production" });
+  expect(screen.getByText("Raw auditable detail")).toBeInTheDocument();
+  expect(within(screen.getByRole("list", { name: "Reported grade totals" })).getAllByText("eggs")).toHaveLength(2);
 });

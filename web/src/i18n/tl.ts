@@ -1751,7 +1751,9 @@ export const tl = {
     fromLabel: "Mula",
     toLabel: "Hanggang",
 
-    productionHeading: "Produksyon",
+    productionHeading: "Araw-araw na produksyon",
+    productionCaption: "Orihinal na detalyeng maa-audit",
+    gradeUnit: "itlog",
     dateHeader: "Petsa",
     eggsHeader: "Itlog",
     lossesHeader: "Nasira (b/m/t)",
@@ -1765,7 +1767,7 @@ export const tl = {
     ratedEggsHeader: "Itlog na binilang",
     henDayPctHeader: "Hen-day %",
     periodRowLabel: "Panahon",
-    gradeTotalsLabel: "Ayon sa grado:",
+    gradeTotalsLabel: "Naitalang kabuuan ayon sa grado",
 
     moneyHeading: "Pera",
     salesRowLabel: "Benta",

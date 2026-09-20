@@ -9,6 +9,24 @@ export const CONSOLE_PANEL_SX = {
   bgcolor: "var(--surface)",
   minWidth: 0,
 };
+export const CONSOLE_LINK_SX = {
+  minWidth: 0, px: 0, color: "var(--link)", fontWeight: 700,
+  textDecoration: "underline", textDecorationColor: "var(--link-rule)", textUnderlineOffset: "3px",
+  "&:hover": { textDecoration: "underline" },
+};
+export const CONSOLE_PAPER_HEAD_SX = {
+  display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "15px",
+  mx: -2, mt: -2, mb: 2, px: 2, py: "14px", borderBottom: "1px solid var(--rule)",
+  "&& h3": { m: 0 },
+};
+
+export function ConsoleSubhead({ title, caption }: { title: string; caption: string }) {
+  return <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, mt: "22px", mb: 1, "&& h3": { m: 0 } }}>
+    <Typography component="h3" variant="h3">{title}</Typography>
+    <Typography component="span" sx={{ color: "text.secondary", fontSize: ".75rem", textAlign: "right" }}>{caption}</Typography>
+  </Box>;
+}
+
 export const CONSOLE_SPLIT_SX = {
   display: "grid",
   gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1.6fr) minmax(240px, .8fr)" },
