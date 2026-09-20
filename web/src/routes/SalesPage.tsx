@@ -51,7 +51,6 @@ const MANIFEST_ACTIONS_SX = {
 };
 // Keep picker width stable when its trigger switches between a button and input.
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
-// Keep the below-list chip distinct from the row tint.
 const DISCOUNTED_ROW_SX = { bgcolor: "var(--tint-warn)" };
 const DISCOUNTED_BADGE_SX = { bgcolor: "var(--surface)" };
 
@@ -1154,9 +1153,6 @@ export function SalesPage() {
         </p>
       )}
 
-      {/* Deliberately NOT a <form>: these controls were button-driven, so
-          wrapping them in one would newly enforce min/step and swallow the
-          screen's own money messages (codex review of #132). */}
       {/* Native form validation would intercept the page's own money validation messages. */}
       <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}>
         <Stack spacing={2}>
