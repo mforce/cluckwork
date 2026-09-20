@@ -212,9 +212,6 @@ test.describe("Owner", () => {
     // soon as the log holds more than one kind of event — which the assertion
     // below on `distinctActions` proves it does, rather than assuming it.
     const filter = page.getByLabel(tEn("audit:actionFilterLabel"));
-    // #833 — each row grew a leading disclosure-toggle cell (When/Who/Action
-    // moved from columns 1/2/3 to 2/3/4), so Action is now the 4th cell, not
-    // the 3rd.
     const actionCells = table.locator("tbody tr td:nth-child(4)");
     const before = (await actionCells.allInnerTexts()).map((a) => a.trim());
 

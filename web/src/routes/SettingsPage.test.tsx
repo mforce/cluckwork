@@ -1157,17 +1157,6 @@ describe("SettingsPage banner", () => {
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
   });
 
-  // #833 finding 4 — replacing or removing the banner must also update the
-  // device's pre-login cache (lib/bannerCache.ts), or Login can keep
-  // showing an image the server no longer serves.
-  //
-  // Codex review (finding 1) — what gets cached must be the server's
-  // SANITIZED bytes (a fresh authenticated getFarmBanner() read), never the
-  // raw File the input picked: the server strips EXIF and can re-encode on
-  // upload, so caching the File directly could show Login metadata or an
-  // orientation the server already removed. Proven by making the uploaded
-  // File and the getFarmBanner() response DIFFERENT byte sequences and
-  // asserting the cache holds the latter.
   it("re-caches the SERVER'S sanitized bytes on upload, not the raw uploaded file", async () => {
     bindAccount("acct-A");
     bindFarm("sunny-acres");
@@ -1211,13 +1200,6 @@ describe("SettingsPage banner", () => {
     await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
   });
 
-  // Codex review round 4 — the post-upload getFarmBanner() re-fetch is
-  // fire-and-forget and farmBindingToken() doesn't change between two
-  // banner operations on the SAME farm, so nothing stopped a SLOW re-fetch
-  // from landing after a LATER remove and re-caching the just-removed
-  // banner's bytes. bannerOpGeneration closes that: proven by starting an
-  // upload's re-fetch, removing before it resolves, THEN letting it
-  // resolve, and confirming the cache stays empty throughout.
   it("does not resurrect a removed banner from a slow post-upload re-fetch", async () => {
     bindAccount("acct-A");
     bindFarm("sunny-acres");
@@ -1230,26 +1212,18 @@ describe("SettingsPage banner", () => {
       resolveFetch = resolve;
     }));
     mockRemoveBanner.mockResolvedValue(undefined);
-    // No banner set yet — "Upload a banner" is the label before one exists;
-    // once the upload below succeeds, hasBanner flips true and the button
-    // relabels to "Replace banner" (with Remove appearing alongside it).
     await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: null }));
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Upload a banner"),
         { target: { files: [imageOfSize(900)] } });
     });
-    // The upload succeeded; its post-upload getFarmBanner() re-fetch is now
-    // stuck (resolveFetch not yet called).
-
     fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
     });
     await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
 
-    // The STALE upload re-fetch resolves only now, well after the remove
-    // completed — it must not write anything back.
     await act(async () => {
       resolveFetch({ blob: new Blob(["stale-bytes-from-the-superseded-upload"]), filename: null });
     });
@@ -1288,8 +1262,6 @@ describe("SettingsPage pending scopes (#236)", () => {
     // The palette radios bind to the settings scope only — a logo flight
     // leaves them alone.
     expect(screen.getByRole("radio", { name: "Aubergine" })).toBeEnabled();
-    // The logo's own status region carries the announcement, exactly as
-    // before the consolidation.
     expect(document.getElementById("logo-status")).toHaveTextContent("Working…");
     expect(screen.getByLabelText("Upload a logo")).toBeDisabled();
 
@@ -1474,7 +1446,6 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
     });
   });
 
-  // #833 redesign — Concept C shell chrome added around the pre-existing form.
   it("reads the eyebrow from the catalog, not a hardcoded literal", async () => {
     await withOverride("settings", "eyebrow", "EYEBROW-MARKER", async () => {
       await renderReady();
@@ -1499,10 +1470,6 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// Expandable sections (#833 redesign, Concept C "Focus panels")
-// ---------------------------------------------------------------------------
 
 describe("SettingsPage — expandable sections (#833 Concept C)", () => {
   it("the Identity & images section starts expanded, with its own content reachable", async () => {
@@ -1556,21 +1523,14 @@ describe("SettingsPage — expandable sections (#833 Concept C)", () => {
     expect(screen.getByLabelText("Time format")).toBeInTheDocument();
   });
 
-  // Logo/Banner stay their own immediate actions even now that they sit
-  // inside the same <form> as Save (#833 redesign moved them in visually) —
-  // clicking Remove must never submit the settings form.
   it("does not submit the settings form when Remove (logo) is clicked", async () => {
     await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
     fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
 
     expect(mockUpdate).not.toHaveBeenCalled();
-    // The confirm dialog opened instead — the destructive click's only effect.
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  // #833 finding 7 — the logo case above proves nothing about the banner's
-  // OWN Remove button; they are two separate controls in two separate
-  // panels, and a fix or regression in one is not visible through the other.
   it("does not submit the settings form when Remove (banner) is clicked", async () => {
     await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
     fireEvent.click(screen.getByRole("button", { name: /Remove/ }));

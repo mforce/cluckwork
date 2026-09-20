@@ -65,10 +65,6 @@ describe("BrandSplash", () => {
     expect(screen.getByRole("dialog", { name: "Hen House" })).toBeInTheDocument();
   });
 
-  // #833 — owner decision, 2026-09-19: the splash is where the banner is
-  // fetched, so it is where the bytes are cached for Login's own pre-auth
-  // display. Real bindAccount/bindFarm (not mocked), same as brand.test.ts,
-  // because cacheBannerBytes checks the live binding.
   it("caches the fetched banner under the bound farm, once it loads", async () => {
     bindAccount("acct-A");
     bindFarm("sunny-acres");
@@ -89,8 +85,6 @@ describe("BrandSplash", () => {
   });
 
   it("caches nothing on an unbound tab (a fresh tab restored from the refresh cookie)", async () => {
-    // Deliberately no bindAccount/bindFarm — mirrors applyBrand's own
-    // unbound-tab contract in brand.test.ts.
     mockGetFarmBanner.mockResolvedValue({ blob: new Blob(["png-bytes"]), filename: null });
     render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
 

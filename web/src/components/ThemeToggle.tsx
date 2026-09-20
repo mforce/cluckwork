@@ -35,11 +35,6 @@ export function ThemeToggle({
 
   if (!showLabel) {
     return (
-      // #833, CodeRabbit review — size="small" alone renders under the
-      // app's 44px touch-target floor (phone.spec.ts's geometry walk does
-      // not reach the two auth screens that use this branch, which is why
-      // it shipped in #829 unnoticed). The explicit minWidth/minHeight keep
-      // the small icon's visual size while widening the tap target.
       <IconButton
         className={className}
         onClick={toggle}

@@ -57,25 +57,12 @@ describe("HelpPage", () => {
     expect(linked).toEqual(sections);
   });
 
-  // #833 — SELECTION.md's own design-lab prototype rendered this string as
-  // raw HTML, which turned "<code>" into an unclosed opening tag that
-  // swallowed everything after it (including the phone nav) into a <code>
-  // element. Production never had that defect — it goes through <Trans>,
-  // which only recognises tags named in `components` (here just `strong`)
-  // and renders anything else, closed or not, as literal escaped text — but
-  // nothing pinned that until now, so a future change adding `code` to the
-  // components map, or switching this to dangerouslySetInnerHTML, would
-  // reopen it silently.
   it("renders the literal /login?farm=<code> as text, not as an opening HTML tag (#833)", () => {
     render(<HelpPage />);
     const farmCodeDef = screen.getByText("Farm code", { selector: "dt a" })
       .closest(".glossary-entry")
       ?.querySelector("dd");
     expect(farmCodeDef?.textContent).toContain("/login?farm=<code>");
-    // Never an actual <code> ELEMENT born from that string within this
-    // entry — the page's one legitimate <code> (glossaryRepoNote, a
-    // deliberate `components={{ code: <code /> }}`) lives in a different
-    // entry, so this scopes to the FarmCode definition specifically.
     expect(farmCodeDef?.querySelector("code")).toBeNull();
   });
 

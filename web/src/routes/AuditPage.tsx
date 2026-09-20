@@ -172,16 +172,7 @@ function AuditDetails({ event }: { event: AuditEvent }) {
 export function AuditPage() {
   const { t } = useTranslation("audit");
   const { t: tc } = useTranslation("common");
-  // #833 finding 6 — the expanded Details cell has no column header of its
-  // own (the head row only ever declares four columns; Details is a fifth
-  // that only exists once a row expands), so it announces to assistive tech
-  // as unlabeled content. A visually hidden header cell, referenced BOTH
-  // ways — `headers`/`id` for a screen reader's native table-navigation
-  // announcements, `aria-labelledby` for the cell's own computed accessible
-  // name (what `getByRole(..., {name})` checks; `headers` alone is invisible
-  // to the ARIA accname algorithm) — gives it a name without adding visible
-  // text that would corrupt the exact-string price-summary assertions
-  // (#758) reading this cell's own textContent.
+  // The hidden header supports native table navigation and ARIA naming.
   const detailsColumnHeaderId = useId();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -420,13 +411,6 @@ export function AuditPage() {
     ? events.rows?.[0]?.entityType
     : undefined;
 
-  // #833 redesign — Concept C "Focus panels": each row is a collapsed summary
-  // (When/Who/Action) by default, expanding IN PLACE to reveal Entity and
-  // Details. A Set of expanded ids, not a single "which row" value: nothing
-  // stops a reader opening more than one row at once, and #93's read-only
-  // guarantee only needs disclosure state, not mutation, to survive a filter
-  // reload — reloads replace `events.rows` by id, and this state is keyed the
-  // same way, so an expanded row that's still on the new page stays expanded.
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -477,9 +461,6 @@ export function AuditPage() {
             <option key={a} value={a}>{auditActionLabel(a)}</option>
           ))}
         </TextField>
-        {/* #666/#653 — the date range's own bounded width, carried by
-            FilterDateField now rather than a `.toolbar` wrapper. Mirrors
-            FeedPage/WaterPage/HistoryPage/StockPage (#831). */}
         <FilterDateField label={t("fromLabel")} value={fromFilter}
           onChange={(e) => updateDateFilter("from", e.target.value)} />
         <FilterDateField label={t("toLabel")} value={toFilter}
@@ -540,9 +521,6 @@ export function AuditPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {/* Header-less disclosure column: each row's own toggle
-                      carries its own accessible name (#833), so the column
-                      needs no visible or accessible header of its own. */}
                   <TableCell padding="checkbox" />
                   <TableCell>{t("whenHeader")}</TableCell>
                   <TableCell>{t("whoHeader")}</TableCell>
@@ -587,18 +565,7 @@ export function AuditPage() {
                               </Typography>
                             </TableCell>
                           )}
-                          {/* No inline "Details" label here (unlike Entity
-                              above): several tests pin this cell's exact
-                              textContent (#758's price-summary cases), and a
-                              prefix label would corrupt every one of those
-                              exact-string comparisons. The row's own "Details"
-                              toggle button already names what this reveals;
-                              `aria-labelledby` below gives the cell itself a
-                              real accessible name (the ARIA accname algorithm
-                              testing-library computes from) without adding
-                              visible text — `headers` alone is invisible to
-                              it and exists only for real screen readers'
-                              table-navigation mode, confirmed by mutation. */}
+                          {/* Name the cell without changing its pinned visible text. */}
                           <TableCell headers={detailsColumnHeaderId} aria-labelledby={detailsColumnHeaderId}>
                             <AuditDetails event={e} />
                           </TableCell>

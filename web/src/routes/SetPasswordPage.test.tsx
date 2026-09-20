@@ -144,8 +144,6 @@ describe("SetPasswordPage i18n wiring (#283)", () => {
   it("interpolates {{min}} into the new-password label from the catalog", async () => {
     await withOverride("setPasswordNewLabel", "NEW-PW-MARKER {{min}} MARKER-END", async () => {
       renderWithProviders(<SetPasswordPage />, { token: PENDING_ADMIN });
-      // MUI's required indicator appends its own trailing " *" to the label
-      // text (repo convention, e.g. GradesPage.test.tsx's "Name *").
       expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END *")).toBeInTheDocument();
     });
   });

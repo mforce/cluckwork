@@ -22,11 +22,7 @@ interface BrandSplashProps {
 // showing what it was given.
 export function BrandSplash({ farmName, bannerContentHash, onDismiss }: BrandSplashProps) {
   const { t } = useTranslation("splash");
-  // #833 — captured BEFORE the hook's own fetch starts (this render), not
-  // inside the callback below (which would run once the fetch already
-  // resolved, making cacheBannerBytes' own staleness check a no-op against
-  // itself). Re-memoized only when the hash changes, matching the hook's own
-  // fetch-per-hash lifecycle.
+  // Capture the binding before fetch so a farm switch cannot misattribute it.
   const boundAt = useMemo(() => farmBindingToken(), [bannerContentHash]);
   const { url, failed } = useBannerObjectUrl(
     bannerContentHash,

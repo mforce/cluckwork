@@ -54,15 +54,7 @@ describe("Login", () => {
   it("renders its labels from the auth i18n catalog (#182)", async () => {
     renderWithProviders(tree(), { route: "/login", token: null });
 
-    // Pinned to i18n.t, not the literal — proves the screen is reading the
-    // catalog rather than a string that happens to still match it. #833: the
-    // shared AuthShell's left panel ALSO reads auth:title for its own
-    // wordmark, so "Cluckwork" now renders twice — this asserts the screen's
-    // own heading specifically, not just that the text exists somewhere.
     expect(await screen.findByRole("heading", { name: i18n.t("auth:title"), level: 2 })).toBeInTheDocument();
-    // MUI's required indicator adds its own trailing " *" to the label text
-    // (repo convention, e.g. GradesPage.test.tsx's "Name *"), so a required
-    // field's accessible name is matched by prefix rather than by equality.
     expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:email")}`))).toBeInTheDocument();
     expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:password")}`))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: i18n.t("auth:signIn") })).toBeInTheDocument();
@@ -643,10 +635,6 @@ describe("Login — forgetting a remembered farm", () => {
     expect(passwordField).toHaveAttribute("autocomplete", "current-password");
   });
 
-  // #587/#833 — the rendered half of styles.test.ts's spelling-only
-  // source-shape guards. jsdom's getComputedStyle returns the literal
-  // Emotion wrote for a custom property, which is enough to tell
-  // `var(--error)` apart from `error.main`'s always-literal hex/rgb.
   it("paints the Forget glyph with --error and the select chip with no destructive colour", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
     renderWithProviders(tree(), { route: "/login", token: null });
@@ -663,14 +651,6 @@ describe("Login — forgetting a remembered farm", () => {
   });
 });
 
-// #833 — owner decision, 2026-09-19: the shell shows the device's CACHED
-// banner from a prior sign-in, never a live fetch (/account/banner stays
-// authenticated). Three paths: first visit (nothing cached), cached (the
-// farm-code field's value matches a cached entry), and after forgetting
-// that farm. Cached via the real cacheBannerBytes (IndexedDB), never by
-// poking localStorage directly — that stopped being the storage mechanism
-// at all (finding 1: production's CSP is `img-src 'self' blob:`, so the
-// cached image must render from a blob: object URL, never a data: URL).
 async function cacheBannerFor(slug: string, bytes = "AAAA") {
   bindAccount("acct-A");
   bindFarm(slug);
@@ -693,17 +673,11 @@ describe("Login — cached pre-auth banner (#833)", () => {
     renderWithProviders(tree(), { route: "/login", token: null });
     await screen.findByRole("button", { name: "Sign in" });
 
-    // Decorative (the shell panel already names the app) — alt="" is the
-    // deliberate accessible-name choice, asserted directly rather than by role.
     const img = await waitFor(() => {
       const found = document.querySelector("img[alt='']") as HTMLImageElement | null;
       expect(found).not.toBeNull();
       return found!;
     });
-    // #833 finding 1 — production's CSP is `img-src 'self' blob:`; a
-    // `data:` src here would paint fine in this CSP-less jsdom test and
-    // still be refused in production. This is the test Codex's review asked
-    // for: the rendered src must start with blob: and never data:.
     expect(img.src).toMatch(/^blob:/);
     expect(img.src).not.toMatch(/^data:/);
   });
@@ -717,9 +691,6 @@ describe("Login — cached pre-auth banner (#833)", () => {
     expect(document.querySelector("img[alt='']")).toBeNull();
   });
 
-  // #833 finding 2 — the banner follows the FIELD's current value, not just
-  // "how many farms are remembered": picking farm-a from the roster must
-  // show its banner even though the field started on neither.
   it("shows the banner once its farm is picked from the roster, with two farms remembered", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
     await cacheBannerFor("farm-a");
@@ -732,9 +703,6 @@ describe("Login — cached pre-auth banner (#833)", () => {
     await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
   });
 
-  // #833 finding 2 — typing OVER a prefilled single remembered code must
-  // hide that farm's banner the moment the field no longer names it; it
-  // must not persist until submission.
   it("hides the banner once the field is typed away from the cached farm", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
     await cacheBannerFor("farm-a");
@@ -747,25 +715,11 @@ describe("Login — cached pre-auth banner (#833)", () => {
     await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
   });
 
-  // Codex review, finding 2 — GLOSSARY.md is explicit that a `?farm=<code>`
-  // link must show no banner, cached or otherwise: unlike the palette
-  // (which carries no private information), a banner is farm-supplied
-  // imagery, and showing one to whoever merely holds a link — rather than
-  // only a device that has actually signed in there before — is a
-  // disclosure #833's design note never approved.
   it("shows no banner for a link-prefilled code, even when this device has that farm's banner cached", async () => {
     await cacheBannerFor("link-farm");
     renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });
     await screen.findByRole("button", { name: "Sign in" });
 
-    // Codex review — asserting immediately after the button appears races
-    // useCachedBannerUrl's own async IndexedDB read (findByRole can resolve
-    // before that read's microtasks have even run), which would let this
-    // pass vacuously whether or not the suppression actually works. A real,
-    // unsuppressed read for the same farm takes AT LEAST as many ticks as
-    // the suppressed path (which short-circuits on a blank lookup code
-    // without touching IndexedDB at all), so awaiting one first guarantees
-    // the component's own read has already settled by the time we check.
     await act(async () => {
       await readCachedBannerBlob("link-farm");
     });
@@ -773,10 +727,6 @@ describe("Login — cached pre-auth banner (#833)", () => {
     expect(document.querySelector("img[alt='']")).toBeNull();
   });
 
-  // The suppression covers the untouched link value ONLY: once the operator
-  // actually types the code themselves — even retyping the exact same
-  // value — it is a typed code like any other, and the normal field-match
-  // rule applies again.
   it("shows the banner once the link-prefilled code is retyped by hand", async () => {
     await cacheBannerFor("link-farm");
     renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });

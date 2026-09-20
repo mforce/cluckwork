@@ -27,10 +27,6 @@ const WORKER = { sub: "u1", role: "Worker" };
 
 beforeEach(() => vi.resetAllMocks());
 
-// D&D "Focus panels": Change password is a collapsed Accordion section by
-// default (unmounted while closed, so its own submit button's accessible
-// name — "Change password", identical to the section's summary heading —
-// never collides with the summary until this opens it).
 function expandChangePassword() {
   const summary = screen.getByRole("button", { name: "Change password" });
   if (summary.getAttribute("aria-expanded") !== "true") fireEvent.click(summary);
@@ -213,8 +209,6 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
       // MIN_LENGTH is 12 (AccountPage.tsx) — asserting the exact number, not
       // just that A number appears, is what would catch a mutation that
       // dropped the interpolation and always rendered a literal "12".
-      // MUI's required indicator appends its own trailing " *" to the label
-      // text (repo convention, e.g. GradesPage.test.tsx's "Name *").
       expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END *")).toBeInTheDocument();
       expect(screen.queryByLabelText(/^New password/)).not.toBeInTheDocument();
     });
@@ -234,10 +228,6 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
       expandChangePassword();
       expect(screen.getByRole("button", { name: "SUBMIT-MARKER" })).toBeInTheDocument();
-      // Exactly one button still reads "Change password" once expanded — the
-      // section's own summary (a separate catalog key, changePasswordHeading,
-      // not overridden here). Its aria-expanded attribute is what proves it
-      // is the summary and not a stray un-overridden submit button.
       const remaining = screen.getAllByRole("button", { name: "Change password" });
       expect(remaining).toHaveLength(1);
       expect(remaining[0]).toHaveAttribute("aria-expanded", "true");

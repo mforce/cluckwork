@@ -50,8 +50,6 @@ export const tl = {
   },
   auth: {
     title: "Cluckwork",
-    // #833 — machine-drafted, pending native review, same as the rest of
-    // this file's auth strings.
     shellEyebrow: "Pamamahala ng poultry farm",
     shellTagline: "Araw-araw na entry · Stock · Sales",
     loginShellFooter: "Kinikilala ng farm code kung aling farm ang iyong sinasabihan.",

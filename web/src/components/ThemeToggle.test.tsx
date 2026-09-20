@@ -26,12 +26,6 @@ describe("ThemeToggle", () => {
     expect(screen.queryByText("Night")).not.toBeInTheDocument();
   });
 
-  // #833, CodeRabbit review — the icon-only branch (Login, SetPasswordPage)
-  // is the one #829 shipped with `size="small"` alone, landing under the
-  // app's 44px touch-target floor with nothing to catch it: phone.spec.ts's
-  // geometry walk never reaches either auth screen. Rendered, not source-
-  // shape, since jsdom's getComputedStyle returns exactly the (unresolved)
-  // pixel value Emotion wrote for a plain numeric sx entry.
   it("meets the 44px touch-target floor when rendered icon-only", () => {
     render(<ThemeToggle showLabel={false} />);
     const btn = screen.getByRole("button", { name: "Switch to night mode" });

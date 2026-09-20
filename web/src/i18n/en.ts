@@ -74,9 +74,6 @@ export const en = {
   },
   auth: {
     title: "Cluckwork",
-    // #833 — the shared AuthShell's left brand panel (D&D "Working desk",
-    // Concept B): the tagline and eyebrow are fixed shell chrome, not
-    // per-screen copy, so both Login and SetPasswordPage read the same keys.
     shellEyebrow: "Poultry farm management",
     shellTagline: "Daily entry · Stock · Sales",
     loginShellFooter: "Farm code identifies the farm you are signing into.",
@@ -1618,7 +1615,6 @@ export const en = {
   // is their only render site), so their display names are flat keys here
   // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
   settings: {
-    // Concept C "Focus panels" (#833 redesign) shell chrome.
     eyebrow: "Farm configuration",
     heading: "Farm settings",
     intro:
@@ -1626,7 +1622,6 @@ export const en = {
       + "records and reads its work in.",
     loadFailedMessage: "Could not load farm settings.",
 
-    // Accordion heading grouping the Logo/Banner panels and the palette below.
     identityImagesHeading: "Identity & images",
     imageGuidanceHeading: "Image guidance",
 
@@ -1759,8 +1754,6 @@ export const en = {
       + "system and the format overrides are recorded against the farm and "
       + "will drive how amounts, dates and measurements are displayed once "
       + "that formatting lands.",
-    // Sits beside the Save button (#833 redesign) — logo/banner uploads and
-    // removals happen immediately when clicked and are never held for Save.
     saveScopeNote: "Image actions are separate from Save settings.",
     savedMessage: "Settings saved.",
 
@@ -2328,8 +2321,6 @@ export const en = {
   // em-dash fallback for a null reason (same convention as
   // customers/expenses/users/flocks/history's raw "—").
   audit: {
-    // Concept C "Focus panels" (#833 redesign) shell chrome — matches #93's
-    // own read-only guarantee.
     eyebrow: "Read-only record",
     heading: "Audit log",
     intro:
@@ -2402,9 +2393,6 @@ export const en = {
     fullBackupHeading: "Full backup",
     fullBackupButton: "Download full backup (zip)",
     fullBackupHint: "One zip with every dataset below plus a manifest of row counts.",
-    // Shared between the full-backup button and the single-dataset button
-    // (each uses its own `busy === <key>` check) — one in-flight-download
-    // label, not a per-button duplicate.
     preparingButton: "Preparing…",
 
     singleDatasetsHeading: "Single datasets",

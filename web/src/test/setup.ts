@@ -16,10 +16,6 @@ beforeEach(() => {
   // need specific responses re-stub fetch in their own beforeEach (which runs
   // after this one).
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
-  // jsdom has no IndexedDB (#833 — lib/bannerCache.ts's storage), and this
-  // repo adds no package for one (design doc §8's simplicity ceiling) — a
-  // FRESH hand-rolled fake every test, same isolation
-  // localStorage.clear()/sessionStorage.clear() below give those stores.
   vi.stubGlobal("indexedDB", createFakeIndexedDb());
 });
 

@@ -477,8 +477,6 @@ describe("farmCodeCache", () => {
     expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes")!)).toEqual(["farm-a"]);
   });
 
-  // #833 — the cached pre-auth banner (owner decision, 2026-09-19) follows
-  // the palette's own #586 lifecycle exactly, so it gets the same test.
   it("forgetting a farm removes its cached banner too (#833)", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
     bindAccount("acct-A");
@@ -489,9 +487,6 @@ describe("farmCodeCache", () => {
 
     await removeFarmCode("farm-b");
 
-    // forgetBannerFor's IndexedDB delete is fire-and-forget under
-    // removeFarmCode, so this settles asynchronously rather than by the time
-    // removeFarmCode's own promise resolves.
     await vi.waitFor(async () => expect(await readCachedBannerBlob("farm-b")).toBeNull());
     expect(await readCachedBannerBlob("farm-a")).not.toBeNull();
   });

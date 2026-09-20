@@ -78,9 +78,6 @@ export function AccountPage() {
         <Trans ns="account" i18nKey="roleLine" values={{ role: roleLabel(role) }} components={{ strong: <strong /> }} />
       </Typography>
 
-      {/* D&D "Focus panels" (Concept C): expandable sections, Preferences
-          open by default (the common case), Change password closed (a
-          security action tucked away rather than always on screen). */}
       <Accordion defaultExpanded disableGutters>
         <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
           <Typography variant="h3" component="span">{t("preferences")}</Typography>
@@ -99,11 +96,6 @@ export function AccountPage() {
         </AccordionDetails>
       </Accordion>
 
-      {/* unmountOnExit: while collapsed, the password fields (and the "Change
-          password" submit button, whose accessible name would otherwise
-          collide with this section's own summary heading) are not in the DOM
-          at all — not just visually hidden — matching that a closed section
-          holds no interactable form. */}
       <Accordion disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
         <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
           <Typography variant="h3" component="span">{t("changePasswordHeading")}</Typography>

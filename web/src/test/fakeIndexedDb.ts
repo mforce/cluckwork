@@ -1,14 +1,3 @@
-// A minimal, hand-rolled stand-in for the one IndexedDB shape lib/bannerCache.ts
-// actually uses (one object store, no indexes, no cursors, no key ranges) —
-// jsdom implements no IndexedDB at all, and per the owner's #833 review, this
-// repo adds no package for it (design doc §8's simplicity ceiling). Async via
-// queueMicrotask, close enough to a real IDBRequest's own async-resolution
-// shape for `await`-based test code, but NOT identical: `open()` below has to
-// resolve the "does this database already exist" question inside its OWN
-// queued microtask rather than at call time, specifically because two opens
-// issued back-to-back synchronously (bannerCache.ts's own callers do this)
-// must see each other's registration in call order, not race it. Nowhere
-// near IndexedDB's full surface, and not meant to be.
 type Listener = (() => void) | null;
 
 class FakeRequest<T> {
@@ -71,11 +60,7 @@ class FakeDatabase {
     return new FakeTransaction(store);
   }
 
-  close() {
-    // Nothing to release — the store map is retained by the factory below
-    // until resetFakeIndexedDb() replaces it, the same lifetime a real
-    // IDBDatabase's own connection would have across open() calls.
-  }
+  close() {}
 }
 
 export function createFakeIndexedDb() {
@@ -84,20 +69,11 @@ export function createFakeIndexedDb() {
   return {
     open(name: string, _version: number) {
       const req = new FakeRequest<FakeDatabase>();
-      // Looked up INSIDE the microtask, not captured at call time: two opens
-      // issued synchronously back-to-back (e.g. putBanner and a concurrent
-      // getBannerRecord, neither awaited before the other starts) would
-      // otherwise both read `databases` before either had registered its
-      // database, creating two separate FakeDatabase instances — a write
-      // through one invisible to a read through the other.
       queueMicrotask(() => {
         const existing = databases.get(name);
         const db = existing ?? new FakeDatabase();
         if (!existing) {
           databases.set(name, db);
-          // `result` is set BEFORE onupgradeneeded fires, matching a real
-          // IDBOpenDBRequest: the handler creates the store through
-          // `req.result`, which must already point at the (new) database.
           req.result = db;
           (req as unknown as { onupgradeneeded?: Listener }).onupgradeneeded?.();
         }

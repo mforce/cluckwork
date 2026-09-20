@@ -24,17 +24,8 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// #95/#833 — manual backup (admin). Downloads only; restore is a deployment
-// operation (see the backup section in the README), not an app feature.
-// D&D "Focus panels" (Concept C, docs/designs/674-tail-redesign): an action
-// catalog, not a form — the full backup is the one panel on the screen
-// (nothing to configure, one press), and single datasets are a select plus
-// one download button rather than one button per dataset.
 export function ExportPage() {
   const { t } = useTranslation("export");
-  // "all" while the full backup is in flight, "csv" while the selected
-  // dataset is — both disable the whole screen so a second download cannot
-  // start, same guarantee the per-dataset-button version had.
   const [busy, setBusy] = useState<"all" | "csv" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dataset, setDataset] = useState<string>(EXPORT_DATASETS[0]);

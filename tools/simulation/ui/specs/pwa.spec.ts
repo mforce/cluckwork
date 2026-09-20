@@ -96,11 +96,6 @@ test.describe("PWA shell", () => {
       // survivable on a bad connection. So it must PAINT — not show the
       // browser's offline error page.
       await expect(page).toHaveTitle("Cluckwork");
-      // #833 — Login now renders "Cluckwork" twice (AuthShell's own brand-panel
-      // h1, plus Login's own h2), so this needs a level to stay a single match.
-      // Asserting the shell's h1 specifically matches the comment below: it is
-      // the outer chrome, not Login's own heading, that proves the shell itself
-      // painted.
       await expect(
         page.getByRole("heading", { name: tEn("auth:title"), level: 1 }),
         "the shell did not render offline — the precache is not answering navigations",

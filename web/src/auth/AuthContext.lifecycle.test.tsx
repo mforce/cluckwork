@@ -87,13 +87,7 @@ describe("AuthProvider lifecycle", () => {
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
   });
 
-  // #833 findings 2/3 — a farm code is reusable (#732), so a cached
-  // pre-login banner keyed by slug alone can outlive the account that wrote
-  // it. login() must reconcile that the moment a sign-in proves which
-  // account a code belongs to today.
   it("clears a cached banner left by a DIFFERENT account under the same farm code", async () => {
-    // Simulate a stale cache: written earlier under a different account than
-    // the one about to sign in with this code.
     bindAccount("old-acct");
     bindFarm("default-farm");
     await cacheBannerBytes(new Blob(["old-banner"]), farmBindingToken());
@@ -111,8 +105,6 @@ describe("AuthProvider lifecycle", () => {
       fireEvent.click(screen.getByText("login"));
     });
 
-    // clearBannerIfWrongAccount runs fire-and-forget from login(), so this
-    // settles asynchronously rather than by the time act() above returns.
     await waitFor(async () => expect(await readCachedBannerBlob("default-farm")).toBeNull());
   });
 

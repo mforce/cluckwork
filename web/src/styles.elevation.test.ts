@@ -178,11 +178,7 @@ function declarationsFor(selector: string): Map<string, string> {
 // and `Autocomplete`'s own exception, `MuiAutocomplete.styleOverrides.paper`
 // at index 8, already pinned in `farmTheme.policy.test.ts`) — no new G2 row,
 // unchanged by this PR.
-// `.auth .card` retired here in #833: the sign-in card is now a MUI `Paper
-// elevation={0}` carrying `--auth-card-shadow` through its own `sx` (D2 pair
-// 16) — a bespoke per-instance shadow, not a G2 theme default, so there is no
-// new row in `farmTheme.policy.test.ts`; `styles.test.ts`'s token-contrast
-// assertions already cover `--auth-card-shadow` unchanged.
+// Auth uses an elevation-0 Paper with its existing bespoke shadow token.
 const SHADOW_ALLOWED = [
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
   ".update-banner",         // the service-worker update prompt
@@ -268,17 +264,8 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // card-like surface reads --r-panel instead. A generic "some r-* token"
   // pattern match (above) would stay green if one of these silently reverted
   // to --r-card, so this pins the SPECIFIC token per surface.
-  //
-  // `.logo-preview`/`.banner-preview`/`.palette-picker` retire here in #833:
-  // SettingsPage renders them through `sx` now (the literal `var(--r-panel)`
-  // moved with the markup, unpinned — the same fate #829 gave `.panel`).
-  // `.help-hero` does NOT retire: #833's Help conversion is deliberately
-  // scoped to the outer Container and the page's own h2 (see the PR body),
-  // so HelpPage.tsx still renders `className="help-hero"` and the rule is
-  // still live. Retire this row (remove `.help-hero` from the list below)
-  // only when the hero band itself converts, not before.
-  // `.farm-warning` stays too: it is AppLayout's shell strip, outside this
-  // slice's seven screens.
+  // Settings preview selectors retired with their sx replacements. Help and
+  // farm-warning still render page-owned panel-radius surfaces.
   it.each([
     ".card", ".order-panel", ".entry-pane", ".farm-warning", ".help-hero",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {

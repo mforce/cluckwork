@@ -27,8 +27,6 @@ function errText(err: unknown): string {
 // mustChangePassword from the fresh token, and this screen unmounts itself —
 // no navigation call needed, ProtectedRoute just renders the Outlet next
 // render.
-//
-// #833 — D&D "Working desk" (Concept B): shares AuthShell with Login.
 export function SetPasswordPage() {
   const { t } = useTranslation("auth");
   const { logout } = useAuth();

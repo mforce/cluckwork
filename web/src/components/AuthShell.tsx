@@ -3,12 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Box, Paper, Typography } from "@mui/material";
 import { ThemeToggle } from "./ThemeToggle";
 
-// #833 — the two-pane "Working desk" shell (Concept B,
-// docs/designs/674-tail-redesign/) shared by Login and SetPasswordPage: a
-// fixed brand panel on the left (the farm's own --brand colour, stable
-// across light/dark since --brand is never redeclared in the dark palette
-// blocks — verified in styles.css), and the screen's own form on the right.
-// At phone width the two panes stack instead of sitting side by side.
 export function AuthShell({
   children, footerNote, bannerSlot,
 }: { children: ReactNode; footerNote: string; bannerSlot?: ReactNode }) {
@@ -20,8 +14,6 @@ export function AuthShell({
       sx={{
         position: "relative", minHeight: "100dvh", display: "flex",
         alignItems: { xs: "stretch", md: "center" }, justifyContent: "center",
-        // Same D3.3 rule the auth shell always had: the gradient stays at
-        // 1280, the phone layout is flat and full-width with no bleed.
         background: { xs: "var(--canvas)", md: "var(--auth-bg)" },
         padding: { xs: 0, md: 3 },
       }}

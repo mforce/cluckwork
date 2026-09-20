@@ -236,14 +236,7 @@ export function SettingsPage() {
   const bannerUploadAttempt = useRef<Attempt | null>(null);
   const bannerRemoveAttempt = useRef<Attempt | null>(null);
   const bannerUploadInput = useRef<HTMLInputElement>(null);
-  // Codex review round 4 — farmBindingToken() alone can't detect a LATER
-  // banner operation on the SAME farm (upload then remove, or two uploads
-  // back to back): it only changes on a farm/account rebind, and the
-  // post-upload re-fetch below is fire-and-forget. Bumped by every
-  // banner-mutating operation before it starts and captured going into the
-  // re-fetch; the fetch's cache write is skipped once a later operation has
-  // moved the counter on, so a slow re-fetch can never resurrect or
-  // overwrite what a newer operation already did.
+  // Invalidates stale same-farm banner refreshes.
   const bannerOpGeneration = useRef(0);
 
   const currencyNoteId = useId();
@@ -532,16 +525,7 @@ export function SettingsPage() {
         bannerUploadAttempt.current = null;
         applyBannerHash(stored.contentHash);
         setBannerMessage(i18n.t("settings:bannerUpdatedMessage"));
-        // #833 finding 4, corrected by Codex finding 1 — cache the server's
-        // SANITIZED bytes, not the raw File: the server strips EXIF and can
-        // re-encode on upload, so caching the File directly could show Login
-        // metadata or an orientation the server already removed. getFarmBanner
-        // is the same authenticated read BrandSplash's post-login fetch uses.
-        // Fire-and-forget: a fetch/cache failure here costs one stale pre-auth
-        // image at most, never surfaced as a Settings error. Guarded by
-        // bannerOpGeneration (Codex review round 4) so a later operation —
-        // another upload, or a remove — can't be overwritten or resurrected
-        // by this fetch landing after it.
+        // Cache sanitized server bytes only if this is still the latest operation.
         const tokenAt = farmBindingToken();
         void getFarmBanner()
           .then(({ blob }) => {
@@ -570,9 +554,6 @@ export function SettingsPage() {
     setBannerMessage(null);
     const attempt = keyFor(bannerRemoveAttempt.current, `remove:${bannerHash ?? ""}`);
     bannerRemoveAttempt.current = attempt;
-    // Invalidates a still-in-flight upload's post-upload re-fetch (Codex
-    // review round 4) — without this, that fetch resolving AFTER this
-    // remove completes would re-cache the just-removed banner's bytes.
     bannerOpGeneration.current += 1;
 
     await run("banner:remove", async () => {
@@ -581,9 +562,6 @@ export function SettingsPage() {
         bannerRemoveAttempt.current = null;
         applyBannerHash(null);
         setBannerMessage(i18n.t("settings:bannerRemovedMessage"));
-        // #833 finding 4 — otherwise a removed banner stays showable on
-        // Login (from the pre-login cache) until "Forget this farm" is
-        // used, well after the server itself has forgotten it.
         const slug = getBoundFarmCode();
         if (slug !== null) forgetBannerFor(slug);
         setFocusBannerUploadAfterRemove(true);
@@ -608,17 +586,8 @@ export function SettingsPage() {
     </section>
   );
 
-  // The pill-shaped label-wrapping-file-input control (#236): it must stay a
-  // real <label> around a real <input type="file"> for keyboard/AT reasons,
-  // so it cannot become a BusyButton or an MUI Button — only its look moves
-  // to sx. Shared by the logo and banner pickers.
+  // Keep a real labelled file input so the picker remains keyboard-accessible.
   const fileButtonSx = {
-    // flexDirection is explicit, not left to inline-flex's row default: this
-    // renders a real <label>, and styles.css's bare-element `:where(label)`
-    // rule sets `flex-direction: column` with zero specificity — the ONLY
-    // declaration for that property unless sx names one too, so it wins by
-    // default and stacked the icon above the text (same trap
-    // FarmThemeProvider.tsx's MuiFormControlLabel comment already names).
     display: "inline-flex", flexDirection: "row", alignItems: "center", gap: "0.4rem",
     cursor: "pointer", fontWeight: 600, fontSize: "0.92rem", color: "primary.contrastText",
     backgroundColor: "primary.main", borderRadius: "var(--r-pill)", padding: "0.6rem 1.15rem",
@@ -644,8 +613,6 @@ export function SettingsPage() {
         {t("intro")}
       </Typography>
 
-      {/* Logo and banner writes remain independent actions even though the
-          four settings groups share this form. */}
       <Stack component="form" spacing={2} sx={{ mt: 3, pb: "6rem" }} onSubmit={(e) => void onSave(e)}>
         <Accordion defaultExpanded disableGutters>
           <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
@@ -659,10 +626,6 @@ export function SettingsPage() {
                   {logo.url !== null ? (
                     <Box component="img" src={logo.url} alt={t("logoAlt")} sx={previewImgSx} />
                   ) : (
-                    // Three different reasons there is no image on screen, and
-                    // only one of them is "no logo set" — saying that while a
-                    // Remove button sits beside it is a contradiction the
-                    // reader cannot resolve.
                     <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
                       {logo.loading ? t("logoLoadingMessage")
                         : logo.failed ? t("logoLoadFailedMessage")
@@ -671,13 +634,6 @@ export function SettingsPage() {
                   )}
                 </Stack>
                 <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap", mb: 1.5 }}>
-                  {/* A real labelled file input rather than a button driving a
-                      hidden one: the picker is the control, and wrapping it in
-                      its own label keeps it reachable by keyboard and by name. */}
-                  {/* Carve-out (#236): a labelled file input is not a button,
-                      so it cannot be a BusyButton — it keeps the plain disable
-                      and the existing logo status region below carries the
-                      announcement. */}
                   <Box component="label" sx={fileButtonSx}>
                     <Upload size={16} aria-hidden /> {hasLogo ? t("replaceLogoButton") : t("uploadLogoButton")}
                     <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={busy}
@@ -705,14 +661,7 @@ export function SettingsPage() {
                     </Typography>
                   </Box>
                 </Box>
-                {/* The upload is silent otherwise — a file input cannot be a
-                    BusyButton, so this region carries its "Working…". The
-                    removal is deliberately NOT announced here: the Remove
-                    BusyButton's own live region already says it, and both
-                    speaking would double the announcement (#242). Results
-                    (logoMessage) still land here for both writes. Always
-                    mounted, empty or not: a live region inserted at the same
-                    moment as its text is not reliably announced. */}
+                {/* Keep the upload status region mounted so updates are announced. */}
                 <Typography id="logo-status" variant="body2" role="status" color="success.main">
                   {isPending("logo:upload") ? t("logoWorkingMessage") : logoMessage ?? ""}
                 </Typography>
@@ -763,9 +712,6 @@ export function SettingsPage() {
               </Paper>
             </Stack>
 
-            {/* Farm palette picker (#149): a colour swatch has no MUI control
-                of its own (pair 21's reasoning), so the fieldset/legend
-                structure stays and only its styling moves to sx. */}
             <Box component="fieldset" sx={{
               border: "1px solid", borderColor: "divider", borderRadius: "var(--r-panel)",
               padding: "1rem", margin: 0, marginTop: "1.25rem",
@@ -791,8 +737,6 @@ export function SettingsPage() {
                       onChange={() => setBrand(id)}
                       disabled={saving}
                     />
-                    {/* The swatch is decorative: the visible name is what names
-                        the option, so selection never depends on seeing colour. */}
                     <Box aria-hidden sx={{
                       width: 18, height: 18, borderRadius: "var(--r-pill)", border: "1px solid",
                       borderColor: "divider", backgroundColor: PALETTE_SWATCH_COLORS[id],
@@ -826,10 +770,7 @@ export function SettingsPage() {
         <datalist id="tz-options">
           {TIME_ZONES.map((tz) => <option key={tz} value={tz} />)}
         </datalist>
-        {/* Outside the field, deliberately: a note nested in the label becomes
-            part of the control's accessible NAME, so it would announce itself
-            as "Currency Fixed at USD this farm has already…". aria-describedby
-            is how a note reaches a control without renaming it. */}
+        {/* Describe the field without changing its accessible name. */}
         {timeZoneUnknown && (
           <Typography variant="body2" color="warning.main" sx={{ fontWeight: 600, mt: "-0.5rem" }} id={timeZoneNoteId}>
             {/* The server validates against ITS tzdata, which can be newer than
@@ -844,10 +785,7 @@ export function SettingsPage() {
           onChange={(e) => setLocale(e.target.value)}
           slotProps={{ htmlInput: { maxLength: MAX_LOCALE } }} />
 
-        {/* readOnly, not disabled: a disabled input leaves the tab order, so a
-            keyboard user never reaches the field OR the reason it is locked.
-            Read-only keeps both, and aria-describedby carries the reason with
-            the control. */}
+        {/* Read-only keeps the locked field and its explanation in the tab order. */}
         <TextField label={t("currencyLabel")} value={currencyCode} required
           onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())}
           slotProps={{
@@ -980,11 +918,6 @@ export function SettingsPage() {
           </AccordionDetails>
         </Accordion>
 
-        {/* What actually acts on a save today. The timezone reaches every date
-            field immediately (#123); the rest are stored on the farm and take
-            effect as the screens that would render through them adopt them (#45
-            carries the display formatting). Saying "everywhere, straight away"
-            would be a promise the app does not keep. */}
         <Typography variant="body2" color="text.secondary">
           {t("effectNote")}
         </Typography>

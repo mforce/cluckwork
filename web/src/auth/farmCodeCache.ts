@@ -175,9 +175,6 @@ export async function removeFarmCode(value: string): Promise<void> {
     // to leave no colour behind. forgetBrandFor never throws, so ordering it
     // first cannot cost the roster write either.
     forgetBrandFor(code);
-    // #833 — same reasoning, for the cached pre-auth banner: forgetting a
-    // farm must leave no image behind either, and forgetBannerFor never
-    // throws.
     forgetBannerFor(code);
     const raw = readRawRoster();
     if (raw === null) return;

@@ -108,18 +108,8 @@ export function Login() {
   const [farmCode, setFarmCode] = useState(
     () => urlFarmCode ?? (rememberedCodes.length === 1 ? rememberedCodes[0] : ""),
   );
-  // Codex finding 2 (#833 follow-up) — a `?farm=<code>` link must never show
-  // a cached banner (GLOSSARY.md's "deliberately narrower than the palette"
-  // note): whoever merely holds a link is not this device's remembered
-  // farm, and a banner is farm-supplied imagery unlike the palette colour.
-  // Set the instant the field is edited by typing, so the suppression covers
-  // exactly the untouched link-prefill and nothing the operator actually typed.
+  // Link-prefilled farm codes do not reveal cached farm-supplied imagery.
   const [farmCodeEdited, setFarmCodeEdited] = useState(false);
-  // #833 — owner decision 2026-09-19: show the device's cached banner from a
-  // prior sign-in, never a fresh authenticated fetch. Keyed to the farm-code
-  // FIELD's own current value, not "exactly one remembered farm" — that
-  // rule kept showing one farm's banner while the field held a DIFFERENT
-  // typed or picked code, until the mismatched one was actually submitted.
   const bannerLookupCode = urlFarmCode !== null && !farmCodeEdited ? "" : farmCode;
   const cachedBanner = useCachedBannerUrl(bannerLookupCode);
   const [email, setEmail] = useState("");
@@ -228,10 +218,6 @@ export function Login() {
     <AuthShell
       footerNote={t("loginShellFooter")}
       bannerSlot={cachedBanner !== null ? (
-        // #833 — the cached banner, never a live fetch: /account/banner stays
-        // authenticated. Decorative: the shell panel already names the app,
-        // and a mis-cached image is not information a screen reader needs to
-        // announce as content.
         <Box
           component="img"
           src={cachedBanner}
@@ -246,13 +232,6 @@ export function Login() {
       <Stack component="form" spacing={2} onSubmit={onSubmit}>
         <Typography variant="h2">{t("title")}</Typography>
         {needsSetup && (
-          // No command is shown, deliberately. Earlier drafts printed the setup
-          // invocation here and it was wrong twice over: the bare verb was not
-          // runnable at all, and the corrected version had to show two forms
-          // because the app cannot know how it was deployed. A login screen is
-          // also the wrong place to publish deployment shape to anonymous
-          // visitors. State the situation and point at the person who can fix
-          // it; the exact steps live in the README.
           <Alert severity="info" role="status" icon={false}>
             <Typography variant="body2">{t("noAdminYet")}</Typography>
             <Typography variant="body2">{t("noAdminYetHint")}</Typography>
@@ -307,14 +286,7 @@ export function Login() {
                     sx={{
                       minWidth: 44, minHeight: 44, borderRadius: "0 var(--r-pill) var(--r-pill) 0",
                       border: "1px solid", borderColor: "divider", background: "var(--surface-2)",
-                      // #587 — `--error`, not the theme's `error.main` (which
-                      // maps to `--danger`): the destructive FILL token does
-                      // not clear 4.5:1 for this glyph in the dark theme
-                      // (2.76:1 over aubergine's dark --surface-2), while
-                      // `--error` clears it in every theme and palette. The
-                      // hover fill keeps `--danger` (via `error.main`), whose
-                      // `--on-danger` label clears 4.5:1 — pinned in
-                      // styles.test.ts's "login Forget glyph" pair.
+                      // The text token clears dark-surface contrast; danger is fill-only.
                       color: "var(--error)",
                       "&:hover": { background: "error.main", color: "error.contrastText" },
                     }}
@@ -337,17 +309,8 @@ export function Login() {
             setFarmCode(e.target.value);
           }}
           required
-          // #587 — stable identifiers for tests and browser heuristics. There
-          // is no standard autocomplete token for a tenant identifier, so the
-          // field declares its name but no token; the existing tokens on the
-          // email and password fields are unchanged.
           slotProps={{
             htmlInput: {
-              // #532 — the server folds case, so these only stop the user
-              // seeing a code they did not type. autoCapitalize is the one
-              // that matters: iOS and Android capitalise the first letter of
-              // a plain text input by default, and farm codes are
-              // lowercase-only.
               autoCapitalize: "none", autoCorrect: "off", spellCheck: false, maxLength: 32,
             },
           }}

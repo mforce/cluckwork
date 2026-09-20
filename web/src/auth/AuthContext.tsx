@@ -125,13 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // one) canonicalises to null and leaves the tab unbound — the same outcome
     // as a cold restore, and never a wrong key.
     bindFarm(canonicalFarmCode(farmCode));
-    // #833 findings 2/3 — a farm code is reusable (#732), so a cached
-    // pre-login banner keyed by slug alone can belong to an account this
-    // sign-in just proved is NOT the current holder of that code. Reconciled
-    // here, the one place that fact becomes known, rather than trusted
-    // indefinitely from whenever the entry was written. Fire-and-forget
-    // (never rejects): losing this race costs one stale image at most, the
-    // same cost the cache itself already accepts elsewhere.
     const signedInSlug = canonicalFarmCode(farmCode);
     const signedInAccountId = getBoundAccountId();
     if (signedInSlug !== null && signedInAccountId !== null) {

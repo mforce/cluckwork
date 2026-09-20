@@ -58,7 +58,6 @@ describe("ExportPage rendering", () => {
     expect(backupButton()).toBeInTheDocument();
     const select = datasetSelect() as HTMLSelectElement;
     expect(select).toHaveValue(EXPORT_DATASETS[0]);
-    // Every dataset in the real list is offered as an option.
     for (const d of EXPORT_DATASETS) {
       expect(screen.getByRole("option", { name: d })).toBeInTheDocument();
     }
@@ -76,7 +75,6 @@ describe("ExportPage single-dataset download", () => {
       fireEvent.click(csvButton());
     });
 
-    // The ARGUMENT is the behavior: the selected dataset, and only that one.
     expect(mockCsv).toHaveBeenCalledTimes(1);
     expect(mockCsv).toHaveBeenCalledWith("customers");
     expect(mockBackup).not.toHaveBeenCalled();
@@ -168,9 +166,6 @@ describe("ExportPage busy state", () => {
       fireEvent.click(backupButton());
     });
 
-    // While the backup is in flight EVERY export control is disabled — the
-    // button that initiated the download (now "Preparing…"), the dataset
-    // select, and the CSV button — so no second download can start.
     expect(datasetSelect()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Download CSV" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Preparing…" })).toBeInTheDocument();
@@ -286,10 +281,6 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
     });
   });
 
-  // Proves `preparingButton` is a SHARED key: overriding it once changes the
-  // busy label on BOTH the full-backup button AND the CSV button — the two
-  // separate `busy === <key>` call sites in the component read the same
-  // catalog entry rather than each carrying its own hardcoded literal.
   it("reads the shared preparing label on both the full-backup and the CSV button", async () => {
     let resolveBackup!: (v: { blob: Blob; filename: string | null }) => void;
     mockBackup.mockReturnValue(
@@ -313,7 +304,6 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
         resolveBackup({ blob: blob(), filename: null });
       });
 
-      // Same tree, the CSV button, busy — same catalog key drives both.
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: "Download CSV" }));
       });
@@ -325,15 +315,11 @@ describe("ExportPage i18n wiring (#182, Task 30)", () => {
     });
   });
 
-  // Per-dataset labels: overriding ONE dataset's key changes only that
-  // option, proving each of the 20 EXPORT_DATASETS members has its OWN
-  // catalog key ("dataset.<slug>"), not a single shared/derived string.
   it("reads a single dataset's option label from its own catalog key, leaving the rest untouched", async () => {
     await withOverride("export", "dataset.customers", "CUSTOMERS-MARKER", async () => {
       render(<ExportPage />);
       expect(await screen.findByRole("option", { name: "CUSTOMERS-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("option", { name: "customers" })).not.toBeInTheDocument();
-      // A different dataset's option is untouched by this override.
       expect(screen.getByRole("option", { name: "flocks" })).toBeInTheDocument();
     });
   });
