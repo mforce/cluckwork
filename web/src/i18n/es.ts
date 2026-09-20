@@ -667,7 +667,7 @@ export const es = {
     trendStripLabelBlanks_one: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días que registraron todos los lotes. {{blank}} día no está completo.",
     trendStripLabelBlanks_other: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días que registraron todos los lotes. {{blank}} días no están completos.",
     trendStripLabelNone: "Huevos por día, últimos 14 días. Ningún día de este período tiene registro.",
-    trendStripLabelNoComplete: "Huevos por día, últimos 14 días. Ningún día fue registrado por todos los lotes, así que no hay máximo ni promedio.",
+    trendStripLabelPartialScale: "Huevos por día, últimos 14 días. Máximo {{max}}, solo días incompletos. Ningún día fue registrado por todos los lotes, así que no hay promedio.",
     trendStripLabelNoFlocks: "Huevos por día, últimos 14 días. No hubo ningún lote en la granja en este período.",
     trendScaleTitle: "Huevos por día",
     // #916 — sin día completo en el período: la escala usa el máximo PARCIAL,

@@ -697,7 +697,7 @@ export const tl = {
     trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng kawan. {{blank}} araw ang hindi kumpleto.",
     trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng kawan. {{blank}} araw ang hindi kumpleto.",
     trendStripLabelNone: "Itlog bawat araw, huling 14 araw. Walang araw sa panahong ito ang may tala.",
-    trendStripLabelNoComplete: "Itlog bawat araw, huling 14 araw. Walang araw na may tala ang lahat ng kawan, kaya walang pinakamataas o average.",
+    trendStripLabelPartialScale: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, mga araw na hindi kumpleto lamang. Walang araw na may tala ang lahat ng kawan, kaya walang average.",
     trendStripLabelNoFlocks: "Itlog bawat araw, huling 14 araw. Walang kawan sa bukid sa panahong ito.",
     trendScaleTitle: "Itlog bawat araw",
     // #916 — walang kumpletong araw sa panahong ito, kaya ang sukat ay ang

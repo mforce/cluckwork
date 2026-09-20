@@ -912,9 +912,9 @@ export const en = {
     // Nothing at all in the window, so there is no peak and no average to name
     // — reporting either as 0 is the conflation #780 closed.
     trendStripLabelNone: "Eggs per day, last 14 days. No day in this window has an entry.",
-    // Some days have figures, but none is complete, so there is still nothing
-    // to take a peak or an average from.
-    trendStripLabelNoComplete: "Eggs per day, last 14 days. No day was recorded by every flock, so there is no peak or average to give.",
+    // #916 — some days have figures, but none is complete: Peak scales to the
+    // largest partial day instead of falling back to nothing.
+    trendStripLabelPartialScale: "Eggs per day, last 14 days. Peak {{max}}, partial days only. No day was recorded by every flock, so there is no average.",
     // Nobody owed a filing in this window — no flock was placed yet, or the
     // last one has gone. Distinct from nobody having filed.
     trendStripLabelNoFlocks: "Eggs per day, last 14 days. No flock was on the farm in this window.",

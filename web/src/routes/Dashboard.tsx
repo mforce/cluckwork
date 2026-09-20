@@ -206,20 +206,28 @@ export function Dashboard() {
       : delta < 0 ? t("henDayDeltaDown", { delta: fmt.count(Math.abs(delta), 1) })
         : t("henDayDeltaUp", { delta: fmt.count(delta, 1) });
   // A missing day is not zero production; its accessible label must say so.
+  // #916 — branches on `line.scale`, never on a null check: `max` is non-null
+  // under BOTH "complete" and the "partial" fallback, so a null check alone
+  // used to say "no peak or average" over a window whose caption and Peak
+  // figure, right beside it, were showing a real number.
   const trendLabel = (line: DayStripData) => {
-    // Four states, none of which may report a figure it does not have. max and
-    // average are null together — both come from the COMPLETE days — so a
-    // window with none gets a sentence rather than a formatted 0, and which
-    // sentence depends on whether anything was recorded at all.
-    if (line.max === null || line.average === null) {
+    if (line.scale === "none") {
       // A window where no flock ever owed a filing is not a window of missing
       // ones. The day-level fix for that landed without this, so a new farm's
       // strip drew fourteen blank-but-blameless slots and then announced that
-      // none of them had an entry.
-      if (line.partial === 0 && line.unrecorded === 0) return t("trendStripLabelNoFlocks");
-      return line.partial === 0 ? t("trendStripLabelNone") : t("trendStripLabelNoComplete");
+      // none of them had an entry. `partial` is always 0 here — a partial slot
+      // requires a recorded figure, which is exactly what "none" has none of.
+      return line.partial === 0 && line.unrecorded === 0
+        ? t("trendStripLabelNoFlocks")
+        : t("trendStripLabelNone");
     }
-    const figures = { max: fmt.count(line.max), avg: fmt.count(line.average, 1) };
+    if (line.scale === "partial") {
+      // The fallback peak: no complete day exists, so there is still no
+      // average (that stays complete-day-only), but Peak is real and the
+      // sentence must say so, not fall back to "no peak or average".
+      return t("trendStripLabelPartialScale", { max: fmt.count(line.max!) });
+    }
+    const figures = { max: fmt.count(line.max!), avg: fmt.count(line.average!, 1) };
     const gaps = line.partial + line.unrecorded;
     return gaps === 0
       ? t("trendStripLabel", figures)
@@ -428,7 +436,7 @@ export function Dashboard() {
                   setPickerFlock(null);
                   setPickerFlockGen((g) => g + 1);
                 }}
-                sx={{ "&&": { minHeight: 36 } }}
+                sx={{ "&&": { minHeight: 44 } }}
               >
                 {t("allFlocksOption")}
               </Button>
@@ -444,6 +452,7 @@ export function Dashboard() {
                     setScope({ kind: "flock", flock: f });
                     setPickerFlock(f);
                     setPickerFlockGen((g) => g + 1);
+                    setFlockPickerOpen(false);
                   }}
                   onEscape={() => setFlockPickerOpen(false)}
                   onOutsideClick={() => setFlockPickerOpen(false)}

@@ -467,14 +467,17 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
 
   // Recorded, but never by every house — so there is still no complete day to
   // take a peak or an average from, and saying so is a different sentence.
-  it("announces no peak when some flocks recorded every day but never all of them", async () => {
+  // #916 — no complete day exists, so this now falls back to the largest
+  // partial day's total (327, the fixture's own peak) rather than announcing
+  // "no peak or average" over a window whose caption shows a real number.
+  it("scales to the partial peak, and says so, when some flocks recorded every day but never all of them", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
         ...r, days: r.days.map((d) => ({ ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 })),
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. No day was recorded by every flock, so there is no peak or average to give.",
+      name: "Eggs per day, last 14 days. Peak 327, partial days only. No day was recorded by every flock, so there is no average.",
     })).toBeInTheDocument();
   });
 
@@ -595,18 +598,13 @@ describe("Dashboard Lay rate flock scope (#916)", () => {
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
       daysBefore(today, 7), daysBefore(today, 1), "f2"));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f2");
-    // Combobox role, not the label text: the picker stays open after a commit
-    // (matches the DailyEntryPage FlockPicker's own convention), and MUI's
-    // Autocomplete labels its open listbox with the same "Flock" text, which
-    // makes a bare label query ambiguous.
-    expect(screen.getByRole("combobox", { name: "Flock" })).toHaveValue("Flock f2");
+    // A commit closes the picker (matches every other FlockPicker caller in
+    // the app), so the closed-state label query resolves unambiguously again.
+    expect(screen.getByLabelText("Flock")).toHaveValue("Flock f2");
     // Today's collection panel does not refetch on a Lay rate scope change.
     expect(mockEntries).not.toHaveBeenCalled();
 
     mockReport.mockClear();
-    // Clicking All flocks lands outside the picker's own container, so the
-    // engine's outside-click handling closes it back to the plain trigger —
-    // hence the label query again, not the combobox role.
     await user.click(screen.getByRole("button", { name: "All flocks" }));
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
       daysBefore(today, 7), daysBefore(today, 1), undefined));
