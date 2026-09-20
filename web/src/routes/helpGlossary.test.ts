@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { GLOSSARY, GLOSSARY_GROUPS, glossaryEntry } from "./helpGlossary";
+import { GLOSSARY, glossaryEntry } from "./helpGlossary";
 import { en } from "../i18n/en";
 import { es } from "../i18n/es";
 import { tl } from "../i18n/tl";
 
-// #657 — the in-app glossary is data, not JSX: one entry per term, grouped,
+// #657 — the in-app glossary is data, not JSX: one entry per term,
 // each naming the specs/product/GLOSSARY.md term it is the curated subset of.
 // These guards walk everything and exclude nothing: a catalog row with no
-// entry, an entry with no catalog row, a group nobody uses, a spec term that
+// entry, an entry with no catalog row, a spec term that
 // was renamed — each goes red here rather than shipping as a silent gap.
 
 type Catalog = { help: Record<string, unknown> };
@@ -25,9 +25,9 @@ const specTerms = new Set(
 );
 
 describe("help glossary data", () => {
-  it("carries every glossary term the en catalog has, and nothing else", () => {
-    const catalogTerms = Object.keys(en.help).filter((k) => /^glossary[A-Z]\w*Term$/.test(k)).sort();
-    const dataTerms = GLOSSARY.map((e) => `glossary${e.key}Term`).sort();
+  it("carries every glossary term in catalog order", () => {
+    const catalogTerms = Object.keys(en.help).filter((k) => /^glossary[A-Z]\w*Term$/.test(k));
+    const dataTerms = GLOSSARY.map((e) => `glossary${e.key}Term`);
     expect(dataTerms).toEqual(catalogTerms);
   });
 
@@ -41,21 +41,10 @@ describe("help glossary data", () => {
     expect(glossaryEntry("UiLanguage").id).toBe("glossary-ui-language");
   });
 
-  it.each(packs)("%s carries a term and a definition for every entry and a label for every group", (_name, pack) => {
+  it.each(packs)("%s carries a term and a definition for every entry", (_name, pack) => {
     for (const e of GLOSSARY) {
       expect(typeof pack.help[`glossary${e.key}Term`], `glossary${e.key}Term`).toBe("string");
       expect(typeof pack.help[`glossary${e.key}Def`], `glossary${e.key}Def`).toBe("string");
-    }
-    for (const g of GLOSSARY_GROUPS) {
-      expect(typeof pack.help[g.labelKey], g.labelKey).toBe("string");
-    }
-  });
-
-  it("uses every group at least once, and every entry names a declared group", () => {
-    const declared = new Set(GLOSSARY_GROUPS.map((g) => g.key));
-    for (const e of GLOSSARY) expect(declared.has(e.group), e.key).toBe(true);
-    for (const g of GLOSSARY_GROUPS) {
-      expect(GLOSSARY.some((e) => e.group === g.key), g.key).toBe(true);
     }
   });
 

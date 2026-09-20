@@ -176,14 +176,11 @@ export const en = {
     changePasswordHint:
       "Changing your password signs you out everywhere else — this device "
       + "stays signed in.",
-    // The trailing " *" is folded into the label text itself, matching how
-    // UsersPage's emailFieldLabel/newPasswordFieldLabel already handle a
-    // required-field marker — never a standalone "*" key.
-    currentPasswordLabel: "Current password *",
+    currentPasswordLabel: "Current password",
     // {{min}} is MIN_LENGTH (AccountPage.tsx) — interpolated, not baked in,
     // so the label and the validation message below can never drift apart.
-    newPasswordLabel: "New password (min {{min}} chars) *",
-    confirmPasswordLabel: "Confirm new password *",
+    newPasswordLabel: "New password (min {{min}} chars)",
+    confirmPasswordLabel: "Confirm new password",
     changePasswordButton: "Change password",
     passwordMismatchError: "The new passwords don't match.",
     passwordTooShortError: "The new password must be at least {{min}} characters.",
@@ -2667,33 +2664,19 @@ export const en = {
     lead: "How Cluckwork works, screen by screen — and how to undo mistakes.",
     contentsAriaLabel: "Help contents",
     contentsEyebrow: "Contents",
-    // #657 — search, grouped rail and grouped glossary.
+    // #657 — search, the contents rail and glossary.
     searchLabel: "Search the guide",
     searchPlaceholder: "Type a term or a topic",
     searchClear: "Clear search",
     searchMatches: "Matches for “{{query}}”: {{sections}} in the guide, {{terms}} in the glossary.",
     searchNoMatches: "Nothing matches “{{query}}”.",
     searchShortcutHint: "Press / to search",
-    glossaryJumpAriaLabel: "Glossary groups",
     openScreen: "Open {{screen}}",
-    railGroupStartHere: "Start here",
-    railGroupEveryDay: "Every day",
-    railGroupSelling: "Selling",
-    railGroupSupplies: "Supplies",
-    railGroupFarm: "Farm & people",
-    railGroupApp: "The app",
-    glossaryGroupGettingAround: "Getting around",
-    glossaryGroupSigningIn: "Signing in & who can do what",
-    glossaryGroupFlocksEntry: "Flocks & daily entry",
-    glossaryGroupEggsStock: "Eggs, grades & stock",
-    glossaryGroupSalesMoney: "Sales & money",
-    glossaryGroupSupplies: "Feed, water & supplies",
-    glossaryGroupFarm: "Farm settings & branding",
 
     // Contents-rail labels (TOC array, 2nd element). Order mirrors the <h3
     // id=...> sections below — see the KEEP comment at the top of
     // HelpPage.tsx. tocGlossary is the rail's link text only; the glossary
-    // SECTION itself (heading + 37-row table + closing note) is externalized
+    // section itself (heading + disclosures + closing note) is externalized
     // further down, near the end of this block (Task 33, B6b).
     tocGettingAround: "Getting around",
     tocDashboard: "Dashboard",

@@ -237,8 +237,8 @@
   --tint-warn: #3a2e18;
   --tint-danger: #3a2019;
   --tint-muted: #2c2333;
-  --stat-accent: #e6c7ec;
-  --auth-brand: #e6c7ec;
+  --stat-accent: #e2b4e6;
+  --auth-brand: #e2b4e6;
   --auth-card-border: var(--hairline);
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   --auth-bg:
@@ -408,7 +408,7 @@ body {
   overflow-wrap: anywhere;
 }
 
-:where(h1, h2, h3) {
+:where(h1, h2) {
   font-family: Georgia, serif;
 }
 
@@ -2039,31 +2039,6 @@ label.check {
   text-decoration: none;
 }
 
-/* Glossary jump bar (#657): one chip per group, under the heading. */
-.glossary-jump ul {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.75rem 0 0.5rem;
-  padding: 0;
-}
-
-.glossary-jump a {
-  display: inline-block;
-  padding: 0.3rem 0.75rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  font-size: 0.85rem;
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.glossary-jump a:hover {
-  border-color: var(--brand);
-  text-decoration: none;
-}
-
 /* Fixing mistakes (#657): a mistake → fix list, the mistake in ink and the
    fix beside it, instead of a two-column data table. */
 dl.mistakes {
@@ -2093,39 +2068,16 @@ dl.mistakes {
   color: var(--ink);
 }
 
-.help-toc-group {
-  margin: 0.9rem 0 0.15rem;
-  padding: 0 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-/* Glossary (#657): a dictionary grid — the term in its own column, the
-   definition beside it, a hairline between entries, the group heading
-   sticking while its entries scroll past. */
-.glossary-group h4 {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin: 1.5rem 0 0;
-  padding: 0.6rem 0 0.4rem;
-  font-size: 1.05rem;
-  background: var(--canvas);
-  scroll-margin-top: 1.5rem;
-}
-
-dl.glossary {
+/* Glossary (#657): searchable disclosures with stable anchors. */
+.glossary {
   margin: 0;
 }
 
 .glossary-entry {
-  display: grid;
-  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
-  gap: 0.35rem 1.5rem;
-  padding: 0.8rem 0;
-  border-top: 1px solid var(--hairline);
-  scroll-margin-top: 3.5rem; /* clears the sticky group heading */
+  margin: 0.875rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--hairline);
+  scroll-margin-top: 3.5rem;
 }
 
 .glossary-entry:target {
@@ -2134,27 +2086,15 @@ dl.glossary {
   border-radius: 4px;
 }
 
-.glossary-entry dt {
-  margin: 0;
-  font-weight: 600;
-}
-
-.glossary-entry dt a {
+.glossary-entry summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 650;
   color: var(--ink);
-  text-decoration: none;
 }
 
-/* #834 — color: var(--link) already equals --ink via the alias, so this
-   headword keeps its rest-state colour on hover by design (only the
-   underline reveals the link); no rule-underline is added, since the rest
-   state's own "no underline until hover" is the intended affordance here. */
-.glossary-entry dt a:hover {
-  color: var(--link);
-  text-decoration: underline;
-}
-
-.glossary-entry dd {
-  margin: 0;
+.glossary-entry p {
+  margin: 0.35rem 0 0;
   max-width: 60ch;
   line-height: 1.6;
 }
@@ -2194,7 +2134,6 @@ dl.glossary {
 .help-toc li a {
   display: block;
   padding: 0.32rem 0.6rem;
-  border-radius: var(--r-input);
   color: var(--muted);
   text-decoration: none;
   font-size: 0.88rem;
@@ -2211,6 +2150,7 @@ dl.glossary {
 .help-toc li a.active {
   color: var(--brand);
   background: var(--tint-accent);
+  border-radius: 3px;
   font-weight: 600;
   box-shadow: inset 2px 0 0 var(--brand);
 }
@@ -2227,7 +2167,7 @@ dl.glossary {
   margin: 2.5rem 0 0.75rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--hairline);
-  font-size: 1.3rem;
+  font-size: 0.9375rem;
   scroll-margin-top: 1.5rem;
 }
 
@@ -2357,8 +2297,7 @@ dl.glossary {
     gap: 1rem;
   }
 
-  /* #657 — the rail becomes one horizontal strip pinned under the head:
-     the group labels fold away and every entry is a pill, scrolled sideways. */
+  /* #657 — the rail becomes one horizontal strip pinned under the head. */
   .help-toc {
     position: sticky;
     top: 0;
@@ -2375,12 +2314,7 @@ dl.glossary {
     border-bottom: 1px solid var(--hairline);
   }
 
-  .help-toc > div {
-    display: contents;
-  }
-
-  .help-toc .help-kicker,
-  .help-toc-group {
+  .help-toc .help-kicker {
     display: none;
   }
 
@@ -2391,11 +2325,7 @@ dl.glossary {
     margin: 0;
   }
 
-  .help-toc li a {
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-pill);
-    white-space: nowrap;
-  }
+  .help-toc li a { white-space: nowrap; }
 
   .help-hero {
     padding: 1.25rem 1.15rem 1rem;
@@ -2414,19 +2344,12 @@ dl.glossary {
     flex-wrap: wrap;
   }
 
-  .glossary-entry,
   .mistake {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* The rail above is sticky too, at a higher z-index: a heading sticking at
-     top: 0 would sit behind it. Stick just under the rail's rendered height. */
-  .glossary-group h4 {
-    top: 3rem;
-  }
-
   .glossary-entry {
-    scroll-margin-top: 6.5rem; /* rail + heading */
+    scroll-margin-top: 4rem;
   }
 
   .form-grid label {

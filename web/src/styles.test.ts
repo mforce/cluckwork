@@ -10,9 +10,10 @@ const MODES: Mode[] = ["light", "dark"];
 const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
 describe("Field Console heading typography", () => {
-  it("gives raw page and section headings the shared serif family", () => {
-    const headingRule = /:where\(h1, h2, h3\)\s*\{([^}]*)\}/.exec(stylesheet)?.[1];
+  it("keeps the serif family on raw h1 and h2 headings only", () => {
+    const headingRule = /:where\(h1, h2\)\s*\{([^}]*)\}/.exec(stylesheet)?.[1];
     expect(headingRule).toContain("font-family: Georgia, serif");
+    expect(stylesheet).not.toMatch(/:where\([^)]*h3[^)]*\)\s*\{[^}]*font-family/);
   });
 });
 
@@ -52,9 +53,11 @@ describe("design tokens: the resolver itself", () => {
     expect(light.get("--focus")).toBe("#4a154b");
   });
 
-  it("applies the dark base over the light base", () => {
+  it("uses the artifact's dark accent for meter fills without replacing the farm brand", () => {
     const dark = resolveTokens(null, "dark");
-    expect(dark.get("--stat-accent")).toBe("#e6c7ec");
+    expect(dark.get("--stat-accent")).toBe("#e2b4e6");
+    const meterRule = /\.meter\s*>\s*span\s*\{([^}]*)\}/.exec(stylesheet)?.[1];
+    expect(meterRule).toContain("background: var(--stat-accent)");
     // Not redeclared in dark — inherited from :root, which is what lets a
     // palette set the brand fill once and have it apply in both modes.
     expect(dark.get("--brand")).toBe("#4a154b");
@@ -257,7 +260,7 @@ const GOLDEN: Record<string, { light: Record<string, string>; dark: Record<strin
     dark: {
       "--brand": "#4a154b", "--brand-press": "#611f69", "--brand-tint": "#592466",
       "--on-brand": "#ffffff", "--on-brand-mute": "#d9bdde",
-      "--stat-accent": "#e6c7ec", "--focus": "#e6c7ec", "--auth-brand": "#e6c7ec",
+      "--stat-accent": "#e2b4e6", "--focus": "#e2b4e6", "--auth-brand": "#e2b4e6",
       "--tint-accent": "#33203a",
       "--row-hover": "#2b2231", "--lavender": "#241c2a",
     },
@@ -338,13 +341,8 @@ it("pins every brand-scoped token a palette block can declare", () => {
 // resolves to — `resolveTokens` only sees `:root` blocks and cannot tell a
 // `:hover`-only rule from a `:hover, :focus-visible` one.
 //
-// Scope, stated so this doesn't overclaim: this covers the three selectors
-// that are ALWAYS underlined (rest + hover + focus) — the genuine text
-// links. `.glossary-entry dt a:hover` is deliberately excluded: its rest
-// state carries no underline at all by design (predates #834 — see its own
-// comment), so it was never in this "always underlined, hover/focus go full
-// ink" family to begin with; a keyboard visitor still gets the global
-// `:focus-visible` outline ring there, just not an underline change.
+// Scope: this covers the three selectors that are always underlined at rest,
+// hover, and focus.
 describe("the full-ink underline applies to keyboard focus, not only mouse hover (#834)", () => {
   const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 

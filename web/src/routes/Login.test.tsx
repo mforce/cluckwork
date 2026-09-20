@@ -420,6 +420,10 @@ describe("Login — farm-code prefill and picker", () => {
 
     expect(farmField()).toHaveValue("cached-farm");
     expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
+    expect(getComputedStyle(screen.getByRole("button", { name: "cached-farm" })).borderRadius).toBe("0px");
+    expect(getComputedStyle(screen.getByRole("button", {
+      name: i18n.t("auth:forgetFarm", { farmCode: "cached-farm" }),
+    })).borderRadius).toBe("0px");
   });
 
   it("with several remembered codes leaves the field empty, shows one button per code, and a click fills the field", async () => {

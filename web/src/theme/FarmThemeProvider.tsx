@@ -169,7 +169,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       // #864 — the confirmed ruled-ledger direction's scale (DIRECTION.md),
       // not a port of today's sizes. Weight 800 and negative tracking are
       // retired; numbers are display 40/44, title 24/28 (phone 28/32),
-      // section 13/16, rows 14/20 desktop / 16/24 phone, caption 12/16.
+      // section 15, rows 14/20 desktop / 16/24 phone, caption 12/16.
       // `body1` is what `CssBaseline` would apply to `<body>`; its
       // letterSpacing stays reset from MUI's 0.00938em regardless.
       body1: {
@@ -182,7 +182,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       body2: { fontSize: "0.95rem" },
       h1: { fontFamily: "Georgia, serif", fontSize: "2.5rem", lineHeight: 44 / 40, fontWeight: 600 },
       h2: { fontFamily: "Georgia, serif", fontSize: "1.5rem", lineHeight: 28 / 24, fontWeight: 600 },
-      h3: { fontFamily: "Georgia, serif", fontSize: "0.8125rem", lineHeight: 16 / 13, fontWeight: 600 },
+      h3: { fontFamily: tokens["--font"], fontSize: "0.9375rem", fontWeight: 600 },
       h4: { fontSize: "1.05rem", fontWeight: 700 },
       subtitle2: { fontSize: "0.85rem", fontWeight: 500, color: tokens["--muted"] },
       caption: { fontSize: "0.75rem", lineHeight: 16 / 12, fontWeight: 400, letterSpacing: 0 },

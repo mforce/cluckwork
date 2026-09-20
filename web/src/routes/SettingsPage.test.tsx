@@ -1492,6 +1492,26 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
 });
 
 describe("SettingsPage expandable sections", () => {
+  it("caps the focus panels at 760px and keeps media cards square", async () => {
+    const { container } = await renderReady();
+    expect(getComputedStyle(container.querySelector("form")!).maxWidth).toBe("760px");
+    expect(getComputedStyle(screen.getByTestId("settings-logo-card")).borderRadius).toBe("0px");
+    expect(getComputedStyle(screen.getByTestId("settings-banner-card")).borderRadius).toBe("0px");
+  });
+
+  it("uses outlined error-text image removal controls", async () => {
+    await renderReady(SETTINGS({ logoContentHash: "logo", bannerContentHash: "banner" }));
+    for (const remove of screen.getAllByRole("button", { name: /Remove/ })) {
+      expect(remove).toHaveClass("MuiButton-outlined", "MuiButton-colorError");
+      expect(remove).not.toHaveClass("btn-danger");
+    }
+  });
+
+  it("shows palette selection with the swatch outline, not a radio glyph", async () => {
+    await renderReady();
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toHaveClass("sr-only");
+  });
+
   it("the Identity & images section starts expanded, with its own content reachable", async () => {
     await renderReady();
     expect(screen.getByRole("button", { name: "Identity & images" }))

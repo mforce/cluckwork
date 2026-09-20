@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { GlossaryLink } from "../components/GlossaryLink";
@@ -39,7 +39,7 @@ describe("HelpPage", () => {
     expect(within(toc).getByRole("link", { name: "The daily loop" })).toHaveAttribute("href", "#daily-loop");
 
     expect(screen.getByRole("heading", { name: "The daily loop", level: 3 })).toBeInTheDocument();
-    expect(screen.getByText("FIFO", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("FIFO", { selector: "summary" })).toBeInTheDocument();
   });
 
   it("keeps the contents rail and the sections in step, in document order", () => {
@@ -61,9 +61,9 @@ describe("HelpPage", () => {
 
   it("renders the literal /login?farm=<code> as text, not as an opening HTML tag (#833)", () => {
     render(<HelpPage />);
-    const farmCodeDef = screen.getByText("Farm code", { selector: "dt a" })
+    const farmCodeDef = screen.getByText("Farm code", { selector: "summary" })
       .closest(".glossary-entry")
-      ?.querySelector("dd");
+      ?.querySelector("p");
     expect(farmCodeDef?.textContent).toContain("/login?farm=<code>");
     expect(farmCodeDef?.querySelector("code")).toBeNull();
   });
@@ -71,9 +71,9 @@ describe("HelpPage", () => {
   it("documents Owner-only farm settings, the currency lock and the logo (#123/#729)", () => {
     render(<HelpPage />);
     expect(screen.getByRole("heading", { name: "Farm settings (owner only)", level: 3 })).toBeInTheDocument();
-    expect(screen.getByText("Farm settings", { selector: "dt a" })).toBeInTheDocument();
-    expect(screen.getByText("Currency lock", { selector: "dt a" })).toBeInTheDocument();
-    expect(screen.getByText("Farm logo", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Farm settings", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.getByText("Currency lock", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.getByText("Farm logo", { selector: "summary" })).toBeInTheDocument();
 
     for (const [catalog, owner, manager] of [
       [en, /owner/i, /manager/i],
@@ -96,7 +96,7 @@ describe("HelpPage", () => {
     render(<HelpPage />);
     expect(screen.getByText(/first time you open a screen after starting or updating Cluckwork/i))
       .toBeInTheDocument();
-    expect(screen.getByText("Page loading", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Page loading", { selector: "summary" })).toBeInTheDocument();
 
     for (const catalog of [es, tl]) {
       expect(catalog.help.gettingAroundPageLoading).toBeTruthy();
@@ -258,7 +258,7 @@ describe("HelpPage", () => {
     // as lost work. Dropping it would leave a user re-entering a range they
     // never lost.
     expect(screen.getByText(/Nothing was recorded and nothing was lost/i)).toBeInTheDocument();
-    expect(screen.getByText("Too many reports at once", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Too many reports at once", { selector: "summary" })).toBeInTheDocument();
   });
 
   it("renders the report-throttle bullet through <Trans>, so its <strong> tags are real elements", () => {
@@ -365,7 +365,7 @@ describe("HelpPage", () => {
     i18n.addResource("en", "help", "glossaryFarmProvisioningDef", "PROVISIONING-DEF-MARKER");
     try {
       render(<HelpPage />);
-      expect(screen.getByText("PROVISIONING-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+      expect(screen.getByText("PROVISIONING-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
       expect(screen.getByText("PROVISIONING-DEF-MARKER")).toBeInTheDocument();
     } finally {
       i18n.addResource("en", "help", "glossaryFarmProvisioningTerm", originalTerm);
@@ -420,7 +420,7 @@ describe("HelpPage", () => {
 
   it("documents the Disabled user term in the in-app glossary (#356)", () => {
     render(<HelpPage />);
-    expect(screen.getByText("Disabled user", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Disabled user", { selector: "summary" })).toBeInTheDocument();
     expect(screen.getByText(/Revoked access, not deletion/i)).toBeInTheDocument();
   });
 
@@ -641,9 +641,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryFifoTerm", "FIFO-TERM-MARKER", () => {
       withOverride("glossaryFifoDef", "FIFO-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByText("FIFO-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+        expect(screen.getByText("FIFO-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
         expect(screen.getByText("FIFO-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByText("FIFO", { selector: "dt a" })).not.toBeInTheDocument();
+        expect(screen.queryByText("FIFO", { selector: "summary" })).not.toBeInTheDocument();
         expect(screen.queryByText(/first in, first out/i)).not.toBeInTheDocument();
       });
     });
@@ -653,7 +653,7 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryPageLoadingTerm", "PAGE-LOADING-TERM-MARKER", () => {
       withOverride("glossaryPageLoadingDef", "PAGE-LOADING-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByText("PAGE-LOADING-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+        expect(screen.getByText("PAGE-LOADING-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
         expect(screen.getByText("PAGE-LOADING-DEF-MARKER")).toBeInTheDocument();
       });
     });
@@ -663,9 +663,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryFlockScopingTerm", "FLOCK-SCOPE-TERM-MARKER", () => {
       withOverride("glossaryFlockScopingDef", "FLOCK-SCOPE-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByText("FLOCK-SCOPE-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+        expect(screen.getByText("FLOCK-SCOPE-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
         expect(screen.getByText("FLOCK-SCOPE-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByText("Flock scoping", { selector: "dt a" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Flock scoping", { selector: "summary" })).not.toBeInTheDocument();
       });
     });
   });
@@ -674,9 +674,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryTooManyReportsTerm", "REPORT-THROTTLE-TERM-MARKER", () => {
       withOverride("glossaryTooManyReportsDef", "REPORT-THROTTLE-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByText("REPORT-THROTTLE-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+        expect(screen.getByText("REPORT-THROTTLE-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
         expect(screen.getByText("REPORT-THROTTLE-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByText("Too many reports at once", { selector: "dt a" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Too many reports at once", { selector: "summary" })).not.toBeInTheDocument();
       });
     });
   });
@@ -686,9 +686,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryWorkerSaleAllocationTerm", "WORKER-SALE-ALLOCATION-TERM-MARKER", () => {
       withOverride("glossaryWorkerSaleAllocationDef", "WORKER-SALE-ALLOCATION-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByText("WORKER-SALE-ALLOCATION-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+        expect(screen.getByText("WORKER-SALE-ALLOCATION-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
         expect(screen.getByText("WORKER-SALE-ALLOCATION-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByText("Worker sale allocation", { selector: "dt a" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Worker sale allocation", { selector: "summary" })).not.toBeInTheDocument();
       });
     });
   });
@@ -699,9 +699,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryDisabledUserTerm", "DISABLED-USER-TERM-MARKER", () => {
       withOverride("glossaryDisabledUserDef", "DISABLED-USER-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByText("DISABLED-USER-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+        expect(screen.getByText("DISABLED-USER-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
         expect(screen.getByText("DISABLED-USER-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByText("Disabled user", { selector: "dt a" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Disabled user", { selector: "summary" })).not.toBeInTheDocument();
       });
     });
   });
@@ -713,9 +713,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryStepUpAuthTerm", "STEP-UP-TERM-MARKER", () => {
       withOverride("glossaryStepUpAuthDef", "STEP-UP-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByText("STEP-UP-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+        expect(screen.getByText("STEP-UP-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
         expect(screen.getByText("STEP-UP-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByText("Step-up authentication", { selector: "dt a" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Step-up authentication", { selector: "summary" })).not.toBeInTheDocument();
         // "re-enter your current password" also appears in the unrelated Signing-in
         // prose (signingInStepUp) — assert against phrasing unique to the glossary
         // def so this doesn't false-pass against that other section.
@@ -798,7 +798,7 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     i18n.addResource("en", "help", "glossaryLoginEmailDef", "LOGIN-EMAIL-DEF-MARKER");
     try {
       render(<HelpPage />);
-      expect(screen.getByText("LOGIN-EMAIL-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+      expect(screen.getByText("LOGIN-EMAIL-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
       expect(screen.getByText("LOGIN-EMAIL-DEF-MARKER")).toBeInTheDocument();
     } finally {
       i18n.addResource("en", "help", "glossaryLoginEmailTerm", originalTerm);
@@ -879,8 +879,8 @@ describe("HelpPage searchable picker guidance (#512)", () => {
 
   it("defines the Searchable picker term in the in-app glossary, covering keyboard, Load more, Retry, and unavailable identities", () => {
     render(<HelpPage />);
-    expect(screen.getByText("Searchable picker", { selector: "dt a" })).toBeInTheDocument();
-    const def = screen.getByText("Searchable picker", { selector: "dt a" }).closest(".glossary-entry")!;
+    expect(screen.getByText("Searchable picker", { selector: "summary" })).toBeInTheDocument();
+    const def = screen.getByText("Searchable picker", { selector: "summary" }).closest(".glossary-entry")!;
     expect(def).toHaveTextContent(/Enter/);
     expect(def).toHaveTextContent(/Escape/);
     expect(def).toHaveTextContent("Load more");
@@ -902,7 +902,7 @@ describe("HelpPage searchable picker guidance (#512)", () => {
     i18n.addResource("en", "help", "glossarySearchablePickerDef", "SEARCHABLE-PICKER-DEF-MARKER");
     try {
       render(<HelpPage />);
-      expect(screen.getByText("SEARCHABLE-PICKER-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
+      expect(screen.getByText("SEARCHABLE-PICKER-TERM-MARKER", { selector: "summary" })).toBeInTheDocument();
       expect(screen.getByText("SEARCHABLE-PICKER-DEF-MARKER")).toBeInTheDocument();
     } finally {
       i18n.addResource("en", "help", "glossarySearchablePickerTerm", originalTerm);
@@ -924,35 +924,36 @@ describe("HelpPage searchable picker guidance (#512)", () => {
   });
 });
 
-// #657 — grouped, searchable, deep-linkable glossary; guide reordered around
+// #657 — searchable, deep-linkable glossary; guide reordered around
 // the tasks people come for.
 describe("HelpPage glossary + search (#657)", () => {
-  it("renders the glossary as grouped definition lists, alphabetical within each group", () => {
+  it("renders one flat list of glossary disclosures in catalog order", () => {
     const { container } = render(<HelpPage />);
-    const groups = Array.from(container.querySelectorAll(".glossary-group"));
-    expect(groups.length).toBeGreaterThanOrEqual(5);
-    let entries = 0;
-    for (const g of groups) {
-      expect(g.querySelector("h4")).not.toBeNull();
-      const terms = Array.from(g.querySelectorAll("dl.glossary dt")).map((dt) => dt.textContent ?? "");
-      expect(terms.length).toBeGreaterThan(0);
-      expect(terms).toEqual([...terms].sort((a, b) => a.localeCompare(b, "en")));
-      entries += terms.length;
-    }
-    expect(entries).toBe(GLOSSARY.length);
+    const terms = Array.from(container.querySelectorAll(".glossary > .glossary-entry > summary"))
+      .map((summary) => summary.textContent ?? "");
+    expect(terms).toHaveLength(GLOSSARY.length);
+    expect(terms).toEqual(GLOSSARY.map((entry) => en.help[entry.termKey]));
+    expect(container.querySelector(".glossary-group")).toBeNull();
+    expect(container.querySelector(".glossary-jump")).toBeNull();
     expect(container.querySelector("table.data th[scope=\"row\"]")).toBeNull();
   });
 
-  it("gives every term a stable anchor that links to itself", () => {
+  it("gives every collapsed term a stable disclosure anchor", () => {
     const { container } = render(<HelpPage />);
     const entry = container.querySelector("#glossary-egg-lot");
     expect(entry).not.toBeNull();
-    expect(entry!.querySelector("dt a")).toHaveAttribute("href", "#glossary-egg-lot");
-    expect(entry!.querySelector("dt")).toHaveTextContent("Egg lot");
+    expect(entry?.tagName).toBe("DETAILS");
+    expect(entry).not.toHaveAttribute("open");
+    expect(entry!.querySelector("summary")).toHaveTextContent("Egg lot");
     for (const e of Array.from(container.querySelectorAll(".glossary-entry"))) {
       expect(e.id).toMatch(/^glossary-/);
-      expect(e.querySelector("dt a")).toHaveAttribute("href", `#${e.id}`);
+      expect(e.tagName).toBe("DETAILS");
+      expect(e.querySelector("summary")).not.toBeNull();
+      expect(e.querySelector("p")).not.toBeNull();
     }
+
+    fireEvent.click(entry!.querySelector("summary")!);
+    expect(entry).toHaveAttribute("open");
   });
 
   it("puts Fixing mistakes straight after The daily loop", () => {
@@ -961,10 +962,11 @@ describe("HelpPage glossary + search (#657)", () => {
     expect(ids.indexOf("mistakes")).toBe(ids.indexOf("daily-loop") + 1);
   });
 
-  it("groups the contents rail under labels, in the same order as the sections", () => {
+  it("keeps the contents rail flat and in the same order as the sections", () => {
     const { container } = render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });
-    expect(within(toc).getAllByText((_, el) => el?.classList.contains("help-toc-group") ?? false).length).toBeGreaterThanOrEqual(5);
+    expect(toc.querySelector(".help-toc-group")).toBeNull();
+    expect(toc.querySelectorAll(":scope > ul")).toHaveLength(1);
     const linked = within(toc).getAllByRole("link").map((a) => a.getAttribute("href")?.slice(1));
     const sections = Array.from(container.querySelectorAll("h3[id]")).map((h) => h.id);
     expect(linked).toEqual(sections);
@@ -975,7 +977,8 @@ describe("HelpPage glossary + search (#657)", () => {
     const { container } = render(<HelpPage />);
     await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "fifo");
 
-    expect(screen.getByText("FIFO", { selector: "dt a" })).toBeVisible();
+    expect(screen.getByText("FIFO", { selector: "summary" })).toBeVisible();
+    expect(container.querySelector("#glossary-fifo")).toHaveAttribute("open");
     expect(container.querySelector("#glossary-ui-language")).not.toBeVisible();
     // hidden: true — a `hidden` section leaves the accessibility tree, which is the point.
     expect(screen.getByRole("heading", { name: "Install on a phone", level: 3, hidden: true })).not.toBeVisible();
@@ -994,7 +997,7 @@ describe("HelpPage glossary + search (#657)", () => {
     render(<HelpPage />);
     await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "zzqxv");
     expect(screen.getByRole("status")).toHaveTextContent("Nothing matches “zzqxv”.");
-    expect(screen.getByText("FIFO", { selector: "dt a" })).not.toBeVisible();
+    expect(screen.getByText("FIFO", { selector: "summary" })).not.toBeVisible();
     const toc = screen.getByRole("navigation", { name: "Help contents" });
     expect(within(toc).queryByRole("link", { current: "location" })).not.toBeInTheDocument();
     expect(toc.querySelector("a.active")).toBeNull();
@@ -1046,6 +1049,7 @@ describe("HelpPage glossary + search (#657)", () => {
       expect(container.querySelector("#glossary-egg-lot")).toBeVisible();
       expect(scroll).toHaveBeenCalledTimes(1);
       expect(scroll.mock.instances[0]).toBe(container.querySelector("#glossary-egg-lot"));
+      expect(container.querySelector("#glossary-egg-lot")).toHaveAttribute("open");
     } finally {
       window.location.hash = "";
     }
@@ -1077,7 +1081,7 @@ describe("HelpPage glossary + search (#657)", () => {
   });
 });
 
-// #657 visual pass — head band, glossary grid with a jump bar, section
+// #657 visual pass — head band, glossary disclosures, section
 // "Open <screen>" links, mistakes as a two-column list, "/" to search.
 describe("HelpPage visual pass (#657)", () => {
   it("holds kicker, title, lead and the search in one head band", () => {
@@ -1098,27 +1102,6 @@ describe("HelpPage visual pass (#657)", () => {
     expect(search).toHaveValue(""); // the shortcut key itself is not typed
     await user.keyboard("fifo/");
     expect(search).toHaveValue("fifo/"); // inside the box, "/" is just a character
-  });
-
-  it("offers a jump bar to every glossary group", () => {
-    const { container } = render(<HelpPage />);
-    const jump = screen.getByRole("navigation", { name: "Glossary groups" });
-    const hrefs = within(jump).getAllByRole("link").map((a) => a.getAttribute("href"));
-    const groups = Array.from(container.querySelectorAll(".glossary-group h4")).map((h) => `#${h.id}`);
-    expect(hrefs).toEqual(groups);
-    expect(hrefs.length).toBe(7);
-  });
-
-  it("folds the glossary jump bar away while a search is active", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<HelpPage />);
-    expect(screen.getByRole("navigation", { name: "Glossary groups" })).toBeVisible();
-    await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "fifo");
-    // A hidden element has no accessible name (accname step 2A), so the folded
-    // bar is reached by class rather than by role.
-    expect(container.querySelector(".glossary-jump")).not.toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(screen.getByRole("navigation", { name: "Glossary groups" })).toBeVisible();
   });
 
   it("renders Fixing mistakes as a mistake → fix list, not a table", () => {
@@ -1174,7 +1157,7 @@ describe("HelpPage visual pass (#657)", () => {
     expect(within(section).getByText(/reads as No entry until it is submitted/i)).toBeInTheDocument();
     expect(within(section).getByText(/submitted days only/i)).toBeInTheDocument();
     expect(within(section).getByText("stacked bar", { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText("Capture status", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Capture status", { selector: "summary" })).toBeInTheDocument();
     // The section must READ the catalog, not carry a copy of it: swap the
     // values and the rendered page has to follow.
     const originalTiles = i18n.getResource("en", "help", "dashboardTiles") as string;
@@ -1184,7 +1167,7 @@ describe("HelpPage visual pass (#657)", () => {
     try {
       renderWithProviders(<HelpPage />, { token: { sub: "u1", role: "Worker" } });
       expect(screen.getAllByText("DASHBOARD-TILES-MARKER").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("CAPTURE-STATUS-TERM-MARKER", { selector: "dt a" }).length).toBeGreaterThan(0);
+      expect(screen.getAllByText("CAPTURE-STATUS-TERM-MARKER", { selector: "summary" }).length).toBeGreaterThan(0);
     } finally {
       i18n.addResource("en", "help", "dashboardTiles", originalTiles);
       i18n.addResource("en", "help", "glossaryCaptureStatusTerm", originalTerm);
@@ -1217,7 +1200,7 @@ describe("HelpPage discount ceiling (#727)", () => {
     // further down the page renders the same words as plain prose.
     expect(screen.getByText("Over maximum", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("0 is not the same as blank", { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText("Discount ceiling", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Discount ceiling", { selector: "summary" })).toBeInTheDocument();
   });
 
   it.each(PACKS)("%s names the Farm settings control by its own label", (_name, pack) => {

@@ -136,10 +136,12 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  it("uses the Field Console serif for page and section headings", () => {
+  it("uses serif page headings and a sans 15px subsection heading", () => {
     for (const { label, theme } of themes) {
-      for (const variant of ["h1", "h2", "h3"] as const)
+      for (const variant of ["h1", "h2"] as const)
         expect(theme.typography[variant].fontFamily, `${label} ${variant}`).toBe("Georgia, serif");
+      expect(theme.typography.h3.fontFamily, `${label} h3 family`).toBe(theme.typography.fontFamily);
+      expect(theme.typography.h3.fontSize, `${label} h3 size`).toBe("0.9375rem");
     }
   });
 
@@ -358,7 +360,7 @@ describe("farm theme policy (#823 G2)", () => {
       const h2Phone = slot((theme.typography.h2 as Record<string, unknown>)[phone], `${label} title phone`);
       expect(h2Phone.fontSize, `${label} title phone size`).toBe("1.75rem");
 
-      expect(theme.typography.h3.fontSize, `${label} section size`).toBe("0.8125rem");
+      expect(theme.typography.h3.fontSize, `${label} section size`).toBe("0.9375rem");
       expect(theme.typography.h3.fontWeight, `${label} section weight`).toBe(600);
 
       expect(theme.typography.body1.fontSize, `${label} row size`).toBe("0.875rem");

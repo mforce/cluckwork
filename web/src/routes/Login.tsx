@@ -270,7 +270,7 @@ export function Login() {
                     onClick={() => setFarmCode(code)}
                     sx={{
                       padding: "0.35rem 0.7rem", border: "1px solid", borderColor: "divider",
-                      borderRight: "none", borderRadius: "var(--r-pill) 0 0 var(--r-pill)",
+                      borderRight: "none", borderRadius: 0,
                       background: "var(--surface-2)", color: "var(--ink)", font: "inherit",
                       fontSize: "0.85rem", cursor: "pointer",
                     }}
@@ -284,7 +284,7 @@ export function Login() {
                     aria-label={t("forgetFarm", { farmCode: code })}
                     onClick={() => void forgetFarm(code)}
                     sx={{
-                      minWidth: 44, minHeight: 44, borderRadius: "0 var(--r-pill) var(--r-pill) 0",
+                      minWidth: 44, minHeight: 44, borderRadius: 0,
                       border: "1px solid", borderColor: "divider", background: "var(--surface-2)",
                       color: "var(--error)",
                       "&:hover": { background: "error.main", color: "error.contrastText" },

@@ -613,14 +613,14 @@ export function SettingsPage() {
         {t("intro")}
       </Typography>
 
-      <Stack component="form" spacing={2} sx={{ mt: 3, pb: "6rem" }} onSubmit={(e) => void onSave(e)}>
+      <Stack component="form" spacing={2} sx={{ mt: 3, pb: "6rem", maxWidth: "760px" }} onSubmit={(e) => void onSave(e)}>
         <Accordion defaultExpanded disableGutters>
           <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
             <Typography variant="h3" component="span">{t("identityImagesHeading")}</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2.5}>
-              <Paper variant="outlined" sx={{ flex: 1, borderRadius: "var(--r-panel)", p: 2.5 }}>
+              <Paper variant="outlined" data-testid="settings-logo-card" sx={{ flex: 1, borderRadius: 0, p: 2.5 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t("logoSectionHeading")}</Typography>
                 <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
                   {logo.url !== null ? (
@@ -641,7 +641,8 @@ export function SettingsPage() {
                       onChange={(e) => void onPickLogo(e)} />
                   </Button>
                   {hasLogo && (
-                    <BusyButton type="button" className="btn-danger" disabled={busy}
+                    <BusyButton component={Button} type="button" variant="outlined" color="error"
+                      sx={{ borderColor: "divider", "&:hover": { borderColor: "divider" } }} disabled={busy}
                       busy={isPending("logo:remove")}
                       onClick={() => void onRemoveLogo()}>
                       <Trash2 size={16} aria-hidden /> {t("removeLogoButton")}
@@ -668,7 +669,7 @@ export function SettingsPage() {
                 {logoError !== null && <Alert severity="error">{logoError}</Alert>}
               </Paper>
 
-              <Paper variant="outlined" sx={{ flex: 1, borderRadius: "var(--r-panel)", p: 2.5 }}>
+              <Paper variant="outlined" data-testid="settings-banner-card" sx={{ flex: 1, borderRadius: 0, p: 2.5 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t("bannerSectionHeading")}</Typography>
                 <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
                   {banner.url !== null ? (
@@ -690,7 +691,8 @@ export function SettingsPage() {
                       onChange={(e) => void onPickBanner(e)} />
                   </Button>
                   {hasBanner && (
-                    <BusyButton type="button" className="btn-danger" disabled={busy}
+                    <BusyButton component={Button} type="button" variant="outlined" color="error"
+                      sx={{ borderColor: "divider", "&:hover": { borderColor: "divider" } }} disabled={busy}
                       busy={isPending("banner:remove")}
                       onClick={() => void onRemoveBanner()}>
                       <Trash2 size={16} aria-hidden /> {t("removeBannerButton")}
@@ -723,13 +725,18 @@ export function SettingsPage() {
               <Stack direction="row" sx={{ flexWrap: "wrap", gap: "0.75rem", mt: 1 }} aria-describedby="palette-hint">
                 {BRANDS.map((id) => (
                   <Box component="label" key={id} sx={{
+                    position: "relative",
                     display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "6px 10px",
                     border: "1px solid", borderColor: brand === id ? "info.main" : "divider",
                     borderRadius: "4px", cursor: saving ? "default" : "pointer",
                     opacity: saving ? 0.6 : 1,
                     boxShadow: brand === id ? (theme) => `inset 0 0 0 1px ${theme.palette.info.main}` : "none",
+                    "&:has(input:focus-visible)": {
+                      outline: "2px solid", outlineColor: "info.main", outlineOffset: "2px",
+                    },
                   }}>
                     <input
+                      className="sr-only"
                       type="radio"
                       name="brand"
                       value={id}

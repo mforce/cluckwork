@@ -205,10 +205,10 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   });
 
   it("reads the current-password label from the catalog, not a hardcoded literal", async () => {
-    await withOverride("currentPasswordLabel", "CURRENT-PW-MARKER *", async () => {
+    await withOverride("currentPasswordLabel", "CURRENT-PW-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
       expandChangePassword();
-      expect(screen.getByLabelText(/CURRENT-PW-MARKER/)).toBeInTheDocument();
+      expect(screen.getByLabelText("CURRENT-PW-MARKER *")).toBeRequired();
       expect(screen.queryByLabelText(/^Current password/)).not.toBeInTheDocument();
     });
   });
@@ -226,10 +226,10 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   });
 
   it("reads the confirm-password label from the catalog, not a hardcoded literal", async () => {
-    await withOverride("confirmPasswordLabel", "CONFIRM-PW-MARKER *", async () => {
+    await withOverride("confirmPasswordLabel", "CONFIRM-PW-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
       expandChangePassword();
-      expect(screen.getByLabelText(/CONFIRM-PW-MARKER/)).toBeInTheDocument();
+      expect(screen.getByLabelText("CONFIRM-PW-MARKER *")).toBeRequired();
       expect(screen.queryByLabelText(/^Confirm new password/)).not.toBeInTheDocument();
     });
   });
