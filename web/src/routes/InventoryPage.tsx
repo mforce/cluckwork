@@ -713,7 +713,6 @@ export function InventoryPage() {
               </Stack>
             </Dialog>
 
-            {/* A failed load-more keeps the loaded rows visible and allows retry. */}
             <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 1, mb: 1 }}>
               <Typography component="h3" variant="h3" sx={{ "&&": { m: 0 }, minWidth: 0 }}>{t("movementHeading")}</Typography>
               <Button size="small" color="inherit" sx={{ ...CONSOLE_LINK_SX, minHeight: 44, flexShrink: 0, fontSize: ".75rem" }} onClick={() => setActive(null)}>{t("chooseAnotherItem")}</Button>

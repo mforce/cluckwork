@@ -122,27 +122,19 @@ async function renderReady(currencyCode = "USD", token: Record<string, unknown> 
   await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
 }
 
-// #679 — "clear" on this screen RESTORES THE CURRENT-MONTH DEFAULT rather
-// than blanking the range (owner decision, 2026-09-05): a blank range leaves
-// the period total describing every expense ever recorded, which is the
-// framing #667 declined to make the default. The dates are read off the
-// controls rather than hardcoded — this suite computes the farm's today live
-// from the clock, so a pinned month would pass only in one month of the year.
 describe("ExpensesPage persistent clear filters (#679)", () => {
   const dateInputs = () => ({
     from: screen.getByLabelText("From") as HTMLInputElement,
     to: screen.getByLabelText("To") as HTMLInputElement,
   });
 
-  it("offers no clear control while the filters are still the default", async () => {
+  it("keeps the clear control available at the default period", async () => {
     mockListExpenses.mockResolvedValue({ items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
     await renderReady("BHD");
 
     expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
   });
 
-  // The gap: before this, the only clear control lived in the ZERO-ROWS empty
-  // state, so it appeared only once the filters had hidden everything.
   it("shows the clear control while rows are still listed", async () => {
     mockListExpenses.mockResolvedValue({ items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
     await renderReady("BHD");
@@ -216,12 +208,10 @@ describe("ExpensesPage persistent clear filters (#679)", () => {
       fireEvent.change(dateInputs().from, { target: { value: "2026-02-01" } });
     });
 
-    // Two controls with the same label must not mean two different things: the
-    // empty state's button and the filter row's button are one handler.
-    const emptyStateClear = screen.getAllByRole("button", { name: "Clear filters" });
-    expect(emptyStateClear).toHaveLength(1);
+    const clearButtons = screen.getAllByRole("button", { name: "Clear filters" });
+    expect(clearButtons).toHaveLength(1);
     await act(async () => {
-      fireEvent.click(emptyStateClear[emptyStateClear.length - 1]);
+      fireEvent.click(clearButtons[0]);
     });
 
     expect(dateInputs().from.value).toBe(defaultFrom);

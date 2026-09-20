@@ -537,9 +537,6 @@ export function StockPage() {
                 <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => void changeLotsFilter("", "")}>{tc("clearFiltersButton")}</Button>
               </FilterBar>
               {lots.length === 0 ? (
-                // lotsFrom/lotsTo are this section's own filter, unrelated to
-                // any page-head action — "filtered to nothing" offers Clear
-                // filters only when a filter is actually set.
                 (lotsFrom || lotsTo)
                   ? <EmptyState icon={FilterX} message={t("noLotsMatch")} />
                   : <EmptyState icon={Egg} message={t("noLotsMessage")} />

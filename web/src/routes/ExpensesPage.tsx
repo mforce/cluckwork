@@ -860,17 +860,7 @@ export function ExpensesPage() {
       {expenses.rows === null || expenses.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : expenses.rows.length === 0 ? (
-        // #667 — the month picker used to be always set, so there was only one
-        // way to be empty. A range can be cleared or narrowed to nothing, so
-        // this becomes the two-variant shape the sibling screens use: the
-        // filtered sentence offers a way out, the truly-empty one does not
-        // (expense capture is the inline form above, not a page-head action).
         (from || to || filterCategory)
-          // #679 — the action depends on WHERE the empty view is. Narrowed past
-          // the default, the way out is back to the default; sitting ON the
-          // default with nothing this month, "clear filters" would be a no-op
-          // that changes nothing on screen, and the useful move is the one the
-          // filter row's button deliberately does not mean: show every period.
           ? <EmptyState icon={FilterX} message={t("noExpensesMatch")}
               action={isFiltered
                 ? undefined
