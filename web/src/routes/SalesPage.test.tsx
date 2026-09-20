@@ -1300,6 +1300,10 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // empty case produces, which the old single assertion got backwards.
     expect(within(row).queryByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toBeNull();
     expect(within(row).queryByText(i18n.t("enums:listPriceBasis.PreDating"))).toBeNull();
+    mockGetOrder.mockResolvedValue(listedOrder("empty", [], 0));
+    fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    const settlement = await screen.findByRole("complementary", { name: "Settlement" });
+    expect(within(settlement).getAllByRole("definition")[1]).toHaveTextContent(/^—$/);
   });
 
   it("names an order predating the list-price snapshot as unrecorded, not unpriced", async () => {
@@ -4173,6 +4177,23 @@ describe("SalesPage discount ceiling (#727)", () => {
 });
 
 describe("Sales Field Console context and settlement", () => {
+  it.each([
+    { price: 1100, label: "Above list" },
+    { price: 1000, label: "At list" },
+  ])("labels a $price-cent line against a 1000-cent list price as $label in settlement", async ({ price, label }) => {
+    const order: SalesOrder = {
+      ...DRAFT_TWO,
+      totalMinorUnits: price,
+      items: [{ ...ITEM_A, quantity: 1, quantityBase: 12,
+        unitPriceMinorUnits: price, listUnitPriceMinorUnits: 1000 }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    const values = within(settlement).getAllByRole("definition");
+    expect(values[0]).toHaveTextContent("$10.00");
+    expect(values[1]).toHaveTextContent(new RegExp(`^${label}$`));
+  });
+
   it("shows draft context without inventing an outstanding balance and groups its actions", async () => {
     await openOrder(DRAFT_TWO, /Grade A Dozen/);
     const context = screen.getByLabelText("Order context");
