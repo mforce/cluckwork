@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import type { ComponentProps } from "react";
 import { FlockPickerDialog } from "./FlockPickerDialog";
 import { listFlocks } from "../api/cluckwork";
@@ -70,10 +71,16 @@ describe("FlockPickerDialog (#918 round 4 — extracted from Dashboard.tsx)", ()
     expect(mockFlocks).toHaveBeenLastCalledWith(expect.objectContaining({ search: "f501", offset: 0, limit: 50 }));
   });
 
-  // #918 — Codex review, round 4, finding 5. A disabled "Load more" (mid
-  // fetch) used to sit inside the arrow/Home/End roving-focus set, so End
-  // landed on a button that could not be activated and focus never moved.
-  it("keyboard navigation skips a disabled Load more, landing on the last enabled result", async () => {
+  // #918 — Codex review, round 3 finding 3 and round 4 finding 5. Restored
+  // after the round-4 extraction dropped it down to the disabled-boundary
+  // case alone: search-to-results handoff (ArrowDown from the search box),
+  // the ordinary Arrow/Home/End sweep, a disabled "Load more" excluded from
+  // it, and Escape returning focus to the DASHBOARD trigger — MUI's own
+  // restore-focus behavior, proved end to end through a real trigger button
+  // rather than assumed. Mutation-verified: removing `onKeyDown={onBodyKeyDown}`
+  // from the results container turns the Arrow/Home/End assertions red
+  // (focus never leaves the search box), confirmed locally then reverted.
+  it("moves focus through the picker with Arrow/Home/End from the search box, skips a disabled Load more, and returns focus to the trigger on Escape", async () => {
     const user = userEvent.setup();
     const firstPage = Array.from({ length: 50 }, (_, i) => flock(`p${i}`));
     let resolveSecondPage: ((f: Flock[]) => void) | null = null;
@@ -81,19 +88,59 @@ describe("FlockPickerDialog (#918 round 4 — extracted from Dashboard.tsx)", ()
       if (params?.offset === 50) return new Promise<Flock[]>((resolve) => { resolveSecondPage = resolve; });
       return Promise.resolve(firstPage);
     });
-    renderDialog();
+
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Open picker</button>
+          <FlockPickerDialog
+            open={open} onClose={() => setOpen(false)} scope={{ kind: "all" }} accessibleCount={50}
+            onPickAll={vi.fn()} onPickFlock={vi.fn()}
+          />
+        </>
+      );
+    }
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Open picker" });
+    await user.click(trigger);
+
     const results = await screen.findByRole("list", { name: "Accessible flocks" });
     await waitFor(() => expect(within(results).queryAllByRole("button").length).toBe(50));
+    const allFlocks = screen.getByRole("button", { name: /^All flocks/ });
+    const f0 = within(results).getByRole("button", { name: "Flock p0" });
+    const lastResult = within(results).getByRole("button", { name: "Flock p49" });
 
+    // Search-to-results: ArrowDown from the search box lands on the FIRST
+    // choice — "All flocks", pinned above the results, first in DOM order.
+    const search = screen.getByRole("searchbox", { name: "Search accessible flocks" });
+    search.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(allFlocks).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(f0).toHaveFocus();
+
+    await user.keyboard("{Home}");
+    expect(allFlocks).toHaveFocus();
+
+    // A disabled "Load more" (mid-fetch) is excluded from the sweep, so End
+    // lands on the last ENABLED result, not the button that cannot activate.
+    // Refocus f0 first — a keyboard user navigating the results would never
+    // land focus ON the disabled control itself; only a mouse click would,
+    // and a disabled element does not dispatch keydown at all once it holds
+    // focus, which would prove nothing about the roving-focus logic.
     await user.click(screen.getByRole("button", { name: "Load more" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Load more" })).toBeDisabled());
-
-    const lastResult = within(results).getByRole("button", { name: "Flock p49" });
-    screen.getByRole("button", { name: /^All flocks/ }).focus();
+    f0.focus();
     await user.keyboard("{End}");
     expect(lastResult).toHaveFocus();
-
     resolveSecondPage!([]);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument());
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
   });
 
   // #918 — Codex review, round 4, finding 3. A failed discovery (search or
@@ -166,5 +213,79 @@ describe("FlockPickerDialog (#918 round 4 — extracted from Dashboard.tsx)", ()
 
     expect(within(results).getByRole("button", { name: "Flock abcMatch" })).toBeInTheDocument();
     expect(within(results).queryByRole("button", { name: "Flock stale1" })).not.toBeInTheDocument();
+  });
+
+  // #918 — Codex review, round 5, finding 1. The race test above covers a
+  // REPLACEMENT search only; a `loadMore` EXTENSION left pending across a
+  // query change was unguarded before this fix (component line 104).
+  // Mutation-verified: deleting that guard turns this red (the stale rows
+  // land, appended onto the new query's own results), confirmed locally
+  // then reverted.
+  it("drops a pending Load more response when the search query changes before it resolves, and the new query's own cursor is never corrupted", async () => {
+    const user = userEvent.setup();
+    const firstPage = Array.from({ length: 50 }, (_, i) => flock(`p${i}`));
+    const xyzPage = Array.from({ length: 50 }, (_, i) => flock(`x${i}`));
+    const pendingExtension: { resolve: (f: Flock[]) => void } = { resolve: () => {} };
+    mockFlocks.mockImplementation((params) => {
+      if (params?.offset === 50) return new Promise<Flock[]>((resolve) => { pendingExtension.resolve = resolve; });
+      return Promise.resolve(params?.search === "xyz" ? xyzPage : firstPage);
+    });
+
+    renderDialog({ accessibleCount: 50 });
+    const results = await screen.findByRole("list", { name: "Accessible flocks" });
+    await waitFor(() => expect(within(results).queryAllByRole("button").length).toBe(50));
+
+    await user.click(screen.getByRole("button", { name: "Load more" })); // pending, tied to the empty-search query
+
+    await user.type(screen.getByRole("searchbox", { name: "Search accessible flocks" }), "xyz");
+    await waitFor(() => expect(within(results).getByRole("button", { name: "Flock x0" })).toBeInTheDocument());
+
+    pendingExtension.resolve([flock("STALE-A")]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(within(results).queryByRole("button", { name: "Flock STALE-A" })).not.toBeInTheDocument();
+
+    // xyz's own cursor (50, from ITS OWN page) is what the next Load More
+    // carries — never a value left over from the abandoned empty-search one.
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+    expect(mockFlocks).toHaveBeenLastCalledWith(expect.objectContaining({ search: "xyz", offset: 50 }));
+  });
+
+  // #918 — Codex review, round 5, finding 1 (close-time half). Same
+  // unguarded `loadMore` extension, abandoned by the dialog closing rather
+  // than a query change. Mutation-verified alongside the test above:
+  // deleting the guard at component line 104 turns this red too.
+  it("drops a pending Load more response when the dialog closes before it resolves, and reopening starts with a clean cursor", async () => {
+    const user = userEvent.setup();
+    const firstPage = Array.from({ length: 50 }, (_, i) => flock(`p${i}`));
+    const reopenPage = Array.from({ length: 50 }, (_, i) => flock(`r${i}`));
+    let opens = 0;
+    const pendingExtension: { resolve: (f: Flock[]) => void } = { resolve: () => {} };
+    mockFlocks.mockImplementation((params) => {
+      if (params?.offset === 50) return new Promise<Flock[]>((resolve) => { pendingExtension.resolve = resolve; });
+      opens += 1;
+      return Promise.resolve(opens === 1 ? firstPage : reopenPage);
+    });
+
+    const dialogProps = {
+      onClose: vi.fn(), scope: { kind: "all" as const }, accessibleCount: 50, onPickAll: vi.fn(), onPickFlock: vi.fn(),
+    };
+    const { rerender } = render(<FlockPickerDialog open {...dialogProps} />);
+    const results = await screen.findByRole("list", { name: "Accessible flocks" });
+    await waitFor(() => expect(within(results).queryAllByRole("button").length).toBe(50));
+
+    await user.click(screen.getByRole("button", { name: "Load more" })); // pending, never resolved before close
+
+    rerender(<FlockPickerDialog open={false} {...dialogProps} />);
+    rerender(<FlockPickerDialog open {...dialogProps} />);
+    await waitFor(() => expect(within(results).getByRole("button", { name: "Flock r0" })).toBeInTheDocument());
+
+    pendingExtension.resolve([flock("STALE-B")]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(within(results).queryByRole("button", { name: "Flock STALE-B" })).not.toBeInTheDocument();
+
+    // The reopened session's own cursor (50, from ITS OWN page) is what the
+    // next Load More carries — never a value left over from the closed one.
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+    expect(mockFlocks).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 50 }));
   });
 });
