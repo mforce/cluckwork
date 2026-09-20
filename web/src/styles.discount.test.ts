@@ -23,7 +23,7 @@ function declarationsFor(selector: string): Map<string, string> {
 const MODES: Mode[] = ["light", "dark"];
 const attrFor = (brand: string) => (brand === DEFAULT_BRAND ? null : brand);
 
-describe("the discounted-row tint (DISCOUNTED_ROW_SX) is real in every brand and mode", () => {
+describe("the confirmation discount-breakdown tint is real in every brand and mode", () => {
   const token = "--tint-warn";
 
   describe.each(BRANDS.flatMap((brand) => MODES.map((mode) => [brand, mode] as const)))(
@@ -38,7 +38,7 @@ describe("the discounted-row tint (DISCOUNTED_ROW_SX) is real in every brand and
           .not.toMatch(/^(transparent|none|inherit|initial|unset)$/);
       });
 
-      it("is visibly different from the surface the row would otherwise have", () => {
+      it("is visibly different from the surrounding surface", () => {
         const tint = resolved.get(token)!;
         const surface = resolved.get("--surface") ?? resolved.get("--bg") ?? "#ffffff";
         // Not an accessibility threshold — a sameness check. Identical colours
@@ -58,40 +58,30 @@ describe(".discount-note", () => {
   });
 });
 
-describe("the below-list chip's surface lift (DISCOUNTED_BADGE_SX) stays visible on the row it sits on", () => {
-  const chipToken = "--surface";
-  const rowToken = "--tint-warn";
-
-  it("does not repaint the chip in the row's own tint", () => {
-    expect(chipToken).not.toBe(rowToken);
+describe("below-list exception text", () => {
+  const decls = declarationsFor(".discount");
+  it("uses warning text without a chip fill", () => {
+    expect(decls.get("color")).toBe("var(--warn)");
+    expect(decls.has("background")).toBe(false);
+    expect(decls.has("background-color")).toBe(false);
   });
-
-  describe.each(BRANDS.flatMap((brand) => MODES.map((mode) => [brand, mode] as const)))(
-    "%s / %s",
-    (brand, mode) => {
-      it("resolves to a colour that contrasts with the row tint", () => {
-        const resolved = resolveTokens(attrFor(brand), mode);
-        const chipColour = resolved.get(chipToken);
-        const rowColour = resolved.get(rowToken);
-        expect(chipColour, "chip fill does not resolve").toBeDefined();
-        expect(rowColour, "row tint does not resolve").toBeDefined();
-        expect(contrast(chipColour!, rowColour!), `chip ${chipColour} vs row ${rowColour}`)
-          .toBeGreaterThan(1.02);
-      });
-    },
-  );
+  it.each(BRANDS.flatMap(brand => MODES.map(mode => [brand, mode] as const)))(
+    "is readable on the %s / %s paper", (brand, mode) => {
+      const resolved = resolveTokens(attrFor(brand), mode);
+      expect(contrast(resolved.get("--warn")!, resolved.get("--surface")!)).toBeGreaterThanOrEqual(4.5);
+    });
 });
 
-// An over-ceiling line is also below list, so its chip must contrast with the discounted row.
-describe(".badge-danger — the over-maximum chip on the discounted row it always sits on", () => {
+// Over-ceiling warnings retain their destructive chip on the plain paper.
+describe(".badge-danger — over-maximum remains distinct from below-list text", () => {
   const chip = declarationsFor(".badge-danger");
-  const rowTintToken = "--tint-warn";
+  const rowTintToken = "--surface";
 
   it("fills from a token, like every other chip", () => {
     expect(chip.get("background")).toMatch(/^var\(--[a-z0-9-]+\)$/);
   });
 
-  it("does not reuse the row tint's own token, which is what forced the below-list override", () => {
+  it("does not reuse the paper surface token", () => {
     const tok = (v: string | undefined) => /^var\((--[a-z0-9-]+)\)$/.exec(v ?? "")?.[1];
     expect(tok(chip.get("background"))).not.toBe(rowTintToken);
   });

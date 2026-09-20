@@ -381,6 +381,8 @@ export const en = {
   },
   // Sales pilot (Task 7, #182) — the worked pattern for the full sweep.
   sales: {
+    draftOrderHeading: "Draft order",
+    orderHeading: "Order",
     intro: "Build orders, allocate stock, settle balances, and retain the commercial record.",
     orderContext: "Order context",
     listValue: "List value",
