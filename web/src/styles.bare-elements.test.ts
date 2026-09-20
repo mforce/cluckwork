@@ -258,6 +258,9 @@ function bareElementRules(source: string = css): BareRule[] {
  * that already styles MUI's DOM is the same event as adding the rule.
  */
 const DEMOTED: ReadonlyArray<readonly [selector: string, props: string]> = [
+  // Field Console headings use the same serif outside MUI Typography. Help is
+  // the only screen that renders raw headings today, so this stays at h1–h3.
+  [":where(h1, h2, h3)", "font-family"],
   [":where(h1, h2, h3, h4)", "font-weight letter-spacing line-height"],
   [
     ":where(button)",
