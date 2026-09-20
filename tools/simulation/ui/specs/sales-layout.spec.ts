@@ -80,3 +80,21 @@ test("Sales payment rail keeps destructive styling and opens the payment dialog"
   await rail.getByRole("button", { name: tEn("sales:recordPayment"), exact: true }).click();
   await expect(page.getByRole("dialog", { name: tEn("sales:recordPayment") })).toBeVisible();
 });
+
+test("Sales confirmed phone rows expose their hidden price columns", { tag: "@phone" }, async ({ page, signIn }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(owner());
+  await page.goto("/sales");
+  const confirmed = page.getByRole("row").filter({ hasText: "Sim Customer 3" })
+    .filter({ hasText: tEn("enums:status.Confirmed") }).first();
+  await confirmed.getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+  const manifest = page.getByRole("region").getByRole("table").first();
+  await expect(manifest.getByRole("columnheader", { name: tEn("sales:unitPrice"), exact: true })).toBeHidden();
+  await expect(manifest.getByRole("columnheader", { name: tEn("sales:lineTotal"), exact: true })).toBeHidden();
+  const row = manifest.getByRole("row", { name: /Sim Large Eggs/ });
+  await expect(row).toHaveAccessibleName(/Unit price \$0\.45, Line total \$16\.20/);
+  const prices = row.getByText("Unit price $0.45, Line total $16.20", { exact: true });
+  await expect(prices).toHaveCSS("position", "absolute");
+  await expect(prices).toHaveCSS("width", "1px");
+  expect(await manifest.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+});

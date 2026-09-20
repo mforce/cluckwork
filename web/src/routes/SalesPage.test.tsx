@@ -4170,6 +4170,19 @@ describe("SalesPage discount ceiling (#727)", () => {
 });
 
 describe("Sales Field Console context and settlement", () => {
+  it.each(["Draft", "Confirmed"] as const)("keeps labelled manifest prices available to screen readers for %s orders", async (status) => {
+    const order: SalesOrder = {
+      ...DRAFT_TWO, status, totalMinorUnits: 912,
+      items: [{ ...ITEM_A, quantity: 24, quantityBase: 288,
+        unitPriceMinorUnits: 38, listUnitPriceMinorUnits: 38 }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    const panel = screen.getByRole("region", { name: "SO-2 — Acme Eggs" });
+    const row = within(panel).getByRole("row", { name: /Grade A Dozen/ });
+    expect(within(row).getByText("Unit price $0.38, Line total $9.12")).toBeInTheDocument();
+    expect(row).toHaveAccessibleName(/Unit price \$0\.38, Line total \$9\.12/);
+  });
+
   it("offers Clear filters even when the commercial ledger is populated", async () => {
     await renderReadyWithProbe("/sales?unpaid=1&foo=bar");
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
