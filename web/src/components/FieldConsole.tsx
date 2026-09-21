@@ -14,6 +14,7 @@ export const CONSOLE_LINK_SX = {
   textDecoration: "underline", textDecorationColor: "var(--link-rule)", textUnderlineOffset: "3px",
   "&:hover": { textDecoration: "underline" },
 };
+// #831 Concept B: cancel the panel padding so the header divider reaches both edges.
 export const CONSOLE_PAPER_HEAD_SX = {
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "15px",
   mx: -2, mt: -2, mb: 2, px: 2, py: "14px", borderBottom: "1px solid var(--rule)",
@@ -79,6 +80,7 @@ export function ConsoleSummary({ label, items }: {
   );
 }
 
+// Concept B keeps the settlement and stock rails dark in both colour modes (#831).
 export const CONSOLE_RAIL_SX = {
   ...CONSOLE_PANEL_SX,
   bgcolor: "#2c2429",
@@ -90,6 +92,7 @@ export function FieldConsole({ children }: { children: ReactNode }) {
   return (
     <Box component="section" sx={{
       minWidth: 0,
+      // Concept B uses brand-coloured row links; other pages retain the shared theme default.
       "--link": "var(--brand)",
       "&& h2": { typography: "h2", mb: 1 },
       "&& h3": { typography: "h3", mt: 2.5, mb: 1 },
@@ -106,6 +109,7 @@ export function FieldConsole({ children }: { children: ReactNode }) {
   );
 }
 
+// Keep the swipe cue outside the scrolling element so it stays visible as columns move.
 export function LedgerTableContainer({ children }: { children: ReactNode }) {
   const { t } = useTranslation("common");
   return (
