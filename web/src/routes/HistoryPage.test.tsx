@@ -355,11 +355,8 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     await openAdjustPanel();
 
-    // Both step headings, in order — this is the layout the correction shares
-    // with capture, not a flat list of fields. The dialog's own title is an h3
-    // too, so the steps are the two that follow it.
     const headings = within(dialog()).getAllByRole("heading", { level: 3 });
-    expect(headings.slice(1).map((h) => h.textContent)).toEqual([
+    expect(headings.map((h) => h.textContent)).toEqual([
       expect.stringContaining("Egg counts"),
       expect.stringContaining("Grading"),
     ]);

@@ -423,7 +423,7 @@ export function Dialog({
           "New order Close" (probed on the sim stack, CodeRabbit round 1 of
           #892), so an exact-name query for the title alone found nothing.
           The right padding keeps the title text clear of the button. */}
-      <DialogTitle component="h3" variant="h4" sx={{ pr: 7 }}>
+      <DialogTitle component="h2" variant="h2" sx={{ pr: 7 }}>
         {title}
       </DialogTitle>
       <IconButton
