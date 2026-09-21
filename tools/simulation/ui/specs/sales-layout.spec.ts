@@ -98,3 +98,32 @@ test("Sales confirmed phone rows expose their hidden price columns", { tag: "@ph
   await expect(prices).toHaveCSS("width", "1px");
   expect(await manifest.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
 });
+
+for (const width of [1280, 390]) {
+  test(`Sales keeps incomplete prices visible and edit cells muted ${width === 390 ? "@phone" : ""}`, async ({ page, signIn }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+    await signIn(owner());
+    await page.goto("/sales");
+    const partial = page.getByRole("row").filter({ hasText: "Sim Customer 2" })
+      .filter({ hasText: tEn("enums:status.Draft") });
+    const note = partial.getByText(tEn("sales:discountPartialNote"), { exact: true });
+    await note.scrollIntoViewIfNeeded();
+    await expect(note).toBeVisible();
+    await expect(note).toHaveCSS("clip-path", "none");
+    expect((await note.boundingBox())!.width).toBeGreaterThan(20);
+    const draft = page.getByRole("row").filter({ hasText: "Sim Customer 1" })
+      .filter({ hasText: tEn("enums:status.Draft") });
+    await draft.getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+    const row = page.getByRole("region").getByRole("row", { name: /Sim Medium Eggs/ });
+    await row.getByRole("button", { name: tEn("sales:edit"), exact: true }).click();
+    const muted = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--muted)";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    });
+    for (const index of [2, 3]) await expect(row.getByRole("cell").nth(index)).toHaveCSS("color", muted);
+  });
+}

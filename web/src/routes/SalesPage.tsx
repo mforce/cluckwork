@@ -1171,7 +1171,15 @@ export function SalesPage() {
       )}
 
       {/* Native form validation would intercept the page's own money validation messages. */}
-      <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}>
+      <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}
+        actions={
+          <DialogActions>
+            <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
+            <BusyButton disabled={busy || !customer || !customerSnapshot.canSubmit}
+              busy={isPending("create-order")}
+              onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
+          </DialogActions>
+        }>
         <Stack spacing={2}>
           <CustomerPicker
             label={t("customer")}
@@ -1213,12 +1221,6 @@ export function SalesPage() {
               because focus is trapped in the panel and nothing else announces
               the failure. */}
           <DialogError errors={errors} scope="create-order" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
-            <BusyButton disabled={busy || !customer || !customerSnapshot.canSubmit}
-              busy={isPending("create-order")}
-              onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1322,8 +1324,8 @@ export function SalesPage() {
                                   if (draft) setEditor({ ...draft, quantity: typeof quantity === "function" ? quantity(draft.quantity) : quantity });
                                 }} min={1} />
                             </TableCell>
-                            <TableCell align="right" className="muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</TableCell>
-                            <TableCell align="right" className="muted">
+                            <TableCell align="right" sx={{ color: "var(--muted)" }}>{fmt.count(i.baseUnitFactor * editor.quantity)}</TableCell>
+                            <TableCell align="right" sx={{ color: "var(--muted)" }}>
                               <Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("listPrice")}: </Box>{i.listUnitPriceMinorUnits === null
                                 ? "—"
                                 : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
@@ -1663,7 +1665,16 @@ export function SalesPage() {
                     </div>
                   )}
 
-                  <Dialog open={paying} title={t("recordPayment")} onClose={closePayment}>
+                  <Dialog open={paying} title={t("recordPayment")} onClose={closePayment}
+                    actions={
+                      <DialogActions>
+                        <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
+                        <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
+                          onClick={onRecordPayment}>
+                          {t("recordPayment")}
+                        </BusyButton>
+                      </DialogActions>
+                    }>
                     <Stack spacing={2}>
                       <TextField
                         type="date"
@@ -1707,13 +1718,6 @@ export function SalesPage() {
                       />
                       {/* A payment void can fail while this form is open; show only this dialog's error. */}
                       <DialogError errors={errors} scope="record-payment" />
-                      <DialogActions>
-                        <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
-                        <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
-                          onClick={onRecordPayment}>
-                          {t("recordPayment")}
-                        </BusyButton>
-                      </DialogActions>
                     </Stack>
                   </Dialog>
                 </>
@@ -1916,8 +1920,8 @@ export function SalesPage() {
                                   percent: discountPercent(discount.percent),
                                 })}
                           </Box>
-                        ) : <span>{atList ? t("atListShort") : "—"}</span>}
-                        {discountDescription && <span id={`${rowId}-discount`} className="sr-only" aria-hidden="true">{discountDescription}</span>}
+                        ) : !discountDescription && <span>{atList ? t("atListShort") : "—"}</span>}
+                        {discountDescription && <>{" "}<span id={`${rowId}-discount`} className="muted discount-note">{discountDescription}</span></>}
                         {reason && <span id={`${rowId}-reason`} className="sr-only" aria-hidden="true" data-testid="row-discount-reason">{reason}</span>}
                       </TableCell>
                       <TableCell align="right" sx={NOWRAP}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>

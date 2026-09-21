@@ -737,6 +737,11 @@ describe("SalesPage quantity unit clarity (#445)", () => {
 
     // ITEM_A: factor 12, qty 3 → the eggs cell shows 36 (not the old "—")…
     expect(within(editRow).getByText("36")).toBeInTheDocument();
+    const cells = within(editRow).getAllByRole("cell");
+    expect(cells[2]).toHaveTextContent("36");
+    expect(cells[3]).toHaveTextContent("$3.75");
+    expect(cells[2]).toHaveStyle({ color: "var(--muted)" });
+    expect(cells[3]).toHaveStyle({ color: "var(--muted)" });
     // …and follows the edit: 60 dozen is visibly 720 eggs before save.
     const qty = within(editRow).getByRole("spinbutton", { name: "Edit quantity" });
     fireEvent.change(qty, { target: { value: "60" } });
@@ -1313,17 +1318,21 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // (the recorded fact) would be a different and wrong claim.
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
     expect(within(row).getAllByRole("cell")[4])
+      .toHaveAccessibleName(i18n.t("enums:listPriceBasis.PreDating"));
+    expect(within(row).getByText(i18n.t("enums:listPriceBasis.PreDating"))).not.toHaveClass("sr-only");
+    expect(within(row).getAllByRole("cell")[4])
       .toHaveAccessibleDescription(i18n.t("enums:listPriceBasis.PreDating"));
   });
 
-  it("describes missing list prices without calling the order at list", async () => {
+  it.each(["ProductUnpriced", "PreDating"] as const)("visibly qualifies partial %s list prices without calling the order at list", async (listPriceBasis) => {
     const atList: OrderItem = { ...ITEM_A, id: "ap1", listUnitPriceMinorUnits: 300 };
-    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
+    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null, listPriceBasis };
     mockListOrders.mockResolvedValue([listedOrder("partial", [atList, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-partial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    expect(cell).toHaveAccessibleName("—");
+    expect(cell).toHaveAccessibleName("part of this order has no list price");
+    expect(within(cell).getByText("part of this order has no list price")).not.toHaveClass("sr-only");
     expect(cell).toHaveAccessibleDescription("part of this order has no list price");
     expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
@@ -1336,6 +1345,8 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     const row = screen.getByRole("row", { name: /SO-belowpartial/ });
     const cell = within(row).getAllByRole("cell")[4];
     expect(within(cell).getByText(/%/)).toHaveClass("discount");
+    expect(cell).toHaveAccessibleName("20.0% · $2.25 part of this order has no list price");
+    expect(within(cell).getByText("part of this order has no list price")).not.toHaveClass("sr-only");
     expect(cell).toHaveAccessibleDescription("part of this order has no list price");
     expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
@@ -4170,6 +4181,32 @@ describe("SalesPage discount ceiling (#727)", () => {
 });
 
 describe("Sales Field Console context and settlement", () => {
+  it("mutes voided payment cells without muting active payment cells", async () => {
+    const payment = {
+      salesOrderId: DRAFT_TWO.id, customerId: CUSTOMER.id, amountMinorUnits: 500,
+      currencyCode: "USD", currencyMinorUnit: 2, method: "Cash",
+      paymentDate: "2026-07-20", note: null, version: 1,
+    };
+    mockListOrderPayments.mockResolvedValue({
+      items: [
+        { ...payment, id: "voided-payment", referenceNumber: "VOID-PAY", voided: true, voidReason: "duplicate" },
+        { ...payment, id: "active-payment", referenceNumber: "LIVE-PAY", voided: false, voidReason: null },
+      ],
+      paidMinorUnits: 500, outstandingMinorUnits: 2400, totalMinorUnits: 2900,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder({ ...DRAFT_TWO, status: "Confirmed", outstandingMinorUnits: 2400 }, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    const voided = await within(settlement).findByRole("row", { name: /VOID-PAY/ });
+    const active = within(settlement).getByRole("row", { name: /LIVE-PAY/ });
+    for (const cell of within(voided).getAllByRole("cell")) {
+      expect(cell).toHaveStyle({ color: "var(--muted)" });
+    }
+    for (const cell of within(active).getAllByRole("cell")) {
+      expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+    }
+  });
+
   it.each(["Draft", "Confirmed"] as const)("keeps labelled manifest prices available to screen readers for %s orders", async (status) => {
     const order: SalesOrder = {
       ...DRAFT_TWO, status, totalMinorUnits: 912,
