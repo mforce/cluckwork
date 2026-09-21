@@ -29,8 +29,8 @@ catalog flocks (#627) are placed, active and never file, so every day owes a
 count nobody filed, no day is complete, and the trend strip draws fourteen
 identical floor stubs — the spec's own "bars are not all one height" assertion is
 what says so. `reset.sh` therefore provisions a second farm, `readme-farm`, and
-seeds it with the DEMO profile: two houses, ~240 days of submitted history on
-one, today unrecorded on the other. `cast.ts` exposes its Owner as
+seeds it with the DEMO profile: two houses with ~240 days of submitted history,
+with today unrecorded on House 2. `cast.ts` exposes its Owner as
 `readmeFarmOwner()`, whose `farmCode` the `signIn` fixture reads; every other
 persona has no `farmCode` and keeps signing into `default-farm`. Full reasoning
 in `tools/simulation/README.md` under "Two farms on this stack".

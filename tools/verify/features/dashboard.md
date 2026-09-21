@@ -51,6 +51,6 @@ the link lands on `/sales` filtered to that customer.
 
 - On `default-farm` every catalog flock is unrecorded, so the collection list has twelve missing rows and a draft you create never reaches it; use `readme-farm` for anything that needs
   a recorded or draft row.
-- The fortnight strip hatches days where any active house did not file; on the demo farm
-  the first seven days are hatched by the seed (#886).
+- The fortnight strip hatches days where any active house did not file; the demo farm
+  seeds fourteen complete historical days while leaving House 2 unrecorded today (#886).
 - Section headings retain their existing accessible names and linked destinations.
