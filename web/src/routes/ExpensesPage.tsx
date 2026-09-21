@@ -143,15 +143,9 @@ export function ExpensesPage() {
   const [editCategory, setEditCategory] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  // #512 (T028/T038) — the correction's flock is a ROW-OWNED identity: the
-  // picker's `requestedId` resolves it exactly (including archived flocks
-  // outside the discovery window), a failed exact read enters the explicit
-  // `unavailable` state (never a first-result substitution), and
-  // `editFlockSnapshot.canSubmit` gates BOTH the Save button and onSaveEdit.
-  // `editFlockEntity` is the FULL entity (committed from the mount list, from
-  // the exact GET, or from a user pick); `editFlockId` holds only an id that
-  // the picker has not resolved yet. A blank row owns neither (account-wide).
   const [editFlockPickerOpen, setEditFlockPickerOpen] = useState(false);
+  // #512 (T028/T038): resolve the row's flock exactly, including archived IDs.
+  // An unavailable identity blocks Save; a blank account-wide choice is valid.
   const [editFlockEntity, setEditFlockEntity] = useState<Flock | null>(null);
   // The row-owned id while it is unresolved (archived / outside the window);
   // null once committed, cleared, or when the row owns no flock.
