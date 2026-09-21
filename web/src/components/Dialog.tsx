@@ -190,16 +190,9 @@ function bumpOpenCount(delta: 1 | -1) {
 //   land in A, not on B's own (now `aria-hidden`, and in jsdom still
 //   `.focus()`-able, which is exactly the gap #483's review closed) trigger.
 //
-// So this stays a real ordered stack of open instances — not the counter
-// above, which only ever needs to answer "is anything open" for #485 — plus a
-// captured "what had focus before this dialog opened" per instance. `panel`
-// (the whole `role="dialog"` element, head included) is what a containment
-// check ("is focus already somewhere in the dialog that stays open") has to
-// test against; `content` (the `DialogContent` node alone) is what the
-// fallback focus SEARCH has to be scoped to — searching the whole panel would
-// find the close button before anything in the form, because it sits first
-// in DOM order inside the heading.
-interface OpenPanel { panel: HTMLElement; content: HTMLElement | null }
+// #483/#485: the ordered stack restores focus to the remaining dialog.
+// Search its body and actions, excluding the heading's close button.
+interface OpenPanel { panel: HTMLElement }
 const openPanels: OpenPanel[] = [];
 
 // #609 review — the trigger can be gone if the save re-rendered the row that
@@ -272,7 +265,6 @@ export function Dialog({
   fullScreenOnPhone = false, actions, formProps, children,
 }: DialogProps) {
   const { t } = useTranslation("common");
-  const bodyRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
   const isPhone = !useMediaQuery(MD_UP_QUERY);
@@ -322,13 +314,8 @@ export function Dialog({
   // of trusting MUI's own (stacking-unaware, single-attempt) restore. Keyed
   // on `open` alone: a rebind must not re-capture the trigger.
   //
-  // `pushed` tracks exactly what got onto `openPanels`, read fresh rather
-  // than closed over once: `panelRef.current` is not reliably populated on
-  // the SAME synchronous pass this effect runs on (the same one-frame gap
-  // `bodyRef` above works around), so the push retries next frame — and
-  // cleanup must remove the SAME reference it pushed, not re-read
-  // `panelRef.current` at close time, which could by then point at nothing
-  // (the panel is already unmounting).
+  // The portal may mount a frame later. Keep the exact stack entry so cleanup
+  // removes it even after its panel ref has cleared.
   useEffect(() => {
     if (!open) return;
     // Declared BEFORE the initial-focus effect below, so this runs first in
@@ -347,7 +334,7 @@ export function Dialog({
       if (pushed !== null) return;
       const panel = panelRef.current;
       if (panel === null) return;
-      pushed = { panel, content: bodyRef.current };
+      pushed = { panel };
       openPanels.push(pushed);
     };
     push();
@@ -358,19 +345,8 @@ export function Dialog({
     };
   }, [open]);
 
-  // Land on the first field rather than the close button — the dialog exists
-  // to be filled in, and the heading is announced by aria-labelledby anyway.
-  // Re-run when focusKey changes so a swapped-in record gets the cursor back.
-  // MUI's own FocusTrap lands initial focus on the panel first (it is mounted
-  // deeper in the tree, so its own effect fires before this one), which this
-  // effect then overrides — except on the dialog's OWN opening render, the
-  // content this effect looks for is not reliably in the DOM yet: measured
-  // directly, `bodyRef.current` is still null on the first synchronous run of
-  // this exact effect, on this exact transition. One frame later it is
-  // populated, so the retry follows the same "try again next frame" shape the
-  // busy-trigger restore below already uses, for the same reason — a target
-  // that is not there yet is not a failure to fall back from, it is a target
-  // to wait one frame for.
+  // #483: focus a body field, or Cancel for confirmations, after the portal
+  // mounts. A rebind's focusKey returns focus to the replacement form.
   useEffect(() => {
     if (!open) return;
     if (focusFirstThatTakes(dialogFocusable(panelRef.current))) return;
@@ -382,7 +358,7 @@ export function Dialog({
 
   const content = (
     <>
-      <DialogContent ref={bodyRef}>{children}</DialogContent>
+      <DialogContent>{children}</DialogContent>
       {actions && <Box sx={{ px: 3, pb: 2, flexShrink: 0 }}>{actions}</Box>}
     </>
   );
