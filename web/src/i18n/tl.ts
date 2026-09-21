@@ -2078,6 +2078,15 @@ export const tl = {
     searchNoMatches: "Walang tumutugma sa “{{query}}”.",
     searchShortcutHint: "Pindutin ang / para maghanap",
     openScreen: "Buksan ang {{screen}}",
+    glossaryJumpAriaLabel: "Mga grupo ng glossary",
+
+    glossaryGroupGettingAround: "Paglilibot sa app",
+    glossaryGroupSigningIn: "Pag-sign in at kung sino ang may pahintulot",
+    glossaryGroupFlocksEntry: "Mga flock at pang-araw-araw na entry",
+    glossaryGroupEggsStock: "Mga itlog, grade at stock",
+    glossaryGroupSalesMoney: "Benta at pera",
+    glossaryGroupSupplies: "Feed, tubig at mga suplay",
+    glossaryGroupFarm: "Mga setting at branding ng farm",
 
     tocGettingAround: "Pag-navigate",
     tocDashboard: "Dashboard",

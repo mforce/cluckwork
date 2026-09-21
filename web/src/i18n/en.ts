@@ -2672,6 +2672,15 @@ export const en = {
     searchNoMatches: "Nothing matches “{{query}}”.",
     searchShortcutHint: "Press / to search",
     openScreen: "Open {{screen}}",
+    glossaryJumpAriaLabel: "Glossary groups",
+
+    glossaryGroupGettingAround: "Getting around",
+    glossaryGroupSigningIn: "Signing in & who can do what",
+    glossaryGroupFlocksEntry: "Flocks & daily entry",
+    glossaryGroupEggsStock: "Eggs, grades & stock",
+    glossaryGroupSalesMoney: "Sales & money",
+    glossaryGroupSupplies: "Feed, water & supplies",
+    glossaryGroupFarm: "Farm settings & branding",
 
     // Contents-rail labels (TOC array, 2nd element). Order mirrors the <h3
     // id=...> sections below — see the KEEP comment at the top of

@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { GLOSSARY } from "./helpGlossary";
+import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
 import { HelpPage } from "./HelpPage";
 import i18n from "../i18n";
 import { en } from "../i18n/en";
@@ -927,15 +927,32 @@ describe("HelpPage searchable picker guidance (#512)", () => {
 // #657 — searchable, deep-linkable glossary; guide reordered around
 // the tasks people come for.
 describe("HelpPage glossary + search (#657)", () => {
-  it("renders one flat list of glossary disclosures in catalog order", () => {
+  it("renders grouped glossary disclosures and a jump link for every group", () => {
     const { container } = render(<HelpPage />);
-    const terms = Array.from(container.querySelectorAll(".glossary > .glossary-entry > summary"))
-      .map((summary) => summary.textContent ?? "");
-    expect(terms).toHaveLength(GLOSSARY.length);
-    expect(terms).toEqual(GLOSSARY.map((entry) => en.help[entry.termKey]));
-    expect(container.querySelector(".glossary-group")).toBeNull();
-    expect(container.querySelector(".glossary-jump")).toBeNull();
+    const groups = Array.from(container.querySelectorAll(".glossary-group"));
+    expect(groups).toHaveLength(GLOSSARY_GROUPS.length);
+    expect(container.querySelectorAll(".glossary-entry")).toHaveLength(GLOSSARY.length);
+    const jump = screen.getByRole("navigation", { name: "Glossary groups" });
+    expect(within(jump).getAllByRole("link").map((link) => link.getAttribute("href")))
+      .toEqual(GLOSSARY_GROUPS.map((group) => `#glossary-group-${group.key}`));
     expect(container.querySelector("table.data th[scope=\"row\"]")).toBeNull();
+  });
+
+  it("sorts each group by its terms in the active language", async () => {
+    await act(() => i18n.changeLanguage("es"));
+    try {
+      const { container } = render(<HelpPage />);
+      const group = container.querySelector("#glossary-group-gettingAround")?.parentElement;
+      const rendered = Array.from(group?.querySelectorAll(".glossary-entry summary") ?? [])
+        .map((summary) => summary.textContent ?? "");
+      const declared = GLOSSARY
+        .filter((entry) => entry.group === "gettingAround")
+        .map((entry) => es.help[entry.termKey]);
+      expect(rendered).not.toEqual(declared);
+      expect(rendered).toEqual([...declared].sort((a, b) => a.localeCompare(b, "es")));
+    } finally {
+      await act(() => i18n.changeLanguage("en"));
+    }
   });
 
   it("gives every collapsed term a stable disclosure anchor", () => {
@@ -980,6 +997,8 @@ describe("HelpPage glossary + search (#657)", () => {
     expect(screen.getByText("FIFO", { selector: "summary" })).toBeVisible();
     expect(container.querySelector("#glossary-fifo")).toHaveAttribute("open");
     expect(container.querySelector("#glossary-ui-language")).not.toBeVisible();
+    expect(container.querySelector("#glossary-group-gettingAround")?.parentElement).not.toBeVisible();
+    expect(container.querySelector(".glossary-jump")).not.toBeVisible();
     // hidden: true — a `hidden` section leaves the accessibility tree, which is the point.
     expect(screen.getByRole("heading", { name: "Install on a phone", level: 3, hidden: true })).not.toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent(/“fifo”/);

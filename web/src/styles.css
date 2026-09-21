@@ -2039,6 +2039,31 @@ label.check {
   text-decoration: none;
 }
 
+/* Glossary jump bar (#657): one chip per group, under the heading. */
+.glossary-jump ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0;
+}
+
+.glossary-jump a {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.glossary-jump a:hover {
+  border-color: var(--brand);
+  text-decoration: none;
+}
+
 /* Fixing mistakes (#657): a mistake → fix list, the mistake in ink and the
    fix beside it, instead of a two-column data table. */
 dl.mistakes {
@@ -2068,7 +2093,18 @@ dl.mistakes {
   color: var(--ink);
 }
 
-/* Glossary (#657): searchable disclosures with stable anchors. */
+/* Glossary (#657): grouped searchable disclosures with stable anchors. */
+.glossary-group h4 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 1.5rem 0 0;
+  padding: 0.6rem 0 0.4rem;
+  font-size: 1.05rem;
+  background: var(--canvas);
+  scroll-margin-top: 1.5rem;
+}
+
 .glossary {
   margin: 0;
 }
@@ -2349,7 +2385,11 @@ dl.mistakes {
   }
 
   .glossary-entry {
-    scroll-margin-top: 4rem;
+    scroll-margin-top: 6.5rem;
+  }
+
+  .glossary-group h4 {
+    top: 3rem;
   }
 
   .form-grid label {

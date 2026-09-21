@@ -1995,6 +1995,15 @@ export const es = {
     searchNoMatches: "Nada coincide con “{{query}}”.",
     searchShortcutHint: "Pulse / para buscar",
     openScreen: "Abrir {{screen}}",
+    glossaryJumpAriaLabel: "Grupos del glosario",
+
+    glossaryGroupGettingAround: "Moverse por la aplicación",
+    glossaryGroupSigningIn: "Inicio de sesión y permisos",
+    glossaryGroupFlocksEntry: "Parvadas y registro diario",
+    glossaryGroupEggsStock: "Huevos, calidades y existencias",
+    glossaryGroupSalesMoney: "Ventas y dinero",
+    glossaryGroupSupplies: "Alimento, agua y suministros",
+    glossaryGroupFarm: "Configuración e identidad de la granja",
 
     tocGettingAround: "Cómo moverse",
     tocDashboard: "Panel",
