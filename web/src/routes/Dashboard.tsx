@@ -16,8 +16,8 @@ import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
-import { FlockPickerDialog } from "../components/FlockPickerDialog";
-import type { FlockScope } from "../components/FlockPickerDialog";
+import { Dialog } from "../components/Dialog";
+import { FlockPicker } from "../components/FlockPicker";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
@@ -35,6 +35,9 @@ const RECENT_ORDERS = 5;
 // past 500 flocks the tail silently drops — revisit with real paging if that
 // day comes.
 const MAX_PAGE = 500;
+
+// #916 — the Lay rate card's own scope, independent of every other panel.
+type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
 
 // Six parallel reads; failed panels degrade independently. The server owns
 // the hen-day calculation for each seven-day reporting window.
@@ -532,14 +535,36 @@ export function Dashboard() {
               </Typography>
 
               {soleFlock === null && (
-                <FlockPickerDialog
-                  open={pickerOpen}
-                  onClose={() => setPickerOpen(false)}
-                  scope={scope}
-                  accessibleCountLabel={accessibleCountLabel}
-                  onPickAll={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
-                  onPickFlock={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
-                />
+                // #916 review — reuses the shared NamedEntityPicker/FlockPicker
+                // (docs/designs/822-mui-revamp.md's NamedEntityPicker↔Autocomplete
+                // row) instead of a bespoke dialog. "All flocks" pins above the
+                // scrolling results via `pinnedChoice`, the same `slots.paper`
+                // mechanism the picker already uses for its Load-more footer.
+                // `onEscape`/`onOutsideClick` are no-ops, matching ExpensesPage's
+                // own FlockPicker-in-Dialog usage: the keydown still bubbles to
+                // the Dialog's own Escape/backdrop close.
+                <Dialog open={pickerOpen} title={t("chooseFlockTitle")} onClose={() => setPickerOpen(false)}>
+                  <FlockPicker
+                    label={t("searchAccessibleFlocksLabel")}
+                    eligibility="active-and-depleted"
+                    required={false}
+                    open={pickerOpen}
+                    onEscape={() => {}}
+                    onOutsideClick={() => {}}
+                    onCommit={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
+                    pinnedChoice={
+                      <Button
+                        fullWidth
+                        onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                        aria-pressed={scope.kind === "all"}
+                        sx={{ justifyContent: "space-between", textTransform: "none", mx: 2, mt: 1, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
+                      >
+                        <span>{t("allFlocksOption")}</span>
+                        <Typography component="span" variant="caption" color="text.secondary">{accessibleCountLabel}</Typography>
+                      </Button>
+                    }
+                  />
+                </Dialog>
               )}
             </>
           )}

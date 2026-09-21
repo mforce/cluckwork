@@ -26,7 +26,7 @@ function toEligibilityKey(eligibility: FlockEligibility): FlockEligibilityKey {
   return ELIGIBILITY_TO_KEY[eligibility];
 }
 
-export function FlockPicker({ label, eligibility = "active-and-depleted", required = false, disabled = false, open = false, trigger, onSnapshot, onEscape, onOutsideClick, controlledCommitted, controlledGeneration, requestedId, onCommit, onClear }: {
+export function FlockPicker({ label, eligibility = "active-and-depleted", required = false, disabled = false, open = false, trigger, onSnapshot, onEscape, onOutsideClick, controlledCommitted, controlledGeneration, requestedId, onCommit, onClear, pinnedChoice }: {
   label: string;
   /** The three policies from data-model.md; omitted keeps today's behaviour. */
   eligibility?: FlockEligibility;
@@ -53,6 +53,8 @@ export function FlockPicker({ label, eligibility = "active-and-depleted", requir
   onClear?: () => void;
   /** US3 (T038): a row-owned ID to resolve via the exact GET (not in the capped list). */
   requestedId?: string | null;
+  /** #916 — content pinned above the scrolling results (see NamedEntityPicker). */
+  pinnedChoice?: ReactNode;
 }) {
   const id = useId();
   const eligibilityKey = toEligibilityKey(eligibility);
@@ -89,6 +91,7 @@ export function FlockPicker({ label, eligibility = "active-and-depleted", requir
       requestedId={requestedId}
       onCommit={onCommit}
       onClear={onClear}
+      pinnedChoice={pinnedChoice}
     />
   );
 }

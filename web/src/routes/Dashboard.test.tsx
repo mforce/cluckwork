@@ -651,14 +651,17 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // open, which a name-only query cannot tell apart from the trigger.
   const selectorButton = () => screen.getAllByRole("button")
     .find((b) => b.getAttribute("aria-haspopup") === "dialog") as HTMLElement;
+  // #916 review — the picker is now the shared NamedEntityPicker/FlockPicker
+  // (MUI Autocomplete), so results sit inside `role="listbox"`, not the
+  // bespoke dialog's own `role="list"`; options are plain text nodes, not
+  // buttons — matching NamedEntityPicker.test.tsx's own query convention.
   const openPicker = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(selectorButton());
-    const results = await screen.findByRole("list", { name: "Accessible flocks" });
-    // #918 — Codex review, finding 1 (round 3): discovery is now server-paged
-    // and debounced (250ms), so the dialog opens before its results do —
-    // wait for the debounced fetch to actually land.
-    await waitFor(() => expect(within(results).queryAllByRole("button").length).toBeGreaterThan(0));
-    return results;
+    const listbox = await screen.findByRole("listbox", { hidden: true });
+    // Discovery is server-paged and debounced (250ms), so the dialog opens
+    // before its results do — wait for the debounced fetch to actually land.
+    await waitFor(() => expect(within(listbox).queryAllByText(/^Flock /).length).toBeGreaterThan(0));
+    return listbox;
   };
   // MUI's Dialog exit runs on real timers; the trigger stays aria-hidden (a
   // sibling of the still-closing modal, portalled outside it) until the
@@ -683,8 +686,8 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     const user = userEvent.setup();
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    const results = await openPicker(user);
-    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
     await waitForPickerToClose();
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
   });
@@ -694,10 +697,10 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     const user = userEvent.setup();
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    const results = await openPicker(user);
+    const listbox = await openPicker(user);
     const allFlocksChoice = screen.getByRole("button", { name: /^All flocks/ });
-    expect(within(results).queryByRole("button", { name: /^All flocks/ })).toBeNull();
-    expect(results.contains(allFlocksChoice)).toBe(false);
+    expect(within(listbox).queryByText(/^All flocks/)).toBeNull();
+    expect(listbox.contains(allFlocksChoice)).toBe(false);
   });
 
   it("renders the strip's three-item legend, Complete/Partial/No entry", async () => {
@@ -726,10 +729,10 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     mockReport.mockClear();
     mockEntries.mockClear();
 
-    const results = await openPicker(user);
-    // Scoped to the results list: "Flock f2" also names the Today row's own
+    const listbox = await openPicker(user);
+    // Scoped to the listbox: "Flock f2" also names the Today row's own
     // link, ambiguous under a plain, unscoped query.
-    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    await user.click(within(listbox).getByText("Flock f2"));
     await waitForPickerToClose();
 
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
@@ -770,8 +773,8 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await todayTotal();
     expect(await screen.findByText("Yesterday by close: 300")).toBeInTheDocument();
 
-    const results = await openPicker(user);
-    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
     await waitForPickerToClose();
     await waitFor(() => expect(selectorButton()).toHaveAccessibleName("Flock Flock f2"));
 
@@ -834,8 +837,8 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await waitFor(() => expect(pending.filter((p) => p.flockId === undefined && p.from !== p.to)).toHaveLength(1));
     const allRequest = pending.filter((p) => p.flockId === undefined && p.from !== p.to)[0]!;
 
-    const results = await openPicker(user);
-    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
     await waitForPickerToClose();
     await waitFor(() => expect(pending.filter((p) => p.flockId === "f2")).toHaveLength(1));
     const f2Request = pending.filter((p) => p.flockId === "f2")[0]!;
@@ -875,20 +878,20 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await todayTotal();
     await waitFor(() => expect(signals).toHaveLength(1)); // the initial "all flocks" scope's one combined request
 
-    const results = await openPicker(user);
-    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
     await waitForPickerToClose();
 
     // FAILING BEFORE THE FIX: this stayed unaborted, sitting in flight.
     await waitFor(() => expect(signals[0]!.aborted).toBe(true));
   });
 
-  // #918 round 4 — the picker dialog's own discovery mechanics (server
-  // paging past the first page, keyboard navigation, debounce timing,
-  // stale-response rejection) now live in FlockPickerDialog.test.tsx, next
-  // to the component that owns them. What stays here is WIRING: the dialog
-  // renders when triggered and a pick updates the card, already covered by
-  // "scopes the whole card to a picked flock..." above.
+  // #916 review — the picker's own discovery mechanics (server paging,
+  // debounce timing, stale-response rejection) are the shared engine's,
+  // already covered by NamedEntityPicker.test.tsx/namedEntityPicker.p1.test.tsx.
+  // What stays here is WIRING: the dialog renders when triggered and a pick
+  // updates the card, already covered by "scopes the whole card to a picked
+  // flock..." above.
 
   // #918 — Codex review, round 3, finding 2. `trendOutcomeRef`/`panelsOutcomeRef`
   // used to keep the FIRST-EVER outcome, so an early total failure raised a

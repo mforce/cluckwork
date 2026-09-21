@@ -70,8 +70,16 @@ function pinnedAllFlocksChoice(page: Page) {
   return page.getByRole("button", { name: new RegExp(`^${tEn("dashboard:allFlocksOption")}`) });
 }
 
+// #916 review — the picker is now the shared NamedEntityPicker/FlockPicker
+// (MUI Autocomplete): the search field is a `combobox`, not a `searchbox`,
+// and results sit in a `listbox` of `option`s, not the bespoke dialog's own
+// `list` of `button`s.
+function searchField(page: Page) {
+  return page.getByRole("combobox", { name: tEn("dashboard:searchAccessibleFlocksLabel") });
+}
+
 function resultsList(page: Page) {
-  return page.getByRole("list", { name: tEn("dashboard:flockScopeResultsLabel") });
+  return pickerDialog(page).getByRole("listbox");
 }
 
 async function openPicker(page: Page) {
@@ -167,7 +175,7 @@ test.describe("Dashboard Lay rate flock scope", () => {
     // The mockup's #allChoice: a sibling of .choices, never a row inside it.
     const results = resultsList(page);
     await expect(
-      results.getByRole("button", { name: new RegExp(`^${tEn("dashboard:allFlocksOption")}`) }),
+      results.getByRole("option", { name: new RegExp(`^${tEn("dashboard:allFlocksOption")}`) }),
       "All flocks must not also appear as a row inside the scrolling results",
     ).toHaveCount(0);
     await expect(pinnedAllFlocksChoice(page)).toBeVisible();
@@ -192,8 +200,8 @@ test.describe("Dashboard Lay rate flock scope", () => {
     const flockId = accessible.find((f) => f.name === FIXTURE_FLOCK)?.id;
     expect(flockId, `${FIXTURE_FLOCK} should be in the accessible flock list`).toBeTruthy();
 
-    await page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") }).fill(FIXTURE_FLOCK);
-    const choice = resultsList(page).getByRole("button", { name: FIXTURE_FLOCK });
+    await searchField(page).fill(FIXTURE_FLOCK);
+    const choice = resultsList(page).getByRole("option", { name: FIXTURE_FLOCK });
     await expect(choice).toBeVisible();
     await choice.click();
     await expect(pickerDialog(page)).not.toBeVisible();
@@ -238,7 +246,7 @@ test.describe("Dashboard Lay rate flock scope", () => {
     await signIn(owner());
     await page.goto("/");
     await openPicker(page);
-    const search = page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") });
+    const search = searchField(page);
     await expect(search).toBeFocused();
     // The bordered, clickable target is the MUI input WRAPPER, not the bare
     // `<input>` — its own content-box height is intrinsically shorter than
@@ -251,9 +259,15 @@ test.describe("Dashboard Lay rate flock scope", () => {
     await signIn(owner());
     await page.goto("/");
     await openPicker(page);
-    await page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") })
-      .fill("no such flock exists anywhere");
-    await expect(page.getByText(tEn("dashboard:noMatchingFlocksMessage"))).toBeVisible();
+    await searchField(page).fill("no such flock exists anywhere");
+    // #916 review — the shared engine's own no-results string, not a
+    // bespoke dialog string: `namedEntityPicker:noResults`. The engine
+    // mirrors the same text into a second, always-mounted `aria-live`
+    // announcer (US3 T034), so a role/name query is ambiguous between the
+    // two `status`-shaped nodes; the visible `.named-picker-status` class is
+    // the one rendered only in the empty-results phase.
+    await expect(pickerDialog(page).locator(".named-picker-status"))
+      .toHaveText(tEn("namedEntityPicker:noResults"));
   });
 
   test("one accessible flock: its name, with no scope control at all", async ({ page, signIn }) => {
@@ -370,7 +384,7 @@ test.describe("Dashboard Lay rate flock scope", { tag: "@phone" }, () => {
     // out correctly behind an overlapping card would pass every box check
     // and open nothing.
     await openPicker(page);
-    await expect(page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") })).toBeVisible();
+    await expect(searchField(page)).toBeVisible();
     await expect(pinnedAllFlocksChoice(page)).toBeVisible();
   });
 });

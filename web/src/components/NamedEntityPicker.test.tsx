@@ -1582,3 +1582,31 @@ describe("T035: exact-ID transitions and admission (FR-019/FR-033)", () => {
     expect(onSnapshot.mock.calls.at(-1)?.[0]?.committed).toBe(recovered);
   });
 });
+
+// #916 — `pinnedChoice` lets a caller pin fixed content (Dashboard's "All
+// flocks") above the scrolling results, through the same `slots.paper`
+// wrapper the Load-more footer already renders through. Every other test in
+// this file omits the prop, which is the coverage that it stays optional.
+describe("pinnedChoice (#916)", () => {
+  it("renders the pinned content as a sibling of the listbox, before it, never inside it", async () => {
+    mockListFlocks.mockResolvedValueOnce([F("f1", "Flock 01")]);
+    render(<FlockPicker label="Pick flock" eligibility="active" required open
+      pinnedChoice={<button type="button">All flocks</button>} />);
+    await screen.findByText("Flock 01");
+
+    const pinned = screen.getByRole("button", { name: "All flocks" });
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    expect(listbox.contains(pinned)).toBe(false);
+    // Sibling, and BEFORE the listbox in DOM order — the position "All
+    // flocks" pins above the scrolling results, not below them.
+    expect(pinned.parentElement).toBe(listbox.parentElement);
+    expect(pinned.compareDocumentPosition(listbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("is absent by default — every other caller in this file is unaffected", async () => {
+    mockListFlocks.mockResolvedValueOnce([F("f1", "Flock 01")]);
+    render(<FlockPicker label="Pick flock" eligibility="active" required open />);
+    await screen.findByText("Flock 01");
+    expect(screen.queryByRole("button", { name: "All flocks" })).toBeNull();
+  });
+});

@@ -819,20 +819,14 @@ export const en = {
     // selector's eyebrow; `allFlocksOption` sits above the picker's list.
     flockScopeLabel: "Flock",
     allFlocksOption: "All flocks",
-    // The picker dialog itself.
+    // The picker dialog itself — #916 review: the shared NamedEntityPicker
+    // engine owns its own search/results/loading/error strings now (the
+    // `namedEntityPicker` catalog), so only the dialog's own title and
+    // search-field label stay here.
     chooseFlockTitle: "Choose flock",
-    closeFlockSelectorAction: "Close flock selector",
     searchAccessibleFlocksLabel: "Search accessible flocks",
-    searchByNamePlaceholder: "Search by name",
-    matchingFlocksCount_one: "{{count}} matching flock",
-    matchingFlocksCount_other: "{{count}} matching flocks",
-    noMatchingFlocksMessage: "No matching flocks. Try another name.",
-    flockScopeResultsLabel: "Accessible flocks",
     // Shown instead of the selector when the flock list failed to load.
     flockListUnavailableMessage: "Could not load the flock list.",
-    // The dialog's OWN search failing, distinct from the page-scoped list
-    // above: shown in the results area so it never reads as a real empty.
-    flockDiscoveryUnavailableMessage: "Could not search flocks.",
     // The card's own scope-and-range caption, under the selector: "{scope} ·
     // {date range}" — {{scope}} is either `accessibleFlocksCount` or the
     // chosen flock's own name, pre-formatted by the caller (#650).
