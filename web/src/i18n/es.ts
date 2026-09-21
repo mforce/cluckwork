@@ -5,7 +5,7 @@
 // on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
-    swipeColumns: "Desliza las columnas ↔",
+    swipeColumns: "Deslice las columnas ↔",
     whatDoesTermMean: "¿Qué significa “{{term}}”?",
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
@@ -769,7 +769,6 @@ export const es = {
     dateLabel: "Fecha",
     sourceLabel: "Fuente",
     unitLabel: "Unidad",
-    fromMeterReadingsLabel: "a partir de lecturas de medidor",
     meterStartLabel: "Medidor inicial",
     meterEndLabel: "Medidor final",
     quantityLabelWithUnit: "Cantidad ({{unit}})",
@@ -945,13 +944,8 @@ export const es = {
     recordCorrectionButton: "Registrar corrección",
 
     // Movement ledger table
-    ledgerDateHeader: "Fecha",
-    ledgerTypeHeader: "Tipo",
-    ledgerQuantityHeader: "Cantidad",
-    ledgerNoteHeader: "Nota",
     noMovementsMessage: "Aún no hay movimientos — registre una compra arriba.",
     loadMoreButton: "cargar más",
-    closeButton: "cerrar",
 
     // Items table
     nameHeader: "Nombre",
@@ -1054,7 +1048,6 @@ export const es = {
     noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
 
     // By-grade stock table
-    gradeHeader: "Grado",
     availableHeader: "Disponible",
     restrictedHeader: "Restringido",
     lotsButton: "lotes",
@@ -1712,7 +1705,6 @@ export const es = {
     gradeTotalsLabel: "Totales por clasificación registrados",
 
     moneyHeading: "Dinero",
-    salesRowLabel: "Ventas",
     salesSummary:
       "{{confirmed}} pedido(s) confirmado(s) — ingresos {{revenue}}, pagado {{paid}}, pendiente {{outstanding}}",
     salesVoidedSuffix: " ({{voided}} anulado(s))",
@@ -2436,7 +2428,7 @@ export const es = {
       + "la parvada seleccionada, con enlace aquí. Un registro de alimento o agua hecho cuando ya existe la "
       + "entrada de ese día también recuerda esa entrada — los hechos antes quedan sin enlazar a propósito; "
       + "el día en sí es lo que los une.",
-    waterModes: "Elige Cantidad directa para introducir una cantidad o Lecturas del medidor para introducir las lecturas inicial y final. Comprobación de la lectura muestra el Resultado antes de registrar.",
+    waterModes: "Elija Cantidad directa para introducir una cantidad o Lecturas del medidor para introducir las lecturas inicial y final. Comprobación de la lectura muestra el Resultado antes de registrar.",
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "

@@ -498,3 +498,14 @@ it("restores the default report window and labels the auditable detail and grade
   expect(screen.getByText("Raw auditable detail")).toBeInTheDocument();
   expect(within(screen.getByRole("list", { name: "Reported grade totals" })).getAllByText("eggs")).toHaveLength(2);
 });
+
+
+it("emphasises every Period total cell in ink at semibold weight", async () => {
+  renderWithProviders(<ReportsPage />, { token: ADMIN });
+  const row = await screen.findByRole("row", { name: /Period/ });
+  const cells = within(row).getAllByRole("columnheader");
+  expect(cells).toHaveLength(10);
+  for (const cell of cells) {
+    expect(cell).toHaveStyle({ color: "var(--ink)", fontWeight: "600" });
+  }
+});

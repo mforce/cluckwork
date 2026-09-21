@@ -804,7 +804,6 @@ export const tl = {
     dateLabel: "Petsa",
     sourceLabel: "Pinagmulan",
     unitLabel: "Yunit",
-    fromMeterReadingsLabel: "mula sa mga reading ng meter",
     meterStartLabel: "Simula ng Meter",
     meterEndLabel: "Dulo ng Meter",
     quantityLabelWithUnit: "Dami ({{unit}})",
@@ -982,13 +981,8 @@ export const tl = {
     recordCorrectionButton: "Itala ang pagtatama",
 
     // Movement ledger table
-    ledgerDateHeader: "Petsa",
-    ledgerTypeHeader: "Uri",
-    ledgerQuantityHeader: "Dami",
-    ledgerNoteHeader: "Tala",
     noMovementsMessage: "Wala pang galaw — magtala ng pagbili sa itaas.",
     loadMoreButton: "mag-load pa",
-    closeButton: "isara",
 
     // Items table
     nameHeader: "Pangalan",
@@ -1096,7 +1090,6 @@ export const tl = {
     noStockMessage: "Wala pang stock — magtala at magsumite ng araw-araw na tala.",
 
     // By-grade stock table
-    gradeHeader: "Grado",
     availableHeader: "Available",
     restrictedHeader: "Restricted",
     lotsButton: "mga lote",
@@ -1776,7 +1769,6 @@ export const tl = {
     gradeTotalsLabel: "Naitalang kabuuan ayon sa grado",
 
     moneyHeading: "Pera",
-    salesRowLabel: "Benta",
     salesSummary:
       "{{confirmed}} kumpirmadong order — kita {{revenue}}, nabayaran {{paid}}, nakabinbin {{outstanding}}",
     salesVoidedSuffix: " ({{voided}} na-void)",

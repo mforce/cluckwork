@@ -514,7 +514,7 @@ export function StockPage() {
                   </Box>
                   <LinearProgress variant="determinate" value={maxAvailable > 0 ? r.available / maxAvailable * 100 : 0} aria-label={r.gradeName} sx={{ height: 8, borderRadius: "var(--r-pill)", bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--stat-accent)" } }} />
                   <Box sx={{ gridColumn: { xs: "2 / 4", md: "auto" }, fontSize: ".75rem", color: r.restricted > 0 ? "var(--warn)" : "text.secondary" }}>
-                    {r.restricted > 0 ? <><span>{fmt.count(r.restricted)}</span>{" "}{t("restrictedHeader")}</> : t("noRestrictions")}<GlossaryLink term="WithdrawalRestriction" />
+                    {r.restricted > 0 ? <><span>{fmt.count(r.restricted)}</span>{" "}{t("restrictedHeader")}</> : t("noRestrictions")}
                   </Box>
                   <Button variant="outlined" color="inherit" aria-expanded={openGrade === r.eggGradeId} sx={{ gridColumn: { xs: "2 / 4", md: "auto" }, height: { xs: 44, md: "auto" } }} onClick={() => void toggleGrade(r.eggGradeId)}>
                     {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
@@ -523,7 +523,7 @@ export function StockPage() {
               </ListItem>
             ))}
           </List>
-          <Typography component="p" sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>{t("restrictionPolicy")}</Typography>
+          <Typography component="p" sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>{t("restrictionPolicy")}<GlossaryLink term="WithdrawalRestriction" /></Typography>
 
           {openGrade !== null && (
             <>

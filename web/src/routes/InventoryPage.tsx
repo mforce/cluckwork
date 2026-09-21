@@ -758,7 +758,7 @@ export function InventoryPage() {
           </TableHead>
           <TableBody>
             {items.map((i) => (
-              <TableRow key={i.id} sx={i.active ? undefined : { color: "var(--muted)" }}>
+              <TableRow key={i.id} sx={i.active ? undefined : { "& .MuiTableCell-root": { color: "var(--muted)" } }}>
                 <TableCell>{i.name}</TableCell>
                 <TableCell>{inventoryCategoryLabel(i.category)}</TableCell>
                 <TableCell align="right">{fmt.count(i.quantityOnHand)} {i.unit}</TableCell>

@@ -90,7 +90,7 @@ export const CONSOLE_RAIL_SX = {
 
 export function FieldConsole({ children }: { children: ReactNode }) {
   return (
-    <Box component="section" sx={{
+    <Box component="section" data-field-console sx={{
       minWidth: 0,
       // Concept B uses brand-coloured row links; other pages retain the shared theme default.
       "--link": "var(--brand)",
@@ -100,6 +100,9 @@ export function FieldConsole({ children }: { children: ReactNode }) {
       "& aside p.muted": { fontSize: ".75rem", lineHeight: 1.45 },
       "& aside h3": { mt: 0 },
       "& .MuiTableCell-root": { fontSize: "0.75rem", py: 1.25, px: 1 },
+      // Footer variants set their own muted colour and weight in MUI.
+      "& .MuiTableCell-footer": { color: "var(--ink)", fontWeight: 600 },
+      "& .MuiTableContainer-root .MuiTableCell-alignRight": { whiteSpace: "nowrap" },
       "& .MuiTableCell-head": {
         fontSize: "0.625rem", letterSpacing: ".06em", textTransform: "uppercase",
       },

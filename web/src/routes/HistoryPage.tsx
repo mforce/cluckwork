@@ -20,7 +20,7 @@ import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
 import { FieldConsole, CONSOLE_LINK_SX, LedgerTableContainer, ConsoleSummary } from "../components/FieldConsole";
 import { EntryRow } from "../components/EntryRow";
-import { FilterBar, FilterDateField } from "../components/FilterBar";
+import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
 import { DialogError } from "../components/DialogError";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
@@ -39,8 +39,6 @@ import i18n from "../i18n";
 
 const PAGE = 50;
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// Keep picker width stable when its trigger switches between a button and input.
-const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 // The scope that owns a dialog (#703). `run` routes a failure by this and gates
 // a success by it; `void:<id>` from the row button reports to the page and is
@@ -513,7 +511,7 @@ export function HistoryPage() {
       Locked: { label: t("statusLocked"), color: "var(--link)", title: e.lockedAtUtc ? t("lockedAt", { time: e.lockedAtUtc }) : undefined },
       Submitted: { label: t("statusSubmitted"), color: "var(--success)" },
     };
-    const state = states[e.status] ?? { label: t("statusDraft"), color: "var(--warn)" };
+    const state = states[e.status] ?? { label: t("statusDraft"), color: "var(--muted)" };
     return <Box component="span" title={state.title} sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap" }}>
       <Box component="span" aria-hidden="true" sx={{ width: "6px", height: "6px", borderRadius: "50%", bgcolor: state.color, flexShrink: 0 }} />
       {state.label}
@@ -526,7 +524,7 @@ export function HistoryPage() {
   const loadedEntries = entries.rows;
 
   if (errors.page && entries.rows === null)
-    return <section><Typography variant="h2">{t("loadingTitle")}</Typography><p className="error">{errors.page}</p></section>;
+    return <FieldConsole><Typography variant="h2">{t("loadingTitle")}</Typography><p className="error">{errors.page}</p></FieldConsole>;
 
   return (
     <FieldConsole>
@@ -537,21 +535,21 @@ export function HistoryPage() {
         </p>
       )}
 
-      {loadedEntries !== null && !entries.reloading && (
+      {loadedEntries !== null && (
         <ConsoleSummary label={t("contextLabel")} items={[
           { label: t("windowLabel"), value: from || to ? `${from ? fmt.date(from) : "…"} – ${to ? fmt.date(to) : "…"}` : t("allDates") },
-          { label: t("loadedRecords"), value: fmt.count(loadedEntries.length) },
+          { label: t("loadedRecords"), value: entries.reloading ? "—" : fmt.count(loadedEntries.length) },
           ...([
             ["Submitted", "statusSubmitted"], ["Draft", "statusDraft"],
             ["Locked", "statusLocked"], ["ManagerAdjusted", "statusAdjusted"], ["Voided", "statusVoided"],
           ] as const).map(([status, label]) => ({
-            label: t(label), value: fmt.count(loadedEntries.filter((entry) => entry.status === status).length),
+            label: t(label), value: entries.reloading ? "—" : fmt.count(loadedEntries.filter((entry) => entry.status === status).length),
           })),
         ]} />
       )}
 
       <FilterBar>
-        <Box sx={PICKER_SX}>
+        <Box sx={FILTER_PICKER_SX}>
           {/* #512 (T038) — the read-only filter became an optional
               eligibility=all FlockPicker: the filter keeps its exact id
               ownership (the list fetches by `flockFilter`), and a row-owned

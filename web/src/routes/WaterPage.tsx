@@ -13,7 +13,7 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { EmptyState } from "../components/EmptyState";
-import { FilterBar, FilterDateField } from "../components/FilterBar";
+import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { readLastFlockId, rememberFlockId, resolveDefaultFlock } from "../lib/flockDefault";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
@@ -29,8 +29,6 @@ const PAGE = 50;
 const SOURCES = ["Well", "Municipal", "Tank", "Other"];
 const UNITS = ["L", "gal"];
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// Keep picker width stable when its trigger switches between a button and input.
-const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 function errText(err: unknown): string {
   // Concurrent-edit conflicts get a human message instead of raw problem text.
@@ -526,7 +524,7 @@ export function WaterPage() {
 
       <ConsoleSubhead title={t("recordsHeading")} caption={t("recordsCaption")} />
       <FilterBar>
-        <Box sx={PICKER_SX}>
+        <Box sx={FILTER_PICKER_SX}>
           <FlockPicker
             label={t("filterFlockLabel")}
             eligibility="all"

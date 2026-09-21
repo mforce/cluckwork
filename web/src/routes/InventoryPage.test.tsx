@@ -1552,3 +1552,17 @@ it("shows movements as a headerless chronological list with its usage policy", a
   expect(within(list).getByRole("listitem")).toHaveTextContent("07/01/2026Purchase+100 kginitial receive");
   expect(screen.getByText("Usage is recorded on Feed. Stock corrections remain auditable.")).toBeInTheDocument();
 });
+
+
+it("mutes inactive item cells without muting active item cells", async () => {
+  mockListItems.mockResolvedValue([FEED, INACTIVE]);
+  renderWithProviders(<InventoryPage />, { token: ADMIN });
+  const inactive = await screen.findByRole("row", { name: /Old Additive/ });
+  const active = screen.getByRole("row", { name: /Layer Feed/ });
+  for (const cell of within(inactive).getAllByRole("cell")) {
+    expect(cell).toHaveStyle({ color: "var(--muted)" });
+  }
+  for (const cell of within(active).getAllByRole("cell")) {
+    expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+  }
+});

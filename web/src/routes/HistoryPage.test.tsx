@@ -1537,3 +1537,31 @@ it("mutes voided cells without muting submitted cells", async () => {
     expect(cell).not.toHaveStyle({ color: "var(--muted)" });
   }
 });
+
+
+it("keeps the history summary mounted with unknown counts during filter reload", async () => {
+  mockListDailyEntries.mockResolvedValueOnce([SUBMITTED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const summary = await screen.findByLabelText("Loaded history context");
+  expect(summary).toHaveTextContent("Loaded records1");
+  const pending = Promise.withResolvers<DailyEntry[]>();
+  mockListDailyEntries.mockReturnValueOnce(pending.promise);
+  fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+  expect(screen.getByLabelText("Loaded history context")).toBe(summary);
+  expect(summary).toHaveTextContent("Loaded records—");
+  expect(summary).toHaveTextContent("Submitted—");
+  await act(async () => { pending.resolve([DRAFT]); });
+  expect(summary).toHaveTextContent("Draft1");
+  expect(summary).toHaveTextContent("Submitted0");
+});
+
+it("distinguishes neutral Draft from warning Adjusted status dots", async () => {
+  mockListDailyEntries.mockResolvedValue([DRAFT, MANAGER_ADJUSTED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const draft = await screen.findByRole("row", { name: /Draft/ });
+  const adjusted = screen.getByRole("row", { name: /Adjusted/ });
+  expect(within(draft).getByText("Draft").querySelector('[aria-hidden="true"]'))
+    .toHaveStyle({ backgroundColor: "var(--muted)" });
+  expect(within(adjusted).getByText("Adjusted").querySelector('[aria-hidden="true"]'))
+    .toHaveStyle({ backgroundColor: "var(--warn)" });
+});

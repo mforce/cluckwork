@@ -15,7 +15,7 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { EmptyState } from "../components/EmptyState";
-import { FilterBar, FilterDateField } from "../components/FilterBar";
+import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
@@ -27,8 +27,6 @@ import i18n from "../i18n";
 
 const PAGE = 50;
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// Keep picker width stable when its trigger switches between a button and input.
-const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 // Client-side mirror of RecordFeedUsageHandler.FeedableCategories — one copy
 // for the SPA (InventoryPage imports it for its panel link). The server
@@ -248,8 +246,8 @@ export function FeedPage() {
     });
   }
 
-  if (error && usage.rows === null) return <section><Typography variant="h2">{t("title")}</Typography><p className="error">{error}</p></section>;
-  if (usage.rows === null) return <section><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></section>;
+  if (error && usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{error}</p></FieldConsole>;
+  if (usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
 
   return (
     <FieldConsole>
@@ -368,7 +366,7 @@ export function FeedPage() {
           usable through a transient history read failure (review of #446). */}
       {usage.error && <p className="error">{usage.error}</p>}
       <FilterBar>
-        <Box sx={PICKER_SX}>
+        <Box sx={FILTER_PICKER_SX}>
           <FlockPicker
             label={t("filterFlockLabel")}
             eligibility="all"

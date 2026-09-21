@@ -2,12 +2,14 @@
 // Registers jest-dom matchers (.toBeInTheDocument etc.) on Vitest's expect and
 // unmounts any rendered React tree after each test so in-memory token / role
 // state set in one case never bleeds into the next.
+import "@testing-library/react/dont-cleanup-after-each";
 import "@testing-library/jest-dom/vitest";
 import i18n from "../i18n"; // initialise the i18next singleton so t()/useTranslation work
-import { afterEach, beforeEach, vi } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { createFakeIndexedDb } from "./fakeIndexedDb";
 import { clearAccessToken } from "../auth/tokenStore";
+import { ledgerCellStyles } from "./ledgerCellStyles";
 
 Element.prototype.scrollIntoView ??= vi.fn();
 
@@ -22,6 +24,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  const { violations } = ledgerCellStyles(document);
   cleanup();
   vi.unstubAllGlobals();
   clearAccessToken();
@@ -34,4 +37,5 @@ afterEach(() => {
   void i18n.changeLanguage("en");
   localStorage.clear();
   sessionStorage.clear();
+  expect(violations, "Field Console cell emphasis").toEqual([]);
 });

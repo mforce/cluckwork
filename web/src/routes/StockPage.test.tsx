@@ -457,7 +457,7 @@ describe("StockPage write-off (#406)", () => {
     expect(screen.getByText(/Could not load stock/)).toBeInTheDocument();
 
     // A second write-off uses a FRESH key — the first is spent.
-    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fireEvent.click(await within(lotRow).findByRole("button", { name: "write off" }));
     fillAndSubmit();
     await screen.findByText(/92 now available/);
     expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(2);
@@ -1637,4 +1637,12 @@ it("keeps the restriction policy and lot filter reset visible", async () => {
   expect(screen.getByText("Restricted stock is present but cannot be allocated to sales.")).toBeInTheDocument();
   fireEvent.click(within(screen.getByRole("region", { name: "Grade A" })).getByRole("button", { name: "lots" }));
   expect(await screen.findByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+});
+
+
+it("offers one withdrawal glossary link for the whole grade board", async () => {
+  mockGetStock.mockResolvedValue(ROWS);
+  render(<StockPage />);
+  await screen.findByRole("region", { name: "Grade B" });
+  expect(screen.getAllByRole("link", { name: /What does .Withdrawal restriction. mean/ })).toHaveLength(1);
 });

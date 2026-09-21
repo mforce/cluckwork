@@ -1069,7 +1069,6 @@ export const en = {
     dateLabel: "Date",
     sourceLabel: "Source",
     unitLabel: "Unit",
-    fromMeterReadingsLabel: "from meter readings",
     meterStartLabel: "Meter start",
     meterEndLabel: "Meter end",
     // {{unit}} is the ALREADY-LABELLED (waterUnitLabel) current unit — never
@@ -1290,13 +1289,8 @@ export const en = {
     recordCorrectionButton: "Record correction",
 
     // Movement ledger table
-    ledgerDateHeader: "Date",
-    ledgerTypeHeader: "Type",
-    ledgerQuantityHeader: "Quantity",
-    ledgerNoteHeader: "Note",
     noMovementsMessage: "No movements yet — record a purchase above.",
     loadMoreButton: "load more",
-    closeButton: "close",
 
     // Items table
     nameHeader: "Name",
@@ -1431,7 +1425,6 @@ export const en = {
     noStockMessage: "No stock yet — record and submit a daily entry.",
 
     // By-grade stock table
-    gradeHeader: "Grade",
     // Shared by BOTH tables on this screen (by-grade balances + the lots
     // drill-down) — same word, same "quantity available" meaning, on the
     // same page, same treatment as products:statusHeader.
@@ -2320,7 +2313,6 @@ export const en = {
     gradeTotalsLabel: "Reported grade totals",
 
     moneyHeading: "Money",
-    salesRowLabel: "Sales",
     // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
     // pre-formatted formatMoney() strings (DATA).
     // {{confirmed}} / {{voided}} are the farm-locale formatted figures (#650);

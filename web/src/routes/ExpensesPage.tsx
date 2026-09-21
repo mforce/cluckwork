@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { FilterX, Receipt } from "lucide-react";
+import { FilterX, Plus, Receipt } from "lucide-react";
 import {
   Box, Button, DialogActions, Divider, List, ListItem, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
@@ -18,7 +18,7 @@ import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, CONSOLE_PAPER_HEAD_SX, L
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
-import { FilterBar, FilterDateField } from "../components/FilterBar";
+import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
@@ -36,8 +36,6 @@ function errText(err: unknown): string {
 
 const PAGE = 100;
 const NOWRAP = { whiteSpace: "nowrap" as const };
-// Keep picker width stable when its trigger switches between a button and input.
-const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
 
 // The scopes that own a dialog (#703). `run` routes a failure by this and gates
 // a success by it; a scope outside the list — the record-expense form on the
@@ -552,12 +550,12 @@ export function ExpensesPage() {
 
   return (
     <FieldConsole>
-      <Stack direction={{ xs: "column", md: "row" }} sx={{ justifyContent: "space-between", gap: 1, mb: 2 }}>
+      <Stack component="header" direction={{ xs: "column", md: "row" }} sx={{ justifyContent: "space-between", gap: 1, mb: 2 }}>
         <Box><Typography variant="h2">{t("title")}</Typography>
           <Typography component="p" sx={{ m: 0, maxWidth: 700, color: "text.secondary", fontSize: "13px", lineHeight: 1.45 }}>{t("intro")}</Typography>
         </Box>
-        <Button variant="contained" sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0, alignSelf: { md: "flex-start" } }} onClick={() => setShowCategories((v) => !v)}>
-          {showCategories ? t("hideCategoriesButton") : `+ ${t("manageCategoriesButton")}`}
+        <Button variant="contained" startIcon={showCategories ? undefined : <Plus size={16} aria-hidden="true" />} sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0, alignSelf: { md: "flex-start" } }} onClick={() => setShowCategories((v) => !v)}>
+          {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
         </Button>
       </Stack>
       <ConsoleSummary label={t("contextLabel")} items={[
@@ -682,7 +680,7 @@ export function ExpensesPage() {
           slotProps={{ htmlInput: { min: (1 / 10 ** currencyMinor).toFixed(currencyMinor), step: "any", required: true } }}
           onChange={(e) => setAmount(e.target.value)}
         />
-        <Box sx={PICKER_SX}>
+        <Box sx={FILTER_PICKER_SX}>
           <FlockPicker
             label={t("flockOptionalLabel")}
             eligibility="all"
