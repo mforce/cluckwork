@@ -1176,8 +1176,10 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
             size="small"
             // #916 review — `size="small"`'s own wrapper height (~37px) sits
             // under the 44px tap-target floor every other control on this
-            // screen meets. Verified against all five callers: none sets a
-            // conflicting height, so this only ever grows the field.
+            // screen meets. Verified against every pre-existing render site
+            // (nine `FlockPicker` + two `CustomerPicker`, across seven
+            // screens): none sets a conflicting height, so this only ever
+            // grows the field.
             sx={{ "& .MuiInputBase-root": { minHeight: 44 } }}
             slotProps={{
               htmlInput: {

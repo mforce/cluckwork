@@ -238,6 +238,44 @@ test.describe("Dashboard Lay rate flock scope", () => {
     await expect(strip(page).locator(".trend-peak")).toHaveText(before.peak);
   });
 
+  // #918 P2 review — an independent review found that reopening the picker
+  // marked nothing as the active scope: the shared `Dialog` unmounts its
+  // children on close (MUI's default `keepMounted={false}`), so every
+  // reopen is a fresh engine mount, and Dashboard did not tell it what was
+  // already committed. Checked here against the REAL browser's own
+  // accessibility computation, not just jsdom: MUI Autocomplete's
+  // `aria-selected` and the pinned button's `aria-pressed` are both driven
+  // by real DOM/ARIA machinery this suite's own earlier rounds probed live.
+  test("marks the active scope when the picker is reopened, for both a picked flock and All flocks", async ({ page, signIn }) => {
+    await signIn(owner());
+    await page.goto("/");
+    await openPicker(page);
+
+    const firstResults = resultsList(page);
+    await firstResults.getByRole("option", { name: FIXTURE_FLOCK }).click();
+    await expect(pickerDialog(page)).not.toBeVisible();
+
+    await openPicker(page);
+    const reopenedResults = resultsList(page);
+    await expect(reopenedResults.getByRole("option", { name: FIXTURE_FLOCK })).toHaveAttribute("aria-selected", "true");
+    await expect(pinnedAllFlocksChoice(page)).toHaveAttribute("aria-pressed", "false");
+    // The engine's own reopen-with-committed-value contract (matching every
+    // other FlockPicker/CustomerPicker caller) pre-fills the search field
+    // with the committed name — checked directly rather than assumed.
+    await expect(searchField(page)).toHaveValue(FIXTURE_FLOCK);
+
+    // Still open from the reopen above — pick All flocks directly rather
+    // than through `pickAllFlocks` (which would try to open a dialog that
+    // is already open, and the backdrop blocks that click).
+    await pinnedAllFlocksChoice(page).click();
+    await expect(pickerDialog(page)).not.toBeVisible();
+
+    await openPicker(page);
+    const finalResults = resultsList(page);
+    await expect(pinnedAllFlocksChoice(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(finalResults.getByRole("option", { name: FIXTURE_FLOCK })).toHaveAttribute("aria-selected", "false");
+  });
+
   // #918 — Codex review, P3-4. MUI's Dialog otherwise focuses the first
   // tabbable control (the close button), not the search box the approved
   // mockup focuses on open; also checks the search box meets the repo's 44px

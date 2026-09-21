@@ -544,6 +544,26 @@ export function Dashboard() {
                 // own FlockPicker-in-Dialog usage: the keydown still bubbles to
                 // the Dialog's own Escape/backdrop close.
                 <Dialog open={pickerOpen} title={t("chooseFlockTitle")} onClose={() => setPickerOpen(false)}>
+                  {/* #918 P2 review — the shared Dialog unmounts its children
+                      on close (MUI's default `keepMounted={false}`), so every
+                      reopen is a FRESH engine mount. `controlledCommitted`
+                      seeds `state.selection.entity` at that mount from the
+                      current scope, driving `aria-selected` on the matching
+                      option. `controlledGeneration` is a constant: the sync
+                      effect fires once per mount regardless (its own ref
+                      starts at -1), and `scope` never changes without the
+                      dialog also closing, so no mount ever needs a second
+                      sync. This also pre-fills the reopened search field
+                      with the committed name — checked against the DOM, not
+                      assumed (`Dashboard.test.tsx`) — matching every other
+                      `FlockPicker`/`CustomerPicker` caller's own reopen
+                      behaviour; the results are not narrowed by it, since the
+                      seed touches only display text, never the discovery
+                      filter. `onClear` is wired because seeding a non-null
+                      `controlledCommitted` also surfaces the footer's own
+                      Clear link (previously dead code) — left unwired it
+                      would blank the engine's selection without touching
+                      `scope`, reopening a version of this same desync. */}
                   <FlockPicker
                     label={t("searchAccessibleFlocksLabel")}
                     eligibility="active-and-depleted"
@@ -551,7 +571,10 @@ export function Dashboard() {
                     open={pickerOpen}
                     onEscape={() => {}}
                     onOutsideClick={() => {}}
+                    controlledCommitted={scope.kind === "flock" ? scope.flock : null}
+                    controlledGeneration={1}
                     onCommit={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
+                    onClear={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
                     pinnedChoice={
                       <Button
                         fullWidth

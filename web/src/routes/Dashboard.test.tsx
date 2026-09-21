@@ -692,6 +692,97 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
   });
 
+  // #918 P2 review — an independent reviewer found that reopening the picker
+  // after a pick marked NOTHING as the active scope: the previously picked
+  // flock's own row read `aria-selected="false"` and the pinned "All flocks"
+  // choice read `aria-pressed="false"`, because Dashboard never told the
+  // shared engine what was already committed, so it always mounted with
+  // `value=null`. The shared `Dialog` unmounts its children on close (MUI's
+  // default `keepMounted={false}`), so every reopen is a genuinely fresh
+  // engine mount — this is not a live-update bug, it is a missing seed at
+  // mount time. Both states are covered: a specific flock, and All flocks.
+  it("marks the previously picked flock as the active option when the picker is reopened", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    const reopened = await openPicker(user);
+    const f2Row = within(reopened).getByText("Flock f2").closest("li");
+    expect(f2Row).toHaveAttribute("aria-selected", "true");
+    // The mockup's pinned choice is the OTHER half of the same indicator:
+    // a flock is scoped, so "All flocks" must not also read as active.
+    expect(screen.getByRole("button", { name: /^All flocks/ })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("marks All flocks as the active choice when the picker is reopened after clearing a flock pick", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    // Scope to a flock first, so reopening after picking All flocks again is
+    // a genuine transition back, not just the untouched default scope.
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    await openPicker(user);
+    await user.click(screen.getByRole("button", { name: /^All flocks/ }));
+    await waitForPickerToClose();
+
+    const reopened = await openPicker(user);
+    expect(screen.getByRole("button", { name: /^All flocks/ })).toHaveAttribute("aria-pressed", "true");
+    const f2Row = within(reopened).getByText("Flock f2").closest("li");
+    expect(f2Row).toHaveAttribute("aria-selected", "false");
+  });
+
+  // #918 P2 review — the fix threads the committed flock through
+  // `controlledCommitted`, which is also how every other `FlockPicker`
+  // caller in the app pre-fills the search field with the committed name on
+  // open (#735's own focus effect then select-alls it). That is the
+  // documented, standard behaviour for a controlled picker, but it was
+  // never exercised for THIS screen, whose bespoke predecessor forced the
+  // field blank on every open. Asserted directly against the real `<input>`
+  // rather than assumed: the search box DOES seed with the flock's name,
+  // exactly as Daily Entry's/Expenses' own committed pickers already do —
+  // and the RESULTS are not narrowed by it, because the engine's discovery
+  // query is a separate field the sync never touches.
+  it("seeds the reopened search field with the committed flock's name, matching every other FlockPicker caller — and does not narrow the results by it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    const reopened = await openPicker(user);
+    expect(screen.getByRole("combobox", { name: "Search accessible flocks" })).toHaveValue("Flock f2");
+    // Still the full, unfiltered list — not narrowed to matches of "Flock f2".
+    expect(within(reopened).getByText("Flock f1")).toBeInTheDocument();
+  });
+
+  // #918 P2 review — seeding `controlledCommitted` (above) makes the shared
+  // engine's own footer "Clear" link appear once a flock is scoped, which it
+  // never did before (the link is gated on a non-null committed entity, and
+  // Dashboard never had one). Left unwired, clicking it would reset the
+  // ENGINE's own internal selection without touching Dashboard's `scope`,
+  // reopening a version of the same desync this fix closes — so `onClear` is
+  // wired to the identical reset "All flocks" already performs.
+  it("treats the newly-visible Clear link the same as picking All flocks", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    await openPicker(user);
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await waitForPickerToClose();
+    expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
+  });
+
   // The mockup's #allChoice sits ABOVE .choices, never a row inside it.
   it("keeps the All flocks choice outside the scrolling results list", async () => {
     const user = userEvent.setup();
