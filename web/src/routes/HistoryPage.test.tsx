@@ -1523,3 +1523,17 @@ it("uses an unfilled status dot, preserving the reason, and always offers filter
   });
   expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
 });
+
+
+it("mutes voided cells without muting submitted cells", async () => {
+  mockListDailyEntries.mockResolvedValue([VOIDED, SUBMITTED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const voided = await screen.findByRole("row", { name: /Voided/ });
+  const submitted = screen.getByRole("row", { name: /Submitted/ });
+  for (const cell of within(voided).getAllByRole("cell")) {
+    expect(cell).toHaveStyle({ color: "var(--muted)" });
+  }
+  for (const cell of within(submitted).getAllByRole("cell")) {
+    expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+  }
+});

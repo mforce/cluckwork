@@ -805,3 +805,11 @@ it("keeps one filter reset available with the chronological ledger", async () =>
   expect(screen.getByLabelText("From")).toHaveValue("");
   expect(screen.getByLabelText("To")).toHaveValue("");
 });
+
+
+it("shows the page intro once, outside the reading check", async () => {
+  await renderReadyForm(WORKER);
+  const intro = "Record what each flock drank — a direct amount, or meter readings (the amount is the meter delta). Records can be corrected later; flock and date are fixed.";
+  expect(screen.getAllByText(intro)).toHaveLength(1);
+  expect(within(screen.getByRole("complementary", { name: "Reading check" })).queryByText(intro)).not.toBeInTheDocument();
+});

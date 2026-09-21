@@ -518,7 +518,6 @@ export function WaterPage() {
               </Typography>
             </Box>
           </Box>
-          <p className="muted">{t("intro")}</p>
         </Box>
       </Box>
 

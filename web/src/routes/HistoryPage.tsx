@@ -764,7 +764,9 @@ export function HistoryPage() {
               </TableHead>
               <TableBody>
                 {entries.rows.map((e) => (
-                  <TableRow key={e.id} sx={e.status === "Voided" ? { color: "var(--muted)" } : undefined}>
+                  <TableRow key={e.id}
+                    // MUI cell colours override inherited row colours.
+                    sx={e.status === "Voided" ? { "& .MuiTableCell-root": { color: "var(--muted)" } } : undefined}>
                     <TableCell sx={NOWRAP}><FarmDate iso={e.date} /></TableCell>
                     <TableCell>{rowFlockName(e)}</TableCell>
                     <TableCell>{statusCell(e)}</TableCell>
