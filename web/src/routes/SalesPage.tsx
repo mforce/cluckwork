@@ -44,6 +44,14 @@ const LINK_ACTION_SX = {
   textDecoration: "underline", textDecorationColor: "var(--rule-strong)", textUnderlineOffset: "3px",
   "&:hover": { textDecoration: "underline", bgcolor: "transparent" },
 };
+// Secondary reading of LINK_ACTION_SX for an action that sits beside a
+// primary one in the same manifest-row cell (save/cancel) — same text-link
+// footprint so the pair fits the cell edit/remove already fit in, muted
+// instead of underlined so save still reads as the affirmative action.
+const SECONDARY_ACTION_SX = {
+  ...LINK_ACTION_SX, color: "text.secondary", fontWeight: 500, textDecoration: "none",
+  "&:hover": { textDecoration: "underline", bgcolor: "transparent" },
+};
 const MANIFEST_ACTIONS_SX = {
   whiteSpace: { md: "nowrap" },
   "& [role=status]": { whiteSpace: "normal" },
@@ -1341,9 +1349,11 @@ export function SalesPage() {
                             <TableCell align="right"><Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("discount")}: </Box>{discountCell}</TableCell>
                             <TableCell align="right">—</TableCell>
                             <TableCell sx={MANIFEST_ACTIONS_SX}>
-                              <BusyButton component={Button} variant="contained" size="small" sx={{ minWidth: 0, p: .5 }} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
-                                onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
-                              <Button variant="outlined" color="inherit" size="small" sx={{ minWidth: 0, p: .5 }} onClick={() => setEditor(null)}>{t("cancelEdit")}</Button>
+                              <Box sx={{ display: "inline-flex", flexWrap: "nowrap", alignItems: "center" }}>
+                                <BusyButton component={Button} size="small" sx={LINK_ACTION_SX} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
+                                  onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
+                                <Button size="small" sx={SECONDARY_ACTION_SX} onClick={() => setEditor(null)}>{t("cancelEdit")}</Button>
+                              </Box>
                               {editConflict && (
                                 <div role="status">
                                   {t("editConflict")} {" "}

@@ -3795,6 +3795,21 @@ describe("Sales live editor (#713)", () => {
   });
 });
 
+// #927 fix: save/cancel had regressed to two separate boxy Buttons that
+// stacked vertically in the actions cell instead of sitting beside each
+// other like the row's edit/remove text-link pair. Pin the DOM structure
+// that keeps them inline: one shared parent, save immediately before
+// cancel — the shape that broke when they were rendered as two independent
+// TableCell children instead of one flex group.
+it("#927 save sits before cancel in one shared inline group", async () => {
+  const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+  fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+  const saveButton = screen.getByRole("button", { name: i18n.t("sales:save") });
+  const cancelButton = screen.getByRole("button", { name: i18n.t("sales:cancelEdit") });
+  expect(saveButton.parentElement).toBe(cancelButton.parentElement);
+  expect(saveButton.compareDocumentPosition(cancelButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 it("#713 editor quantity steppers apply consecutive functional updates", async () => {
   const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
   fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
