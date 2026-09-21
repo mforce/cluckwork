@@ -913,6 +913,7 @@
     {
       "symbol": "Cluckwork.Api.Endpoints.Reports.ReportEndpoints.Production",
       "reaches": [
+        "FlockManagement",
         "Insights"
       ]
     },

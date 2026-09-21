@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Reports;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Reports;
 using Cluckwork.Infrastructure.Persistence;
 
@@ -20,7 +21,7 @@ public static class ReportEndpoints
 
         group.MapGet("/production", Production)
             .WithName("ProductionReport")
-            .WithSummary("Per-day production across the range: eggs, losses, sellable, deaths, hen-day % (spec §19.3), plus period totals and grade breakdown.");
+            .WithSummary("Per-day production across the range: eggs, losses, sellable, deaths, hen-day % (spec §19.3), plus period totals and grade breakdown. Optional flockId narrows every figure to one flock.");
 
         group.MapGet("/sales", Sales)
             .WithName("SalesSummaryReport")
@@ -66,13 +67,23 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> Production(
-        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
-        DateOnly? from = null, DateOnly? to = null)
+        IReportQueries reports, IFlockRepository flocks, TenantContext tenant,
+        IFarmClock farmClock, CancellationToken ct,
+        DateOnly? from = null, DateOnly? to = null, Guid? flockId = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
         if (bad is not null) return bad;
-        return Results.Ok(await reports.GetProductionAsync(f, t, ct));
+        // #916 — the same existence check flock detail uses, and for the same
+        // reason it is enough: `GetByIdAsync` reads through the model's
+        // structural `AccountId AND flock-scope` query filters (#613), so
+        // another farm's flock, a flock outside this Worker's scope, and a
+        // flock that never existed all resolve to null and all answer 404.
+        // Which of the three it was is deliberately not distinguishable.
+        // Nothing here is a write, so `FlockScopeGuard` does not apply (#787).
+        if (flockId is not null && await flocks.GetByIdAsync(flockId.Value, ct) is null)
+            return Results.NotFound();
+        return Results.Ok(await reports.GetProductionAsync(f, t, flockId, ct));
     }
 
     private static async Task<IResult> Sales(

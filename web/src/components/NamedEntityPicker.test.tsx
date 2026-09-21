@@ -408,21 +408,22 @@ describe("commit and committed-label retention (#512 FR-018)", () => {
     expect(committedName("Flock 60")).toBeInTheDocument();
   });
 
+  // #918 — CI flake (run 35563849681): a raw KeyboardEvent dispatch plus an
+  // empty `act()` raced MUI Autocomplete's own controlled-state commit, so
+  // the assertion sometimes read the typed query back instead of the
+  // committed label. `userEvent` drives the same two keys through the DOM
+  // as a real user would, and `waitFor` reads the commit once it lands
+  // rather than assuming one microtask flush is enough.
   it("commits the active option on Enter", async () => {
     render(<FlockPicker label="Pick flock" eligibility="active" required open />);
+    const user = userEvent.setup();
     await screen.findByText("Flock 01");
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "105" } });
     await screen.findByText("Flock 105");
     const input = screen.getByRole("combobox") as HTMLInputElement;
-    input.focus();
-    await act(async () => {
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-    });
-    await act(async () => {
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    });
-    await act(async () => {});
-    expect(input.value).toBe("Flock 105");
+    await user.click(input);
+    await user.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() => expect(input).toHaveValue("Flock 105"));
   });
 
   it("searches customers and commits one by pointer", async () => {
@@ -1579,5 +1580,33 @@ describe("T035: exact-ID transitions and admission (FR-019/FR-033)", () => {
     await waitFor(() => { expect(mockGetFlock.mock.calls.length).toBe(getFlockBefore + 1); });
     await waitFor(() => { expect(onSnapshot.mock.calls.at(-1)?.[0]?.selectionPhase).toBe("committed"); });
     expect(onSnapshot.mock.calls.at(-1)?.[0]?.committed).toBe(recovered);
+  });
+});
+
+// #916 — `pinnedChoice` lets a caller pin fixed content (Dashboard's "All
+// flocks") above the scrolling results, through the same `slots.paper`
+// wrapper the Load-more footer already renders through. Every other test in
+// this file omits the prop, which is the coverage that it stays optional.
+describe("pinnedChoice (#916)", () => {
+  it("renders the pinned content as a sibling of the listbox, before it, never inside it", async () => {
+    mockListFlocks.mockResolvedValueOnce([F("f1", "Flock 01")]);
+    render(<FlockPicker label="Pick flock" eligibility="active" required open
+      pinnedChoice={<button type="button">All flocks</button>} />);
+    await screen.findByText("Flock 01");
+
+    const pinned = screen.getByRole("button", { name: "All flocks" });
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    expect(listbox.contains(pinned)).toBe(false);
+    // Sibling, and BEFORE the listbox in DOM order — the position "All
+    // flocks" pins above the scrolling results, not below them.
+    expect(pinned.parentElement).toBe(listbox.parentElement);
+    expect(pinned.compareDocumentPosition(listbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("is absent by default — every other caller in this file is unaffected", async () => {
+    mockListFlocks.mockResolvedValueOnce([F("f1", "Flock 01")]);
+    render(<FlockPicker label="Pick flock" eligibility="active" required open />);
+    await screen.findByText("Flock 01");
+    expect(screen.queryByRole("button", { name: "All flocks" })).toBeNull();
   });
 });

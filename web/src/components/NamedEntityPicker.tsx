@@ -260,6 +260,16 @@ interface EngineProps<T extends NamedEntity> {
   onCommit?: (entity: T) => void;
   /** US2: fires when an optional picker is cleared (commits blank). */
   onClear?: () => void;
+  /**
+   * #916 — content pinned ABOVE the scrolling results, rendered as a sibling
+   * of `<ul role="listbox">` inside the same `slots.paper` wrapper the
+   * Load-more/status footer already uses (never inside `slotProps.listbox`,
+   * where ARIA only allows `option`/`group`). Omitted by every caller except
+   * one that needs a fixed "no filter" choice above the list; `Autocomplete`'s
+   * own arrow-key navigation only ever traverses `options`, so this content
+   * is Tab-reachable, not arrow-reachable.
+   */
+  pinnedChoice?: ReactNode;
 }
 
 /**
@@ -276,7 +286,7 @@ interface EngineProps<T extends NamedEntity> {
  * only cross-await authority: every continuation re-checks it after every
  * await (success AND failure) before touching state.
  */
-export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trigger, fetchPage, fetchExact, eligibilityKey, required = false, disabled = false, open = false, onSnapshot, onEscape, onOutsideClick, controlledCommitted, controlledGeneration, requestedId, onCommit, onClear }: EngineProps<T>) {
+export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trigger, fetchPage, fetchExact, eligibilityKey, required = false, disabled = false, open = false, onSnapshot, onEscape, onOutsideClick, controlledCommitted, controlledGeneration, requestedId, onCommit, onClear, pinnedChoice }: EngineProps<T>) {
   const onCommitRef = useRef(onCommit);
   onCommitRef.current = onCommit;
   const onClearRef = useRef(onClear);
@@ -1039,6 +1049,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     committedEntity: state.selection.entity,
     unavailable: state.selection.phase === "unavailable",
     retry, loadMore, retryUnavailable, clearSelection, liveMessage,
+    pinnedChoice,
   };
   const footerRef = useRef(footerData);
   footerRef.current = footerData;
@@ -1048,6 +1059,7 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       const f = footerRef.current;
       return (
         <Paper {...paperProps}>
+          {f.pinnedChoice}
           {children}
           <div className="named-picker-meta">
             {/* US3 (T034): a STABLE mounted aria-live region — the SAME node
@@ -1162,6 +1174,13 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
             // capture at 390px showed a committed "Capture Test Flock"
             // rendered as just "C…". `size="small"` reclaims that padding.
             size="small"
+            // #916 review — `size="small"`'s own wrapper height (~37px) sits
+            // under the 44px tap-target floor every other control on this
+            // screen meets. Verified against every pre-existing render site
+            // (nine `FlockPicker` + two `CustomerPicker`, across seven
+            // screens): none sets a conflicting height, so this only ever
+            // grows the field.
+            sx={{ "& .MuiInputBase-root": { minHeight: 44 } }}
             slotProps={{
               htmlInput: {
                 readOnly: true,
@@ -1350,6 +1369,9 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
             label={label}
             required={required}
             placeholder={committedText ?? undefined}
+            // #916 review — same 44px floor as the closed-state trigger field
+            // above; the open search field is the one every mockup measured.
+            sx={{ "& .MuiInputBase-root": { minHeight: 44 } }}
             slotProps={{
               ...params.slotProps,
               htmlInput: {

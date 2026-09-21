@@ -1748,6 +1748,64 @@ label.check {
   margin-top: 0.35rem;
 }
 
+/* The strip's key — what solid, hatched and outlined mean. Matches the
+   approved mockup (production-flock-selector-v2.html): under the date rule,
+   above the hen-day KPI (#918 fidelity round). */
+.trend-legend {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.875rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.trend-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.trend-legend-swatch {
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+  background: var(--stat-accent);
+}
+
+.trend-legend-swatch.partial {
+  background: linear-gradient(
+    135deg,
+    var(--stat-accent) 25%,
+    transparent 25%,
+    transparent 50%,
+    var(--stat-accent) 50%,
+    var(--stat-accent) 75%,
+    transparent 75%
+  );
+  background-size: 6px 6px;
+  border: 1px solid var(--stat-accent);
+  box-sizing: border-box;
+}
+
+.trend-legend-swatch.missing {
+  background: transparent;
+  border: 1px dashed var(--muted);
+  box-sizing: border-box;
+}
+
+/* The Lay rate card's scope context — "{scope} · {date range}", under the
+   scope selector and above the scale caption (#918 fidelity round). */
+.trend-context {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 1.375rem;
+}
+
 /* Hen-day: the panel's measure, so a figure. It was the smallest text here. */
 .trend-kpi {
   display: flex;

@@ -652,6 +652,18 @@ export const tl = {
     availableStockTitle: "Magagamit na stock",
     recentOrdersTitle: "Mga kamakailang order",
     layRateTitle: "Dami ng itlog bawat inahin",
+    flockScopeLabel: "Kawan",
+    allFlocksOption: "Lahat ng kawan",
+    chooseFlockTitle: "Pumili ng kawan",
+    searchAccessibleFlocksLabel: "Maghanap ng accessible na kawan",
+    flockListUnavailableMessage: "Hindi ma-load ang listahan ng kawan.",
+    accessibleFlocksCount_one: "{{count}} accessible na kawan",
+    accessibleFlocksCount_other: "{{count}} accessible na kawan",
+    accessibleFlocksCountAtLeast: "{{count}}+ accessible na kawan",
+    layRateContext: "{{scope}} · {{from}}–{{to}}",
+    legendComplete: "Kumpleto",
+    legendPartial: "Bahagya",
+    legendNoEntry: "Walang tala",
     gradeColumn: "Grado",
     countColumn: "Bilang",
     shareColumn: "Bahagi",
@@ -695,13 +707,19 @@ export const tl = {
     trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng kawan. {{blank}} araw ang hindi kumpleto.",
     trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng kawan. {{blank}} araw ang hindi kumpleto.",
     trendStripLabelNone: "Itlog bawat araw, huling 14 araw. Walang araw sa panahong ito ang may tala.",
-    trendStripLabelNoComplete: "Itlog bawat araw, huling 14 araw. Walang araw na may tala ang lahat ng kawan, kaya walang pinakamataas o average.",
+    trendStripLabelPartialScale: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, mga araw na hindi kumpleto lamang. Walang araw na may tala ang lahat ng kawan, kaya walang average.",
     trendStripLabelNoFlocks: "Itlog bawat araw, huling 14 araw. Walang kawan sa bukid sa panahong ito.",
-    trendScaleTitle: "Itlog bawat araw",
+    trendScaleTitle: "Itlog bawat araw · sukat ng kumpletong araw",
+    // #916 — walang kumpletong araw sa panahong ito, kaya ang sukat ay ang
+    // pinakamataas na BAHAGYANG bilang, may sariling label para hindi ito
+    // mabasa bilang kabuuang ani.
+    trendScaleTitlePartial: "Itlog bawat araw · mga araw na hindi kumpleto lamang",
+    trendScaleTitleNone: "Itlog bawat araw · walang naitalang bilang",
     trendPeak: "Pinakamataas {{total}}",
     // The loanword, as this catalog already uses for Hen-day and Draft:
     // "Katamtaman" wrapped the caption onto a second line on a 331px panel.
-    trendAvg: "Average {{total}}",
+    trendCompleteAvg: "Average ng kumpletong araw {{total}}",
+    trendNoCompleteAvg: "Walang average ng kumpletong araw",
     trendDayTip_one: "{{date}} – {{total}} itlog",
     trendDayTip_other: "{{date}} – {{total}} itlog",
     trendDayTipPartial_one: "{{date}} – {{total}} itlog, {{recorded}} sa {{expected}} kawan",
@@ -2203,7 +2221,12 @@ export const tl = {
       + "ay hinahati sa hen-days ng mga kawang may tala, kaya ang kawang nakalimot ay nagpapaliit sa sinusukat, "
       + "hindi sa mismong porsyento. Nakapirmi ang window (mula kahapon pabalik) at binibilang lang ang "
       + "<strong>mga naisumiteng araw</strong> — ang araw na Draft pa ay mababasang Walang tala hanggang "
-      + "maisumite, hindi tulad sa Mga Report kung saan pinipili mo ang saklaw.",
+      + "maisumite, hindi tulad sa Mga Report kung saan pinipili mo ang saklaw. Piliin ang "
+      + "<strong>Lahat ng kawan</strong> o iisang kawan sa itaas ng tsart para isaklaw ang buong kard "
+      + "— mga bar, pagkakumpleto, Average, at parehong panahon ng hen-day — sa kawang iyon; kung iisa "
+      + "lang ang accessible na kawan, lalabas ang pangalan nito nang walang picker. Kapag walang "
+      + "kumpletong araw sa window, isinusukat ang Pinakamataas sa pinakamataas na hindi kumpletong araw "
+      + "sa halip at sinasabing \"mga araw na hindi kumpleto lamang\".",
     dashboardOrders: "Ipinapakita ng <strong>Mga kamakailang order</strong> ang customer, halaga at katayuan, kasama ang bilang at kasalukuyang pangalan ng grado sa unang linya. Ang +N ay bilang ng dagdag na linya. Kapag pinalitan ang pangalan ng grado, magbabago rin ito sa lumang order; bilang lang ang makikita kung hindi available ang grado.",
     dashboardStock: "Ipinapakita ng <strong>Magagamit na stock</strong> ang kabuuan at isang <strong>stacked bar</strong> ayon sa grado, kasunod ang talahanayan ng <strong>Grado</strong>, <strong>Bilang</strong> at <strong>Bahagi</strong>. Itapat ang pointer o ituon ang keyboard sa hanay para markahan ito. Hiwalay na nakalista ang restricted na itlog. Pareho ang mga bilang sa Stock.",
 
@@ -3096,6 +3119,12 @@ export const tl = {
 
     glossaryCaptureStatusTerm: "Katayuan ng pagtatala",
     glossaryCaptureStatusDef: "Kung may araw-araw na tala ngayong araw ang bawat aktibong kawan. Ipinapakita ng Koleksyon ngayong umaga ang isang hanay bawat kawan, una ang mga walang tala, at itinuturing na may tala ang mga draft. Ang Walang tala ay nakalink sa Araw-araw na Tala para sa kawan at araw na iyon.",
+
+    glossaryLayRateStripScaleTerm: "Sukat ng guhit na 14 araw",
+    glossaryLayRateStripScaleDef: "Isinusukat ng guhit ng Dami ng itlog bawat inahin ang mga bar nito sa pinakamataas na kumpletong araw. Kapag walang kumpletong araw sa panahong iyon, isinusukat ito sa pinakamataas na hindi kumpletong araw sa halip, at sinasabing \"mga araw na hindi kumpleto lamang\" para hindi mabasa ang mga bar bilang kabuuang ani ng bukid.",
+
+    glossaryLayRateFlockScopeTerm: "Saklaw ng kawan sa dami ng itlog bawat inahin",
+    glossaryLayRateFlockScopeDef: "Maaaring ipakita ng kard ng Dami ng itlog bawat inahin sa Dashboard ang Lahat ng kawan o isang piniling kawan. Sinusunod ng buong kard ang pinili — ang guhit, pagkakumpleto, ang average, at parehong panahon ng paghahambing ng postura — at galing sa server ang mga bilang, hindi sa pag-filter ng tanawin ng Lahat ng kawan. Hindi nagbabago ang ibang bahagi ng Dashboard.",
 
     glossaryEggLotTerm: "Lote ng itlog",
     glossaryEggLotDef:

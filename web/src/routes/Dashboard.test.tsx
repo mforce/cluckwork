@@ -1,9 +1,13 @@
 // web/src/routes/Dashboard.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import { Dashboard } from "./Dashboard";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { AuthContext } from "../auth/AuthContext";
+import type { Role } from "../auth/claims";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
@@ -12,6 +16,23 @@ import { daysBefore, todayIso } from "../lib/dates";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, account } from "../test/fixtures";
 import { stubMatchMedia } from "../test/matchMedia";
+
+// The rollover test (#918 round 3, finding 2) needs a role change the SAME
+// mounted Dashboard sees, so a hand-built AuthContext stands in for
+// AuthProvider — whose own role only updates through a real login/refresh,
+// too heavy to simulate for one generation-boundary test.
+function AuthOverride({ role, children }: { role: Role; children: ReactNode }) {
+  return (
+    <AuthContext.Provider value={{
+      isAuthenticated: true, isLoading: false,
+      isAdmin: role === "Admin" || role === "Manager",
+      role, userId: "u1", mustChangePassword: false, unauthenticatedReason: null,
+      login: async () => {}, logout: async () => {},
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
 
 // Keep the real formatters; stub the six read endpoints the dashboard fans out.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -47,13 +68,21 @@ const entry = (flockId: string, status: string, totalEggs: number): DailyEntry =
 // One house that recorded — the ordinary complete day. `recordedFlocks: 0` is
 // the day nobody recorded, and `recordedFlocks < expectedFlocks` the day only
 // some houses did; both used to arrive indistinguishable from a real zero.
-const day = (date: string, totalEggs: number, recordedFlocks = 1, expectedFlocks = 1): ProductionDay => ({
+// `ratedEggs` defaults to `totalEggs` like before, but can be overridden
+// independently (#918): the trend fixtures below need the WEEK's summed
+// `ratedEggs`/`recordedHenDays` to reproduce an exact periodHenDayPct once
+// `splitProductionReport` recomputes it from the days array, which is a
+// different constraint than the bar-height figures `totalEggs` drives.
+const day = (
+  date: string, totalEggs: number, recordedFlocks = 1, expectedFlocks = 1,
+  ratedEggs = recordedFlocks > 0 ? totalEggs : 0,
+): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
   deaths: 0, recordedFlocks, expectedFlocks,
   missingFlocks: Math.max(0, expectedFlocks - recordedFlocks),
   henDays: 100,
   recordedHenDays: expectedFlocks > 0 ? Math.round((100 * recordedFlocks) / expectedFlocks) : 0,
-  ratedEggs: recordedFlocks > 0 ? totalEggs : 0,
+  ratedEggs,
   henDayPct: recordedFlocks > 0 ? totalEggs : null,
 });
 const report = (periodHenDayPct: number | null, days: ProductionDay[]): ProductionReport => ({
@@ -71,13 +100,25 @@ const order = (id: string, ref: string, customerName: string | null): SalesOrder
   outstandingMinorUnits: null, items: [],
 });
 
-// The report mock answers by window (relative to a given "today") so the two
-// calls can be told apart. Values: previous week 307..301, current week 327..321.
-const previousFor = (today: string) => report(85.1, [7, 6, 5, 4, 3, 2, 1].map((n) => day(daysBefore(today, n + 7), 300 + n)));
-const currentFor = (today: string) => report(87.4, [7, 6, 5, 4, 3, 2, 1].map((n) => day(daysBefore(today, n), 320 + n)));
+// #918 — Codex review: the two adjacent trend windows are now ONE
+// `daysBefore(today,14)..daysBefore(today,1)` request, split client-side by
+// `splitProductionReport`. Values: previous week 307..301, current week
+// 327..321, unchanged from before. Each week's `ratedEggs` total sits on its
+// first day (nothing checks a day's own `ratedEggs`) so the recomputed
+// periodHenDayPct reproduces the old two-call fixture's 85.1/87.4 exactly:
+// round(596*100/700, 1) = 85.1, round(612*100/700, 1) = 87.4.
+const previousDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
+  day(daysBefore(today, n + 7), 300 + n, 1, 1, i === 0 ? 596 : 0));
+const currentDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
+  day(daysBefore(today, n), 320 + n, 1, 1, i === 0 ? 612 : 0));
+const fortnightFor = (today: string) => report(null, [...previousDays(today), ...currentDays(today)]);
 const reportByWindow = (today: string) => (from: string, to: string) => {
-  if (from === daysBefore(today, 7) && to === daysBefore(today, 1)) return Promise.resolve(currentFor(today));
-  if (from === daysBefore(today, 14) && to === daysBefore(today, 8)) return Promise.resolve(previousFor(today));
+  if (from === daysBefore(today, 14) && to === daysBefore(today, 1)) return Promise.resolve(fortnightFor(today));
+  // #918 — Codex review: the Morning collection panel's own yesterday-close
+  // caption is its OWN farm-wide, single-day fetch (never `flockId`-scoped),
+  // so a from===to request answers with just that one day. 321 matches the
+  // trend window's own yesterday slot, so the two sources agree by default.
+  if (from === to && from === daysBefore(today, 1)) return Promise.resolve(report(null, [day(daysBefore(today, 1), 321)]));
   return Promise.reject(new Error(`unexpected window ${from}..${to}`));
 };
 
@@ -364,15 +405,18 @@ describe("Dashboard attention line (#829, #864)", () => {
 describe("Dashboard 'Yesterday by close' caption (#864)", () => {
   it("shows yesterday's total when the strip's last day is complete", async () => {
     renderWithProviders(<Dashboard />);
-    // currentFor maps n=7..1 to daysBefore(today,n) with value 320+n, so the
-    // window's last day — daysBefore(today,1), yesterday — is 320+1 = 321.
+    // The yesterday-close fetch's own fixture branch in `reportByWindow`
+    // returns 321 for `daysBefore(today,1)`.
     expect(await screen.findByText("Yesterday by close: 321")).toBeInTheDocument();
   });
 
   it("shows no caption when yesterday was not fully recorded", async () => {
+    // Targets the LAST day of whichever window this is, not a hardcoded
+    // index 6: the single-day yesterday-close fetch's own array has yesterday
+    // at index 0, the 7-day trend window has it at index 6.
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => (to === daysBefore(today, 1)
-        ? { ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 0, missingFlocks: d.expectedFlocks, totalEggs: 0 } : d)) }
+        ? { ...r, days: r.days.map((d, i) => (i === r.days.length - 1 ? { ...d, recordedFlocks: 0, missingFlocks: d.expectedFlocks, totalEggs: 0 } : d)) }
         : r)));
     renderWithProviders(<Dashboard />);
     await todayTotal();
@@ -381,12 +425,22 @@ describe("Dashboard 'Yesterday by close' caption (#864)", () => {
 });
 
 describe("Dashboard last 14 days (#654, INV-5)", () => {
-  it("asks the production report for exactly the two 7-day windows ending yesterday", async () => {
+  // #918 — Codex review: the account's report-concurrency permits are
+  // shared (RateLimitingOptions.ReportsConcurrency: PermitLimit 4,
+  // QueueLimit 0 — no queue, so anything past the cap 429s rather than
+  // waiting), so a dashboard load must stay well under it. The two adjacent
+  // trend windows are one request now, split client-side; this pins the
+  // total at two (that request plus the yesterday-close fetch) so the
+  // ceiling cannot creep back to three.
+  it("asks the production report for exactly one 14-day window plus one single-day yesterday fetch — never more", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
     expect(mockReport).toHaveBeenCalledTimes(2);
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8));
+    // #916 — the third argument is the flock scope; All flocks (the default)
+    // passes undefined, so the report stays farm-wide exactly as before.
+    // #918 — Codex review: the fourth argument aborts a superseded request.
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 1), daysBefore(today, 1));
   });
 
   it("draws the 14 report days oldest-first as bars sized off the peak, and the server's hen-day figures", async () => {
@@ -431,10 +485,13 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   // Days 4..6 of each window hold no entry at all. `entryCount` is the only
   // field that says so — before #780 these arrived as totalEggs 0, identical
   // to a day the farm recorded as having produced nothing.
+  // #918 — `r.days` is now the combined 14-day array (index 0-13, both weeks
+  // back to back), so `i % 7 > 3` targets days 4-6 of EACH week (indices 4-6
+  // and 11-13) — the same six days the two-call fixture used to zero out.
   const withUnrecordedTail = () =>
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: 0, missingFlocks: d.expectedFlocks } : d)),
+        ...r, days: r.days.map((d, i) => (i % 7 > 3 ? { ...d, totalEggs: 0, recordedFlocks: 0, missingFlocks: d.expectedFlocks } : d)),
       })));
 
   it("names the days that are not fully recorded, and averages over the rest", async () => {
@@ -459,29 +516,35 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     // No bars at all, and the scale shows a dash rather than a fabricated 0.
     expect(strip.querySelectorAll(".day > i")).toHaveLength(0);
     expect(strip.querySelectorAll(".day")).toHaveLength(14);
-    expect(screen.getByText("—", { selector: ".trend-peak" })).toBeInTheDocument();
-    expect(screen.queryByText(/^Avg/)).not.toBeInTheDocument();
+    // #918 — Peak and Avg are always sentences now, never hidden: the dash
+    // states the absence, it does not omit the word.
+    expect(screen.getByText("Peak —", { selector: ".trend-peak" })).toBeInTheDocument();
+    expect(screen.getByText("No complete-day average", { selector: ".trend-avg" })).toBeInTheDocument();
   });
 
   // Recorded, but never by every house — so there is still no complete day to
   // take a peak or an average from, and saying so is a different sentence.
-  it("announces no peak when some flocks recorded every day but never all of them", async () => {
+  // #916 — no complete day exists, so this now falls back to the largest
+  // partial day's total (327, the fixture's own peak) rather than announcing
+  // "no peak or average" over a window whose caption shows a real number.
+  it("scales to the partial peak, and says so, when some flocks recorded every day but never all of them", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
         ...r, days: r.days.map((d) => ({ ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 })),
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. No day was recorded by every flock, so there is no peak or average to give.",
+      name: "Eggs per day, last 14 days. Peak 327, partial days only. No day was recorded by every flock, so there is no average.",
     })).toBeInTheDocument();
   });
 
   // A partly recorded day's total is a floor. It gets its own slot state and
   // its own sentence, and it must not drag the average down.
   it("marks a partly recorded day and keeps it out of the average", async () => {
+    // `i % 7 === 6` — day 6 of EACH week in the combined 14-entry array.
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
+        ...r, days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -508,7 +571,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("draws a stub for a recorded zero beside the empty slot of an unrecorded day", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: i > 5 ? 0 : 1, missingFlocks: i > 5 ? d.expectedFlocks : 0 } : d)),
+        ...r, days: r.days.map((d, i) => (i % 7 > 3 ? { ...d, totalEggs: 0, recordedFlocks: i % 7 > 5 ? 0 : 1, missingFlocks: i % 7 > 5 ? d.expectedFlocks : 0 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -527,7 +590,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
         ...r,
-        days: r.days.map((d, i) => (i === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
+        days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -550,8 +613,13 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 
   it("shows a negative delta with the minus form, one decimal on both figures", async () => {
+    // Index 7 is the current week's first day, carrying that week's whole
+    // `ratedEggs` total (#918 — see `currentDays`). 560/700 = round(80.0,1);
+    // the previous week's 85.1 stays untouched, so the delta is 80.0-85.1.
     mockReport.mockImplementation((from, to) =>
-      reportByWindow(today)(from, to).then((r) => (r.periodHenDayPct === 87.4 ? report(80, r.days) : r)));
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d, i) => (i === 7 ? { ...d, ratedEggs: 560 } : d)),
+      })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByText("80.0%")).toBeInTheDocument();
     const delta = screen.getByText("−5.1 pts");
@@ -559,12 +627,461 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 
   it("renders — for a null hen-day figure, never 0, and keeps the delta neutral", async () => {
+    // periodHenDayPct is null only once a week's OWN exposure is zero
+    // (#918 — recomputed from `ratedEggs`/`recordedHenDays`, never taken at
+    // face value from the mock's top-level field), so both are zeroed here.
     mockReport.mockImplementation((from, to) =>
-      reportByWindow(today)(from, to).then((r) => report(null, r.days)));
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d) => ({ ...d, ratedEggs: 0, recordedHenDays: 0 })),
+      })));
     renderWithProviders(<Dashboard />);
     const kpi = await screen.findByText("—", { selector: ".trend-fig" });
     expect(kpi).toBeInTheDocument();
     expect(screen.getByText("—", { selector: ".trend-delta" }).className).toBe("trend-delta");
+  });
+});
+
+describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
+  // The single selector button, matching the approved mockup: its accessible
+  // name is the eyebrow ("Flock") plus the current scope, joined by
+  // aria-labelledby, so it changes with the scope rather than a caller
+  // guessing at a separately-maintained label. Found by `aria-haspopup`
+  // rather than by name text: a flock literally named "Flock f2" gives the
+  // picker's own choice button that same "Flock " prefix once its dialog is
+  // open, which a name-only query cannot tell apart from the trigger.
+  const selectorButton = () => screen.getAllByRole("button")
+    .find((b) => b.getAttribute("aria-haspopup") === "dialog") as HTMLElement;
+  // #916 review — the picker is now the shared NamedEntityPicker/FlockPicker
+  // (MUI Autocomplete), so results sit inside `role="listbox"`, not the
+  // bespoke dialog's own `role="list"`; options are plain text nodes, not
+  // buttons — matching NamedEntityPicker.test.tsx's own query convention.
+  const openPicker = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(selectorButton());
+    const listbox = await screen.findByRole("listbox", { hidden: true });
+    // Discovery is server-paged and debounced (250ms), so the dialog opens
+    // before its results do — wait for the debounced fetch to actually land.
+    await waitFor(() => expect(within(listbox).queryAllByText(/^Flock /).length).toBeGreaterThan(0));
+    return listbox;
+  };
+  // MUI's Dialog exit runs on real timers; the trigger stays aria-hidden (a
+  // sibling of the still-closing modal, portalled outside it) until the
+  // transition finishes, so any assertion reading the closed-state trigger
+  // must wait for the dialog to actually leave the DOM first.
+  const waitForPickerToClose = () => waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  const boom = () => Promise.reject(new Error("down"));
+
+  it("defaults to All flocks; the selector's accessible name and the context caption both say so", async () => {
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
+    // The context caption: "{count} accessible flocks · {range}" — the count
+    // is the same 3 the other panels' fixture already assumes.
+    expect(screen.getByText(/^3 accessible flocks · /)).toBeInTheDocument();
+  });
+
+  // The explicit test the fidelity round asked for: the trigger's own
+  // accessible name tracks the scope, not just the visible text.
+  it("the selector's accessible name reflects the scope after a pick", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
+    await waitForPickerToClose();
+    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+  });
+
+  // #918 P2 review — an independent reviewer found that reopening the picker
+  // after a pick marked NOTHING as the active scope: the previously picked
+  // flock's own row read `aria-selected="false"` and the pinned "All flocks"
+  // choice read `aria-pressed="false"`, because Dashboard never told the
+  // shared engine what was already committed, so it always mounted with
+  // `value=null`. The shared `Dialog` unmounts its children on close (MUI's
+  // default `keepMounted={false}`), so every reopen is a genuinely fresh
+  // engine mount — this is not a live-update bug, it is a missing seed at
+  // mount time. Both states are covered: a specific flock, and All flocks.
+  it("marks the previously picked flock as the active option when the picker is reopened", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    const reopened = await openPicker(user);
+    const f2Row = within(reopened).getByText("Flock f2").closest("li");
+    expect(f2Row).toHaveAttribute("aria-selected", "true");
+    // The mockup's pinned choice is the OTHER half of the same indicator:
+    // a flock is scoped, so "All flocks" must not also read as active.
+    expect(screen.getByRole("button", { name: /^All flocks/ })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("marks All flocks as the active choice when the picker is reopened after clearing a flock pick", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    // Scope to a flock first, so reopening after picking All flocks again is
+    // a genuine transition back, not just the untouched default scope.
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    await openPicker(user);
+    await user.click(screen.getByRole("button", { name: /^All flocks/ }));
+    await waitForPickerToClose();
+
+    const reopened = await openPicker(user);
+    expect(screen.getByRole("button", { name: /^All flocks/ })).toHaveAttribute("aria-pressed", "true");
+    const f2Row = within(reopened).getByText("Flock f2").closest("li");
+    expect(f2Row).toHaveAttribute("aria-selected", "false");
+  });
+
+  // #918 P2 review — the fix threads the committed flock through
+  // `controlledCommitted`, which is also how every other `FlockPicker`
+  // caller in the app pre-fills the search field with the committed name on
+  // open (#735's own focus effect then select-alls it). That is the
+  // documented, standard behaviour for a controlled picker, but it was
+  // never exercised for THIS screen, whose bespoke predecessor forced the
+  // field blank on every open. Asserted directly against the real `<input>`
+  // rather than assumed: the search box DOES seed with the flock's name,
+  // exactly as Daily Entry's/Expenses' own committed pickers already do —
+  // and the RESULTS are not narrowed by it, because the engine's discovery
+  // query is a separate field the sync never touches.
+  it("seeds the reopened search field with the committed flock's name, matching every other FlockPicker caller — and does not narrow the results by it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    const reopened = await openPicker(user);
+    expect(screen.getByRole("combobox", { name: "Search accessible flocks" })).toHaveValue("Flock f2");
+    // Still the full, unfiltered list — not narrowed to matches of "Flock f2".
+    expect(within(reopened).getByText("Flock f1")).toBeInTheDocument();
+  });
+
+  // #918 P2 review — seeding `controlledCommitted` (above) makes the shared
+  // engine's own footer "Clear" link appear once a flock is scoped, which it
+  // never did before (the link is gated on a non-null committed entity, and
+  // Dashboard never had one). Left unwired, clicking it would reset the
+  // ENGINE's own internal selection without touching Dashboard's `scope`,
+  // reopening a version of the same desync this fix closes — so `onClear` is
+  // wired to the identical reset "All flocks" already performs.
+  it("treats the newly-visible Clear link the same as picking All flocks", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const firstOpen = await openPicker(user);
+    await user.click(within(firstOpen).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    await openPicker(user);
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await waitForPickerToClose();
+    expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
+  });
+
+  // The mockup's #allChoice sits ABOVE .choices, never a row inside it.
+  it("keeps the All flocks choice outside the scrolling results list", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    const listbox = await openPicker(user);
+    const allFlocksChoice = screen.getByRole("button", { name: /^All flocks/ });
+    expect(within(listbox).queryByText(/^All flocks/)).toBeNull();
+    expect(listbox.contains(allFlocksChoice)).toBe(false);
+  });
+
+  it("renders the strip's three-item legend, Complete/Partial/No entry", async () => {
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
+    const items = within(trendPanel).getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual(["Complete", "Partial", "No entry"]);
+  });
+
+  // Mockup DOM order: scope, context, scale+dock+strip+rule+legend, THEN the
+  // hen-day KPI — moved from the top of the card to the bottom.
+  it("renders the hen-day KPI after the strip, not before it", async () => {
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    const strip = await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
+    const kpi = trendPanel.querySelector(".trend-kpi");
+    expect(kpi).not.toBeNull();
+    expect(strip.compareDocumentPosition(kpi!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("scopes the whole card to a picked flock, then back to All flocks — never touching the other panels", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    mockReport.mockClear();
+    mockEntries.mockClear();
+
+    const listbox = await openPicker(user);
+    // Scoped to the listbox: "Flock f2" also names the Today row's own
+    // link, ambiguous under a plain, unscoped query.
+    await user.click(within(listbox).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 14), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
+    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+    // Today's collection panel does not refetch on a Lay rate scope change.
+    expect(mockEntries).not.toHaveBeenCalled();
+
+    mockReport.mockClear();
+    await openPicker(user);
+    await user.click(screen.getByRole("button", { name: /^All flocks/ }));
+    await waitForPickerToClose();
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
+    expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
+  });
+
+  // #918 — Codex review, P2-1. `yesterdayByClose` (Morning collection's own
+  // caption) used to derive from the SAME scoped `trend` the Lay rate card
+  // reads, so picking a flock changed a DIFFERENT panel's figure — the exact
+  // violation SELECTION.md's "Other dashboard panels do not change" names.
+  // The prior "never touching the other panels" test above only asserted
+  // that `mockEntries` was not REFETCHED; it never read the Morning
+  // collection panel's own DISPLAYED figure, so it passed on the buggy code.
+  // This asserts the rendered caption directly, before and after a pick.
+  it("keeps the Morning collection panel's yesterday caption farm-wide when a flock is scoped", async () => {
+    const user = userEvent.setup();
+    // The always-farm-wide single-day fetch (300) is deliberately the ONLY
+    // thing this test controls — the scoped trend fetch itself falls
+    // through to the default fixture regardless of which flock is picked,
+    // because this test's claim is about the OTHER panel entirely.
+    mockReport.mockImplementation((from, to) => {
+      if (from === to) return Promise.resolve(report(null, [day(daysBefore(today, 1), 300)]));
+      return reportByWindow(today)(from, to);
+    });
+
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(await screen.findByText("Yesterday by close: 300")).toBeInTheDocument();
+
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
+    await waitForPickerToClose();
+    await waitFor(() => expect(selectorButton()).toHaveAccessibleName("Flock Flock f2"));
+
+    // FAILING BEFORE THE FIX: the caption used to read "Yesterday by close:
+    // 100" here — f2's own scoped figure — instead of the untouched 300.
+    expect(screen.getByText("Yesterday by close: 300")).toBeInTheDocument();
+  });
+
+  // #918 — Codex review, P3-5. `listFlocks` caps at MAX_PAGE (500); a farm
+  // with 501 accessible flocks reads as exactly 500 both in the context
+  // caption and the picker's own pinned "All flocks" choice, presenting a
+  // truncated count as if it were exact.
+  it("presents the accessible count as a lower bound, not exact, once the flock list is truncated at MAX_PAGE", async () => {
+    const user = userEvent.setup();
+    mockFlocks.mockResolvedValue(Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active")));
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(await screen.findByText(/^500\+ accessible flocks · /)).toBeInTheDocument();
+    expect(screen.queryByText(/^500 accessible flocks · /)).not.toBeInTheDocument();
+
+    await openPicker(user);
+    expect(screen.getByText("500+ accessible flocks")).toBeInTheDocument();
+  });
+
+  // #916 SELECTION.md — the only-one-flock view must report the SAME figures
+  // as picking that flock out of a longer list: both derive `flockId` through
+  // the identical code path (`soleFlockId` folds into the picker's own
+  // scope), so this pins the observable half of that parity — the exact same
+  // `getProductionReport` call, not a second "just show everything" branch.
+  it("shows the sole accessible flock as plain text, with no picker, and scopes to it exactly as a manual pick would", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    expect(within(trendPanel).getByText("Flock f1")).toBeInTheDocument();
+    expect(within(trendPanel).queryByRole("button", { name: /All flocks/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button").some((b) => b.getAttribute("aria-haspopup") === "dialog")).toBe(false);
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 14), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
+  });
+
+  // #918 — Codex review, finding 3. `cancelled` is what stops a stale scope's
+  // late response from overwriting a newer one; nothing in the suite
+  // exercised the race directly. Mutation-verified: deleting the `if
+  // (cancelled) return;` line in Dashboard.tsx's trend effect turns this red
+  // (the stale "all flocks" figures land last and overwrite "Flock f2"'s),
+  // confirmed locally then reverted.
+  it("keeps the newer scope's figures when an older scope's request resolves later", async () => {
+    const user = userEvent.setup();
+    // `from !== to` excludes the Morning collection panel's own single-day
+    // yesterday-close fetch, which also carries no flockId and is left
+    // pending forever here — irrelevant to this race, harmless unresolved.
+    const pending: { from: string; to: string; flockId: string | undefined; resolve: (r: ProductionReport) => void }[] = [];
+    mockReport.mockImplementation((from, to, flockId) => new Promise((resolve) => {
+      pending.push({ from, to, flockId, resolve });
+    }));
+
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    // The initial "all flocks" scope's ONE combined 14-day request (#918).
+    await waitFor(() => expect(pending.filter((p) => p.flockId === undefined && p.from !== p.to)).toHaveLength(1));
+    const allRequest = pending.filter((p) => p.flockId === undefined && p.from !== p.to)[0]!;
+
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
+    await waitForPickerToClose();
+    await waitFor(() => expect(pending.filter((p) => p.flockId === "f2")).toHaveLength(1));
+    const f2Request = pending.filter((p) => p.flockId === "f2")[0]!;
+
+    // The NEWER scope (f2) resolves first, as it would for an ordinary fast
+    // response landing after a slow stale one is already in flight.
+    f2Request.resolve(fortnightFor(today));
+    await screen.findByText("87.4%"); // fortnightFor's current-week hen-day figure
+
+    // The STALE "all flocks" request resolves late, with a figure that would
+    // be obviously wrong if it landed. Its own AbortController is already
+    // aborted by the scope change, so this settlement is dropped before it
+    // is ever split or rendered — proving the abort, not just a stale value.
+    allRequest.resolve(report(1.2, [day("2026-01-01", 1)]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.getByText("87.4%")).toBeInTheDocument();
+    expect(screen.queryByText("1.2%")).not.toBeInTheDocument();
+    expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+  });
+
+  // #918 — Codex review, P2-3. A superseded production request used to be
+  // merely IGNORED (the `cancelled` flag), not cancelled — it stayed in
+  // flight and could hold one of the account's report-concurrency permits
+  // until it timed out on its own. Mutation-verified: reverting the trend
+  // effect's cleanup to a bare `cancelled = true` flag (no `controller.abort()`)
+  // turns this red, confirmed locally then reverted.
+  it("aborts a superseded production request on a scope change, rather than only ignoring its result", async () => {
+    const user = userEvent.setup();
+    const signals: AbortSignal[] = [];
+    mockReport.mockImplementation((_from, _to, _flockId, signal) => {
+      if (signal) signals.push(signal);
+      return new Promise<ProductionReport>(() => {}); // never settles; only `signal.aborted` is under test
+    });
+
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    await waitFor(() => expect(signals).toHaveLength(1)); // the initial "all flocks" scope's one combined request
+
+    const listbox = await openPicker(user);
+    await user.click(within(listbox).getByText("Flock f2"));
+    await waitForPickerToClose();
+
+    // FAILING BEFORE THE FIX: this stayed unaborted, sitting in flight.
+    await waitFor(() => expect(signals[0]!.aborted).toBe(true));
+  });
+
+  // #916 review — the picker's own discovery mechanics (server paging,
+  // debounce timing, stale-response rejection) are the shared engine's,
+  // already covered by NamedEntityPicker.test.tsx/namedEntityPicker.p1.test.tsx.
+  // What stays here is WIRING: the dialog renders when triggered and a pick
+  // updates the card, already covered by "scopes the whole card to a picked
+  // flock..." above.
+
+  // #918 — Codex review, round 3, finding 2. `trendOutcomeRef`/`panelsOutcomeRef`
+  // used to keep the FIRST-EVER outcome, so an early total failure raised a
+  // permanent page error even once a later refresh (a role change flipping
+  // `canSeeSales`, the same trigger the code comment names) produced a fresh
+  // success. Both are now keyed by `loadGenRef`, bumped once per genuine new
+  // load. Mounts Dashboard directly under a hand-built AuthContext so the
+  // SAME mounted component sees the role change, rather than a fresh mount
+  // that would reset every ref and prove nothing about staleness.
+  it("clears a page-level error once a later refresh succeeds — the rollover case", async () => {
+    for (const m of [mockFlocks, mockEntries, mockStock, mockReport]) m.mockImplementation(boom);
+    const { rerender } = render(
+      <MemoryRouter>
+        <AuthOverride role="ReadOnly"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
+
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockResolvedValue([]);
+    mockStock.mockResolvedValue(STOCK);
+    mockOrders.mockResolvedValue([]);
+    mockReport.mockImplementation(reportByWindow(today));
+    rerender(
+      <MemoryRouter>
+        <AuthOverride role="Admin"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument());
+    expect(await screen.findByText("87.4%")).toBeInTheDocument();
+  });
+
+  // #918 — Codex review, round 4, finding 2. The rollover test above changes
+  // the ROLE alone, but its second generation also happens to drop to a sole
+  // flock — which changes `soleFlockId` too, and that alone was already
+  // enough to rerun the trend effect before this fix. This test holds THREE
+  // flocks across both generations, so `soleFlockId` stays null throughout
+  // and `canSeeSales` is the only thing that changes: without `canSeeSales`
+  // in the trend effect's own deps, no trend outcome is ever recorded for
+  // the second generation, and a genuine total failure there is silently
+  // swallowed rather than reported. Mutation-verified: dropping
+  // `canSeeSales` from that effect's dependency array turns this red
+  // (the error never appears), confirmed locally then reverted.
+  it("reruns production on a role change alone, so a genuine total failure in the new generation is still reported", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active"), flock("f2", "Active"), flock("f3", "Active")]);
+    mockEntries.mockResolvedValue([]);
+    mockStock.mockResolvedValue(STOCK);
+    mockOrders.mockResolvedValue([]);
+    mockReport.mockImplementation(reportByWindow(today));
+    const { rerender } = render(
+      <MemoryRouter>
+        <AuthOverride role="Admin"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("87.4%")).toBeInTheDocument(); // healthy first generation
+
+    for (const m of [mockFlocks, mockEntries, mockStock, mockReport]) m.mockImplementation(boom);
+    rerender(
+      <MemoryRouter>
+        <AuthOverride role="ReadOnly"><Dashboard /></AuthOverride>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
+  });
+
+  // #918 — Codex review, round 3, finding 4. A failed flock-list read used to
+  // render as "0 accessible flocks" / "No matching flocks" — indistinguishable
+  // from a genuinely empty farm. It now shows the existing panel-error
+  // pattern with a Retry that re-issues only this read.
+  it("shows the flock list as unavailable, not an empty farm, when the flock read fails; Retry recovers it", async () => {
+    const user = userEvent.setup();
+    mockFlocks.mockRejectedValueOnce(new Error("down"));
+    renderWithProviders(<Dashboard />);
+    const trendPanel = await panel("Last 14 days");
+    expect(await within(trendPanel).findByText("Could not load the flock list.")).toBeInTheDocument();
+    expect(within(trendPanel).queryByText(/accessible flocks ·/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Flock /i })).not.toBeInTheDocument();
+
+    // #918 — Codex review, round 4, finding 4. Retry used to clear
+    // `flocksFailed` the instant it was clicked, before the retried read
+    // settled, so the card briefly rendered the ordinary selector reading
+    // "0 accessible flocks" — indistinguishable from a genuinely empty farm.
+    // A deferred response holds that gap open long enough to assert the
+    // unavailable state (Retry now disabled, showing the shared "loading"
+    // label) stays up across it.
+    let resolveRetry: ((f: Flock[]) => void) | null = null;
+    mockFlocks.mockImplementationOnce(() => new Promise((resolve) => { resolveRetry = resolve; }));
+    await user.click(within(trendPanel).getByRole("button", { name: "Retry" }));
+
+    expect(within(trendPanel).getByText("Could not load the flock list.")).toBeInTheDocument();
+    const retryButton = within(trendPanel).getByRole("button", { name: "Loading…" });
+    expect(retryButton).toBeDisabled();
+    expect(within(trendPanel).queryByText(/accessible flocks ·/)).not.toBeInTheDocument();
+
+    resolveRetry!([flock("f1", "Active"), flock("f2", "Active"), flock("f3", "Active")]);
+    expect(await within(trendPanel).findByText(/^3 accessible flocks · /)).toBeInTheDocument();
+    expect(within(trendPanel).queryByText("Could not load the flock list.")).not.toBeInTheDocument();
   });
 });
 
@@ -636,17 +1153,16 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     expect(screen.queryByText("Today so far")).not.toBeInTheDocument();
     await expectOthersIntact("today");
   });
-  it("current-week report failed → trend panel errors, others intact", async () => {
-    mockReport.mockImplementation((from, to) => (to === daysBefore(today, 1) ? boom() : reportByWindow(today)(from, to)));
+  // #918 — Codex review: the current and previous weeks used to be two
+  // separate requests, each independently failable; folding them into one
+  // `daysBefore(today,14)..daysBefore(today,1)` call means a production
+  // failure now always fails BOTH weeks together, so there is only one
+  // failure mode left to test, not two.
+  it("the production report failed → trend panel errors, others intact", async () => {
+    mockReport.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(within(await panel("Last 14 days")).getByText("Could not load.")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    await expectOthersIntact("trend");
-  });
-  it("previous-week report failed → trend panel errors, others intact", async () => {
-    mockReport.mockImplementation((from, to) => (to === daysBefore(today, 8) ? boom() : reportByWindow(today)(from, to)));
-    renderWithProviders(<Dashboard />, asSales);
-    expect(within(await panel("Last 14 days")).getByText("Could not load.")).toBeInTheDocument();
     expect(screen.queryByText(/Hen-day/)).not.toBeInTheDocument();
     await expectOthersIntact("trend");
   });
@@ -669,6 +1185,55 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     renderWithProviders(<Dashboard />, asSales);
     expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
     expect(screen.queryByText("Could not load.")).not.toBeInTheDocument();
+  });
+
+  // #918 — Codex review, finding 2. The production report became its own
+  // effect (#916) so a scope change never re-fetches the other four; the
+  // page-level "everything failed" gate has to keep watching BOTH effects,
+  // or a farm where only the four failed would hide an already-loaded Lay
+  // rate card behind the full-page error the four alone used to justify.
+  it("the OTHER four failing does not hide a Lay rate card the production report loaded successfully", async () => {
+    for (const m of [mockFlocks, mockEntries, mockStock, mockOrders]) m.mockImplementation(boom);
+    renderWithProviders(<Dashboard />, asSales);
+    // The page itself renders — not the full-page error — and the Lay rate
+    // card carries real, successfully-fetched figures.
+    expect(await screen.findByText("87.4%")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument();
+    // The four that genuinely failed still show their own panel errors —
+    // "degrades one panel at a time" holds even when three of the four are
+    // the SAME failure.
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
+    expect(within(await panel("Stock")).getByText("Could not load.")).toBeInTheDocument();
+  });
+
+  // #918 — Codex review, P2-2. `fetchFlocks` (Retry) updated `flocks`/
+  // `flocksFailed` but never the panels outcome, so the ORIGINAL "all four
+  // panels failed" record survived a successful retry. Sequence: all four
+  // panel reads fail while both production reads succeed (the setup above)
+  // → Retry succeeds with a single flock → the auto-triggered sole-flock
+  // production read then fails → the stale record used to make the
+  // page-level gate hide the entire dashboard, including the selector that
+  // had just recovered. Mutation-verified: dropping `fetchFlocks`'s
+  // `setPanelsOutcome({state:"someOk"})` turns this red (the full-page
+  // message reappears), confirmed locally then reverted.
+  it("keeps the recovered dashboard up after Retry, even when the auto-triggered sole-flock production read then fails", async () => {
+    const user = userEvent.setup();
+    for (const m of [mockFlocks, mockEntries, mockStock, mockOrders]) m.mockImplementation(boom);
+    renderWithProviders(<Dashboard />, asSales);
+    expect(await screen.findByText("87.4%")).toBeInTheDocument(); // the setup above's own healthy state
+    const trendPanel = await panel("Last 14 days");
+    await within(trendPanel).findByText("Could not load the flock list.");
+
+    mockFlocks.mockResolvedValueOnce([flock("f1", "Active")]); // Retry recovers exactly one flock
+    mockReport.mockImplementation(boom); // the auto-triggered sole-flock read then fails
+    await user.click(within(trendPanel).getByRole("button", { name: "Retry" }));
+
+    // FAILING BEFORE THE FIX: the whole dashboard used to disappear behind
+    // "Could not load dashboard..." here, hiding the selector that just
+    // recovered.
+    await waitFor(() => expect(within(trendPanel).getByText("Could not load.")).toBeInTheDocument());
+    expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument();
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
   });
 
   it("every issued fetch failed for a ReadOnly user too — the inert sales placeholder does not count as a success", async () => {
@@ -789,8 +1354,7 @@ describe("Dashboard follows the farm's day and locale", () => {
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
     expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
-    expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21");
-    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14");
+    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-21", undefined, expect.any(AbortSignal));
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
     expect(screen.getByText("+2,3 pts")).toBeInTheDocument();
