@@ -158,10 +158,9 @@ test.describe("Dashboard Lay rate flock scope", () => {
       if (url.includes("/reports/production") && url.includes("flockId=")) scopedReports.push(url);
     });
 
-    // The flock id comes from the server, not a DOM attribute minted for the
-    // test: `flocks` here is already-loaded, page-scoped data (#918's search
-    // is a client-side filter over it, not a new discovery request), so a
-    // second authenticated read resolves the same name to the same id.
+    // The expected id is resolved independently, from the server's own flock
+    // list rather than scraped out of the DOM — so the assertion below compares
+    // the request's `flockId` against a value the page never supplied.
     const ownerTokenForId = await signInForToken(owner());
     const accessible = await apiGet<Array<{ id: string; name: string }>>(ownerTokenForId, "/flocks?limit=500");
     const flockId = accessible.find((f) => f.name === FIXTURE_FLOCK)?.id;
