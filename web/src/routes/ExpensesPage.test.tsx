@@ -114,12 +114,12 @@ const pickAddFlock = async (name: RegExp) => {
   fireEvent.click(await screen.findByRole("option", { name }));
 };
 
-// Ready = both mount effects settled: the expenses load stamps the currency into
-// the amount label, and the categories load enables the (else-disabled) submit.
 function pageHeader() {
   return within(screen.getByRole("heading", { name: "Expenses", level: 2 }).closest("header")!);
 }
 
+// Ready = both mount effects settled: the expenses load stamps the currency into
+// the amount label, and the categories load enables the (else-disabled) submit.
 async function renderReady(currencyCode = "USD", token: Record<string, unknown> = ADMIN) {
   renderWithProviders(<ExpensesPage />, { token });
   await screen.findByLabelText(new RegExp(`Amount \\(${currencyCode}\\)`));

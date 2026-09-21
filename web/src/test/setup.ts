@@ -1,7 +1,4 @@
-// Vitest setup — runs once before each test file.
-// Registers jest-dom matchers (.toBeInTheDocument etc.) on Vitest's expect and
-// unmounts any rendered React tree after each test so in-memory token / role
-// state set in one case never bleeds into the next.
+// Own cleanup so the cell-style guard inspects the DOM before RTL unmounts it.
 import "@testing-library/react/dont-cleanup-after-each";
 import "@testing-library/jest-dom/vitest";
 import i18n from "../i18n"; // initialise the i18next singleton so t()/useTranslation work

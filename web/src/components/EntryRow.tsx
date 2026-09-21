@@ -14,6 +14,8 @@ export const STEPPER_SX = {
     width: "calc(5ch + 1.5rem)",
   },
 } as const;
+// History stacks labels above steppers on phones to avoid dialog clipping (#831).
+// Daily Entry retains its own beside-field layout and primary/event variants.
 export function EntryRow({
   htmlFor, label, caption, groupLabel, armed = false, dropProps, children,
 }: {
