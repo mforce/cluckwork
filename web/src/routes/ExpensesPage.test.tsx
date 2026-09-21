@@ -1,6 +1,7 @@
 import { responsiveStyle } from "../test/renderedStyle";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ExpensesPage } from "./ExpensesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { findRowByCellText, getRowByCellText } from "../test/rows";
@@ -1291,6 +1292,78 @@ describe("ExpensesPage messages that had nowhere to land (#491)", () => {
 describe("ExpensesPage flock picker (T028/T038)", () => {
   const FLOCK2 = { ...FLOCK, id: "f2", name: "Old Coop", status: "Archived" } as Flock;
 
+  it("correct: opens flock choices only on request and closes on commit, Escape and outside click", async () => {
+    const user = userEvent.setup();
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    mockListExpenses.mockResolvedValue({ items: [{ ...EXP_BHD, flockId: "f1" }], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    await user.click(await screen.findByRole("button", { name: "correct" }));
+    const dialog = screen.getByRole("dialog");
+    const field = () => within(dialog).getByLabelText("Flock (optional)", { selector: "input" });
+    await waitFor(() => expect(field()).toHaveValue("Hen House 1"));
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+    expect(field()).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(field());
+    await user.click(await within(dialog).findByRole("option", { name: /Old Coop/ }));
+    expect(field()).toHaveValue("Old Coop");
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+    await user.click(field());
+    await within(dialog).findByRole("listbox");
+    await user.keyboard("{Escape}");
+    expect(dialog).toBeVisible();
+    expect(field()).toHaveValue("Old Coop");
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+
+    await user.click(field());
+    await within(dialog).findByRole("listbox");
+    await user.click(within(dialog).getByLabelText("Description"));
+    expect(field()).toHaveValue("Old Coop");
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("correct: resolves an archived flock while collapsed without discovering options", async () => {
+    const exact = deferred<Flock>();
+    mockGetFlock.mockReturnValue(exact.promise);
+    mockListExpenses.mockResolvedValue({ items: [{ ...EXP_BHD, flockId: "f2" }], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: "correct" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save correction" })).toBeDisabled();
+    await waitFor(() => expect(mockGetFlock).toHaveBeenCalledWith("f2"));
+    await act(async () => exact.resolve(FLOCK2));
+    expect(within(dialog).getByLabelText("Flock (optional)", { selector: "input" })).toHaveValue("Old Coop");
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save correction" })).toBeEnabled();
+    expect(mockListFlocks).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["replace", "clear"] as const)("correct: %s the resolved archived flock without restoring its old identity", async (action) => {
+    const user = userEvent.setup();
+    const expense = { ...EXP_BHD, flockId: "f2" };
+    mockGetFlock.mockResolvedValue(FLOCK2);
+    mockListExpenses.mockResolvedValue({ items: [expense], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockAdjustExpense.mockResolvedValue({ ...expense, version: 2 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    await user.click(await screen.findByRole("button", { name: "correct" }));
+    const dialog = screen.getByRole("dialog");
+    const field = () => within(dialog).getByLabelText("Flock (optional)", { selector: "input" });
+    await waitFor(() => expect(field()).toHaveValue("Old Coop"));
+    await user.click(field());
+    if (action === "replace") {
+      await user.click(await within(dialog).findByRole("option", { name: /Hen House 1/ }));
+      await waitFor(() => expect(field()).toHaveValue("Hen House 1"));
+    } else {
+      await user.click(await within(dialog).findByRole("button", { name: "Clear" }));
+    }
+    const save = within(dialog).getByRole("button", { name: "Save correction" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+    expect(mockAdjustExpense).toHaveBeenCalledWith("e1", expect.objectContaining({ flockId: action === "replace" ? "f1" : null }), expect.any(String));
+    expect(mockGetFlock).toHaveBeenCalledTimes(1);
+  });
+
   it("record expense: a valid BLANK optional selection still submits (flockId null)", async () => {
     mockCreateExpense.mockResolvedValue({ id: "e-new" });
     await renderReady("USD");
@@ -1358,7 +1431,7 @@ describe("ExpensesPage flock picker (T028/T038)", () => {
 
     // Admitted straight from the mount list — the trigger shows it immediately.
     const dialog = screen.getByRole("dialog");
-    await screen.findByText("Hen House 1");
+    await waitFor(() => expect(within(dialog).getByLabelText("Flock (optional)", { selector: "input" })).toHaveValue("Hen House 1"));
     const save = within(dialog).getByRole("button", { name: "Save correction" });
     await waitFor(() => expect(save).toBeEnabled());
     await act(async () => { fireEvent.click(save); });

@@ -151,15 +151,12 @@ export function ExpensesPage() {
   // `editFlockEntity` is the FULL entity (committed from the mount list, from
   // the exact GET, or from a user pick); `editFlockId` holds only an id that
   // the picker has not resolved yet. A blank row owns neither (account-wide).
+  const [editFlockPickerOpen, setEditFlockPickerOpen] = useState(false);
   const [editFlockEntity, setEditFlockEntity] = useState<Flock | null>(null);
   // The row-owned id while it is unresolved (archived / outside the window);
   // null once committed, cleared, or when the row owns no flock.
   const [editFlockId, setEditFlockId] = useState<string | null>(null);
-  // The row-owned id that startEdit handed over — the page-side mirror of
-  // `editFlockId`, frozen at open time: it keeps the engine's requestedId
-  // effect pinned to that exact identity even if the user's CLEAR commits a
-  // different flock in the meantime (the engine resolves the REQUESTED id,
-  // never the current selection).
+  // #512: resolve the saved identity until a user replaces or clears it.
   const [editRequestedId, setEditRequestedId] = useState<string | null>(null);
   const [editFlockGen, setEditFlockGen] = useState(0);
   // HONEST initial state: a blank row's picker needs no exact read, so its
@@ -362,6 +359,7 @@ export function ExpensesPage() {
   // values; ending the session there would gate off the very report the
   // rebind is about to make.
   function startEdit(x: Expense) {
+    setEditFlockPickerOpen(false);
     setEditing(x);
     setEditDate(x.date);
     setEditCategory(x.expenseCategoryId);
@@ -417,6 +415,7 @@ export function ExpensesPage() {
   // still out, so a late failure lands nowhere, and ends the session, so a
   // late success cannot act on the dialog the user opens next.
   function closeEdit() {
+    setEditFlockPickerOpen(false);
     dismissDialog("edit");
     setEditing(null);
     setEditFlockEntity(null);
@@ -808,13 +807,16 @@ export function ExpensesPage() {
               onChange={(e) => setEditAmount(e.target.value)}
             />
             {/* Resolve the saved flock by ID, including archived flocks outside discovery. */}
-            <Box>
+            <Box onKeyDown={(event) => {
+              // Let the picker cancel exploration before suppressing the dialog's Escape.
+              if (event.key === "Escape" && editFlockPickerOpen) event.stopPropagation();
+            }}>
               <FlockPicker
                 label={t("flockOptionalLabel")}
                 eligibility="all"
                 required={false}
-                // Discovery needs an open picker; this dialog owns its visibility and dismissal.
-                open={true}
+                // #512: exact-ID resolution works while collapsed; only discovery needs an open list.
+                open={editFlockPickerOpen}
                 controlledCommitted={editFlockEntity}
                 controlledGeneration={editFlockGen}
                 requestedId={editRequestedId}
@@ -826,23 +828,28 @@ export function ExpensesPage() {
                   }
                 }}
                 onCommit={(f) => {
+                  setEditFlockPickerOpen(false);
                   setEditFlockEntity(f);
+                  setEditRequestedId(f.id);
                   setEditFlockId(null);
                   setEditFlockGen((g) => g + 1);
                 }}
                 onClear={() => {
+                  setEditFlockPickerOpen(false);
+                  setEditRequestedId(null);
                   setEditFlockEntity(null);
                   setEditFlockId(null);
                   setEditFlockGen((g) => g + 1);
                 }}
-                onEscape={() => {}}
-                onOutsideClick={() => {}}
+                onEscape={() => setEditFlockPickerOpen(false)}
+                onOutsideClick={() => setEditFlockPickerOpen(false)}
                 trigger={
-                  <span className="named-picker-trigger">{editFlockEntity
+                  <button type="button" className="named-picker-trigger"
+                    onClick={() => setEditFlockPickerOpen(true)}>{editFlockEntity
                       ? editFlockEntity.name
                       : editFlockId !== null && editFlockSnapshot.selectionPhase === "unavailable"
                         ? t("flockUnavailable")
-                        : t("noneOption")}</span>
+                        : t("noneOption")}</button>
                 }
               />
             </Box>
