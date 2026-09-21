@@ -629,8 +629,18 @@ export function StockPage() {
           demotion can't leave a stale dialog open. */}
       {writeOffLot !== null && (
         <Dialog open={isAdmin} title={t("writeOffDialogTitle", { date: fmt.date(writeOffLot.productionDate) })}
-          onClose={closeWriteOff}>
-          <Stack component="form" spacing={2} onSubmit={(e) => void onWriteOff(e)}>
+          onClose={closeWriteOff}
+          actions={(
+            <DialogActions>
+              <button type="button" className="link" onClick={closeWriteOff}>{tc("cancel")}</button>
+              <BusyButton type="submit" busy={isPending("write-off")} disabled={busy}>
+                {t("writeOffSubmitButton")}
+              </BusyButton>
+            </DialogActions>
+          )}
+          formProps={{ onSubmit: (e) => void onWriteOff(e) }}
+        >
+          <Stack spacing={2}>
             <TextField
               select
               label={t("writeOffTypeLabel")}
@@ -678,12 +688,6 @@ export function StockPage() {
                 which this bare paragraph never carried (deliberate
                 improvement, not a behavior this conversion is fixing). */}
             <DialogError errors={errors} scope="write-off" />
-            <DialogActions>
-              <button type="button" className="link" onClick={closeWriteOff}>{tc("cancel")}</button>
-              <BusyButton type="submit" busy={isPending("write-off")} disabled={busy}>
-                {t("writeOffSubmitButton")}
-              </BusyButton>
-            </DialogActions>
           </Stack>
         </Dialog>
       )}

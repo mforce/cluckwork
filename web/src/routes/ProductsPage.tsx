@@ -313,8 +313,16 @@ export function ProductsPage() {
       {errors.page && <p className="error" role="alert">{errors.page}</p>}
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title={t("newProductDialogTitle")} onClose={closeCreate}>
-        <Stack component="form" spacing={2} onSubmit={(e) => void onCreate(e)}>
+      <Dialog open={creating && isAdmin} title={t("newProductDialogTitle")} onClose={closeCreate}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
+            <BusyButton disabled={busy} busy={isPending("create")}>{t("addProductButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: (e) => void onCreate(e) }}
+      >
+        <Stack spacing={2}>
           <TextField
             label={t("nameLabel")}
             value={name}
@@ -360,18 +368,23 @@ export function ProductsPage() {
             slotProps={{ htmlInput: { maxLength: 500 } }}
           />
           <DialogError errors={errors} scope="create" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton disabled={busy} busy={isPending("create")}>{t("addProductButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
-      <Dialog open={editingProduct !== null && isAdmin} title={t("editProductDialogTitle")} onClose={closeEdit}>
+      <Dialog open={editingProduct !== null && isAdmin} title={t("editProductDialogTitle")} onClose={closeEdit}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={isPending("edit")}>{tc("save")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: (e) => void onSaveEdit(e), noValidate: true }}
+      >
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — the price parser's own message
             ("At most N decimal places for this currency") did. */}
-        <Stack component="form" spacing={2} noValidate onSubmit={(e) => void onSaveEdit(e)}>
+        <Stack spacing={2}>
           <TextField
             label={t("nameLabel")}
             value={editName}
@@ -412,11 +425,6 @@ export function ProductsPage() {
           {/* No notes field: the inline edit had none, and #131 changes shape,
               not capability. editNotes stays seeded so the body round-trips. */}
           <DialogError errors={errors} scope="edit" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              busy={isPending("edit")}>{tc("save")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -424,8 +432,16 @@ export function ProductsPage() {
         open={editingConv !== null && isAdmin}
         title={editingConv ? t("eggsPerUnit", { unitCode: editingConv.unitCode }) : t("packedUnitDialogTitle")}
         onClose={closeEditConversion}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeEditConversion}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={isPending("edit-conversion")}>{tc("save")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: (e) => void onSaveConversion(e), noValidate: true }}
       >
-        <Stack component="form" spacing={2} noValidate onSubmit={(e) => void onSaveConversion(e)}>
+        <Stack spacing={2}>
           {/* #250: sibling label, not wrapping — a <label> may not contain
               interactive content other than its own control, and the stepper
               carries two buttons. NumberField itself is out of this slice's
@@ -440,11 +456,6 @@ export function ProductsPage() {
             control={<Checkbox checked={editConvActive} onChange={(e) => setEditConvActive(e.target.checked)} />}
           />
           <DialogError errors={errors} scope="edit-conversion" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEditConversion}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              busy={isPending("edit-conversion")}>{tc("save")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 

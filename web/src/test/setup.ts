@@ -1,4 +1,4 @@
-// Own cleanup so the cell-style guard inspects the DOM before RTL unmounts it.
+// Own cleanup so the layout guards inspect the DOM before RTL unmounts it.
 import "@testing-library/react/dont-cleanup-after-each";
 import "@testing-library/jest-dom/vitest";
 import i18n from "../i18n"; // initialise the i18next singleton so t()/useTranslation work
@@ -22,6 +22,8 @@ beforeEach(() => {
 
 afterEach(() => {
   const { violations } = ledgerCellStyles(document);
+  const scrollingActions = Array.from(document.querySelectorAll(".MuiDialogContent-root .MuiDialogActions-root"))
+    .map(actions => actions.closest('[role="dialog"]')?.querySelector("h2")?.textContent ?? actions.textContent);
   cleanup();
   vi.unstubAllGlobals();
   clearAccessToken();
@@ -35,4 +37,5 @@ afterEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   expect(violations, "Field Console cell emphasis").toEqual([]);
+  expect(scrollingActions, "Dialog actions must stay outside scrolling content").toEqual([]);
 });

@@ -184,8 +184,16 @@ export function GradesPage() {
       </p>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title={t("newGradeDialogTitle")} onClose={closeCreate}>
-        <Stack component="form" spacing={2} onSubmit={onCreate}>
+      <Dialog open={creating && isAdmin} title={t("newGradeDialogTitle")} onClose={closeCreate}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
+            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addGradeButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onCreate }}
+      >
+        <Stack spacing={2}>
           <TextField
             label={t("nameLabel")}
             value={name}
@@ -213,17 +221,23 @@ export function GradesPage() {
             control={<Checkbox checked={isSaleable} onChange={(e) => setIsSaleable(e.target.checked)} />}
           />
           <DialogError errors={errors} scope="create" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addGradeButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
-      <Dialog open={editingId !== null && isAdmin} title={t("editGradeDialogTitle")} onClose={closeEdit}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editGradeDialogTitle")} onClose={closeEdit}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
+            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
+              {tc("save")}
+            </BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSaveEdit, noValidate: true }}
+      >
         {/* noValidate: the row's save used to be a plain button, so native
             constraint validation never ran on these fields. */}
-        <Stack component="form" spacing={2} noValidate onSubmit={onSaveEdit}>
+        <Stack spacing={2}>
           <TextField
             label={t("editNameLabel")}
             value={editName}
@@ -242,12 +256,6 @@ export function GradesPage() {
             control={<Checkbox checked={editSaleable} onChange={(e) => setEditSaleable(e.target.checked)} />}
           />
           <DialogError errors={errors} scope="edit" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
-              {tc("save")}
-            </BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 

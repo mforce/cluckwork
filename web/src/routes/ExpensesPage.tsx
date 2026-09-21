@@ -597,8 +597,16 @@ export function ExpensesPage() {
               </button>
             </Stack>
 
-            <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={closeAddCategory}>
-              <Stack component="form" spacing={2} onSubmit={onAddCategory}>
+            <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={closeAddCategory}
+              actions={(
+                <DialogActions>
+                  <button type="button" className="link" onClick={closeAddCategory}>{tc("cancel")}</button>
+                  <BusyButton type="submit" busy={isPending("add-category")} disabled={busy}>{t("addCategoryButton")}</BusyButton>
+                </DialogActions>
+              )}
+              formProps={{ onSubmit: onAddCategory }}
+            >
+              <Stack spacing={2}>
                 <TextField
                   label={t("categoryNameLabel")}
                   value={newCategoryName}
@@ -607,10 +615,6 @@ export function ExpensesPage() {
                   onChange={(e) => setNewCategoryName(e.target.value)}
                 />
                 <DialogError errors={errors} scope="add-category" />
-                <DialogActions>
-                  <button type="button" className="link" onClick={closeAddCategory}>{tc("cancel")}</button>
-                  <BusyButton type="submit" busy={isPending("add-category")} disabled={busy}>{t("addCategoryButton")}</BusyButton>
-                </DialogActions>
               </Stack>
             </Dialog>
 
@@ -753,9 +757,22 @@ export function ExpensesPage() {
         // identity changing pulls focus back to the first field rather than
         // swapping the form out from under the user's cursor.
         focusKey={editing}
+        actions={editing && (
+          <DialogActions>
+            <button type="button" className="link" disabled={busy}
+              onClick={closeEdit}>{tc("cancel")}</button>
+            {/* #512 (T028): canSubmit also gates the visible control; the
+                handler guard above is the real boundary. */}
+            <BusyButton type="submit" busy={isPending("edit")}
+              disabled={busy || !editFlockSnapshot.canSubmit}>
+              {t("saveCorrectionButton")}
+            </BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSaveEdit }}
       >
         {editing && (
-          <Stack component="form" spacing={2} onSubmit={onSaveEdit}>
+          <Stack spacing={2}>
             <TextField
               type="date"
               label={t("dateLabel")}
@@ -838,16 +855,6 @@ export function ExpensesPage() {
             {/* The 409 rebind reports through here, so the conflict banner stays
                 next to the form it is telling you to re-apply. */}
             <DialogError errors={errors} scope="edit" />
-            <DialogActions>
-              <button type="button" className="link" disabled={busy}
-                onClick={closeEdit}>{tc("cancel")}</button>
-              {/* #512 (T028): canSubmit also gates the visible control; the
-                  handler guard above is the real boundary. */}
-              <BusyButton type="submit" busy={isPending("edit")}
-                disabled={busy || !editFlockSnapshot.canSubmit}>
-                {t("saveCorrectionButton")}
-              </BusyButton>
-            </DialogActions>
           </Stack>
         )}
       </Dialog>

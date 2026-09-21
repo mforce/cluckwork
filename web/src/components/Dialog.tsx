@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import {
-  Dialog as MuiDialog, DialogTitle, DialogContent, IconButton, useMediaQuery,
+  Box, Dialog as MuiDialog, DialogTitle, DialogContent, IconButton, useMediaQuery,
 } from "@mui/material";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 
@@ -30,6 +30,12 @@ const FOCUSABLE = [
 
 const focusableIn = (root: HTMLElement | null): HTMLElement[] =>
   root ? Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)) : [];
+
+// Confirmations have no body fields; their initial focus belongs on Cancel.
+const dialogFocusable = (panel: HTMLElement | null): HTMLElement[] => [
+  ...focusableIn(panel?.querySelector(".MuiDialogContent-root") ?? null),
+  ...focusableIn(panel?.querySelector(".MuiDialogActions-root") ?? null),
+];
 
 // focus() is a no-op on a control the browser won't take focus for (disabled,
 // or display:none), and it reports no error — so confirm it landed.
@@ -102,6 +108,10 @@ interface DialogProps {
    * caller that turns it on, because a twenty-link menu needs the height.
    */
   fullScreenOnPhone?: boolean;
+  /** Fixed footer, outside the scrolling body and its picker overlays. */
+  actions?: ReactNode;
+  /** Keeps native validation and Enter submission across the body and footer. */
+  formProps?: Pick<ComponentPropsWithoutRef<"form">, "onSubmit" | "noValidate">;
   children: ReactNode;
 }
 
@@ -217,7 +227,7 @@ function restoreFocusOnClose(
   if (remaining !== null) {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !remaining.panel.contains(active)) {
-      if (!focusFirstThatTakes(focusableIn(remaining.content))) remaining.panel.focus();
+      if (!focusFirstThatTakes(dialogFocusable(remaining.panel))) remaining.panel.focus();
     }
     return;
   }
@@ -259,7 +269,7 @@ function restoreFocusOnClose(
 // `onModalStateChange` pair #485 depends on.
 export function Dialog({
   open, title, onClose, focusKey, describedBy, wide, closeDisabled,
-  fullScreenOnPhone = false, children,
+  fullScreenOnPhone = false, actions, formProps, children,
 }: DialogProps) {
   const { t } = useTranslation("common");
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -363,12 +373,19 @@ export function Dialog({
   // to wait one frame for.
   useEffect(() => {
     if (!open) return;
-    if (focusFirstThatTakes(focusableIn(bodyRef.current))) return;
+    if (focusFirstThatTakes(dialogFocusable(panelRef.current))) return;
     const raf = requestAnimationFrame(() => {
-      focusFirstThatTakes(focusableIn(bodyRef.current));
+      focusFirstThatTakes(dialogFocusable(panelRef.current));
     });
     return () => cancelAnimationFrame(raf);
   }, [open, focusKey]);
+
+  const content = (
+    <>
+      <DialogContent ref={bodyRef}>{children}</DialogContent>
+      {actions && <Box sx={{ px: 3, pb: 2, flexShrink: 0 }}>{actions}</Box>}
+    </>
+  );
 
   return (
     <MuiDialog
@@ -435,7 +452,11 @@ export function Dialog({
       >
         <X size={18} aria-hidden />
       </IconButton>
-      <DialogContent ref={bodyRef}>{children}</DialogContent>
+      {formProps ? (
+        <Box component="form" {...formProps} sx={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {content}
+        </Box>
+      ) : content}
     </MuiDialog>
   );
 }

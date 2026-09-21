@@ -730,8 +730,16 @@ export function UsersPage() {
         {t("roleDescription")}
       </p>
 
-      <Dialog open={creating} title={t("newUserButton")} onClose={closeCreate}>
-        <Stack component="form" spacing={2} onSubmit={onCreate}>
+      <Dialog open={creating} title={t("newUserButton")} onClose={closeCreate}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onCreate }}
+      >
+        <Stack spacing={2}>
           <TextField
             label={t("emailFieldLabel")}
             type="email"
@@ -775,10 +783,6 @@ export function UsersPage() {
             onChange={(e) => setCreateStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="create" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -862,6 +866,11 @@ export function UsersPage() {
         // session generation — `current()` — correctly discards a write that
         // no longer belongs to the current dialog instance).
         closeDisabled={flockWriteInFlight}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" disabled={flockWriteInFlight} onClick={closeAssignments}>{t("doneButton")}</button>
+          </DialogActions>
+        )}
       >
         <Stack spacing={2}>
           <p className="muted">
@@ -953,9 +962,6 @@ export function UsersPage() {
             onChange={(e) => setFlockStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="flock-access" />
-          <DialogActions>
-            <button type="button" className="link" disabled={flockWriteInFlight} onClick={closeAssignments}>{t("doneButton")}</button>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -963,8 +969,16 @@ export function UsersPage() {
         open={editUser !== null}
         title={t("editUserTitle", { email: editUser?.email ?? "" })}
         onClose={closeEdit}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={editUser !== null && isPending(`update:${editUser.id}`)}>{tc("save")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onUpdate }}
       >
-        <Stack component="form" spacing={2} onSubmit={onUpdate}>
+        <Stack spacing={2}>
           <TextField
             label={t("nameFieldLabel")}
             type="text"
@@ -974,11 +988,6 @@ export function UsersPage() {
           />
           <p className="muted">{t("clearNameHint")}</p>
           <DialogError errors={errors} scope="edit-user" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              busy={editUser !== null && isPending(`update:${editUser.id}`)}>{tc("save")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -986,8 +995,16 @@ export function UsersPage() {
         open={pwUser !== null}
         title={t("setPasswordTitle", { email: pwUser?.email ?? "" })}
         onClose={closePassword}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={pwUser !== null && isPending(`set-password:${pwUser.id}`)}>{t("setPasswordButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSetPassword }}
       >
-        <Stack component="form" spacing={2} onSubmit={onSetPassword}>
+        <Stack spacing={2}>
           <p className="muted">
             {t("passwordDialogHint")}
           </p>
@@ -1014,11 +1031,6 @@ export function UsersPage() {
             onChange={(e) => setPwStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="set-password" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              busy={pwUser !== null && isPending(`set-password:${pwUser.id}`)}>{t("setPasswordButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1026,8 +1038,16 @@ export function UsersPage() {
         open={roleUser !== null}
         title={t("changeRoleTitle", { email: roleUser?.email ?? "" })}
         onClose={closeRole}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onChangeRole }}
       >
-        <Stack component="form" spacing={2} onSubmit={onChangeRole}>
+        <Stack spacing={2}>
           <p className="muted">
             {t("roleDialogHint")}
           </p>
@@ -1053,11 +1073,6 @@ export function UsersPage() {
             onChange={(e) => setRoleStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="change-role" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1065,8 +1080,18 @@ export function UsersPage() {
         open={emailUser !== null}
         title={t("changeEmailTitle", { email: emailUser?.email ?? "" })}
         onClose={closeEmail}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeEmail}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={emailUser !== null && isPending(`change-email:${emailUser.id}`)}>
+              {t("changeEmailSubmitButton")}
+            </BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onChangeEmail }}
       >
-        <Stack component="form" spacing={2} onSubmit={onChangeEmail}>
+        <Stack spacing={2}>
           <p className="muted" id={emailHintId}>{t("changeEmailHint")}</p>
           <TextField
             label={t("loginEmailFieldLabel")}
@@ -1102,13 +1127,6 @@ export function UsersPage() {
             onChange={(e) => setEmailStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="change-email" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEmail}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              busy={emailUser !== null && isPending(`change-email:${emailUser.id}`)}>
-              {t("changeEmailSubmitButton")}
-            </BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -1124,8 +1142,20 @@ export function UsersPage() {
           : t("enableStepUpTitle", { email: stepUpUser?.email ?? "" })}
         onClose={closeStepUp}
         describedBy={stepUpMode === "disable" ? disableWarningId : undefined}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              className={stepUpMode === "disable" ? "btn-danger" : undefined}
+              busy={stepUpUser !== null && stepUpMode !== null
+                && isPending(`${stepUpMode}:${stepUpUser.id}`)}>
+              {stepUpMode === "disable" ? t("disableSubmitButton") : t("enableSubmitButton")}
+            </BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSubmitStepUp }}
       >
-        <Stack component="form" spacing={2} onSubmit={onSubmitStepUp}>
+        <Stack spacing={2}>
           {stepUpMode === "disable" && (
             <>
               {/* #832 — `.dialog .confirm-body` was this app's one CSS rule
@@ -1160,15 +1190,6 @@ export function UsersPage() {
             onChange={(e) => setStepUpPassword(e.target.value)}
           />
           <DialogError errors={errors} scope="disable-enable" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              className={stepUpMode === "disable" ? "btn-danger" : undefined}
-              busy={stepUpUser !== null && stepUpMode !== null
-                && isPending(`${stepUpMode}:${stepUpUser.id}`)}>
-              {stepUpMode === "disable" ? t("disableSubmitButton") : t("enableSubmitButton")}
-            </BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
     </section>

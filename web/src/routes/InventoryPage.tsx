@@ -496,8 +496,16 @@ export function InventoryPage() {
       </Box>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={closeCreate}>
-        <Stack component="form" spacing={2} onSubmit={onCreate}>
+      <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={closeCreate}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
+            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addItemButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onCreate }}
+      >
+        <Stack spacing={2}>
           <TextField
             label={t("itemNameLabel")}
             value={name}
@@ -527,17 +535,23 @@ export function InventoryPage() {
             onChange={(e) => setDefaultCost(e.target.value)}
           />
           <DialogError errors={errors} scope="create" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addItemButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
-      <Dialog open={editingId !== null && isAdmin} title={t("editItemDialogTitle")} onClose={closeEdit}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editItemDialogTitle")} onClose={closeEdit}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
+            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
+              {tc("save")}
+            </BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSaveEdit, noValidate: true }}
+      >
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — toMinorUnits' own message did. */}
-        <Stack component="form" spacing={2} noValidate onSubmit={onSaveEdit}>
+        <Stack spacing={2}>
           <TextField
             label={t("editItemNameLabel")}
             value={editName}
@@ -558,12 +572,6 @@ export function InventoryPage() {
             onChange={(e) => setEditCost(e.target.value)}
           />
           <DialogError errors={errors} scope="edit" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
-              {tc("save")}
-            </BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -611,8 +619,18 @@ export function InventoryPage() {
               <p className="muted">{t("noLotsMessage")}</p>
             ) : null}
 
-            <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={closePurchase}>
-              <Stack component="form" spacing={2} onSubmit={onPurchase}>
+            <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={closePurchase}
+              actions={(
+                <DialogActions>
+                  <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
+                  <BusyButton type="submit" busy={isPending("purchase")} disabled={busy}>
+                    {t("recordPurchaseSubmitButton")}
+                  </BusyButton>
+                </DialogActions>
+              )}
+              formProps={{ onSubmit: onPurchase }}
+            >
+              <Stack spacing={2}>
                 <TextField
                   type="date"
                   label={t("receivedLabel")}
@@ -657,17 +675,22 @@ export function InventoryPage() {
                   onChange={(e) => setPurchaseNote(e.target.value)}
                 />
                 <DialogError errors={errors} scope="purchase" />
-                <DialogActions>
-                  <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
-                  <BusyButton type="submit" busy={isPending("purchase")} disabled={busy}>
-                    {t("recordPurchaseSubmitButton")}
-                  </BusyButton>
-                </DialogActions>
               </Stack>
             </Dialog>
 
-            <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}>
-              <Stack component="form" spacing={2} onSubmit={onAdjust}>
+            <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}
+              actions={(
+                <DialogActions>
+                  <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
+                  <BusyButton type="submit" busy={isPending("adjust")}
+                    disabled={busy || !adjustLotId}>
+                    {t("recordCorrectionButton")}
+                  </BusyButton>
+                </DialogActions>
+              )}
+              formProps={{ onSubmit: onAdjust }}
+            >
+              <Stack spacing={2}>
                 <TextField
                   select
                   label={t("lotFieldLabel")}
@@ -703,13 +726,6 @@ export function InventoryPage() {
                   onChange={(e) => setAdjustReason(e.target.value)}
                 />
                 <DialogError errors={errors} scope="adjust" />
-                <DialogActions>
-                  <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
-                  <BusyButton type="submit" busy={isPending("adjust")}
-                    disabled={busy || !adjustLotId}>
-                    {t("recordCorrectionButton")}
-                  </BusyButton>
-                </DialogActions>
               </Stack>
             </Dialog>
 

@@ -281,8 +281,16 @@ export function FlocksPage() {
         {t("intro")}
       </p>
 
-      <Dialog open={creating && isAdmin} title={t("newFlockDialogTitle")} onClose={closeCreate}>
-        <Stack component="form" spacing={2} onSubmit={onCreate}>
+      <Dialog open={creating && isAdmin} title={t("newFlockDialogTitle")} onClose={closeCreate}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
+            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onCreate }}
+      >
+        <Stack spacing={2}>
           <TextField
             label={t("nameLabel")}
             value={name}
@@ -313,18 +321,24 @@ export function FlocksPage() {
               value={count} onChange={setCount} min={1} />
           </div>
           <DialogError errors={errors} scope="create" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
       {/* Editing is admin-only, so a role change mid-edit closes it. */}
-      <Dialog open={editingId !== null && isAdmin} title={t("editFlockDialogTitle")} onClose={closeEdit}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editFlockDialogTitle")} onClose={closeEdit}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
+            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
+              {tc("save")}
+            </BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSaveEdit, noValidate: true }}
+      >
         {/* noValidate: the row's save used to be a plain button — native
             constraint validation never ran on these fields. */}
-        <Stack component="form" spacing={2} noValidate onSubmit={onSaveEdit}>
+        <Stack spacing={2}>
           <TextField
             label={t("editNameLabel")}
             value={editName}
@@ -350,12 +364,6 @@ export function FlocksPage() {
               value={editCount} onChange={setEditCount} min={1} />
           </div>
           <DialogError errors={errors} scope="edit" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
-              {tc("save")}
-            </BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -483,8 +491,20 @@ export function FlocksPage() {
               </button>
             )}
 
-            <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}>
-              <Stack component="form" spacing={2} onSubmit={onRecordMovement}>
+            <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}
+              actions={(
+                <DialogActions>
+                  <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
+                  <BusyButton type="submit"
+                    busy={isPending("record-movement")}
+                    disabled={busy || mvQty === 0}>
+                    {t("recordButton")}
+                  </BusyButton>
+                </DialogActions>
+              )}
+              formProps={{ onSubmit: onRecordMovement }}
+            >
+              <Stack spacing={2}>
                 <TextField
                   label={t("dateLabel")}
                   type="date"
@@ -517,14 +537,6 @@ export function FlocksPage() {
                   onChange={(e) => setMvNote(e.target.value)}
                 />
                 <DialogError errors={errors} scope="record-movement" />
-                <DialogActions>
-                  <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
-                  <BusyButton type="submit"
-                    busy={isPending("record-movement")}
-                    disabled={busy || mvQty === 0}>
-                    {t("recordButton")}
-                  </BusyButton>
-                </DialogActions>
               </Stack>
             </Dialog>
 

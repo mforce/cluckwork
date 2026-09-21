@@ -601,6 +601,17 @@ export function HistoryPage() {
         // identity changing pulls focus back to the first field, so the form is
         // not silently replaced under the user's cursor.
         focusKey={adjusting}
+        actions={adjusting && (
+          <DialogActions sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, p: 0, "& > :not(style) ~ :not(style)": { ml: 0 }, "& button": { width: "100%", height: 44, minHeight: 44, px: 1, fontSize: ".75rem", whiteSpace: "nowrap" } }}>
+            <Button variant="outlined" color="inherit" type="button" onClick={closeAdjust}>{tc("cancel")}</Button>
+            {/* #394: an adjustment has no draft state — Save stays disabled
+                until grading reconciles exactly, the same rule Daily
+                Entry's submit uses. */}
+            <BusyButton component={Button} variant="contained" type="submit" busy={isPending("adjust")}
+              disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onAdjustSubmit }}
       >
         {adjusting && (
           <>
@@ -616,7 +627,7 @@ export function HistoryPage() {
                 })}
               </p>
             )}
-            <Stack component="form" spacing={2} onSubmit={onAdjustSubmit}>
+            <Stack spacing={2}>
             {!lossesExceedTotal && <Box role="group" aria-label={t("reconciliation")} sx={{ p: 1.5, bgcolor: gradesReconciled ? "var(--tint-ok)" : "var(--tint-warn)", color: gradesReconciled ? "var(--success)" : "var(--warn)", fontWeight: 700, fontVariantNumeric: "tabular-nums", borderRadius: "var(--r-input)" }}>
               {t("reconciliationLine", {
                 total: fmt.count(total), cracked: fmt.count(cracked), dirty: fmt.count(dirty), discarded: fmt.count(discarded),
@@ -705,14 +716,6 @@ export function HistoryPage() {
             />
             {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
             <DialogError errors={errors} scope="adjust" />
-            <DialogActions sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, p: 0, "& > :not(style) ~ :not(style)": { ml: 0 }, "& button": { width: "100%", height: 44, minHeight: 44, px: 1, fontSize: ".75rem", whiteSpace: "nowrap" } }}>
-              <Button variant="outlined" color="inherit" type="button" onClick={closeAdjust}>{tc("cancel")}</Button>
-              {/* #394: an adjustment has no draft state — Save stays disabled
-                  until grading reconciles exactly, the same rule Daily
-                  Entry's submit uses. */}
-              <BusyButton component={Button} variant="contained" type="submit" busy={isPending("adjust")}
-                disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
-            </DialogActions>
             </Stack>
           </>
         )}

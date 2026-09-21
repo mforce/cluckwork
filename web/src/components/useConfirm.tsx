@@ -208,6 +208,18 @@ export function useConfirm() {
       title={pending?.title ?? ""}
       onClose={dismiss}
       describedBy={pending ? bodyId : undefined}
+      actions={pending && (
+        <DialogActions sx={{ px: 0, mt: 2 }}>
+          <Button onClick={dismiss}>{tc("cancel")}</Button>
+          <Button
+            variant="contained"
+            color={pending.destructive ? "error" : "primary"}
+            onClick={() => accept(pending)}
+          >
+            {pending.confirmLabel}
+          </Button>
+        </DialogActions>
+      )}
     >
       {pending && (
         <>
@@ -295,16 +307,6 @@ export function useConfirm() {
               }}
             />
           )}
-          <DialogActions sx={{ px: 0, mt: 2 }}>
-            <Button onClick={dismiss}>{tc("cancel")}</Button>
-            <Button
-              variant="contained"
-              color={pending.destructive ? "error" : "primary"}
-              onClick={() => accept(pending)}
-            >
-              {pending.confirmLabel}
-            </Button>
-          </DialogActions>
         </>
       )}
     </Dialog>

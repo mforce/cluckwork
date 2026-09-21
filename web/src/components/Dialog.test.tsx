@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { DialogActions } from "@mui/material";
 import { Dialog, anyDialogOpen, onModalStateChange } from "./Dialog";
 import i18n from "../i18n";
 import { stubMatchMedia } from "../test/matchMedia";
@@ -608,5 +609,46 @@ describe("Dialog anyDialogOpen / onModalStateChange (#485)", () => {
 
     await waitFor(() => expect(anyDialogOpen()).toBe(false));
     await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+});
+
+
+describe("Dialog fixed actions", () => {
+  it("keeps Save outside scrolling content, with native validation and Enter submission", async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn((event: React.FormEvent<HTMLFormElement>) => event.preventDefault());
+    render(
+      <Dialog open title="Correct expense" onClose={() => {}}
+        formProps={{ onSubmit: submit }}
+        actions={<DialogActions><button type="submit">Save correction</button></DialogActions>}
+      >
+        <input aria-label="Description" required />
+      </Dialog>,
+    );
+    const save = screen.getByRole("button", { name: "Save correction" });
+    const input = screen.getByRole("textbox", { name: "Description" });
+    expect(save.closest(".MuiDialogContent-root")).toBeNull();
+    expect(save.closest("form")).toBe(input.closest("form"));
+    await user.click(save);
+    expect(submit).not.toHaveBeenCalled();
+    await user.type(input, "Feed{Enter}");
+    expect(submit).toHaveBeenCalledTimes(1);
+    await user.click(save);
+    expect(submit).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves noValidate for correction forms", async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn((event: React.FormEvent<HTMLFormElement>) => event.preventDefault());
+    render(
+      <Dialog open title="Correct item" onClose={() => {}}
+        formProps={{ onSubmit: submit, noValidate: true }}
+        actions={<DialogActions><button type="submit">Save</button></DialogActions>}
+      >
+        <input aria-label="Cost" type="number" min="0" defaultValue="-1" />
+      </Dialog>,
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(submit).toHaveBeenCalledTimes(1);
   });
 });
