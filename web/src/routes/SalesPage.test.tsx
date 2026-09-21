@@ -1280,12 +1280,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     await renderReady();
     await act(async () => { await i18n.changeLanguage(locale); });
     const row = screen.getByRole("row", { name: /SO-atlist/ });
-    // Assert the CELL, by index. A bare text lookup for "—" is ambiguous: the
-    // row's ProvenanceCell also renders one under NO_RECORD_HISTORY
-    // (ProvenanceCell.tsx:57). Cells are Reference, Date, Customer, Status,
-    // Discount, Total, Provenance, actions — so the new column is index 4.
-    // Without this, an implementation returning null for every non-below order
-    // leaves the cell EMPTY and both negative assertions still pass.
+    // #724: scope to Discount because provenance cells can also contain an em dash.
     const cell = within(row).getAllByRole("cell")[4];
     expect(cell).toHaveAccessibleName(status);
     expect(cell).not.toHaveAccessibleName(i18n.t("sales:listPrice"));
