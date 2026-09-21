@@ -1251,7 +1251,7 @@ export function SalesPage() {
                     "& thead, & tbody": { display: { xs: "block", md: "table-row-group" } },
                     "& tr": { display: { xs: "grid", md: "table-row" }, gridTemplateColumns: "minmax(0, 1fr) 32px 38px 112px", height: { xs: "auto", md: 36 }, borderBottom: { xs: "1px solid var(--rule)" } },
                     "& th, & td": { minWidth: 0, borderBottom: { xs: 0, md: "1px solid var(--rule)" }, overflowWrap: { xs: "anywhere", md: "normal" } },
-                    "& th": { whiteSpace: "nowrap" },
+                    "& th": { whiteSpace: { xs: "nowrap", md: editor ? "normal" : "nowrap" } },
                     "& td:nth-child(2)": { gridColumn: 2 },
                     "& td:nth-child(3)": { gridColumn: 3 },
                     "& :is(th, td):nth-child(5), & :is(th, td):nth-child(7), & th:nth-child(4), & th:nth-child(6)": { display: { xs: "none", md: "table-cell" } },
@@ -1259,7 +1259,8 @@ export function SalesPage() {
                     "& td:nth-child(6)": { gridColumn: "3 / 5", gridRow: 2 },
                     "& :is(th, td):last-child": { gridColumn: 4, gridRow: 1 },
                     "& tr[data-editing=true] td:nth-child(2)": { gridColumn: "1 / 4", gridRow: 5, "& .numfield": { maxWidth: 180 } },
-                    "& tr[data-editing=true] td:nth-child(5)": { display: { xs: "block", md: "table-cell" }, gridColumn: "1 / 4", "& input": { width: "100%" } },
+                    "& tr[data-editing=true] td:nth-child(5)": { display: { xs: "block", md: "table-cell" }, gridColumn: "1 / 4", "& input": { width: { xs: "100%", md: "4.75rem" }, px: { md: .5 } } },
+                    "& tr[data-editing=true] td:last-child": { whiteSpace: "normal" },
                   }}>
                     <TableHead>
                       <TableRow>

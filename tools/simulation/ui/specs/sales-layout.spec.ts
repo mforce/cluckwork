@@ -125,5 +125,10 @@ for (const width of [1280, 390]) {
       return color;
     });
     for (const index of [2, 3]) await expect(row.getByRole("cell").nth(index)).toHaveCSS("color", muted);
+    const size = await row.evaluate(element => {
+      const table = element.closest("table")!;
+      return { table: table.scrollWidth, panel: table.parentElement!.clientWidth };
+    });
+    expect(size.table, "inline editing must stay inside the manifest panel").toBeLessThanOrEqual(size.panel);
   });
 }
