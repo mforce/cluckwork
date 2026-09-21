@@ -3,8 +3,9 @@ import { render, screen, fireEvent, act, waitFor } from "@testing-library/react"
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
-import { bindAccount, bindFarm, clearAccessToken, clearBoundAccount, getBoundFarmCode } from "./tokenStore";
+import { bindAccount, bindFarm, clearAccessToken, clearBoundAccount, farmBindingToken, getBoundFarmCode } from "./tokenStore";
 import { login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 
 // Mock the transport: AuthProvider drives session STATE, the client drives the
 // network. We simulate the server side (login stores a token, logout clears it)
@@ -84,6 +85,48 @@ describe("AuthProvider lifecycle", () => {
     expect(screen.getByTestId("role")).toHaveTextContent("Sales");
     expect(screen.getByTestId("admin")).toHaveTextContent("false");
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
+  });
+
+  it("clears a cached banner left by a DIFFERENT account under the same farm code", async () => {
+    bindAccount("old-acct");
+    bindFarm("default-farm");
+    await cacheBannerBytes(new Blob(["old-banner"]), farmBindingToken());
+    clearBoundAccount();
+
+    mockApiLogin.mockImplementation(async () => {
+      bindAccount("new-acct"); // what the real client.ts login does
+      setStoredToken({ sub: "u1", role: "Sales" });
+    });
+    await act(async () => {
+      renderAuth();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("login"));
+    });
+
+    await waitFor(async () => expect(await readCachedBannerBlob("default-farm")).toBeNull());
+  });
+
+  it("leaves a cached banner written by the SAME account signing in again", async () => {
+    bindAccount("acct-A");
+    bindFarm("default-farm");
+    await cacheBannerBytes(new Blob(["same-banner"]), farmBindingToken());
+    clearBoundAccount();
+
+    mockApiLogin.mockImplementation(async () => {
+      bindAccount("acct-A"); // same account as the one that wrote the cache
+      setStoredToken({ sub: "u1", role: "Sales" });
+    });
+    await act(async () => {
+      renderAuth();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("login"));
+    });
+
+    expect(await readCachedBannerBlob("default-farm")).not.toBeNull();
   });
 
   it("adopts the session the load-time silent refresh restores", async () => {

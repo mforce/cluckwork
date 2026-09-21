@@ -44,6 +44,10 @@ export const es = {
   },
   auth: {
     title: "Cluckwork",
+    shellEyebrow: "Gestión de granjas avícolas",
+    shellTagline: "Registro diario · Existencias · Ventas",
+    loginShellFooter: "El código de granja identifica la granja en la que está iniciando sesión.",
+    setPasswordShellFooter: "Establezca su contraseña antes de entrar a la granja.",
     // machine-drafted (#532) — pending native review.
     farmCode: "Código de granja",
     recentFarms: "Granjas recientes",
@@ -94,6 +98,7 @@ export const es = {
     setPasswordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
   },
   account: {
+    eyebrow: "Preferencias personales",
     preferences: "Preferencias",
     language: "Idioma",
     languageHint: "El idioma en que se muestra la interfaz, solo para usted.",
@@ -114,9 +119,9 @@ export const es = {
     changePasswordHint:
       "Al cambiar su contraseña se cerrará la sesión en todos los demás "
       + "dispositivos — este dispositivo seguirá con la sesión iniciada.",
-    currentPasswordLabel: "Contraseña actual *",
-    newPasswordLabel: "Nueva contraseña (mín. {{min}} caracteres) *",
-    confirmPasswordLabel: "Confirmar nueva contraseña *",
+    currentPasswordLabel: "Contraseña actual",
+    newPasswordLabel: "Nueva contraseña (mín. {{min}} caracteres)",
+    confirmPasswordLabel: "Confirmar nueva contraseña",
     changePasswordButton: "Cambiar contraseña",
     passwordMismatchError: "Las nuevas contraseñas no coinciden.",
     passwordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
@@ -1182,11 +1187,15 @@ export const es = {
   // {{cap}}/{{actualKb}}/{{limitKb}}/{{code}} placeholders and the <strong>
   // tag in logoSquareHint.
   settings: {
+    eyebrow: "Configuración de la granja",
     heading: "Configuración de la granja",
     intro:
       "Cómo se llama esta granja, y la configuración regional, la zona "
       + "horaria y la moneda en que registra y lee su trabajo.",
     loadFailedMessage: "No se pudo cargar la configuración de la granja.",
+
+    identityImagesHeading: "Identidad e imágenes",
+    imageGuidanceHeading: "Guía de imágenes",
 
     // Logo panel
     logoSectionHeading: "Logotipo",
@@ -1243,6 +1252,8 @@ export const es = {
 
     // Localization form
     localizationSectionHeading: "Localización",
+    countingSalesSectionHeading: "Conteo y ventas",
+    dateTimeFormatsSectionHeading: "Formatos de fecha y hora",
     farmNameLabel: "Nombre de la granja",
     timezoneLabel: "Zona horaria",
     timezoneUnknownWarning:
@@ -1297,6 +1308,7 @@ export const es = {
       + "personalizados se registran contra la granja y determinarán cómo "
       + "se muestran los montos, las fechas y las medidas una vez que ese "
       + "formato esté disponible.",
+    saveScopeNote: "Las acciones sobre las imágenes son independientes de Guardar configuración.",
     savedMessage: "Configuración guardada.",
 
     // Imperative messages
@@ -1684,6 +1696,7 @@ export const es = {
   // namespace — the action/entity table cells route through the already-
   // translated enums:auditAction.*/entityType.* labels, not this namespace).
   audit: {
+    eyebrow: "Registro de solo lectura",
     heading: "Registro de auditoría",
     intro:
       "Todo cambio correctivo, destructivo o de configuración — quién lo "
@@ -1691,6 +1704,9 @@ export const es = {
       + "mismo y nunca se editan.",
     scopedHeading: "Historial de {{entityType}}",
     scopedHeadingFallback: "Historial del registro",
+    utcTimestampsCaption: "Marcas de tiempo UTC",
+    scopeRetainedCaption: "El alcance del registro se conserva al borrar los filtros",
+    previewRecordHistoryLabel: "Vista previa del historial de un registro",
     entityTypeFilterLabel: "Tipo de registro",
     allEntityTypesOption: "Todos los tipos",
     actionFilterLabel: "Acción",
@@ -1724,6 +1740,7 @@ export const es = {
   // picker (the wire value stays the raw slug) — translated to natural
   // Spanish per the task brief.
   export: {
+    eyebrow: "Los datos de su granja",
     heading: "Exportar",
     intro:
       "Descargue los datos de su cuenta como archivos CSV — una copia de "
@@ -1737,6 +1754,9 @@ export const es = {
     preparingButton: "Preparando…",
 
     singleDatasetsHeading: "Conjuntos de datos individuales",
+    datasetHint: "Seleccione un conjunto de datos. La copia de seguridad completa sigue disponible arriba.",
+    datasetLabel: "Conjunto de datos",
+    downloadCsvButton: "Descargar CSV",
 
     "dataset.flocks": "Parvadas",
     "dataset.bird-movements": "Movimientos de aves",
@@ -1967,28 +1987,14 @@ export const es = {
     lead: "Cómo funciona Cluckwork, pantalla por pantalla — y cómo deshacer errores.",
     contentsAriaLabel: "Contenido de la ayuda",
     contentsEyebrow: "Contenido",
-    // #657 — búsqueda, índice agrupado y glosario agrupado.
+    // #657 — búsqueda, índice y glosario.
     searchLabel: "Buscar en la guía",
     searchPlaceholder: "Escriba un término o un tema",
     searchClear: "Borrar búsqueda",
     searchMatches: "Coincidencias para “{{query}}”: {{sections}} en la guía, {{terms}} en el glosario.",
     searchNoMatches: "Nada coincide con “{{query}}”.",
     searchShortcutHint: "Pulse / para buscar",
-    glossaryJumpAriaLabel: "Grupos del glosario",
     openScreen: "Abrir {{screen}}",
-    railGroupStartHere: "Para empezar",
-    railGroupEveryDay: "Cada día",
-    railGroupSelling: "Ventas",
-    railGroupSupplies: "Suministros",
-    railGroupFarm: "Granja y personas",
-    railGroupApp: "La aplicación",
-    glossaryGroupGettingAround: "Moverse por la aplicación",
-    glossaryGroupSigningIn: "Inicio de sesión y permisos",
-    glossaryGroupFlocksEntry: "Parvadas y registro diario",
-    glossaryGroupEggsStock: "Huevos, calidades y existencias",
-    glossaryGroupSalesMoney: "Ventas y dinero",
-    glossaryGroupSupplies: "Alimento, agua y suministros",
-    glossaryGroupFarm: "Configuración e identidad de la granja",
 
     tocGettingAround: "Cómo moverse",
     tocDashboard: "Panel",
@@ -3150,7 +3156,15 @@ export const es = {
       + "justo después de iniciar sesión, una vez por sesión. Separada del logotipo de la granja anterior "
       + "— una granja puede tener un logotipo, un banner, ambos, o ninguno. Mismas reglas de imagen fija "
       + "PNG/JPEG/WebP, su propio límite de tamaño más grande (5 MB por defecto), se sube desde "
-      + "Configuración de la granja.",
+      + "Configuración de la granja. El dispositivo que la muestra guarda la imagen en caché después de esa "
+      + "pantalla de bienvenida, así que en una visita posterior también puede aparecer en la pantalla de "
+      + "inicio de sesión antes de ingresar una contraseña — pero solo mientras el campo de código de granja "
+      + "nombre esa misma granja; escribir o elegir un código distinto lo oculta de inmediato, y un enlace "
+      + "que solo nombra un código de granja nunca muestra su banner. Si un código de granja se reasigna "
+      + "después a otra granja, un dispositivo que ya guardó en caché el banner del titular anterior puede "
+      + "seguir mostrándolo brevemente, hasta que el siguiente inicio de sesión de ese dispositivo confirme "
+      + "a qué granja pertenece el código ahora y corrija la discrepancia — nunca una divulgación nueva, "
+      + "solo una imagen obsoleta en un dispositivo que ya la tenía.",
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:

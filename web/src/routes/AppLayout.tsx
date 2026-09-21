@@ -88,8 +88,7 @@ export function AppLayout() {
             ...(location.pathname === "/" ? {
               bgcolor: "var(--brand)", color: "var(--on-brand)",
               "& .brand, & .brand-name, & .MuiListItemIcon-root, & .nav-group-label, & .MuiTypography-root": { color: "inherit" },
-              "& .Mui-selected, & .Mui-selected:hover": { bgcolor: "var(--on-brand)", color: "var(--brand)", borderLeftColor: "var(--on-brand)" },
-              "& .MuiListItemButton-root:hover": { bgcolor: "var(--brand-press)" },
+              "& .MuiListItemButton-root:not(.Mui-selected):hover": { bgcolor: "var(--brand-press)" },
               "& :focus-visible": { outlineColor: "var(--on-brand)" },
             } : {}),
           },

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert, Box, Button, Divider, Paper, Stack, TextField, Typography } from "@mui/material";
 import {
   EXPORT_DATASETS,
   downloadExportCsv,
@@ -23,15 +24,14 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// #95 — manual backup (admin). Downloads only; restore is a deployment
-// operation (see the backup section in the README), not an app feature.
 export function ExportPage() {
   const { t } = useTranslation("export");
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"all" | "csv" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dataset, setDataset] = useState<string>(EXPORT_DATASETS[0]);
 
   const download = async (
-    key: string,
+    key: "all" | "csv",
     fetcher: () => Promise<{ blob: Blob; filename: string | null }>,
     fallbackName: string,
   ) => {
@@ -49,40 +49,59 @@ export function ExportPage() {
 
   return (
     <section>
-      <h2>{t("heading")}</h2>
-      <p className="muted">{t("intro")}</p>
+      <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
+        {t("eyebrow")}
+      </Typography>
+      <Typography variant="h1">{t("heading")}</Typography>
+      <Typography variant="body2" color="text.secondary">{t("intro")}</Typography>
+      <Divider sx={{ my: 2 }} />
 
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <h3>{t("fullBackupHeading")}</h3>
-      <p>
-        <button
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "var(--surface-2)", borderRadius: "var(--r-panel)", p: 3, mb: 3 }}
+      >
+        <Typography variant="h2">{t("fullBackupHeading")}</Typography>
+        <Typography variant="body2" sx={{ mb: 2 }}>{t("fullBackupHint")}</Typography>
+        <Button
+          variant="contained"
           disabled={busy !== null}
+          sx={{ width: { xs: "100%", md: "auto" } }}
           onClick={() =>
             void download("all", downloadFullBackup, "cluckwork-backup.zip")
           }
         >
           {busy === "all" ? t("preparingButton") : t("fullBackupButton")}
-        </button>
-      </p>
-      <p className="muted">{t("fullBackupHint")}</p>
+        </Button>
+      </Paper>
 
-      <h3>{t("singleDatasetsHeading")}</h3>
-      <ul className="export-list">
-        {EXPORT_DATASETS.map((d) => (
-          <li key={d}>
-            <button
-              className="link"
-              disabled={busy !== null}
-              onClick={() =>
-                void download(d, () => downloadExportCsv(d), `cluckwork-${d}.csv`)
-              }
-            >
-              {busy === d ? t("preparingButton") : t(`dataset.${d}`)}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <Typography variant="h2">{t("singleDatasetsHeading")}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t("datasetHint")}</Typography>
+      <Stack spacing={2} sx={{ alignItems: "flex-start", width: "100%" }}>
+        <TextField
+          select
+          fullWidth
+          label={t("datasetLabel")}
+          value={dataset}
+          disabled={busy !== null}
+          onChange={(e) => setDataset(e.target.value)}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+        >
+          {EXPORT_DATASETS.map((d) => <option key={d} value={d}>{t(`dataset.${d}`)}</option>)}
+        </TextField>
+        <Box>
+          <Button
+            variant="contained"
+            disabled={busy !== null}
+            onClick={() =>
+              void download("csv", () => downloadExportCsv(dataset), `cluckwork-${dataset}.csv`)
+            }
+          >
+            {busy === "csv" ? t("preparingButton") : t("downloadCsvButton")}
+          </Button>
+        </Box>
+      </Stack>
     </section>
   );
 }

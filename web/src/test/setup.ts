@@ -6,7 +6,10 @@ import "@testing-library/jest-dom/vitest";
 import i18n from "../i18n"; // initialise the i18next singleton so t()/useTranslation work
 import { afterEach, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { createFakeIndexedDb } from "./fakeIndexedDb";
 import { clearAccessToken } from "../auth/tokenStore";
+
+Element.prototype.scrollIntoView ??= vi.fn();
 
 beforeEach(() => {
   // Default to "no session": any fetch a test doesn't explicitly mock — notably
@@ -15,6 +18,7 @@ beforeEach(() => {
   // need specific responses re-stub fetch in their own beforeEach (which runs
   // after this one).
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+  vi.stubGlobal("indexedDB", createFakeIndexedDb());
 });
 
 afterEach(() => {

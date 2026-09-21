@@ -1,5 +1,5 @@
-// #657 — the in-app glossary as data. One entry per term; the Help page
-// renders them grouped and alphabetised in the active language, each with a
+// The in-app glossary is data: one entry per term, in the same order as the
+// locale catalogs, with a
 // stable anchor (`/help#glossary-egg-lot`) that GlossaryLink and the rail
 // point at.
 //
@@ -10,91 +10,71 @@
 // `glossary<Key>Term` / `glossary<Key>Def`; the same test fails on a catalog
 // row with no entry here, and on an entry with no row in en, es or tl.
 
-export const GLOSSARY_GROUPS = [
-  { key: "gettingAround", labelKey: "glossaryGroupGettingAround" },
-  { key: "signingIn", labelKey: "glossaryGroupSigningIn" },
-  { key: "flocksEntry", labelKey: "glossaryGroupFlocksEntry" },
-  { key: "eggsStock", labelKey: "glossaryGroupEggsStock" },
-  { key: "salesMoney", labelKey: "glossaryGroupSalesMoney" },
-  { key: "supplies", labelKey: "glossaryGroupSupplies" },
-  { key: "farm", labelKey: "glossaryGroupFarm" },
-] as const;
-
-export type GlossaryGroupKey = (typeof GLOSSARY_GROUPS)[number]["key"];
-
 const ENTRIES = [
-  // Getting around
-  { key: "Navigation", group: "gettingAround", spec: "Navigation" },
-  { key: "PageLoading", group: "gettingAround", spec: "Page loading" },
-  { key: "SearchablePicker", group: "gettingAround", spec: "Searchable picker", rich: true },
-  { key: "SomethingWentWrongScreen", group: "gettingAround", spec: "\"Something went wrong\" screen" },
-  { key: "InstallToHomeScreen", group: "gettingAround", spec: "Install to home screen", rich: true },
-  { key: "NewVersionReady", group: "gettingAround", spec: "New version is ready" },
-  { key: "UiLanguage", group: "gettingAround", spec: "UI language" },
-  // Signing in & who can do what
-  { key: "FarmCode", group: "signingIn", spec: "Farm code", rich: true },
-  { key: "LoginEmail", group: "signingIn", spec: "Login email" },
-  { key: "FarmProvisioning", group: "signingIn", spec: "Farm provisioning" },
-  { key: "TooManySignInAttempts", group: "signingIn", spec: "Auth rate limiting" },
-  { key: "ForcedReauth", group: "signingIn", spec: "Session tokens" },
-  { key: "StepUpAuth", group: "signingIn", spec: "Step-up authentication" },
-  { key: "Roles", group: "signingIn", spec: "Roles" },
-  { key: "FlockScoping", group: "signingIn", spec: "Flock scoping" },
-  { key: "DisabledUser", group: "signingIn", spec: "Disabled user" },
-  // Flocks & daily entry
-  { key: "CaptureStatus", group: "flocksEntry", spec: "Capture status" },
-  { key: "DailyEntry", group: "flocksEntry", spec: "Daily entry" },
-  { key: "OperationalDay", group: "flocksEntry", spec: "Operational day" },
-  { key: "LockedEntry", group: "flocksEntry", spec: "Daily entry lifecycle" },
-  { key: "AdjustEntry", group: "flocksEntry", spec: "Daily entry lifecycle" },
-  { key: "VoidEntry", group: "flocksEntry", spec: "Daily entry lifecycle" },
-  { key: "Cull", group: "flocksEntry", spec: "Bird movement" },
-  { key: "Mortality", group: "flocksEntry", spec: "Bird movement" },
-  { key: "Deplete", group: "flocksEntry", spec: "Flock lifecycle" },
-  { key: "Archive", group: "flocksEntry", spec: "Flock lifecycle" },
-  // Eggs, grades & stock
-  { key: "EggLot", group: "eggsStock", spec: "Egg lot" },
-  { key: "Grade", group: "eggsStock", spec: "Egg grade" },
-  { key: "EggMovementLedger", group: "eggsStock", spec: "Egg movement ledger" },
-  { key: "StockWriteOff", group: "eggsStock", spec: "Stock write-off" },
-  { key: "Fifo", group: "eggsStock", spec: "FIFO allocation" },
-  { key: "WithdrawalRestriction", group: "eggsStock", spec: "Withdrawal restriction" },
-  { key: "Product", group: "eggsStock", spec: "Product" },
-  { key: "PackedUnit", group: "eggsStock", spec: "Packed unit" },
-  { key: "CountingUnit", group: "eggsStock", spec: "Stepper counting unit" },
-  // Sales & money
-  { key: "SalesLine", group: "salesMoney", spec: "Sales line" },
-  { key: "ConfirmOrder", group: "salesMoney", spec: "Sales order lifecycle" },
-  { key: "VoidOrder", group: "salesMoney", spec: "Void" },
-  { key: "CancelOrder", group: "salesMoney", spec: "Sales order lifecycle" },
-  { key: "WorkerSaleAllocation", group: "salesMoney", spec: "Worker sale allocation policy" },
-  { key: "CurrencyLock", group: "salesMoney", spec: "Currency change rule" },
-  { key: "TooManyReports", group: "salesMoney", spec: "Report query bounding + concurrency limit" },
-  { key: "ListPrice", group: "salesMoney", spec: "List price" },
-  { key: "Discount", group: "salesMoney", spec: "Discount" },
-  { key: "DiscountReason", group: "salesMoney", spec: "Discount reason" },
-  { key: "DiscountCeiling", group: "salesMoney", spec: "Discount ceiling" },
-  { key: "AboveList", group: "salesMoney", spec: "Above list" },
-  { key: "Outstanding", group: "salesMoney", spec: "Outstanding balance" },
-  // Feed, water & supplies
-  { key: "InventoryItem", group: "supplies", spec: "Inventory item" },
-  { key: "InventoryLot", group: "supplies", spec: "Inventory lot" },
-  { key: "InventoryMovementLedger", group: "supplies", spec: "Inventory movement ledger" },
-  { key: "FeedUsage", group: "supplies", spec: "Feed usage" },
-  { key: "WaterUsage", group: "supplies", spec: "Water usage" },
-  { key: "AdjustmentDiscard", group: "supplies", spec: "Adjustment / Discard" },
-  // Farm settings & branding
-  { key: "FarmSettings", group: "farm", spec: "Farm settings" },
-  { key: "FarmLogo", group: "farm", spec: "Farm logo" },
-  { key: "FarmBanner", group: "farm", spec: "Farm banner" },
-  { key: "FarmPalette", group: "farm", spec: "Farm palette" },
-] as const satisfies readonly { key: string; group: GlossaryGroupKey; spec: string; rich?: true }[];
+  { key: "Navigation", spec: "Navigation" },
+  { key: "PageLoading", spec: "Page loading" },
+  { key: "SearchablePicker", spec: "Searchable picker", rich: true },
+  { key: "OperationalDay", spec: "Operational day" },
+  { key: "InstallToHomeScreen", spec: "Install to home screen", rich: true },
+  { key: "NewVersionReady", spec: "New version is ready" },
+  { key: "FarmCode", spec: "Farm code", rich: true },
+  { key: "LoginEmail", spec: "Login email" },
+  { key: "FarmProvisioning", spec: "Farm provisioning" },
+  { key: "TooManySignInAttempts", spec: "Auth rate limiting" },
+  { key: "ForcedReauth", spec: "Session tokens" },
+  { key: "TooManyReports", spec: "Report query bounding + concurrency limit" },
+  { key: "StepUpAuth", spec: "Step-up authentication" },
+  { key: "SomethingWentWrongScreen", spec: "\"Something went wrong\" screen" },
+  { key: "DailyEntry", spec: "Daily entry" },
+  { key: "CaptureStatus", spec: "Capture status" },
+  { key: "EggLot", spec: "Egg lot" },
+  { key: "Grade", spec: "Egg grade" },
+  { key: "EggMovementLedger", spec: "Egg movement ledger" },
+  { key: "StockWriteOff", spec: "Stock write-off" },
+  { key: "Fifo", spec: "FIFO allocation" },
+  { key: "WorkerSaleAllocation", spec: "Worker sale allocation policy" },
+  { key: "Cull", spec: "Bird movement" },
+  { key: "Mortality", spec: "Bird movement" },
+  { key: "Deplete", spec: "Flock lifecycle" },
+  { key: "Archive", spec: "Flock lifecycle" },
+  { key: "WithdrawalRestriction", spec: "Withdrawal restriction" },
+  { key: "Product", spec: "Product" },
+  { key: "PackedUnit", spec: "Packed unit" },
+  { key: "CountingUnit", spec: "Stepper counting unit" },
+  { key: "SalesLine", spec: "Sales line" },
+  { key: "ConfirmOrder", spec: "Sales order lifecycle" },
+  { key: "VoidOrder", spec: "Void" },
+  { key: "CancelOrder", spec: "Sales order lifecycle" },
+  { key: "ListPrice", spec: "List price" },
+  { key: "Discount", spec: "Discount" },
+  { key: "DiscountReason", spec: "Discount reason" },
+  { key: "DiscountCeiling", spec: "Discount ceiling" },
+  { key: "AboveList", spec: "Above list" },
+  { key: "Outstanding", spec: "Outstanding balance" },
+  { key: "InventoryItem", spec: "Inventory item" },
+  { key: "InventoryLot", spec: "Inventory lot" },
+  { key: "InventoryMovementLedger", spec: "Inventory movement ledger" },
+  { key: "WaterUsage", spec: "Water usage" },
+  { key: "FeedUsage", spec: "Feed usage" },
+  { key: "AdjustmentDiscard", spec: "Adjustment / Discard" },
+  { key: "Roles", spec: "Roles" },
+  { key: "FlockScoping", spec: "Flock scoping" },
+  { key: "LockedEntry", spec: "Daily entry lifecycle" },
+  { key: "AdjustEntry", spec: "Daily entry lifecycle" },
+  { key: "VoidEntry", spec: "Daily entry lifecycle" },
+  { key: "FarmSettings", spec: "Farm settings" },
+  { key: "CurrencyLock", spec: "Currency change rule" },
+  { key: "FarmLogo", spec: "Farm logo" },
+  { key: "FarmBanner", spec: "Farm banner" },
+  { key: "FarmPalette", spec: "Farm palette" },
+  { key: "UiLanguage", spec: "UI language" },
+  { key: "DisabledUser", spec: "Disabled user" },
+] as const satisfies readonly { key: string; spec: string; rich?: true }[];
 
 export type GlossaryKey = (typeof ENTRIES)[number]["key"];
 
 export interface GlossaryEntry {
   key: GlossaryKey;
-  group: GlossaryGroupKey;
   spec: string;
   rich?: true;
   // Anchor id on the Help page: the key in kebab case under a fixed prefix,

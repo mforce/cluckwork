@@ -191,38 +191,32 @@ test.describe("Owner", () => {
     await expect(page.getByRole("heading", { name: tEn("audit:heading") })).toBeVisible();
     await expect(page.getByRole("alert")).toBeHidden();
 
-    const table = page
-      .getByRole("table")
-      .filter({ has: page.getByRole("columnheader", { name: tEn("audit:whenHeader") }) });
-    await expect(table).toBeVisible();
-    const allRows = await table.locator("tbody tr").count();
-    expect(allRows, "the audit log is empty — the fixture wrote no auditable events").toBeGreaterThan(0);
+    const panels = page.getByRole("article");
+    await expect(panels.first()).toBeVisible();
+    expect(await panels.count(), "the audit log is empty — the fixture wrote no auditable events").toBeGreaterThan(0);
     await expect(page.getByText(tEn("audit:emptyMessage"))).toBeHidden();
 
-    // Filtering is the screen's one interaction, and the assertion has to be
-    // about WHAT CAME BACK, not how much of it.
-    //
-    // An earlier version asserted `filteredRows <= allRows`. That cannot fail:
-    // a filter the server ignores entirely returns every row, and
-    // `allRows <= allRows` is true. Deleting the `action` handling server-side
-    // would have left it green (PR #390 review).
-    //
-    // So: pick a real action and assert that EVERY remaining row is that action.
-    // That is the guarantee the control claims, and a no-op filter fails it as
-    // soon as the log holds more than one kind of event — which the assertion
-    // below on `distinctActions` proves it does, rather than assuming it.
-    const filter = page.getByLabel(tEn("audit:actionFilterLabel"));
-    const actionCells = table.locator("tbody tr td:nth-child(3)");
-    const before = (await actionCells.allInnerTexts()).map((a) => a.trim());
+    const firstPanel = panels.first();
+    const firstSummary = firstPanel.locator("summary");
+    const firstSummaryText = await firstSummary.innerText();
+    await expect(firstSummary).toBeVisible();
+    await expect(firstPanel).toHaveAccessibleName(firstSummaryText);
+    const summaryId = await firstSummary.getAttribute("id");
+    if (!summaryId) throw new Error("the first Audit summary has no id");
+    await expect(firstPanel).toHaveAttribute("aria-labelledby", summaryId);
+    const actorId = await firstPanel.getAttribute("aria-describedby");
+    if (!actorId) throw new Error("the first Audit panel has no actor description");
+    const actor = page.locator(`#${actorId}`);
+    const actorText = await actor.textContent();
+    if (!actorText) throw new Error("the first Audit panel has no actor text");
+    await expect(firstPanel).toHaveAccessibleDescription(actorText);
+    await firstSummary.click();
+    await expect(firstPanel).toHaveAttribute("open", "");
+    await expect(actor).toBeVisible();
 
-    // Count what is actually on screen and filter to one of THOSE actions.
-    //
-    // An earlier version took `options[1]` — the first entry in the filter's own
-    // dropdown. That worked only because `manager.spec.ts` sorts before this file
-    // and performs exactly one adjust per run, so the action happened to exist:
-    // an unstated ordering coupling between two spec files (PR #390 review round
-    // 2). Deriving the target from the rows in front of us has no such
-    // dependency, and it cannot pick an action with zero rows.
+    const filter = page.getByLabel(tEn("audit:actionFilterLabel"));
+    const before = (await panels.locator("summary").allTextContents())
+      .map((summary) => summary.split(" UTC · ")[1] ?? "");
     const counts = new Map<string, number>();
     for (const action of before) counts.set(action, (counts.get(action) ?? 0) + 1);
     expect(
@@ -231,31 +225,19 @@ test.describe("Owner", () => {
         + "from a working one — this spec cannot prove anything against this fixture",
     ).toBeGreaterThan(1);
 
-    // The rarest visible action: the strictest subset available, so a no-op
-    // filter is maximally obvious.
     const chosenLabel = [...counts.entries()].sort((a, b) => a[1] - b[1])[0]![0];
     const option = filter.locator("option").filter({ hasText: chosenLabel }).first();
     const chosenValue = await option.getAttribute("value");
     expect(chosenValue, `no filter option matches the rendered label "${chosenLabel}"`).toBeTruthy();
     await filter.selectOption(chosenValue!);
 
-    // POLL, do not snapshot. `allInnerTexts()` does not auto-retry, and
-    // AuditPage.load() clears `events` to null (unmounting the tbody entirely)
-    // before the filtered page arrives — so reading once, immediately, can catch
-    // the empty transient. The previous version's "wait" was
-    // `expect(getByRole("alert")).toBeHidden()`, which is vacuous here: this
-    // screen renders no alert on the success path, so the locator matches nothing
-    // and resolves on its first poll. That reintroduced exactly the intermittency
-    // the count-free rewrite was meant to remove, on a different axis
-    // (PR #390 review round 2).
-    //
-    // A no-op filter never reaches "settled", so this still fails closed.
     await expect
       .poll(
         async () => {
-          const rows = (await actionCells.allInnerTexts()).map((a) => a.trim());
-          if (rows.length === 0) return "still-loading";
-          return rows.every((a) => a === chosenLabel) ? "settled" : "mixed";
+          const actions = (await panels.locator("summary").allTextContents())
+            .map((summary) => summary.split(" UTC · ")[1] ?? "");
+          if (actions.length === 0) return "still-loading";
+          return actions.every((action) => action === chosenLabel) ? "settled" : "mixed";
         },
         {
           message:

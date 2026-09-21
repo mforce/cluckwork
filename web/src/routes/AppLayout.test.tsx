@@ -2,12 +2,34 @@ import { lazy, type ReactElement } from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
+import { ThemeProvider } from "@mui/material/styles";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthProvider } from "../auth/AuthContext";
 import { FarmContext } from "../farm/FarmContext";
 import { account, farmState } from "../test/fixtures";
 import i18n from "../i18n";
 import { AppLayout } from "./AppLayout";
+import { DEFAULT_BRAND } from "../lib/brand";
+import { createFarmTheme } from "../theme/FarmThemeProvider";
+import { tokensFor } from "../theme/farmTokens.test";
+
+function rgb(value: string): [number, number, number] {
+  const channels = value.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number);
+  if (channels?.length !== 3) throw new Error(`Expected an RGB colour, received ${value}`);
+  return channels as [number, number, number];
+}
+
+function contrast(a: string, b: string): number {
+  const luminance = (value: string) => {
+    const [r, g, blue] = rgb(value).map((channel) => {
+      const s = channel / 255;
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * blue;
+  };
+  const [first, second] = [luminance(a), luminance(b)];
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
 
 // The theme toggle writes data-theme on the document root — reset it between
 // tests so one case's choice can't bleed into the next.
@@ -84,6 +106,22 @@ describe("AppLayout lazy route containment (#595)", () => {
 });
 
 describe("AppLayout sidebar", () => {
+  it("renders the selected destination as a contrasting filled row", () => {
+    const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
+    renderWithProviders(
+      <ThemeProvider theme={theme}><AppLayout /></ThemeProvider>,
+      { route: "/stock", token: { sub: "u1", role: "Admin" } },
+    );
+
+    const selected = sidebar().getByRole("link", { name: "Stock" });
+    const drawer = selected.closest(".MuiDrawer-paper");
+    expect(drawer).not.toBeNull();
+    const selectedStyle = getComputedStyle(selected);
+    const drawerStyle = getComputedStyle(drawer!);
+    expect(selectedStyle.backgroundColor).not.toBe(drawerStyle.backgroundColor);
+    expect(contrast(selectedStyle.color, selectedStyle.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+  });
+
   it("groups the nav and gates links by role — an admin sees Setup destinations", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     expect(sidebar().getByRole("link", { name: "Dashboard" })).toBeInTheDocument();

@@ -97,7 +97,7 @@ test.describe("PWA shell", () => {
       // browser's offline error page.
       await expect(page).toHaveTitle("Cluckwork");
       await expect(
-        page.getByRole("heading", { name: tEn("auth:title") }),
+        page.getByRole("heading", { name: tEn("auth:title"), level: 1 }),
         "the shell did not render offline — the precache is not answering navigations",
       ).toBeVisible();
 

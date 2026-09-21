@@ -6,6 +6,8 @@ import {
   rememberFarmCode,
   removeFarmCode,
 } from "./farmCodeCache";
+import { bindAccount, bindFarm, farmBindingToken } from "./tokenStore";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 
 const KEY = "cluckwork.farmCodes";
 
@@ -473,5 +475,19 @@ describe("farmCodeCache", () => {
     }
 
     expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes")!)).toEqual(["farm-a"]);
+  });
+
+  it("forgetting a farm removes its cached banner too (#833)", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    bindAccount("acct-A");
+    bindFarm("farm-a");
+    await cacheBannerBytes(new Blob(["AAA"]), farmBindingToken());
+    bindFarm("farm-b");
+    await cacheBannerBytes(new Blob(["BBB"]), farmBindingToken());
+
+    await removeFarmCode("farm-b");
+
+    await vi.waitFor(async () => expect(await readCachedBannerBlob("farm-b")).toBeNull());
+    expect(await readCachedBannerBlob("farm-a")).not.toBeNull();
   });
 });

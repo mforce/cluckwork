@@ -2,72 +2,55 @@ import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, use
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useInRouterContext, useLocation } from "react-router";
 import { Search } from "lucide-react";
+import { Container, Typography } from "@mui/material";
 import { AuthContext } from "../auth/AuthContext";
 import { navGroups } from "./nav";
-import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
+import { GLOSSARY } from "./helpGlossary";
 
 // F18 (#71): in-app user guide + glossary. #52 restyled it into a docs layout
 // with a sticky contents rail that scroll-spies the section in view; #657
-// grouped the rail, moved "Fixing mistakes" up beside the daily loop, turned
-// the glossary into grouped, alphabetised, deep-linkable definition lists
+// reordered the guide around common tasks, moved "Fixing mistakes" up beside
+// the daily loop, and made the glossary deep-linkable
 // (data in ./helpGlossary.ts), and put one search box over all of it. KEEP
 // THIS PAGE CURRENT: the docs-sync rule (AGENTS.md) requires every
 // user-visible change to update the relevant section here and
 // specs/product/GLOSSARY.md in the same PR.
 
-// The contents rail, grouped. Flattened it must mirror the <h3 id=...>
-// sections below, in document order — a section missing here is invisible to
-// anyone who navigates by the contents list, and HelpPage.test.tsx compares
-// the two lists.
+// The contents rail mirrors the <h3 id=...> sections below in document order.
 //
 // Task 32 (B6a, #182): the label (2nd element) is a `help` catalog key, not
 // literal text — rendered via t(label) at render time. The `id` (1st element)
 // stays byte-identical: it drives the <h3 id=...> anchors below AND the
 // scroll-spy IntersectionObserver in the effect further down. Do NOT rename
 // an id — that would break both.
-const RAIL = [
-  { labelKey: "railGroupStartHere", entries: [
+const TOC = [
     ["getting-around", "tocGettingAround"],
     ["dashboard", "tocDashboard"],
     ["signing-in", "tocSigningIn"],
     ["daily-loop", "tocDailyLoop"],
     ["mistakes", "tocMistakes"],
     ["dialogs", "tocDialogs"],
-  ] },
-  { labelKey: "railGroupEveryDay", entries: [
     ["daily-entry", "tocDailyEntry"],
     ["flocks", "tocFlocks"],
     ["stock", "tocStock"],
     ["history", "tocHistory"],
-  ] },
-  { labelKey: "railGroupSelling", entries: [
     ["sales", "tocSales"],
     ["products", "tocProducts"],
     ["grades", "tocGrades"],
     ["reports", "tocReports"],
     ["expenses", "tocExpenses"],
-  ] },
-  { labelKey: "railGroupSupplies", entries: [
     ["inventory", "tocInventory"],
     ["feed", "tocFeed"],
     ["water", "tocWater"],
-  ] },
-  { labelKey: "railGroupFarm", entries: [
     ["roles", "tocRoles"],
     ["farm-settings", "tocFarmSettings"],
     ["farm-palette", "tocFarmPalette"],
     ["account", "tocAccount"],
     ["audit", "tocAudit"],
     ["export", "tocExport"],
-  ] },
-  { labelKey: "railGroupApp", entries: [
     ["install", "tocInstall"],
     ["glossary", "tocGlossary"],
-  ] },
 ] as const;
-
-type RailEntry = (typeof RAIL)[number]["entries"][number];
-const TOC: readonly RailEntry[] = RAIL.flatMap((g) => g.entries as readonly RailEntry[]);
 
 // #657 — the screen a guide section describes, so the section can offer
 // "Open Stock". Keyed by section id; a section with no screen (the daily
@@ -112,6 +95,7 @@ export function HelpPage() {
   const { t: tn } = useTranslation("nav");
   const searchId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
+  const tocRef = useRef<HTMLElement>(null);
 
   // #657 — "Open <screen>" beside a section heading. Null outside a session
   // (the page is also reachable before sign-in in tests) and outside a router.
@@ -143,7 +127,21 @@ export function HelpPage() {
   }, []);
 
   // Scroll-spy the contents rail: highlight the section currently in view.
-  const [activeId, setActiveId] = useState<string>(TOC[0][0]);
+  const [activeId, setActiveId] = useState<string | null>(TOC[0][0]);
+  const lastActiveId = useRef<string>(TOC[0][0]);
+  const previousActiveId = useRef<string | null>(TOC[0][0]);
+  const activate = useCallback((id: string) => {
+    lastActiveId.current = id;
+    setActiveId(id);
+  }, []);
+
+  useEffect(() => {
+    if (activeId === previousActiveId.current) return;
+    previousActiveId.current = activeId;
+    if (activeId === null) return;
+    tocRef.current?.querySelector<HTMLAnchorElement>("a.active")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeId]);
 
   useEffect(() => {
     // jsdom (tests) has no IntersectionObserver — the rail still works as plain
@@ -154,7 +152,7 @@ export function HelpPage() {
         const inView = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (inView[0]) setActiveId(inView[0].target.id);
+        if (inView[0]) activate(inView[0].target.id);
       },
       // "active" once a heading reaches the top ~30% of the viewport
       { rootMargin: "0px 0px -70% 0px", threshold: 0 },
@@ -164,7 +162,7 @@ export function HelpPage() {
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
-  }, []);
+  }, [activate]);
 
   // #657 — a deep link (`/help#glossary-egg-lot`, from a GlossaryLink or a
   // pasted URL). The browser only scrolls to a fragment on a full load; a
@@ -198,14 +196,16 @@ export function HelpPage() {
   }, [followHash]);
   useEffect(() => {
     if (pendingHash === null || query !== "") return;
-    document.getElementById(pendingHash)?.scrollIntoView();
+    const target = document.getElementById(pendingHash);
+    if (target instanceof HTMLDetailsElement) target.open = true;
+    target?.scrollIntoView();
     setPendingHash(null);
   }, [pendingHash, query]);
   // #657 — one search over the guide sections and the glossary terms. The
   // sections are prose the catalog assembles at render time, so the match is
   // taken from the DOM text rather than from any list this page could keep:
   // every `[data-searchable]` element is hidden when its text does not carry
-  // the query, and a glossary group folds when none of its terms survive.
+  // the query.
   const [matches, setMatches] = useState<{ sections: number; terms: number } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -219,16 +219,19 @@ export function HelpPage() {
       const hit = q === "" || (node.textContent ?? "").toLowerCase().includes(q);
       node.hidden = !hit;
       if (!hit) continue;
-      if (node.dataset.searchable === "term") terms += 1;
+      if (node.dataset.searchable === "term") {
+        terms += 1;
+        if (q !== "" && node instanceof HTMLDetailsElement) node.open = true;
+      }
       else if (node.dataset.searchable === "section") sections += 1;
     }
-    for (const group of Array.from(body.querySelectorAll<HTMLElement>(".glossary-group"))) {
-      group.hidden = q !== "" && group.querySelector(".glossary-entry:not([hidden])") === null;
-    }
-    setMatches(q === "" ? null : { sections, terms });
+    const nextMatches = { sections, terms };
+    setMatches(q === "" ? null : nextMatches);
+    if (q !== "" && sections + terms === 0) setActiveId(null);
+    else if (activeId === null) setActiveId(lastActiveId.current);
     // i18n.language: a language switch re-renders every section's text, so an
     // active query is re-applied to the new words.
-  }, [query, i18n.language]);
+  }, [query, i18n.language, activeId]);
 
   const searchStatus = matches === null
     ? ""
@@ -237,12 +240,12 @@ export function HelpPage() {
       : t("searchMatches", { query: query.trim(), sections: matches.sections, terms: matches.terms });
 
   return (
-    <section className="help">
+    <Container maxWidth="md" component="section" className="help" disableGutters>
       {inRouter && <RouterHashScroll onHash={followHash} />}
       <div className="help-hero">
         <div className="help-head">
           <p className="help-kicker">{t("eyebrow")}</p>
-          <h2>{t("heading")}</h2>
+          <Typography variant="h2">{t("heading")}</Typography>
           <p className="help-lead">{t("lead")}</p>
         </div>
 
@@ -262,27 +265,22 @@ export function HelpPage() {
       </div>
 
       <div className="help-layout">
-        <nav className="help-toc" aria-label={t("contentsAriaLabel")}>
+        <nav ref={tocRef} className="help-toc" aria-label={t("contentsAriaLabel")}>
           <p className="help-kicker">{t("contentsEyebrow")}</p>
-          {RAIL.map((group) => (
-            <div key={group.labelKey}>
-              <p className="help-toc-group">{t(group.labelKey)}</p>
-              <ul>
-                {group.entries.map(([id, labelKey]) => (
-                  <li key={id}>
-                    <a
-                      href={`#${id}`}
-                      className={activeId === id ? "active" : undefined}
-                      aria-current={activeId === id ? "location" : undefined}
-                      onClick={() => setActiveId(id)}
-                    >
-                      {t(labelKey)}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <ul>
+            {TOC.map(([id, labelKey]) => (
+              <li key={id}>
+                <a
+                  href={`#${id}`}
+                  className={activeId === id ? "active" : undefined}
+                  aria-current={activeId === id ? "location" : undefined}
+                  onClick={() => activate(id)}
+                >
+                  {t(labelKey)}
+                </a>
+              </li>
+            ))}
+          </ul>
         </nav>
 
         <div className="help-body" ref={bodyRef}>
@@ -833,39 +831,18 @@ export function HelpPage() {
 
       <section className="help-section" data-searchable="glossary">
       <div className="help-section-head"><h3 id="glossary">{t("glossaryHeading")}</h3>{openLink("glossary")}</div>
-      {/* Hidden during a search: a folded group has no heading to jump to. */}
-      <nav className="glossary-jump" aria-label={t("glossaryJumpAriaLabel")} hidden={query !== ""}>
-        <ul>
-          {GLOSSARY_GROUPS.map((group) => (
-            <li key={group.key}><a href={`#glossary-group-${group.key}`}>{t(group.labelKey)}</a></li>
+      <div className="glossary">
+        {GLOSSARY.map((entry) => (
+            <details key={entry.key} id={entry.id} className="glossary-entry" data-searchable="term">
+              <summary>{t(entry.termKey)}</summary>
+              <p>
+                {entry.rich
+                  ? <Trans ns="help" i18nKey={entry.defKey} components={{ strong: <strong /> }} />
+                  : t(entry.defKey)}
+              </p>
+            </details>
           ))}
-        </ul>
-      </nav>
-      {GLOSSARY_GROUPS.map((group) => {
-        // Alphabetical in the ACTIVE language — a Spanish reader gets Spanish
-        // order, not English order wearing Spanish labels.
-        const entries = GLOSSARY
-          .filter((e) => e.group === group.key)
-          .map((e) => ({ ...e, term: t(e.termKey) }))
-          .sort((a, b) => a.term.localeCompare(b.term, i18n.language));
-        return (
-          <div key={group.key} className="glossary-group">
-            <h4 id={`glossary-group-${group.key}`}>{t(group.labelKey)}</h4>
-            <dl className="glossary">
-              {entries.map((e) => (
-                <div key={e.key} id={e.id} className="glossary-entry" data-searchable="term">
-                  <dt><a href={`#${e.id}`}>{e.term}</a></dt>
-                  <dd>
-                    {e.rich
-                      ? <Trans ns="help" i18nKey={e.defKey} components={{ strong: <strong /> }} />
-                      : t(e.defKey)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        );
-      })}
+      </div>
 
           <p className="muted">
             <Trans ns="help" i18nKey="glossaryRepoNote" components={{ code: <code /> }} />
@@ -873,6 +850,6 @@ export function HelpPage() {
       </section>
         </div>
       </div>
-    </section>
+    </Container>
   );
 }

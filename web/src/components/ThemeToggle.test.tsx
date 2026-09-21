@@ -25,6 +25,14 @@ describe("ThemeToggle", () => {
     expect(btn).toBeInTheDocument();
     expect(screen.queryByText("Night")).not.toBeInTheDocument();
   });
+
+  it("meets the 44px touch-target floor when rendered icon-only", () => {
+    render(<ThemeToggle showLabel={false} />);
+    const btn = screen.getByRole("button", { name: "Switch to night mode" });
+    const style = getComputedStyle(btn);
+    expect(style.minWidth).toBe("44px");
+    expect(style.minHeight).toBe("44px");
+  });
 });
 
 // ---------------------------------------------------------------------------

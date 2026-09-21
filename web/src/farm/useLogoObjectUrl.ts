@@ -27,6 +27,7 @@ export interface FarmLogoImage {
 function useImageObjectUrl(
   hash: string | null,
   fetchImage: () => Promise<{ blob: Blob }>,
+  onBlob?: (blob: Blob) => void,
 ): FarmLogoImage {
   const [url, setUrl] = useState<string | null>(null);
   // The hash whose request has finished, whichever way it went. Compared
@@ -53,6 +54,7 @@ function useImageObjectUrl(
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
         setSettledHash(hash);
+        onBlob?.(blob);
       })
       .catch(() => {
         if (cancelled) return;
@@ -93,8 +95,6 @@ export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
   return useImageObjectUrl(logoHash, getFarmLogo);
 }
 
-// The farm banner as an object URL (#179) — same contract as the logo above,
-// for the post-login splash.
-export function useBannerObjectUrl(bannerHash: string | null): FarmLogoImage {
-  return useImageObjectUrl(bannerHash, getFarmBanner);
+export function useBannerObjectUrl(bannerHash: string | null, onBlob?: (blob: Blob) => void): FarmLogoImage {
+  return useImageObjectUrl(bannerHash, getFarmBanner, onBlob);
 }

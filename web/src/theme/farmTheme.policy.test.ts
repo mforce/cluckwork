@@ -136,6 +136,40 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  it("uses serif page headings and a sans 15px subsection heading", () => {
+    for (const { label, theme } of themes) {
+      for (const variant of ["h1", "h2"] as const)
+        expect(theme.typography[variant].fontFamily, `${label} ${variant}`).toBe("Georgia, serif");
+      expect(theme.typography.h3.fontFamily, `${label} h3 family`).toBe(theme.typography.fontFamily);
+      expect(theme.typography.h3.fontSize, `${label} h3 size`).toBe("0.9375rem");
+    }
+  });
+
+  it("renders accordions as separated bordered panels with tinted summary bands", () => {
+    for (const { label, theme, input } of themes) {
+      const root = slot(theme.components?.MuiAccordion?.styleOverrides?.root, `${label} MuiAccordion root`);
+      expect(root.border, `${label} accordion border`).toBe(`1px solid ${theme.palette.divider}`);
+      expect(root.borderRadius, `${label} accordion radius`).toBe(input);
+      expect(root.marginBottom, `${label} accordion separation`).toBe(12);
+      const summary = slot(theme.components?.MuiAccordionSummary?.styleOverrides?.root,
+        `${label} MuiAccordionSummary root`);
+      expect(summary.backgroundColor, `${label} summary tint`).toBe(theme.palette.background.default);
+    }
+  });
+
+  it("gives the selected sidebar item a filled farm-derived state with matching icon colour", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiListItemButton?.styleOverrides?.root,
+        `${label} MuiListItemButton root`);
+      const selected = slot(root["&.Mui-selected, &.Mui-selected:hover"], `${label} selected sidebar item`);
+      expect(selected.backgroundColor, `${label} selected fill`).not.toBe("transparent");
+      expect(selected.backgroundColor, `${label} selected fill`).not.toBe(theme.palette.primary.main);
+      expect(selected.color, `${label} selected text`).toBe(theme.palette.primary.contrastText);
+      const icon = slot(selected["& .MuiListItemIcon-root"], `${label} selected sidebar icon`);
+      expect(icon.color, `${label} selected icon colour`).toBe("inherit");
+    }
+  });
+
   // #832 — retired: #896 (owner, 2026-09-17) made a dialog footer row/
   // right-aligned at phone width, not stacked, so `MuiDialogActions` carries
   // no phone override at all any more (see the comment beside where this
@@ -326,7 +360,7 @@ describe("farm theme policy (#823 G2)", () => {
       const h2Phone = slot((theme.typography.h2 as Record<string, unknown>)[phone], `${label} title phone`);
       expect(h2Phone.fontSize, `${label} title phone size`).toBe("1.75rem");
 
-      expect(theme.typography.h3.fontSize, `${label} section size`).toBe("0.8125rem");
+      expect(theme.typography.h3.fontSize, `${label} section size`).toBe("0.9375rem");
       expect(theme.typography.h3.fontWeight, `${label} section weight`).toBe(600);
 
       expect(theme.typography.body1.fontSize, `${label} row size`).toBe("0.875rem");

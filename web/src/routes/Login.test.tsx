@@ -6,6 +6,8 @@ import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { login as apiLogin, ApiError, setOnUnauthenticated } from "../api/client";
 import { setStoredToken } from "../test/jwt";
+import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount } from "../auth/tokenStore";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
 
 // Keep the real ApiError (Login branches on `instanceof ApiError`) but stub the
@@ -49,14 +51,28 @@ function fillCredentials(email: string, password: string) {
 beforeEach(() => vi.resetAllMocks());
 
 describe("Login", () => {
+  it("uses the flat inset Field Console auth frame", async () => {
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    const main = screen.getByRole("main");
+    const frame = main.querySelector(".MuiPaper-root");
+    expect(frame).not.toBeNull();
+    const styles = Array.from(document.styleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
+    expect(styles).toContain("background: var(--surface-2)");
+    expect(styles).toContain("padding: 66px 14px 22px");
+    expect(styles).toContain("border: 1px solid var(--hairline)");
+    expect(styles).toContain("border-radius: 0");
+    expect(styles).toContain("box-shadow: none");
+  });
+
   it("renders its labels from the auth i18n catalog (#182)", async () => {
     renderWithProviders(tree(), { route: "/login", token: null });
 
-    // Pinned to i18n.t, not the literal — proves the screen is reading the
-    // catalog rather than a string that happens to still match it.
-    expect(await screen.findByText(i18n.t("auth:title"))).toBeInTheDocument();
-    expect(screen.getByLabelText(i18n.t("auth:email"))).toBeInTheDocument();
-    expect(screen.getByLabelText(i18n.t("auth:password"))).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: i18n.t("auth:title"), level: 2 })).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:email")}`))).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:password")}`))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: i18n.t("auth:signIn") })).toBeInTheDocument();
   });
 
@@ -326,7 +342,7 @@ describe("Login — first-run setup notice", () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     });
 
-    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest(".auth-setup");
+    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest("[role='status']");
     expect(notice).not.toBeNull();
     expect(notice!.querySelector("code")).toBeNull();
     expect(notice!.textContent).not.toMatch(/docker|dotnet|bootstrap-admin|--email/i);
@@ -404,6 +420,10 @@ describe("Login — farm-code prefill and picker", () => {
 
     expect(farmField()).toHaveValue("cached-farm");
     expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
+    expect(getComputedStyle(screen.getByRole("button", { name: "cached-farm" })).borderRadius).toBe("0px");
+    expect(getComputedStyle(screen.getByRole("button", {
+      name: i18n.t("auth:forgetFarm", { farmCode: "cached-farm" }),
+    })).borderRadius).toBe("0px");
   });
 
   it("with several remembered codes leaves the field empty, shows one button per code, and a click fills the field", async () => {
@@ -468,7 +488,7 @@ describe("Login — farm-code prefill and picker", () => {
     // 82fbb5b5 then replaced it with the node query that ships today, which is
     // stronger than either: a string matcher is still literal, but the node now has
     // the trimmed "farm from link" copy. Verified by mutation.
-    expect(document.querySelector(".auth-farm-source")).toBeNull();
+    expect(screen.queryByText(/Signing in to farm/)).not.toBeInTheDocument();
   });
 
   // #535 review round 1 — the picker's a11y wiring (a role="group" labelled by
@@ -633,5 +653,124 @@ describe("Login — forgetting a remembered farm", () => {
     expect(passwordField).toHaveAttribute("id", "current-password");
     expect(passwordField).toHaveAttribute("name", "password");
     expect(passwordField).toHaveAttribute("autocomplete", "current-password");
+  });
+
+  it("paints the Forget glyph with --error and the select chip with no destructive colour", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    const forget = screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) });
+    expect(getComputedStyle(forget).color).toBe("var(--error)");
+
+    const select = screen.getByRole("button", { name: "farm-a" });
+    const selectStyle = getComputedStyle(select);
+    expect(selectStyle.color).not.toBe("var(--danger)");
+    expect(selectStyle.color).not.toBe("var(--error)");
+    expect(selectStyle.background).not.toBe("var(--danger)");
+  });
+});
+
+async function cacheBannerFor(slug: string, bytes = "AAAA") {
+  bindAccount("acct-A");
+  bindFarm(slug);
+  await cacheBannerBytes(new Blob([bytes], { type: "image/png" }), farmBindingToken());
+  clearBoundAccount(); // Login itself starts unbound, before any sign-in
+}
+
+describe("Login — cached pre-auth banner (#833)", () => {
+  it("first visit: shows no banner image when nothing is cached", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("cached: shows the cached banner for the remembered farm, from a blob: URL, never data:", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    await cacheBannerFor("farm-a");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    const img = await waitFor(() => {
+      const found = document.querySelector("img[alt='']") as HTMLImageElement | null;
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(img.src).toMatch(/^blob:/);
+    expect(img.src).not.toMatch(/^data:/);
+  });
+
+  it("does not show a cached banner when the field holds a DIFFERENT code (two remembered farms — no single prefill)", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    await cacheBannerFor("farm-a");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(document.querySelector("img[alt='']")).toBeNull();
+  });
+
+  it("shows the banner once its farm is picked from the roster, with two farms remembered", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    await cacheBannerFor("farm-a");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(document.querySelector("img[alt='']")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "farm-a" }));
+
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
+  });
+
+  it("hides the banner once the field is typed away from the cached farm", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    await cacheBannerFor("farm-a");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
+
+    fireEvent.change(screen.getByLabelText(/Farm code/), { target: { value: "farm-b" } });
+
+    await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
+  });
+
+  it("shows no banner for a link-prefilled code, even when this device has that farm's banner cached", async () => {
+    await cacheBannerFor("link-farm");
+    renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    await act(async () => {
+      await readCachedBannerBlob("link-farm");
+    });
+
+    expect(document.querySelector("img[alt='']")).toBeNull();
+  });
+
+  it("shows the banner once the link-prefilled code is retyped by hand", async () => {
+    await cacheBannerFor("link-farm");
+    renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(document.querySelector("img[alt='']")).toBeNull();
+
+    const field = screen.getByLabelText(/Farm code/);
+    fireEvent.change(field, { target: { value: "link-far" } });
+    fireEvent.change(field, { target: { value: "link-farm" } });
+
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
+  });
+
+  it("forget: the banner disappears once its farm is forgotten", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    await cacheBannerFor("farm-a");
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    await waitFor(() => expect(document.querySelector("img[alt='']")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
   });
 });

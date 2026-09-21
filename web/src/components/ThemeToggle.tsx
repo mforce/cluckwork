@@ -35,7 +35,13 @@ export function ThemeToggle({
 
   if (!showLabel) {
     return (
-      <IconButton className={className} onClick={toggle} aria-label={label} size="small">
+      <IconButton
+        className={className}
+        onClick={toggle}
+        aria-label={label}
+        size="small"
+        sx={{ minWidth: 44, minHeight: 44 }}
+      >
         {icon}
       </IconButton>
     );

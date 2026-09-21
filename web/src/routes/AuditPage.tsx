@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
+import {
+  Box, Checkbox, FormControlLabel, TextField, Typography,
+} from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
+import { FilterDateField } from "../components/FilterBar";
 import { usePagedList } from "../components/usePagedList";
 import { isIsoCalendarDate } from "../lib/dates";
 import {
@@ -62,8 +66,8 @@ export function isFetchStale(committedFetchPage: unknown, currentFetchPage: unkn
 // `updateActionFilter`, `updateEntityTypeFilter` and `updateDateFilter` —
 // builds a full copy from the CURRENT params rather than a partial object
 // (INV-2).
-// #745 — the Details cell. Renders the sales-line audit payloads as the summary
-// the #722 artboard draws, and falls back to the row's reason, then an em dash.
+// #745 — the Details line. Renders the sales-line audit payloads as the summary
+// the #722 artboard draws, and falls back to the row's reason.
 // #756 — also renders the discount reason on a SalesOrder.Confirm row, when the
 // order was confirmed below list; absent on an order with no discount, and on
 // every row confirmed before this payload shipped (no backfill).
@@ -155,7 +159,9 @@ function AuditDetails({ event }: { event: AuditEvent }) {
     return null;
   })();
 
-  return <>{summary ?? event.reason ?? "—"}</>;
+  const details = summary ?? event.reason;
+  if (details === null) return null;
+  return <Typography component="p" variant="body2">{details}</Typography>;
 }
 
 export function AuditPage() {
@@ -398,57 +404,81 @@ export function AuditPage() {
     ? events.rows?.[0]?.entityType
     : undefined;
 
+  const previewEntityId = isScopedReloading ? undefined : events.rows?.[0]?.entityId;
+  const updateRecordPreview = useCallback((checked: boolean) => {
+    const next = new URLSearchParams(searchParams);
+    if (checked && previewEntityId) next.set("entityId", previewEntityId);
+    else next.delete("entityId");
+    setSearchParams(next);
+  }, [previewEntityId, searchParams, setSearchParams]);
+
   return (
     <section>
-      <h2>
+      <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
+        {t("eyebrow")}
+      </Typography>
+      <Typography variant="h1">
         {entityId
           ? (scopedEntityType
               ? t("scopedHeading", { entityType: entityTypeLabel(scopedEntityType) })
               : t("scopedHeadingFallback"))
           : t("heading")}
-      </h2>
+      </Typography>
       <p className="muted">{t("intro")}</p>
 
-      <div className="filters">
-        <label>{t("entityTypeFilterLabel")}
-          <select value={entityTypeFilter} onChange={(e) => updateEntityTypeFilter(e.target.value)}>
+      <div className="audit-scope" data-testid="audit-scope">
+        <small>{entityId ? t("scopeRetainedCaption") : t("utcTimestampsCaption")}</small>
+        <FormControlLabel
+          className="audit-scope-control"
+          label={t("previewRecordHistoryLabel")}
+          control={(
+            <Checkbox
+              size="small"
+              checked={entityId !== undefined}
+              disabled={entityId === undefined && previewEntityId === undefined}
+              onChange={(event) => updateRecordPreview(event.target.checked)}
+            />
+          )}
+        />
+      </div>
+
+      <Box className="audit-filters" data-testid="audit-filters">
+          <TextField
+            select
+            label={t("entityTypeFilterLabel")}
+            value={entityTypeFilter}
+            size="small"
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => updateEntityTypeFilter(e.target.value)}
+          >
             <option value="">{t("allEntityTypesOption")}</option>
             {ENTITY_TYPE_VALUES.map((et) => (
               <option key={et} value={et}>{entityTypeLabel(et)}</option>
             ))}
-          </select>
-        </label>
-        <label>{t("actionFilterLabel")}
-          <select value={actionFilter} onChange={(e) => updateActionFilter(e.target.value)}>
+          </TextField>
+          <TextField
+            select
+            label={t("actionFilterLabel")}
+            value={actionFilter}
+            size="small"
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+            onChange={(e) => updateActionFilter(e.target.value)}
+          >
             <option value="">{t("allActionsOption")}</option>
             {availableActions.map((a) => (
               <option key={a} value={a}>{auditActionLabel(a)}</option>
             ))}
-          </select>
-        </label>
-        {/* #666/#653 — the date range gets its own bounded toolbar; the two
-            dropdowns above are not date controls and stay outside it. Mirrors
-            FeedPage/WaterPage/HistoryPage. */}
-        <div className="toolbar">
-          <label>{t("fromLabel")}
-            <input type="date" value={fromFilter}
-              onChange={(e) => updateDateFilter("from", e.target.value)} />
-          </label>
-          <label>{t("toLabel")}
-            <input type="date" value={toFilter}
-              onChange={(e) => updateDateFilter("to", e.target.value)} />
-          </label>
-        </div>
-        {/* #679 — persistent, and that is the whole point: this screen's empty
-            state is a bare muted paragraph by #655's classification, so a
-            control living there would appear only once the filters had already
-            hidden every row. Here it exists while rows are still showing. */}
-        {hasFilters && (
-          <button className="link" type="button" onClick={clearFilters}>
-            {tc("clearFiltersButton")}
-          </button>
-        )}
-      </div>
+          </TextField>
+          <FilterDateField label={t("fromLabel")} value={fromFilter}
+            onChange={(e) => updateDateFilter("from", e.target.value)} />
+          <FilterDateField label={t("toLabel")} value={toFilter}
+            onChange={(e) => updateDateFilter("to", e.target.value)} />
+      </Box>
+      {hasFilters && (
+        <button className="link audit-clear-filters" type="button" onClick={clearFilters}>
+          {tc("clearFiltersButton")}
+        </button>
+      )}
 
       {events.error && <p className="error" role="alert">{events.error}</p>}
 
@@ -491,29 +521,36 @@ export function AuditPage() {
         </p>
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>{t("whenHeader")}</th><th>{t("whoHeader")}</th><th>{t("actionHeader")}</th>
-                {/* #493, Slice 2 — every row in a scoped view shares the same
-                    entity; repeating it up to 100 times is noise, not a
-                    neutral no-op, so it's hidden rather than left in. */}
-                {!entityId && <th>{t("entityHeader")}</th>}
-                <th>{t("detailsHeader")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.rows.map((e) => (
-                <tr key={e.id} title={e.detailsJson ?? undefined}>
-                  <td>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</td>
-                  <td>{e.actorEmail}</td>
-                  <td>{auditActionLabel(e.action)}</td>
-                  {!entityId && <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>}
-                  <td><AuditDetails event={e} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="audit-events">
+            {events.rows.map((e) => {
+              const timestamp = e.occurredAtUtc.replace("T", " ").slice(0, 19);
+              const action = auditActionLabel(e.action);
+              const summaryId = `audit-event-${e.id}`;
+              const actorId = `audit-event-actor-${e.id}`;
+              return (
+                <details
+                  className="audit-event"
+                  role="article"
+                  key={e.id}
+                  title={e.detailsJson ?? undefined}
+                  aria-labelledby={summaryId}
+                  aria-describedby={actorId}
+                >
+                  <summary id={summaryId}>
+                    {timestamp} UTC · {action}
+                  </summary>
+                  <div className="audit-event-body">
+                    <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>
+                    <Typography component="p" variant="body2">{action}</Typography>
+                    <Typography component="p" variant="body2">
+                      {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
+                    </Typography>
+                    <AuditDetails event={e} />
+                  </div>
+                </details>
+              );
+            })}
+          </div>
           {events.canLoadMore && (
             <button className="link" onClick={() => void events.loadMore()}>
               {t("loadMoreButton")}

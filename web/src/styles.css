@@ -30,11 +30,12 @@
   --link-rule: #c0c0c0; /* 28% --ink flattened over --surface (#ffffff) */
 
   /* Surfaces */
-  --canvas: #faf7fc; /* app background — a whisper of lavender */
-  --surface: #ffffff;
-  --surface-2: #f6f1f8; /* subtle inset (toolbars, meter tracks) */
+  --canvas: #f3eee8;
+  --surface: #fffdf9;
+  --surface-2: #f3eee8;
+  --soft: var(--surface-2);
   --lavender: #f9f0ff;
-  --hairline: #e6e6e6;
+  --hairline: #ded3ca;
   /* Ruled lists (#864 direction): --rule between rows, --rule-strong (28% ink)
      under headers, above totals and under fields. */
   --rule: var(--hairline);
@@ -144,8 +145,6 @@
   --on-brand: #ffffff;
   --on-brand-mute: #bcd9c6;
   --tint-accent: #e6f2ea;
-  --canvas: #f7fbf8;
-  --surface-2: #eef6f1;
   --lavender: #eefaf1;
   --row-hover: #f5faf7;
   --auth-card-shadow: 0 20px 60px rgba(20, 67, 42, 0.14);
@@ -164,8 +163,6 @@
   --on-brand: #ffffff;
   --on-brand-mute: #c0d4e6;
   --tint-accent: #e7eff7;
-  --canvas: #f7f9fc;
-  --surface-2: #eef3f9;
   --lavender: #eef4fb;
   --row-hover: #f5f8fc;
   --auth-card-shadow: 0 20px 60px rgba(27, 58, 92, 0.14);
@@ -184,8 +181,6 @@
   --on-brand: #ffffff;
   --on-brand-mute: #eec3b3;
   --tint-accent: #f8eae4;
-  --canvas: #fdf8f6;
-  --surface-2: #f9efea;
   --lavender: #fdf0e9;
   --row-hover: #fdf6f3;
   --auth-card-shadow: 0 20px 60px rgba(107, 39, 22, 0.14);
@@ -209,11 +204,11 @@
   --muted: #b3a8b8;
   --link: var(--ink);
   --link-rule: #5c5560; /* 28% --ink flattened over --surface (dark) */
-  --canvas: #17121a;
-  --surface: #221a26;
-  --surface-2: #2b2231;
+  --canvas: #302733;
+  --surface: #231d25;
+  --surface-2: #302733;
   --lavender: #241c2a;
-  --hairline: #3a2f40;
+  --hairline: #554655;
   --rule: var(--hairline);
   --rule-strong: rgba(242, 236, 244, 0.28);
   --row-hover: #2b2231;
@@ -242,8 +237,8 @@
   --tint-warn: #3a2e18;
   --tint-danger: #3a2019;
   --tint-muted: #2c2333;
-  --stat-accent: #e6c7ec;
-  --auth-brand: #e6c7ec;
+  --stat-accent: #e2b4e6;
+  --auth-brand: #e2b4e6;
   --auth-card-border: var(--hairline);
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   --auth-bg:
@@ -271,8 +266,6 @@
   --stat-accent: #a8dcbb;
   --auth-brand: #a8dcbb;
   --tint-accent: #16301f;
-  --canvas: #111814;
-  --surface-2: #1e2a22;
   --row-hover: #1e2a22;
   --lavender: #17241b;
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -287,8 +280,6 @@
   --stat-accent: #aecfeb;
   --auth-brand: #aecfeb;
   --tint-accent: #182a3b;
-  --canvas: #101519;
-  --surface-2: #1d2731;
   --row-hover: #1d2731;
   --lavender: #16202a;
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -303,8 +294,6 @@
   --stat-accent: #f2b79c;
   --auth-brand: #f2b79c;
   --tint-accent: #36211a;
-  --canvas: #1a1210;
-  --surface-2: #2e211c;
   --row-hover: #2e211c;
   --lavender: #251a16;
   --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -334,9 +323,6 @@
    so Emotion's injected stylesheet is refused and no MUI style reaches the
    screen at all. Until that is settled this file IS the baseline.
 
-   `h1`-`h4` is demoted rather than deleted for a different reason: no screen
-   renders `Typography` yet, so deleting it would restyle every heading in the
-   app. It dies with the last screen slice (#833).
    ------------------------------------------------------------------------ */
 * {
   box-sizing: border-box;
@@ -349,6 +335,83 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.audit-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.audit-scope small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.audit-scope .audit-scope-control {
+  margin: 0;
+  flex-direction: row;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin-top: 0.875rem;
+  margin-bottom: 14px;
+}
+
+.audit-filters .MuiFormControl-root {
+  min-width: 0;
+}
+
+.audit-clear-filters {
+  margin: 0.5rem 0 1.5rem;
+}
+
+.audit-events {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 760px;
+}
+
+.audit-event {
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-input);
+}
+
+.audit-event > summary {
+  padding: 1rem;
+  cursor: pointer;
+  font-weight: 700;
+  background: var(--soft);
+}
+
+.audit-event > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.audit-event-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.125rem;
+}
+
+.audit-event-body > * {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(h1, h2) {
+  font-family: Georgia, serif;
+}
+
 :where(h1, h2, h3, h4) {
   font-weight: 800;
   letter-spacing: -0.02em; /* DESIGN.md: negative tracking on display sizes */
@@ -359,7 +422,7 @@ body {
 :where(button) {
   padding: 0.66rem 1.5rem;
   border: none;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-input);
   background: var(--brand);
   color: var(--on-brand);
   font: inherit;
@@ -1841,167 +1904,6 @@ label.check {
    used, are gone: both are `sx`-laid-out MUI rows now (D2 pairs 14/21-
    adjacent), and `.swatch`/`.num`/`.cust` above carry what they still need. */
 
-/* --------------------------------------------- Login — the hero moment */
-.auth {
-  position: relative;
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 1.5rem;
-  background: var(--auth-bg);
-}
-
-/* Corner theme toggle on the login screen (icon-only). Higher specificity than
-   button.link so it isn't painted link-blue. */
-.auth .auth-theme {
-  position: absolute;
-  top: 1.1rem;
-  right: 1.1rem;
-  color: var(--muted);
-  background: none;
-  padding: 0.45rem;
-  border-radius: var(--r-pill);
-}
-
-.auth .auth-theme:hover:not(:disabled) {
-  color: var(--stat-accent);
-  background: var(--tint-accent);
-  text-decoration: none;
-}
-
-.auth .card {
-  width: min(380px, 100%);
-  padding: 2.5rem;
-  gap: 1rem;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--auth-card-border);
-  box-shadow: var(--auth-card-shadow);
-}
-
-.auth h1 {
-  margin: 0 0 0.75rem;
-  text-align: center;
-  color: var(--auth-brand);
-  font-size: 2rem;
-  letter-spacing: -0.03em;
-}
-
-.auth button[type="submit"] {
-  margin-top: 0.25rem;
-  padding: 0.8rem 1.5rem;
-  font-size: 1rem;
-}
-
-/* #283 follow-up — first-run setup hint, shown only while the default account
-   has no Owner. Deliberately quiet: an inset surface and muted text, no semantic
-   colour. Nothing is wrong here, and someone who already holds credentials
-   should read past it to the form. All three custom properties used here
-   (--hairline, --surface-2, --muted) are re-declared in the dark block, so this
-   themes with the rest of the app rather than pinning light values. */
-.auth .auth-setup {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  margin: 0 0 0.5rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.auth .auth-setup p {
-  margin: 0;
-}
-
-/* #535 — the farm code arrived in the ?farm= link rather than from the operator.
-   Same visual weight as .auth-setup: informational, not an error. */
-.auth .auth-farm-source {
-  margin: 0 0 0.5rem;
-  padding: 0.6rem 0.85rem;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-/* #535 — farm codes remembered on this device. Chips that FILL the field, so the
-   text input stays the single source of truth. */
-.auth .auth-farm-picker {
-  margin: 0 0 0.5rem;
-}
-
-.auth .auth-farm-picker p {
-  margin: 0 0 0.4rem;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-.auth .auth-farm-picker div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-/* #587 — each entry is a select chip plus a distinct Forget control. The
-   select chip keeps the #535 pill look; the Forget control is deliberately a
-   different shape and colour (destructive) so a tap is never ambiguous. */
-.auth .auth-farm-picker-entry {
-  display: inline-flex;
-  align-items: stretch;
-}
-
-.auth .auth-farm-picker-select {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--hairline);
-  border-bottom-right-radius: 0;
-  border-top-right-radius: 0;
-  border-radius: var(--r-pill) 0 0 var(--r-pill);
-  background: var(--surface-2);
-  color: var(--ink);
-  font-size: 0.85rem;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.auth .auth-farm-picker-select:hover:not(:disabled) {
-  border-color: var(--brand);
-}
-
-.auth .auth-forget-farm {
-  /* 44px minimum touch target in BOTH axes — pinned by Login.styles.test.ts. */
-  min-block-size: 44px;
-  min-inline-size: 44px;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--hairline);
-  border-left: 0;
-  border-radius: 0 var(--r-pill) var(--r-pill) 0;
-  background: var(--surface-2);
-  /* --error, not --danger: the destructive FILL token fails the 4.5:1 AA
-     floor for the glyph at rest (2.76:1 in the dark theme over --surface-2),
-     while --error clears it in every theme and palette (4.99 light aubergine,
-     6.44 dark aubergine) — the same token the rest of the app uses for
-     error-coloured text. The pair is pinned in styles.test.ts. The hover fill
-     keeps --danger, whose white label clears 4.5:1 (6.71 / 5.53). */
-  color: var(--error);
-  font-size: 1rem;
-  line-height: 1;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.auth .auth-forget-farm:hover:not(:disabled) {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: var(--on-danger);
-}
-
-/* No `code` rule here on purpose — the notice publishes no command. See the
-   comment in Login.tsx. */
-
 /* ---------------------------------------------------- Help (docs layout) */
 .help-head {
   margin-bottom: 1.75rem;
@@ -2137,31 +2039,6 @@ label.check {
   text-decoration: none;
 }
 
-/* Glossary jump bar (#657): one chip per group, under the heading. */
-.glossary-jump ul {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.75rem 0 0.5rem;
-  padding: 0;
-}
-
-.glossary-jump a {
-  display: inline-block;
-  padding: 0.3rem 0.75rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  font-size: 0.85rem;
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.glossary-jump a:hover {
-  border-color: var(--brand);
-  text-decoration: none;
-}
-
 /* Fixing mistakes (#657): a mistake → fix list, the mistake in ink and the
    fix beside it, instead of a two-column data table. */
 dl.mistakes {
@@ -2191,39 +2068,16 @@ dl.mistakes {
   color: var(--ink);
 }
 
-.help-toc-group {
-  margin: 0.9rem 0 0.15rem;
-  padding: 0 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-/* Glossary (#657): a dictionary grid — the term in its own column, the
-   definition beside it, a hairline between entries, the group heading
-   sticking while its entries scroll past. */
-.glossary-group h4 {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin: 1.5rem 0 0;
-  padding: 0.6rem 0 0.4rem;
-  font-size: 1.05rem;
-  background: var(--canvas);
-  scroll-margin-top: 1.5rem;
-}
-
-dl.glossary {
+/* Glossary (#657): searchable disclosures with stable anchors. */
+.glossary {
   margin: 0;
 }
 
 .glossary-entry {
-  display: grid;
-  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
-  gap: 0.35rem 1.5rem;
-  padding: 0.8rem 0;
-  border-top: 1px solid var(--hairline);
-  scroll-margin-top: 3.5rem; /* clears the sticky group heading */
+  margin: 0.875rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--hairline);
+  scroll-margin-top: 3.5rem;
 }
 
 .glossary-entry:target {
@@ -2232,56 +2086,17 @@ dl.glossary {
   border-radius: 4px;
 }
 
-.glossary-entry dt {
-  margin: 0;
-  font-weight: 600;
-}
-
-.glossary-entry dt a {
+.glossary-entry summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 650;
   color: var(--ink);
-  text-decoration: none;
 }
 
-/* #834 — color: var(--link) already equals --ink via the alias, so this
-   headword keeps its rest-state colour on hover by design (only the
-   underline reveals the link); no rule-underline is added, since the rest
-   state's own "no underline until hover" is the intended affordance here. */
-.glossary-entry dt a:hover {
-  color: var(--link);
-  text-decoration: underline;
-}
-
-.glossary-entry dd {
-  margin: 0;
+.glossary-entry p {
+  margin: 0.35rem 0 0;
   max-width: 60ch;
   line-height: 1.6;
-}
-
-/* The "?" beside a column header (#657): a small ring, muted until hovered. */
-.help-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-left: 0.35rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--muted);
-  text-decoration: none;
-  vertical-align: middle;
-}
-
-/* #834 — a small ring badge (a "?" glyph), not underlined text: the text
-   colour still follows --link (now ink), but the ring is a hover highlight,
-   not a link underline, so its edge takes --stat-accent like .help-open's. */
-.help-link:hover {
-  color: var(--link);
-  border-color: var(--stat-accent);
-  text-decoration: none;
 }
 
 .help-lead {
@@ -2302,6 +2117,9 @@ dl.glossary {
 .help-toc {
   position: sticky;
   top: 1.5rem;
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .help-toc ul {
@@ -2316,7 +2134,6 @@ dl.glossary {
 .help-toc li a {
   display: block;
   padding: 0.32rem 0.6rem;
-  border-radius: var(--r-input);
   color: var(--muted);
   text-decoration: none;
   font-size: 0.88rem;
@@ -2333,6 +2150,7 @@ dl.glossary {
 .help-toc li a.active {
   color: var(--brand);
   background: var(--tint-accent);
+  border-radius: 3px;
   font-weight: 600;
   box-shadow: inset 2px 0 0 var(--brand);
 }
@@ -2349,7 +2167,7 @@ dl.glossary {
   margin: 2.5rem 0 0.75rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--hairline);
-  font-size: 1.3rem;
+  font-size: 0.9375rem;
   scroll-margin-top: 1.5rem;
 }
 
@@ -2414,6 +2232,15 @@ dl.glossary {
     font-size: 1.5rem;
   }
 
+  .audit-scope {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .audit-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   table.data {
     display: block;
     max-width: 100%;
@@ -2470,8 +2297,7 @@ dl.glossary {
     gap: 1rem;
   }
 
-  /* #657 — the rail becomes one horizontal strip pinned under the head:
-     the group labels fold away and every entry is a pill, scrolled sideways. */
+  /* #657 — the rail becomes one horizontal strip pinned under the head. */
   .help-toc {
     position: sticky;
     top: 0;
@@ -2482,16 +2308,13 @@ dl.glossary {
     margin: 0 -1.15rem;
     padding: 0.5rem 1.15rem;
     overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
     background: var(--canvas);
     border-bottom: 1px solid var(--hairline);
   }
 
-  .help-toc > div {
-    display: contents;
-  }
-
-  .help-toc .help-kicker,
-  .help-toc-group {
+  .help-toc .help-kicker {
     display: none;
   }
 
@@ -2502,11 +2325,7 @@ dl.glossary {
     margin: 0;
   }
 
-  .help-toc li a {
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-pill);
-    white-space: nowrap;
-  }
+  .help-toc li a { white-space: nowrap; }
 
   .help-hero {
     padding: 1.25rem 1.15rem 1rem;
@@ -2525,19 +2344,12 @@ dl.glossary {
     flex-wrap: wrap;
   }
 
-  .glossary-entry,
   .mistake {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* The rail above is sticky too, at a higher z-index: a heading sticking at
-     top: 0 would sit behind it. Stick just under the rail's rendered height. */
-  .glossary-group h4 {
-    top: 3rem;
-  }
-
   .glossary-entry {
-    scroll-margin-top: 6.5rem; /* rail + heading */
+    scroll-margin-top: 4rem;
   }
 
   .form-grid label {
@@ -2640,93 +2452,6 @@ dl.glossary {
   }
 }
 
-/* ------------------------------------------------- Farm settings (#123) */
-
-/* The logo and its two actions side by side, wrapping on a narrow screen so
-   the preview never squeezes the buttons off the row. */
-.logo-panel {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-  margin: 0.75rem 0;
-}
-
-/* A checkerboard-free plate: logos are often transparent PNGs, and on the
-   page surface a white mark would be invisible without one. Sized by height so
-   a wide wordmark and a square badge both read at the same optical weight. */
-.logo-preview {
-  height: 72px;
-  max-width: 240px;
-  object-fit: contain;
-  background: #fff;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-panel);
-  padding: 0.5rem;
-}
-
-/* Same plate as .logo-preview, but sized for a wide/hero image (#179) rather
-   than the small sidebar-scale mark — capped by width instead of height, and taller. */
-.banner-preview {
-  max-width: 100%;
-  width: 360px;
-  max-height: 160px;
-  object-fit: contain;
-  background: #fff;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-panel);
-  padding: 0.5rem;
-}
-
-.logo-empty {
-  margin: 0;
-}
-
-.logo-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-/* The file input is the control; the label is what it looks like. Styled as a
-   button so it sits beside Remove, but it stays a label wrapping a real
-   <input type="file"> — keyboard and screen readers get the native picker. */
-.logo-file {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.92rem;
-  color: var(--on-brand);
-  background: var(--brand);
-  border-radius: 90px;
-  padding: 0.6rem 1.15rem;
-  margin: 0;
-}
-
-.logo-file:hover {
-  background: var(--brand-press);
-}
-
-.logo-file:has(input:disabled) {
-  opacity: 0.55;
-  cursor: default;
-}
-
-/* Hidden visually but still focusable, so the label's ring follows it. */
-.logo-file input[type="file"] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.logo-file:focus-within {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-}
 
 /* The shell's "no farm loaded" strip — above the routed screen, so it is the
    first thing read, and quiet enough not to compete with the screen itself. */
@@ -2749,82 +2474,6 @@ dl.glossary {
   margin: 0;
 }
 
-/* A locked field (the currency, once the farm has recorded an amount) is
-   read-only rather than disabled, so it keeps its place in the tab order and
-   carries its own explanation. It should still LOOK unavailable.
-
-   A class, NOT `input:read-only`: that pseudo-class matches any input the
-   readonly attribute does not APPLY to — every checkbox, radio and file input
-   in the app — so the blanket rule painted "not-allowed" on live, clickable
-   controls across Grades, Flocks, Water and Products (round 2: codex + agent). */
-input.locked {
-  background: var(--surface-2);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-
-/* A note attached to a field by aria-describedby — the currency lock's reason,
-   the unknown-timezone warning. It sits beside the label rather than inside it
-   (a nested note joins the control's accessible NAME) and takes the full row so
-   it reads as belonging to the field above it, not to the one next along. */
-.form-grid .field-note {
-  flex-basis: 100%;
-  margin: -0.5rem 0 0;
-  font-size: 0.82rem;
-  font-weight: 600;
-  line-height: 1.4;
-  max-width: 44rem;
-}
-
-/* Farm palette picker (#149). The swatch previews the accent; the name beside
-   it is what actually labels the option, so the choice never depends on seeing
-   colour. Each swatch shows its own palette's fill regardless of the palette
-   currently applied, so the values are literal here by necessity. */
-.palette-picker {
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-panel);
-  padding: 1rem;
-  margin: 0;
-}
-
-.palette-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.palette-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  cursor: pointer;
-}
-
-.palette-option:has(input:checked) {
-  border-color: var(--stat-accent);
-  box-shadow: inset 0 0 0 1px var(--stat-accent);
-}
-
-.palette-option:has(input:disabled) {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.palette-swatch {
-  width: 18px;
-  height: 18px;
-  border-radius: var(--r-pill);
-  border: 1px solid var(--hairline);
-}
-
-.palette-swatch-aubergine { background: #4a154b; }
-.palette-swatch-forest { background: #14432a; }
-.palette-swatch-slate { background: #1b3a5c; }
-.palette-swatch-terracotta { background: #6b2716; }
 
 /* #142 — the "new version is ready" banner. Fixed to the bottom so it is within
    thumb reach on a barn phone, at z-index 30: above the tab bar (20) so it is

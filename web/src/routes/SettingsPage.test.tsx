@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SettingsPage, formatByteCap } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
@@ -11,7 +14,37 @@ import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
 import { BRANDS } from "../lib/brand";
 import type { Brand } from "../lib/brand";
+import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
+import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
+
+const stylesCss = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const srOnlyCss = stylesCss.match(/\.sr-only\s*\{[^}]*\}/)?.[0] ?? "";
+
+function renderedStyleRules(): CSSStyleRule[] {
+  const collect = (rules: CSSRuleList): CSSStyleRule[] => Array.from(rules).flatMap((rule) => {
+    if ("selectorText" in rule && "style" in rule) return [rule as CSSStyleRule];
+    return "cssRules" in rule ? collect((rule as CSSMediaRule).cssRules) : [];
+  });
+
+  return Array.from(document.styleSheets).flatMap((sheet) => collect(sheet.cssRules));
+}
+
+function renderedDeclaration(element: Element, property: string): string {
+  const generatedClasses = Array.from(element.classList).filter((name) => name.startsWith("css-"));
+  return renderedStyleRules().reduce((value, rule) => {
+    const matches = !rule.selectorText.includes(":")
+      && generatedClasses.some((name) => rule.selectorText.includes(`.${name}`));
+    return matches ? rule.style.getPropertyValue(property).trim() || value : value;
+  }, "");
+}
+
+function renderedRule(element: Element, selectorSuffix: string): CSSStyleRule | undefined {
+  const generatedClass = Array.from(element.classList).find((name) => name.startsWith("css-"));
+  return generatedClass
+    ? renderedStyleRules().find((rule) => rule.selectorText.includes(`.${generatedClass}${selectorSuffix}`))
+    : undefined;
+}
 
 // Mirrors PALETTE_LABEL_KEYS in SettingsPage.tsx — kept local to the test
 // rather than imported, since the production module no longer exports a
@@ -92,15 +125,29 @@ const SETTINGS = (
 let refreshed = 0;
 let refreshOk = true;
 
-async function renderReady(payload: FarmSettings = SETTINGS()) {
+type CollapsedSettingsSection = "Localization" | "Counting & sales" | "Date & time formats";
+const LOCALIZATION = ["Localization"] as const;
+const COUNTING_SALES = ["Counting & sales"] as const;
+const DATE_TIME_FORMATS = ["Date & time formats"] as const;
+
+async function renderReady(
+  payload: FarmSettings = SETTINGS(),
+  sections: readonly CollapsedSettingsSection[] = [],
+) {
   mockGetSettings.mockResolvedValue(payload);
   const value = farmState({
     farm: payload.settings,
     refresh: async () => { refreshed += 1; return refreshOk; },
   });
   const result = render(
-    <FarmContext.Provider value={value}><SettingsPage /></FarmContext.Provider>);
-  expect(await screen.findByLabelText("Farm name")).toBeInTheDocument();
+    <>
+      <style>{srOnlyCss}</style>
+      <FarmContext.Provider value={value}><SettingsPage /></FarmContext.Provider>
+    </>);
+  expect(await screen.findByRole("button", { name: "Localization" })).toBeInTheDocument();
+  for (const section of sections) {
+    fireEvent.click(screen.getByRole("button", { name: section }));
+  }
   return result;
 }
 
@@ -135,10 +182,13 @@ describe("SettingsPage loading", () => {
     render(<SettingsPage />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
 
-    expect(await screen.findByLabelText("Farm name")).toHaveValue("Hen House");
-    expect(screen.getByLabelText("Timezone")).toHaveValue("America/Los_Angeles");
-    expect(screen.getByLabelText("Locale")).toHaveValue("en-US");
-    expect(screen.getByLabelText("Currency")).toHaveValue("USD");
+    await screen.findByRole("button", { name: "Localization" });
+    fireEvent.click(screen.getByRole("button", { name: "Localization" }));
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Hen House");
+    expect(screen.getByLabelText("Timezone *")).toHaveValue("America/Los_Angeles");
+    expect(screen.getByLabelText("Locale *")).toHaveValue("en-US");
+    expect(screen.getByLabelText("Currency *")).toHaveValue("USD");
     expect(screen.getByLabelText("Unit system")).toHaveValue("Metric");
     expect(screen.getByLabelText("First day of week")).toHaveValue("Monday");
     expect(screen.getByLabelText("Date format")).toHaveValue("dd/MM/yyyy");
@@ -151,7 +201,8 @@ describe("SettingsPage loading", () => {
       dateFormatOverride: "dd-MM-yy", timeFormatOverride: "HHmm",
     }));
     render(<SettingsPage />);
-    await screen.findByLabelText("Farm name");
+    await screen.findByRole("button", { name: "Date & time formats" });
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
 
     expect(screen.getByLabelText("Date format")).toHaveValue("__custom__");
     expect(screen.getByLabelText("Custom date format")).toHaveValue("dd-MM-yy");
@@ -164,7 +215,8 @@ describe("SettingsPage loading", () => {
       dateFormatOverride: "yyyy-MM-dd", timeFormatOverride: "HH:mm",
     }));
     render(<SettingsPage />);
-    await screen.findByLabelText("Farm name");
+    await screen.findByRole("button", { name: "Date & time formats" });
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
 
     expect(screen.getByLabelText("Date format")).toHaveValue("yyyy-MM-dd");
     expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
@@ -183,9 +235,9 @@ describe("SettingsPage loading", () => {
 describe("SettingsPage saving", () => {
   it("sends every field, the base version, and an idempotency key", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), ["Localization", "Date & time formats"]);
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     fireEvent.change(screen.getByLabelText("Unit system"), { target: { value: "Imperial" } });
     fireEvent.change(screen.getByLabelText("First day of week"), { target: { value: "Sunday" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -213,7 +265,10 @@ describe("SettingsPage saving", () => {
 
   it("sends a blank override as null, not an empty string", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady(SETTINGS({ firstDayOfWeek: "Monday", dateFormatOverride: "dd/MM/yyyy" }));
+    await renderReady(
+      SETTINGS({ firstDayOfWeek: "Monday", dateFormatOverride: "dd/MM/yyyy" }),
+      DATE_TIME_FORMATS,
+    );
 
     fireEvent.change(screen.getByLabelText("First day of week"), { target: { value: "" } });
     // #452 — realistic path: switch the dropdown to "Custom…", which reveals
@@ -230,7 +285,7 @@ describe("SettingsPage saving", () => {
 
   it("sends a preset picked directly from the date/time format dropdowns, no custom field involved (#452)", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), DATE_TIME_FORMATS);
 
     fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "yyyy-MM-dd" } });
     fireEvent.change(screen.getByLabelText("Time format"), { target: { value: "HH:mm" } });
@@ -245,7 +300,7 @@ describe("SettingsPage saving", () => {
 
   it("reveals the custom field on Custom…, and re-hides it (discarding the typed value) if a preset is picked afterward (#452)", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), DATE_TIME_FORMATS);
 
     fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "__custom__" } });
     const customField = screen.getByLabelText("Custom date format");
@@ -262,10 +317,10 @@ describe("SettingsPage saving", () => {
 
   it("uppercases the currency and trims the text fields", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
 
-    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "eur" } });
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "  Coop Co  " } });
+    fireEvent.change(screen.getByLabelText("Currency *"), { target: { value: "eur" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "  Coop Co  " } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
     const [body] = mockUpdate.mock.calls[0];
@@ -275,20 +330,20 @@ describe("SettingsPage saving", () => {
 
   it("re-reads the settings and refreshes the shell, so the change shows without a reload", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     mockGetSettings.mockResolvedValue(SETTINGS({ name: "Coop Co", version: 8 }));
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
     // The new version is what the NEXT save must carry — a screen still holding
     // 7 would 409 against its own write.
-    expect(await screen.findByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(await screen.findByLabelText("Farm name *")).toHaveValue("Coop Co");
     expect(refreshed).toBe(1);
   });
 
   it("carries a fresh idempotency key into the second save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -301,7 +356,7 @@ describe("SettingsPage saving", () => {
   });
 
   it("re-uses the key when the SAME payload is retried after a failure", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     mockUpdate.mockRejectedValueOnce(new Error("connection lost"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
@@ -314,11 +369,11 @@ describe("SettingsPage saving", () => {
   });
 
   it("takes a NEW key when the payload changed after a failure", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), LOCALIZATION);
     mockUpdate.mockRejectedValueOnce(new Error("connection lost"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     mockUpdate.mockResolvedValueOnce(undefined);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
@@ -382,22 +437,22 @@ describe("SettingsPage saving", () => {
   });
 
   it("warns when the timezone is one this browser cannot format", async () => {
-    await renderReady();
-    fireEvent.change(screen.getByLabelText("Timezone"), { target: { value: "Mars/Olympus_Mons" } });
+    await renderReady(SETTINGS(), LOCALIZATION);
+    fireEvent.change(screen.getByLabelText("Timezone *"), { target: { value: "Mars/Olympus_Mons" } });
 
     // The server validates against ITS tzdata. A zone it accepts but the
     // browser cannot format saves fine and then sends every date field back to
     // the device's day — silently, without this.
     expect(screen.getByText(/does not know that timezone/)).toBeInTheDocument();
-    const tz = screen.getByLabelText("Timezone");
+    const tz = screen.getByLabelText("Timezone *");
     const describedBy = tz.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy!)).toHaveTextContent(/does not know that timezone/);
   });
 
   it("says nothing about a timezone the browser does know", async () => {
-    await renderReady();
-    fireEvent.change(screen.getByLabelText("Timezone"), { target: { value: "Asia/Tokyo" } });
+    await renderReady(SETTINGS(), LOCALIZATION);
+    fireEvent.change(screen.getByLabelText("Timezone *"), { target: { value: "Asia/Tokyo" } });
     expect(screen.queryByText(/does not know that timezone/)).not.toBeInTheDocument();
   });
 
@@ -434,7 +489,7 @@ describe("SettingsPage stepper unit (#444)", () => {
       ...CONVERSIONS,
       { id: "c4", unitCode: "Case", eggsPerUnit: 360, active: false, version: 0 },
     ]);
-    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }), COUNTING_SALES);
 
     expect(select()).toHaveValue("Tray");
     const options = within(select()).getAllByRole("option").map((o) => o.textContent);
@@ -443,7 +498,7 @@ describe("SettingsPage stepper unit (#444)", () => {
 
   it("sends the picked unit on save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(select(), { target: { value: "Tray" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -458,7 +513,7 @@ describe("SettingsPage stepper unit (#444)", () => {
       { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
       { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: false, version: 0 },
     ]);
-    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }), COUNTING_SALES);
 
     expect(select()).toHaveValue("Individual");
   });
@@ -470,7 +525,7 @@ describe("SettingsPage worker sale allocation policy (#612)", () => {
   const select = () => screen.getByLabelText("Worker sale allocation");
 
   it("shows both policy choices and selects the stored default", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly"));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly"), COUNTING_SALES);
 
     expect(select()).toHaveValue("AssignedFlocksOnly");
     const options = within(select()).getAllByRole("option").map((o) => o.textContent);
@@ -478,13 +533,13 @@ describe("SettingsPage worker sale allocation policy (#612)", () => {
   });
 
   it("selects the opted-in farm-wide policy when that is what is stored", async () => {
-    await renderReady(SETTINGS({}, true, "AllFarmFlocks"));
+    await renderReady(SETTINGS({}, true, "AllFarmFlocks"), COUNTING_SALES);
     expect(select()).toHaveValue("AllFarmFlocks");
   });
 
   it("sends the picked policy on save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(select(), { target: { value: "AllFarmFlocks" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -502,22 +557,22 @@ describe("SettingsPage maximum discount (#727)", () => {
   const field = () => screen.getByLabelText("Maximum discount");
 
   it("leaves the field blank for a farm with no ceiling", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", null));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", null), COUNTING_SALES);
     expect(field()).toHaveValue(null);
   });
 
   it("loads a stored ceiling of 0 as 0, not as blank", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 0));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 0), COUNTING_SALES);
     expect(field()).toHaveValue(0);
   });
 
   it("loads a stored ceiling", async () => {
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10), COUNTING_SALES);
     expect(field()).toHaveValue(10);
   });
 
   it("accepts only whole percents from 0 to 100", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
     expect(field()).toHaveAttribute("type", "number");
     expect(field()).toHaveAttribute("min", "0");
     expect(field()).toHaveAttribute("max", "100");
@@ -526,7 +581,7 @@ describe("SettingsPage maximum discount (#727)", () => {
 
   it("sends null when the field is cleared, which removes the ceiling", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10));
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10), COUNTING_SALES);
 
     fireEvent.change(field(), { target: { value: "" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -536,7 +591,7 @@ describe("SettingsPage maximum discount (#727)", () => {
 
   it("sends 0 when the field holds 0, which is a ceiling and not an absence", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(field(), { target: { value: "0" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -546,7 +601,7 @@ describe("SettingsPage maximum discount (#727)", () => {
 
   it("sends the typed percent on save", async () => {
     mockUpdate.mockResolvedValue(undefined);
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
 
     fireEvent.change(field(), { target: { value: "15" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
@@ -555,12 +610,22 @@ describe("SettingsPage maximum discount (#727)", () => {
   });
 
   it("reads its hint from the settings catalog, not a hardcoded literal", async () => {
-    await renderReady();
+    await renderReady(SETTINGS(), COUNTING_SALES);
     expect(screen.getByText(i18n.t("settings:maxDiscountPercentHint"))).toBeInTheDocument();
   });
 });
 
 describe("SettingsPage palette (#149)", () => {
+  it("uses compact rectangular labelled swatch buttons", async () => {
+    await renderReady(SETTINGS({ brand: "forest" }));
+
+    const label = screen.getByRole("radio", { name: "Forest" }).closest("label");
+    expect(label).not.toBeNull();
+    const style = getComputedStyle(label!);
+    expect(style.borderRadius).toBe("4px");
+    expect(style.padding).toBe("6px 10px");
+  });
+
   it("renders a swatch for every curated palette, with the current one selected", async () => {
     await renderReady(SETTINGS({ brand: "forest" }));
 
@@ -623,31 +688,26 @@ describe("SettingsPage palette (#149)", () => {
 
 describe("SettingsPage currency lock (§4.6)", () => {
   it("leaves the field editable while the farm has recorded nothing", async () => {
-    await renderReady(SETTINGS({}, true));
-    const currency = screen.getByLabelText("Currency");
+    await renderReady(SETTINGS({}, true), LOCALIZATION);
+    const currency = screen.getByLabelText("Currency *");
     expect(currency).not.toHaveAttribute("readonly");
-    expect(currency).not.toHaveClass("locked");
     expect(currency).not.toHaveAttribute("aria-describedby");
     expect(screen.queryByText(/currency is fixed at/i)).not.toBeInTheDocument();
   });
 
   it("locks it with the reason once amounts exist — before the user meets the 422", async () => {
-    await renderReady(SETTINGS({}, false));
-    const currency = screen.getByLabelText("Currency");
+    await renderReady(SETTINGS({}, false), LOCALIZATION);
+    const currency = screen.getByLabelText("Currency *");
     // readOnly rather than disabled: a disabled control leaves the tab order,
     // taking the explanation with it.
     expect(currency).toHaveAttribute("readonly");
     expect(currency).not.toBeDisabled();
-    // The locked LOOK hangs off this class, not off `input:read-only` — that
-    // pseudo-class also matches every checkbox, radio and file input in the
-    // app, which the blanket rule greyed out (round 2: codex + agent).
-    expect(currency).toHaveClass("locked");
     expect(screen.getByText(/The currency is fixed at USD/)).toBeInTheDocument();
   });
 
   it("names the field 'Currency' and carries the reason as a DESCRIPTION", async () => {
-    await renderReady(SETTINGS({}, false));
-    const currency = screen.getByLabelText("Currency");
+    await renderReady(SETTINGS({}, false), LOCALIZATION);
+    const currency = screen.getByLabelText("Currency *");
     // A note nested inside the <label> would join the accessible name, so the
     // field would announce itself as "Currency The currency is fixed at USD…".
     const describedBy = currency.getAttribute("aria-describedby");
@@ -657,6 +717,16 @@ describe("SettingsPage currency lock (§4.6)", () => {
 });
 
 describe("SettingsPage logo", () => {
+  it("uses the shared rectangular action radius for image uploads", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: null }));
+
+    for (const name of ["Upload a logo", "Upload a banner"]) {
+      const label = screen.getByLabelText(name).closest("label");
+      expect(label).not.toBeNull();
+      expect(getComputedStyle(label!).borderRadius).toBe("4px");
+    }
+  });
+
   it("says there is none, offers upload only, and never fetches bytes", async () => {
     await renderReady(SETTINGS({ logoContentHash: null }));
     expect(screen.getByText(/No logo set/)).toBeInTheDocument();
@@ -786,32 +856,32 @@ describe("SettingsPage logo", () => {
       contentType: "image/png", contentHash: "newhash", width: 64, height: 64,
       byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
     });
-    await renderReady(SETTINGS({ logoContentHash: null }));
+    await renderReady(SETTINGS({ logoContentHash: null }), LOCALIZATION);
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
-    fireEvent.change(screen.getByLabelText("Locale"), { target: { value: "es-MX" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Locale *"), { target: { value: "es-MX" } });
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Upload a logo"),
         { target: { files: [imageOfSize(900)] } });
     });
 
-    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
-    expect(screen.getByLabelText("Locale")).toHaveValue("es-MX");
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Coop Co");
+    expect(screen.getByLabelText("Locale *")).toHaveValue("es-MX");
     // And no second read to land out of order with a save's.
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
   });
 
   it("keeps unsaved form edits when the logo is removed", async () => {
     mockRemove.mockResolvedValue(undefined);
-    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }), LOCALIZATION);
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Remove logo" }));
     });
 
-    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Coop Co");
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
   });
 
@@ -1129,16 +1199,90 @@ describe("SettingsPage banner", () => {
       contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
       byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
     });
-    await renderReady(SETTINGS({ bannerContentHash: null }));
+    await renderReady(SETTINGS({ bannerContentHash: null }), LOCALIZATION);
 
-    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Farm name *"), { target: { value: "Coop Co" } });
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Upload a banner"),
         { target: { files: [imageOfSize(900)] } });
     });
 
-    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(screen.getByLabelText("Farm name *")).toHaveValue("Coop Co");
     expect(mockGetSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-caches the SERVER'S sanitized bytes on upload, not the raw uploaded file", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    mockGetBanner.mockResolvedValue({
+      blob: new Blob(["sanitized-by-server"], { type: "image/png" }),
+      filename: null,
+    });
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+
+    const cached = await waitFor(async () => {
+      const found = await readCachedBannerBlob("sunny-acres");
+      expect(found).not.toBeNull();
+      return found;
+    });
+    expect(await cached!.text()).toBe("sanitized-by-server");
+  });
+
+  it("clears the cached banner on remove, so Login stops showing it before 'Forget this farm'", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    await cacheBannerBytes(new Blob(["old-banner"]), farmBindingToken());
+    expect(await readCachedBannerBlob("sunny-acres")).not.toBeNull(); // the fixture, proven present
+
+    mockRemoveBanner.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
+    });
+
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
+  });
+
+  it("does not resurrect a removed banner from a slow post-upload re-fetch", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    let resolveFetch!: (value: { blob: Blob; filename: string | null }) => void;
+    mockGetBanner.mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+    mockRemoveBanner.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
+    });
+    await waitFor(async () => expect(await readCachedBannerBlob("sunny-acres")).toBeNull());
+
+    await act(async () => {
+      resolveFetch({ blob: new Blob(["stale-bytes-from-the-superseded-upload"]), filename: null });
+    });
+
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
   });
 });
 
@@ -1172,14 +1316,12 @@ describe("SettingsPage pending scopes (#236)", () => {
     // The palette radios bind to the settings scope only — a logo flight
     // leaves them alone.
     expect(screen.getByRole("radio", { name: "Aubergine" })).toBeEnabled();
-    // The logo's own status region (first p.success in the document) carries
-    // the announcement, exactly as before the consolidation.
-    expect(document.querySelector("p.success")).toHaveTextContent("Working…");
+    expect(document.getElementById("logo-status")).toHaveTextContent("Working…");
     expect(screen.getByLabelText("Upload a logo")).toBeDisabled();
 
     await act(async () => { finishUpload(); });
     expect(screen.getByRole("button", { name: "Save settings" })).toBeEnabled();
-    expect(document.querySelector("p.success")).toHaveTextContent("Logo updated.");
+    expect(document.getElementById("logo-status")).toHaveTextContent("Logo updated.");
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 
@@ -1202,7 +1344,7 @@ describe("SettingsPage pending scopes (#236)", () => {
     expect(remove).toBeDisabled();
     expect(remove).not.toHaveAttribute("aria-busy");
     expect(screen.getByLabelText("Replace the logo")).toBeDisabled();
-    expect(document.querySelector("p.success")?.textContent).toBe("");
+    expect(document.getElementById("logo-status")?.textContent).toBe("");
 
     await act(async () => { finishSave(); });
     expect(screen.getByRole("button", { name: "Save settings" })).toBeEnabled();
@@ -1270,7 +1412,7 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
     await withOverride(
       "settings", "currencyLockedNote", "LOCKED-MARKER {{code}} MARKER-END",
       async () => {
-        await renderReady(SETTINGS({}, false));
+        await renderReady(SETTINGS({}, false), LOCALIZATION);
         expect(screen.getByText("LOCKED-MARKER USD MARKER-END")).toBeInTheDocument();
         expect(screen.queryByText(/The currency is fixed at USD/)).not.toBeInTheDocument();
       },
@@ -1282,7 +1424,7 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
   // and not the raw wire value coincidentally matching it.
   it("reads the unit-system option labels from the enums catalog, not a hardcoded literal", async () => {
     await withOverride("enums", "unitSystem.Metric", "METRIC-MARKER", async () => {
-      await renderReady();
+      await renderReady(SETTINGS(), LOCALIZATION);
       const select = screen.getByLabelText("Unit system");
       expect(within(select).getByRole("option", { name: "METRIC-MARKER" })).toBeInTheDocument();
       expect(within(select).queryByRole("option", { name: "Metric" })).not.toBeInTheDocument();
@@ -1293,7 +1435,7 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
   // weekdayLabel).
   it("reads the first-day-of-week option labels from the enums catalog, not a hardcoded literal", async () => {
     await withOverride("enums", "weekday.Monday", "MONDAY-MARKER", async () => {
-      await renderReady();
+      await renderReady(SETTINGS(), DATE_TIME_FORMATS);
       const select = screen.getByLabelText("First day of week");
       expect(within(select).getByRole("option", { name: "MONDAY-MARKER" })).toBeInTheDocument();
       expect(within(select).queryByRole("option", { name: "Monday" })).not.toBeInTheDocument();
@@ -1356,6 +1498,180 @@ describe("SettingsPage i18n wiring (#182, Task 21)", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("CONFLICT-MARKER");
       expect(screen.queryByText(/Someone else changed these settings/i)).not.toBeInTheDocument();
     });
+  });
+
+  it("reads the eyebrow from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "eyebrow", "EYEBROW-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByText("EYEBROW-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Farm configuration")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the Identity & images accordion heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "identityImagesHeading", "IDENTITY-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByRole("button", { name: "IDENTITY-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Identity & images" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the save-scope note from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "saveScopeNote", "SCOPE-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByText("SCOPE-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Image actions are separate from Save settings.")).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("SettingsPage expandable sections", () => {
+  it("caps the focus panels at 760px and keeps media cards square", async () => {
+    const { container } = await renderReady();
+    expect(getComputedStyle(container.querySelector("form")!).maxWidth).toBe("760px");
+    expect(getComputedStyle(screen.getByTestId("settings-logo-card")).borderRadius).toBe("0px");
+    expect(getComputedStyle(screen.getByTestId("settings-banner-card")).borderRadius).toBe("0px");
+  });
+
+  it("uses neutral outlined image removal controls with error text", async () => {
+    await renderReady(SETTINGS({ logoContentHash: "logo", bannerContentHash: "banner" }));
+    for (const remove of screen.getAllByRole("button", { name: /Remove/ })) {
+      const card = remove.closest(".MuiPaper-root");
+      if (!(card instanceof HTMLElement)) throw new Error("Remove control is outside its media card");
+
+      const neutralBorder = getComputedStyle(card).borderColor;
+      const rest = getComputedStyle(remove);
+      expect(rest.borderColor).toBe(neutralBorder);
+      expect(rest.backgroundColor).toBe("var(--variant-outlinedBg)");
+      expect(renderedDeclaration(remove, "--variant-outlinedBg")).toBe("");
+      expect(rest.color.toLowerCase()).toBe("var(--variant-outlinedcolor)");
+      expect(renderedDeclaration(remove, "--variant-outlinedColor")).toBe("#d32f2f");
+    }
+  });
+
+  it("hides radio glyphs and shows palette selection and keyboard focus on the swatch label", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+    const aubergine = screen.getByRole("radio", { name: "Aubergine" });
+    const forest = screen.getByRole("radio", { name: "Forest" });
+    const hiddenRadio = getComputedStyle(aubergine);
+    expect(hiddenRadio.position).toBe("absolute");
+    expect(hiddenRadio.width).toBe("1px");
+    expect(hiddenRadio.height).toBe("1px");
+    expect(hiddenRadio.overflow).toBe("hidden");
+    expect(hiddenRadio.clipPath).toBe("inset(50%)");
+
+    aubergine.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(forest).toBeChecked();
+    expect(forest).toHaveFocus();
+
+    const aubergineLabel = aubergine.closest("label");
+    const forestLabel = forest.closest("label");
+    if (!(aubergineLabel instanceof HTMLLabelElement) || !(forestLabel instanceof HTMLLabelElement)) {
+      throw new Error("Palette radios are outside their swatch labels");
+    }
+    const unselected = getComputedStyle(aubergineLabel);
+    const selected = getComputedStyle(forestLabel);
+    expect(selected.borderColor).not.toBe(unselected.borderColor);
+    expect(selected.boxShadow).not.toBe("none");
+    const focusRule = renderedRule(forestLabel, ":has(input:focus-visible)");
+    expect(focusRule?.style.outline).toBe("2px solid");
+    expect(focusRule?.style.outlineColor).toBe("rgb(2, 136, 209)");
+    expect(focusRule?.style.outlineOffset).toBe("2px");
+  });
+
+  it("the Identity & images section starts expanded, with its own content reachable", async () => {
+    await renderReady();
+    expect(screen.getByRole("button", { name: "Identity & images" }))
+      .toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Farm palette")).toBeInTheDocument();
+  });
+
+  it("starts the other three settings sections collapsed", async () => {
+    await renderReady();
+    for (const name of ["Localization", "Counting & sales", "Date & time formats"]) {
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-expanded", "false");
+    }
+  });
+
+  it("collapses and re-expands the Identity & images section on click", async () => {
+    await renderReady();
+    const summary = screen.getByRole("button", { name: "Identity & images" });
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("expands Localization independently of the other sections", async () => {
+    await renderReady();
+    const identitySummary = screen.getByRole("button", { name: "Identity & images" });
+    const localizationSummary = screen.getByRole("button", { name: "Localization" });
+
+    fireEvent.click(localizationSummary);
+    expect(localizationSummary).toHaveAttribute("aria-expanded", "true");
+    expect(identitySummary).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Farm name *")).toBeInTheDocument();
+  });
+
+  it("puts policy fields in Counting & sales and formats in Date & time formats", async () => {
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "Counting & sales" }));
+    expect(screen.getByLabelText("Daily Entry counting unit")).toBeInTheDocument();
+    expect(screen.getByLabelText("Worker sale allocation")).toBeInTheDocument();
+    expect(screen.getByLabelText("Maximum discount")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Date & time formats" }));
+    expect(screen.getByLabelText("First day of week")).toBeInTheDocument();
+    expect(screen.getByLabelText("Date format")).toBeInTheDocument();
+    expect(screen.getByLabelText("Time format")).toBeInTheDocument();
+  });
+
+  it("does not submit the settings form when Remove (logo) is clicked", async () => {
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("does not submit the settings form when Remove (banner) is clicked", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage — persistent actions and image guidance", () => {
+  it("folds each image's existing help under a closed Image guidance disclosure", async () => {
+    await renderReady();
+
+    const guidance = screen.getAllByText("Image guidance");
+    expect(guidance).toHaveLength(2);
+    for (const summary of guidance) {
+      expect(summary.closest("details")).not.toHaveAttribute("open");
+    }
+
+    fireEvent.click(guidance[0]);
+    expect(guidance[0].closest("details")).toHaveAttribute("open");
+    expect(screen.getByText(/up to 2 MB and 4096/)).toBeInTheDocument();
+    expect(screen.getByText(/small in the sidebar/)).toBeInTheDocument();
+  });
+
+  it("keeps Save settings in a fixed footer above the phone tab bar", async () => {
+    await renderReady();
+    const saveBar = screen.getByTestId("settings-save-bar");
+    const computed = getComputedStyle(saveBar);
+    expect(computed.position).toBe("fixed");
+    expect(computed.bottom).toBe("var(--tabbar-h)");
+    expect(within(saveBar).getByRole("button", { name: "Save settings" })).toBeInTheDocument();
   });
 });
 

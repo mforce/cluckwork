@@ -717,3 +717,17 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     ).toBe(clientWidth);
   });
 });
+
+test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {
+  test("the Forget control meets the 44px touch-target floor on both axes", async ({ page }) => {
+    await page.addInitScript(([key, codes]) => {
+      window.localStorage.setItem(key as string, JSON.stringify(codes));
+    }, ["cluckwork.farmCodes", ["farm-a"]] as const);
+    await page.goto("/login");
+
+    const forget = page.getByRole("button", { name: tEn("auth:forgetFarm", { farmCode: "farm-a" }) });
+    const box = await rectOf(forget, "the Forget control");
+    expect.soft(box.width, "the Forget control is too narrow to hit").toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    expect.soft(box.height, "the Forget control is too short to hit").toBeGreaterThanOrEqual(MIN_TARGET_PX);
+  });
+});

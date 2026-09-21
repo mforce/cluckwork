@@ -4,9 +4,9 @@ import { resolve } from "node:path";
 import postcss from "postcss";
 import type { AtRule, Rule } from "postcss";
 
-// #657 visual pass — the layout facts jsdom cannot see: the glossary is a
-// term/definition grid with sticky group heads on desktop, and the rail is a
-// pinned horizontal strip on a phone. Read from the parsed stylesheet, as
+// #657 visual pass — the layout facts jsdom cannot see: the glossary uses
+// disclosures, and the rail is a plain-link strip on
+// a phone. Read from the parsed stylesheet, as
 // styles.num.test.ts and components/styles.dialog.test.ts do.
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const root = postcss.parse(css);
@@ -29,13 +29,10 @@ function decls(selector: string, inMedia: string | null): Map<string, string> {
   return out;
 }
 
-describe("glossary grid (desktop)", () => {
-  it("lays each entry out as term | definition", () => {
-    expect(decls(".glossary-entry", null).get("display")).toBe("grid");
-    expect(decls(".glossary-entry", null).get("grid-template-columns")).toMatch(/minmax/);
-  });
-  it("keeps the group heading in view while its entries scroll", () => {
-    expect(decls(".glossary-group h4", null).get("position")).toBe("sticky");
+describe("glossary disclosures (desktop)", () => {
+  it("keeps each entry as a ruled disclosure", () => {
+    expect(decls(".glossary-entry", null).get("border-bottom")).toBe("1px solid var(--hairline)");
+    expect(decls(".glossary-entry summary", null).get("min-height")).toBe("44px");
   });
 });
 
@@ -49,11 +46,12 @@ describe("rail on a phone", () => {
     // desktop rule sets it, so the check reads the base rule.
     expect(decls(".help-toc ul", null).get("display")).toBe("flex");
   });
-  it("collapses the entries back to one row (no group columns)", () => {
-    expect(decls(".help-toc-group", MQ).get("display")).toBe("none");
+  it("keeps phone entries as plain links rather than bordered pills", () => {
+    const links = decls(".help-toc li a", MQ);
+    expect(links.has("border")).toBe(false);
+    expect(links.has("border-radius")).toBe(false);
   });
-  it("sticks the glossary group heading below the pinned rail, not behind it", () => {
-    expect(decls(".glossary-group h4", MQ).get("top")).not.toBe("0");
-    expect(decls(".glossary-group h4", MQ).get("top")).toMatch(/rem$/);
+  it("keeps glossary anchors below the pinned rail", () => {
+    expect(decls(".glossary-entry", MQ).get("scroll-margin-top")).toBe("4rem");
   });
 });

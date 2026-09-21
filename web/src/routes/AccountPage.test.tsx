@@ -27,15 +27,39 @@ const WORKER = { sub: "u1", role: "Worker" };
 
 beforeEach(() => vi.resetAllMocks());
 
+function expandChangePassword() {
+  const summary = screen.getAllByRole("button", { name: "Change password" })
+    .find((button) => button.hasAttribute("aria-expanded"));
+  if (summary === undefined) throw new Error("Change password summary not found");
+  if (summary.getAttribute("aria-expanded") !== "true") fireEvent.click(summary);
+}
+
 function fill(current: string, next: string, confirm: string) {
+  expandChangePassword();
   fireEvent.change(screen.getByLabelText(/Current password/), { target: { value: current } });
   fireEvent.change(screen.getByLabelText(/New password/), { target: { value: next } });
   fireEvent.change(screen.getByLabelText(/Confirm new password/), { target: { value: confirm } });
 }
 
-const submit = () => fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+const submit = () => {
+  const buttons = screen.getAllByRole("button", { name: "Change password" });
+  const submitButton = buttons.find((b) => !b.hasAttribute("aria-expanded"));
+  if (!submitButton) throw new Error("Change password submit button not found — is the section expanded?");
+  fireEvent.click(submitButton);
+};
 
 describe("AccountPage (#165 self-service password change)", () => {
+  it("uses the Focus-panel width and opens Change password initially", () => {
+    renderWithProviders(<AccountPage />, { token: WORKER });
+
+    const section = screen.getByRole("heading", { name: "Account" }).closest("section");
+    expect(section).not.toBeNull();
+    expect(getComputedStyle(section!).maxWidth).toBe("760px");
+    const summary = screen.getAllByRole("button", { name: "Change password" })
+      .find((button) => button.hasAttribute("aria-expanded"));
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("changes the password and reports the other devices were signed out", async () => {
     mockChangePassword.mockResolvedValue(undefined);
     renderWithProviders(<AccountPage />, { token: WORKER });
@@ -89,7 +113,8 @@ describe("AccountPage (#165 self-service password change)", () => {
 
   it("renders for any role — every user can change their own password", async () => {
     renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "ReadOnly" } });
-    expect(screen.getByRole("button", { name: "Change password" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Change password" })
+      .some((button) => button.hasAttribute("aria-expanded"))).toBe(true);
   });
 
   it("shows the Preferences section with the language selector now that more than one language pack is installed (#182)", async () => {
@@ -173,15 +198,17 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("reads the change-password hint prose from the catalog, not a hardcoded literal", async () => {
     await withOverride("changePasswordHint", "CHANGE-PW-HINT-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       expect(screen.getByText("CHANGE-PW-HINT-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/signs you out everywhere else/)).not.toBeInTheDocument();
     });
   });
 
   it("reads the current-password label from the catalog, not a hardcoded literal", async () => {
-    await withOverride("currentPasswordLabel", "CURRENT-PW-MARKER *", async () => {
+    await withOverride("currentPasswordLabel", "CURRENT-PW-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
-      expect(screen.getByLabelText(/CURRENT-PW-MARKER/)).toBeInTheDocument();
+      expandChangePassword();
+      expect(screen.getByLabelText("CURRENT-PW-MARKER *")).toBeRequired();
       expect(screen.queryByLabelText(/^Current password/)).not.toBeInTheDocument();
     });
   });
@@ -189,18 +216,20 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("interpolates {{min}} into the new-password label from the catalog", async () => {
     await withOverride("newPasswordLabel", "NEW-PW-MARKER {{min}} MARKER-END", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       // MIN_LENGTH is 12 (AccountPage.tsx) — asserting the exact number, not
       // just that A number appears, is what would catch a mutation that
       // dropped the interpolation and always rendered a literal "12".
-      expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END")).toBeInTheDocument();
+      expect(screen.getByLabelText("NEW-PW-MARKER 12 MARKER-END *")).toBeInTheDocument();
       expect(screen.queryByLabelText(/^New password/)).not.toBeInTheDocument();
     });
   });
 
   it("reads the confirm-password label from the catalog, not a hardcoded literal", async () => {
-    await withOverride("confirmPasswordLabel", "CONFIRM-PW-MARKER *", async () => {
+    await withOverride("confirmPasswordLabel", "CONFIRM-PW-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
-      expect(screen.getByLabelText(/CONFIRM-PW-MARKER/)).toBeInTheDocument();
+      expandChangePassword();
+      expect(screen.getByLabelText("CONFIRM-PW-MARKER *")).toBeRequired();
       expect(screen.queryByLabelText(/^Confirm new password/)).not.toBeInTheDocument();
     });
   });
@@ -208,8 +237,11 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("reads the submit button label from the catalog, not a hardcoded literal", async () => {
     await withOverride("changePasswordButton", "SUBMIT-MARKER", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
+      expandChangePassword();
       expect(screen.getByRole("button", { name: "SUBMIT-MARKER" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Change password" })).not.toBeInTheDocument();
+      const remaining = screen.getAllByRole("button", { name: "Change password" });
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]).toHaveAttribute("aria-expanded", "true");
     });
   });
 

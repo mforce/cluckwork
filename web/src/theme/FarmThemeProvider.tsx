@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import createCache from "@emotion/cache";
 import { CacheProvider } from "@emotion/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider, createTheme, lighten } from "@mui/material/styles";
 import type { Shadows, Theme } from "@mui/material/styles";
 import {
   pixelsFrom, readThemeMode, readThemeTokens,
@@ -110,6 +110,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
   const panelRadius = radius("--r-panel", 8);
   const pillRadius = radius("--r-pill", 999);
   const controlRadius = radius("--r-input", 4);
+  const selectedNavFill = lighten(tokens["--brand"], 0.18);
 
   const base = createTheme({
     palette: {
@@ -168,7 +169,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       // #864 — the confirmed ruled-ledger direction's scale (DIRECTION.md),
       // not a port of today's sizes. Weight 800 and negative tracking are
       // retired; numbers are display 40/44, title 24/28 (phone 28/32),
-      // section 13/16, rows 14/20 desktop / 16/24 phone, caption 12/16.
+      // section 15, rows 14/20 desktop / 16/24 phone, caption 12/16.
       // `body1` is what `CssBaseline` would apply to `<body>`; its
       // letterSpacing stays reset from MUI's 0.00938em regardless.
       body1: {
@@ -179,9 +180,9 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         fontVariantNumeric: "tabular-nums",
       },
       body2: { fontSize: "0.95rem" },
-      h1: { fontSize: "2.5rem", lineHeight: 44 / 40, fontWeight: 600 },
-      h2: { fontSize: "1.5rem", lineHeight: 28 / 24, fontWeight: 600 },
-      h3: { fontSize: "0.8125rem", lineHeight: 16 / 13, fontWeight: 600 },
+      h1: { fontFamily: "Georgia, serif", fontSize: "2.5rem", lineHeight: 44 / 40, fontWeight: 600 },
+      h2: { fontFamily: "Georgia, serif", fontSize: "1.5rem", lineHeight: 28 / 24, fontWeight: 600 },
+      h3: { fontFamily: tokens["--font"], fontSize: "0.9375rem", fontWeight: 600 },
       h4: { fontSize: "1.05rem", fontWeight: 700 },
       subtitle2: { fontSize: "0.85rem", fontWeight: 500, color: tokens["--muted"] },
       caption: { fontSize: "0.75rem", lineHeight: 16 / 12, fontWeight: 400, letterSpacing: 0 },
@@ -226,6 +227,28 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       MuiCard: {
         defaultProps: { variant: "outlined" },
         styleOverrides: { root: { borderRadius: panelRadius } },
+      },
+      MuiAccordion: {
+        defaultProps: { elevation: 0 },
+        styleOverrides: {
+          root: {
+            border: `1px solid ${tokens["--hairline"]}`,
+            borderRadius: controlRadius,
+            marginBottom: 12,
+            overflow: "hidden",
+            "&:before": { display: "none" },
+            "&.Mui-expanded": { margin: "0 0 12px" },
+            "&:last-of-type": { marginBottom: 0 },
+          },
+        },
+      },
+      MuiAccordionSummary: {
+        styleOverrides: {
+          root: { backgroundColor: tokens["--surface-2"] },
+        },
+      },
+      MuiAccordionDetails: {
+        styleOverrides: { root: { padding: 18 } },
       },
       MuiDialog: { styleOverrides: { paper: { borderRadius: cardRadius } } },
       MuiOutlinedInput: { styleOverrides: { root: { borderRadius: controlRadius } } },
@@ -462,10 +485,11 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             borderLeft: "3px solid transparent",
             gap: 8,
             "&.Mui-selected, &.Mui-selected:hover": {
-              backgroundColor: "transparent",
-              borderLeftColor: tokens["--stat-accent"],
-              color: tokens["--stat-accent"],
+              backgroundColor: selectedNavFill,
+              borderLeftColor: selectedNavFill,
+              color: tokens["--on-brand"],
               fontWeight: 600,
+              "& .MuiListItemIcon-root": { color: "inherit" },
             },
             "&:hover": { backgroundColor: tokens["--surface-2"] },
           },

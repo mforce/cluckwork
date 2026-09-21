@@ -178,8 +178,8 @@ function declarationsFor(selector: string): Map<string, string> {
 // and `Autocomplete`'s own exception, `MuiAutocomplete.styleOverrides.paper`
 // at index 8, already pinned in `farmTheme.policy.test.ts`) — no new G2 row,
 // unchanged by this PR.
+// Auth uses an elevation-0 Paper with its existing bespoke shadow token.
 const SHADOW_ALLOWED = [
-  ".auth .card",            // the sign-in card, floating on the auth gradient
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
   ".update-banner",         // the service-worker update prompt
 ].sort();
@@ -255,6 +255,7 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     ".order-panel",
     ".entry-pane",
     "input",
+    "button",
   ])("%s resolves its radius through a token, not a literal", (selector) => {
     const radius = declarationsFor(selector).get("border-radius");
     expect(radius).toMatch(/^var\(--r-[a-z]+\)$/);
@@ -265,11 +266,13 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // pattern match (above) would stay green if one of these silently reverted
   // to --r-card, so this pins the SPECIFIC token per surface.
   it.each([
-    ".card", ".order-panel", ".entry-pane",
-    ".help-hero", ".logo-preview", ".banner-preview", ".farm-warning",
-    ".palette-picker",
+    ".card", ".order-panel", ".entry-pane", ".farm-warning", ".help-hero",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {
     expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
+  });
+
+  it("keeps raw page actions rectangular", () => {
+    expect(declarationsFor("button").get("border-radius")).toBe("var(--r-input)");
   });
 
   // #827 retired both `.dialog` radius rules — MUI `Dialog`'s own paper now

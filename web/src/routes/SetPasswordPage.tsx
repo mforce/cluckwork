@@ -1,10 +1,11 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert, Stack, TextField, Typography } from "@mui/material";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { AuthShell } from "../components/AuthShell";
 import { BusyButton } from "../components/BusyButton";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { usePendingAction } from "../components/usePendingAction";
 
 const MIN_LENGTH = 12;
@@ -62,46 +63,38 @@ export function SetPasswordPage() {
   }
 
   return (
-    <main className="auth">
-      <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
-      <form className="card" onSubmit={onSubmit}>
-        <h1>{t("setPasswordHeading")}</h1>
-        <p className="hint">{t("setPasswordHint")}</p>
-        <label>
-          {t("temporaryPasswordLabel")}
-          <input
-            type="password"
-            value={temporaryPassword}
-            onChange={(e) => setTemporaryPassword(e.target.value)}
-            autoComplete="current-password"
-            maxLength={256}
-            required
-          />
-        </label>
-        <label>
-          {t("setPasswordNewLabel", { min: MIN_LENGTH })}
-          <input
-            type="password"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-            autoComplete="new-password"
-            minLength={MIN_LENGTH}
-            maxLength={256}
-            required
-          />
-        </label>
-        <label>
-          {t("setPasswordConfirmLabel")}
-          <input
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="new-password"
-            maxLength={256}
-            required
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
+    <AuthShell footerNote={t("setPasswordShellFooter")}>
+      <Stack component="form" spacing={2} onSubmit={onSubmit}>
+        <Typography variant="h2">{t("setPasswordHeading")}</Typography>
+        <Typography variant="body2" color="text.secondary">{t("setPasswordHint")}</Typography>
+        <TextField
+          label={t("temporaryPasswordLabel")}
+          type="password"
+          value={temporaryPassword}
+          onChange={(e) => setTemporaryPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        <TextField
+          label={t("setPasswordNewLabel", { min: MIN_LENGTH })}
+          type="password"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          autoComplete="new-password"
+          required
+          slotProps={{ htmlInput: { minLength: MIN_LENGTH, maxLength: 256 } }}
+        />
+        <TextField
+          label={t("setPasswordConfirmLabel")}
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
+          required
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        {error && <Alert severity="error">{error}</Alert>}
         <BusyButton type="submit" busy={busy}>
           {busy ? t("setPasswordSubmitting") : t("setPasswordButton")}
         </BusyButton>
@@ -111,7 +104,7 @@ export function SetPasswordPage() {
         <button type="button" className="link" onClick={() => void logout()}>
           {t("setPasswordSignOut")}
         </button>
-      </form>
-    </main>
+      </Stack>
+    </AuthShell>
   );
 }

@@ -258,6 +258,10 @@ function bareElementRules(source: string = css): BareRule[] {
  * that already styles MUI's DOM is the same event as adding the rule.
  */
 const DEMOTED: ReadonlyArray<readonly [selector: string, props: string]> = [
+  // Field Console page and major section headings use the same serif outside
+  // MUI Typography. Help is the only screen with raw headings; its h3 topics
+  // stay on the artifact's sans section-heading tier.
+  [":where(h1, h2)", "font-family"],
   [":where(h1, h2, h3, h4)", "font-weight letter-spacing line-height"],
   [
     ":where(button)",

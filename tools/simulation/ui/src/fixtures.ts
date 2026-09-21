@@ -163,7 +163,7 @@ export const test = base.extend<Fixtures>({
       // longer sign in at all. That is not hypothetical; it happened.
       //
       // The bare `main` element is not usable either: the login screen is a
-      // `<main class="auth">` too, so it cannot tell the shell from the form it
+      // bare `<main>` too (#833), so it cannot tell the shell from the form it
       // replaced. The `id` is what separates them — AppLayout's is the only
       // element in the app carrying `main-content`, and the login screen's has
       // no id at all.

@@ -74,6 +74,10 @@ export const en = {
   },
   auth: {
     title: "Cluckwork",
+    shellEyebrow: "Poultry farm management",
+    shellTagline: "Daily entry · Stock · Sales",
+    loginShellFooter: "Farm code identifies the farm you are signing into.",
+    setPasswordShellFooter: "Set your password before entering the farm.",
     farmCode: "Farm code",
     // #535 — the device remembers every farm code that has SUCCESSFULLY signed
     // in here, so a phone shared between farms offers them instead of retyping.
@@ -144,6 +148,7 @@ export const en = {
     setPasswordTooShortError: "The new password must be at least {{min}} characters.",
   },
   account: {
+    eyebrow: "Personal preferences",
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
@@ -171,14 +176,11 @@ export const en = {
     changePasswordHint:
       "Changing your password signs you out everywhere else — this device "
       + "stays signed in.",
-    // The trailing " *" is folded into the label text itself, matching how
-    // UsersPage's emailFieldLabel/newPasswordFieldLabel already handle a
-    // required-field marker — never a standalone "*" key.
-    currentPasswordLabel: "Current password *",
+    currentPasswordLabel: "Current password",
     // {{min}} is MIN_LENGTH (AccountPage.tsx) — interpolated, not baked in,
     // so the label and the validation message below can never drift apart.
-    newPasswordLabel: "New password (min {{min}} chars) *",
-    confirmPasswordLabel: "Confirm new password *",
+    newPasswordLabel: "New password (min {{min}} chars)",
+    confirmPasswordLabel: "Confirm new password",
     changePasswordButton: "Change password",
     passwordMismatchError: "The new passwords don't match.",
     passwordTooShortError: "The new password must be at least {{min}} characters.",
@@ -1610,11 +1612,15 @@ export const en = {
   // is their only render site), so their display names are flat keys here
   // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
   settings: {
+    eyebrow: "Farm configuration",
     heading: "Farm settings",
     intro:
       "How this farm names itself, and the locale, timezone and currency it "
       + "records and reads its work in.",
     loadFailedMessage: "Could not load farm settings.",
+
+    identityImagesHeading: "Identity & images",
+    imageGuidanceHeading: "Image guidance",
 
     // Logo panel
     logoSectionHeading: "Logo",
@@ -1675,6 +1681,8 @@ export const en = {
 
     // Localization form
     localizationSectionHeading: "Localization",
+    countingSalesSectionHeading: "Counting & sales",
+    dateTimeFormatsSectionHeading: "Date & time formats",
     farmNameLabel: "Farm name",
     timezoneLabel: "Timezone",
     timezoneUnknownWarning:
@@ -1743,6 +1751,7 @@ export const en = {
       + "system and the format overrides are recorded against the farm and "
       + "will drive how amounts, dates and measurements are displayed once "
       + "that formatting lands.",
+    saveScopeNote: "Image actions are separate from Save settings.",
     savedMessage: "Settings saved.",
 
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
@@ -2309,6 +2318,7 @@ export const en = {
   // em-dash fallback for a null reason (same convention as
   // customers/expenses/users/flocks/history's raw "—").
   audit: {
+    eyebrow: "Read-only record",
     heading: "Audit log",
     intro:
       "Every corrective, destructive, or configuration change — who did it, "
@@ -2324,6 +2334,9 @@ export const en = {
     // loaded, or if the entity has zero audit events — deliberately not
     // distinguishing those two cases (Gate 3).
     scopedHeadingFallback: "Record history",
+    utcTimestampsCaption: "UTC timestamps",
+    scopeRetainedCaption: "Record scope retained when clearing filters",
+    previewRecordHistoryLabel: "Preview one record's history",
     entityTypeFilterLabel: "Record type",
     allEntityTypesOption: "All types",
     actionFilterLabel: "Action",
@@ -2370,6 +2383,7 @@ export const en = {
   // stay raw, unkeyed — they're functional identifiers, not display copy, and
   // changing them would be a download-mechanics change (out of scope).
   export: {
+    eyebrow: "Your farm data",
     heading: "Export",
     intro:
       "Download your account's data as CSV files — a manual backup you can "
@@ -2379,12 +2393,12 @@ export const en = {
     fullBackupHeading: "Full backup",
     fullBackupButton: "Download full backup (zip)",
     fullBackupHint: "One zip with every dataset below plus a manifest of row counts.",
-    // Shared between the full-backup button and every dataset button (each
-    // uses its own `busy === <key>` check) — one in-flight-download label,
-    // not a per-button duplicate.
     preparingButton: "Preparing…",
 
     singleDatasetsHeading: "Single datasets",
+    datasetHint: "Select one dataset. The full backup remains available above.",
+    datasetLabel: "Dataset",
+    downloadCsvButton: "Download CSV",
 
     // Dataset picker labels — one flat "dataset.<slug>" key per
     // EXPORT_DATASETS member (../api/cluckwork), text IDENTICAL to the raw
@@ -2650,33 +2664,19 @@ export const en = {
     lead: "How Cluckwork works, screen by screen — and how to undo mistakes.",
     contentsAriaLabel: "Help contents",
     contentsEyebrow: "Contents",
-    // #657 — search, grouped rail and grouped glossary.
+    // #657 — search, the contents rail and glossary.
     searchLabel: "Search the guide",
     searchPlaceholder: "Type a term or a topic",
     searchClear: "Clear search",
     searchMatches: "Matches for “{{query}}”: {{sections}} in the guide, {{terms}} in the glossary.",
     searchNoMatches: "Nothing matches “{{query}}”.",
     searchShortcutHint: "Press / to search",
-    glossaryJumpAriaLabel: "Glossary groups",
     openScreen: "Open {{screen}}",
-    railGroupStartHere: "Start here",
-    railGroupEveryDay: "Every day",
-    railGroupSelling: "Selling",
-    railGroupSupplies: "Supplies",
-    railGroupFarm: "Farm & people",
-    railGroupApp: "The app",
-    glossaryGroupGettingAround: "Getting around",
-    glossaryGroupSigningIn: "Signing in & who can do what",
-    glossaryGroupFlocksEntry: "Flocks & daily entry",
-    glossaryGroupEggsStock: "Eggs, grades & stock",
-    glossaryGroupSalesMoney: "Sales & money",
-    glossaryGroupSupplies: "Feed, water & supplies",
-    glossaryGroupFarm: "Farm settings & branding",
 
     // Contents-rail labels (TOC array, 2nd element). Order mirrors the <h3
     // id=...> sections below — see the KEEP comment at the top of
     // HelpPage.tsx. tocGlossary is the rail's link text only; the glossary
-    // SECTION itself (heading + 37-row table + closing note) is externalized
+    // section itself (heading + disclosures + closing note) is externalized
     // further down, near the end of this block (Task 33, B6b).
     tocGettingAround: "Getting around",
     tocDashboard: "Dashboard",
@@ -3784,7 +3784,13 @@ export const en = {
       "A second, independent image shown full-size on a splash screen right after signing in, once per "
       + "sign-in. Separate from the farm logo above — a farm can have a logo, a banner, both, or neither. "
       + "Same PNG/JPEG/WebP still-image rules, its own larger size limit (5 MB by default), uploaded from "
-      + "Farm settings.",
+      + "Farm settings. The device that shows it caches the image after that splash, so on a later visit "
+      + "it can also appear on the sign-in screen before entering a password — but only while the farm "
+      + "code field names that same farm; typing or picking a different code hides it right away, and a "
+      + "link that only names a farm code never shows its banner. If a farm code is later reassigned to a "
+      + "different farm, a device that already cached the previous holder's banner may still show it "
+      + "briefly, until that device's next sign-in confirms which farm the code belongs to now and clears "
+      + "the mismatch — never a new disclosure, only a stale image on a device that already had it.",
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:

@@ -6,11 +6,12 @@ import {
 } from "../api/client";
 import { currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
-import { bindFarm, clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
+import { bindFarm, clearAccessToken, getAccessToken, getBoundAccountId, purgeLegacyTokens } from "./tokenStore";
 import { clearSplashSeenMarker } from "../session/SessionContext";
 import { purgeUnscopedAccountState } from "../lib/accountStorage";
 import { canonicalFarmCode, readFarmCodes, rememberFarmCode } from "./farmCodeCache";
 import { applyDeviceBrand } from "../lib/brand";
+import { clearBannerIfWrongAccount } from "../lib/bannerCache";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -124,6 +125,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // one) canonicalises to null and leaves the tab unbound — the same outcome
     // as a cold restore, and never a wrong key.
     bindFarm(canonicalFarmCode(farmCode));
+    const signedInSlug = canonicalFarmCode(farmCode);
+    const signedInAccountId = getBoundAccountId();
+    if (signedInSlug !== null && signedInAccountId !== null) {
+      void clearBannerIfWrongAccount(signedInSlug, signedInAccountId);
+    }
     // #535 — remembered only AFTER apiLogin resolves, so a typo is never stored:
     // a failed sign-in throws out of apiLogin (client.ts:144 `if (!res.ok) throw`)
     // and never reaches this line, and neither does the superseded-session path
