@@ -1270,10 +1270,15 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     )).toHaveClass("discount");
   });
 
-  it("names an order sold entirely at list", async () => {
+  it.each([
+    ["en", "At list"],
+    ["es", "A precio de lista"],
+    ["tl", "Sa presyong nasa listahan"],
+  ])("names an order sold entirely at list as a status in %s", async (locale, status) => {
     const atList: OrderItem = { ...ITEM_A, id: "at1", listUnitPriceMinorUnits: 300 };
     mockListOrders.mockResolvedValue([listedOrder("atlist", [atList], 900)]);
     await renderReady();
+    await act(async () => { await i18n.changeLanguage(locale); });
     const row = screen.getByRole("row", { name: /SO-atlist/ });
     // Assert the CELL, by index. A bare text lookup for "—" is ambiguous: the
     // row's ProvenanceCell also renders one under NO_RECORD_HISTORY
@@ -1281,7 +1286,9 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // Discount, Total, Provenance, actions — so the new column is index 4.
     // Without this, an implementation returning null for every non-below order
     // leaves the cell EMPTY and both negative assertions still pass.
-    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("At list");
+    const cell = within(row).getAllByRole("cell")[4];
+    expect(cell).toHaveAccessibleName(status);
+    expect(cell).not.toHaveAccessibleName(i18n.t("sales:listPrice"));
     expect(within(row).queryByText(/%/)).toBeNull();
   });
 
