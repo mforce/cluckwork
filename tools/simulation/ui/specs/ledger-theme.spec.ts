@@ -55,11 +55,10 @@ for (const theme of ["light", "dark"] as const) {
 // DEFAULTS (deliberately, per web/src/test/cssTokens.ts — jsdom cannot
 // resolve a real custom-property cascade either), never a component's own
 // runtime override. This section is the guard that catches it: it reads the
-// ACTUAL computed colour of the real row-action buttons FieldConsole and
-// Sales render, in every dark palette, for both the idle and the
-// MUI-disabled state (MUI's own default dark `action.disabled`,
-// rgba(255,255,255,0.3), clears only ~2.6:1 against --surface/--surface-2 —
-// under the 3:1 floor this issue also requires).
+// ACTUAL computed colour of a real row-action element on every one of the
+// eight FieldConsole-consuming screens (the seven named in the issue's blast
+// radius plus Sales, which joined via #927's own LINK_ACTION_SX copy), in
+// every dark palette, for both the idle and the MUI-disabled state.
 const BRANDS = ["aubergine", "forest", "slate", "terracotta"] as const;
 
 function channelOf(c: number): number {
@@ -80,11 +79,9 @@ function luminanceOf([r, g, b]: [number, number, number]): number {
 // getComputedStyle(el).color returns the DECLARED colour, alpha included —
 // never what the browser actually painted. MUI's dark `action.disabled` is
 // rgba(255,255,255,0.3), a translucent white; reading its RGB channels alone
-// (ignoring alpha) measures it as opaque white against a dark surface, the
-// best possible contrast rather than the ~2.6:1 it truly paints as. A first
-// version of this helper did exactly that and passed the disabled floor
-// vacuously — caught by a manual mutation check, not by this suite, which is
-// why alpha compositing is load-bearing here and not simplification.
+// (ignoring alpha) measures it as opaque white against a dark surface — the
+// best possible contrast, rather than the ~2.7:1 it truly paints as. The
+// compositing below is load-bearing, not a simplification target.
 function contrastOf(fgCss: string, bgCss: string): number {
   const [fr, fgc, fb, fa] = parseRgba(fgCss);
   const [br, bg, bb] = parseRgba(bgCss);
@@ -114,27 +111,105 @@ async function disabledColorOf(locator: ReturnType<Page["getByRole"]>): Promise<
   });
 }
 
+function assertContrast(brand: string, label: string, idle: string, disabled: string, surface: string, surface2: string): void {
+  expect(contrastOf(idle, surface), `${brand}: ${label} idle vs --surface`).toBeGreaterThanOrEqual(4.5);
+  expect(contrastOf(idle, surface2), `${brand}: ${label} idle vs --surface-2`).toBeGreaterThanOrEqual(4.5);
+  expect(contrastOf(disabled, surface), `${brand}: ${label} disabled vs --surface`).toBeGreaterThanOrEqual(3);
+  expect(contrastOf(disabled, surface2), `${brand}: ${label} disabled vs --surface-2`).toBeGreaterThanOrEqual(3);
+}
+
+// The five routes with a reachable real element: no admin gate, no
+// interaction beyond an optional one-time reveal click. `ready` is what the
+// screen shows BEFORE any reveal — the signal that FarmContext's own account
+// bootstrap has resolved, so `setBrand` (which follows) isn't overwritten by
+// it. `reveal` then runs, and `locator` is the FINAL target it uncovers.
+type RouteCheck = {
+  label: string; path: string;
+  ready: (page: Page) => ReturnType<Page["getByRole"]>;
+  reveal?: (page: Page) => Promise<void>;
+  locator: (page: Page) => ReturnType<Page["getByRole"]>;
+};
+const historyAdjust = (page: Page) => page.getByRole("button", { name: tEn("history:adjustButton"), exact: true }).first();
+// Two "Manage categories" affordances share this label: a page-header
+// `variant="contained"` toggle (DOM order first) and the add-expense panel's
+// own `CONSOLE_LINK_SX` text button (DOM order last) — the one this issue is
+// actually about.
+const expensesManageCategories = (page: Page) => page.getByRole("button", { name: tEn("expenses:manageCategoriesButton"), exact: true }).last();
+const waterCorrect = (page: Page) => page.getByRole("button", { name: tEn("water:correctButton"), exact: true }).first();
+const inventoryOpen = (page: Page) => page.getByRole("button", { name: tEn("inventory:openButton"), exact: true }).first();
+const inventoryChooseAnother = (page: Page) => page.getByRole("button", { name: tEn("inventory:chooseAnotherItem"), exact: true });
+const stockLots = (page: Page) => page.getByRole("button", { name: tEn("stock:lotsButton"), exact: true }).first();
+const stockAdjustmentHistory = (page: Page) => page.getByRole("link", { name: tEn("common:recordHistory.viewAdjustmentHistoryLink"), exact: true }).first();
+const ROUTE_CHECKS: RouteCheck[] = [
+  { label: "History adjust", path: "/history", ready: historyAdjust, locator: historyAdjust },
+  { label: "Expenses manage categories", path: "/expenses", ready: expensesManageCategories, locator: expensesManageCategories },
+  { label: "Water correct", path: "/water", ready: waterCorrect, locator: waterCorrect },
+  { label: "Inventory choose another item", path: "/inventory", ready: inventoryOpen,
+    reveal: (page) => inventoryOpen(page).click(), locator: inventoryChooseAnother },
+  // The lots table (and its "Adjustment history" link) only renders once a
+  // grade's own "lots" toggle is open.
+  { label: "Stock adjustment history", path: "/stock", ready: stockLots,
+    reveal: (page) => stockLots(page).click(), locator: stockAdjustmentHistory },
+];
+
+// Feed and Reports carry no `CONSOLE_LINK_SX` button and their only
+// `className="link"` element is gated behind a load-more page or an error
+// state neither screen reaches under the default fixture. This still tests
+// the real cascade on the real screen: `button.link` is the exact selector
+// every such control resolves through (styles.css), so a node built with
+// that class inside the screen's own live `[data-field-console]` section
+// answers the same question a naturally-occurring one would.
+async function fieldConsoleLinkColors(page: Page): Promise<{ idle: string; disabled: string }> {
+  return page.evaluate(() => {
+    const scope = document.querySelector("[data-field-console]");
+    if (!scope) throw new Error("no [data-field-console] section on this screen");
+    const probe = document.createElement("button");
+    probe.className = "link";
+    probe.textContent = "probe";
+    scope.append(probe);
+    const idle = getComputedStyle(probe).color;
+    probe.classList.add("Mui-disabled");
+    probe.setAttribute("disabled", "");
+    const disabled = getComputedStyle(probe).color;
+    probe.remove();
+    return { idle, disabled };
+  });
+}
+
 for (const brand of BRANDS) {
   test(`Field Console and Sales row-action links clear WCAG contrast in dark/${brand} (#930)`, async ({ page, signIn }) => {
     await page.emulateMedia({ colorScheme: "dark" });
     await signIn(owner());
+    let surface = "";
+    let surface2 = "";
 
-    await page.goto("/history");
-    const adjust = page.getByRole("button", { name: tEn("history:adjustButton"), exact: true }).first();
-    await expect(adjust).toBeVisible();
-    // Set AFTER the screen's own data-loaded state, never right after goto:
-    // FarmContext applies the farm's real (aubergine) brand once its account
-    // bootstrap resolves, and that would otherwise overwrite this override.
-    await setBrand(page, brand);
-    const surface = await probeVar(page, "--surface");
-    const surface2 = await probeVar(page, "--surface-2");
+    for (const check of ROUTE_CHECKS) {
+      await page.goto(check.path);
+      await expect(check.ready(page)).toBeVisible();
+      // Set AFTER the screen's own data-loaded state, never right after
+      // goto: FarmContext applies the farm's real (aubergine) brand once its
+      // account bootstrap resolves, and that would otherwise overwrite this
+      // override.
+      await setBrand(page, brand);
+      if (check.reveal) await check.reveal(page);
+      if (surface === "") {
+        surface = await probeVar(page, "--surface");
+        surface2 = await probeVar(page, "--surface-2");
+      }
+      const target = check.locator(page);
+      await expect(target).toBeVisible();
+      const idle = await target.evaluate((node) => getComputedStyle(node).color);
+      const disabled = await disabledColorOf(target);
+      assertContrast(brand, check.label, idle, disabled, surface, surface2);
+    }
 
-    const idle = await adjust.evaluate((el) => getComputedStyle(el).color);
-    expect(contrastOf(idle, surface), `${brand}: idle vs --surface`).toBeGreaterThanOrEqual(4.5);
-    expect(contrastOf(idle, surface2), `${brand}: idle vs --surface-2`).toBeGreaterThanOrEqual(4.5);
-    const disabled = await disabledColorOf(adjust);
-    expect(contrastOf(disabled, surface), `${brand}: disabled vs --surface`).toBeGreaterThanOrEqual(3);
-    expect(contrastOf(disabled, surface2), `${brand}: disabled vs --surface-2`).toBeGreaterThanOrEqual(3);
+    for (const [path, label] of [["/feed", "Feed"], ["/reports", "Reports"]] as const) {
+      await page.goto(path);
+      await expect(page.locator("[data-field-console]")).toBeVisible();
+      await setBrand(page, brand);
+      const { idle, disabled } = await fieldConsoleLinkColors(page);
+      assertContrast(brand, label, idle, disabled, surface, surface2);
+    }
 
     // Sales joined FieldConsole's row-action styling after #927, via its own
     // LINK_ACTION_SX copy — including the Draft line item's own save/cancel
@@ -147,12 +222,8 @@ for (const brand of BRANDS) {
     const manifest = page.getByRole("region").getByRole("table").first();
     await manifest.getByRole("button", { name: tEn("sales:edit"), exact: true }).first().click();
     const save = manifest.getByRole("button", { name: tEn("sales:save"), exact: true });
-
     const saveIdle = await save.evaluate((el) => getComputedStyle(el).color);
-    expect(contrastOf(saveIdle, surface), `${brand}: Sales save idle vs --surface`).toBeGreaterThanOrEqual(4.5);
-    expect(contrastOf(saveIdle, surface2), `${brand}: Sales save idle vs --surface-2`).toBeGreaterThanOrEqual(4.5);
     const saveDisabled = await disabledColorOf(save);
-    expect(contrastOf(saveDisabled, surface), `${brand}: Sales save disabled vs --surface`).toBeGreaterThanOrEqual(3);
-    expect(contrastOf(saveDisabled, surface2), `${brand}: Sales save disabled vs --surface-2`).toBeGreaterThanOrEqual(3);
+    assertContrast(brand, "Sales Draft Save", saveIdle, saveDisabled, surface, surface2);
   });
 }
