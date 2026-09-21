@@ -1164,8 +1164,8 @@ const rangeQuery = (from: string, to: string) => `?from=${from}&to=${to}`;
 // flock, server-side (IReportQueries.cs / FlockScope's own query filter): the
 // browser never filters an unscoped payload itself. Omitted, the report
 // covers every flock the caller can see, exactly as before.
-export const getProductionReport = (from: string, to: string, flockId?: string) =>
-  apiGet<ProductionReport>(`/reports/production${rangeQuery(from, to)}${flockId ? `&flockId=${flockId}` : ""}`);
+export const getProductionReport = (from: string, to: string, flockId?: string, signal?: AbortSignal) =>
+  apiGet<ProductionReport>(`/reports/production${rangeQuery(from, to)}${flockId ? `&flockId=${flockId}` : ""}`, signal);
 export const getSalesSummary = (from: string, to: string) =>
   apiGet<SalesSummary>(`/reports/sales${rangeQuery(from, to)}`);
 export const getExpenseSummary = (from: string, to: string) =>

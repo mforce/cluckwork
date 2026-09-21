@@ -641,6 +641,7 @@ export const es = {
     flockDiscoveryUnavailableMessage: "No se pudo buscar lotes.",
     accessibleFlocksCount_one: "{{count}} lote accesible",
     accessibleFlocksCount_other: "{{count}} lotes accesibles",
+    accessibleFlocksCountAtLeast: "{{count}}+ lotes accesibles",
     layRateContext: "{{scope}} · {{from}}–{{to}}",
     legendComplete: "Completo",
     legendPartial: "Parcial",

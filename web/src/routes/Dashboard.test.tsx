@@ -99,6 +99,12 @@ const currentFor = (today: string) => report(87.4, [7, 6, 5, 4, 3, 2, 1].map((n)
 const reportByWindow = (today: string) => (from: string, to: string) => {
   if (from === daysBefore(today, 7) && to === daysBefore(today, 1)) return Promise.resolve(currentFor(today));
   if (from === daysBefore(today, 14) && to === daysBefore(today, 8)) return Promise.resolve(previousFor(today));
+  // #918 — Codex review: the Morning collection panel's own yesterday-close
+  // caption is now its OWN farm-wide, single-day fetch (never `flockId`-
+  // scoped), so a from===to request answers with just that one day. 321
+  // matches `currentFor`'s own yesterday slot, so the two sources agree in
+  // the default fixture.
+  if (from === to && from === daysBefore(today, 1)) return Promise.resolve(report(null, [day(daysBefore(today, 1), 321)]));
   return Promise.reject(new Error(`unexpected window ${from}..${to}`));
 };
 
@@ -391,9 +397,12 @@ describe("Dashboard 'Yesterday by close' caption (#864)", () => {
   });
 
   it("shows no caption when yesterday was not fully recorded", async () => {
+    // Targets the LAST day of whichever window this is, not a hardcoded
+    // index 6: the single-day yesterday-close fetch's own array has yesterday
+    // at index 0, the 7-day trend window has it at index 6.
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => (to === daysBefore(today, 1)
-        ? { ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 0, missingFlocks: d.expectedFlocks, totalEggs: 0 } : d)) }
+        ? { ...r, days: r.days.map((d, i) => (i === r.days.length - 1 ? { ...d, recordedFlocks: 0, missingFlocks: d.expectedFlocks, totalEggs: 0 } : d)) }
         : r)));
     renderWithProviders(<Dashboard />);
     await todayTotal();
@@ -405,11 +414,15 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("asks the production report for exactly the two 7-day windows ending yesterday", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    expect(mockReport).toHaveBeenCalledTimes(2);
+    // #918 — Codex review: a third, single-day, unscoped call now feeds the
+    // Morning collection panel's own yesterday-close caption.
+    expect(mockReport).toHaveBeenCalledTimes(3);
     // #916 — the third argument is the flock scope; All flocks (the default)
     // passes undefined, so the report stays farm-wide exactly as before.
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1), undefined);
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined);
+    // #918 — Codex review: the fourth argument aborts a superseded request.
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 1), daysBefore(today, 1));
   });
 
   it("draws the 14 report days oldest-first as bars sized off the peak, and the server's hen-day figures", async () => {
@@ -625,7 +638,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   it("defaults to All flocks; the selector's accessible name and the context caption both say so", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    expect(mockReport).toHaveBeenLastCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined);
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined, expect.any(AbortSignal));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
     // The context caption: "{count} accessible flocks · {range}" — the count
     // is the same 3 the other panels' fixture already assumes.
@@ -688,8 +701,8 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await waitForPickerToClose();
 
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 7), daysBefore(today, 1), "f2"));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f2");
+      daysBefore(today, 7), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f2", expect.any(AbortSignal));
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
     // Today's collection panel does not refetch on a Lay rate scope change.
     expect(mockEntries).not.toHaveBeenCalled();
@@ -699,8 +712,62 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await user.click(screen.getByRole("button", { name: /^All flocks/ }));
     await waitForPickerToClose();
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 7), daysBefore(today, 1), undefined));
+      daysBefore(today, 7), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
+  });
+
+  // #918 — Codex review, P2-1. `yesterdayByClose` (Morning collection's own
+  // caption) used to derive from the SAME scoped `trend` the Lay rate card
+  // reads, so picking a flock changed a DIFFERENT panel's figure — the exact
+  // violation SELECTION.md's "Other dashboard panels do not change" names.
+  // The prior "never touching the other panels" test above only asserted
+  // that `mockEntries` was not REFETCHED; it never read the Morning
+  // collection panel's own DISPLAYED figure, so it passed on the buggy code.
+  // This asserts the rendered caption directly, before and after a pick.
+  it("keeps the Morning collection panel's yesterday caption farm-wide when a flock is scoped", async () => {
+    const user = userEvent.setup();
+    // f2's own scoped window reports a DIFFERENT yesterday than the always-
+    // farm-wide single-day fetch (300) — if the bug is present, picking f2
+    // would flip the caption to f2's own 100.
+    const currentWithYesterday = (eggs: number) => report(50, [7, 6, 5, 4, 3, 2, 1].map((n) =>
+      day(daysBefore(today, n), n === 1 ? eggs : 300 + n)));
+    mockReport.mockImplementation((from, to, flockId) => {
+      if (from === to) return Promise.resolve(report(null, [day(daysBefore(today, 1), 300)]));
+      if (from === daysBefore(today, 7) && to === daysBefore(today, 1)) {
+        return Promise.resolve(currentWithYesterday(flockId === "f2" ? 100 : 300));
+      }
+      if (from === daysBefore(today, 14) && to === daysBefore(today, 8)) return Promise.resolve(previousFor(today));
+      return Promise.reject(new Error(`unexpected window ${from}..${to}`));
+    });
+
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(await screen.findByText("Yesterday by close: 300")).toBeInTheDocument();
+
+    const results = await openPicker(user);
+    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    await waitForPickerToClose();
+    await waitFor(() => expect(selectorButton()).toHaveAccessibleName("Flock Flock f2"));
+
+    // FAILING BEFORE THE FIX: the caption used to read "Yesterday by close:
+    // 100" here — f2's own scoped figure — instead of the untouched 300.
+    expect(screen.getByText("Yesterday by close: 300")).toBeInTheDocument();
+  });
+
+  // #918 — Codex review, P3-5. `listFlocks` caps at MAX_PAGE (500); a farm
+  // with 501 accessible flocks reads as exactly 500 both in the context
+  // caption and the picker's own pinned "All flocks" choice, presenting a
+  // truncated count as if it were exact.
+  it("presents the accessible count as a lower bound, not exact, once the flock list is truncated at MAX_PAGE", async () => {
+    const user = userEvent.setup();
+    mockFlocks.mockResolvedValue(Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active")));
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(await screen.findByText(/^500\+ accessible flocks · /)).toBeInTheDocument();
+    expect(screen.queryByText(/^500 accessible flocks · /)).not.toBeInTheDocument();
+
+    await openPicker(user);
+    expect(screen.getByText("500+ accessible flocks")).toBeInTheDocument();
   });
 
   // #916 SELECTION.md — the only-one-flock view must report the SAME figures
@@ -716,8 +783,8 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(within(trendPanel).queryByRole("button", { name: /All flocks/ })).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button").some((b) => b.getAttribute("aria-haspopup") === "dialog")).toBe(false);
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 7), daysBefore(today, 1), "f1"));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f1");
+      daysBefore(today, 7), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f1", expect.any(AbortSignal));
   });
 
   // #918 — Codex review, finding 3. `cancelled` is what stops a stale scope's
@@ -728,16 +795,19 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // confirmed locally then reverted.
   it("keeps the newer scope's figures when an older scope's request resolves later", async () => {
     const user = userEvent.setup();
-    const pending: { flockId: string | undefined; resolve: (r: ProductionReport) => void }[] = [];
-    mockReport.mockImplementation((_from, _to, flockId) => new Promise((resolve) => {
-      pending.push({ flockId, resolve });
+    // `from !== to` excludes the Morning collection panel's own single-day
+    // yesterday-close fetch, which also carries no flockId and is left
+    // pending forever here — irrelevant to this race, harmless unresolved.
+    const pending: { from: string; to: string; flockId: string | undefined; resolve: (r: ProductionReport) => void }[] = [];
+    mockReport.mockImplementation((from, to, flockId) => new Promise((resolve) => {
+      pending.push({ from, to, flockId, resolve });
     }));
 
     renderWithProviders(<Dashboard />);
     await todayTotal();
     // The initial "all flocks" scope's two requests (current + previous window).
-    await waitFor(() => expect(pending.filter((p) => p.flockId === undefined)).toHaveLength(2));
-    const allRequests = pending.filter((p) => p.flockId === undefined);
+    await waitFor(() => expect(pending.filter((p) => p.flockId === undefined && p.from !== p.to)).toHaveLength(2));
+    const allRequests = pending.filter((p) => p.flockId === undefined && p.from !== p.to);
 
     const results = await openPicker(user);
     await user.click(within(results).getByRole("button", { name: "Flock f2" }));
@@ -760,6 +830,32 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(screen.getByText("87.4%")).toBeInTheDocument();
     expect(screen.queryByText("1.2%")).not.toBeInTheDocument();
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
+  });
+
+  // #918 — Codex review, P2-3. A superseded production request used to be
+  // merely IGNORED (the `cancelled` flag), not cancelled — it stayed in
+  // flight and could hold one of the account's report-concurrency permits
+  // until it timed out on its own. Mutation-verified: reverting the trend
+  // effect's cleanup to a bare `cancelled = true` flag (no `controller.abort()`)
+  // turns this red, confirmed locally then reverted.
+  it("aborts a superseded production request on a scope change, rather than only ignoring its result", async () => {
+    const user = userEvent.setup();
+    const signals: AbortSignal[] = [];
+    mockReport.mockImplementation((_from, _to, _flockId, signal) => {
+      if (signal) signals.push(signal);
+      return new Promise<ProductionReport>(() => {}); // never settles; only `signal.aborted` is under test
+    });
+
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    await waitFor(() => expect(signals).toHaveLength(2)); // the initial "all flocks" scope's two requests
+
+    const results = await openPicker(user);
+    await user.click(within(results).getByRole("button", { name: "Flock f2" }));
+    await waitForPickerToClose();
+
+    // FAILING BEFORE THE FIX: these stayed unaborted, sitting in flight.
+    await waitFor(() => expect(signals.slice(0, 2).every((s) => s.aborted)).toBe(true));
   });
 
   // #918 round 4 — the picker dialog's own discovery mechanics (server
@@ -992,6 +1088,36 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     expect(within(await panel("Stock")).getByText("Could not load.")).toBeInTheDocument();
   });
 
+  // #918 — Codex review, P2-2. `fetchFlocks` (Retry) updated `flocks`/
+  // `flocksFailed` but never the panels outcome, so the ORIGINAL "all four
+  // panels failed" record survived a successful retry. Sequence: all four
+  // panel reads fail while both production reads succeed (the setup above)
+  // → Retry succeeds with a single flock → the auto-triggered sole-flock
+  // production read then fails → the stale record used to make the
+  // page-level gate hide the entire dashboard, including the selector that
+  // had just recovered. Mutation-verified: dropping `fetchFlocks`'s
+  // `setPanelsOutcome({state:"someOk"})` turns this red (the full-page
+  // message reappears), confirmed locally then reverted.
+  it("keeps the recovered dashboard up after Retry, even when the auto-triggered sole-flock production read then fails", async () => {
+    const user = userEvent.setup();
+    for (const m of [mockFlocks, mockEntries, mockStock, mockOrders]) m.mockImplementation(boom);
+    renderWithProviders(<Dashboard />, asSales);
+    expect(await screen.findByText("87.4%")).toBeInTheDocument(); // the setup above's own healthy state
+    const trendPanel = await panel("Last 14 days");
+    await within(trendPanel).findByText("Could not load the flock list.");
+
+    mockFlocks.mockResolvedValueOnce([flock("f1", "Active")]); // Retry recovers exactly one flock
+    mockReport.mockImplementation(boom); // the auto-triggered sole-flock read then fails
+    await user.click(within(trendPanel).getByRole("button", { name: "Retry" }));
+
+    // FAILING BEFORE THE FIX: the whole dashboard used to disappear behind
+    // "Could not load dashboard..." here, hiding the selector that just
+    // recovered.
+    await waitFor(() => expect(within(trendPanel).getByText("Could not load.")).toBeInTheDocument());
+    expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument();
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
+  });
+
   it("every issued fetch failed for a ReadOnly user too — the inert sales placeholder does not count as a success", async () => {
     for (const m of [mockFlocks, mockEntries, mockStock]) m.mockImplementation(boom);
     mockReport.mockImplementation(boom);
@@ -1110,8 +1236,8 @@ describe("Dashboard follows the farm's day and locale", () => {
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
     expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
-    expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21", undefined);
-    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14", undefined);
+    expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21", undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14", undefined, expect.any(AbortSignal));
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
     expect(screen.getByText("+2,3 pts")).toBeInTheDocument();

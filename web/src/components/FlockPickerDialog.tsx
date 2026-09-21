@@ -19,12 +19,15 @@ export type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
 // The dialog owns every piece of state a flock lookup needs; Dashboard holds
 // only whether it is open and the scope a pick produced.
 export function FlockPickerDialog({
-  open, onClose, scope, accessibleCount, onPickAll, onPickFlock,
+  open, onClose, scope, accessibleCountLabel, onPickAll, onPickFlock,
 }: {
   open: boolean;
   onClose: () => void;
   scope: FlockScope;
-  accessibleCount: number;
+  // #918 — Codex review: pre-formatted by Dashboard, which knows whether the
+  // count is truncated (`listFlocks`'s MAX_PAGE cap) and picks the right
+  // catalog string; the dialog stays presentation-only.
+  accessibleCountLabel: string;
   onPickAll: () => void;
   onPickFlock: (flock: Flock) => void;
 }) {
@@ -144,10 +147,11 @@ export function FlockPickerDialog({
           {t("searchAccessibleFlocksLabel")}
         </Typography>
         <TextField
-          id={searchInputId} type="search" fullWidth size="small" autoComplete="off"
+          id={searchInputId} type="search" fullWidth size="small" autoComplete="off" autoFocus
           value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={onSearchKeyDown}
           placeholder={t("searchByNamePlaceholder")}
+          sx={{ "& .MuiInputBase-root": { minHeight: 44 } }}
         />
       </Box>
       {/* "All flocks" is pinned ABOVE the scrolling result list, never a row
@@ -160,7 +164,7 @@ export function FlockPickerDialog({
         >
           <span>{t("allFlocksOption")}</span>
           <Typography component="span" variant="caption" color="text.secondary">
-            {t("accessibleFlocksCount", { count: accessibleCount })}
+            {accessibleCountLabel}
           </Typography>
         </Button>
         {discoveryFailed ? (

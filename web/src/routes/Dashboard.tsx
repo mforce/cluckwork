@@ -1,5 +1,5 @@
 // web/src/routes/Dashboard.tsx
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
@@ -57,7 +57,11 @@ export function Dashboard() {
   // a missing one would be a figure nobody can reconcile.
   const [trend, setTrend] = useState<{ current: ProductionReport; previous: ProductionReport } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Yesterday's farm-wide close, for the Morning collection caption below —
+  // deliberately its OWN fetch, never `flockId`-scoped: SELECTION.md's "Other
+  // dashboard panels do not change" means this must read the same regardless
+  // of the Lay rate card's scope, which `trend` (scoped) cannot give it.
+  const [yesterdayClose, setYesterdayClose] = useState<number | null>(null);
 
   // #916 — `trendLoading` is separate from `loading`: a scope change refetches
   // only the two production-report calls and must not blank the whole page
@@ -95,45 +99,45 @@ export function Dashboard() {
   const soleFlock = flocks !== null && flocks.length === 1 ? flocks[0] : null;
   const soleFlockId = soleFlock?.id ?? null;
 
-  // #918 — "everything failed" spans BOTH effects (panels + trend), decided
-  // once both have reported for the CURRENT `loadGenRef` generation. `loading`
-  // stays tied only to the panel effect, so a slow production fetch never
-  // blocks the page; a stale outcome from an older generation is ignored.
-  const loadGenRef = useRef(0);
-  const panelsOutcomeRef = useRef<{ gen: number; rejected: number; issued: number; firstRejected?: PromiseRejectedResult } | null>(null);
-  const trendOutcomeRef = useRef<{ gen: number; failed: boolean } | null>(null);
-  function evaluateTotalFailure() {
-    const gen = loadGenRef.current;
-    const panels = panelsOutcomeRef.current;
-    const trend = trendOutcomeRef.current;
-    if (panels === null || panels.gen !== gen || trend === null || trend.gen !== gen) return;
-    if (panels.rejected === panels.issued && trend.failed) {
-      const reason = panels.firstRejected?.reason;
-      setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
-    } else {
-      setError(null);
-    }
-  }
+  // #918 — "everything failed" spans BOTH effects (panels + trend). Each
+  // side tracks its OWN outcome directly rather than through a generation
+  // counter: `panelsOutcome` resets to "pending" the instant a new panels
+  // batch starts and `trendOutcome` resets the instant a new trend fetch
+  // starts, so the derived verdict below only ever reads two CURRENT
+  // answers, never a stale one paired with a fresh one. Retry (`fetchFlocks`)
+  // updates `panelsOutcome` too — the prior ref-based design left a stale
+  // "all four failed" outcome in place after a successful retry, hiding a
+  // dashboard that had actually recovered.
+  type PanelsOutcome = { state: "pending" } | { state: "someOk" } | { state: "allFailed"; reason: unknown };
+  const [panelsOutcome, setPanelsOutcome] = useState<PanelsOutcome>({ state: "pending" });
+  const [trendOutcome, setTrendOutcome] = useState<"pending" | "success" | "failure">("pending");
+  const errorMessage = panelsOutcome.state === "allFailed" && trendOutcome === "failure"
+    ? (panelsOutcome.reason instanceof ApiError ? panelsOutcome.reason.message : i18n.t("dashboard:loadFailed"))
+    : null;
 
   // Retry re-issues ONLY the flock list; the dialog's own discovery is a
-  // separate server call and is unaffected either way.
+  // separate server call and is unaffected either way. A success proves at
+  // least one panel now has data, whatever the other three are doing.
   const fetchFlocks = () => {
     setFlocksRetrying(true);
     listFlocks({ limit: MAX_PAGE })
-      .then((f) => { setFlocks(f); setFlocksFailed(false); setFlocksRetrying(false); })
+      .then((f) => {
+        setFlocks(f); setFlocksFailed(false); setFlocksRetrying(false);
+        setPanelsOutcome({ state: "someOk" });
+      })
       .catch(() => { setFlocksFailed(true); setFlocksRetrying(false); });
   };
 
   useEffect(() => {
-    const gen = ++loadGenRef.current;
-    setError(null); // a fresh load starts clean, never on a stale verdict
+    let cancelled = false;
+    setPanelsOutcome({ state: "pending" }); // a fresh load starts clean, never on a stale verdict
     Promise.allSettled([
       listFlocks({ limit: MAX_PAGE }),
       listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
       getStock(),
       canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
     ]).then(([f, e, s, o]) => {
-      if (gen !== loadGenRef.current) return; // superseded by a newer load
+      if (cancelled) return;
       if (f.status === "fulfilled") { setFlocks(f.value); setFlocksFailed(false); } else { setFlocksFailed(true); }
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
@@ -142,48 +146,61 @@ export function Dashboard() {
       // the sales read is an inert placeholder when the role can't see it.
       const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
       const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      panelsOutcomeRef.current = { gen, rejected: rejected.length, issued: issued.length, firstRejected: rejected[0] };
-      evaluateTotalFailure();
+      setPanelsOutcome(rejected.length === issued.length
+        ? { state: "allFailed", reason: rejected[0]?.reason }
+        : { state: "someOk" });
       setLoading(false);
     });
+    return () => { cancelled = true; };
   }, [today, canSeeSales]);
 
   // #916 — the production report alone, re-run on scope/today/soleFlockId,
   // separate from the effect above so picking a flock never re-fetches the
-  // other four panels (SELECTION.md). `cancelled` drops a superseded
-  // response — a slow request landing after a faster later one must not win.
+  // other four panels (SELECTION.md). `canSeeSales` is in this effect's own
+  // deps too: a role change must re-decide the trend outcome even when
+  // scope/soleFlockId do not change, or a genuine total failure there goes
+  // unreported. #918 — Codex review: a superseded request used to be merely
+  // IGNORED, not cancelled, so it could sit in flight and hold one of the
+  // account's report-concurrency permits until it timed out on its own; the
+  // AbortController below actually cancels it on cleanup.
   useEffect(() => {
     // With exactly one accessible flock there is no All-flocks scope to
     // offer, so this always reports that flock — the SAME `flockId` a picker
     // selection would produce, never a separate "everything" branch (parity
     // requirement, SELECTION.md).
     const flockId = soleFlockId ?? (scope.kind === "flock" ? scope.flock.id : undefined);
-    // Captured at DISPATCH time: effects run in declaration order, so the
-    // panels effect above has already bumped `loadGenRef` by now. `canSeeSales`
-    // is in this effect's own deps for the same reason — without a matching
-    // rerun on a role change, a genuine total failure there goes unreported.
-    const gen = loadGenRef.current;
-    let cancelled = false;
+    const controller = new AbortController();
     setTrendLoading(true);
+    setTrendOutcome("pending"); // re-decided freshly on every dispatch, never frozen at a stale outcome
     Promise.allSettled([
       // The last 7 complete days and the 7 before them — yesterday back, so an
       // unsubmitted today never ends the line in a false dip (owner decision A).
-      getProductionReport(daysBefore(today, 7), daysBefore(today, 1), flockId),
-      getProductionReport(daysBefore(today, 14), daysBefore(today, 8), flockId),
+      getProductionReport(daysBefore(today, 7), daysBefore(today, 1), flockId, controller.signal),
+      getProductionReport(daysBefore(today, 14), daysBefore(today, 8), flockId, controller.signal),
     ]).then(([cur, prev]) => {
-      if (cancelled) return;
+      if (controller.signal.aborted) return;
       const ok = cur.status === "fulfilled" && prev.status === "fulfilled";
       setTrend(ok ? { current: cur.value, previous: prev.value } : null);
       setTrendLoading(false);
-      // Always updated, never written once: a scope change keeps re-deciding
-      // freshly. Safe, because the error is only ever SET when the four panel
-      // reads also failed — which can only happen while `flocks` is null, and
-      // then no scope control exists to change `scope` in the first place.
-      trendOutcomeRef.current = { gen, failed: !ok };
-      evaluateTotalFailure();
+      setTrendOutcome(ok ? "success" : "failure");
     });
-    return () => { cancelled = true; };
+    return () => controller.abort();
   }, [today, scope, soleFlockId, canSeeSales]);
+
+  // #918 — Codex review: yesterday's close belongs to the farm-wide Morning
+  // collection panel, so it is fetched WITHOUT a flock id and depends only on
+  // `today` — picking a flock in the Lay rate card must never change it.
+  useEffect(() => {
+    let cancelled = false;
+    getProductionReport(daysBefore(today, 1), daysBefore(today, 1))
+      .then((r) => {
+        if (cancelled) return;
+        const yesterday = r.days[0] ?? null;
+        setYesterdayClose(yesterday && yesterday.recordedFlocks > 0 && yesterday.missingFlocks === 0 ? yesterday.totalEggs : null);
+      })
+      .catch(() => { if (!cancelled) setYesterdayClose(null); });
+    return () => { cancelled = true; };
+  }, [today]);
 
   // #512 US4 — a recent-sales row's own name: the row-owned `customerName` the
   // endpoint's scoped bulk read already resolved, or the translated
@@ -199,11 +216,11 @@ export function Dashboard() {
       </Container>
     );
   }
-  if (error) {
+  if (errorMessage !== null) {
     return (
       <Container maxWidth={false} disableGutters sx={{ maxWidth: 1120 }}>
         <Typography variant="h2">{t("title")}</Typography>
-        <Alert severity="error" className="error">{error}</Alert>
+        <Alert severity="error" className="error">{errorMessage}</Alert>
       </Container>
     );
   }
@@ -220,9 +237,16 @@ export function Dashboard() {
   const scopeName = scopedFlock ? scopedFlock.name : t("allFlocksOption");
   // The context caption's scope text differs from the selector's: unscoped,
   // it reads as a count of accessible flocks, matching the mockup's
-  // `.context` line.
+  // `.context` line. #918 — Codex review: `listFlocks` is capped at
+  // `MAX_PAGE`, so a farm past that cap reads as exactly 500 when it is
+  // really more; the "at least" form says so instead of presenting a
+  // truncated count as exact.
   const accessibleCount = flocks?.length ?? 0;
-  const contextScope = scopedFlock ? scopedFlock.name : t("accessibleFlocksCount", { count: accessibleCount });
+  const accessibleCountTruncated = flocks !== null && flocks.length === MAX_PAGE;
+  const accessibleCountLabel = accessibleCountTruncated
+    ? t("accessibleFlocksCountAtLeast", { count: accessibleCount })
+    : t("accessibleFlocksCount", { count: accessibleCount });
+  const contextScope = scopedFlock ? scopedFlock.name : accessibleCountLabel;
 
   const trendData = trend === null ? null : {
     line: dayStrip({
@@ -290,10 +314,6 @@ export function Dashboard() {
   };
   const deltaClass = (delta: number | null) =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
-
-  // Only a complete yesterday can be described as its closing total.
-  const yesterdaySlot = trendData?.line.slots.at(-1) ?? null;
-  const yesterdayByClose = yesterdaySlot?.kind === "recorded" ? yesterdaySlot.eggs : null;
 
   // The attention line (D3.3, #829): missing houses only — the desktop-only
   // "Needs attention" list combining a second data source (stock floors) was
@@ -368,7 +388,7 @@ export function Dashboard() {
                   <Typography>{t("collectedToday")}</Typography>
                   <Typography className="num" sx={{ fontFamily: "Georgia, serif", fontWeight: 600, fontSize: "1.8rem" }}>{fmt.count(todaysEggs(entries))}</Typography>
                 </Box>
-                {yesterdayByClose !== null && <Typography variant="caption" color="text.secondary">{t("yesterdayByClose", { total: fmt.count(yesterdayByClose) })}</Typography>}
+                {yesterdayClose !== null && <Typography variant="caption" color="text.secondary">{t("yesterdayByClose", { total: fmt.count(yesterdayClose) })}</Typography>}
                 {tiles.hidden > 0 && <Typography component={Link} to="/daily-entry" variant="body2" sx={{ display: "block" }}>{t("moreFlocks", { count: tiles.hidden, total: fmt.count(tiles.hidden) })}</Typography>}
               </Box>
             </>
@@ -503,7 +523,7 @@ export function Dashboard() {
                   open={pickerOpen}
                   onClose={() => setPickerOpen(false)}
                   scope={scope}
-                  accessibleCount={accessibleCount}
+                  accessibleCountLabel={accessibleCountLabel}
                   onPickAll={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
                   onPickFlock={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
                 />

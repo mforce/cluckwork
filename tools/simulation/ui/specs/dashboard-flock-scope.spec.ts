@@ -204,6 +204,23 @@ test.describe("Dashboard Lay rate flock scope", () => {
     await expect(strip(page).locator(".trend-peak")).toHaveText(before.peak);
   });
 
+  // #918 — Codex review, P3-4. MUI's Dialog otherwise focuses the first
+  // tabbable control (the close button), not the search box the approved
+  // mockup focuses on open; also checks the search box meets the repo's 44px
+  // touch-target floor.
+  test("focuses the search box on open, and it meets the 44px target floor", async ({ page, signIn }) => {
+    await signIn(owner());
+    await page.goto("/");
+    await openPicker(page);
+    const search = page.getByRole("searchbox", { name: tEn("dashboard:searchAccessibleFlocksLabel") });
+    await expect(search).toBeFocused();
+    // The bordered, clickable target is the MUI input WRAPPER, not the bare
+    // `<input>` — its own content-box height is intrinsically shorter than
+    // the wrapper around it, which is what a tap actually has to land on.
+    const height = await search.evaluate((el) => el.closest(".MuiInputBase-root")!.getBoundingClientRect().height);
+    expect(height, `the search box's wrapper is ${height.toFixed(2)}px tall — under the 44px touch-target floor`).toBeGreaterThanOrEqual(44);
+  });
+
   test("the picker shows a no-results state for a name nothing matches", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");

@@ -24,7 +24,7 @@ const flock = (id: string): Flock => ({
 function renderDialog(props: Partial<ComponentProps<typeof FlockPickerDialog>> = {}) {
   return render(
     <FlockPickerDialog
-      open onClose={vi.fn()} scope={{ kind: "all" }} accessibleCount={3}
+      open onClose={vi.fn()} scope={{ kind: "all" }} accessibleCountLabel="3 accessible flocks"
       onPickAll={vi.fn()} onPickFlock={vi.fn()}
       {...props}
     />,
@@ -95,7 +95,7 @@ describe("FlockPickerDialog (#918 round 4 — extracted from Dashboard.tsx)", ()
         <>
           <button onClick={() => setOpen(true)}>Open picker</button>
           <FlockPickerDialog
-            open={open} onClose={() => setOpen(false)} scope={{ kind: "all" }} accessibleCount={50}
+            open={open} onClose={() => setOpen(false)} scope={{ kind: "all" }} accessibleCountLabel="50 accessible flocks"
             onPickAll={vi.fn()} onPickFlock={vi.fn()}
           />
         </>
@@ -111,10 +111,16 @@ describe("FlockPickerDialog (#918 round 4 — extracted from Dashboard.tsx)", ()
     const f0 = within(results).getByRole("button", { name: "Flock p0" });
     const lastResult = within(results).getByRole("button", { name: "Flock p49" });
 
+    // #918 — Codex review, P3-4. MUI's Dialog otherwise focuses the first
+    // tabbable control (the close button) on open, not the search box — a
+    // keyboard user could not type immediately. Asserted here rather than via
+    // a manual `.focus()` call, which would make this pass regardless of
+    // whether the dialog itself sets initial focus.
+    const search = screen.getByRole("searchbox", { name: "Search accessible flocks" });
+    expect(search).toHaveFocus();
+
     // Search-to-results: ArrowDown from the search box lands on the FIRST
     // choice — "All flocks", pinned above the results, first in DOM order.
-    const search = screen.getByRole("searchbox", { name: "Search accessible flocks" });
-    search.focus();
     await user.keyboard("{ArrowDown}");
     expect(allFlocks).toHaveFocus();
 
@@ -231,7 +237,7 @@ describe("FlockPickerDialog (#918 round 4 — extracted from Dashboard.tsx)", ()
       return Promise.resolve(params?.search === "xyz" ? xyzPage : firstPage);
     });
 
-    renderDialog({ accessibleCount: 50 });
+    renderDialog({ accessibleCountLabel: "50 accessible flocks" });
     const results = await screen.findByRole("list", { name: "Accessible flocks" });
     await waitFor(() => expect(within(results).queryAllByRole("button").length).toBe(50));
 
@@ -267,7 +273,7 @@ describe("FlockPickerDialog (#918 round 4 — extracted from Dashboard.tsx)", ()
     });
 
     const dialogProps = {
-      onClose: vi.fn(), scope: { kind: "all" as const }, accessibleCount: 50, onPickAll: vi.fn(), onPickFlock: vi.fn(),
+      onClose: vi.fn(), scope: { kind: "all" as const }, accessibleCountLabel: "50 accessible flocks", onPickAll: vi.fn(), onPickFlock: vi.fn(),
     };
     const { rerender } = render(<FlockPickerDialog open {...dialogProps} />);
     const results = await screen.findByRole("list", { name: "Accessible flocks" });

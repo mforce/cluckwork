@@ -666,6 +666,7 @@ export const tl = {
     flockDiscoveryUnavailableMessage: "Hindi mahanap ang mga kawan.",
     accessibleFlocksCount_one: "{{count}} accessible na kawan",
     accessibleFlocksCount_other: "{{count}} accessible na kawan",
+    accessibleFlocksCountAtLeast: "{{count}}+ accessible na kawan",
     layRateContext: "{{scope}} · {{from}}–{{to}}",
     legendComplete: "Kumpleto",
     legendPartial: "Bahagya",

@@ -838,6 +838,10 @@ export const en = {
     // chosen flock's own name, pre-formatted by the caller (#650).
     accessibleFlocksCount_one: "{{count}} accessible flock",
     accessibleFlocksCount_other: "{{count}} accessible flocks",
+    // #918 — Codex review: `listFlocks` caps at MAX_PAGE, so a farm past that
+    // cap reads as exactly this count when it is really more. Never plural
+    // forms — the cap is always well past 1.
+    accessibleFlocksCountAtLeast: "{{count}}+ accessible flocks",
     layRateContext: "{{scope}} · {{from}}–{{to}}",
     // The strip's key (DayStrip's own three-item legend).
     legendComplete: "Complete",
