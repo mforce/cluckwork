@@ -43,8 +43,7 @@ export function Dashboard() {
   const { farm } = useFarm();
   const [openedAt] = useState(() => new Date().toISOString());
   const { t: tc } = useTranslation("common");
-  // The flock-list Retry/loading labels reuse the shared picker catalog
-  // rather than minting page-local duplicates of the same two words.
+  // Retry/loading labels come from the shared picker catalog.
   const { t: tp } = useTranslation("namedEntityPicker");
   // Captured once at mount so the header date always matches the queried day
   // even if the tab stays open across midnight. Farm-local, not browser-local

@@ -71,10 +71,8 @@ export type DayStripSlot =
 
 export interface DayStripData {
   slots: DayStripSlot[];
-  // The complete-day peak when one exists; otherwise the peak of whatever
-  // partial days have a figure (#916), so a window with no complete day still
-  // scales to its own real data instead of collapsing every bar to the 2%
-  // floor. `scale` says which pool this came from.
+  // The complete-day peak when one exists, else the largest partial total
+  // (#916). `scale` names which pool it came from.
   max: number | null;
   // Over the COMPLETE days only — the days every house reported. A partial
   // day's total is a floor, so averaging it in drags the reference line down by
@@ -87,9 +85,8 @@ export interface DayStripData {
   complete: number;
   partial: number;
   unrecorded: number;
-  // Which pool `max` came from: "complete" (the ordinary rule), "partial"
-  // (#916's fallback — no complete day, but at least one recorded figure), or
-  // "none" (nothing in the window was recorded at all).
+  // "complete" is the ordinary rule; "partial" is #916's fallback when no day
+  // is complete; "none" means nothing in the window was recorded.
   scale: "complete" | "partial" | "none";
 }
 
@@ -125,9 +122,8 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
   const average = complete.length === 0
     ? null
     : r1(complete.reduce((a, v) => a + v, 0) / complete.length);
-  // #916 — the fallback pool. Without it, a window of only partial days had a
-  // null peak and every bar floored at 2%, regardless of how those days
-  // actually compared to each other.
+  // #916 — without this pool a window of only partial days had a null peak, so
+  // every bar floored at 2% however they actually compared.
   const recorded = days.filter((d) => d.recordedFlocks > 0).map((d) => d.totalEggs);
   const scale: DayStripData["scale"] = complete.length > 0 ? "complete" : recorded.length > 0 ? "partial" : "none";
   const pool = complete.length > 0 ? complete : recorded;
