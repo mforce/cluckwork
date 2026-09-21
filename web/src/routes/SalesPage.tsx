@@ -1306,6 +1306,7 @@ export function SalesPage() {
                           {discount.kind === "none" && (
                             <> <span className="badge">{listPriceBasisLabel(i.listPriceBasis)}</span></>
                           )}
+                          {/* Concept B hides these columns on phones; keep their labelled values accessible (#831). */}
                           {!editingThis && <Box component="span" className="sr-only" sx={{ display: { xs: "inline", md: "none" } }}>
                             {t("unitPrice")} {fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}{", "}
                             {t("lineTotal")} {fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}
@@ -1598,7 +1599,9 @@ export function SalesPage() {
                 <>
                   <Typography component="h4" sx={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "1.125rem", my: 2 }}>{t("payments")}</Typography>
                   {payments.items.length > 0 && (
-                    <LedgerTableContainer alwaysShowSwipeCue>
+                    <LedgerTableContainer
+                      // The settlement rail stays narrow on desktop too (#831).
+                      alwaysShowSwipeCue>
                       <Table size="small">
                         <TableHead>
                           <TableRow>

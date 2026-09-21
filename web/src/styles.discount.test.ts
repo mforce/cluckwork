@@ -95,7 +95,7 @@ describe(".badge-danger — over-maximum remains distinct from below-list text",
         const chipColour = resolved.get(tok(chip.get("background"))!);
         const paperColour = resolved.get(paperToken);
         expect(chipColour, "chip fill does not resolve").toBeDefined();
-        expect(paperColour, "row tint does not resolve").toBeDefined();
+        expect(paperColour, "paper surface does not resolve").toBeDefined();
         expect(contrast(chipColour!, paperColour!), `chip ${chipColour} vs paper ${paperColour}`)
           .toBeGreaterThan(1.02);
       });
