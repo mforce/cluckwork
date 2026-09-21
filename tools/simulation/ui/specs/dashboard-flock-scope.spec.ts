@@ -1,15 +1,7 @@
-// #916/#918 — the Lay rate card's flock scope and its partial-day scale
-// fallback, both against the SIMULATION fixture specifically.
-//
-// `default-farm` seeds ~100 catalog flocks that never file, so no day in the
-// fortnight window is complete — the state where the strip used to floor every
-// bar at 2% and show Peak "—". A unit test can construct that shape; only this
-// fixture proves the SERVER still produces it.
-//
-// Scope is asserted against the NETWORK, not the rendered figures: #916's point
-// is that the browser never filters an unscoped report payload itself, and a
-// spec watching only the numbers would stay green if that moved back into the
-// client. Name search is server-paged for the same reason.
+// #916/#918 — the Lay rate card's flock scope and partial-day scale fallback,
+// against the SIMULATION fixture: its ~100 never-filing flocks leave no day
+// complete (the state that used to floor every bar at 2%), which only a real
+// server can prove still works. Assertions watch the NETWORK, not the figures.
 
 import { test, expect, type Page, type Locator } from "../src/fixtures";
 import { owner, restrictedWorker } from "../src/cast";
@@ -223,12 +215,10 @@ test.describe("Dashboard Lay rate flock scope", () => {
   });
 
   test("one accessible flock: its name, with no scope control at all", async ({ page, signIn }) => {
-    // `restrictedWorker()` is the fixture's single-flock reader. #613's
-    // structural flock-scope query filter narrows the READ as well as the
-    // write, so `GET /flocks` answers this persona with exactly one row — which
-    // is what the card keys the plain-text rendering on. (src/cast.ts's own note
-    // still describes the pre-#613 behaviour, where every read answered as an
-    // unrestricted worker's did.)
+    // `restrictedWorker()` is the fixture's single-flock reader: #613's flock-
+    // scope query filter narrows the READ as well as the write, so `GET
+    // /flocks` answers with exactly one row — what the card keys its
+    // plain-text rendering on (src/cast.ts's own note still describes pre-#613).
     await signIn(restrictedWorker());
     await page.goto("/");
     await expect(strip(page)).toBeVisible();
@@ -250,11 +240,9 @@ test.describe("Dashboard Lay rate flock scope", () => {
 
   test("the only-one view and a picked single flock read the same report", async ({ farm }) => {
     // SELECTION.md: "The selected-single and only-one views must show identical
-    // data for the same flock." Both cards render one production report, so the
-    // claim is really about the SERVER: the same flock, asked for by two
-    // principals with very different reach, must answer identically. Checked
-    // here rather than through two sign-ins in one browser context, which the
-    // `signIn` fixture does not support.
+    // data for the same flock." The claim is really about the SERVER: the same
+    // flock, asked for by two principals with very different reach, must answer
+    // identically — checked via two tokens, since `signIn` supports one context.
     const today = farmToday(farm.timeZoneId);
     const range = `?from=${daysBefore(today, 7)}&to=${daysBefore(today, 1)}`;
 
@@ -297,10 +285,9 @@ test.describe("Dashboard Lay rate flock scope", { tag: "@phone" }, () => {
     expect(rows, `the strip wrapped into ${rows.length} rows at 390`).toHaveLength(1);
 
     // The single selector is on screen. TARGET SIZE IS DELIBERATELY NOT
-    // ASSERTED HERE: phone.spec.ts's "dashboard actions meet the 44px target
-    // floor" already walks every visible link and button in `main` against
-    // the repo's 44px floor, and a second copy of that rule here could only
-    // ever agree with it or contradict it.
+    // ASSERTED HERE: phone.spec.ts's own 44px-floor test already walks every
+    // visible link/button in `main` against it, and a second copy here could
+    // only ever agree with it or contradict it.
     await expect(selectorButton(page)).toBeVisible();
 
     // And the picker actually opens here, full width, with its own controls

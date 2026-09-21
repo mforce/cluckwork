@@ -60,21 +60,17 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // #916 — the Lay rate card's own scope. `trendLoading` is separate from the
-  // page's `loading` above: a scope change refetches ONLY the two
-  // production-report calls and must not blank the whole page while that
-  // refetch is in flight ("Other dashboard panels do not change",
-  // SELECTION.md). A failed refetch clears `trend` to null, which already
-  // renders `panelError` below — no separate error flag needed. The dialog
-  // owns its own search/results/paging state, so only `open` lives here.
+  // #916 — `trendLoading` is separate from `loading`: a scope change refetches
+  // only the two production-report calls and must not blank the whole page
+  // (SELECTION.md). A failed refetch clears `trend` to null, which already
+  // renders `panelError` below; the dialog owns its own state, only `open` lives here.
   const [scope, setScope] = useState<FlockScope>({ kind: "all" });
   const [trendLoading, setTrendLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // #918 — the flock LIST read can fail on its own while the other three
-  // panels succeed, and "failed" must not read as "0 accessible flocks".
-  // `flocksRetrying` holds the unavailable state up until the retried read
-  // SETTLES; clearing `flocksFailed` on click showed that same false zero
-  // for the gap before the new data landed.
+  // #918 — the flock LIST read can fail alone while the other three panels
+  // succeed; "failed" must not read as "0 accessible flocks". `flocksRetrying`
+  // holds the unavailable state up until the retried read SETTLES — clearing
+  // `flocksFailed` on click showed that same false zero in the gap before.
   const [flocksFailed, setFlocksFailed] = useState(false);
   const [flocksRetrying, setFlocksRetrying] = useState(false);
 
@@ -93,24 +89,17 @@ export function Dashboard() {
   const scopeLabelId = useId();
   const scopeValueId = useId();
 
-  // #916 — with exactly one accessible flock there is no All-flocks concept to
-  // offer (SELECTION.md), and its figures must come from the SAME code path as
-  // picking that flock out of a larger list, never a parallel "show
-  // everything" branch. The trend effect depends on the id rather than on
-  // `soleFlock`, because the array's reference changes on every render while
-  // the id only changes on the one transition that matters.
+  // #916 — with one accessible flock there is no All-flocks concept (SELECTION.md);
+  // its figures must come from the SAME code path as picking that flock from a
+  // larger list, never a parallel branch. The trend effect depends on the id, not
+  // `soleFlock` itself — the array's reference changes every render, the id does not.
   const soleFlock = flocks !== null && flocks.length === 1 ? flocks[0] : null;
   const soleFlockId = soleFlock?.id ?? null;
 
-  // #918 — "everything failed" spans BOTH effects, so neither can decide it
-  // alone: the four panel reads failing while the trend read succeeded must
-  // not hide an already-loaded Lay rate card behind the full-page error.
-  // `loading` stays tied to the four-panel effect only, so a slow production
-  // fetch never holds the page hostage; this verdict lands a beat later, from
-  // whichever effect settles last. Both outcomes are keyed to `loadGenRef`,
-  // bumped once per genuine new load (`[today, canSeeSales]`) and never by an
-  // ordinary scope change — an outcome from an older generation is ignored,
-  // so a stale total-failure verdict cannot outlive the load it described.
+  // #918 — "everything failed" spans BOTH effects (panels + trend), decided
+  // once both have reported for the CURRENT `loadGenRef` generation. `loading`
+  // stays tied only to the panel effect, so a slow production fetch never
+  // blocks the page; a stale outcome from an older generation is ignored.
   const loadGenRef = useRef(0);
   const panelsOutcomeRef = useRef<{ gen: number; rejected: number; issued: number; firstRejected?: PromiseRejectedResult } | null>(null);
   const trendOutcomeRef = useRef<{ gen: number; failed: boolean } | null>(null);
@@ -160,26 +149,20 @@ export function Dashboard() {
     });
   }, [today, canSeeSales]);
 
-  // #916 — the production report alone, re-run on every scope change (and on
-  // `today`/`soleFlockId`, exactly like the effect above). Separate from the
-  // effect above so choosing a flock never re-fetches the other four panels
-  // ("Other dashboard panels do not change", SELECTION.md). `cancelled` drops
-  // a superseded response: a slow "all flocks" request landing after a faster
-  // later scope change must not overwrite it.
+  // #916 — the production report alone, re-run on scope/today/soleFlockId,
+  // separate from the effect above so picking a flock never re-fetches the
+  // other four panels (SELECTION.md). `cancelled` drops a superseded
+  // response — a slow request landing after a faster later one must not win.
   useEffect(() => {
     // With exactly one accessible flock there is no All-flocks scope to
     // offer, so this always reports that flock — the SAME `flockId` a picker
     // selection would produce, never a separate "everything" branch (parity
     // requirement, SELECTION.md).
     const flockId = soleFlockId ?? (scope.kind === "flock" ? scope.flock.id : undefined);
-    // Captured at DISPATCH time. Effects run in declaration order within one
-    // commit, so the panels effect above has already bumped `loadGenRef` when
-    // a new load starts — this fetch is attributed to the NEW generation.
-    // `canSeeSales` is in this effect's own deps for the same reason: a role
-    // change bumps `loadGenRef` without touching `today`, `scope` or
-    // `soleFlockId`, and this effect must rerun in lockstep or it records no
-    // outcome at all for the new generation and a genuine total failure there
-    // goes unreported forever.
+    // Captured at DISPATCH time: effects run in declaration order, so the
+    // panels effect above has already bumped `loadGenRef` by now. `canSeeSales`
+    // is in this effect's own deps for the same reason — without a matching
+    // rerun on a role change, a genuine total failure there goes unreported.
     const gen = loadGenRef.current;
     let cancelled = false;
     setTrendLoading(true);
@@ -257,17 +240,15 @@ export function Dashboard() {
       : delta < 0 ? t("henDayDeltaDown", { delta: fmt.count(Math.abs(delta), 1) })
         : t("henDayDeltaUp", { delta: fmt.count(delta, 1) });
   // A missing day is not zero production; its accessible label must say so.
-  // #916 — branches on `line.scale`, never on a null check: `max` is non-null
-  // under BOTH "complete" and the "partial" fallback, so a null check alone
-  // used to say "no peak or average" over a window whose caption and Peak
-  // figure, right beside it, were showing a real number.
+  // #916 — branches on `line.scale`, never a null check: `max` is non-null
+  // under BOTH "complete" and "partial", so a null check alone used to say
+  // "no peak or average" beside a caption and Peak figure showing a real number.
   const trendLabel = (line: DayStripData) => {
     if (line.scale === "none") {
       // A window where no flock ever owed a filing is not a window of missing
-      // ones. The day-level fix for that landed without this, so a new farm's
-      // strip drew fourteen blank-but-blameless slots and then announced that
-      // none of them had an entry. `partial` is always 0 here — a partial slot
-      // requires a recorded figure, which is exactly what "none" has none of.
+      // ones — a new farm's strip used to draw fourteen blank-but-blameless
+      // slots and announce that none had an entry. `partial` is always 0 here:
+      // a partial slot requires a recorded figure, which "none" has none of.
       return line.partial === 0 && line.unrecorded === 0
         ? t("trendStripLabelNoFlocks")
         : t("trendStripLabelNone");

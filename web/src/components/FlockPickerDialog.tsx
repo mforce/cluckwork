@@ -8,10 +8,9 @@ import { listFlocks } from "../api/cluckwork";
 import type { Flock } from "../api/cluckwork";
 
 // Server-paged discovery, matching the shared NamedEntityPicker engine's own
-// 50-row pages and 250ms debounce. Filtering an already-loaded, capped flock
-// array instead would leave a flock past that cap unreachable by search on a
-// large farm, so this read is independent of the page-scoped `flocks` list
-// the rest of the Dashboard holds.
+// 50-row pages and 250ms debounce — independent of the page-scoped `flocks`
+// list Dashboard holds, so a flock past that list's cap is still reachable
+// by search on a large farm.
 const PAGE_SIZE = 50;
 const DEBOUNCE_MS = 250;
 
@@ -51,12 +50,10 @@ export function FlockPickerDialog({
   // PREVIOUS session's leftover text.
   useEffect(() => { if (open) setSearchQuery(""); }, [open]);
 
-  // `queryGenRef` bumps on every effect run — a new search, an open or close,
-  // a Retry — so `loadMore` and this effect's own fetch can tell whether the
-  // query they were dispatched for is still current. Results and the cursor
-  // clear in the SAME tick the query changes, not once the fresh page lands:
-  // otherwise a `loadMore` during the debounce window reads the PREVIOUS
-  // query's cursor and appends the new query's page onto the old results.
+  // `queryGenRef` bumps on every effect run (search, open/close, Retry) so
+  // `loadMore` and this fetch know whether their query is still current.
+  // Results/cursor clear in the SAME tick the query changes, not on page
+  // arrival — else a mid-debounce `loadMore` appends onto a stale cursor.
   const queryGenRef = useRef(0);
   useEffect(() => {
     const gen = ++queryGenRef.current;
@@ -105,12 +102,10 @@ export function FlockPickerDialog({
       });
   };
 
-  // Arrow/Home/End move focus among the choice buttons, mirroring the shared
-  // picker engine's keyboard contract (FR-032/picker-ui.md) without adopting
-  // its Autocomplete markup — these stay plain, individually-focusable
-  // buttons, so this is a roving FOCUS move, not a roving tabindex. A
-  // disabled "Load more" (mid-fetch) is excluded, or End/ArrowDown could land
-  // on a button that cannot be activated.
+  // Arrow/Home/End move focus among the choice buttons (FR-032/picker-ui.md),
+  // a roving FOCUS move rather than roving tabindex since these stay plain,
+  // individually-focusable buttons. A disabled "Load more" (mid-fetch) is
+  // excluded, or End/ArrowDown could land on a button that cannot activate.
   const bodyRef = useRef<HTMLDivElement>(null);
   const onBodyKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;

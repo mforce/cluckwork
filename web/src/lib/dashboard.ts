@@ -79,8 +79,7 @@ export interface DayStripData {
   // Over the COMPLETE days only — the days every house reported. A partial
   // day's total is a floor, so averaging it in drags the reference line down by
   // however many houses forgot, which is the same defect one layer up. Unlike
-  // `max`, this NEVER falls back to the partial pool — an average over floors
-  // would understate every house that under-reported.
+  // `max`, this never falls back to the partial pool — that would understate.
   average: number | null;
   // The average as a share of the peak, for the reference line. Separate from
   // `average` because the line is geometry and the figure is a count.
