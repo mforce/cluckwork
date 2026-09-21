@@ -1,28 +1,15 @@
-// #916/#918 — the Dashboard Lay rate card's flock scope, the partial-day
-// scale it falls back to, and the fidelity round that made the card match
-// the approved mockup (production-flock-selector-v2.html) exactly: one
-// full-width selector (never a separate toggle plus a combobox), its "All
-// flocks" choice pinned above the picker's own scrolling result list, a
-// context caption, a three-item legend, and the hen-day KPI moved to the
-// bottom of the card.
+// #916/#918 — the Lay rate card's flock scope and its partial-day scale
+// fallback, both against the SIMULATION fixture specifically.
 //
-// Both halves are about the SIMULATION fixture specifically, which is why they
-// live here rather than in web/'s unit suite. `default-farm` seeds ~100 catalog
-// flocks that never file, so no day in the fortnight window is recorded by
-// every flock — the exact state where the strip used to collapse every bar to
-// the 2% floor and show Peak "—". A unit test can construct that shape; only
-// this fixture proves the SERVER still produces it, and that the card scales to
-// the largest partial day when it does.
+// `default-farm` seeds ~100 catalog flocks that never file, so no day in the
+// fortnight window is complete — the state where the strip used to floor every
+// bar at 2% and show Peak "—". A unit test can construct that shape; only this
+// fixture proves the SERVER still produces it.
 //
-// The scope control is proved against the network, not against the figures
-// alone: the point of #916's API half is that the browser never filters an
-// unscoped REPORT payload itself, so a spec that only watched the rendered
-// numbers would stay green if that filtering moved back into the client.
-// Flock NAME search is now server-paged and debounced too (Codex review of
-// #918, round 3, finding 1): a name typed into the dialog re-issues
-// `listFlocks` with that query, so a flock past the first page is reachable
-// by search even on a large farm — this fixture's ~100 flocks stay under one
-// page, so the round-trip is exercised here without needing a 501st flock.
+// Scope is asserted against the NETWORK, not the rendered figures: #916's point
+// is that the browser never filters an unscoped report payload itself, and a
+// spec watching only the numbers would stay green if that moved back into the
+// client. Name search is server-paged for the same reason.
 
 import { test, expect, type Page, type Locator } from "../src/fixtures";
 import { owner, restrictedWorker } from "../src/cast";

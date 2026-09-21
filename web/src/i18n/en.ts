@@ -815,11 +815,8 @@ export const en = {
     availableStockTitle: "Available stock",
     recentOrdersTitle: "Recent orders",
     layRateTitle: "Lay rate",
-    // #916/#918 — the Lay rate card's flock scope, matching the approved
-    // mockup (production-flock-selector-v2.html) exactly: one full-width
-    // selector button (`flockScopeLabel` is its eyebrow) opens a picker whose
-    // "All flocks" choice (`allFlocksOption`) is pinned ABOVE the scrolling
-    // flock list, never a row inside it.
+    // #916 — the Lay rate card's flock scope. `flockScopeLabel` is the
+    // selector's eyebrow; `allFlocksOption` sits above the picker's list.
     flockScopeLabel: "Flock",
     allFlocksOption: "All flocks",
     // The picker dialog itself.
@@ -831,14 +828,10 @@ export const en = {
     matchingFlocksCount_other: "{{count}} matching flocks",
     noMatchingFlocksMessage: "No matching flocks. Try another name.",
     flockScopeResultsLabel: "Accessible flocks",
-    // #918 — Codex review, finding 4: shown instead of the selector when the
-    // flock list itself failed to load, with Retry alongside.
+    // Shown instead of the selector when the flock list failed to load.
     flockListUnavailableMessage: "Could not load the flock list.",
-    // #918 — Codex review, round 4, finding 3: the dialog's OWN discovery
-    // (search/page) failing is distinct from `flockListUnavailableMessage`
-    // above (the page-scoped list the Today panel reads) — shown inside the
-    // results area, with its own Retry, instead of reading as a real "no
-    // matching flocks" empty result.
+    // The dialog's OWN search failing, distinct from the page-scoped list
+    // above: shown in the results area so it never reads as a real empty.
     flockDiscoveryUnavailableMessage: "Could not search flocks.",
     // The card's own scope-and-range caption, under the selector: "{scope} ·
     // {date range}" — {{scope}} is either `accessibleFlocksCount` or the
