@@ -26,6 +26,7 @@ import {
   captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
 } from "../lib/dashboard";
 import type { CaptureTile, DayStripData, DayStripSlot } from "../lib/dashboard";
+import { splitProductionReport } from "../lib/productionReportSplit";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
@@ -163,6 +164,14 @@ export function Dashboard() {
   // IGNORED, not cancelled, so it could sit in flight and hold one of the
   // account's report-concurrency permits until it timed out on its own; the
   // AbortController below actually cancels it on cleanup.
+  //
+  // #918 — Codex review: the current and previous weeks used to be two
+  // adjacent requests; together with the yesterday-close fetch below, that
+  // was three of the account's four shared report-concurrency permits per
+  // load (RateLimitingOptions.ReportsConcurrency: PermitLimit 4, QueueLimit
+  // 0 — no queue, so a permit past the cap is rejected, not queued). One
+  // `daysBefore(today,14)..daysBefore(today,1)` request now covers both
+  // weeks, split client-side by `splitProductionReport`.
   useEffect(() => {
     // With exactly one accessible flock there is no All-flocks scope to
     // offer, so this always reports that flock — the SAME `flockId` a picker
@@ -172,18 +181,22 @@ export function Dashboard() {
     const controller = new AbortController();
     setTrendLoading(true);
     setTrendOutcome("pending"); // re-decided freshly on every dispatch, never frozen at a stale outcome
-    Promise.allSettled([
-      // The last 7 complete days and the 7 before them — yesterday back, so an
-      // unsubmitted today never ends the line in a false dip (owner decision A).
-      getProductionReport(daysBefore(today, 7), daysBefore(today, 1), flockId, controller.signal),
-      getProductionReport(daysBefore(today, 14), daysBefore(today, 8), flockId, controller.signal),
-    ]).then(([cur, prev]) => {
-      if (controller.signal.aborted) return;
-      const ok = cur.status === "fulfilled" && prev.status === "fulfilled";
-      setTrend(ok ? { current: cur.value, previous: prev.value } : null);
-      setTrendLoading(false);
-      setTrendOutcome(ok ? "success" : "failure");
-    });
+    // The last 7 complete days and the 7 before them — yesterday back, so an
+    // unsubmitted today never ends the line in a false dip (owner decision A).
+    getProductionReport(daysBefore(today, 14), daysBefore(today, 1), flockId, controller.signal)
+      .then((report) => {
+        if (controller.signal.aborted) return;
+        const { earlier, later } = splitProductionReport(report, daysBefore(today, 7));
+        setTrend({ current: later, previous: earlier });
+        setTrendLoading(false);
+        setTrendOutcome("success");
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setTrend(null);
+        setTrendLoading(false);
+        setTrendOutcome("failure");
+      });
     return () => controller.abort();
   }, [today, scope, soleFlockId, canSeeSales]);
 

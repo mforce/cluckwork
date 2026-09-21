@@ -8,6 +8,29 @@ import { owner, restrictedWorker } from "../src/cast";
 import { signInForToken, apiGet } from "../src/api";
 import { daysBefore, farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
+// Deliberately NOT imported from web/src/lib/productionReportSplit — that
+// module transitively pulls in api/client.ts, which this project's own
+// (stricter) tsconfig has never had reason to type-check before, and doing
+// so surfaces unrelated pre-existing issues. A local, loosely-typed copy of
+// the same recomputation keeps this spec self-contained, matching every
+// other spec here that defines its own helpers rather than importing SPA
+// implementation code.
+interface ReportDay { date: string; totalEggs: number; ratedEggs: number; recordedHenDays: number }
+function splitProductionReport(report: { days: ReportDay[] }, cutoffDate: string) {
+  const earlier: ReportDay[] = [];
+  const later: ReportDay[] = [];
+  for (const d of report.days) (d.date < cutoffDate ? earlier : later).push(d);
+  const summarize = (days: ReportDay[]) => {
+    const totalRatedEggs = days.reduce((a, d) => a + d.ratedEggs, 0);
+    const totalRecordedHenDays = days.reduce((a, d) => a + d.recordedHenDays, 0);
+    return {
+      days,
+      totalEggs: days.reduce((a, d) => a + d.totalEggs, 0),
+      periodHenDayPct: totalRecordedHenDays > 0 ? Math.round((totalRatedEggs * 100 / totalRecordedHenDays) * 10) / 10 : null,
+    };
+  };
+  return { earlier: summarize(earlier), later: summarize(later) };
+}
 
 // The fixture's first flock — the one SimulationDataSeeder restricts
 // `restrictedWorker()` to, so the same name serves both halves of this spec.
@@ -149,9 +172,12 @@ test.describe("Dashboard Lay rate flock scope", () => {
     ).toHaveCount(0);
     await expect(pinnedAllFlocksChoice(page)).toBeVisible();
 
-    // The two production reads must carry the chosen flock. This is the whole
+    // The production read must carry the chosen flock. This is the whole
     // API half of #916: a client-side filter of the farm-wide payload would
     // render plausible bars and could not produce a scoped hen-day rate.
+    // #918 — Codex review: one combined 14-day request now, not two adjacent
+    // 7-day ones (RateLimitingOptions.ReportsConcurrency's shared,
+    // unqueued permit cap).
     const scopedReports: string[] = [];
     page.on("request", (r) => {
       const url = r.url();
@@ -187,8 +213,8 @@ test.describe("Dashboard Lay rate flock scope", () => {
 
     expect(
       flockId && scopedReports.filter((u) => u.includes(`flockId=${flockId}`)).length,
-      `both production reads should carry flockId=${flockId}; saw ${JSON.stringify(scopedReports)}`,
-    ).toBeGreaterThanOrEqual(2);
+      `the production read should carry flockId=${flockId}; saw ${JSON.stringify(scopedReports)}`,
+    ).toBeGreaterThanOrEqual(1);
 
     // And back. The return path is its own assertion: clearing the card's
     // scope has to clear the selector's own displayed value too, or it goes
@@ -275,6 +301,39 @@ test.describe("Dashboard Lay rate flock scope", () => {
     const asOwner = await apiGet<unknown>(ownerToken, `/reports/production${range}&flockId=${flockId}`);
     const asWorker = await apiGet<unknown>(workerToken, `/reports/production${range}&flockId=${flockId}`);
     expect(asWorker, "the two views' figures came from different reports").toEqual(asOwner);
+  });
+
+  // #918 — Codex review: the Dashboard used to fire two adjacent production
+  // requests per load (current week, previous week); together with the
+  // Morning collection panel's own yesterday-close fetch, that was three of
+  // the account's four shared report-concurrency permits (RateLimitingOptions.
+  // ReportsConcurrency: PermitLimit 4, QueueLimit 0), so two workers opening
+  // the app together could exceed it. The two windows are now ONE
+  // `daysBefore(today,14)..daysBefore(today,1)` request, split client-side
+  // by `splitProductionReport`. This is the settling test the fix depends
+  // on: the REAL server's combined response, split, must equal what the
+  // two separate requests it replaces would have returned — checked against
+  // the running simulation server, not a fixture standing in for it.
+  test("splitting one 14-day report client-side equals two separate 7-day requests", async ({ farm }) => {
+    const today = farmToday(farm.timeZoneId);
+    const token = await signInForToken(owner());
+
+    const combined = await apiGet<{ days: ReportDay[] }>(
+      token, `/reports/production?from=${daysBefore(today, 14)}&to=${daysBefore(today, 1)}`);
+    const { earlier, later } = splitProductionReport(combined, daysBefore(today, 7));
+
+    const previous = await apiGet<{ days: ReportDay[]; totalEggs: number; periodHenDayPct: number | null }>(
+      token, `/reports/production?from=${daysBefore(today, 14)}&to=${daysBefore(today, 8)}`);
+    const current = await apiGet<{ days: ReportDay[]; totalEggs: number; periodHenDayPct: number | null }>(
+      token, `/reports/production?from=${daysBefore(today, 7)}&to=${daysBefore(today, 1)}`);
+
+    expect(earlier.days, "the earlier half's own days should equal the server's previous-week days").toEqual(previous.days);
+    expect(earlier.totalEggs, "the earlier half's recomputed total should equal the server's own previous-week total").toBe(previous.totalEggs);
+    expect(earlier.periodHenDayPct, "the earlier half's recomputed rate should equal the server's own previous-week rate").toBe(previous.periodHenDayPct);
+
+    expect(later.days, "the later half's own days should equal the server's current-week days").toEqual(current.days);
+    expect(later.totalEggs, "the later half's recomputed total should equal the server's own current-week total").toBe(current.totalEggs);
+    expect(later.periodHenDayPct, "the later half's recomputed rate should equal the server's own current-week rate").toBe(current.periodHenDayPct);
   });
 });
 

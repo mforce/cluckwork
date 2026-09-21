@@ -408,21 +408,22 @@ describe("commit and committed-label retention (#512 FR-018)", () => {
     expect(committedName("Flock 60")).toBeInTheDocument();
   });
 
+  // #918 — CI flake (run 35563849681): a raw KeyboardEvent dispatch plus an
+  // empty `act()` raced MUI Autocomplete's own controlled-state commit, so
+  // the assertion sometimes read the typed query back instead of the
+  // committed label. `userEvent` drives the same two keys through the DOM
+  // as a real user would, and `waitFor` reads the commit once it lands
+  // rather than assuming one microtask flush is enough.
   it("commits the active option on Enter", async () => {
     render(<FlockPicker label="Pick flock" eligibility="active" required open />);
+    const user = userEvent.setup();
     await screen.findByText("Flock 01");
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "105" } });
     await screen.findByText("Flock 105");
     const input = screen.getByRole("combobox") as HTMLInputElement;
-    input.focus();
-    await act(async () => {
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-    });
-    await act(async () => {
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    });
-    await act(async () => {});
-    expect(input.value).toBe("Flock 105");
+    await user.click(input);
+    await user.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() => expect(input).toHaveValue("Flock 105"));
   });
 
   it("searches customers and commits one by pointer", async () => {

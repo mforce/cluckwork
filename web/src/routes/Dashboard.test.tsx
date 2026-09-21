@@ -68,13 +68,21 @@ const entry = (flockId: string, status: string, totalEggs: number): DailyEntry =
 // One house that recorded — the ordinary complete day. `recordedFlocks: 0` is
 // the day nobody recorded, and `recordedFlocks < expectedFlocks` the day only
 // some houses did; both used to arrive indistinguishable from a real zero.
-const day = (date: string, totalEggs: number, recordedFlocks = 1, expectedFlocks = 1): ProductionDay => ({
+// `ratedEggs` defaults to `totalEggs` like before, but can be overridden
+// independently (#918): the trend fixtures below need the WEEK's summed
+// `ratedEggs`/`recordedHenDays` to reproduce an exact periodHenDayPct once
+// `splitProductionReport` recomputes it from the days array, which is a
+// different constraint than the bar-height figures `totalEggs` drives.
+const day = (
+  date: string, totalEggs: number, recordedFlocks = 1, expectedFlocks = 1,
+  ratedEggs = recordedFlocks > 0 ? totalEggs : 0,
+): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
   deaths: 0, recordedFlocks, expectedFlocks,
   missingFlocks: Math.max(0, expectedFlocks - recordedFlocks),
   henDays: 100,
   recordedHenDays: expectedFlocks > 0 ? Math.round((100 * recordedFlocks) / expectedFlocks) : 0,
-  ratedEggs: recordedFlocks > 0 ? totalEggs : 0,
+  ratedEggs,
   henDayPct: recordedFlocks > 0 ? totalEggs : null,
 });
 const report = (periodHenDayPct: number | null, days: ProductionDay[]): ProductionReport => ({
@@ -92,18 +100,24 @@ const order = (id: string, ref: string, customerName: string | null): SalesOrder
   outstandingMinorUnits: null, items: [],
 });
 
-// The report mock answers by window (relative to a given "today") so the two
-// calls can be told apart. Values: previous week 307..301, current week 327..321.
-const previousFor = (today: string) => report(85.1, [7, 6, 5, 4, 3, 2, 1].map((n) => day(daysBefore(today, n + 7), 300 + n)));
-const currentFor = (today: string) => report(87.4, [7, 6, 5, 4, 3, 2, 1].map((n) => day(daysBefore(today, n), 320 + n)));
+// #918 — Codex review: the two adjacent trend windows are now ONE
+// `daysBefore(today,14)..daysBefore(today,1)` request, split client-side by
+// `splitProductionReport`. Values: previous week 307..301, current week
+// 327..321, unchanged from before. Each week's `ratedEggs` total sits on its
+// first day (nothing checks a day's own `ratedEggs`) so the recomputed
+// periodHenDayPct reproduces the old two-call fixture's 85.1/87.4 exactly:
+// round(596*100/700, 1) = 85.1, round(612*100/700, 1) = 87.4.
+const previousDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
+  day(daysBefore(today, n + 7), 300 + n, 1, 1, i === 0 ? 596 : 0));
+const currentDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
+  day(daysBefore(today, n), 320 + n, 1, 1, i === 0 ? 612 : 0));
+const fortnightFor = (today: string) => report(null, [...previousDays(today), ...currentDays(today)]);
 const reportByWindow = (today: string) => (from: string, to: string) => {
-  if (from === daysBefore(today, 7) && to === daysBefore(today, 1)) return Promise.resolve(currentFor(today));
-  if (from === daysBefore(today, 14) && to === daysBefore(today, 8)) return Promise.resolve(previousFor(today));
+  if (from === daysBefore(today, 14) && to === daysBefore(today, 1)) return Promise.resolve(fortnightFor(today));
   // #918 — Codex review: the Morning collection panel's own yesterday-close
-  // caption is now its OWN farm-wide, single-day fetch (never `flockId`-
-  // scoped), so a from===to request answers with just that one day. 321
-  // matches `currentFor`'s own yesterday slot, so the two sources agree in
-  // the default fixture.
+  // caption is its OWN farm-wide, single-day fetch (never `flockId`-scoped),
+  // so a from===to request answers with just that one day. 321 matches the
+  // trend window's own yesterday slot, so the two sources agree by default.
   if (from === to && from === daysBefore(today, 1)) return Promise.resolve(report(null, [day(daysBefore(today, 1), 321)]));
   return Promise.reject(new Error(`unexpected window ${from}..${to}`));
 };
@@ -391,8 +405,8 @@ describe("Dashboard attention line (#829, #864)", () => {
 describe("Dashboard 'Yesterday by close' caption (#864)", () => {
   it("shows yesterday's total when the strip's last day is complete", async () => {
     renderWithProviders(<Dashboard />);
-    // currentFor maps n=7..1 to daysBefore(today,n) with value 320+n, so the
-    // window's last day — daysBefore(today,1), yesterday — is 320+1 = 321.
+    // The yesterday-close fetch's own fixture branch in `reportByWindow`
+    // returns 321 for `daysBefore(today,1)`.
     expect(await screen.findByText("Yesterday by close: 321")).toBeInTheDocument();
   });
 
@@ -411,17 +425,21 @@ describe("Dashboard 'Yesterday by close' caption (#864)", () => {
 });
 
 describe("Dashboard last 14 days (#654, INV-5)", () => {
-  it("asks the production report for exactly the two 7-day windows ending yesterday", async () => {
+  // #918 — Codex review: the account's report-concurrency permits are
+  // shared (RateLimitingOptions.ReportsConcurrency: PermitLimit 4,
+  // QueueLimit 0 — no queue, so anything past the cap 429s rather than
+  // waiting), so a dashboard load must stay well under it. The two adjacent
+  // trend windows are one request now, split client-side; this pins the
+  // total at two (that request plus the yesterday-close fetch) so the
+  // ceiling cannot creep back to three.
+  it("asks the production report for exactly one 14-day window plus one single-day yesterday fetch — never more", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    // #918 — Codex review: a third, single-day, unscoped call now feeds the
-    // Morning collection panel's own yesterday-close caption.
-    expect(mockReport).toHaveBeenCalledTimes(3);
+    expect(mockReport).toHaveBeenCalledTimes(2);
     // #916 — the third argument is the flock scope; All flocks (the default)
     // passes undefined, so the report stays farm-wide exactly as before.
     // #918 — Codex review: the fourth argument aborts a superseded request.
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1), undefined, expect.any(AbortSignal));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 1), daysBefore(today, 1));
   });
 
@@ -467,10 +485,13 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   // Days 4..6 of each window hold no entry at all. `entryCount` is the only
   // field that says so — before #780 these arrived as totalEggs 0, identical
   // to a day the farm recorded as having produced nothing.
+  // #918 — `r.days` is now the combined 14-day array (index 0-13, both weeks
+  // back to back), so `i % 7 > 3` targets days 4-6 of EACH week (indices 4-6
+  // and 11-13) — the same six days the two-call fixture used to zero out.
   const withUnrecordedTail = () =>
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: 0, missingFlocks: d.expectedFlocks } : d)),
+        ...r, days: r.days.map((d, i) => (i % 7 > 3 ? { ...d, totalEggs: 0, recordedFlocks: 0, missingFlocks: d.expectedFlocks } : d)),
       })));
 
   it("names the days that are not fully recorded, and averages over the rest", async () => {
@@ -520,9 +541,10 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   // A partly recorded day's total is a floor. It gets its own slot state and
   // its own sentence, and it must not drag the average down.
   it("marks a partly recorded day and keeps it out of the average", async () => {
+    // `i % 7 === 6` — day 6 of EACH week in the combined 14-entry array.
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
+        ...r, days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -549,7 +571,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("draws a stub for a recorded zero beside the empty slot of an unrecorded day", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: i > 5 ? 0 : 1, missingFlocks: i > 5 ? d.expectedFlocks : 0 } : d)),
+        ...r, days: r.days.map((d, i) => (i % 7 > 3 ? { ...d, totalEggs: 0, recordedFlocks: i % 7 > 5 ? 0 : 1, missingFlocks: i % 7 > 5 ? d.expectedFlocks : 0 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -568,7 +590,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
         ...r,
-        days: r.days.map((d, i) => (i === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
+        days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -591,8 +613,13 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 
   it("shows a negative delta with the minus form, one decimal on both figures", async () => {
+    // Index 7 is the current week's first day, carrying that week's whole
+    // `ratedEggs` total (#918 — see `currentDays`). 560/700 = round(80.0,1);
+    // the previous week's 85.1 stays untouched, so the delta is 80.0-85.1.
     mockReport.mockImplementation((from, to) =>
-      reportByWindow(today)(from, to).then((r) => (r.periodHenDayPct === 87.4 ? report(80, r.days) : r)));
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d, i) => (i === 7 ? { ...d, ratedEggs: 560 } : d)),
+      })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByText("80.0%")).toBeInTheDocument();
     const delta = screen.getByText("−5.1 pts");
@@ -600,8 +627,13 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 
   it("renders — for a null hen-day figure, never 0, and keeps the delta neutral", async () => {
+    // periodHenDayPct is null only once a week's OWN exposure is zero
+    // (#918 — recomputed from `ratedEggs`/`recordedHenDays`, never taken at
+    // face value from the mock's top-level field), so both are zeroed here.
     mockReport.mockImplementation((from, to) =>
-      reportByWindow(today)(from, to).then((r) => report(null, r.days)));
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d) => ({ ...d, ratedEggs: 0, recordedHenDays: 0 })),
+      })));
     renderWithProviders(<Dashboard />);
     const kpi = await screen.findByText("—", { selector: ".trend-fig" });
     expect(kpi).toBeInTheDocument();
@@ -638,7 +670,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   it("defaults to All flocks; the selector's accessible name and the context caption both say so", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
     // The context caption: "{count} accessible flocks · {range}" — the count
     // is the same 3 the other panels' fixture already assumes.
@@ -701,8 +733,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await waitForPickerToClose();
 
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 7), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f2", expect.any(AbortSignal));
+      daysBefore(today, 14), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
     // Today's collection panel does not refetch on a Lay rate scope change.
     expect(mockEntries).not.toHaveBeenCalled();
@@ -712,7 +743,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await user.click(screen.getByRole("button", { name: /^All flocks/ }));
     await waitForPickerToClose();
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 7), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
+      daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
   });
 
@@ -726,18 +757,13 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // This asserts the rendered caption directly, before and after a pick.
   it("keeps the Morning collection panel's yesterday caption farm-wide when a flock is scoped", async () => {
     const user = userEvent.setup();
-    // f2's own scoped window reports a DIFFERENT yesterday than the always-
-    // farm-wide single-day fetch (300) — if the bug is present, picking f2
-    // would flip the caption to f2's own 100.
-    const currentWithYesterday = (eggs: number) => report(50, [7, 6, 5, 4, 3, 2, 1].map((n) =>
-      day(daysBefore(today, n), n === 1 ? eggs : 300 + n)));
-    mockReport.mockImplementation((from, to, flockId) => {
+    // The always-farm-wide single-day fetch (300) is deliberately the ONLY
+    // thing this test controls — the scoped trend fetch itself falls
+    // through to the default fixture regardless of which flock is picked,
+    // because this test's claim is about the OTHER panel entirely.
+    mockReport.mockImplementation((from, to) => {
       if (from === to) return Promise.resolve(report(null, [day(daysBefore(today, 1), 300)]));
-      if (from === daysBefore(today, 7) && to === daysBefore(today, 1)) {
-        return Promise.resolve(currentWithYesterday(flockId === "f2" ? 100 : 300));
-      }
-      if (from === daysBefore(today, 14) && to === daysBefore(today, 8)) return Promise.resolve(previousFor(today));
-      return Promise.reject(new Error(`unexpected window ${from}..${to}`));
+      return reportByWindow(today)(from, to);
     });
 
     renderWithProviders(<Dashboard />);
@@ -783,8 +809,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     expect(within(trendPanel).queryByRole("button", { name: /All flocks/ })).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button").some((b) => b.getAttribute("aria-haspopup") === "dialog")).toBe(false);
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 7), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8), "f1", expect.any(AbortSignal));
+      daysBefore(today, 14), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
   });
 
   // #918 — Codex review, finding 3. `cancelled` is what stops a stale scope's
@@ -805,26 +830,26 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
 
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    // The initial "all flocks" scope's two requests (current + previous window).
-    await waitFor(() => expect(pending.filter((p) => p.flockId === undefined && p.from !== p.to)).toHaveLength(2));
-    const allRequests = pending.filter((p) => p.flockId === undefined && p.from !== p.to);
+    // The initial "all flocks" scope's ONE combined 14-day request (#918).
+    await waitFor(() => expect(pending.filter((p) => p.flockId === undefined && p.from !== p.to)).toHaveLength(1));
+    const allRequest = pending.filter((p) => p.flockId === undefined && p.from !== p.to)[0]!;
 
     const results = await openPicker(user);
     await user.click(within(results).getByRole("button", { name: "Flock f2" }));
     await waitForPickerToClose();
-    await waitFor(() => expect(pending.filter((p) => p.flockId === "f2")).toHaveLength(2));
-    const f2Requests = pending.filter((p) => p.flockId === "f2");
+    await waitFor(() => expect(pending.filter((p) => p.flockId === "f2")).toHaveLength(1));
+    const f2Request = pending.filter((p) => p.flockId === "f2")[0]!;
 
     // The NEWER scope (f2) resolves first, as it would for an ordinary fast
     // response landing after a slow stale one is already in flight.
-    f2Requests[0]!.resolve(currentFor(today));
-    f2Requests[1]!.resolve(previousFor(today));
-    await screen.findByText("87.4%"); // currentFor's fixture hen-day figure
+    f2Request.resolve(fortnightFor(today));
+    await screen.findByText("87.4%"); // fortnightFor's current-week hen-day figure
 
-    // The STALE "all flocks" request resolves late, with figures that would
-    // be obviously wrong if they landed.
-    allRequests[0]!.resolve(report(1.2, [day("2026-01-01", 1)]));
-    allRequests[1]!.resolve(report(1.2, [day("2026-01-01", 1)]));
+    // The STALE "all flocks" request resolves late, with a figure that would
+    // be obviously wrong if it landed. Its own AbortController is already
+    // aborted by the scope change, so this settlement is dropped before it
+    // is ever split or rendered — proving the abort, not just a stale value.
+    allRequest.resolve(report(1.2, [day("2026-01-01", 1)]));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(screen.getByText("87.4%")).toBeInTheDocument();
@@ -848,14 +873,14 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
 
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    await waitFor(() => expect(signals).toHaveLength(2)); // the initial "all flocks" scope's two requests
+    await waitFor(() => expect(signals).toHaveLength(1)); // the initial "all flocks" scope's one combined request
 
     const results = await openPicker(user);
     await user.click(within(results).getByRole("button", { name: "Flock f2" }));
     await waitForPickerToClose();
 
-    // FAILING BEFORE THE FIX: these stayed unaborted, sitting in flight.
-    await waitFor(() => expect(signals.slice(0, 2).every((s) => s.aborted)).toBe(true));
+    // FAILING BEFORE THE FIX: this stayed unaborted, sitting in flight.
+    await waitFor(() => expect(signals[0]!.aborted).toBe(true));
   });
 
   // #918 round 4 — the picker dialog's own discovery mechanics (server
@@ -1034,17 +1059,16 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     expect(screen.queryByText("Today so far")).not.toBeInTheDocument();
     await expectOthersIntact("today");
   });
-  it("current-week report failed → trend panel errors, others intact", async () => {
-    mockReport.mockImplementation((from, to) => (to === daysBefore(today, 1) ? boom() : reportByWindow(today)(from, to)));
+  // #918 — Codex review: the current and previous weeks used to be two
+  // separate requests, each independently failable; folding them into one
+  // `daysBefore(today,14)..daysBefore(today,1)` call means a production
+  // failure now always fails BOTH weeks together, so there is only one
+  // failure mode left to test, not two.
+  it("the production report failed → trend panel errors, others intact", async () => {
+    mockReport.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(within(await panel("Last 14 days")).getByText("Could not load.")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    await expectOthersIntact("trend");
-  });
-  it("previous-week report failed → trend panel errors, others intact", async () => {
-    mockReport.mockImplementation((from, to) => (to === daysBefore(today, 8) ? boom() : reportByWindow(today)(from, to)));
-    renderWithProviders(<Dashboard />, asSales);
-    expect(within(await panel("Last 14 days")).getByText("Could not load.")).toBeInTheDocument();
     expect(screen.queryByText(/Hen-day/)).not.toBeInTheDocument();
     await expectOthersIntact("trend");
   });
@@ -1236,8 +1260,7 @@ describe("Dashboard follows the farm's day and locale", () => {
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
     expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
-    expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21", undefined, expect.any(AbortSignal));
-    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14", undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-21", undefined, expect.any(AbortSignal));
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
     expect(screen.getByText("+2,3 pts")).toBeInTheDocument();
