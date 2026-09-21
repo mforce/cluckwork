@@ -49,7 +49,7 @@ or adding an aggregate state.
 
 ```bash
 dotnet build Cluckwork.sln                 # warnings are errors — keep it clean
-dotnet test  Cluckwork.sln                 # 2295 tests as of 2026-09; integration needs Docker
+dotnet test  Cluckwork.sln                 # 2887 tests as of 2026-09-21; integration needs Docker
 ```
 
 - **Integration tests** use real Postgres through Testcontainers (`docker` required), never SQLite; EF SQL semantics differ.
@@ -233,7 +233,7 @@ Two stages stay separate: **CI publishes an image per merge; the release PR turn
 
 **Phase 1.1 (Operational fill) is shipped** — epic #14 closed 2026-08-11: RBAC UI, product catalog / egg-grade management, inventory movement ledger, feed/water/mortality, expenses, payments, dashboard, reports, audit UI, exports, i18n infrastructure. Follow-on work discovered while shipping it moved to epic #15.
 
-**Phase 1.6 (Multi-farm tenancy) is substantially shipped** — epic #530: several farms coexist on one deployment, sign-in takes a farm code, per-account email identity, immediate suspension, operator provisioning (`provision-account`), and all four scale-out blockers closed. Remaining: #357, #388, #537. The decisions and their accepted costs are in [`530-multi-farm-tenancy.md`](docs/decisions/530-multi-farm-tenancy.md).
+**Phase 1.6 (Multi-farm tenancy) is complete** — epic #530 is closed: several farms coexist on one deployment, sign-in takes a farm code, per-account email identity, immediate suspension, operator provisioning (`provision-account`), and all four scale-out blockers closed. Follow-ups #357, #388 and #537 are closed. The decisions and their accepted costs are in [`530-multi-farm-tenancy.md`](docs/decisions/530-multi-farm-tenancy.md).
 
 **Current phase: 1.5** (epic #15, `specs/product/specs.md` §6) — egg product hardening: legacy import, inventory reconciliation, alert center, packaging inventory, additives/supplements, vaccination records, native-speaker es/tl review, deployment readiness, and the Phase 1.1 carryover items on the epic.
 
