@@ -5,7 +5,7 @@ import { Search } from "lucide-react";
 import { Container, Typography } from "@mui/material";
 import { AuthContext } from "../auth/AuthContext";
 import { navGroups } from "./nav";
-import { GLOSSARY } from "./helpGlossary";
+import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
 
 // F18 (#71): in-app user guide + glossary. #52 restyled it into a docs layout
 // with a sticky contents rail that scroll-spies the section in view; #657
@@ -205,7 +205,7 @@ export function HelpPage() {
   // sections are prose the catalog assembles at render time, so the match is
   // taken from the DOM text rather than from any list this page could keep:
   // every `[data-searchable]` element is hidden when its text does not carry
-  // the query.
+  // the query, and a glossary group folds when none of its terms survive.
   const [matches, setMatches] = useState<{ sections: number; terms: number } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -224,6 +224,9 @@ export function HelpPage() {
         if (q !== "" && node instanceof HTMLDetailsElement) node.open = true;
       }
       else if (node.dataset.searchable === "section") sections += 1;
+    }
+    for (const group of Array.from(body.querySelectorAll<HTMLElement>(".glossary-group"))) {
+      group.hidden = q !== "" && group.querySelector(".glossary-entry:not([hidden])") === null;
     }
     const nextMatches = { sections, terms };
     setMatches(q === "" ? null : nextMatches);
@@ -831,18 +834,37 @@ export function HelpPage() {
 
       <section className="help-section" data-searchable="glossary">
       <div className="help-section-head"><h3 id="glossary">{t("glossaryHeading")}</h3>{openLink("glossary")}</div>
-      <div className="glossary">
-        {GLOSSARY.map((entry) => (
-            <details key={entry.key} id={entry.id} className="glossary-entry" data-searchable="term">
-              <summary>{t(entry.termKey)}</summary>
-              <p>
-                {entry.rich
-                  ? <Trans ns="help" i18nKey={entry.defKey} components={{ strong: <strong /> }} />
-                  : t(entry.defKey)}
-              </p>
-            </details>
+      {/* Hidden during a search: a folded group has no heading to jump to. */}
+      <nav className="glossary-jump" aria-label={t("glossaryJumpAriaLabel")} hidden={query !== ""}>
+        <ul>
+          {GLOSSARY_GROUPS.map((group) => (
+            <li key={group.key}><a href={`#glossary-group-${group.key}`}>{t(group.labelKey)}</a></li>
           ))}
-      </div>
+        </ul>
+      </nav>
+      {GLOSSARY_GROUPS.map((group) => {
+        const entries = GLOSSARY
+          .filter((entry) => entry.group === group.key)
+          .map((entry) => ({ ...entry, term: t(entry.termKey) }))
+          .sort((a, b) => a.term.localeCompare(b.term, i18n.language));
+        return (
+          <div key={group.key} className="glossary-group">
+            <h4 id={`glossary-group-${group.key}`}>{t(group.labelKey)}</h4>
+            <div className="glossary">
+              {entries.map((entry) => (
+                <details key={entry.key} id={entry.id} className="glossary-entry" data-searchable="term">
+                  <summary>{entry.term}</summary>
+                  <p>
+                    {entry.rich
+                      ? <Trans ns="help" i18nKey={entry.defKey} components={{ strong: <strong /> }} />
+                      : t(entry.defKey)}
+                  </p>
+                </details>
+              ))}
+            </div>
+          </div>
+        );
+      })}
 
           <p className="muted">
             <Trans ns="help" i18nKey="glossaryRepoNote" components={{ code: <code /> }} />

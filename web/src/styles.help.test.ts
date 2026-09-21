@@ -34,6 +34,9 @@ describe("glossary disclosures (desktop)", () => {
     expect(decls(".glossary-entry", null).get("border-bottom")).toBe("1px solid var(--hairline)");
     expect(decls(".glossary-entry summary", null).get("min-height")).toBe("44px");
   });
+  it("keeps the group heading in view while its entries scroll", () => {
+    expect(decls(".glossary-group h4", null).get("position")).toBe("sticky");
+  });
 });
 
 describe("rail on a phone", () => {
@@ -52,6 +55,10 @@ describe("rail on a phone", () => {
     expect(links.has("border-radius")).toBe(false);
   });
   it("keeps glossary anchors below the pinned rail", () => {
-    expect(decls(".glossary-entry", MQ).get("scroll-margin-top")).toBe("4rem");
+    expect(decls(".glossary-entry", MQ).get("scroll-margin-top")).toBe("6.5rem");
+  });
+  it("sticks the glossary group heading below the pinned rail, not behind it", () => {
+    expect(decls(".glossary-group h4", MQ).get("top")).not.toBe("0");
+    expect(decls(".glossary-group h4", MQ).get("top")).toMatch(/rem$/);
   });
 });
