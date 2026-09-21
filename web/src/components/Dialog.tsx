@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import {
-  Dialog as MuiDialog, DialogTitle, DialogContent, IconButton, useMediaQuery,
+  Box, Dialog as MuiDialog, DialogTitle, DialogContent, IconButton, useMediaQuery,
 } from "@mui/material";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 
@@ -30,6 +30,12 @@ const FOCUSABLE = [
 
 const focusableIn = (root: HTMLElement | null): HTMLElement[] =>
   root ? Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)) : [];
+
+// Confirmations have no body fields; their initial focus belongs on Cancel.
+const dialogFocusable = (panel: HTMLElement | null): HTMLElement[] => [
+  ...focusableIn(panel?.querySelector(".MuiDialogContent-root") ?? null),
+  ...focusableIn(panel?.querySelector(".MuiDialogActions-root") ?? null),
+];
 
 // focus() is a no-op on a control the browser won't take focus for (disabled,
 // or display:none), and it reports no error — so confirm it landed.
@@ -102,6 +108,10 @@ interface DialogProps {
    * caller that turns it on, because a twenty-link menu needs the height.
    */
   fullScreenOnPhone?: boolean;
+  /** Fixed footer, outside the scrolling body and its picker overlays. */
+  actions?: ReactNode;
+  /** Keeps native validation and Enter submission across the body and footer. */
+  formProps?: Pick<ComponentPropsWithoutRef<"form">, "onSubmit" | "noValidate">;
   children: ReactNode;
 }
 
@@ -180,16 +190,9 @@ function bumpOpenCount(delta: 1 | -1) {
 //   land in A, not on B's own (now `aria-hidden`, and in jsdom still
 //   `.focus()`-able, which is exactly the gap #483's review closed) trigger.
 //
-// So this stays a real ordered stack of open instances — not the counter
-// above, which only ever needs to answer "is anything open" for #485 — plus a
-// captured "what had focus before this dialog opened" per instance. `panel`
-// (the whole `role="dialog"` element, head included) is what a containment
-// check ("is focus already somewhere in the dialog that stays open") has to
-// test against; `content` (the `DialogContent` node alone) is what the
-// fallback focus SEARCH has to be scoped to — searching the whole panel would
-// find the close button before anything in the form, because it sits first
-// in DOM order inside the heading.
-interface OpenPanel { panel: HTMLElement; content: HTMLElement | null }
+// #483/#485: the ordered stack restores focus to the remaining dialog.
+// Search its body and actions, excluding the heading's close button.
+interface OpenPanel { panel: HTMLElement }
 const openPanels: OpenPanel[] = [];
 
 // #609 review — the trigger can be gone if the save re-rendered the row that
@@ -217,7 +220,7 @@ function restoreFocusOnClose(
   if (remaining !== null) {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !remaining.panel.contains(active)) {
-      if (!focusFirstThatTakes(focusableIn(remaining.content))) remaining.panel.focus();
+      if (!focusFirstThatTakes(dialogFocusable(remaining.panel))) remaining.panel.focus();
     }
     return;
   }
@@ -259,10 +262,9 @@ function restoreFocusOnClose(
 // `onModalStateChange` pair #485 depends on.
 export function Dialog({
   open, title, onClose, focusKey, describedBy, wide, closeDisabled,
-  fullScreenOnPhone = false, children,
+  fullScreenOnPhone = false, actions, formProps, children,
 }: DialogProps) {
   const { t } = useTranslation("common");
-  const bodyRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
   const isPhone = !useMediaQuery(MD_UP_QUERY);
@@ -312,13 +314,8 @@ export function Dialog({
   // of trusting MUI's own (stacking-unaware, single-attempt) restore. Keyed
   // on `open` alone: a rebind must not re-capture the trigger.
   //
-  // `pushed` tracks exactly what got onto `openPanels`, read fresh rather
-  // than closed over once: `panelRef.current` is not reliably populated on
-  // the SAME synchronous pass this effect runs on (the same one-frame gap
-  // `bodyRef` above works around), so the push retries next frame — and
-  // cleanup must remove the SAME reference it pushed, not re-read
-  // `panelRef.current` at close time, which could by then point at nothing
-  // (the panel is already unmounting).
+  // The portal may mount a frame later. Keep the exact stack entry so cleanup
+  // removes it even after its panel ref has cleared.
   useEffect(() => {
     if (!open) return;
     // Declared BEFORE the initial-focus effect below, so this runs first in
@@ -337,7 +334,7 @@ export function Dialog({
       if (pushed !== null) return;
       const panel = panelRef.current;
       if (panel === null) return;
-      pushed = { panel, content: bodyRef.current };
+      pushed = { panel };
       openPanels.push(pushed);
     };
     push();
@@ -348,27 +345,23 @@ export function Dialog({
     };
   }, [open]);
 
-  // Land on the first field rather than the close button — the dialog exists
-  // to be filled in, and the heading is announced by aria-labelledby anyway.
-  // Re-run when focusKey changes so a swapped-in record gets the cursor back.
-  // MUI's own FocusTrap lands initial focus on the panel first (it is mounted
-  // deeper in the tree, so its own effect fires before this one), which this
-  // effect then overrides — except on the dialog's OWN opening render, the
-  // content this effect looks for is not reliably in the DOM yet: measured
-  // directly, `bodyRef.current` is still null on the first synchronous run of
-  // this exact effect, on this exact transition. One frame later it is
-  // populated, so the retry follows the same "try again next frame" shape the
-  // busy-trigger restore below already uses, for the same reason — a target
-  // that is not there yet is not a failure to fall back from, it is a target
-  // to wait one frame for.
+  // #483: focus a body field, or Cancel for confirmations, after the portal
+  // mounts. A rebind's focusKey returns focus to the replacement form.
   useEffect(() => {
     if (!open) return;
-    if (focusFirstThatTakes(focusableIn(bodyRef.current))) return;
+    if (focusFirstThatTakes(dialogFocusable(panelRef.current))) return;
     const raf = requestAnimationFrame(() => {
-      focusFirstThatTakes(focusableIn(bodyRef.current));
+      focusFirstThatTakes(dialogFocusable(panelRef.current));
     });
     return () => cancelAnimationFrame(raf);
   }, [open, focusKey]);
+
+  const content = (
+    <>
+      <DialogContent>{children}</DialogContent>
+      {actions && <Box sx={{ px: 3, pb: 2, flexShrink: 0 }}>{actions}</Box>}
+    </>
+  );
 
   return (
     <MuiDialog
@@ -423,7 +416,7 @@ export function Dialog({
           "New order Close" (probed on the sim stack, CodeRabbit round 1 of
           #892), so an exact-name query for the title alone found nothing.
           The right padding keeps the title text clear of the button. */}
-      <DialogTitle component="h3" variant="h4" sx={{ pr: 7 }}>
+      <DialogTitle component="h2" variant="h2" sx={{ pr: 7 }}>
         {title}
       </DialogTitle>
       <IconButton
@@ -435,7 +428,11 @@ export function Dialog({
       >
         <X size={18} aria-hidden />
       </IconButton>
-      <DialogContent ref={bodyRef}>{children}</DialogContent>
+      {formProps ? (
+        <Box component="form" {...formProps} sx={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {content}
+        </Box>
+      ) : content}
     </MuiDialog>
   );
 }

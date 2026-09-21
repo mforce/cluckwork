@@ -112,7 +112,7 @@ test.describe("Over-cap pagination (#627)", () => {
     // sentinel — the oldest ADDED adjustment, though the opening purchase is
     // older than that — is not among them. Proven anyway because that is the
     // point of the spec.
-    const sentinel = page.getByRole("row").filter({ hasText: "Sim feed adjustment page two sentinel" });
+    const sentinel = page.getByRole("list", { name: tEn("inventory:movementHeading") }).getByRole("listitem").filter({ hasText: "Sim feed adjustment page two sentinel" });
     await expect(sentinel).toHaveCount(0);
 
     const loadMore = page.getByRole("button", { name: tEn("inventory:loadMoreButton") });
@@ -123,10 +123,7 @@ test.describe("Over-cap pagination (#627)", () => {
     // Adjustment on the feed lot — the quantity cell renders "+1 kg" and the
     // type cell reads the translated Adjustment label (never a raw enum).
     await expect(sentinel).toHaveCount(1);
-    await expect(sentinel.getByRole("cell", { name: "+1 kg" })).toBeVisible();
-    // The type cell is the row's SECOND cell — named-role matching would
-    // also hit the note cell, whose text CONTAINS "adjustment" (the sentinel
-    // reason), and Playwright's name match is case-insensitive.
-    await expect(sentinel.locator("td").nth(1)).toHaveText(tEn("enums:inventoryMovement.Adjustment"));
+    await expect(sentinel.getByText("+1 kg", { exact: true })).toBeVisible();
+    await expect(sentinel.getByText(tEn("enums:inventoryMovement.Adjustment"), { exact: true })).toBeVisible();
   });
 });

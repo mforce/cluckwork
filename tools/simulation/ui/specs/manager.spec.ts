@@ -278,8 +278,7 @@ test.describe("Manager", () => {
     const WHOLE_HISTORY = { from: "", to: "" };
     const openedLots = lotPages.length;
     await page
-      .getByRole("row")
-      .filter({ has: page.getByRole("cell", { name: "Large", exact: true }) })
+      .getByRole("region", { name: "Large", exact: true })
       .getByRole("button", { name: tEn("stock:lotsButton") })
       .click();
 

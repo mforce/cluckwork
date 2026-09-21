@@ -91,6 +91,36 @@ function filterFlockTrigger() {
 }
 
 describe("WaterPage loading + list", () => {
+  it("previews 0.1 L between meter readings 100.1 and 100.2", async () => {
+    await renderReadyForm(WORKER);
+    fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
+    fireEvent.change(screen.getByLabelText("Meter start"), { target: { value: "100.1" } });
+    fireEvent.change(screen.getByLabelText("Meter end"), { target: { value: "100.2" } });
+    expect(within(screen.getByRole("complementary", { name: "Reading check" })).getByText("0.1 L")).toBeInTheDocument();
+    expect(mockRecordWaterUsage).not.toHaveBeenCalled();
+  });
+
+  it("switches entry modes and previews the meter difference without saving", async () => {
+    await renderReadyForm(WORKER);
+    const reading = screen.getByRole("complementary", { name: "Reading check" });
+    const announcement = within(reading).getByText("Result").parentElement;
+    expect(announcement).toHaveAttribute("aria-live", "polite");
+    expect(announcement).toHaveAttribute("aria-atomic", "true");
+    expect(announcement).toHaveTextContent("Result—");
+    fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
+    expect(screen.getByRole("button", { name: "Meter readings" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(screen.getByLabelText("Meter start"), { target: { value: "100.5" } });
+    fireEvent.change(screen.getByLabelText("Meter end"), { target: { value: "175.25" } });
+    expect(announcement).toHaveTextContent("Result74.75 L");
+    expect(within(reading).getByText("Result").parentElement).toBe(announcement);
+    fireEvent.click(screen.getByRole("button", { name: "Direct amount" }));
+    expect(screen.queryByLabelText("Meter start")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Quantity (L)"), { target: { value: "12.5" } });
+    expect(announcement).toHaveTextContent("Result12.5 L");
+    expect(within(reading).getByText("Result").parentElement).toBe(announcement);
+    expect(mockRecordWaterUsage).not.toHaveBeenCalled();
+  });
+
   it("shows a loading placeholder before the water list resolves", async () => {
     mockListWaterUsage.mockResolvedValue([ROW]);
     renderWithProviders(<WaterPage />, { token: WORKER });
@@ -242,7 +272,7 @@ describe("WaterPage record water", () => {
     mockRecordWaterUsage.mockResolvedValue({ id: "w9" });
     await renderReadyForm(WORKER);
 
-    fireEvent.click(screen.getByRole("checkbox")); // "from meter readings"
+    fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
     fireEvent.change(screen.getByLabelText("Meter start"), { target: { value: "100.5" } });
     fireEvent.change(screen.getByLabelText("Meter end"), { target: { value: "175.25" } });
 
@@ -753,4 +783,33 @@ describe("WaterPage list races (#469)", () => {
     expect(screen.getByText("fresh rows")).toBeInTheDocument();
     expect(screen.queryByText("Could not load water records.")).not.toBeInTheDocument();
   });
+});
+
+
+it("updates the water context when the reading mode changes", async () => {
+  await renderReadyForm(ADMIN);
+  const summary = screen.getByLabelText("Water context");
+  expect(summary).toHaveTextContent("Direct amount");
+  fireEvent.click(screen.getByRole("button", { name: "Meter readings" }));
+  expect(summary).toHaveTextContent("Meter readings");
+  expect(summary).toHaveTextContent("L");
+});
+
+it("keeps one filter reset available with the chronological ledger", async () => {
+  await renderReadyForm(ADMIN);
+  await screen.findByRole("heading", { name: "Water log" });
+  expect(screen.getByText("Chronological record")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
+  fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-02" } });
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(screen.getByLabelText("From")).toHaveValue("");
+  expect(screen.getByLabelText("To")).toHaveValue("");
+});
+
+
+it("shows the page intro once, outside the reading check", async () => {
+  await renderReadyForm(WORKER);
+  const intro = "Record what each flock drank — a direct amount, or meter readings (the amount is the meter delta). Records can be corrected later; flock and date are fixed.";
+  expect(screen.getAllByText(intro)).toHaveLength(1);
+  expect(within(screen.getByRole("complementary", { name: "Reading check" })).queryByText(intro)).not.toBeInTheDocument();
 });

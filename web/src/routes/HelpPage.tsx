@@ -535,6 +535,7 @@ export function HelpPage() {
       <div className="help-section-head"><h3 id="history">{t("historyHeading")}</h3>{openLink("history")}</div>
       <ul>
         <li>{t("historyBrowse")}</li>
+        <li>{t("historyReconciliation")}</li>
         <li>
           <Trans ns="help" i18nKey="historyAdminActions" components={{ strong: <strong /> }} />
         </li>
@@ -662,6 +663,7 @@ export function HelpPage() {
         </li>
         <li>
           <Trans ns="help" i18nKey="feedCorrecting" components={{ strong: <strong /> }} />
+          <p>{t("feedRationPreview")}</p>
         </li>
         <li>
           <Trans ns="help" i18nKey="feedDailyEntry" components={{ strong: <strong /> }} />
@@ -679,6 +681,7 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="waterCorrecting" components={{ strong: <strong /> }} />
         </li>
+        <li>{t("waterModes")}</li>
         <li>{t("waterLifecycle")}</li>
       </ul>
 

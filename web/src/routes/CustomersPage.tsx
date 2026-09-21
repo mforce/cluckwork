@@ -242,8 +242,16 @@ export function CustomersPage() {
         )}
       </div>
 
-      <Dialog open={creating} title={t("newCustomerButton")} onClose={closeCreate}>
-        <Stack component="form" spacing={2} onSubmit={onCreate}>
+      <Dialog open={creating} title={t("newCustomerButton")} onClose={closeCreate}
+        actions={(
+          <DialogActions>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
+            <BusyButton type="submit" busy={busy}>{t("addCustomerButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onCreate }}
+      >
+        <Stack spacing={2}>
           <TextField
             label={t("nameFieldLabel")}
             value={name}
@@ -273,10 +281,6 @@ export function CustomersPage() {
             onChange={(e) => setNote(e.target.value)}
           />
           <DialogError errors={errors} scope="create" />
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={busy}>{t("addCustomerButton")}</BusyButton>
-          </DialogActions>
         </Stack>
       </Dialog>
 
@@ -291,9 +295,19 @@ export function CustomersPage() {
         title={t("editCustomerTitle", { name: editForm?.name ?? "" })}
         onClose={closeEdit}
         closeDisabled={editWriteInFlight}
+        actions={editForm && (
+          <DialogActions>
+            <button type="button" className="link" disabled={editWriteInFlight} onClick={closeEdit}>
+              {tc("cancel")}
+            </button>
+            <BusyButton type="submit" disabled={busy}
+              busy={isPending("edit-customer")}>{tc("save")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSaveEdit }}
       >
         {editForm && (
-          <Stack component="form" spacing={2} onSubmit={onSaveEdit}>
+          <Stack spacing={2}>
             {/* #625 review round 2 — disabled while the write OR its refresh
                 is in flight: without this, keystrokes made after Save land in
                 editForm/state but are silently discarded (the request already
@@ -333,13 +347,6 @@ export function CustomersPage() {
               onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
             />
             <DialogError errors={errors} scope="edit-customer" />
-            <DialogActions>
-              <button type="button" className="link" disabled={editWriteInFlight} onClick={closeEdit}>
-                {tc("cancel")}
-              </button>
-              <BusyButton type="submit" disabled={busy}
-                busy={isPending("edit-customer")}>{tc("save")}</BusyButton>
-            </DialogActions>
           </Stack>
         )}
       </Dialog>

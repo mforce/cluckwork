@@ -352,7 +352,7 @@ describe("InventoryPage lot & movement drill-down", () => {
     expect(mockListMovements).toHaveBeenCalledWith("it1", { limit: 100, offset: 0 });
     expect(mockListLots).toHaveBeenCalledWith("it1");
 
-    const mvRow = screen.getByRole("row", { name: /Purchase/ });
+    const mvRow = within(screen.getByRole("list", { name: "Movement ledger" })).getByRole("listitem");
     expect(within(mvRow).getByText("07/01/2026")).toBeInTheDocument();
     expect(within(mvRow).getByText("+100 kg")).toBeInTheDocument(); // signed positive delta
     expect(within(mvRow).getByText("initial receive")).toBeInTheDocument();
@@ -734,11 +734,7 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     const form = openDialog("Record purchase");
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
 
-    // The PANEL's own close link ("close", lowercase) — not the purchase
-    // dialog's own "X" (accessible name "Close"), which already runs
-    // `closePurchase` via `onClose` and would pass this test regardless of
-    // the guard under test.
-    fireEvent.click(screen.getByRole("button", { name: "close", hidden: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose another item", hidden: true }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await openItem(FEED);
@@ -872,7 +868,7 @@ describe("InventoryPage i18n wiring (#182, Task 16)", () => {
     await withOverride("enums", "inventoryMovement.Purchase", "PURCHASE-MARKER", async () => {
       await renderReady(ADMIN);
       await openItem(FEED);
-      const mvRow = screen.getByRole("row", { name: /PURCHASE-MARKER/ });
+      const mvRow = within(screen.getByRole("list", { name: "Movement ledger" })).getByRole("listitem");
       expect(within(mvRow).getByText("PURCHASE-MARKER")).toBeInTheDocument();
     });
   });
@@ -1288,7 +1284,7 @@ describe("InventoryPage — the panel belongs to the user, not to the write (#63
       fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "close", hidden: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose another item", hidden: true }));
     expect(screen.queryByRole("heading", { name: /Layer Feed/ })).not.toBeInTheDocument();
 
     await act(async () => {
@@ -1545,4 +1541,28 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     expect(mockAdjust).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("late correction failure")).not.toBeInTheDocument();
   });
+});
+
+it("shows movements as a headerless chronological list with its usage policy", async () => {
+  mockListMovements.mockResolvedValue([MOVEMENT]);
+  await renderReady(ADMIN);
+  await openItem(FEED);
+  const list = await screen.findByRole("list", { name: "Movement ledger" });
+  expect(within(list).queryByRole("columnheader")).toBeNull();
+  expect(within(list).getByRole("listitem")).toHaveTextContent("07/01/2026Purchase+100 kginitial receive");
+  expect(screen.getByText("Usage is recorded on Feed. Stock corrections remain auditable.")).toBeInTheDocument();
+});
+
+
+it("mutes inactive item cells without muting active item cells", async () => {
+  mockListItems.mockResolvedValue([FEED, INACTIVE]);
+  renderWithProviders(<InventoryPage />, { token: ADMIN });
+  const inactive = await screen.findByRole("row", { name: /Old Additive/ });
+  const active = screen.getByRole("row", { name: /Layer Feed/ });
+  for (const cell of within(inactive).getAllByRole("cell")) {
+    expect(cell).toHaveStyle({ color: "var(--muted)" });
+  }
+  for (const cell of within(active).getAllByRole("cell")) {
+    expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+  }
 });

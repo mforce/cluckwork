@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { FilterX, Receipt } from "lucide-react";
+import { FilterX, Plus, Receipt } from "lucide-react";
+import {
+  Box, Button, DialogActions, Divider, List, ListItem, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -11,9 +14,11 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
+import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, CONSOLE_PAPER_HEAD_SX, LedgerTableContainer, ConsoleSummary, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
+import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
@@ -30,6 +35,7 @@ function errText(err: unknown): string {
 }
 
 const PAGE = 100;
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // The scopes that own a dialog (#703). `run` routes a failure by this and gates
 // a success by it; a scope outside the list — the record-expense form on the
@@ -137,23 +143,14 @@ export function ExpensesPage() {
   const [editCategory, setEditCategory] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  // #512 (T028/T038) — the correction's flock is a ROW-OWNED identity: the
-  // picker's `requestedId` resolves it exactly (including archived flocks
-  // outside the discovery window), a failed exact read enters the explicit
-  // `unavailable` state (never a first-result substitution), and
-  // `editFlockSnapshot.canSubmit` gates BOTH the Save button and onSaveEdit.
-  // `editFlockEntity` is the FULL entity (committed from the mount list, from
-  // the exact GET, or from a user pick); `editFlockId` holds only an id that
-  // the picker has not resolved yet. A blank row owns neither (account-wide).
+  const [editFlockPickerOpen, setEditFlockPickerOpen] = useState(false);
+  // #512 (T028/T038): resolve the row's flock exactly, including archived IDs.
+  // An unavailable identity blocks Save; a blank account-wide choice is valid.
   const [editFlockEntity, setEditFlockEntity] = useState<Flock | null>(null);
   // The row-owned id while it is unresolved (archived / outside the window);
   // null once committed, cleared, or when the row owns no flock.
   const [editFlockId, setEditFlockId] = useState<string | null>(null);
-  // The row-owned id that startEdit handed over — the page-side mirror of
-  // `editFlockId`, frozen at open time: it keeps the engine's requestedId
-  // effect pinned to that exact identity even if the user's CLEAR commits a
-  // different flock in the meantime (the engine resolves the REQUESTED id,
-  // never the current selection).
+  // #512: resolve the saved identity until a user replaces or clears it.
   const [editRequestedId, setEditRequestedId] = useState<string | null>(null);
   const [editFlockGen, setEditFlockGen] = useState(0);
   // HONEST initial state: a blank row's picker needs no exact read, so its
@@ -356,6 +353,7 @@ export function ExpensesPage() {
   // values; ending the session there would gate off the very report the
   // rebind is about to make.
   function startEdit(x: Expense) {
+    setEditFlockPickerOpen(false);
     setEditing(x);
     setEditDate(x.date);
     setEditCategory(x.expenseCategoryId);
@@ -411,6 +409,7 @@ export function ExpensesPage() {
   // still out, so a late failure lands nowhere, and ends the session, so a
   // late success cannot act on the dialog the user opens next.
   function closeEdit() {
+    setEditFlockPickerOpen(false);
     dismissDialog("edit");
     setEditing(null);
     setEditFlockEntity(null);
@@ -543,174 +542,198 @@ export function ExpensesPage() {
   }
 
   return (
-    <section>
-      <h2>{t("title")}</h2>
-
-      <div className="filters">
-        {/* #667 — a from/to pair matching every sibling list screen; the
-            category filter beside it is not a date control and stays outside
-            the toolbar. */}
-        <div className="toolbar">
-          {/* No `max` on either bound. The month picker this replaced capped at
-              the current MONTH, which contained its own month-end default; a
-              day-granularity control capped at TODAY does not — the default
-              `to` is month-end, so the cap made the input render a value it
-              forbade, and made the default unreachable once changed. The
-              sibling range filters (Feed, Water, History) ship uncapped for the
-              same reason: a future window is empty by construction, which is
-              cheaper than a control that argues with its own value. */}
-          <label>{t("fromLabel")}
-            <input type="date" value={from}
-              onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>{t("toLabel")}
-            <input type="date" value={to}
-              onChange={(e) => setTo(e.target.value)} />
-          </label>
-        </div>
-        <label>{t("categoryLabel")}
-          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-            <option value="">{t("allCategoriesOption")}</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
-            ))}
-          </select>
-        </label>
-        <button className="link" type="button" onClick={() => setShowCategories((v) => !v)}>
+    <FieldConsole>
+      <Stack component="header" direction={{ xs: "column", md: "row" }} sx={{ justifyContent: "space-between", gap: 1, mb: 2 }}>
+        <Box><Typography variant="h2">{t("title")}</Typography>
+          <Typography component="p" sx={{ m: 0, maxWidth: 700, color: "text.secondary", fontSize: "13px", lineHeight: 1.45 }}>{t("intro")}</Typography>
+        </Box>
+        <Button variant="contained" startIcon={showCategories ? undefined : <Plus size={16} aria-hidden="true" />} sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0, alignSelf: { md: "flex-start" } }} onClick={() => setShowCategories((v) => !v)}>
           {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
-        </button>
-        {/* #679 — persistent, not empty-state-only: before this, the sole way
-            back to the default view was to narrow the range until the list
-            emptied so the empty state's button appeared. */}
-        {isFiltered && (
-          <button className="link" type="button" onClick={resetFilters}>
-            {tc("clearFiltersButton")}
-          </button>
-        )}
-      </div>
+        </Button>
+      </Stack>
+      <ConsoleSummary label={t("contextLabel")} items={[
+        { label: t("periodHeading"), value: !expenses.reloading && expenses.meta !== null ? fmt.money(expenses.meta.total, currencyCode, currencyMinor) : "—" },
+        { label: t("fromLabel"), value: from ? fmt.date(from) : "—" },
+        { label: t("toLabel"), value: to ? fmt.date(to) : "—" },
+        { label: t("categoryLabel"), value: categories.find((category) => category.id === filterCategory)?.name ?? t("allCategoriesOption") },
+      ]} />
 
-      {/* The total belongs to the rows below it: it lands and clears with
-          them, so it can never describe a period they do not (#469). It is
-          also WITHHELD while a replacement is in flight — the hook keeps the
-          previous window until the new one lands, and a figure from last
-          month sitting under this month's picker is the very thing this
-          change exists to stop, pending or settled (codex review). */}
-      {/* ...and only when there IS an authoritative figure. A failed load
-          clears the metadata, and `?? 0` then rendered a definitive
-          "Month total: 0.00" beside the error — stating that a period whose
-          spend is UNKNOWN is zero, which on a money screen is a wrong number
-          rather than a degraded display (codex review). */}
-      {!expenses.reloading && expenses.meta !== null && (
-        <p><strong>{t("periodTotalLabel", {
-          amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor),
-        })}</strong></p>
-      )}
+      <FilterBar>
+        {/* Do not cap at today: the default end date is month-end. */}
+        <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
+        <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
+        <TextField
+          select
+          label={t("categoryLabel")}
+          value={filterCategory}
+          size="small"
+          // Shrink the label so it does not overlap the empty-value placeholder.
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+          onChange={(e) => setFilterCategory(e.target.value)}
+        >
+          <option value="">{t("allCategoriesOption")}</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
+          ))}
+        </TextField>
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={resetFilters}>{tc("clearFiltersButton")}</Button>
+      </FilterBar>
 
       {showCategories && (
-        <div className="order-panel">
-          <h3>{t("categoriesHeading")}</h3>
-          <div className="panel-actions">
-            <button type="button" onClick={() => { openDialog("add-category"); setAddingCategory(true); }}>
-              {t("newCategoryButton")}
-            </button>
-          </div>
+        <Box sx={{ my: 3 }}>
+          <Divider />
+          <Box sx={{ py: 3 }}>
+            <Typography variant="h3" component="h3">{t("categoriesHeading")}</Typography>
+            <Stack direction="row" useFlexGap spacing={1.5} sx={{ flexWrap: "wrap", alignItems: "center", my: 1.5 }}>
+              <button type="button" onClick={() => { openDialog("add-category"); setAddingCategory(true); }}>
+                {t("newCategoryButton")}
+              </button>
+            </Stack>
 
-          <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={closeAddCategory}>
-            <form className="inline-form" onSubmit={onAddCategory}>
-              {/* Disabled during any flight — kept as shipped (#242 review);
-                  since #703 the spinner reads the fixed "add-category" scope,
-                  so the original re-pointing hazard is gone, and the field
-                  stays inert during a flight like every other trigger here. */}
-              <label>{t("categoryNameLabel")}
-                <input value={newCategoryName} required disabled={busy}
-                  onChange={(e) => setNewCategoryName(e.target.value)} />
-              </label>
-              <DialogError errors={errors} scope="add-category" />
-              <div className="dialog-foot">
-                <button type="button" className="link" onClick={closeAddCategory}>{tc("cancel")}</button>
-                <BusyButton type="submit" busy={isPending("add-category")} disabled={busy}>{t("addCategoryButton")}</BusyButton>
-              </div>
-            </form>
-          </Dialog>
+            <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={closeAddCategory}
+              actions={(
+                <DialogActions>
+                  <button type="button" className="link" onClick={closeAddCategory}>{tc("cancel")}</button>
+                  <BusyButton type="submit" busy={isPending("add-category")} disabled={busy}>{t("addCategoryButton")}</BusyButton>
+                </DialogActions>
+              )}
+              formProps={{ onSubmit: onAddCategory }}
+            >
+              <Stack spacing={2}>
+                <TextField
+                  label={t("categoryNameLabel")}
+                  value={newCategoryName}
+                  disabled={busy}
+                  slotProps={{ htmlInput: { required: true } }}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                />
+                <DialogError errors={errors} scope="add-category" />
+              </Stack>
+            </Dialog>
 
-          <ul>
-            {categories.map((c) => (
-              <li key={c.id}>
-                {c.name}{c.active ? "" : t("deactivatedSuffix")}{" "}
-                <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
-                  disabled={busy} onClick={() => onToggleCategory(c)}>
-                  {c.active ? t("deactivateButton") : t("reactivateButton")}
-                </BusyButton>
-              </li>
-            ))}
-            {categories.length === 0 && <li className="muted">{t("noCategoriesMessage")}</li>}
-          </ul>
-        </div>
+            <List disablePadding>
+              {categories.map((c, i) => (
+                <ListItem key={c.id} disableGutters divider={i < categories.length - 1}
+                  secondaryAction={
+                    <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
+                      disabled={busy} onClick={() => onToggleCategory(c)}>
+                      {c.active ? t("deactivateButton") : t("reactivateButton")}
+                    </BusyButton>
+                  }
+                >
+                  <ListItemText primary={`${c.name}${c.active ? "" : t("deactivatedSuffix")}`} />
+                </ListItem>
+              ))}
+              {categories.length === 0 && (
+                <ListItem disableGutters>
+                  <ListItemText primary={t("noCategoriesMessage")} slotProps={{ primary: { color: "text.secondary" } }} />
+                </ListItem>
+              )}
+            </List>
+          </Box>
+          <Divider />
+        </Box>
       )}
 
-      <h3>{t("recordExpenseHeading")}</h3>
-      <form className="form-grid" onSubmit={onAdd}>
-        <label>{t("dateLabel")}
-          <input type="date" value={date} max={today} required
-            onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label>{t("categoryLabel")}
-          <select value={categoryId} required onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">{t("pickOption")}</option>
-            {activeCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
-        <label>{t("descriptionLabel")}
-          <input value={description} required maxLength={200}
-            onChange={(e) => setDescription(e.target.value)} />
-        </label>
-        <label>{t("amountLabel", { code: currencyCode || "…" })}
-          <input type="number" min={(1 / 10 ** currencyMinor).toFixed(currencyMinor)}
-            step="any" value={amount} required
-            onChange={(e) => setAmount(e.target.value)} />
-        </label>
-        <FlockPicker
-          label={t("flockOptionalLabel")}
-          eligibility="all"
-          required={false}
-          open={addFlockPickerOpen}
-          // Controlled sync only for the post-success reset (gen bump): the
-          // engine owns its discovery lifecycle otherwise, so a later Escape
-          // cannot resurrect the just-saved flock (US2).
-          controlledCommitted={addFlock}
-          controlledGeneration={addFlockGen}
-          onSnapshot={setAddFlockSnapshot}
-          onCommit={(f) => {
-            setAddFlock(f);
-            setAddFlockPickerOpen(false);
-          }}
-          onClear={() => setAddFlock(null)}
-          onEscape={() => setAddFlockPickerOpen(false)}
-          onOutsideClick={() => setAddFlockPickerOpen(false)}
-          trigger={
-            <button type="button" className="named-picker-trigger"
-              onClick={() => setAddFlockPickerOpen(true)}>
-              {addFlock ? addFlock.name : t("noneOption")}
-            </button>
-          }
+      <Box sx={{ ...CONSOLE_SPLIT_SX, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, .9fr) minmax(0, 1.1fr)" } }}>
+      <Box sx={CONSOLE_PANEL_SX}>
+      <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}>
+        <h3>{t("recordExpenseHeading")}</h3>
+        <Button sx={{ ...CONSOLE_LINK_SX, fontSize: ".75rem" }} onClick={() => setShowCategories(true)}>{t("manageCategoriesButton")}</Button>
+      </Box>
+      <Stack component="form" sx={CONSOLE_FORM_SX} onSubmit={onAdd}>
+        <TextField
+          type="date"
+          label={t("dateLabel")}
+          value={date}
+          size="small"
+          slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
+          onChange={(e) => setDate(e.target.value)}
         />
-        <label>{t("noteOptionalLabel")}
-          <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
-        </label>
-        <div className="actions">
-          {/* No known denomination means no recording: converting the typed
-              amount would have to guess the scale (#469 codex review).
-              #512 (T028): the picker's canSubmit gates the write too — an
-              exploring/uninitialized picker must not submit a stale flock. */}
-          <BusyButton type="submit" busy={isPending("add")}
-            disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>
-            {t("recordExpenseButton")}
-          </BusyButton>
-        </div>
-      </form>
+        <TextField
+          select
+          label={t("categoryLabel")}
+          value={categoryId}
+          size="small"
+          // Shrink the label so it does not overlap the empty-value placeholder.
+          slotProps={{ select: { native: true }, htmlInput: { required: true }, inputLabel: { shrink: true } }}
+          onChange={(e) => setCategoryId(e.target.value)}
+        >
+          <option value="">{t("pickOption")}</option>
+          {activeCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </TextField>
+        <TextField
+          label={t("descriptionLabel")}
+          value={description}
+          size="small"
+          slotProps={{ htmlInput: { required: true, maxLength: 200 } }}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <TextField
+          type="number"
+          label={t("amountLabel", { code: currencyCode || "…" })}
+          value={amount}
+          size="small"
+          slotProps={{ htmlInput: { min: (1 / 10 ** currencyMinor).toFixed(currencyMinor), step: "any", required: true } }}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <Box sx={FILTER_PICKER_SX}>
+          <FlockPicker
+            label={t("flockOptionalLabel")}
+            eligibility="all"
+            required={false}
+            open={addFlockPickerOpen}
+            // Sync only after a successful reset so Escape cannot restore the saved flock.
+            controlledCommitted={addFlock}
+            controlledGeneration={addFlockGen}
+            onSnapshot={setAddFlockSnapshot}
+            onCommit={(f) => {
+              setAddFlock(f);
+              setAddFlockPickerOpen(false);
+            }}
+            onClear={() => setAddFlock(null)}
+            onEscape={() => setAddFlockPickerOpen(false)}
+            onOutsideClick={() => setAddFlockPickerOpen(false)}
+            trigger={
+              <button type="button" className="named-picker-trigger"
+                onClick={() => setAddFlockPickerOpen(true)}>
+                {addFlock ? addFlock.name : t("noneOption")}
+              </button>
+            }
+          />
+        </Box>
+        <TextField
+          label={t("noteOptionalLabel")}
+          value={note}
+          size="small"
+          slotProps={{ htmlInput: { maxLength: 500 } }}
+          onChange={(e) => setNote(e.target.value)}
+        />
+        {/* Unknown currency precision or an unresolved flock prevents a valid write. */}
+        <BusyButton component={Button} variant="contained" type="submit" busy={isPending("add")}
+          disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>
+          {t("recordExpenseButton")}
+        </BusyButton>
+      </Stack>
       {activeCategories.length === 0 && (
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
+      </Box>
+      <Box component="aside" sx={CONSOLE_RAIL_SX}
+        aria-label={!expenses.reloading && expenses.meta !== null
+          ? t("periodTotalLabel", { amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor) })
+          : undefined}>
+        {!expenses.reloading && expenses.meta !== null && (
+          <>
+            <Typography component="p" variant="body2">{t("periodHeading")}</Typography>
+            <Typography component="p" variant="body2" sx={{ fontSize: "2rem", fontWeight: 700, fontVariantNumeric: "tabular-nums", my: 1 }}>
+              {fmt.money(expenses.meta.total, currencyCode, currencyMinor)}
+            </Typography>
+            <Typography sx={{ fontSize: ".8rem" }}>{t("wholePeriod")}</Typography>
+          </>
+        )}
+      </Box>
+      </Box>
 
       {/* Unconditional since #479: this slot is the page's alone now, so there
           is nothing a dialog's own message could double up with. */}
@@ -727,154 +750,167 @@ export function ExpensesPage() {
         // identity changing pulls focus back to the first field rather than
         // swapping the form out from under the user's cursor.
         focusKey={editing}
+        actions={editing && (
+          <DialogActions>
+            <button type="button" className="link" disabled={busy}
+              onClick={closeEdit}>{tc("cancel")}</button>
+            {/* #512 (T028): canSubmit also gates the visible control; the
+                handler guard above is the real boundary. */}
+            <BusyButton type="submit" busy={isPending("edit")}
+              disabled={busy || !editFlockSnapshot.canSubmit}>
+              {t("saveCorrectionButton")}
+            </BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onSaveEdit }}
       >
         {editing && (
-          <form className="form-grid" onSubmit={onSaveEdit}>
-            <label>{t("dateLabel")}
-              <input type="date" value={editDate} max={today} required
-                onChange={(e) => setEditDate(e.target.value)} />
-            </label>
-            <label>{t("categoryLabel")}
-              <select value={editCategory} required onChange={(e) => setEditCategory(e.target.value)}>
-                {editCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
-                ))}
-              </select>
-            </label>
-            <label>{t("descriptionLabel")}
-              <input value={editDescription} required maxLength={200}
-                onChange={(e) => setEditDescription(e.target.value)} />
-            </label>
-            <label>{t("amountLabel", { code: editing.currencyCode })}
-              <input type="number"
-                min={(1 / 10 ** editing.currencyMinorUnit).toFixed(editing.currencyMinorUnit)}
-                step="any" value={editAmount} required
-                onChange={(e) => setEditAmount(e.target.value)} />
-            </label>
-            {/* #512 (T038) — the correction's flock is a ROW-OWNED identity:
-                requestedId resolves it exactly (archived / outside the
-                discovery window included), a failed exact read enters the
-                explicit unavailable state with a Retry, and the picker's
-                clear restores the account-wide (blank) choice. */}
-            <FlockPicker
-              label={t("flockOptionalLabel")}
-              eligibility="all"
-              required={false}
-              // #512 (T038) — the picker's discovery is OPEN-DRIVEN: the engine
-              // discovers only while `open`, and this dialog's picker never
-              // toggles its own open state (the dialog owns focus and
-              // dismissal). So it rides the dialog: while the dialog is up the
-              // picker is live and its requestedId effect can resolve the
-              // row-owned id (or report it unavailable); on close the dialog
-              // unmounts the form, so nothing lingers.
-              open={true}
-              controlledCommitted={editFlockEntity}
-              controlledGeneration={editFlockGen}
-              requestedId={editRequestedId}
-              onSnapshot={(snap) => {
-                setEditFlockSnapshot(snap);
-                if (snap.committed) {
-                  setEditFlockEntity(snap.committed);
-                  setEditFlockId(null);
-                }
-              }}
-              onCommit={(f) => {
-                setEditFlockEntity(f);
-                setEditFlockId(null);
-                setEditFlockGen((g) => g + 1);
-              }}
-              onClear={() => {
-                setEditFlockEntity(null);
-                setEditFlockId(null);
-                setEditFlockGen((g) => g + 1);
-              }}
-              onEscape={() => {}}
-              onOutsideClick={() => {}}
-              trigger={
-                <span className="named-picker-trigger">{editFlockEntity
-                    ? editFlockEntity.name
-                    : editFlockId !== null && editFlockSnapshot.selectionPhase === "unavailable"
-                      ? t("flockUnavailable")
-                      : t("noneOption")}</span>
-              }
+          <Stack spacing={2}>
+            <TextField
+              type="date"
+              label={t("dateLabel")}
+              value={editDate}
+              slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
+              onChange={(e) => setEditDate(e.target.value)}
             />
-            <label>{t("noteOptionalLabel")}
-              <input value={editNote} maxLength={500} onChange={(e) => setEditNote(e.target.value)} />
-            </label>
+            <TextField
+              select
+              label={t("categoryLabel")}
+              value={editCategory}
+              slotProps={{ select: { native: true }, htmlInput: { required: true } }}
+              onChange={(e) => setEditCategory(e.target.value)}
+            >
+              {editCategories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
+              ))}
+            </TextField>
+            <TextField
+              label={t("descriptionLabel")}
+              value={editDescription}
+              slotProps={{ htmlInput: { required: true, maxLength: 200 } }}
+              onChange={(e) => setEditDescription(e.target.value)}
+            />
+            <TextField
+              type="number"
+              label={t("amountLabel", { code: editing.currencyCode })}
+              value={editAmount}
+              slotProps={{ htmlInput: {
+                min: (1 / 10 ** editing.currencyMinorUnit).toFixed(editing.currencyMinorUnit),
+                step: "any", required: true,
+              } }}
+              onChange={(e) => setEditAmount(e.target.value)}
+            />
+            {/* Resolve the saved flock by ID, including archived flocks outside discovery. */}
+            <Box onKeyDown={(event) => {
+              // Let the picker cancel exploration before suppressing the dialog's Escape.
+              if (event.key === "Escape" && editFlockPickerOpen) event.stopPropagation();
+            }}>
+              <FlockPicker
+                label={t("flockOptionalLabel")}
+                eligibility="all"
+                required={false}
+                // #512: exact-ID resolution works while collapsed; only discovery needs an open list.
+                open={editFlockPickerOpen}
+                controlledCommitted={editFlockEntity}
+                controlledGeneration={editFlockGen}
+                requestedId={editRequestedId}
+                onSnapshot={(snap) => {
+                  setEditFlockSnapshot(snap);
+                  if (snap.committed) {
+                    setEditFlockEntity(snap.committed);
+                    setEditFlockId(null);
+                  }
+                }}
+                onCommit={(f) => {
+                  setEditFlockPickerOpen(false);
+                  setEditFlockEntity(f);
+                  setEditRequestedId(f.id);
+                  setEditFlockId(null);
+                  setEditFlockGen((g) => g + 1);
+                }}
+                onClear={() => {
+                  setEditFlockPickerOpen(false);
+                  setEditRequestedId(null);
+                  setEditFlockEntity(null);
+                  setEditFlockId(null);
+                  setEditFlockGen((g) => g + 1);
+                }}
+                onEscape={() => setEditFlockPickerOpen(false)}
+                onOutsideClick={() => setEditFlockPickerOpen(false)}
+                trigger={
+                  <button type="button" className="named-picker-trigger"
+                    onClick={() => setEditFlockPickerOpen(true)}>{editFlockEntity
+                      ? editFlockEntity.name
+                      : editFlockId !== null && editFlockSnapshot.selectionPhase === "unavailable"
+                        ? t("flockUnavailable")
+                        : t("noneOption")}</button>
+                }
+              />
+            </Box>
+            <TextField
+              label={t("noteOptionalLabel")}
+              value={editNote}
+              slotProps={{ htmlInput: { maxLength: 500 } }}
+              onChange={(e) => setEditNote(e.target.value)}
+            />
             {/* The 409 rebind reports through here, so the conflict banner stays
                 next to the form it is telling you to re-apply. */}
             <DialogError errors={errors} scope="edit" />
-            <div className="dialog-foot">
-              <button type="button" className="link" disabled={busy}
-                onClick={closeEdit}>{tc("cancel")}</button>
-              {/* #512 (T028): canSubmit also gates the visible control; the
-                  handler guard above is the real boundary. */}
-              <BusyButton type="submit" busy={isPending("edit")}
-                disabled={busy || !editFlockSnapshot.canSubmit}>
-                {t("saveCorrectionButton")}
-              </BusyButton>
-            </div>
-          </form>
+          </Stack>
         )}
       </Dialog>
 
       {expenses.error && <p className="error" role="alert">{expenses.error}</p>}
 
+      <ConsoleSubhead title={t("ledgerHeading")} caption={t("ledgerCaption")} />
       {expenses.rows === null || expenses.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : expenses.rows.length === 0 ? (
-        // #667 — the month picker used to be always set, so there was only one
-        // way to be empty. A range can be cleared or narrowed to nothing, so
-        // this becomes the two-variant shape the sibling screens use: the
-        // filtered sentence offers a way out, the truly-empty one does not
-        // (expense capture is the inline form above, not a page-head action).
         (from || to || filterCategory)
-          // #679 — the action depends on WHERE the empty view is. Narrowed past
-          // the default, the way out is back to the default; sitting ON the
-          // default with nothing this month, "clear filters" would be a no-op
-          // that changes nothing on screen, and the useful move is the one the
-          // filter row's button deliberately does not mean: show every period.
           ? <EmptyState icon={FilterX} message={t("noExpensesMatch")}
               action={isFiltered
-                ? { label: tc("clearFiltersButton"), onClick: resetFilters }
+                ? undefined
                 : { label: t("showAllTimeButton"), onClick: showAllTime }} />
           : <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
       ) : (
-        <table className="data">
-          <thead>
-            <tr>
-              <th>{t("dateHeader")}</th><th>{t("categoryHeader")}</th><th>{t("descriptionHeader")}</th><th className="num">{t("amountHeader")}</th>
-              <th>{t("flockHeader")}</th><th>{t("noteHeader")}</th>
-              <th>{tc("recordHistoryHeader")}</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.rows.map((x) => (
-              <tr key={x.id}>
-                <td className="nowrap"><FarmDate iso={x.date} /></td>
-                <td>{categoryName(x.expenseCategoryId)}</td>
-                <td>{x.description}</td>
-                <td className="num">{fmt.money(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</td>
-                <td>{rowFlockName(x)}</td>
-                <td>{x.note ?? "—"}</td>
-                <ProvenanceCell history={x} />
-                <td>
-                  {/* #493 — full audit trail for this record, distinct from
-                      the created/last-changed summary in ProvenanceCell. */}
-                  <Link className="link" to={`/audit?entityId=${x.id}`}>
-                    {tc("recordHistory.viewHistoryLink")}
-                  </Link>
-                  {/* Opens the correction dialog — non-mutating, so the
-                      spinner belongs to the dialog's Save, not here (#242). */}
-                  <button className="link" disabled={busy}
-                    onClick={() => { openDialog("edit"); startEdit(x); }}>
-                    {t("correctButton")}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <LedgerTableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={NOWRAP}>{t("dateHeader")}</TableCell>
+                <TableCell sx={NOWRAP}>{t("categoryHeader")}</TableCell>
+                <TableCell>{t("descriptionHeader")}</TableCell>
+                <TableCell align="right" sx={NOWRAP}>{t("amountHeader")}</TableCell>
+                <TableCell sx={NOWRAP}>{t("flockHeader")}</TableCell>
+                <TableCell>{t("noteHeader")}</TableCell>
+                <TableCell sx={NOWRAP}>{tc("recordHistoryHeader")}</TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {expenses.rows.map((x) => (
+                <TableRow key={x.id}>
+                  <TableCell sx={NOWRAP}><FarmDate iso={x.date} /></TableCell>
+                  <TableCell sx={NOWRAP}>{categoryName(x.expenseCategoryId)}</TableCell>
+                  <TableCell>{x.description}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{fmt.money(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</TableCell>
+                  <TableCell sx={NOWRAP}>{rowFlockName(x)}</TableCell>
+                  <TableCell>{x.note ?? "—"}</TableCell>
+                  <ProvenanceCell history={x} />
+                  <TableCell sx={NOWRAP}>
+                    <Link className="link" to={`/audit?entityId=${x.id}`}>
+                      {tc("recordHistory.viewHistoryLink")}
+                    </Link>
+                    <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: "9px" }} disabled={busy}
+                      onClick={() => { openDialog("edit"); startEdit(x); }}>
+                      {t("correctButton")}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </LedgerTableContainer>
       )}
       {expenses.canLoadMore && (
         <button className="link" disabled={busy}
@@ -882,6 +918,6 @@ export function ExpensesPage() {
           {t("loadMoreButton")}
         </button>
       )}
-    </section>
+    </FieldConsole>
   );
 }

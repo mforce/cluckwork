@@ -4,6 +4,7 @@
 // is a build error.
 export const en = {
   common: {
+    swipeColumns: "Swipe columns ↔",
     whatDoesTermMean: "What does “{{term}}” mean?",
     // #494 — the record-history cell shown on the list screens. "Last changed"
     // appears only when something happened after creation.
@@ -964,6 +965,12 @@ export const en = {
   // page, mirroring the water namespace's shape (minus corrections: feed is
   // create-only; mis-entries are compensated via Inventory adjustments).
   feed: {
+    contextLabel: "Feeding context",
+    rationCheck: "Ration check",
+    onHand: "On hand",
+    issue: "Issue",
+    afterIssue: "After issue",
+
     title: "Feed",
 
     // Imperative messages (event handlers / promise callbacks).
@@ -1016,7 +1023,8 @@ export const en = {
     rowFlockUnavailable: "This flock is no longer available.",
     inactiveItemSuffix: " — inactive, feeding out remaining stock",
     inactiveEmptyItemSuffix: " — inactive, no stock left",
-    recordsHeading: "Records",
+    recordsHeading: "Feed usage",
+    recordsCaption: "Chronological record",
     fromLabel: "From",
     toLabel: "To",
     noRecordsMatch: "No feed records match.",
@@ -1032,6 +1040,13 @@ export const en = {
     loadMoreButton: "load more",
   },
   water: {
+    contextLabel: "Water context",
+    directMode: "Direct amount",
+    meterMode: "Meter readings",
+    entryMode: "Entry mode",
+    readingCheck: "Reading check",
+    result: "Result",
+
     title: "Water",
 
     // Imperative messages (event handlers / promise callbacks — see
@@ -1054,7 +1069,6 @@ export const en = {
     dateLabel: "Date",
     sourceLabel: "Source",
     unitLabel: "Unit",
-    fromMeterReadingsLabel: "from meter readings",
     meterStartLabel: "Meter start",
     meterEndLabel: "Meter end",
     // {{unit}} is the ALREADY-LABELLED (waterUnitLabel) current unit — never
@@ -1087,7 +1101,8 @@ export const en = {
     // (the flock left the caller's tenant/flock scope between reads).
     // Row-owned, independent of the filter's own unavailable state above.
     rowFlockUnavailable: "This flock is no longer available.",
-    recordsHeading: "Records",
+    recordsHeading: "Water log",
+    recordsCaption: "Chronological record",
     fromLabel: "From",
     toLabel: "To",
     noRecordsMatch: "No water records match.",
@@ -1190,10 +1205,13 @@ export const en = {
   // names are free-form farm DATA, not client copy, and stay raw — never
   // routed through a catalog or enum helper.
   inventory: {
+    movementPolicy: "Usage is recorded on Feed. Stock corrections remain auditable.",
+    movementHeading: "Movement ledger",
+    chooseAnotherItem: "Choose another item",
     title: "Feed & inventory",
     intro:
       "Receive stock as purchases; every change lands in the item's movement "
-      + "ledger. Recording feed usage against flocks arrives next.",
+      + "ledger. Record feed usage against flocks on the Feed page.",
 
     // Imperative messages (event handlers / promise callbacks — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
@@ -1271,13 +1289,8 @@ export const en = {
     recordCorrectionButton: "Record correction",
 
     // Movement ledger table
-    ledgerDateHeader: "Date",
-    ledgerTypeHeader: "Type",
-    ledgerQuantityHeader: "Quantity",
-    ledgerNoteHeader: "Note",
     noMovementsMessage: "No movements yet — record a purchase above.",
     loadMoreButton: "load more",
-    closeButton: "close",
 
     // Items table
     nameHeader: "Name",
@@ -1398,6 +1411,9 @@ export const en = {
   // and quantity/delta values are free-form farm DATA, not client copy, and
   // stay raw — never routed through the catalog or an enum helper.
   stock: {
+    restrictionPolicy: "Restricted stock is present but cannot be allocated to sales.",
+    gradesLabel: "Grades",
+    noRestrictions: "No restrictions",
     title: "Stock",
 
     // Imperative messages (mount-effect / drill-down catch handlers — see
@@ -1409,7 +1425,6 @@ export const en = {
     noStockMessage: "No stock yet — record and submit a daily entry.",
 
     // By-grade stock table
-    gradeHeader: "Grade",
     // Shared by BOTH tables on this screen (by-grade balances + the lots
     // drill-down) — same word, same "quantity available" meaning, on the
     // same page, same treatment as products:statusHeader.
@@ -1949,6 +1964,12 @@ export const en = {
   // task brief — a cross-screen consolidation is a tracked native-pass
   // deferral, not this task's job.
   expenses: {
+    intro: "Post farm costs, review the period total, manage categories, and correct the audit trail.",
+    ledgerCaption: "Corrections retain provenance",
+    contextLabel: "Expense context",
+    periodHeading: "Period total",
+    ledgerHeading: "Expense ledger",
+    wholePeriod: "Whole filtered period, including rows not yet loaded.",
     title: "Expenses",
 
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
@@ -1981,7 +2002,7 @@ export const en = {
     categoryLabel: "Category",
     allCategoriesOption: "All categories",
     hideCategoriesButton: "hide categories",
-    manageCategoriesButton: "manage categories",
+    manageCategoriesButton: "Manage categories",
     // {{amount}} is formatMoney's already-formatted total — farm-locale DATA,
     // never routed through i18n.language.
     periodTotalLabel: "Total for this period: {{amount}}",
@@ -2000,7 +2021,7 @@ export const en = {
     noCategoriesMessage: "No categories yet — add one above.",
 
     // Record-expense form
-    recordExpenseHeading: "Record an expense",
+    recordExpenseHeading: "Post an expense",
     dateLabel: "Date", // shared by the add and edit forms
     pickOption: "— pick —",
     descriptionLabel: "Description", // shared by the add and edit forms
@@ -2121,6 +2142,12 @@ export const en = {
   // interpolated verbatim into previouslyAdjusted), and every numeric count
   // (totalEggs/crackedEggs/etc., adjustedFrom's snapshot counts).
   history: {
+    contextLabel: "Loaded history context",
+    windowLabel: "Window",
+    allDates: "All dates",
+    loadedRecords: "Loaded records",
+    reconciliation: "Reconciliation",
+    reconciliationLine: "{{total}} collected − {{cracked}} cracked − {{dirty}} dirty − {{discarded}} discarded = {{sellable}} sellable {{comparison}} {{graded}} graded",
     // Titles. `loadingTitle` is the shorter heading the early-return
     // load-error state uses before the real heading below — a pre-existing
     // inconsistency, preserved verbatim rather than "fixed" as a drive-by
@@ -2258,11 +2285,14 @@ export const en = {
   // interpolated into the templates below as pre-formatted DATA, same
   // pattern as sales:orderTotal).
   reports: {
+    revenueRowLabel: "Revenue",
     title: "Reports",
     fromLabel: "From",
     toLabel: "To",
 
-    productionHeading: "Production",
+    productionHeading: "Daily production",
+    productionCaption: "Raw auditable detail",
+    gradeUnit: "eggs",
     dateHeader: "Date",
     eggsHeader: "Eggs",
     lossesHeader: "Losses (cr/di/ds)",
@@ -2280,10 +2310,9 @@ export const en = {
     ratedEggsHeader: "Rated eggs",
     henDayPctHeader: "Hen-day %",
     periodRowLabel: "Period",
-    gradeTotalsLabel: "By grade:",
+    gradeTotalsLabel: "Reported grade totals",
 
     moneyHeading: "Money",
-    salesRowLabel: "Sales",
     // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
     // pre-formatted formatMoney() strings (DATA).
     // {{confirmed}} / {{voided}} are the farm-locale formatted figures (#650);
@@ -3061,6 +3090,7 @@ export const en = {
       + "admin-only.",
 
     // Feed (#446 — its own page, out of the Inventory drill-down)
+    feedRationPreview: "Ration check shows On hand, Issue, and After issue before you record feed. It previews the entered quantity; stock changes only after recording succeeds.",
     feedHeading: "Feed",
     feedRecording:
       "<strong>Record feed</strong> logs what a flock ate on a day: pick the flock, the item (current "
@@ -3078,6 +3108,7 @@ export const en = {
       + "ties them together.",
 
     // Water
+    waterModes: "Choose Direct amount to enter a quantity, or Meter readings to enter Meter start and Meter end. Reading check previews the Result before you record.",
     waterHeading: "Water",
     waterRecording:
       "Record what each flock drank per day: either a direct amount (liters or gallons) or <strong>meter "
@@ -3201,6 +3232,7 @@ export const en = {
       + "production screens where workers record.",
 
     // History
+    historyReconciliation: "The Reconciliation line compares collected eggs minus losses with sellable and graded eggs. The ≠ sign means the counts still differ. Mortality remains separate.",
     historyHeading: "History",
     historyBrowse:
       "Browse recorded daily entries newest-first, filtered by flock and date range. The status column shows "

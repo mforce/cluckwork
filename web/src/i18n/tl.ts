@@ -10,6 +10,7 @@
 //   label, until that screen itself is externalized to the catalog (#182).
 export const tl = {
   common: {
+    swipeColumns: "I-swipe ang mga column ↔",
     whatDoesTermMean: "Ano ang ibig sabihin ng “{{term}}”?",
     "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
@@ -724,6 +725,12 @@ export const tl = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    contextLabel: "Konteksto ng pagpapakain",
+    rationCheck: "Suriin ang pakain",
+    onHand: "Kasalukuyang stock",
+    issue: "Gagamitin",
+    afterIssue: "Matitirang stock",
+
     title: "Pakain",
     loadFailed: "Hindi ma-load ang mga kawan at mga item ng pakain. Gumagana ba ang API?",
     loadRecordsFailed: "Hindi ma-load ang mga tala ng pakain.",
@@ -754,7 +761,8 @@ export const tl = {
     rowFlockUnavailable: "Hindi na available ang kawan na ito.",
     inactiveItemSuffix: " — hindi aktibo, inuubos ang natitirang stock",
     inactiveEmptyItemSuffix: " — hindi aktibo, wala nang stock",
-    recordsHeading: "Mga tala",
+    recordsHeading: "Paggamit ng pakain",
+    recordsCaption: "Talaan ayon sa petsa",
     fromLabel: "Mula",
     toLabel: "Hanggang",
     noRecordsMatch: "Walang tumutugmang tala ng pakain.",
@@ -768,6 +776,13 @@ export const tl = {
     loadMoreButton: "mag-load pa",
   },
   water: {
+    contextLabel: "Konteksto ng tubig",
+    directMode: "Direktang dami",
+    meterMode: "Mga pagbasa ng metro",
+    entryMode: "Paraan ng pagtatala",
+    readingCheck: "Suriin ang pagbasa",
+    result: "Resulta",
+
     title: "Tubig",
 
     // Imperative messages
@@ -789,7 +804,6 @@ export const tl = {
     dateLabel: "Petsa",
     sourceLabel: "Pinagmulan",
     unitLabel: "Yunit",
-    fromMeterReadingsLabel: "mula sa mga reading ng meter",
     meterStartLabel: "Simula ng Meter",
     meterEndLabel: "Dulo ng Meter",
     quantityLabelWithUnit: "Dami ({{unit}})",
@@ -813,7 +827,8 @@ export const tl = {
     filterFlockUnavailable:
       "Ang kalahi na kawan sa mga tala na ito ay hindi na available.",
     rowFlockUnavailable: "Hindi na available ang kawan na ito.",
-    recordsHeading: "Mga Tala",
+    recordsHeading: "Talaan ng tubig",
+    recordsCaption: "Talaan ayon sa petsa",
     fromLabel: "Mula",
     toLabel: "Hanggang",
     noRecordsMatch: "Walang tumugmang tala ng tubig.",
@@ -891,11 +906,13 @@ export const tl = {
   // already used in dailyEntry's "lote ng itlog", distinct from "kawan"
   // (the word used for bird flocks).
   inventory: {
+    movementPolicy: "Itinatala ang paggamit sa Pakain. Nananatiling maa-audit ang mga pagwawasto sa stock.",
+    movementHeading: "Talaan ng galaw",
+    chooseAnotherItem: "Pumili ng ibang item",
     title: "Feed at Imbentaryo",
     intro:
       "Tumanggap ng stock bilang pagbili; bawat pagbabago ay napupunta sa "
-      + "talaan ng galaw ng item. Susunod ang pagtatala ng paggamit ng feed "
-      + "laban sa mga kawan.",
+      + "talaan ng galaw ng item. Itala ang paggamit ng feed ng mga kawan sa pahina ng Pakain.",
 
     // Imperative messages
     loadInventoryFailed: "Hindi na-load ang imbentaryo. Gumagana ba ang API?",
@@ -964,13 +981,8 @@ export const tl = {
     recordCorrectionButton: "Itala ang pagtatama",
 
     // Movement ledger table
-    ledgerDateHeader: "Petsa",
-    ledgerTypeHeader: "Uri",
-    ledgerQuantityHeader: "Dami",
-    ledgerNoteHeader: "Tala",
     noMovementsMessage: "Wala pang galaw — magtala ng pagbili sa itaas.",
     loadMoreButton: "mag-load pa",
-    closeButton: "isara",
 
     // Items table
     nameHeader: "Pangalan",
@@ -1065,6 +1077,9 @@ export const tl = {
   // short Filipino equivalent in common PH farm-software use; flag for
   // native review.
   stock: {
+    restrictionPolicy: "May stock na may restriksyon, ngunit hindi ito maaaring ilaan sa mga benta.",
+    gradesLabel: "Mga grado",
+    noRestrictions: "Walang restriksyon",
     title: "Stock",
 
     // Imperative messages
@@ -1075,7 +1090,6 @@ export const tl = {
     noStockMessage: "Wala pang stock — magtala at magsumite ng araw-araw na tala.",
 
     // By-grade stock table
-    gradeHeader: "Grado",
     availableHeader: "Available",
     restrictedHeader: "Restricted",
     lotsButton: "mga lote",
@@ -1509,6 +1523,12 @@ export const tl = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    intro: "Itala ang gastos sa bukid, suriin ang kabuuan ng panahon, pamahalaan ang mga kategorya, at iwasto ang talaan ng pag-audit.",
+    ledgerCaption: "Nananatili ang pinagmulan ng mga pagwawasto",
+    contextLabel: "Konteksto ng gastos",
+    periodHeading: "Kabuuan ng panahon",
+    ledgerHeading: "Talaan ng mga gastos",
+    wholePeriod: "Buong napiling panahon, kasama ang mga row na hindi pa na-load.",
     title: "Mga Gastos",
 
     // Imperative messages
@@ -1533,7 +1553,7 @@ export const tl = {
     categoryLabel: "Kategorya",
     allCategoriesOption: "Lahat ng kategorya",
     hideCategoriesButton: "itago ang mga kategorya",
-    manageCategoriesButton: "pamahalaan ang mga kategorya",
+    manageCategoriesButton: "Pamahalaan ang mga kategorya",
     periodTotalLabel: "Kabuuan sa panahong ito: {{amount}}",
 
     // Category-management panel
@@ -1627,6 +1647,12 @@ export const tl = {
   // (statusVoided/statusAdjusted/statusLocked/statusSubmitted/statusDraft)
   // reuse the same words already chosen for enums.status.* for consistency.
   history: {
+    contextLabel: "Konteksto ng na-load na kasaysayan",
+    windowLabel: "Saklaw",
+    allDates: "Lahat ng petsa",
+    loadedRecords: "Mga na-load na tala",
+    reconciliation: "Pagtutugma",
+    reconciliationLine: "{{total}} nakolekta − {{cracked}} basag − {{dirty}} marumi − {{discarded}} itinapon = {{sellable}} naibebenta {{comparison}} {{graded}} nagrado",
     loadingTitle: "Kasaysayan",
     title: "Kasaysayan ng araw-araw na entry",
 
@@ -1719,11 +1745,14 @@ export const tl = {
   // "inventory valuation" in profitFootnote kept partially in English for
   // the same reason.
   reports: {
+    revenueRowLabel: "Kita",
     title: "Mga Ulat",
     fromLabel: "Mula",
     toLabel: "Hanggang",
 
-    productionHeading: "Produksyon",
+    productionHeading: "Araw-araw na produksyon",
+    productionCaption: "Orihinal na detalyeng maa-audit",
+    gradeUnit: "itlog",
     dateHeader: "Petsa",
     eggsHeader: "Itlog",
     lossesHeader: "Nasira (b/m/t)",
@@ -1737,10 +1766,9 @@ export const tl = {
     ratedEggsHeader: "Itlog na binilang",
     henDayPctHeader: "Hen-day %",
     periodRowLabel: "Panahon",
-    gradeTotalsLabel: "Ayon sa grado:",
+    gradeTotalsLabel: "Naitalang kabuuan ayon sa grado",
 
     moneyHeading: "Pera",
-    salesRowLabel: "Benta",
     salesSummary:
       "{{confirmed}} kumpirmadong order — kita {{revenue}}, nabayaran {{paid}}, nakabinbin {{outstanding}}",
     salesVoidedSuffix: " ({{voided}} na-void)",
@@ -2490,6 +2518,7 @@ export const tl = {
       "Bukas sa lahat ang pagtatala ng pagbili at paggamit; ang katalogo ng item at mga pagtatama ng "
       + "stock ay para sa admin lang.",
 
+    feedRationPreview: "Ipinapakita ng Suriin ang pakain ang Kasalukuyang stock, Gagamitin, at Matitirang stock bago itala ang pakain. Magbabago lamang ang stock kapag matagumpay na naitala.",
     feedHeading: "Pakain",
     feedRecording:
       "Ang <strong>Itala ang pakain</strong> ay nagtatala kung ano ang kinain ng kawan sa isang araw: "
@@ -2506,6 +2535,7 @@ export const tl = {
       + "sa isang sulyap, na may link dito. Ang tala ng pakain o tubig na ginawa habang umiiral na ang "
       + "entry ng araw na iyon ay naaalala rin ang entry na iyon — ang mga ginawa bago nito ay sadyang "
       + "hindi naka-link; ang araw mismo ang nag-uugnay sa kanila.",
+    waterModes: "Piliin ang Direktang dami upang ilagay ang dami, o Mga pagbasa ng metro upang ilagay ang una at huling pagbasa. Ipinapakita ng Suriin ang pagbasa ang Resulta bago itala.",
     waterHeading: "Tubig",
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
@@ -2634,6 +2664,7 @@ export const tl = {
       "Data ng pera ang mga gastos, kaya ang buong screen — kasama ang pagtingin — ay para sa admin lang, "
       + "hindi tulad ng mga production screen kung saan nagtatala ang manggagawa.",
 
+    historyReconciliation: "Inihahambing ng Pagtutugma ang mga nakolektang itlog na binawasan ng mga nawala sa naibebenta at nagrado. Ang ≠ ay nangangahulugang hindi pa tugma ang bilang. Hiwalay ang bilang ng namatay.",
     historyHeading: "History",
     historyBrowse:
       "Tumingin sa mga naitalang araw-araw na entry, pinakabago muna, na-filter kada kawan at date range. "

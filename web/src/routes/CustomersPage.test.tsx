@@ -954,7 +954,7 @@ describe("CustomersPage paging (#511)", { timeout: 15_000 }, () => {
     mockList.mockResolvedValueOnce(customerPage(100));
     mockList.mockResolvedValueOnce([{ ...zulu, name: "Zulu Farm Updated", version: 5 }]);
     fireEvent.click(within(zuluRow).getByRole("button", { name: "edit" }));
-    const dialogHeading = await screen.findByText("Edit Zulu Farm", { selector: "h3" });
+    const dialogHeading = await screen.findByRole("heading", { name: "Edit Zulu Farm", level: 2 });
     const editDialog = dialogHeading.closest('[role="dialog"]');
     expect(editDialog).not.toBeNull();
     fireEvent.change(within(editDialog as HTMLElement).getByLabelText("Name *"), {

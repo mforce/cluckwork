@@ -87,6 +87,16 @@ async function openAdjustPanel() {
   fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
 }
 
+it("updates the reconciliation equation when grading reaches sellable eggs", async () => {
+  mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+  await openAdjustPanel();
+  const equation = screen.getByRole("group", { name: "Reconciliation" });
+  expect(equation).toHaveTextContent("100 collected − 2 cracked − 3 dirty − 5 discarded = 90 sellable ≠ 60 graded");
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "50" } });
+  expect(equation).toHaveTextContent("100 collected − 2 cracked − 3 dirty − 5 discarded = 90 sellable = 90 graded");
+  expect(mockAdjustDailyEntry).not.toHaveBeenCalled();
+});
+
 // #396 — the Condition column answers "how many of this day's cracked/dirty
 // eggs became stock", read from the ENTRY's own snapshot. It must never be
 // re-derived from the current grade catalog: a farm that switches Cracked off
@@ -332,22 +342,21 @@ describe("HistoryPage adjust — reconciliation guard", () => {
 // shows and what it allows would fail here.
 describe("HistoryPage adjust — mirrored daily-entry layout", () => {
   const dialog = () => screen.getByRole("dialog");
-  // Class-selected, exactly as DailyEntryPage.test.tsx selects the same two
-  // readouts: neither has an unambiguous role here either — every BusyButton
-  // renders its own sr-only role="status" for the "Working…" announcement, so
-  // the chip's live region is one of several.
+  // BusyButton also renders a status region, so select the grading chip by its own class.
   const chip = () => dialog().querySelector(".entry-chip") as HTMLElement;
-  const sellableReadout = () => dialog().querySelector(".entry-readout") as HTMLElement;
+  const countsSection = () =>
+    within(dialog()).getByRole("heading", { name: /Egg counts/ }).closest("section") as HTMLElement;
+  const sellableReadout = () => {
+    const section = countsSection();
+    return within(section).queryByRole("alert") ?? within(section).getByRole("status");
+  };
 
   it("shows both steps and the sellable figure the grading pane has to hit", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     await openAdjustPanel();
 
-    // Both step headings, in order — this is the layout the correction shares
-    // with capture, not a flat list of fields. The dialog's own title is an h3
-    // too, so the steps are the two that follow it.
     const headings = within(dialog()).getAllByRole("heading", { level: 3 });
-    expect(headings.slice(1).map((h) => h.textContent)).toEqual([
+    expect(headings.map((h) => h.textContent)).toEqual([
       expect.stringContaining("Egg counts"),
       expect.stringContaining("Grading"),
     ]);
@@ -431,7 +440,7 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     await openAdjustPanel();
 
     fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
-    const gradeBRow = screen.getByRole("spinbutton", { name: "Grade B" }).closest(".entry-row")!;
+    const gradeBRow = within(dialog()).getByRole("group", { name: "Grade B row" });
 
     // A foreign drag (plain text — what dropping a link or a selection looks
     // like) must leave the line untouched.
@@ -1488,4 +1497,71 @@ describe("HistoryPage adjust wiring under the shared dialog session (#703)", () 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText(i18n.t("history:entryVoidedMessage"))).toBeInTheDocument();
   });
+});
+
+
+it("labels status counts as loaded records in the history window", async () => {
+  mockListDailyEntries.mockResolvedValue([SUBMITTED, DRAFT, LOCKED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const summary = await screen.findByLabelText("Loaded history context");
+  await waitFor(() => expect(summary).toHaveTextContent("Loaded records3"));
+  expect(summary).toHaveTextContent("Submitted1");
+  expect(summary).toHaveTextContent("Draft1");
+  expect(summary).toHaveTextContent("Locked1");
+});
+
+it("uses an unfilled status dot, preserving the reason, and always offers filter reset", async () => {
+  mockListDailyEntries.mockResolvedValue([VOIDED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const row = await screen.findByRole("row", { name: /Voided/ });
+  const status = within(row).getByText("Voided");
+  expect(status).not.toHaveClass("badge");
+  expect(status).toHaveAttribute("title", VOIDED.voidReason);
+  expect(status).toHaveTextContent(/^Voided$/);
+  expect(status.querySelector('[aria-hidden="true"]')).toHaveStyle({
+    width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--error)",
+  });
+  expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+});
+
+
+it("mutes voided cells without muting submitted cells", async () => {
+  mockListDailyEntries.mockResolvedValue([VOIDED, SUBMITTED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const voided = await screen.findByRole("row", { name: /Voided/ });
+  const submitted = screen.getByRole("row", { name: /Submitted/ });
+  for (const cell of within(voided).getAllByRole("cell")) {
+    expect(cell).toHaveStyle({ color: "var(--muted)" });
+  }
+  for (const cell of within(submitted).getAllByRole("cell")) {
+    expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+  }
+});
+
+
+it("keeps the history summary mounted with unknown counts during filter reload", async () => {
+  mockListDailyEntries.mockResolvedValueOnce([SUBMITTED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const summary = await screen.findByLabelText("Loaded history context");
+  expect(summary).toHaveTextContent("Loaded records1");
+  const pending = Promise.withResolvers<DailyEntry[]>();
+  mockListDailyEntries.mockReturnValueOnce(pending.promise);
+  fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+  expect(screen.getByLabelText("Loaded history context")).toBe(summary);
+  expect(summary).toHaveTextContent("Loaded records—");
+  expect(summary).toHaveTextContent("Submitted—");
+  await act(async () => { pending.resolve([DRAFT]); });
+  expect(summary).toHaveTextContent("Draft1");
+  expect(summary).toHaveTextContent("Submitted0");
+});
+
+it("distinguishes neutral Draft from warning Adjusted status dots", async () => {
+  mockListDailyEntries.mockResolvedValue([DRAFT, MANAGER_ADJUSTED]);
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  const draft = await screen.findByRole("row", { name: /Draft/ });
+  const adjusted = screen.getByRole("row", { name: /Adjusted/ });
+  expect(within(draft).getByText("Draft").querySelector('[aria-hidden="true"]'))
+    .toHaveStyle({ backgroundColor: "var(--muted)" });
+  expect(within(adjusted).getByText("Adjusted").querySelector('[aria-hidden="true"]'))
+    .toHaveStyle({ backgroundColor: "var(--warn)" });
 });

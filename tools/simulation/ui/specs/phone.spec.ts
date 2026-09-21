@@ -558,8 +558,8 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // either way, `table.data` or MUI's.
       { path: "/customers", content: "role=table", what: "the customer book" },
       { path: "/flocks", content: "role=table", what: "the flock table" },
-      { path: "/stock", content: "table.data", what: "the stock table" },
-      { path: "/history", content: "table.data", what: "the entry history table" },
+      { path: "/stock", content: `role=list[name="${tEn("stock:title")}"]`, what: "the stock board" },
+      { path: "/history", content: "role=table", what: "the entry history table" },
     ];
 
     for (const { path: route, content, what } of ROUTES) {
@@ -716,6 +716,30 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
         + "it is clipped by ellipsis truncation",
     ).toBe(clientWidth);
   });
+  test("History adjustment displays full labels and a four-digit count without clipping", async ({ page }) => {
+    await page.goto("/history");
+    await page.getByRole("button", { name: tEn("history:adjustButton"), exact: true }).first().click();
+    const dialog = page.getByRole("dialog");
+    for (const key of ["dailyEntry:totalEggsLabel", "dailyEntry:discardedLabel"] as const) {
+      const label = dialog.locator("label").getByText(tEn(key), { exact: true });
+      await expect(label).toBeVisible();
+      const fit = await label.evaluate(element => ({ scroll: element.scrollWidth, client: element.clientWidth }));
+      expect(fit.scroll, `${tEn(key)} must render in full`).toBeLessThanOrEqual(fit.client);
+    }
+    const input = dialog.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true });
+    await input.fill("8542");
+    const fit = await input.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const canvas = document.createElement("canvas").getContext("2d")!;
+      canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      return {
+        available: element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        needed: canvas.measureText("8542").width,
+      };
+    });
+    expect(fit.available, "History count input fits four digits").toBeGreaterThanOrEqual(fit.needed);
+  });
+
 });
 
 test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {

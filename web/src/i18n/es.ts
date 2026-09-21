@@ -5,6 +5,7 @@
 // on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
+    swipeColumns: "Deslice las columnas ↔",
     whatDoesTermMean: "¿Qué significa “{{term}}”?",
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
@@ -689,6 +690,12 @@ export const es = {
   // not a key here.
   // #446 — machine-drafted, pending native review (translate-now policy).
   feed: {
+    contextLabel: "Contexto de alimentación",
+    rationCheck: "Comprobación de la ración",
+    onHand: "Disponible",
+    issue: "Consumo",
+    afterIssue: "Después del consumo",
+
     title: "Alimento",
     loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
     loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
@@ -719,7 +726,8 @@ export const es = {
     rowFlockUnavailable: "Esta parvada ya no está disponible.",
     inactiveItemSuffix: " — inactivo, consumiendo existencias restantes",
     inactiveEmptyItemSuffix: " — inactivo, sin existencias",
-    recordsHeading: "Registros",
+    recordsHeading: "Uso de alimento",
+    recordsCaption: "Registro cronológico",
     fromLabel: "Desde",
     toLabel: "Hasta",
     noRecordsMatch: "Ningún registro de alimento coincide.",
@@ -733,6 +741,13 @@ export const es = {
     loadMoreButton: "cargar más",
   },
   water: {
+    contextLabel: "Contexto del agua",
+    directMode: "Cantidad directa",
+    meterMode: "Lecturas del medidor",
+    entryMode: "Modo de registro",
+    readingCheck: "Comprobación de la lectura",
+    result: "Resultado",
+
     title: "Agua",
 
     // Imperative messages
@@ -754,7 +769,6 @@ export const es = {
     dateLabel: "Fecha",
     sourceLabel: "Fuente",
     unitLabel: "Unidad",
-    fromMeterReadingsLabel: "a partir de lecturas de medidor",
     meterStartLabel: "Medidor inicial",
     meterEndLabel: "Medidor final",
     quantityLabelWithUnit: "Cantidad ({{unit}})",
@@ -778,7 +792,8 @@ export const es = {
     filterFlockUnavailable:
       "El lote registrado en estos registros ya no está disponible.",
     rowFlockUnavailable: "Este lote ya no está disponible.",
-    recordsHeading: "Registros",
+    recordsHeading: "Registro de agua",
+    recordsCaption: "Registro cronológico",
     fromLabel: "Desde",
     toLabel: "Hasta",
     noRecordsMatch: "Ningún registro de agua coincide.",
@@ -854,11 +869,13 @@ export const es = {
   // of "lote" already established for nav.flocks/dailyEntry's "lote(s) de
   // huevos".
   inventory: {
+    movementPolicy: "El uso se registra en Alimento. Las correcciones de existencias siguen siendo auditables.",
+    movementHeading: "Registro de movimientos",
+    chooseAnotherItem: "Elegir otro artículo",
     title: "Alimento e inventario",
     intro:
       "Reciba existencias como compras; cada cambio queda en el registro de "
-      + "movimientos del artículo. El registro de uso de alimento contra los "
-      + "lotes llega después.",
+      + "movimientos del artículo. Registre el uso de alimento por lote en la página de Alimento.",
 
     // Imperative messages
     loadInventoryFailed: "No se pudo cargar el inventario. ¿Está la API activa?",
@@ -927,13 +944,8 @@ export const es = {
     recordCorrectionButton: "Registrar corrección",
 
     // Movement ledger table
-    ledgerDateHeader: "Fecha",
-    ledgerTypeHeader: "Tipo",
-    ledgerQuantityHeader: "Cantidad",
-    ledgerNoteHeader: "Nota",
     noMovementsMessage: "Aún no hay movimientos — registre una compra arriba.",
     loadMoreButton: "cargar más",
-    closeButton: "cerrar",
 
     // Items table
     nameHeader: "Nombre",
@@ -1023,6 +1035,9 @@ export const es = {
   // `enums` stockMovementLabel helper, not a key here. Grade/lot names and
   // quantity values are free-form farm data and stay raw.
   stock: {
+    restrictionPolicy: "Las existencias restringidas están presentes, pero no se pueden asignar a ventas.",
+    gradesLabel: "Clasificaciones",
+    noRestrictions: "Sin restricciones",
     title: "Existencias",
 
     // Imperative messages
@@ -1033,7 +1048,6 @@ export const es = {
     noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
 
     // By-grade stock table
-    gradeHeader: "Grado",
     availableHeader: "Disponible",
     restrictedHeader: "Restringido",
     lotsButton: "lotes",
@@ -1450,6 +1464,12 @@ export const es = {
   // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
   // placeholders.
   expenses: {
+    intro: "Registre los costos de la granja, revise el total del período, gestione categorías y corrija el historial de auditoría.",
+    ledgerCaption: "Las correcciones conservan la procedencia",
+    contextLabel: "Contexto de gastos",
+    periodHeading: "Total del período",
+    ledgerHeading: "Registro de gastos",
+    wholePeriod: "Todo el período filtrado, incluidas las filas aún no cargadas.",
     title: "Gastos",
 
     // Imperative messages
@@ -1474,7 +1494,7 @@ export const es = {
     categoryLabel: "Categoría",
     allCategoriesOption: "Todas las categorías",
     hideCategoriesButton: "ocultar categorías",
-    manageCategoriesButton: "gestionar categorías",
+    manageCategoriesButton: "Gestionar categorías",
     periodTotalLabel: "Total de este período: {{amount}}",
 
     // Category-management panel
@@ -1566,6 +1586,12 @@ export const es = {
   // unexternalized screen's name untranslated until dailyEntry itself is
   // added to TRANSLATED_NAMESPACES.
   history: {
+    contextLabel: "Contexto del historial cargado",
+    windowLabel: "Período",
+    allDates: "Todas las fechas",
+    loadedRecords: "Registros cargados",
+    reconciliation: "Conciliación",
+    reconciliationLine: "{{total}} recolectados − {{cracked}} rotos − {{dirty}} sucios − {{discarded}} descartados = {{sellable}} vendibles {{comparison}} {{graded}} clasificados",
     loadingTitle: "Historial",
     title: "Historial de entradas diarias",
 
@@ -1655,11 +1681,14 @@ export const es = {
   // {{count}}/{{revenue}}/{{paid}}/{{outstanding}}/{{total}}/{{expenses}}/
   // {{profit}} placeholders and the <strong> tag in profitLine.
   reports: {
+    revenueRowLabel: "Ingresos",
     title: "Informes",
     fromLabel: "Desde",
     toLabel: "Hasta",
 
-    productionHeading: "Producción",
+    productionHeading: "Producción diaria",
+    productionCaption: "Detalle auditable sin procesar",
+    gradeUnit: "huevos",
     dateHeader: "Fecha",
     eggsHeader: "Huevos",
     lossesHeader: "Pérdidas (ag/su/de)",
@@ -1673,10 +1702,9 @@ export const es = {
     ratedEggsHeader: "Huevos contados",
     henDayPctHeader: "% días-gallina",
     periodRowLabel: "Período",
-    gradeTotalsLabel: "Por grado:",
+    gradeTotalsLabel: "Totales por clasificación registrados",
 
     moneyHeading: "Dinero",
-    salesRowLabel: "Ventas",
     salesSummary:
       "{{confirmed}} pedido(s) confirmado(s) — ingresos {{revenue}}, pagado {{paid}}, pendiente {{outstanding}}",
     salesVoidedSuffix: " ({{voided}} anulado(s))",
@@ -2392,6 +2420,7 @@ export const es = {
       "Registrar compras y uso está abierto para todos; el catálogo de artículos y las correcciones de "
       + "existencias son solo para administradores.",
 
+    feedRationPreview: "Comprobación de la ración muestra Disponible, Consumo y Después del consumo antes de registrar el alimento. El stock cambia solo cuando el registro se completa.",
     feedHeading: "Alimento",
     feedRecording:
       "<strong>Registrar alimento</strong> anota lo que comió una parvada en un día: elija la parvada, el "
@@ -2408,6 +2437,7 @@ export const es = {
       + "la parvada seleccionada, con enlace aquí. Un registro de alimento o agua hecho cuando ya existe la "
       + "entrada de ese día también recuerda esa entrada — los hechos antes quedan sin enlazar a propósito; "
       + "el día en sí es lo que los une.",
+    waterModes: "Elija Cantidad directa para introducir una cantidad o Lecturas del medidor para introducir las lecturas inicial y final. Comprobación de la lectura muestra el Resultado antes de registrar.",
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "
@@ -2532,6 +2562,7 @@ export const es = {
       "Los gastos son datos de dinero, así que toda la pantalla — incluida la visualización — es solo "
       + "para administradores, a diferencia de las pantallas de producción donde los trabajadores registran.",
 
+    historyReconciliation: "La línea de Conciliación compara los huevos recolectados menos las pérdidas con los vendibles y clasificados. El signo ≠ indica que las cantidades aún difieren. La mortalidad se cuenta por separado.",
     historyHeading: "Historial",
     historyBrowse:
       "Explore las entradas diarias registradas de más reciente a más antigua, filtradas por lote y rango "

@@ -2,15 +2,18 @@ import type { ReactNode } from "react";
 import { Paper, Stack, TextField } from "@mui/material";
 import type { TextFieldProps } from "@mui/material";
 
+// Keep picker width stable when its trigger switches between a button and input.
+export const FILTER_PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
+
 export function FilterBar({ children }: { children: ReactNode }) {
   return (
     <Paper
       variant="outlined"
-      sx={{ bgcolor: "var(--surface-2)", p: "1rem 1.25rem", mt: "0.5rem", mb: "1.5rem" }}
+      sx={{ bgcolor: "var(--surface-2)", p: "12px", my: "12px", borderRadius: "5px" }}
     >
       <Stack
         direction="row"
-        spacing={2}
+        spacing="10px"
         useFlexGap
         sx={{
           flexWrap: "wrap",

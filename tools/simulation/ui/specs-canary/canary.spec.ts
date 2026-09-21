@@ -72,12 +72,10 @@ const SCREENS = [
     name: "stock",
     path: "/stock",
     ready: (page: CanaryPage) =>
-      page.getByRole("table").filter({
-        has: page.getByRole("columnheader", { name: tEn("stock:gradeHeader") }),
-      }),
-    rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
+      page.getByRole("list", { name: tEn("stock:title") }),
+    rows: (ready: CanaryLocator) => ready.getByRole("listitem"),
     // `noLotsMessage` covers the INTERACTION: expanding a grade whose lots come
-    // back empty renders the heading beside that message, which the grade table
+    // back empty renders the heading beside that message, which the grade board
     // alone would not notice (#841).
     emptyMessageKeys: ["stock:noStockMessage", "stock:noLotsMessage"],
     // Expanding a grade's lots fires a fetch and re-renders a table — the most
@@ -119,15 +117,23 @@ const SCREENS = [
       // A POSITIVE check, because the money section renders only once all three
       // of its reads land. Asserting the ABSENCE of an error here would pass in
       // the gap between a 500 arriving and React rendering it (#841).
-      await expect(page.getByText(tEn("reports:profitRowLabel"))).toBeVisible();
+      const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
+      await expect(money.getByText(tEn("reports:profitRowLabel"), { exact: true })).toBeVisible();
       // The production table alone does not prove production: ReportQueries
       // emits a row per calendar day in the range whether or not anything was
       // recorded, so a report of nothing but zeroes satisfies a row count. The
       // period total is the one figure that cannot be zero-filled (#841).
-      await expect(
-        page.locator("table.data tfoot th.num").first(),
-        "the widened report totals zero eggs — a range with production in it came back empty",
-      ).not.toHaveText(/^0$/);
+      const production = page.getByRole("table").filter({
+        has: page.getByRole("columnheader", { name: tEn("reports:dateHeader"), exact: true }),
+      });
+      const period = production.getByRole("row").filter({
+        has: page.getByRole("columnheader", { name: tEn("reports:periodRowLabel"), exact: true }),
+      });
+      const total = await period.getByRole("columnheader").nth(1).innerText();
+      expect(
+        Number(total.replaceAll(",", "")),
+        "the widened report must contain a positive production total",
+      ).toBeGreaterThan(0);
     },
     // MEASURED, and it does not: a `<input type="date">` produces no Event
     // Timing entry for a programmatic click+fill, so this screen's interaction

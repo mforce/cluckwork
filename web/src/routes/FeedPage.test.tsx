@@ -74,6 +74,30 @@ async function renderReady(route = "/feed") {
 }
 
 describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down)", () => {
+  it("previews 0.1 kg after issuing 0.9 kg from 1 kg", async () => {
+    mockListItems.mockResolvedValue([item({ quantityOnHand: 1 })]);
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "0.9" } });
+    expect(within(screen.getByRole("complementary", { name: "Ration check" })).getByText("0.1 kg")).toBeInTheDocument();
+    expect(mockRecord).not.toHaveBeenCalled();
+  });
+
+  it("previews the stock remaining after the entered ration without recording it", async () => {
+    await renderReady();
+    const ration = screen.getByRole("complementary", { name: "Ration check" });
+    const announcement = within(ration).getByText("After issue").parentElement;
+    expect(announcement).toHaveAttribute("aria-live", "polite");
+    expect(announcement).toHaveAttribute("aria-atomic", "true");
+    expect(announcement).toHaveTextContent("After issue—");
+    fireEvent.change(screen.getByLabelText("Quantity (kg)"), { target: { value: "18" } });
+    expect(announcement).toHaveTextContent("After issue102 kg");
+    expect(within(ration).getByText("After issue").parentElement).toBe(announcement);
+    expect(within(ration).getByText("120 kg")).toBeInTheDocument();
+    expect(within(ration).getByText("18 kg")).toBeInTheDocument();
+    expect(within(ration).getByText("102 kg")).toBeInTheDocument();
+    expect(mockRecord).not.toHaveBeenCalled();
+  });
+
   it("offers feedable items — active, or inactive with stock left to feed out — never other categories", async () => {
     mockListItems.mockResolvedValue([
       item(),
@@ -440,4 +464,24 @@ describe("FeedPage i18n wiring (#446)", () => {
       i18n.addResource("en", "feed", "recordedMessage", original);
     }
   });
+});
+
+
+it("shows the selected ration and on-hand balance in the feeding context", async () => {
+  await renderReady();
+  const summary = screen.getByLabelText("Feeding context");
+  expect(summary).toHaveTextContent("Layer feed");
+  expect(summary).toHaveTextContent("120 kg");
+  expect(summary).toHaveTextContent("Barn A");
+});
+
+it("keeps one filter reset available with the chronological ledger", async () => {
+  await renderReady();
+  await screen.findByRole("heading", { name: "Feed usage" });
+  expect(screen.getByText("Chronological record")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
+  fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-02" } });
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(screen.getByLabelText("From")).toHaveValue("");
+  expect(screen.getByLabelText("To")).toHaveValue("");
 });

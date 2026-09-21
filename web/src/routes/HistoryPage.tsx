@@ -4,6 +4,9 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Inbox } from "lucide-react";
 import {
+  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
+import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
@@ -15,6 +18,9 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
+import { FieldConsole, CONSOLE_LINK_SX, LedgerTableContainer, ConsoleSummary } from "../components/FieldConsole";
+import { EntryRow } from "../components/EntryRow";
+import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
 import { DialogError } from "../components/DialogError";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
@@ -23,7 +29,6 @@ import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
-import { StatusBadge } from "../components/StatusBadge";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { useFarm } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
@@ -33,6 +38,7 @@ import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 
 const PAGE = 50;
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // The scope that owns a dialog (#703). `run` routes a failure by this and gates
 // a success by it; `void:<id>` from the row button reports to the page and is
@@ -499,46 +505,51 @@ export function HistoryPage() {
   }
 
   function statusCell(e: DailyEntry) {
-    // Colored status pills (#52). The three states with tooltips keep an
-    // explicit <span> so the title survives (StatusBadge takes no title);
-    // plain states (Submitted → ok, Draft → neutral) go through StatusBadge.
-    // This pill's vocabulary (Draft/Submitted/Locked/ManagerAdjusted/Voided)
-    // is DISTINCT from the shared `enums` status family — its display text
-    // lives in this `history` namespace, not enums.ts (#182, Task 27).
-    if (e.status === "Voided")
-      return <span className="badge badge-danger" title={e.voidReason ?? undefined}>{t("statusVoided")}</span>;
-    if (e.status === "ManagerAdjusted")
-      return <span className="badge badge-warn" title={e.adjustReason ?? undefined}>{t("statusAdjusted")}</span>;
-    if (e.status === "Locked")
-      return (
-        <span className="badge badge-accent"
-          title={e.lockedAtUtc ? t("lockedAt", { time: e.lockedAtUtc }) : undefined}>
-          {t("statusLocked")}
-        </span>
-      );
-    return (
-      <StatusBadge status={e.status}
-        label={t(e.status === "Submitted" ? "statusSubmitted" : "statusDraft")} />
-    );
+    const states: Record<string, { label: string; color: string; title?: string }> = {
+      Voided: { label: t("statusVoided"), color: "var(--error)", title: e.voidReason ?? undefined },
+      ManagerAdjusted: { label: t("statusAdjusted"), color: "var(--warn)", title: e.adjustReason ?? undefined },
+      Locked: { label: t("statusLocked"), color: "var(--link)", title: e.lockedAtUtc ? t("lockedAt", { time: e.lockedAtUtc }) : undefined },
+      Submitted: { label: t("statusSubmitted"), color: "var(--success)" },
+    };
+    const state = states[e.status] ?? { label: t("statusDraft"), color: "var(--muted)" };
+    return <Box component="span" title={state.title} sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap" }}>
+      <Box component="span" aria-hidden="true" sx={{ width: "6px", height: "6px", borderRadius: "50%", bgcolor: state.color, flexShrink: 0 }} />
+      {state.label}
+    </Box>;
   }
 
   // The setup read (flocks + grades) failing with nothing to show is the one
   // fatal case: without those, every row renders unresolvable ids. `entries`
   // is the hook's handle, so the emptiness test is on its rows.
+  const loadedEntries = entries.rows;
+
   if (errors.page && entries.rows === null)
-    return <section><h2>{t("loadingTitle")}</h2><p className="error">{errors.page}</p></section>;
+    return <FieldConsole><Typography variant="h2">{t("loadingTitle")}</Typography><p className="error">{errors.page}</p></FieldConsole>;
 
   return (
-    <section>
-      <h2>{t("title")}</h2>
+    <FieldConsole>
+      <Typography variant="h2">{t("title")}</Typography>
       {isAdmin && (
         <p className="muted">
           {t("intro")}
         </p>
       )}
 
-      <div className="form-grid">
-        <div className="filter-flock">
+      {loadedEntries !== null && (
+        <ConsoleSummary label={t("contextLabel")} items={[
+          { label: t("windowLabel"), value: from || to ? `${from ? fmt.date(from) : "…"} – ${to ? fmt.date(to) : "…"}` : t("allDates") },
+          { label: t("loadedRecords"), value: entries.reloading ? "—" : fmt.count(loadedEntries.length) },
+          ...([
+            ["Submitted", "statusSubmitted"], ["Draft", "statusDraft"],
+            ["Locked", "statusLocked"], ["ManagerAdjusted", "statusAdjusted"], ["Voided", "statusVoided"],
+          ] as const).map(([status, label]) => ({
+            label: t(label), value: entries.reloading ? "—" : fmt.count(loadedEntries.filter((entry) => entry.status === status).length),
+          })),
+        ]} />
+      )}
+
+      <FilterBar>
+        <Box sx={FILTER_PICKER_SX}>
           {/* #512 (T038) — the read-only filter became an optional
               eligibility=all FlockPicker: the filter keeps its exact id
               ownership (the list fetches by `flockFilter`), and a row-owned
@@ -571,18 +582,11 @@ export function HistoryPage() {
               </button>
             }
           />
-        </div>
-        {/* #653 — the date range gets its own bounded toolbar; the flock
-            picker above stays a plain form-grid field. */}
-        <div className="toolbar">
-          <label>{t("fromLabel")}
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>{t("toLabel")}
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-        </div>
-      </div>
+        </Box>
+        <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
+        <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
+      </FilterBar>
 
       <Dialog
         open={adjusting !== null}
@@ -597,6 +601,17 @@ export function HistoryPage() {
         // identity changing pulls focus back to the first field, so the form is
         // not silently replaced under the user's cursor.
         focusKey={adjusting}
+        actions={adjusting && (
+          <DialogActions sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, p: 0, "& > :not(style) ~ :not(style)": { ml: 0 }, "& button": { width: "100%", height: 44, minHeight: 44, px: 1, fontSize: ".75rem", whiteSpace: "nowrap" } }}>
+            <Button variant="outlined" color="inherit" type="button" onClick={closeAdjust}>{tc("cancel")}</Button>
+            {/* #394: an adjustment has no draft state — Save stays disabled
+                until grading reconciles exactly, the same rule Daily
+                Entry's submit uses. */}
+            <BusyButton component={Button} variant="contained" type="submit" busy={isPending("adjust")}
+              disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
+          </DialogActions>
+        )}
+        formProps={{ onSubmit: onAdjustSubmit }}
       >
         {adjusting && (
           <>
@@ -612,11 +627,13 @@ export function HistoryPage() {
                 })}
               </p>
             )}
-            {/* The same two steps as the Daily entry screen, in the same order,
-                reconciling the same way — a correction replaces the day's
-                official numbers, so reading it should not be a different job
-                from recording them. #250's steppers throughout. */}
-            <form className="entry-form" onSubmit={onAdjustSubmit}>
+            <Stack spacing={2}>
+            {!lossesExceedTotal && <Box role="group" aria-label={t("reconciliation")} sx={{ p: 1.5, bgcolor: gradesReconciled ? "var(--tint-ok)" : "var(--tint-warn)", color: gradesReconciled ? "var(--success)" : "var(--warn)", fontWeight: 700, fontVariantNumeric: "tabular-nums", borderRadius: "var(--r-input)" }}>
+              {t("reconciliationLine", {
+                total: fmt.count(total), cracked: fmt.count(cracked), dirty: fmt.count(dirty), discarded: fmt.count(discarded),
+                sellable: fmt.count(sellable), graded: fmt.count(gradesSum), comparison: gradesReconciled ? "=" : "≠",
+              })}
+            </Box>}
             {/* #444 — same caption as the capture screen; the dialog IS that
                 form, so the taps count the same way and say so the same way. */}
             {stepSize > 1 && (
@@ -624,107 +641,82 @@ export function HistoryPage() {
                 {te("stepperUnitCaption", { unit: stepperUnit.unitCode, count: stepSize })}
               </p>
             )}
-            <div className="entry-cols">
-              <section className="entry-step">
-                {/* The word boundaries live in the h3's own text nodes, not at
-                    the edges of the sr-only span: accessible-name computation
-                    trims each nested element's contribution. */}
-                <h3><span className="step-n">{te("stepLabel", { n: 1 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("eggCountsHeading")}</h3>
-                <div className="entry-pane">
-                  <div className="entry-rows">
-                    {/* Sibling label, not wrapping — a <label> may not contain
-                        interactive content other than its own control, and the
-                        stepper carries two buttons. */}
-                    <div className="entry-row">
-                      <label htmlFor={idFor("total")}>{te("totalEggsLabel")}</label>
-                      <NumberField id={idFor("total")} label={te("totalEggsLabel").toLowerCase()}
-                        value={total} onChange={setTotal} step={stepSize} />
-                    </div>
-                    <div className="entry-row">
-                      <label htmlFor={idFor("cracked")}>{te("crackedLabel")}</label>
-                      <NumberField id={idFor("cracked")} label={te("crackedLabel").toLowerCase()}
-                        value={cracked} onChange={setCracked} step={stepSize} />
-                    </div>
-                    <div className="entry-row">
-                      <label htmlFor={idFor("dirty")}>{te("dirtyLabel")}</label>
-                      <NumberField id={idFor("dirty")} label={te("dirtyLabel").toLowerCase()}
-                        value={dirty} onChange={setDirty} step={stepSize} />
-                    </div>
-                    <div className="entry-row">
-                      <label htmlFor={idFor("discarded")}>{te("discardedLabel")}</label>
-                      <NumberField id={idFor("discarded")} label={te("discardedLabel").toLowerCase()}
-                        value={discarded} onChange={setDiscarded} step={stepSize} />
-                    </div>
-                    <div className="entry-row">
-                      <label htmlFor={idFor("mortality")}>{te("mortalityLabel")}</label>
-                      {/* NO step — deaths are birds, not eggs; see the capture
-                          screen's identical comment (codex P1 review of #451). */}
-                      <NumberField id={idFor("mortality")} label={te("mortalityLabel").toLowerCase()}
-                        value={mortality} onChange={setMortality} />
-                    </div>
-                  </div>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3.5, md: 4 } }}>
+              <Box component="section">
+                {/* Accessible-name computation trims nested spans; keep word spaces in the heading. */}
+                <Typography variant="h3" component="h3">
+                  <span className="step-n">{te("stepLabel", { n: 1 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("eggCountsHeading")}
+                </Typography>
+                <EntryRow htmlFor={idFor("total")} label={te("totalEggsLabel")}>
+                  <NumberField id={idFor("total")} label={te("totalEggsLabel").toLowerCase()}
+                    value={total} onChange={setTotal} step={stepSize} />
+                </EntryRow>
+                <EntryRow htmlFor={idFor("cracked")} label={te("crackedLabel")}>
+                  <NumberField id={idFor("cracked")} label={te("crackedLabel").toLowerCase()}
+                    value={cracked} onChange={setCracked} step={stepSize} />
+                </EntryRow>
+                <EntryRow htmlFor={idFor("dirty")} label={te("dirtyLabel")}>
+                  <NumberField id={idFor("dirty")} label={te("dirtyLabel").toLowerCase()}
+                    value={dirty} onChange={setDirty} step={stepSize} />
+                </EntryRow>
+                <EntryRow htmlFor={idFor("discarded")} label={te("discardedLabel")}>
+                  <NumberField id={idFor("discarded")} label={te("discardedLabel").toLowerCase()}
+                    value={discarded} onChange={setDiscarded} step={stepSize} />
+                </EntryRow>
+                {/* Mortality counts individual birds, regardless of the egg step size. */}
+                <EntryRow htmlFor={idFor("mortality")} label={te("mortalityLabel")}>
+                  <NumberField id={idFor("mortality")} label={te("mortalityLabel").toLowerCase()}
+                    value={mortality} onChange={setMortality} />
+                </EntryRow>
 
-                  {lossesExceedTotal ? (
-                    <p className="entry-readout error">
-                      {te("countsExceedTotalMessage", { losses: grading.losses, total })}
-                    </p>
-                  ) : (
-                    /* Shown as a value, not buried in a sentence — it is the
-                       target the grading pane has to hit. */
-                    <p className="entry-readout">
-                      <span className="k">{te("sellableLabel")}<br />{te("sellableFormula", { total, cracked, dirty, discarded })}</span>
-                      <span className="v">{sellable}</span>
-                    </p>
-                  )}
-                </div>
-              </section>
+                {lossesExceedTotal ? (
+                  <Typography role="alert" sx={{ mt: 2, color: "var(--error)" }}>
+                    {te("countsExceedTotalMessage", { losses: grading.losses, total })}
+                  </Typography>
+                ) : (
+                  <Typography component="p" role="status" sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, mt: 2, pt: 1.5, borderTop: "1px dashed var(--hairline)" }}>
+                    <span className="muted">{te("sellableLabel")}<br />{te("sellableFormula", { total, cracked, dirty, discarded })}</span>
+                    <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{sellable}</Box>
+                  </Typography>
+                )}
+              </Box>
 
-              <section className="entry-step">
-                <h3><span className="step-n">{te("stepLabel", { n: 2 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("gradingHeading")}</h3>
-                <div className="entry-pane">
-                  <div className="entry-rows">
-                    {panelGrades(adjusting).map((g) => (
-                      <div key={g.id} className={`entry-row${armed ? " taking" : ""}`}
-                        {...remainderDropProps(armed, () => assignRest(g.id))}>
-                        <label htmlFor={idFor(`grade-${g.id}`)}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}</label>
-                        {/* #443 — no max=: same as the capture screen, the old
-                            ceiling refused to let a grade run ahead of the
-                            total. setLine raises the total to fit instead. */}
-                        <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
-                          value={lineQty[g.id] ?? 0} onChange={setLine(g.id)} step={stepSize} />
-                        {armed && (
-                          <TakeRemainderButton remaining={remaining} grade={g.name}
-                            onTake={() => assignRest(g.id)} />
-                        )}
-                      </div>
-                    ))}
-                  </div>
+              <Box component="section">
+                <Typography variant="h3" component="h3">
+                  <span className="step-n">{te("stepLabel", { n: 2 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("gradingHeading")}
+                </Typography>
+                {panelGrades(adjusting).map((g) => (
+                  <EntryRow key={g.id} htmlFor={idFor(`grade-${g.id}`)}
+                    label={g.name} caption={g.active ? undefined : t("inactiveGradeSuffix")}
+                    groupLabel={te("gradeRowLabel", { grade: g.name })} armed={armed}
+                    dropProps={remainderDropProps(armed, () => assignRest(g.id))}
+                  >
+                    {/* Allow a grade to exceed the current total; setLine raises the total to fit. */}
+                    <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
+                      value={lineQty[g.id] ?? 0} onChange={setLine(g.id)} step={stepSize} />
+                    {armed && (
+                      <TakeRemainderButton remaining={remaining} grade={g.name}
+                        onTake={() => assignRest(g.id)} />
+                    )}
+                  </EntryRow>
+                ))}
 
-                  {/* The same chip the capture screen uses — here it is also
-                      exactly what the Save button is gated on (#394). */}
-                  <GradingChip tone={grading.tone} count={grading.count}
-                    says={te(grading.saysKey)}
-                    canAssign={canAssign} remaining={remaining}
-                    assigning={armed} onAssigningChange={setAssigning} />
-                </div>
-              </section>
-            </div>
+                <GradingChip tone={grading.tone} count={grading.count}
+                  says={te(grading.saysKey)}
+                  canAssign={canAssign} remaining={remaining}
+                  assigning={armed} onAssigningChange={setAssigning} />
+              </Box>
+            </Box>
 
-            <label className="entry-reason">{t("reasonLabel")}
-              <input value={reason} maxLength={500} required
-                onChange={(e) => setReason(e.target.value)} />
-            </label>
+            <TextField fullWidth
+              label={t("reasonLabel")}
+              value={reason}
+              slotProps={{ htmlInput: { maxLength: 500, required: true } }}
+              onChange={(e) => setReason(e.target.value)}
+            />
             {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
             <DialogError errors={errors} scope="adjust" />
-            <div className="dialog-foot">
-              <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
-              {/* #394: an adjustment has no draft state — Save stays disabled
-                  until grading reconciles exactly, the same rule Daily
-                  Entry's submit uses. */}
-              <BusyButton type="submit" busy={isPending("adjust")}
-                disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
-            </div>
-            </form>
+            </Stack>
           </>
         )}
       </Dialog>
@@ -750,79 +742,73 @@ export function HistoryPage() {
         // No page-head create action on this screen (entries come from Daily
         // Entry); with a filter set, the fix is clearing it back to "All".
         (flockFilter || from || to)
-          ? <EmptyState icon={FilterX} message={t("noEntriesMatch")}
-              action={{
-                label: tc("clearFiltersButton"),
-                onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
-              }} />
+          ? <EmptyState icon={FilterX} message={t("noEntriesMatch")} />
           : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("statusHeader")}<GlossaryLink term="LockedEntry" /></th><th className="num">{t("totalHeader")}</th>
-                <th className="num">{t("lossesHeader")}</th>
-                {/* #396 — Losses shows the cracked/dirty/discarded COUNTS
-                    whatever became of them; this shows how many of those
-                    actually became stock, per the entry's own snapshot. */}
-                <th className="num">{t("conditionHeader")}</th>
-                <th className="num">{t("mortalityHeader")}</th><th>{t("gradedHeader")}</th>
-                <th>{tc("recordHistoryHeader")}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.rows.map((e) => (
-                <tr key={e.id} className={e.status === "Voided" ? "inactive" : undefined}>
-                  <td className="nowrap"><FarmDate iso={e.date} /></td>
-                  <td>{rowFlockName(e)}</td>
-                  <td>{statusCell(e)}</td>
-                  <td className="num">{fmt.count(e.totalEggs)}</td>
-                  <td className="num">{fmt.count(e.crackedEggs)}/{fmt.count(e.dirtyEggs)}/{fmt.count(e.discardedEggs)}</td>
-                  <td className="num">{conditionStock(e)}</td>
-                  <td className="num">{fmt.count(e.mortalityCount)}</td>
-                  <td>
-                    {e.grades.length === 0
-                      ? "—"
-                      : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ")}
-                  </td>
-                  <ProvenanceCell history={e} official="submitted" />
-                  <td>
-                    {/* #493 — full audit trail for this record, distinct from
-                        the created/last-changed summary in ProvenanceCell.
-                        Admin-gated: /api/v1/audit is AdminOnly, and this
-                        screen is open to workers too (codex review of
-                        #516). */}
-                    {isAdmin && (
-                      <Link className="link" to={`/audit?entityId=${e.id}`}>
-                        {tc("recordHistory.viewHistoryLink")}
-                      </Link>
-                    )}
-                    {/* Drafts are edited on the Daily entry screen (#85) —
-                        open to workers too; adjust/void stay admin-only. */}
-                    {e.status === "Draft" && flockEditable(e) && (
-                      <Link className="link"
-                        to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
-                        {t("editButton")}
-                      </Link>
-                    )}
-                    {isAdmin && correctable(e) && (
-                      <>
-                        {/* Opens the dialog — the mutation's own trigger (and
-                            its spinner) is the dialog's Save adjustment. */}
-                        <button className="link" disabled={busy}
-                          onClick={() => startAdjust(e)}>{t("adjustButton")}</button>
-                        <BusyButton className="link" busy={isPending(`void:${e.id}`)}
-                          disabled={busy}
-                          onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <LedgerTableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t("dateHeader")}</TableCell>
+                  <TableCell>{t("flockHeader")}</TableCell>
+                  <TableCell>{t("statusHeader")}<GlossaryLink term="LockedEntry" /></TableCell>
+                  <TableCell align="right">{t("totalHeader")}</TableCell>
+                  <TableCell align="right">{t("lossesHeader")}</TableCell>
+                  {/* Condition counts only losses added to stock; Losses includes all recorded losses. */}
+                  <TableCell align="right">{t("conditionHeader")}</TableCell>
+                  <TableCell align="right">{t("mortalityHeader")}</TableCell>
+                  <TableCell>{t("gradedHeader")}</TableCell>
+                  <TableCell>{tc("recordHistoryHeader")}</TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {entries.rows.map((e) => (
+                  <TableRow key={e.id}
+                    // MUI cell colours override inherited row colours.
+                    sx={e.status === "Voided" ? { "& .MuiTableCell-root": { color: "var(--muted)" } } : undefined}>
+                    <TableCell sx={NOWRAP}><FarmDate iso={e.date} /></TableCell>
+                    <TableCell>{rowFlockName(e)}</TableCell>
+                    <TableCell>{statusCell(e)}</TableCell>
+                    <TableCell align="right">{fmt.count(e.totalEggs)}</TableCell>
+                    <TableCell align="right">{fmt.count(e.crackedEggs)}/{fmt.count(e.dirtyEggs)}/{fmt.count(e.discardedEggs)}</TableCell>
+                    <TableCell align="right">{conditionStock(e)}</TableCell>
+                    <TableCell align="right">{fmt.count(e.mortalityCount)}</TableCell>
+                    <TableCell>
+                      {e.grades.length === 0
+                        ? "—"
+                        : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ")}
+                    </TableCell>
+                    <ProvenanceCell history={e} official="submitted" />
+                    <TableCell sx={NOWRAP}>
+                      {/* The audit endpoint is AdminOnly, even when this ledger is readable by workers. */}
+                      {isAdmin && (
+                        <Link className="link" to={`/audit?entityId=${e.id}`}>
+                          {tc("recordHistory.viewHistoryLink")}
+                        </Link>
+                      )}
+                      {e.status === "Draft" && flockEditable(e) && (
+                        <Button component={Link} size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }}
+                          to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
+                          {t("editButton")}
+                        </Button>
+                      )}
+                      {isAdmin && correctable(e) && (
+                        <>
+                          <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }} disabled={busy}
+                            onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
+                          <BusyButton component={Button} size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)", ml: 1 }} busy={isPending(`void:${e.id}`)}
+                            disabled={busy}
+                            onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
+                        </>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </LedgerTableContainer>
           {entries.canLoadMore && (
             <button className="link" disabled={busy}
               onClick={() => void entries.loadMore()}>
@@ -833,6 +819,6 @@ export function HistoryPage() {
       )}
 
       {confirmDialog}
-    </section>
+    </FieldConsole>
   );
 }

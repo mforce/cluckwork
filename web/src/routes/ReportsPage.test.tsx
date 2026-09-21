@@ -10,6 +10,7 @@ import type {
 } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { responsiveStyle } from "../test/renderedStyle";
 
 // Keep the REAL formatMoney (the sales/expenses/profit templates under test
 // interpolate its output as pre-formatted DATA — see the `reports` namespace
@@ -99,12 +100,9 @@ describe("ReportsPage production section (renders for every role)", () => {
     // missing, and eggs ÷ Recorded has to reproduce the percentage beside it.
     expect(within(row1).getAllByText("98")).toHaveLength(2); // henDays, recordedHenDays
     within(row1).getByText("91.8"); // henDayPct
-    // #650 — figures are numeric cells: right-aligned tabular nowrap (styles.num.test.ts
-    // pins what the class does; this pins that the screen puts it on the figure and
-    // its header, and keeps it off the date).
-    for (const cell of within(row1).getAllByText("100")) expect(cell).toHaveClass("num");
-    expect(within(row1).getByText("07/19/2026")).not.toHaveClass("num");
-    expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveClass("num");
+    for (const cell of within(row1).getAllByText("100")) expect(cell).toHaveStyle({ textAlign: "right" });
+    expect(within(row1).getByText("07/19/2026")).not.toHaveStyle({ textAlign: "right" });
+    expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveStyle({ textAlign: "right" });
 
     const row2 = screen.getByRole("row", { name: /07\/18\/2026/ });
     within(row2).getByText("—"); // null henDayPct falls back to the em dash
@@ -115,7 +113,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     expect(within(periodRow).getAllByText("196")).toHaveLength(2); // totalHenDays, totalRecordedHenDays
     within(periodRow).getByText("92.3"); // periodHenDayPct
 
-    expect(screen.getByText("By grade: Grade A 60, Grade B 30")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Reported grade totals" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
   });
 
   // #396 — Condition sits BESIDE Sellable, never folded into it. The fixture
@@ -161,7 +159,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
 
     await screen.findByRole("row", { name: /07\/19\/2026/ });
-    expect(screen.queryByText(/By grade:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reported grade totals/)).not.toBeInTheDocument();
   });
 
   it("shows the shared common:loading copy while the initial fetch is in flight, not a duplicated literal", () => {
@@ -238,7 +236,7 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
     )).toBeInTheDocument();
     expect(screen.getByText("Feed $50.00, Utilities $15.00 — total $65.00")).toBeInTheDocument();
     expect(screen.getByText(/revenue \$100\.00 − expenses \$65\.00 =/)).toBeInTheDocument();
-    expect(screen.getByText("$35.00").tagName).toBe("STRONG");
+    expect(screen.getByText("$35.00", { selector: "strong" }).tagName).toBe("STRONG");
 
     expect(mockGetSalesSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
     expect(mockGetExpenseSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
@@ -352,8 +350,8 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   it("reads the grade-totals prefix from the catalog, not a hardcoded literal", async () => {
     await withOverride("gradeTotalsLabel", "GRADE-TOTALS-MARKER", async () => {
       renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
-      expect(await screen.findByText("GRADE-TOTALS-MARKER Grade A 60, Grade B 30")).toBeInTheDocument();
-      expect(screen.queryByText(/By grade:/)).not.toBeInTheDocument();
+      expect(await screen.findByRole("list", { name: "GRADE-TOTALS-MARKER" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
+      expect(screen.queryByText(/Reported grade totals/)).not.toBeInTheDocument();
     });
   });
 
@@ -366,13 +364,13 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   });
 
   it.each([
-    ["salesRowLabel", "Sales"],
+    ["revenueRowLabel", "Revenue"],
     ["expensesRowLabel", "Expenses"],
     ["profitRowLabel", "Profit (basic)"],
   ])("reads the %s row label from the catalog, not a hardcoded literal", async (key, original) => {
     await withOverride(key, `${key.toUpperCase()}-MARKER`, async () => {
       renderWithProviders(<ReportsPage />, { token: ADMIN });
-      expect(await screen.findByText(`${key.toUpperCase()}-MARKER`)).toBeInTheDocument();
+      expect((await screen.findAllByText(`${key.toUpperCase()}-MARKER`)).length).toBeGreaterThan(0);
       expect(screen.queryByText(original)).not.toBeInTheDocument();
     });
   });
@@ -443,7 +441,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   // right number but never inside a real <strong>.
   it("wraps the profit figure in a real <strong> element via the <Trans> components mapping", async () => {
     renderWithProviders(<ReportsPage />, { token: ADMIN });
-    expect(await screen.findByText("$35.00")).toHaveProperty("tagName", "STRONG");
+    expect(await screen.findByText("$35.00", { selector: "strong" })).toHaveProperty("tagName", "STRONG");
   });
 
   it("reads the profit footnote from the catalog, not a hardcoded literal", async () => {
@@ -470,4 +468,44 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
       i18n.addResource("en", "common", "retry", original);
     }
   });
+});
+
+
+it("keeps period KPIs in one phone strip and aligns primary Money amounts", async () => {
+  renderWithProviders(<ReportsPage />, { token: ADMIN });
+  const money = await screen.findByRole("region", { name: "Money" });
+  const strip = screen.getByLabelText("Period");
+  expect(responsiveStyle(strip, "(min-width:0px)", "grid-auto-flow")).toBe("column");
+  for (const [label, amount] of [["Revenue", "$100.00"], ["Expenses", "$65.00"], ["Profit (basic)", "$35.00"]]) {
+    const row = within(money).getByText(label, { selector: "dt" }).parentElement!;
+    expect(within(row).getByText(amount, { selector: "dd" })).toHaveStyle({ textAlign: "right" });
+  }
+});
+
+it("restores the default report window and labels the auditable detail and grade units", async () => {
+  renderWithProviders(<ReportsPage />, { token: ADMIN });
+  await screen.findByRole("region", { name: "Money" });
+  const from = screen.getByLabelText("From");
+  const to = screen.getByLabelText("To");
+  const initialFrom = from.getAttribute("value");
+  const initialTo = to.getAttribute("value");
+  fireEvent.change(from, { target: { value: "2026-01-01" } });
+  fireEvent.change(to, { target: { value: "2026-01-02" } });
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(from).toHaveValue(initialFrom);
+  expect(to).toHaveValue(initialTo);
+  await screen.findByRole("heading", { name: "Daily production" });
+  expect(screen.getByText("Raw auditable detail")).toBeInTheDocument();
+  expect(within(screen.getByRole("list", { name: "Reported grade totals" })).getAllByText("eggs")).toHaveLength(2);
+});
+
+
+it("emphasises every Period total cell in ink at semibold weight", async () => {
+  renderWithProviders(<ReportsPage />, { token: ADMIN });
+  const row = await screen.findByRole("row", { name: /Period/ });
+  const cells = within(row).getAllByRole("columnheader");
+  expect(cells).toHaveLength(10);
+  for (const cell of cells) {
+    expect(cell).toHaveStyle({ color: "var(--ink)", fontWeight: "600" });
+  }
 });
