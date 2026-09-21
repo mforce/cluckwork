@@ -13,6 +13,11 @@ export const CONSOLE_LINK_SX = {
   minWidth: 0, px: 0, color: "var(--link)", fontWeight: 700,
   textDecoration: "underline", textDecorationColor: "var(--link-rule)", textUnderlineOffset: "3px",
   "&:hover": { textDecoration: "underline" },
+  // #930 — MUI's own dark-mode action.disabled (rgba(255,255,255,0.3)) clears
+  // only ~2.6:1 against --surface/--surface-2, under the 3:1 floor. --muted is
+  // already contrast-checked per palette (styles.test.ts) and reads as inert
+  // without borrowing the idle link's own colour.
+  "&.Mui-disabled": { color: "var(--muted)" },
 };
 // #831 Concept B: cancel the panel padding so the header divider reaches both edges.
 export const CONSOLE_PAPER_HEAD_SX = {
@@ -92,8 +97,6 @@ export function FieldConsole({ children }: { children: ReactNode }) {
   return (
     <Box component="section" data-field-console sx={{
       minWidth: 0,
-      // Concept B uses brand-coloured row links; other pages retain the shared theme default.
-      "--link": "var(--brand)",
       "&& h2": { typography: "h2", mb: 1 },
       "&& h3": { typography: "h3", mt: 2.5, mb: 1 },
       "& > p": { fontSize: ".8125rem", lineHeight: 1.45 },
