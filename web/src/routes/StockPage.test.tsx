@@ -457,7 +457,8 @@ describe("StockPage write-off (#406)", () => {
     expect(screen.getByText(/Could not load stock/)).toBeInTheDocument();
 
     // A second write-off uses a FRESH key — the first is spent.
-    fireEvent.click(await within(lotRow).findByRole("button", { name: "write off" }));
+    const refreshedLotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
+    fireEvent.click(within(refreshedLotRow).getByRole("button", { name: "write off" }));
     fillAndSubmit();
     await screen.findByText(/92 now available/);
     expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(2);
