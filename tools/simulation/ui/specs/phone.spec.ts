@@ -107,8 +107,8 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
   },
   {
     what: "the Sales draft-order panel",
-    buttons: 3,
-    layout: "stacked",
+    buttons: 2,
+    layout: "side by side",
     open: async (page) => {
       await page.goto("/sales");
       // The fixture seeds two draft orders and never confirms them
@@ -118,7 +118,8 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
       await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
         .toBeVisible();
       await draft.getByRole("button", { name: tEn("sales:open") }).click();
-      const row = page.locator(".order-panel .actions");
+      const row = page.getByRole("region").getByRole("group", { name: tEn("sales:draftActions") });
+      await expect(page.getByRole("region").getByRole("button", { name: tEn("sales:close"), exact: true })).toBeVisible();
       await expect(row).toBeVisible();
       return row;
     },
@@ -289,40 +290,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
   });
 
   test("no action control is taller than it is wide", async ({ page }) => {
-    // THE #740 SHAPE, which is the defect this whole issue was opened over. A
-    // label too long for its column wraps, the pill grows downwards, and
-    // `border-radius: 999px` clamps into an ellipse with the text outside its
-    // own background. A control taller than it is wide is that state, and it is
-    // the one geometry a 1280 run can never reach — at desktop these rows are
-    // ~974px and every label stays on one line.
-    //
-    // #823 closed it by stacking: below 900px `.actions` lays out in a
-    // column and every button fills the row, so no label can reshape the
-    // control. BOTH halves are asserted, because the ratio alone stays green
-    // for a button that stacked and then collapsed to its intrinsic width —
-    // which is the same defect one step on. `.dialog .dialog-foot` and
-    // `DialogActions` are no longer part of that stacking rule at all (#896;
-    // see the comment above `PHONE_ACTION_ROWS`) — a dialog footer stays row
-    // and right-aligned at every width, the same shape as the daily-entry
-    // bar, for a different reason.
-    //
-    // MEASURED at 390 after #823, recorded here where this suite keeps its
-    // measurements. Sales draft: all three 295.2 wide, 46.2 and 44.2 tall, 100%
-    // of a 295.2 row — against 91.5x103.2, 89.8x103.2 and 89.9x103.2 before,
-    // which is the #740 ellipse. Daily entry: both saves 170.6x65.2, 48% each
-    // of a 353.2 row, unchanged from before #823 because that row is exempt.
-    //
-    // Under `phone-action-label-wrapped` the Sales row goes back to side by
-    // side and every button drops to a fraction of its container: 51% and 22%,
-    // with `close` at 54.0x65.2 — taller than it is wide, so the ratio
-    // assertion fires there too. The daily-entry row and the dialog footer are
-    // untouched by that mutant and are not evidence for it.
-    //
-    // ALL THREE ROWS ARE WALKED, and the Sales one is why the walk exists: the
-    // daily-entry bar passed the ratio check before #823 and the Sales draft
-    // panel did not, so a walk that stopped at the bar asserted the one row
-    // that was never broken. The dialog footer joined in #832, as one open
-    // CRUD dialog standing in for all of them (see its own entry above).
+    // #740: paired actions must stay wider than tall; stacked actions fill their row.
     for (const { what, buttons, layout, open } of PHONE_ACTION_ROWS) {
       const row = await open(page);
       // Non-vacuity: a walk over an empty set passes for free.
@@ -548,7 +516,6 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // FOR, and its recent-sales list is the widest intrinsic content in the
       // app — a money string in a `max-content` track beside a name.
       { path: "/", content: "ul.dash-sales-list", what: "the recent-sales list" },
-      { path: "/sales", content: "table.data", what: "the orders table" },
       { path: "/daily-entry", content: "footer", what: "the entry form's sticky foot" },
       // #832 — Customers and Flocks moved their table onto MUI's `Table`, which
       // carries no `.data` class (the whole point of the conversion: the
@@ -560,6 +527,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       { path: "/flocks", content: "role=table", what: "the flock table" },
       { path: "/stock", content: `role=list[name="${tEn("stock:title")}"]`, what: "the stock board" },
       { path: "/history", content: "role=table", what: "the entry history table" },
+      { path: "/sales", content: "role=table", what: "the orders table" },
     ];
 
     for (const { path: route, content, what } of ROUTES) {

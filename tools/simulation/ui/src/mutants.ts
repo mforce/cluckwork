@@ -996,40 +996,14 @@ export const MUTANTS: Record<string, Mutant> = {
     },
   },
 
-  // The key keeps its original name because the design doc (#822 D3.4) and the
-  // synthesis record both cite it, and a rename there would leave two documents
-  // naming a mutant that no longer exists. What it breaks changed with #823:
-  // the defect is no longer a long label, it is the row layout that made a long
-  // label dangerous.
-  "phone-action-label-wrapped": {
-    breaks:
-      "#823's phone action rule — `.actions` and `.dialog .dialog-foot` go back to laying out side "
-      + "by side below 900px, so the Sales draft panel's three buttons share ~295px, each takes "
-      + "about a third of the row, and any label longer than that third wraps the pill downwards "
-      + "into the #740 ellipse. The daily-entry save bar is untouched: it carries its own "
-      + "`flex-direction: row` (F134, and the confirmed #864 mockup) and outranks this rule",
+  "phone-sales-draft-actions-stacked": {
+    breaks: "The Sales draft's paired Cancel/Confirm actions stack into a column at phone width.",
     caughtBy: "phone.spec.ts — no action control is taller than it is wide",
-    apply: (page) =>
-      // CSS, not a longer label, and that is the re-targeting. A full-width
-      // button cannot become taller than it is wide however long its label, so
-      // the label mutant this replaced would now survive and the harness would
-      // correctly report the spec as uncovered. The cause worth imitating is a
-      // revert of the rule #823 added.
-      //
-      // Scoped inside the same media query the rule lives in, so it is inert at
-      // 1280 — which `MUST_STAY_GREEN_ON` checks rather than trusts. No desktop
-      // spec measures this ratio at all, so what a green desktop run proves is
-      // narrower than it sounds: no EXISTING desktop scenario noticed.
-      insertCssRule(
-        page,
-        "@media (max-width: 900px) { .actions, .dialog .dialog-foot { flex-direction: row } }",
-      ),
+    apply: (page) => insertCssRule(page,
+      "@media (max-width: 900px) { [role=region] aside .actions[role=group] { flex-direction: column !important } }"),
   },
 
-  // The mirror of the mutant above, and it exists because #823 left the walk
-  // with a branch nothing could falsify. One row must be full width and one
-  // must stay side by side, so a mutant that only breaks the stacking proves
-  // half the rule; this one breaks the other half.
+  // Daily Entry has its own row rule, so the Sales mutant cannot reach it.
   "phone-entry-foot-stacked": {
     breaks:
       "F134 and the confirmed #864 mockup, which keep the daily-entry save bar's two controls side "

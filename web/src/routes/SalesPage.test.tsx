@@ -206,7 +206,7 @@ async function createDraft(order: SalesOrder) {
   await act(async () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
   });
-  await screen.findByText(new RegExp(order.referenceNumber)); // panel header
+  await screen.findByRole("heading", { name: new RegExp(order.referenceNumber) });
   // MUI defers the dialog's DOM removal to its exit transition — wait for it
   // to actually leave before the caller starts querying the page behind it.
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -424,6 +424,19 @@ describe("SalesPage quantity must be a whole number (#398)", () => {
 // preview, and the unit size on the product option. All display-only — the
 // unit math itself is the server's (snapshotted per line, spec §9.7).
 describe("SalesPage quantity unit clarity (#445)", () => {
+  it("previews stock commitment while a line changes without writing", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(row).getByRole("spinbutton", { name: "Edit quantity" }), { target: { value: "4" } });
+    expect(within(settlement).getByText("(108 eggs)")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "cancel" }));
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+    expect(mockUpdateOrderItem).not.toHaveBeenCalled();
+    expect(confirmOrder).not.toHaveBeenCalled();
+  });
+
   it("names the selected unit in the quantity label and follows the Per picker", async () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
@@ -670,7 +683,7 @@ describe("SalesPage quantity unit clarity (#445)", () => {
   // asserts the two facts that actually matter: every field (Unit price
   // included) still shares one row with Add line, and the hint is NOT inside
   // that row to begin with.
-  it("keeps the Unit price field in the same .form-grid row as Add line, with the hint OUTSIDE that row (#720 R11)", async () => {
+  it("keeps the Unit price field in the same row as Add line, with the hint OUTSIDE that row (#720 R11)", async () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
 
@@ -678,10 +691,10 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     const hint = screen.getByText("$1.00 below list (33.3%)");
     const priceField = screen.getByLabelText(/Unit price/);
     const addLineBtn = screen.getByRole("button", { name: "Add line" });
-    const row = priceField.closest(".form-grid");
+    const row = priceField.closest(".MuiStack-root");
 
     expect(row).not.toBeNull();
-    expect(addLineBtn.closest(".form-grid")).toBe(row);
+    expect(addLineBtn.closest(".MuiStack-root")).toBe(row);
     expect(row).not.toContainElement(hint);
   });
 
@@ -714,7 +727,7 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     await createDraft(draftEmpty(2, "USD"));
 
     fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
-    expect(screen.queryByText(/list/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/(?:below|above) list/)).not.toBeInTheDocument();
   });
 
   it("tracks the edited quantity live in the eggs column during an inline edit", async () => {
@@ -724,6 +737,11 @@ describe("SalesPage quantity unit clarity (#445)", () => {
 
     // ITEM_A: factor 12, qty 3 → the eggs cell shows 36 (not the old "—")…
     expect(within(editRow).getByText("36")).toBeInTheDocument();
+    const cells = within(editRow).getAllByRole("cell");
+    expect(cells[2]).toHaveTextContent("36");
+    expect(cells[3]).toHaveTextContent("$3.75");
+    expect(cells[2]).toHaveStyle({ color: "var(--muted)" });
+    expect(cells[3]).toHaveStyle({ color: "var(--muted)" });
     // …and follows the edit: 60 dozen is visibly 720 eggs before save.
     const qty = within(editRow).getByRole("spinbutton", { name: "Edit quantity" });
     fireEvent.change(qty, { target: { value: "60" } });
@@ -764,10 +782,9 @@ describe("SalesPage line display", () => {
     // line total = unitPrice × quantity (300 × 3), NOT the order total
     expect(within(rowA).getByText("$3.00")).toBeInTheDocument();
     expect(within(rowA).getByText("$9.00")).toBeInTheDocument();
-    // #650 — money and quantity cells are numeric cells; the product cell is not.
-    expect(within(rowA).getByText("$9.00")).toHaveClass("num");
-    expect(within(rowA).getByText("36")).toHaveClass("num");
-    expect(within(rowA).getByText(/Grade A Dozen/)).not.toHaveClass("num");
+    expect(within(rowA).getByText("$9.00")).toHaveStyle({ textAlign: "right" });
+    expect(within(rowA).getByText("36")).toHaveStyle({ textAlign: "right" });
+    expect(within(rowA).getByText(/Grade A Dozen/)).not.toHaveStyle({ textAlign: "right" });
 
     const rowB = screen.getByRole("row", { name: /Grade B Tray/ });
     expect(within(rowB).getByText("60")).toBeInTheDocument();
@@ -775,7 +792,7 @@ describe("SalesPage line display", () => {
 
     // order total (2900) differs from both line totals (900, 2000) → this pins
     // that the line cell renders its own line, not active.totalMinorUnits
-    expect(screen.getByText(/Total: \$29\.00/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Total: $29.00")).toBeInTheDocument();
   });
 
   it("omits the egg-multiplier note and shows eggs === quantity for a per-egg line (factor 1)", async () => {
@@ -874,19 +891,14 @@ describe("SalesPage list price and discount (#720)", () => {
     expect(within(row).getByText(i18n.t("sales:aboveList"))).not.toHaveClass("discount");
   });
 
-  // #723 — colour is not the only signal. A discounted row carries a text chip
-  // and a struck-through list price, both of which survive greyscale; the tint
-  // is the third layer, asserted through the row's class because jsdom computes
-  // no layout.
-  it("marks a below-list row with a chip, a struck list price and the row class", async () => {
+  // jsdom exposes declared backgrounds but does not resolve their custom properties.
+  it("marks a below-list price with exception text and no row tint", async () => {
     // ITEM_B: sold 1000 against a list of 1200 → below list.
     const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
-    // Both classes: `badge` is the pill, `badge-warn` is what the stylesheet's
-    // `tr.discounted .badge-warn` rule keys on to lift the chip off the row's
-    // own tint. Asserting only `badge` let the JSX drop `badge-warn`, orphaning
-    // that rule and restoring the invisible-chip defect with the suite green.
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("badge", "badge-warn");
-    expect(row).toHaveClass("discounted");
+    const badge = within(row).getByText(i18n.t("sales:belowListBadge"));
+    expect(badge).toHaveClass("discount");
+    expect(badge).not.toHaveClass("badge");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     // The list-price money is struck through — the <s> element, not a class, so
     // it survives a stylesheet change and reads as struck to a screen reader.
     expect(within(row).getByText("$12.00").closest("s")).not.toBeNull();
@@ -905,7 +917,7 @@ describe("SalesPage list price and discount (#720)", () => {
     };
     const row = await openOrder(order, /Grade A Dozen/);
     expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     // The fixture renders $3.00 in the List price AND the Unit price cell.
     // Checking only the first let an implementation that struck the other pass.
     for (const match of within(row).getAllByText("$3.00")) {
@@ -934,7 +946,7 @@ describe("SalesPage list price and discount (#720)", () => {
     // satisfy a test named for a chip.
     const productCell = within(row).getAllByRole("cell")[0];
     expect(within(productCell).getByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveClass("badge");
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
   });
 
   // #773 — the two answers side by side on ONE order. Before this, both lines
@@ -1076,13 +1088,12 @@ describe("SalesPage list price and discount (#720)", () => {
   // only: DRAFT_TWO is ITEM_A (3 x 300 against list 375) + ITEM_B (2 x 1000
   // against list 1200), so the give-away is 3x75 + 2x200 = 625 and the list
   // value is 3x375 + 2x1200 = 3525 → 17.7%.
-  it("totals the order's discount above the order total", async () => {
+  it("totals the order's discount below the order total", async () => {
     await openOrder(DRAFT_TWO, /Grade B Tray/);
     const paragraph = screen.getByTestId("order-discount");
     expect(paragraph).toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$6.25", percent: "17.7" }));
-    // ABOVE is half the requirement and was the untested half: the element
-    // immediately following the paragraph is the order total.
-    expect(paragraph.nextElementSibling?.textContent).toContain("$29.00");
+    const total = screen.getByLabelText("Total: $29.00");
+    expect(total.compareDocumentPosition(paragraph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // The one arithmetic error the PROTECTED helper exists to prevent: an
@@ -1249,31 +1260,30 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     };
   }
 
-  it("badges a discounted order with the percent leading the amount", async () => {
+  it("emphasises a discounted order with plain exception text", async () => {
     mockListOrders.mockResolvedValue([listedOrder("disc", [ITEM_A, ITEM_B], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-disc/ });
-    // Cell 4 is the Discount column: Reference, Date, Customer, Status,
-    // Discount, Total, Provenance, actions. Scoping to the row alone let the
-    // text pass from any cell, and let a plain string pass as a badge.
     const cell = within(row).getAllByRole("cell")[4];
     expect(within(cell).getByText(
       i18n.t("sales:discountBadge", { percent: "17.7", amount: "$6.25" }),
-    )).toHaveClass("badge");
+    )).toHaveClass("discount");
   });
 
-  it("shows an em dash for an order sold entirely at list", async () => {
+  it.each([
+    ["en", "At list"],
+    ["es", "A precio de lista"],
+    ["tl", "Sa presyong nasa listahan"],
+  ])("names an order sold entirely at list as a status in %s", async (locale, status) => {
     const atList: OrderItem = { ...ITEM_A, id: "at1", listUnitPriceMinorUnits: 300 };
     mockListOrders.mockResolvedValue([listedOrder("atlist", [atList], 900)]);
     await renderReady();
+    await act(async () => { await i18n.changeLanguage(locale); });
     const row = screen.getByRole("row", { name: /SO-atlist/ });
-    // Assert the CELL, by index. A bare text lookup for "—" is ambiguous: the
-    // row's ProvenanceCell also renders one under NO_RECORD_HISTORY
-    // (ProvenanceCell.tsx:57). Cells are Reference, Date, Customer, Status,
-    // Discount, Total, Provenance, actions — so the new column is index 4.
-    // Without this, an implementation returning null for every non-below order
-    // leaves the cell EMPTY and both negative assertions still pass.
-    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    // #724: scope to Discount because provenance cells can also contain an em dash.
+    const cell = within(row).getAllByRole("cell")[4];
+    expect(cell).toHaveAccessibleName(status);
+    expect(cell).not.toHaveAccessibleName(i18n.t("sales:listPrice"));
     expect(within(row).queryByText(/%/)).toBeNull();
   });
 
@@ -1294,6 +1304,10 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // empty case produces, which the old single assertion got backwards.
     expect(within(row).queryByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toBeNull();
     expect(within(row).queryByText(i18n.t("enums:listPriceBasis.PreDating"))).toBeNull();
+    mockGetOrder.mockResolvedValue(listedOrder("empty", [], 0));
+    fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    const settlement = await screen.findByRole("complementary", { name: "Settlement" });
+    expect(within(settlement).getAllByRole("definition")[1]).toHaveTextContent(/^—$/);
   });
 
   it("names an order predating the list-price snapshot as unrecorded, not unpriced", async () => {
@@ -1305,40 +1319,38 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // says WHICH kind of nothing — this one predates capture, so "no list price"
     // (the recorded fact) would be a different and wrong claim.
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
-    // The wrap class is applied here, not just declared in the stylesheet: this
-    // cell is inside td.num, which is pinned white-space: nowrap.
-    expect(within(within(row).getAllByRole("cell")[4]).getByText(i18n.t("enums:listPriceBasis.PreDating")))
-      .toHaveClass("discount-note");
+    expect(within(row).getAllByRole("cell")[4])
+      .toHaveAccessibleName(i18n.t("enums:listPriceBasis.PreDating"));
+    expect(within(row).getByText(i18n.t("enums:listPriceBasis.PreDating"))).not.toHaveClass("sr-only");
+    expect(within(row).getAllByRole("cell")[4])
+      .toHaveAccessibleDescription(i18n.t("enums:listPriceBasis.PreDating"));
   });
 
-  it("does not print a bare em dash for an order only part of which can be measured", async () => {
+  it.each(["ProductUnpriced", "PreDating"] as const)("visibly qualifies partial %s list prices without calling the order at list", async (listPriceBasis) => {
     const atList: OrderItem = { ...ITEM_A, id: "ap1", listUnitPriceMinorUnits: 300 };
-    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
+    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null, listPriceBasis };
     mockListOrders.mockResolvedValue([listedOrder("partial", [atList, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-partial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    // The em dash means "sold at list". This order was not fully measured, so
-    // the cell must carry the note instead.
-    expect(cell).toHaveTextContent(i18n.t("sales:discountPartialNote"));
-    expect(cell.textContent?.trim()).not.toBe("—");
+    expect(cell).toHaveAccessibleName("part of this order has no list price");
+    expect(within(cell).getByText("part of this order has no list price")).not.toHaveClass("sr-only");
+    expect(cell).toHaveAccessibleDescription("part of this order has no list price");
+    expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
 
-  // The BELOW-list partial branch: a discounted order that also carries an
-  // unmeasurable line. The at-list partial test above never enters it, which
-  // left SalesPage.tsx:1537 the one `discount-note` call site with no assertion
-  // — so the class could be dropped there and the note would stop wrapping
-  // inside td.num, with the suite green. Found by CodeRabbit on 0c65418.
-  it("wraps the partial note on a DISCOUNTED order that also has an unmeasurable line", async () => {
+  it("describes the unmeasurable part of a discounted order", async () => {
     const below: OrderItem = { ...ITEM_A, id: "bp1", listUnitPriceMinorUnits: 375 };
     const noList: OrderItem = { ...ITEM_B, id: "bp2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     mockListOrders.mockResolvedValue([listedOrder("belowpartial", [below, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-belowpartial/ });
     const cell = within(row).getAllByRole("cell")[4];
-    // The badge renders (it IS discounted) AND the partial note is present and wrappable.
-    expect(within(cell).getByText(/%/)).toHaveClass("badge");
-    expect(within(cell).getByText(i18n.t("sales:discountPartialNote"))).toHaveClass("discount-note");
+    expect(within(cell).getByText(/%/)).toHaveClass("discount");
+    expect(cell).toHaveAccessibleName("20.0% · $2.25 part of this order has no list price");
+    expect(within(cell).getByText("part of this order has no list price")).not.toHaveClass("sr-only");
+    expect(cell).toHaveAccessibleDescription("part of this order has no list price");
+    expect(cell).toHaveAttribute("title", "part of this order has no list price");
   });
 });
 
@@ -1368,15 +1380,13 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
   const outstandingCell = (reference: RegExp) =>
     within(screen.getByRole("row", { name: reference })).getAllByRole("cell")[6];
 
-  it("badges a fully settled order and shows no amount beside it", async () => {
+  it("labels a fully settled order and shows no amount beside it", async () => {
     mockListOrders.mockResolvedValue([settled("paid", 0)]);
     await renderReady();
 
     const cell = outstandingCell(/SO-paid/);
     expect(within(cell).getByText(i18n.t("sales:settledBadge")))
-      .toHaveClass("badge", "badge-ok");
-    // Nothing owed, so no money at all in the cell — a "$0.00" here reads as a
-    // debt at a glance, which is the misreading the badge exists to prevent.
+      .not.toHaveClass("badge");
     expect(cell).not.toHaveTextContent("$0.00");
     expect(cell).not.toHaveTextContent("0.00");
   });
@@ -1387,10 +1397,9 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
 
     const cell = outstandingCell(/SO-part/);
     expect(cell).toHaveTextContent("$9.00");
-    // `discount-note` is the wrap class: this note sits inside td.num, which
-    // #650 pins to white-space: nowrap.
-    expect(within(cell).getByTestId("row-partly-paid"))
-      .toHaveClass("muted", "discount-note");
+    expect(cell).toHaveAccessibleName("$9.00");
+    expect(cell).toHaveAccessibleDescription("part of this order is paid");
+    expect(cell).toHaveAttribute("title", "part of this order is paid");
     expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
   });
 
@@ -1402,7 +1411,7 @@ describe("SalesPage Orders-list outstanding column (#769)", () => {
     expect(cell).toHaveTextContent("$29.00");
     // The three states must be distinguishable from each other, not just from
     // empty: no part-paid note and no settled pill on an order owing all of it.
-    expect(within(cell).queryByTestId("row-partly-paid")).toBeNull();
+    expect(cell).not.toHaveAccessibleDescription();
     expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
   });
 
@@ -2202,7 +2211,7 @@ describe("SalesPage pending states (#236)", () => {
     // gone once MUI's exit transition finishes.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
-    await screen.findByText(new RegExp(order.referenceNumber));
+    await screen.findByRole("heading", { name: new RegExp(order.referenceNumber) });
     expect(errorSpy.mock.calls.filter(([first]) => String(first).includes("act("))).toEqual([]);
     errorSpy.mockRestore();
   });
@@ -2469,6 +2478,15 @@ describe("SalesPage empty states (#655)", () => {
     renderWithProviders(<SalesPage />, { token: ADMIN });
     expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New order" })).not.toBeInTheDocument();
+  });
+});
+
+// jsdom cannot measure placeholder overlap; the shrink class verifies label placement.
+describe("SalesPage status filter label", () => {
+  it("shrinks the Status select's label instead of sitting it on top of the placeholder option text", async () => {
+    await renderReady();
+    const label = screen.getByText("Status", { selector: "label" });
+    expect(label).toHaveClass("MuiInputLabel-shrink");
   });
 });
 
@@ -3263,14 +3281,14 @@ describe("SalesPage panel liveness (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close") });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => {
       resolveWrite();
       resolveRead({ ...DRAFT_TWO, items: [ITEM_B] });
     });
     expect(mockGetOrder).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "open" })).toBeEnabled();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   });
 });
 
@@ -3291,7 +3309,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   };
   const openButton = () => screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true });
 
@@ -3348,7 +3366,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
       expect(openButton()).toBeDisabled();
       await act(async () => { read.resolve({ ...order, status: action === "confirm" ? "Confirmed" : action === "void" ? "Voided" : "Draft" }); });
       expect(openButton()).toBeEnabled();
-      expect(document.querySelector(".order-panel")).toBeNull();
+      expect(screen.queryByRole("region", { hidden: true })).toBeNull();
       if (action === "confirm" || action === "void") {
         expect(screen.queryByText(i18n.t(action === "confirm" ? "sales:orderConfirmed" : "sales:orderVoided", { ref: order.referenceNumber }))).not.toBeInTheDocument();
         expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
@@ -3367,7 +3385,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     closePanel();
     await act(async () => { write.resolve(); });
     expect(openButton()).toBeEnabled();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.queryByText(i18n.t("sales:draftOrderCancelled"))).not.toBeInTheDocument();
     expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
   });
@@ -3378,7 +3396,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     const listCalls = mockListOrders.mock.calls.length;
     await submit("cancel");
     expect(vi.mocked(cancelOrder)).toHaveBeenCalledWith(DRAFT_TWO.id, expect.any(String));
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText(i18n.t("sales:draftOrderCancelled"))).toBeInTheDocument();
     expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
   });
@@ -3426,7 +3444,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     await act(async () => { write.resolve({ orderId: DRAFT_TWO.id, itemId: ITEM_A.id }); });
     expect(mockGetOrder).toHaveBeenCalledTimes(2);
     expect(mockGetOrder).toHaveBeenLastCalledWith(DRAFT_TWO.id);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(openButton()).toBeEnabled();
     // The fixture deliberately remains a draft, allowing the identical add
     // request after reopening without simulating backend line merging.
@@ -3510,14 +3528,14 @@ describe("SalesPage payment panel contracts (#703 PR 5)", () => {
     const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeDisabled();
     await act(async () => { resolveWrite(undefined as never); });
     expect(mockListOrderPayments).toHaveBeenCalledTimes(2);
     expect(mockListOrderPayments).toHaveBeenLastCalledWith(order.id);
     await act(async () => { resolveRead({ ...ledger, items: [{ ...ledger.items[0], referenceNumber: "late receipt", voided: true }] }); });
     expect(screen.getByText(i18n.t("sales:paymentVoided"))).toBeInTheDocument();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.queryByText("late receipt")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeEnabled();
     // DOM absence cannot observe a hidden setPayments overwrite: reopening
@@ -3538,9 +3556,9 @@ it.each([false, true])("discards the line editor on Close before same-order relo
   fireEvent.click(within(row).getByRole("button", { name: "edit" }));
   if (pending) await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "save" })); });
   fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
-  expect(document.querySelector(".order-panel")).toBeNull();
+  expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   if (pending) await act(async () => { settle(); });
-  expect(document.querySelector(".order-panel")).toBeNull();
+  expect(screen.queryByRole("region", { hidden: true })).toBeNull();
   // Another writer changed the line while this panel was closed. A fresh Open
   // must show that fetched row, not the dismissed editor's old quantity/price.
   mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, items: [{ ...ITEM_A, quantity: 9, quantityBase: 108, unitPriceMinorUnits: 400 }, ITEM_B] });
@@ -3569,7 +3587,7 @@ describe.each(["Draft", "Confirmed"] as const)("Sales Open dismissal (#712), %s 
       });
     };
     await openRow(original);
-    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
 
     let resolveRead!: (order: SalesOrder) => void;
     mockGetOrder.mockReturnValueOnce(new Promise<SalesOrder>((resolve) => { resolveRead = resolve; }));
@@ -3579,14 +3597,14 @@ describe.each(["Draft", "Confirmed"] as const)("Sales Open dismissal (#712), %s 
     expect(within(screen.getByRole("row", { name: new RegExp(target.referenceNumber) }))
       .getByRole("button", { name: i18n.t("sales:open") })).toBeDisabled();
     fireEvent.click(close);
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => { resolveRead(target); });
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
 
     mockGetOrder.mockResolvedValue(target);
     await openRow(target);
-    expect(document.querySelector(".order-panel")).not.toBeNull();
-    expect(within(document.querySelector<HTMLElement>(".order-panel")!)
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
+    expect(within(screen.getByRole("region"))
       .getByText(new RegExp(target.referenceNumber))).toBeInTheDocument();
   });
 });
@@ -3596,9 +3614,9 @@ describe("Sales primary Open controls (#712)", () => {
     mockListOrders.mockResolvedValue([DRAFT_TWO]);
     mockGetOrder.mockResolvedValue(DRAFT_TWO);
     await renderReady();
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
   });
 
   it("shows an Open failure and allows retry", async () => {
@@ -3606,10 +3624,10 @@ describe("Sales primary Open controls (#712)", () => {
     mockGetOrder.mockRejectedValueOnce(new Error("Order read failed")).mockResolvedValue(DRAFT_TWO);
     await renderReady();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText("Order read failed")).toBeInTheDocument();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
-    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).not.toBeNull();
     expect(screen.queryByText("Order read failed")).not.toBeInTheDocument();
   });
 
@@ -3620,7 +3638,7 @@ describe("Sales primary Open controls (#712)", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
     fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
     await act(async () => { rejectRead(new Error("Dismissed order read failed")); });
-    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByRole("region", { hidden: true })).toBeNull();
     expect(screen.getByText("Dismissed order read failed")).toBeInTheDocument();
   });
 });
@@ -3775,6 +3793,21 @@ describe("Sales live editor (#713)", () => {
     expect(quantity()).toHaveValue(5);
     expect(save()).toBeDisabled();
   });
+});
+
+// #927 fix: save/cancel had regressed to two separate boxy Buttons that
+// stacked vertically in the actions cell instead of sitting beside each
+// other like the row's edit/remove text-link pair. Pin the DOM structure
+// that keeps them inline: one shared parent, save immediately before
+// cancel — the shape that broke when they were rendered as two independent
+// TableCell children instead of one flex group.
+it("#927 save sits before cancel in one shared inline group", async () => {
+  const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+  fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+  const saveButton = screen.getByRole("button", { name: i18n.t("sales:save") });
+  const cancelButton = screen.getByRole("button", { name: i18n.t("sales:cancelEdit") });
+  expect(saveButton.parentElement).toBe(cancelButton.parentElement);
+  expect(saveButton.compareDocumentPosition(cancelButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 it("#713 editor quantity steppers apply consecutive functional updates", async () => {
@@ -3977,16 +4010,15 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
   const typePrice = (value: string) =>
     fireEvent.change(screen.getByLabelText(i18n.t("sales:editUnitPriceAriaLabel")), { target: { value } });
 
-  it("keeps the tint, the chip and the Discount cell agreeing as the price is edited", async () => {
+  it("keeps the exception label and Discount cell agreeing as the price is edited", async () => {
     const row = await beginEdit();
     // ITEM_A: 3 x $3.00 against a $3.75 list — below list before a key is pressed.
-    expect(row).toHaveClass("discounted");
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("$2.25");
 
     // Typed UP to the list price: no longer a discount, so every marker goes.
     typePrice("3.75");
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
     expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("—");
 
@@ -3994,18 +4026,17 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     // used to be blanked to "—" for the whole edit.
     typePrice("4.00");
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent(i18n.t("sales:aboveList"));
-    expect(row).not.toHaveClass("discounted");
+    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
 
     // Back below list: the markers come back rather than sticking.
     typePrice("2.00");
-    expect(row).toHaveClass("discounted");
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
   });
 
   it("falls back to the saved line rather than flickering when the price box is unparseable", async () => {
     const row = await beginEdit();
     typePrice("");
-    expect(row).toHaveClass("discounted");
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("discount");
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).not.toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
   });
 
@@ -4163,5 +4194,130 @@ describe("SalesPage discount ceiling (#727)", () => {
     } finally {
       i18n.addResource("en", "sales", "overMaximumBadge", original);
     }
+  });
+});
+
+describe("Sales Field Console context and settlement", () => {
+  it("mutes voided payment cells without muting active payment cells", async () => {
+    const payment = {
+      salesOrderId: DRAFT_TWO.id, customerId: CUSTOMER.id, amountMinorUnits: 500,
+      currencyCode: "USD", currencyMinorUnit: 2, method: "Cash",
+      paymentDate: "2026-07-20", note: null, version: 1,
+    };
+    mockListOrderPayments.mockResolvedValue({
+      items: [
+        { ...payment, id: "voided-payment", referenceNumber: "VOID-PAY", voided: true, voidReason: "duplicate" },
+        { ...payment, id: "active-payment", referenceNumber: "LIVE-PAY", voided: false, voidReason: null },
+      ],
+      paidMinorUnits: 500, outstandingMinorUnits: 2400, totalMinorUnits: 2900,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder({ ...DRAFT_TWO, status: "Confirmed", outstandingMinorUnits: 2400 }, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    const voided = await within(settlement).findByRole("row", { name: /VOID-PAY/ });
+    const active = within(settlement).getByRole("row", { name: /LIVE-PAY/ });
+    for (const cell of within(voided).getAllByRole("cell")) {
+      expect(cell).toHaveStyle({ color: "var(--muted)" });
+    }
+    for (const cell of within(active).getAllByRole("cell")) {
+      expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+    }
+  });
+
+  it.each(["Draft", "Confirmed"] as const)("keeps labelled manifest prices available to screen readers for %s orders", async (status) => {
+    const order: SalesOrder = {
+      ...DRAFT_TWO, status, totalMinorUnits: 912,
+      items: [{ ...ITEM_A, quantity: 24, quantityBase: 288,
+        unitPriceMinorUnits: 38, listUnitPriceMinorUnits: 38 }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    const panel = screen.getByRole("region", { name: "SO-2 — Acme Eggs" });
+    const row = within(panel).getByRole("row", { name: /Grade A Dozen/ });
+    expect(within(row).getByText("Unit price $0.38, Line total $9.12")).toBeInTheDocument();
+    expect(row).toHaveAccessibleName(/Unit price \$0\.38, Line total \$9\.12/);
+  });
+
+  it("offers Clear filters even when the commercial ledger is populated", async () => {
+    await renderReadyWithProbe("/sales?unpaid=1&foo=bar");
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(probeSearch()).toBe("?foo=bar"));
+    expect(screen.getByLabelText("Status")).toHaveValue("");
+  });
+
+  it("labels the paper separately from its status and names the settlement", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const region = screen.getByRole("region", { name: "SO-2 — Acme Eggs" });
+    expect(within(region).getByText("Draft order")).toBeInTheDocument();
+    expect(within(region).getByText("Draft", { exact: true })).not.toHaveClass("MuiChip-root");
+    expect(within(screen.getByRole("complementary", { name: "Settlement" })).getByText("Settlement")).toBeInTheDocument();
+  });
+
+  it.each([
+    { price: 1100, label: "Above list" },
+    { price: 1000, label: "At list" },
+  ])("labels a $price-cent line against a 1000-cent list price as $label in settlement", async ({ price, label }) => {
+    const order: SalesOrder = {
+      ...DRAFT_TWO,
+      totalMinorUnits: price,
+      items: [{ ...ITEM_A, quantity: 1, quantityBase: 12,
+        unitPriceMinorUnits: price, listUnitPriceMinorUnits: 1000 }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    const values = within(settlement).getAllByRole("definition");
+    expect(values[0]).toHaveTextContent("$10.00");
+    expect(values[1]).toHaveTextContent(new RegExp(`^${label}$`));
+  });
+
+  it("shows draft context without inventing an outstanding balance and groups its actions", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const context = screen.getByLabelText("Order context");
+    expect(context).toHaveTextContent("SO-2 · Draft");
+    expect(context).toHaveTextContent("$29.00");
+    expect(context).toHaveTextContent("Outstanding—");
+    const actions = screen.getByRole("group", { name: "Draft actions" });
+    expect(within(actions).getAllByRole("button").map(button => button.textContent)).toEqual(["Cancel draft", "Confirm order (allocates stock)"]);
+    expect(within(actions).queryByRole("button", { name: "close" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "close" })).toBeInTheDocument();
+  });
+
+  it("shows the complete recorded list value before the discount and stock commitment", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    expect(within(settlement).getByLabelText("List value")).toHaveTextContent("$35.25");
+    expect(within(settlement).getAllByRole("term").map(term => term.textContent)).toEqual(["List value", "Discount", "Stock commitment"]);
+    expect(within(settlement).getByTestId("order-discount")).toHaveTextContent("$6.25");
+    expect(within(settlement).getByText("(96 eggs)")).toBeInTheDocument();
+  });
+
+  it.each(["partial", "unknown"] as const)("withholds a full list value when prices are %s", async (kind) => {
+    const order = { ...DRAFT_TWO, items: DRAFT_TWO.items.map((item, index) => kind === "unknown" || index === 0
+      ? { ...item, listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" as const } : item) };
+    await openOrder(order, /Grade A Dozen/);
+    const settlement = screen.getByRole("complementary", { name: "Settlement" });
+    const list = within(settlement).getByLabelText("List value");
+    expect(list).toHaveTextContent("—");
+    expect(list).toHaveAttribute("title", "Full list value unavailable: one or more lines have no comparable list price.");
+    expect(settlement).toHaveTextContent(kind === "partial" ? "part of this order has no list price" : "No list price on any line");
+  });
+
+  it("uses the loaded payment balance in the confirmed-order context", async () => {
+    mockListOrderPayments.mockResolvedValue({ items: [], paidMinorUnits: 2100, outstandingMinorUnits: 800,
+      totalMinorUnits: 2900, currencyCode: "USD", currencyMinorUnit: 2 });
+    await openOrder({ ...DRAFT_TWO, status: "Confirmed", outstandingMinorUnits: 2900 }, /Grade A Dozen/);
+    await waitFor(() => expect(screen.getByLabelText("Order context")).toHaveTextContent("Outstanding$8.00"));
+  });
+
+  it("keeps settlement balances out of a Worker's order context", async () => {
+    const order: SalesOrder = { ...DRAFT_TWO, status: "Confirmed", outstandingMinorUnits: 800 };
+    mockListOrders.mockResolvedValue([order]);
+    mockGetOrder.mockResolvedValue(order);
+    renderWithProviders(<SalesPage />, { token: { sub: "worker", role: "Worker" } });
+    fireEvent.click(await screen.findByRole("button", { name: "open" }));
+    const context = await screen.findByLabelText("Order context");
+    expect(context).toHaveTextContent("SO-2 · Confirmed");
+    expect(context).not.toHaveTextContent("Outstanding");
+    expect(mockListOrderPayments).not.toHaveBeenCalled();
   });
 });
