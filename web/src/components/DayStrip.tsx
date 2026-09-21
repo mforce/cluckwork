@@ -23,13 +23,11 @@ export function DayStrip({ data, label, title, peak, average, legend, tip, from,
   label: string;
   title: string;
   peak: string;
-  // #916/#918 — always a sentence now ("Complete-day avg N" or "No
-  // complete-day average"), never hidden: the approved mockup shows the
-  // average's ABSENCE as a stated fact beside Peak, not as a blank space.
+  // Always a sentence, never hidden: the mockup states the average's ABSENCE
+  // beside Peak rather than leaving a blank space there.
   average: string;
-  // The strip's key, translated by the caller (DayStrip stays props-only,
-  // never importing i18n itself). Three fixed states; the mockup's own
-  // legend, added in the fidelity round on #918.
+  // Translated by the caller — DayStrip stays props-only, never importing
+  // i18n itself.
   legend: { complete: string; partial: string; noEntry: string };
   tip: (slot: DayStripSlot) => string;
   from: React.ReactNode;

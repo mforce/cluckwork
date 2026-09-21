@@ -7,24 +7,19 @@ import { X } from "lucide-react";
 import { listFlocks } from "../api/cluckwork";
 import type { Flock } from "../api/cluckwork";
 
-// #918 — Codex review, finding 1 (round 3). The picker's own discovery,
-// server-paged exactly like the shared NamedEntityPicker engine (50-row
-// pages, 250ms debounce): filtering an already-loaded, capped flock array
-// made a flock past that cap unreachable by search on a large farm. This
-// search is independent of the page-scoped `flocks` list the rest of the
-// Dashboard reads.
+// Server-paged discovery, matching the shared NamedEntityPicker engine's own
+// 50-row pages and 250ms debounce. Filtering an already-loaded, capped flock
+// array instead would leave a flock past that cap unreachable by search on a
+// large farm, so this read is independent of the page-scoped `flocks` list
+// the rest of the Dashboard holds.
 const PAGE_SIZE = 50;
 const DEBOUNCE_MS = 250;
 
 // #916 — the Lay rate card's own scope, independent of every other panel.
 export type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
 
-// #918 round 4 — extracted out of Dashboard.tsx: the dialog owns every piece
-// of state a flock lookup needs (search text, the paged result set, its own
-// loading/error state, keyboard roving focus) so Dashboard.tsx only holds
-// whether the dialog is open and the scope a pick produced. Everything below
-// is self-contained and independently testable; Dashboard wires it to the
-// page's own scope state through the three callback props.
+// The dialog owns every piece of state a flock lookup needs; Dashboard holds
+// only whether it is open and the scope a pick produced.
 export function FlockPickerDialog({
   open, onClose, scope, accessibleCount, onPickAll, onPickFlock,
 }: {
@@ -36,9 +31,8 @@ export function FlockPickerDialog({
   onPickFlock: (flock: Flock) => void;
 }) {
   const { t } = useTranslation("dashboard");
-  // #918 — Codex review, finding 1: Retry/Load more/loading strings reuse the
-  // shared picker catalog rather than minting new ones — the page namespace
-  // still owns anything page-specific (the dialog's own title, labels).
+  // Retry/Load more/loading reuse the shared picker catalog; the page
+  // namespace still owns anything page-specific (title, labels).
   const { t: tp } = useTranslation("namedEntityPicker");
   const pickerTitleId = useId();
   const searchInputId = useId();
@@ -48,9 +42,8 @@ export function FlockPickerDialog({
   const [cursor, setCursor] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
-  // #918 — Codex review, round 4, finding 3: a failed discovery request used
-  // to render as "No matching flocks" — indistinguishable from a real empty
-  // result. This distinguishes the two, with its own Retry.
+  // A failed discovery request must not render as "No matching flocks",
+  // which is indistinguishable from a real empty result.
   const [discoveryFailed, setDiscoveryFailed] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
 
@@ -58,14 +51,12 @@ export function FlockPickerDialog({
   // PREVIOUS session's leftover text.
   useEffect(() => { if (open) setSearchQuery(""); }, [open]);
 
-  // #918 — Codex review, round 4, finding 1. `queryGenRef` bumps on every
-  // effect run — a new search, the dialog opening or closing, or a Retry —
-  // so `loadMore` below and this effect's own fetch can tell whether the
-  // query they were dispatched for is still the current one. Results and the
-  // cursor are cleared in the SAME tick a query changes, not only once the
-  // fresh page lands: without that, a `loadMore` click during the debounce
-  // window would still read the PREVIOUS query's cursor and could append the
-  // new query's page onto the old query's results.
+  // `queryGenRef` bumps on every effect run — a new search, an open or close,
+  // a Retry — so `loadMore` and this effect's own fetch can tell whether the
+  // query they were dispatched for is still current. Results and the cursor
+  // clear in the SAME tick the query changes, not once the fresh page lands:
+  // otherwise a `loadMore` during the debounce window reads the PREVIOUS
+  // query's cursor and appends the new query's page onto the old results.
   const queryGenRef = useRef(0);
   useEffect(() => {
     const gen = ++queryGenRef.current;
@@ -114,15 +105,12 @@ export function FlockPickerDialog({
       });
   };
 
-  // #918 — Codex review, finding 3 (round 3): arrow/Home/End move focus among
-  // the dialog's own choice buttons ("All flocks" reachable first, matching
-  // the mockup), mirroring the shared picker engine's own keyboard contract
-  // (FR-032/picker-ui.md) without adopting its Autocomplete/combobox markup —
-  // these stay plain, individually-focusable buttons, so this is a roving
-  // FOCUS move, not a roving tabindex/aria-activedescendant pattern.
-  //
-  // Round 4, finding 5: a DISABLED "Load more" (mid-fetch) is excluded, or
-  // End/ArrowDown could land focus on a button that cannot be activated.
+  // Arrow/Home/End move focus among the choice buttons, mirroring the shared
+  // picker engine's keyboard contract (FR-032/picker-ui.md) without adopting
+  // its Autocomplete markup — these stay plain, individually-focusable
+  // buttons, so this is a roving FOCUS move, not a roving tabindex. A
+  // disabled "Load more" (mid-fetch) is excluded, or End/ArrowDown could land
+  // on a button that cannot be activated.
   const bodyRef = useRef<HTMLDivElement>(null);
   const onBodyKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
@@ -139,9 +127,8 @@ export function FlockPickerDialog({
     e.preventDefault();
     buttons[i]?.focus();
   };
-  // ArrowDown from the search field itself lands on the first choice ("All
-  // flocks" — reachable first, per the finding), matching the mockup's own
-  // search-to-results handoff.
+  // ArrowDown from the search field lands on the first choice ("All flocks",
+  // first in DOM order), matching the mockup's search-to-results handoff.
   const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "ArrowDown") return;
     const first = bodyRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
@@ -169,10 +156,8 @@ export function FlockPickerDialog({
           placeholder={t("searchByNamePlaceholder")}
         />
       </Box>
-      {/* `bodyRef`/`onBodyKeyDown`: arrow/Home/End move focus among every
-          ENABLED button below, "All flocks" reachable first since it is the
-          first button in DOM order — pinned ABOVE the scrolling result list,
-          never a row inside it (SELECTION.md / the mockup's #allChoice). */}
+      {/* "All flocks" is pinned ABOVE the scrolling result list, never a row
+          inside it (SELECTION.md / the mockup's #allChoice). */}
       <div ref={bodyRef} onKeyDown={onBodyKeyDown}>
         <Button
           fullWidth onClick={onPickAll}

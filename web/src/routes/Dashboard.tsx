@@ -43,10 +43,8 @@ export function Dashboard() {
   const { farm } = useFarm();
   const [openedAt] = useState(() => new Date().toISOString());
   const { t: tc } = useTranslation("common");
-  // #918 — Codex review, finding 1: the picker's Retry/Load more/loading
-  // strings reuse the shared picker catalog rather than minting new ones
-  // ("the picker-OWNED strings live here", NamedEntityPicker.tsx's own
-  // header) — the page namespace still owns anything page-specific.
+  // The flock-list Retry/loading labels reuse the shared picker catalog
+  // rather than minting page-local duplicates of the same two words.
   const { t: tp } = useTranslation("namedEntityPicker");
   // Captured once at mount so the header date always matches the queried day
   // even if the tab stays open across midnight. Farm-local, not browser-local
@@ -64,31 +62,19 @@ export function Dashboard() {
 
   // #916 — the Lay rate card's own scope. `trendLoading` is separate from the
   // page's `loading` above: a scope change refetches ONLY the two
-  // production-report calls (never the other panels), and must not blank the
-  // whole page while that refetch is in flight — "Other dashboard panels do
-  // not change" (SELECTION.md). A failed refetch clears `trend` to null,
-  // which already renders `panelError` below — no separate error flag needed.
+  // production-report calls and must not blank the whole page while that
+  // refetch is in flight ("Other dashboard panels do not change",
+  // SELECTION.md). A failed refetch clears `trend` to null, which already
+  // renders `panelError` below — no separate error flag needed. The dialog
+  // owns its own search/results/paging state, so only `open` lives here.
   const [scope, setScope] = useState<FlockScope>({ kind: "all" });
   const [trendLoading, setTrendLoading] = useState(true);
-  // #918 fidelity round — one full-width selector, matching the approved
-  // mockup exactly: `pickerOpen` drives the extracted FlockPickerDialog
-  // (which owns its own search/results/paging state). There is exactly one
-  // reset path (choosing "All flocks" inside the dialog), and it sets `scope`
-  // directly with nothing else to fall out of sync with it (Codex review of
-  // #918, finding 1: the old picker's Clear button had no handler, so it
-  // could empty the CONTROL while `scope`, a second independently-held
-  // value, kept the card scoped).
   const [pickerOpen, setPickerOpen] = useState(false);
-  // #918 — Codex review, finding 4: the flock LIST read (not the picker
-  // dialog's own discovery, which is independent) can fail on its own even
-  // when the other three panels succeed. `flocksFailed` distinguishes that
-  // from "flocks is empty" or "still loading", so the scope selector can
-  // show an unavailable state with Retry instead of silently reading as "0
-  // accessible flocks". Round 4, finding 4: `flocksRetrying` keeps that
-  // unavailable state up (with the Retry button now disabled) until the
-  // retried read actually SETTLES — clearing `flocksFailed` the instant
-  // Retry is clicked showed "0 accessible flocks" for the gap before the new
-  // data arrived, which is exactly the state this exists to avoid.
+  // #918 — the flock LIST read can fail on its own while the other three
+  // panels succeed, and "failed" must not read as "0 accessible flocks".
+  // `flocksRetrying` holds the unavailable state up until the retried read
+  // SETTLES; clearing `flocksFailed` on click showed that same false zero
+  // for the gap before the new data landed.
   const [flocksFailed, setFlocksFailed] = useState(false);
   const [flocksRetrying, setFlocksRetrying] = useState(false);
 
@@ -104,43 +90,27 @@ export function Dashboard() {
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
 
-  // #918 fidelity round — stable ids for the selector's own aria-labelledby
-  // pair. The picker dialog's own labelled elements are now internal to
-  // FlockPickerDialog.
   const scopeLabelId = useId();
   const scopeValueId = useId();
 
-  // #916 — a PRIMITIVE, not the `flocks` array itself: the trend effect below
-  // depends on this so a farm with more than one flock (the common case)
-  // re-renders `flocks` exactly once (on load) without re-triggering a second,
-  // wasted report fetch — the array's reference changes every time, but this
-  // value only changes on the one transition that actually matters (null →
-  // an id, when the farm turns out to have exactly one accessible flock).
-  const soleFlockId = flocks !== null && flocks.length === 1 ? flocks[0].id : null;
+  // #916 — with exactly one accessible flock there is no All-flocks concept to
+  // offer (SELECTION.md), and its figures must come from the SAME code path as
+  // picking that flock out of a larger list, never a parallel "show
+  // everything" branch. The trend effect depends on the id rather than on
+  // `soleFlock`, because the array's reference changes on every render while
+  // the id only changes on the one transition that matters.
+  const soleFlock = flocks !== null && flocks.length === 1 ? flocks[0] : null;
+  const soleFlockId = soleFlock?.id ?? null;
 
-  // #918 — Codex review, finding 2. The page-level "everything failed" gate
-  // used to look only at the four panel reads; once the production report
-  // became its own effect (so a scope change never re-fetches the other
-  // four), a farm where those four ALL failed hid an already-loaded Lay rate
-  // card behind the full-page error, even though the trend fetch had
-  // succeeded on its own. `loading` stays tied to the four-panel effect ONLY
-  // — the page still renders as soon as THEY settle, unchanged from before,
-  // so a slow production fetch never holds the whole page hostage. The
-  // combined "did EVERYTHING fail" decision is separate and may land a beat
-  // later, from whichever of the two effects settles last.
-  //
-  // Round 3 (Codex, finding 2 again): keying that decision to a FIRST-EVER
-  // trend outcome meant a stale verdict could outlive the load it described
-  // — an earlier total failure stayed the verdict forever, even once a
-  // later refresh (a role change flipping `canSeeSales`, or #914's future
-  // range control) produced a fresh, successful one. Both outcomes are now
-  // keyed to `loadGenRef`, bumped once per genuine new load (a `[today,
-  // canSeeSales]` change) — never by an ordinary scope change, which does
-  // not touch `loadGenRef` at all. Only an outcome recorded for the CURRENT
-  // generation may decide; a stale one is silently ignored, and a new
-  // generation clears any previous verdict optimistically the moment it
-  // starts, so the page never sits on a resolved error while a fresh load
-  // is already in flight.
+  // #918 — "everything failed" spans BOTH effects, so neither can decide it
+  // alone: the four panel reads failing while the trend read succeeded must
+  // not hide an already-loaded Lay rate card behind the full-page error.
+  // `loading` stays tied to the four-panel effect only, so a slow production
+  // fetch never holds the page hostage; this verdict lands a beat later, from
+  // whichever effect settles last. Both outcomes are keyed to `loadGenRef`,
+  // bumped once per genuine new load (`[today, canSeeSales]`) and never by an
+  // ordinary scope change — an outcome from an older generation is ignored,
+  // so a stale total-failure verdict cannot outlive the load it described.
   const loadGenRef = useRef(0);
   const panelsOutcomeRef = useRef<{ gen: number; rejected: number; issued: number; firstRejected?: PromiseRejectedResult } | null>(null);
   const trendOutcomeRef = useRef<{ gen: number; failed: boolean } | null>(null);
@@ -157,13 +127,8 @@ export function Dashboard() {
     }
   }
 
-  // #918 — Codex review, finding 4: the flock list can fail on its own even
-  // when the other three panels succeed (`flocksFailed` below), and Retry
-  // re-issues ONLY this one read — the picker dialog's own discovery is a
-  // separate, independent server call and is unaffected either way. Round 4,
-  // finding 4: `flocksFailed` itself is left alone until the retried read
-  // SETTLES — clearing it up front (before the new data lands) let the
-  // selector render "0 accessible flocks" for the gap in between.
+  // Retry re-issues ONLY the flock list; the dialog's own discovery is a
+  // separate server call and is unaffected either way.
   const fetchFlocks = () => {
     setFlocksRetrying(true);
     listFlocks({ limit: MAX_PAGE })
@@ -207,22 +172,14 @@ export function Dashboard() {
     // selection would produce, never a separate "everything" branch (parity
     // requirement, SELECTION.md).
     const flockId = soleFlockId ?? (scope.kind === "flock" ? scope.flock.id : undefined);
-    // The generation this fetch belongs to, captured at DISPATCH time. Effects
-    // run in declaration order within one commit, so when `[today,
-    // canSeeSales]` change together with this effect's own deps, the panels
-    // effect above has already bumped `loadGenRef` by the time this line runs
-    // — this fetch is correctly attributed to the NEW generation, not the one
-    // it was dispatched under before.
-    //
-    // Round 4, Codex finding 2: `canSeeSales` is in this effect's OWN deps
-    // below for the same reason it is in the panels effect's — a role change
-    // that flips it bumps `loadGenRef` without touching `today`, `scope` or
-    // `soleFlockId`, and this effect must rerun in lockstep or it never
-    // records ANY outcome for the new generation. Without that, a genuine
-    // total failure in the new generation went unreported forever:
-    // `evaluateTotalFailure`'s `trend.gen !== gen` guard stayed true across
-    // every future settlement, since nothing here ever wrote a fresh
-    // `trendOutcomeRef` for that generation.
+    // Captured at DISPATCH time. Effects run in declaration order within one
+    // commit, so the panels effect above has already bumped `loadGenRef` when
+    // a new load starts — this fetch is attributed to the NEW generation.
+    // `canSeeSales` is in this effect's own deps for the same reason: a role
+    // change bumps `loadGenRef` without touching `today`, `scope` or
+    // `soleFlockId`, and this effect must rerun in lockstep or it records no
+    // outcome at all for the new generation and a genuine total failure there
+    // goes unreported forever.
     const gen = loadGenRef.current;
     let cancelled = false;
     setTrendLoading(true);
@@ -236,13 +193,10 @@ export function Dashboard() {
       const ok = cur.status === "fulfilled" && prev.status === "fulfilled";
       setTrend(ok ? { current: cur.value, previous: prev.value } : null);
       setTrendLoading(false);
-      // Always updated, not written once — an ordinary scope change keeps
-      // re-deciding freshly rather than freezing at a first outcome. This is
-      // safe for the common case: `evaluateTotalFailure` only ever SETS the
-      // error when the four panel reads also failed, and that can only
-      // happen while `flocks` is null (no scope control exists to change
-      // `scope` at all), so a later settlement in a healthy session can only
-      // ever confirm `setError(null)`, never wrongly raise one.
+      // Always updated, never written once: a scope change keeps re-deciding
+      // freshly. Safe, because the error is only ever SET when the four panel
+      // reads also failed — which can only happen while `flocks` is null, and
+      // then no scope control exists to change `scope` in the first place.
       trendOutcomeRef.current = { gen, failed: !ok };
       evaluateTotalFailure();
     });
@@ -280,17 +234,11 @@ export function Dashboard() {
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
   const tiles = allTiles === null ? null : visibleTiles(allTiles);
 
-  // #916 — with exactly one accessible flock there is no All-flocks concept
-  // to offer (SELECTION.md), and its figures must come from the SAME code
-  // path as picking that flock out of a larger list — so `soleFlock` folds
-  // into the same `flockId` the fetch effect and every render below read,
-  // rather than being a second, parallel "just show everything" branch.
-  const soleFlock = flocks !== null && flocks.length === 1 ? flocks[0] : null;
   const scopedFlock = soleFlock ?? (scope.kind === "flock" ? scope.flock : null);
   const scopeName = scopedFlock ? scopedFlock.name : t("allFlocksOption");
-  // #918 fidelity round — the context caption's own scope text differs from
-  // the selector's: "All flocks" scoped reads as a count of accessible
-  // flocks here, matching the approved mockup's `.context` line exactly.
+  // The context caption's scope text differs from the selector's: unscoped,
+  // it reads as a count of accessible flocks, matching the mockup's
+  // `.context` line.
   const accessibleCount = flocks?.length ?? 0;
   const contextScope = scopedFlock ? scopedFlock.name : t("accessibleFlocksCount", { count: accessibleCount });
 
@@ -524,15 +472,8 @@ export function Dashboard() {
           </Box>
 
           {flocksFailed ? (
-            // #918 — Codex review, finding 4: a failed flock-list read used to
-            // silently read as "0 accessible flocks" / "No matching flocks",
-            // which looks like a genuinely empty farm rather than a read that
-            // failed. The existing panel-error pattern, with a Retry that
-            // re-issues only this read (the picker dialog's own discovery is
-            // independent either way). Round 4, finding 4: the Retry button
-            // itself shows the shared "loading" label and disables while the
-            // retried read is in flight, instead of flipping straight back to
-            // the ordinary selector before the new data has landed.
+            // The panel-error pattern rather than an empty selector: a failed
+            // flock-list read must not read as a genuinely empty farm.
             <Box sx={{ mt: "18px", mb: "8px" }}>
               <Alert severity="error" className="error" action={
                 <Button color="inherit" size="small" disabled={flocksRetrying} onClick={fetchFlocks}>

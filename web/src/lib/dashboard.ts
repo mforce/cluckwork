@@ -126,11 +126,9 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
   const average = complete.length === 0
     ? null
     : r1(complete.reduce((a, v) => a + v, 0) / complete.length);
-  // #916 — the fallback pool: every day with a filing at all, complete or not.
-  // When a complete day exists it wins outright (the ordinary rule); when none
-  // does, the peak falls back to the largest PARTIAL total rather than to
-  // `null`, which used to floor every bar at 2% regardless of how the partial
-  // days actually compared to each other.
+  // #916 — the fallback pool. Without it, a window of only partial days had a
+  // null peak and every bar floored at 2%, regardless of how those days
+  // actually compared to each other.
   const recorded = days.filter((d) => d.recordedFlocks > 0).map((d) => d.totalEggs);
   const scale: DayStripData["scale"] = complete.length > 0 ? "complete" : recorded.length > 0 ? "partial" : "none";
   const pool = complete.length > 0 ? complete : recorded;
