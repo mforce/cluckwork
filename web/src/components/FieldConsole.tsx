@@ -14,10 +14,13 @@ export const CONSOLE_LINK_SX = {
   textDecoration: "underline", textDecorationColor: "var(--link-rule)", textUnderlineOffset: "3px",
   "&:hover": { textDecoration: "underline" },
   // #930 — MUI's own dark-mode action.disabled (rgba(255,255,255,0.3)) clears
-  // only ~2.6:1 against --surface/--surface-2, under the 3:1 floor. --muted is
-  // already contrast-checked per palette (styles.test.ts) and reads as inert
-  // without borrowing the idle link's own colour.
-  "&.Mui-disabled": { color: "var(--muted)" },
+  // only ~2.6:1 against --surface/--surface-2, under the 3:1 floor. --muted
+  // reads as inert without borrowing the idle link's own colour. `opacity: 1`
+  // overrides the global `:where(button:disabled) { opacity: .5 }`
+  // (styles.css) the same way the existing busy-button exception does
+  // (`:where(button:disabled[aria-busy="true"])`) — left unset, --muted at
+  // half opacity measures 2.84:1/2.68:1, still under 3:1.
+  "&.Mui-disabled": { color: "var(--muted)", opacity: 1 },
 };
 // #831 Concept B: cancel the panel padding so the header divider reaches both edges.
 export const CONSOLE_PAPER_HEAD_SX = {
