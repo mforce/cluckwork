@@ -3021,7 +3021,7 @@ export const tl = {
 
     glossarySelectedRecordInspectorTerm: "Inspector ng napiling record",
     glossarySelectedRecordInspectorDef:
-      "Sa mga screen na Customers, Products, Grades, Flocks at Users, ang pag-click o pag-activate sa isang "
+      "Sa mga screen na Mga Customer, Mga Produkto, Mga Grado, Mga Kawan, at Mga User, ang pag-click o pag-activate sa isang "
       + "row ay nagpapakita ng buong detalye nito sa isang panel na nakadikit sa ilalim ng listahan, sa halip "
       + "na isang popup. Patuloy na nag-iisa mag-scroll ang table sa itaas, at nananatiling malinaw na markado "
       + "ang napiling row.",
