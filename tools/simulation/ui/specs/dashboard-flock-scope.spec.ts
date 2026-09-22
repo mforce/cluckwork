@@ -308,13 +308,8 @@ test.describe("Dashboard Lay rate flock scope", () => {
       .toHaveText(tEn("namedEntityPicker:noResults"));
   });
 
-  // #935 — the shared Dialog's Paper has a maxWidth but no width, so an
-  // unconstrained desktop Paper shrink-wraps to its content instead of
-  // reaching the 30rem non-wide cap. This picker is the one caller that
-  // renders the engine directly (no `trigger`, outside a `.form-grid`), so
-  // the existing `.dialog .form-grid .named-picker { width: 100% }` rule
-  // never reached it; filtering made the gap visible because a bare search
-  // field is narrower than the option rows the listbox has to show.
+  // #935 — regression coverage for the Dashboard.tsx fix (see its comment
+  // for the root cause). Fails at ~247px on the unfixed code.
   test("the picker dialog holds its 30rem desktop width while filtering, with no horizontal overflow", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");
@@ -458,10 +453,8 @@ test.describe("Dashboard Lay rate flock scope", { tag: "@phone" }, () => {
     await expect(pinnedAllFlocksChoice(page)).toBeVisible();
   });
 
-  // #935 — the phone Paper already gets an explicit `calc(100% - 32px)`
-  // width from Dialog.tsx, so this pins that the fix above (a desktop-only
-  // `md`-breakpoint min-width) leaves the phone panel and its filtered
-  // results within that width, never wider.
+  // #935 — pins that the desktop-only fix above doesn't regress the
+  // already-correct phone width.
   test("the picker dialog stays within its phone width while filtering, with no horizontal overflow", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");
