@@ -275,6 +275,11 @@ export const en = {
     skipToContent: "Skip to main content",
     primaryNavAriaLabel: "Primary",
     signOut: "Sign out",
+    // #936 — the More-menu recovery action for a deferred update prompt
+    // (AppLayout.tsx sidebar footer, BottomNav.tsx's More sheet). Visible
+    // only while updateStore.ts reports one waiting; reopens the same
+    // overlay UpdatePrompt.tsx renders.
+    updateAvailableAction: "Update available",
     // {{version}} is a bare semver string (e.g. "0.0.2"), never itself
     // translated — only the surrounding "v" template varies by locale in
     // principle, though every catalog currently agrees on it (#458).
@@ -341,6 +346,10 @@ export const en = {
   // chrome lives today.
   pwa: {
     updateAvailable: "A new version of Cluckwork is ready.",
+    // {{current}}/{{available}} are bare semver strings (e.g. "0.1.2"),
+    // never themselves translated — only shown once the two genuinely
+    // differ (appVersion.ts), so this never renders identical numbers.
+    versionChange: "v{{current}} → v{{available}}",
     reload: "Reload",
     reloading: "Reloading…",
     later: "Later",

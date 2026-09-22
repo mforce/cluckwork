@@ -1,14 +1,16 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { Dialog } from "../components/Dialog";
 import { UpdatePrompt } from "./UpdatePrompt";
 import { registerServiceWorker } from "./registerServiceWorker";
+import { resetUpdateStoreForTests } from "./updateStore";
+import { useCachedBannerUrl } from "../lib/bannerCache";
 
 // #485 — #483 makes everything outside the topmost dialog `inert`, which takes
-// the update banner out of the accessibility tree. A banner that appears while
-// a dialog is open is therefore never announced, and un-inerting it afterwards
-// replays nothing. An offscreen live region covers exactly that gap.
+// the update overlay out of the accessibility tree. An overlay that appears
+// while a dialog is open is therefore never announced, and un-inerting it
+// afterwards replays nothing. An offscreen live region covers exactly that gap.
 //
 // What these tests can and cannot prove, stated plainly because an earlier
 // version of this file got it wrong: jsdom implements no accessibility tree
@@ -20,6 +22,14 @@ import { registerServiceWorker } from "./registerServiceWorker";
 vi.mock("./registerServiceWorker", () => ({ registerServiceWorker: vi.fn() }));
 const mockRegister = vi.mocked(registerServiceWorker);
 
+vi.mock("../lib/bannerCache", () => ({ useCachedBannerUrl: vi.fn() }));
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  resetUpdateStoreForTests();
+  vi.mocked(useCachedBannerUrl).mockReturnValue(null);
+});
+
 // Role-less on purpose (see UpdatePrompt.tsx): it is always mounted, and a
 // permanent `role="status"` would answer every such query in the app.
 function announcer(): HTMLElement {
@@ -27,7 +37,7 @@ function announcer(): HTMLElement {
   if (el === null) throw new Error("no offscreen live region rendered");
   return el;
 }
-const visibleBanner = () => document.querySelector(".update-banner");
+const visibleOverlay = () => document.querySelector(".update-overlay");
 const MESSAGE = "A new version of Cluckwork is ready";
 
 async function renderWithUpdate(ui: React.ReactElement) {
@@ -60,27 +70,27 @@ function withDialog(initiallyOpen: boolean) {
 }
 
 describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () => {
-  it("leaves the ordinary path to the visible banner, saying nothing itself", async () => {
-    // No dialog: the banner is a live region in the accessibility tree and
+  it("leaves the ordinary path to the visible overlay, saying nothing itself", async () => {
+    // No dialog: the overlay is a live region in the accessibility tree and
     // announces its own arrival. A second region holding the same sentence
     // would have a screen reader say it twice.
     const Harness = withDialog(false);
     const { announce } = await renderWithUpdate(<Harness />);
     await announce();
 
-    expect(visibleBanner()).not.toBeNull();
+    expect(visibleOverlay()).not.toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent(MESSAGE);
     expect(announcer()).toHaveTextContent("");
   });
 
-  it("covers the banner that appeared while a dialog was open, once it closes", async () => {
+  it("covers the overlay that appeared while a dialog was open, once it closes", async () => {
     const Harness = withDialog(true);
     const { announce } = await renderWithUpdate(<Harness />);
-    // The update lands with the dialog ALREADY open, so the banner mounts
+    // The update lands with the dialog ALREADY open, so the overlay mounts
     // straight into an inert subtree and its own announcement is lost.
     await announce();
 
-    expect(visibleBanner()).not.toBeNull();
+    expect(visibleOverlay()).not.toBeNull();
     // Writing here now would be spent on a moment nobody hears, and would
     // leave nothing to change on the way out.
     expect(announcer()).toHaveTextContent("");
@@ -135,7 +145,7 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await waitFor(() => expect(announcer()).toHaveTextContent(MESSAGE));
   });
 
-  it("does not nag: a later dialog cycle over the same banner says nothing new", async () => {
+  it("does not nag: a later dialog cycle over the same overlay says nothing new", async () => {
     const Harness = withDialog(true);
     const { announce } = await renderWithUpdate(<Harness />);
     await announce();
@@ -144,7 +154,7 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     });
     await waitFor(() => expect(announcer()).toHaveTextContent(MESSAGE));
 
-    // The banner is standing, unchanged. Blanking the region on every dialog
+    // The overlay is standing, unchanged. Blanking the region on every dialog
     // open would make the next close re-announce it, over and over.
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Open" }));
@@ -233,8 +243,8 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     await announce();
-    // The VISIBLE banner is the role="status" here, as it always was...
-    expect(screen.getByRole("status")).toHaveClass("update-banner");
+    // The VISIBLE overlay is the role="status" here, as it always was...
+    expect(screen.getByRole("status")).toHaveClass("update-overlay");
     // ...and the offscreen region still claims nothing.
     expect(announcer()).not.toHaveAttribute("role");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -250,6 +260,6 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     });
     // Closing a dialog is not itself news.
     expect(announcer()).toHaveTextContent("");
-    expect(visibleBanner()).toBeNull();
+    expect(visibleOverlay()).toBeNull();
   });
 });

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
-import { LogOut, Menu } from "lucide-react";
+import { LogOut, Menu, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Box, BottomNavigation, BottomNavigationAction } from "@mui/material";
 import { Dialog } from "./Dialog";
 import { ThemeToggle } from "./ThemeToggle";
 import { MD_UP_QUERY } from "../lib/breakpoints";
+import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import type { NavEntry, NavGroup } from "../routes/nav";
 
 const ICON = 24;
@@ -44,6 +45,9 @@ export function BottomNav({
   const { t } = useTranslation("nav");
   const [moreOpen, setMoreOpen] = useState(false);
   const { pathname } = useLocation();
+  // #936 — see AppLayout.tsx's own comment: same shared store, same
+  // dismissed-but-still-waiting visibility rule.
+  const updateWaiting = useIsUpdateWaiting();
 
   // Same route-match rule the sidebar uses (AppLayout.tsx's `matches`): exact
   // for an `end` entry, a prefix match otherwise.
@@ -134,6 +138,11 @@ export function BottomNav({
         </nav>
         <div className="more-foot">
           <ThemeToggle iconSize={ICON} />
+          {updateWaiting && (
+            <button className="link" onClick={() => { setMoreOpen(false); reopenUpdate(); }}>
+              <RefreshCw size={ICON} strokeWidth={1.5} aria-hidden /><span>{t("updateAvailableAction")}</span>
+            </button>
+          )}
           <button className="link" onClick={() => { setMoreOpen(false); onLogout(); }}>
             <LogOut size={ICON} strokeWidth={1.5} aria-hidden /><span>{t("signOut")}</span>
           </button>

@@ -58,7 +58,7 @@ const consultedDynamicValues = new Set<string>();
 const nonStyleClassHooks = new Set([
   "brand-mark", "brand-splash-continue", "busy-label", "choice-set", "dash-sales-list", "day-none",
   "day-recorded", "day-unrecorded", "dialog-backdrop", "entry-actions", "field", "hint", "more-group",
-  "named-picker-retry", "named-picker-trigger", "numfield", "numfield-step-unit", "spinner", "update-banner",
+  "named-picker-retry", "named-picker-trigger", "numfield", "numfield-step-unit", "spinner",
 ]);
 
 function field(node: AstNode, name: string): AstNode {
