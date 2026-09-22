@@ -214,6 +214,53 @@ describe("FlocksPage selected-record inspector (#908)", () => {
     await waitFor(() => expect(mockArchive).toHaveBeenCalled());
   });
 
+  // #939 codex review — a stale selectedId must not resurface as "selected"
+  // once its row becomes visible again with no new choice from the user.
+  it("does not let a hidden-then-reshown archived flock resurface as selected", async () => {
+    await renderReady(ADMIN, [ACTIVE, ARCHIVED]);
+    const toggle = screen.getByRole("checkbox");
+    fireEvent.click(toggle); // show archived
+    const archivedRow = await screen.findByRole("row", { name: /Old Coop/ });
+    fireEvent.click(archivedRow);
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect(within(inspector).getByRole("heading", { name: "Old Coop" })).toBeInTheDocument();
+
+    fireEvent.click(toggle); // hide archived again (the row leaves `visible`)
+    fireEvent.click(toggle); // show archived again — no new click on the row itself
+
+    // Without clearing the stale id, this row comes back marked selected and
+    // the inspector shows its data again with no new choice from the user.
+    const resurfacedRow = await screen.findByRole("row", { name: /Old Coop/ });
+    expect(resurfacedRow).toHaveAttribute("aria-selected", "false");
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+  });
+
+  it("does not let a selected flock resurface as selected after being archived and reshown", async () => {
+    // A second, still-visible flock (Depleted, not filtered by showArchived)
+    // keeps the inspector region itself on screen after the write, so this
+    // is about the stale selection, not the whole list emptying out.
+    mockArchive.mockResolvedValue(undefined);
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+    fireEvent.click(screen.getByRole("row", { name: /Hen House 1/ }));
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect(within(inspector).getByRole("heading", { name: "Hen House 1" })).toBeInTheDocument();
+
+    // The post-write refresh (commit) reloads the list; the flock now comes
+    // back Archived, and showArchived is still false, so the row disappears.
+    mockListFlocks.mockResolvedValue([{ ...ACTIVE, status: "Archived" }, DEPLETED]);
+    fireEvent.click(within(inspector).getByRole("button", { name: "archive" }));
+    await answer("Archive flock");
+    await waitFor(() => expect(mockArchive).toHaveBeenCalled());
+    await waitFor(() => expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument());
+
+    // Reshow archived rows — no new click on the row itself. Without clearing
+    // the stale id, it comes back marked selected.
+    fireEvent.click(await screen.findByRole("checkbox"));
+    const resurfacedRow = await screen.findByRole("row", { name: /Hen House 1/ });
+    expect(resurfacedRow).toHaveAttribute("aria-selected", "false");
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+  });
+
   it("does not select the row when opening its bird ledger", async () => {
     await renderReady(ADMIN, [ACTIVE]);
     const row = screen.getByRole("row", { name: /Hen House 1/ });

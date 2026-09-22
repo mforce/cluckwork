@@ -17,7 +17,7 @@ import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import {
   CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
-  selectableRowProps,
+  selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -67,6 +67,12 @@ export function FlocksPage() {
   const [showArchived, setShowArchived] = useState(false);
   // #908 — the bottom inspector's selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // #939 codex review — clears the selection if the row it names leaves the
+  // visible set (the archived-filter toggle, or an archive/reactivate write).
+  useClampSelection(
+    (flocks ?? []).filter((f) => showArchived || f.status !== "Archived").map((f) => f.id),
+    selectedId, setSelectedId,
+  );
   // #703 — the flight guard (#236), the per-place message slots (#479) and the
   // dialog-session generation (#477 part 2) come from one shared hook; this
   // screen keeps only its idempotency-key and refresh discipline below, and

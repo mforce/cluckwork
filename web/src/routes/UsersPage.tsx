@@ -14,7 +14,7 @@ import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import {
   CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
-  selectableRowProps,
+  selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { FlockPicker } from "../components/FlockPicker";
@@ -54,6 +54,10 @@ export function UsersPage() {
   const [users, setUsers] = useState<User[] | null>(null);
   // #908 — the bottom inspector's selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // #939 codex review — clears the selection if the row it names ever leaves
+  // the roster (this screen never removes a user today, but the same shape
+  // is wired uniformly across all five setup lists).
+  useClampSelection(users?.map((u) => u.id) ?? [], selectedId, setSelectedId);
   // #703 — the flight guard (#236), the per-place message slots (#479: the
   // page, and each dialog by its own name) and the dialog-session generation
   // (#477 part 2) come from one shared hook. Pending scopes stay per record —

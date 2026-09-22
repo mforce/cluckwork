@@ -18,7 +18,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import {
   CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
-  selectableRowProps,
+  selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -65,6 +65,11 @@ export function ProductsPage() {
   const [tab, setTab] = useState<"products" | "packedUnits">("products");
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+  // #939 codex review — clears each tab's selection if the row it names ever
+  // leaves its catalog (neither tab removes a row today, but the same shape
+  // is wired uniformly across all five setup lists).
+  useClampSelection(products?.map((p) => p.id) ?? [], selectedProductId, setSelectedProductId);
+  useClampSelection(conversions.map((c) => c.id), selectedConvId, setSelectedConvId);
   // #703 — the flight guard (#236), the per-place message slots (#479) and the
   // dialog-session generation (#477 part 2) come from one shared hook; this
   // screen keeps only its idempotency-key and refresh discipline below, and
