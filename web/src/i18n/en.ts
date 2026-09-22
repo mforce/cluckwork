@@ -1387,6 +1387,8 @@ export const en = {
   // dialog's title).
   products: {
     title: "Products",
+    entitySingular: "Product",
+    packedUnitEntitySingular: "Packed unit",
 
     // Imperative messages (the mount-effect catch, and the price parser's
     // thrown errors — caught inside the create/edit submit handlers — see

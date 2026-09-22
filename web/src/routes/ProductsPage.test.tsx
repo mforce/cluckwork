@@ -148,12 +148,79 @@ describe("ProductsPage loading + display", () => {
   });
 });
 
+// #908 — Products stays one route with two explicit tabs (Products first,
+// Packed units second), each with the table-plus-bottom-inspector layout.
+describe("ProductsPage tabs + selected-record inspector (#908)", () => {
+  it("opens on the Products tab, with Packed units present but hidden", async () => {
+    await renderReady(ADMIN);
+    expect(screen.getByRole("tab", { name: "Products", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /Grade A Dozen/ })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /Carton/, hidden: true })).not.toBeVisible();
+  });
+
+  it("switches to Packed units and shows its own table, hiding Products", async () => {
+    await renderReady(ADMIN);
+    switchToPackedUnits();
+    expect(screen.getByRole("tab", { name: "Packed units", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /Carton/ })).toBeVisible();
+    expect(screen.getByRole("row", { name: /Grade A Dozen/, hidden: true })).not.toBeVisible();
+  });
+
+  it("shows a prompt before any product row is selected, then fills in on click", async () => {
+    await renderReady(ADMIN);
+    const inspector = screen.getByRole("region", { name: "Product details" });
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+
+    const row = screen.getByRole("row", { name: /Grade A Dozen/ });
+    fireEvent.click(row);
+
+    expect(row).toHaveAttribute("aria-selected", "true");
+    expect(within(inspector).getByRole("heading", { name: "Grade A Dozen" })).toBeInTheDocument();
+    expect(within(inspector).getByText("Grade A")).toBeInTheDocument();
+    expect(within(inspector).getByText("KWD 0.500")).toBeInTheDocument();
+  });
+
+  it("opens the same edit-product dialog from the inspector's own action", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("row", { name: /Grade A Dozen/ }));
+    const inspector = screen.getByRole("region", { name: "Product details" });
+    fireEvent.click(within(inspector).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Grade A Dozen");
+  });
+
+  it("keeps Products and Packed units selections independent across a tab switch", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("row", { name: /Grade A Dozen/ }));
+    switchToPackedUnits();
+    const packedInspector = screen.getByRole("region", { name: "Packed unit details" });
+    expect(within(packedInspector).getByText("Select a row to see its details")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("row", { name: /Carton/ }));
+    expect(within(packedInspector).getByRole("heading", { name: "Carton" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Products" }));
+    const productInspector = screen.getByRole("region", { name: "Product details" });
+    expect(within(productInspector).getByRole("heading", { name: "Grade A Dozen" })).toBeInTheDocument();
+  });
+
+  it("shows the Individual unit's fixed message in its inspector too, with no edit action", async () => {
+    await renderReady(ADMIN);
+    switchToPackedUnits();
+    fireEvent.click(screen.getByRole("row", { name: /Individual/ }));
+    const inspector = screen.getByRole("region", { name: "Packed unit details" });
+    expect(within(inspector).getByText("always 1")).toBeInTheDocument();
+    expect(within(inspector).queryByRole("button", { name: "edit" })).not.toBeInTheDocument();
+  });
+});
+
 // F131: create/edit moved into dialogs — open first, same assertions after.
 // hidden: true is a no-op when nothing else is open, and load-bearing right
 // after a Cancel/close whose exit transition is still settling — the trigger
 // stays under MUI's aria-hidden sweep until the dialog actually unmounts.
 const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New product", hidden: true }));
 const dialog = () => screen.getByRole("dialog");
+// #908 — Packed units is its own tab now; its rows are hidden until selected.
+const switchToPackedUnits = () => fireEvent.click(screen.getByRole("tab", { name: "Packed units" }));
 const submitCreate = async () => {
   await act(async () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "Add product" }));
@@ -300,6 +367,7 @@ describe("ProductsPage edit", () => {
 describe("ProductsPage packed-unit conversions", () => {
   it("shows a fixed '1' with no edit for the Individual unit", async () => {
     await renderReady(ADMIN);
+    switchToPackedUnits();
     const rowInd = screen.getByRole("row", { name: /Individual/ });
     expect(within(rowInd).getByText("always 1")).toBeInTheDocument();
     expect(within(rowInd).queryByRole("button", { name: "edit" })).not.toBeInTheDocument();
@@ -308,6 +376,7 @@ describe("ProductsPage packed-unit conversions", () => {
   it("saves an edited conversion with the new eggs-per-unit and active flag", async () => {
     mockUpdateConversion.mockResolvedValue(undefined);
     await renderReady(ADMIN);
+    switchToPackedUnits();
 
     const rowCarton = screen.getByRole("row", { name: /Carton/ });
     fireEvent.click(within(rowCarton).getByRole("button", { name: "edit" }));
@@ -369,6 +438,7 @@ describe("ProductsPage dialog dismissal", () => {
 
   it("closes the packed-unit dialog on Cancel without writing", async () => {
     await renderReady(ADMIN);
+    switchToPackedUnits();
     fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
@@ -413,6 +483,7 @@ describe("ProductsPage error placement (#479)", () => {
   it("shows a failed conversion save inside the dialog, not on the page behind it", async () => {
     mockUpdateConversion.mockRejectedValue(new ApiError(500, "Server error", "boom"));
     await renderReady(ADMIN);
+    switchToPackedUnits();
     fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
@@ -457,6 +528,7 @@ describe("ProductsPage error placement (#479)", () => {
     mockListConversions.mockResolvedValue([CONV_INDIVIDUAL, CONV_CARTON, CONV_FLAT]);
     mockUpdateConversion.mockRejectedValue(new ApiError(500, "Server error", "boom"));
     await renderReady(ADMIN);
+    switchToPackedUnits();
     fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
@@ -591,6 +663,7 @@ describe("ProductsPage i18n wiring (#182, Task 17)", () => {
   it("interpolates the conversion's unitCode into the packed-unit dialog title from the catalog", async () => {
     await withOverride("products", "eggsPerUnit", "EGGS-MARKER {{unitCode}} END", async () => {
       await renderReady(ADMIN);
+      switchToPackedUnits();
       fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
       expect(dialog()).toHaveAccessibleName("EGGS-MARKER Carton END");
     });
@@ -606,6 +679,7 @@ describe("ProductsPage i18n wiring (#182, Task 17)", () => {
       expect(within(productRow).getByText("ACTIVE-MARKER")).toBeInTheDocument();
       expect(within(productRow).queryByText("Active")).not.toBeInTheDocument();
 
+      switchToPackedUnits();
       const convRow = screen.getByRole("row", { name: /Carton/ });
       expect(within(convRow).getByText("ACTIVE-MARKER")).toBeInTheDocument();
       expect(within(convRow).queryByText("Active")).not.toBeInTheDocument();
@@ -640,6 +714,7 @@ describe("ProductsPage i18n wiring (#182, Task 17)", () => {
   it("reads the fixed-Individual-unit message from the catalog, not a hardcoded literal", async () => {
     await withOverride("products", "alwaysOneMessage", "ALWAYS-ONE-MARKER", async () => {
       await renderReady(ADMIN);
+      switchToPackedUnits();
       const rowInd = screen.getByRole("row", { name: /Individual/ });
       expect(within(rowInd).getByText("ALWAYS-ONE-MARKER")).toBeInTheDocument();
       expect(within(rowInd).queryByText("always 1")).not.toBeInTheDocument();
@@ -815,6 +890,7 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
   it("a successful conversion edit closes its dialog and refreshes the catalog (edit-conversion's superseded case is unreachable — see comment)", async () => {
     mockUpdateConversion.mockResolvedValueOnce(undefined);
     await renderReady(ADMIN);
+    switchToPackedUnits();
     fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
     fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Eggs per unit" }), { target: { value: "18" } });
     await act(async () => {

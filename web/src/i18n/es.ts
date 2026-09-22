@@ -1007,6 +1007,8 @@ export const es = {
   // raw — never routed through the catalog.
   products: {
     title: "Productos",
+    entitySingular: "Producto",
+    packedUnitEntitySingular: "Unidad empacada",
 
     // Imperative messages
     loadCatalogFailed: "No se pudo cargar el catálogo. ¿Está la API activa?",

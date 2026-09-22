@@ -1046,6 +1046,8 @@ export const tl = {
   // sales.reference above) — flag for native review.
   products: {
     title: "Mga Produkto",
+    entitySingular: "Produkto",
+    packedUnitEntitySingular: "Nakapaketeng yunit",
 
     // Imperative messages
     loadCatalogFailed: "Hindi na-load ang catalog. Gumagana ba ang API?",

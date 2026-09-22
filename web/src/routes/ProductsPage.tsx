@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Package, Plus } from "lucide-react";
 import {
-  Box, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
+  Box, Checkbox, DialogActions, FormControlLabel, Stack, Tab, Table, TableBody, TableCell, Tabs,
   TableHead, TableRow, TextField, Tooltip,
 } from "@mui/material";
 import {
@@ -16,7 +16,10 @@ import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
-import { CONSOLE_LINK_SX } from "../components/FieldConsole";
+import {
+  CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
+  selectableRowProps,
+} from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
@@ -57,6 +60,11 @@ export function ProductsPage() {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [grades, setGrades] = useState<EggGrade[]>([]);
   const [conversions, setConversions] = useState<EggUnitConversion[]>([]);
+  // #908 — Products stays one route with two explicit tabs, both using the
+  // table+inspector layout; each tab keeps its own selection.
+  const [tab, setTab] = useState<"products" | "packedUnits">("products");
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   // #703 — the flight guard (#236), the per-place message slots (#479) and the
   // dialog-session generation (#477 part 2) come from one shared hook; this
   // screen keeps only its idempotency-key and refresh discipline below, and
@@ -291,22 +299,63 @@ export function ProductsPage() {
 
   const editingProduct = products.find((p) => p.id === editingId) ?? null;
   const editingConv = conversions.find((c) => c.id === editingConvId) ?? null;
+  const selectedProduct = products.find((p) => p.id === selectedProductId) ?? null;
+  const selectedConv = conversions.find((c) => c.id === selectedConvId) ?? null;
+
+  // #908 — shared between the row's own Actions cell and the inspector's
+  // actions, so both call sites stay one implementation.
+  function renderProductActions(p: Product) {
+    return (
+      <>
+        <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
+        {p.active ? (
+          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
+            onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
+            {t("deactivateButton")}
+          </BusyButton>
+        ) : (
+          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`act:${p.id}`)}
+            onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
+            {t("activateButton")}
+          </BusyButton>
+        )}
+      </>
+    );
+  }
+
+  function renderConversionActions(c: EggUnitConversion) {
+    return c.unitCode === "Individual" ? (
+      <span className="muted">{t("alwaysOneMessage")}</span>
+    ) : (
+      <button className="link" disabled={busy} onClick={() => startEditConversion(c)}>{t("editButton")}</button>
+    );
+  }
 
   return (
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
         {/* #655 — withheld while the empty state below is offering this exact
-            same action, so there is one "New product" button on screen. */}
-        {isAdmin && products.length > 0 && (
+            same action, so there is one "New product" button on screen.
+            #908 — Packed units has no create action of its own, so this only
+            ever appears on the Products tab. */}
+        {tab === "products" && isAdmin && products.length > 0 && (
           <button type="button" onClick={() => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newProductButton")}
           </button>
         )}
       </div>
       <p className="muted">
-        {t("intro")}
+        {tab === "products" ? t("intro") : t("packedUnitsIntro")}
       </p>
+
+      {/* #908 — Concept B: Products stays one route with Products first,
+          Packed units second, both using the same table+inspector layout. */}
+      <Tabs value={tab} onChange={(_, value: "products" | "packedUnits") => setTab(value)}
+        aria-label={t("title")} sx={{ borderBottom: "1px solid var(--rule)", mb: 2 }}>
+        <Tab id="products-tab" aria-controls="products-tabpanel" value="products" label={t("title")} />
+        <Tab id="packed-units-tab" aria-controls="packed-units-tabpanel" value="packedUnits" label={t("packedUnitsHeading")} />
+      </Tabs>
 
       {/* #479 — unconditional: each dialog now renders its own failure through
           its own slot (DialogError below), so nothing here can be a stale copy
@@ -460,100 +509,126 @@ export function ProductsPage() {
         </Stack>
       </Dialog>
 
-      {products.length === 0 ? (
-        <EmptyState icon={Package} message={t("noProductsMessage")}
-          action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); } } : undefined} />
-      ) : (
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>{t("nameHeader")}</TableCell>
-                <TableCell>{t("gradeHeader")}</TableCell>
-                <TableCell>{t("soldPerHeader")}</TableCell>
-                <TableCell align="right">{t("defaultPriceHeader")}</TableCell>
-                <TableCell>{t("statusHeader")}</TableCell>
-                {isAdmin && <TableCell>{tc("actions")}</TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {products.map((p) => (
-                <TableRow key={p.id} className={p.active ? undefined : "muted"}>
-                  <TableCell sx={NOWRAP}>
-                    {/* The Tooltip trigger is this leaf span, not the
-                        TableCell itself. */}
-                    <Tooltip title={p.notes ?? undefined} describeChild>
-                      <Box component="span">{p.name}</Box>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell sx={NOWRAP}>{gradeName(p.eggGradeId)}</TableCell>
-                  <TableCell sx={NOWRAP}>{p.defaultUnit}</TableCell>
-                  <TableCell align="right" sx={NOWRAP}>{p.defaultPriceMinorUnits === null
-                    ? "—"
-                    : fmt.money(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</TableCell>
-                  <TableCell sx={NOWRAP}><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></TableCell>
-                  {isAdmin && (
-                    <TableCell sx={NOWRAP}>
-                      <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                        <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
-                        {p.active ? (
-                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
-                            onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
-                            {t("deactivateButton")}
-                          </BusyButton>
-                        ) : (
-                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`act:${p.id}`)}
-                            onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
-                            {t("activateButton")}
-                          </BusyButton>
+      <Box role="tabpanel" id="products-tabpanel" aria-labelledby="products-tab" hidden={tab !== "products"}>
+        {products.length === 0 ? (
+          <EmptyState icon={Package} message={t("noProductsMessage")}
+            action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); } } : undefined} />
+        ) : (
+          <ListInspectorPane
+            table={(
+              <LedgerTableContainer scrollHint="columnsAndRows">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>
+                      <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("gradeHeader")}</TableCell>
+                      <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("soldPerHeader")}</TableCell>
+                      <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("defaultPriceHeader")}</TableCell>
+                      <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
+                      {isAdmin && <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("actions")}</TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {products.map((p) => (
+                      <TableRow key={p.id} className={p.active ? undefined : "muted"}
+                        {...selectableRowProps(p.id === selectedProductId, () => setSelectedProductId(p.id))}>
+                        <TableCell sx={NOWRAP}>
+                          {/* The Tooltip trigger is this leaf span, not the
+                              TableCell itself. */}
+                          <Tooltip title={p.notes ?? undefined} describeChild>
+                            <Box component="span">{p.name}</Box>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={NOWRAP}>{gradeName(p.eggGradeId)}</TableCell>
+                        <TableCell sx={NOWRAP}>{p.defaultUnit}</TableCell>
+                        <TableCell align="right" sx={NOWRAP}>{p.defaultPriceMinorUnits === null
+                          ? "—"
+                          : fmt.money(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</TableCell>
+                        <TableCell sx={NOWRAP}><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></TableCell>
+                        {isAdmin && (
+                          <TableCell sx={NOWRAP}>
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                              {renderProductActions(p)}
+                            </Stack>
+                          </TableCell>
                         )}
-                      </Stack>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-
-      <h3>{t("packedUnitsHeading")}</h3>
-      <p className="muted">
-        {t("packedUnitsIntro")}
-      </p>
-      <TableContainer>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{t("unitHeader")}</TableCell>
-              <TableCell align="right">{t("eggsPerUnitHeader")}</TableCell>
-              <TableCell>{t("statusHeader")}</TableCell>
-              {isAdmin && <TableCell>{tc("actions")}</TableCell>}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {conversions.map((c) => (
-              <TableRow key={c.id} className={c.active ? undefined : "muted"}>
-                <TableCell sx={NOWRAP}>{c.unitCode}</TableCell>
-                <TableCell align="right" sx={NOWRAP}>{fmt.count(c.eggsPerUnit)}</TableCell>
-                <TableCell sx={NOWRAP}>{statusLabel(c.active ? "Active" : "Inactive")}</TableCell>
-                {isAdmin && (
-                  <TableCell sx={NOWRAP}>
-                    {c.unitCode === "Individual" ? (
-                      <span className="muted">{t("alwaysOneMessage")}</span>
-                    ) : (
-                      <button className="link" disabled={busy}
-                        onClick={() => startEditConversion(c)}>
-                        {t("editButton")}
-                      </button>
-                    )}
-                  </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </LedgerTableContainer>
+            )}
+            inspector={(
+              <RecordInspector
+                ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
+                eyebrow={selectedProduct ? t("entitySingular") : undefined}
+                title={selectedProduct?.name}
+                subtitle={selectedProduct ? gradeName(selectedProduct.eggGradeId) : undefined}
+                emptyMessage={tc("inspectorEmptyPrompt")}
+                fields={selectedProduct ? [
+                  { label: t("soldPerHeader"), value: selectedProduct.defaultUnit },
+                  {
+                    label: t("defaultPriceHeader"),
+                    value: selectedProduct.defaultPriceMinorUnits === null
+                      ? "—"
+                      : fmt.money(selectedProduct.defaultPriceMinorUnits, selectedProduct.currencyCode, selectedProduct.currencyMinorUnit),
+                  },
+                  { label: t("statusHeader"), value: <StatusBadge status={selectedProduct.active ? "Active" : "Inactive"} label={statusLabel(selectedProduct.active ? "Active" : "Inactive")} /> },
+                  ...(selectedProduct.notes ? [{ label: t("notesLabel"), value: selectedProduct.notes }] : []),
+                ] : undefined}
+                actions={isAdmin && selectedProduct && (
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+                    {renderProductActions(selectedProduct)}
+                  </Stack>
                 )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              />
+            )}
+          />
+        )}
+      </Box>
+
+      <Box role="tabpanel" id="packed-units-tabpanel" aria-labelledby="packed-units-tab" hidden={tab !== "packedUnits"}>
+        <ListInspectorPane
+          table={(
+            <LedgerTableContainer scrollHint="columnsAndRows">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("unitHeader")}</TableCell>
+                    <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("eggsPerUnitHeader")}</TableCell>
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
+                    {isAdmin && <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("actions")}</TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {conversions.map((c) => (
+                    <TableRow key={c.id} className={c.active ? undefined : "muted"}
+                      {...selectableRowProps(c.id === selectedConvId, () => setSelectedConvId(c.id))}>
+                      <TableCell sx={NOWRAP}>{c.unitCode}</TableCell>
+                      <TableCell align="right" sx={NOWRAP}>{fmt.count(c.eggsPerUnit)}</TableCell>
+                      <TableCell sx={NOWRAP}>{statusLabel(c.active ? "Active" : "Inactive")}</TableCell>
+                      {isAdmin && <TableCell sx={NOWRAP}>{renderConversionActions(c)}</TableCell>}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </LedgerTableContainer>
+          )}
+          inspector={(
+            <RecordInspector
+              ariaLabel={tc("inspectorLabel", { entity: t("packedUnitEntitySingular") })}
+              eyebrow={selectedConv ? t("packedUnitEntitySingular") : undefined}
+              title={selectedConv?.unitCode}
+              emptyMessage={tc("inspectorEmptyPrompt")}
+              fields={selectedConv ? [
+                { label: t("eggsPerUnitHeader"), value: fmt.count(selectedConv.eggsPerUnit) },
+                { label: t("statusHeader"), value: statusLabel(selectedConv.active ? "Active" : "Inactive") },
+              ] : undefined}
+              actions={isAdmin && selectedConv && renderConversionActions(selectedConv)}
+            />
+          )}
+        />
+      </Box>
     </section>
   );
 }
