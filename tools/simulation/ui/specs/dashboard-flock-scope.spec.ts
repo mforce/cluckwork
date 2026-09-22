@@ -335,29 +335,60 @@ test.describe("Dashboard Lay rate flock scope", () => {
     expect(doc.scrollWidth, "the page scrolls sideways while the picker is open and filtered").toBeLessThanOrEqual(doc.clientWidth + 1);
   });
 
-  // #937 — nothing follows the picker in this dialog, so unlike every other
-  // FlockPicker-in-Dialog caller (sibling fields give THEIR dialogs natural
-  // height), Paper's default `overflow-y: auto` clipped the non-portaled
-  // results popover and forced a scroll on the dialog itself. Left unfiltered
-  // on open, against the fixture's ~100-flock catalog, so the popover is
-  // tall enough to hit the clip if it regresses.
-  test("the picker dialog does not need to scroll to show its own results popover", async ({ page, signIn }) => {
+  // #937 — Dashboard.tsx reserves real height so Paper's box already fits
+  // the results popover, rather than disabling the clip (which changes what
+  // Popper's `flip` modifier reads as available space and can flip the
+  // popover above the search field, over the title — checked directly via
+  // placement/position, not inferred from the absence of clipping). The
+  // listbox itself is capped at ~6 rows (styles.css), well under MUI's 40vh
+  // default, so the modal stays compact and only the listbox scrolls. Left
+  // unfiltered on open, against the fixture's ~100-flock catalog, so there
+  // are enough rows to force that internal scroll.
+  test("the picker dialog itself does not scroll, and the results popover opens below the search field, not over the title", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");
     await openPicker(page);
-    await expect(resultsList(page).getByRole("option").first()).toBeVisible();
+    const listbox = resultsList(page);
+    await expect(listbox.getByRole("option").first()).toBeVisible();
 
     const panel = page.locator(".dialog");
-    const box = await panel.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
-    expect(box.scrollHeight, "the dialog panel itself scrolls to reveal the results popover")
-      .toBeLessThanOrEqual(box.clientHeight + 1);
+    expect(await panel.evaluate((el) => el.scrollTop), "the dialog panel should not be scrolled to begin with").toBe(0);
+    const listboxHeight = (await listbox.boundingBox())!.height;
+    expect(listboxHeight, `the results listbox is ${listboxHeight}px tall, taller than the ~6-row cap`).toBeLessThanOrEqual(240);
 
-    // The listbox's own bottom-most visible option should be inside the
-    // dialog's painted box, not clipped past it.
-    const lastOptionBottom = await resultsList(page).getByRole("option").last().evaluate((el) => el.getBoundingClientRect().bottom);
-    const panelBottom = await panel.evaluate((el) => el.getBoundingClientRect().bottom);
-    expect(lastOptionBottom, "the last visible option sits below the dialog panel's own bottom edge")
-      .toBeLessThanOrEqual(panelBottom + 1);
+    const popper = page.locator(".MuiAutocomplete-popper");
+    await expect(popper, "the popper flipped to open upward instead of below the search field")
+      .toHaveAttribute("data-popper-placement", /^bottom/);
+    const [popperBox, inputBox, titleBox] = await Promise.all([
+      popper.boundingBox(),
+      searchField(page).boundingBox(),
+      pickerDialog(page).locator(".MuiDialogTitle-root").boundingBox(),
+    ]);
+    expect(popperBox!.y, "the results popover renders above the search field").toBeGreaterThanOrEqual(inputBox!.y);
+    expect(popperBox!.y, "the results popover covers the dialog title").toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height);
+
+    const firstOption = listbox.getByRole("option").first();
+    const lastOption = listbox.getByRole("option").last();
+    // Playwright's own actionability check scrolls whatever scrollable
+    // ancestor is needed to bring the target into view before interacting.
+    await lastOption.scrollIntoViewIfNeeded();
+
+    expect(await panel.evaluate((el) => el.scrollTop), "the dialog panel scrolled to reveal a far-down option").toBe(0);
+    const listboxScroll = await listbox.evaluate((el) => ({ top: el.scrollTop, height: el.scrollHeight, client: el.clientHeight }));
+    expect(listboxScroll.top, "the results listbox itself should have scrolled to reach the last option").toBeGreaterThan(0);
+    // Genuinely scrolled to the bottom, not just partway — and the row that
+    // used to be on screen is now actually gone, not merely a passing
+    // boundingBox reading against a CSS max-height that never scrolled.
+    expect(listboxScroll.top + listboxScroll.client, "the listbox did not scroll all the way to its last row")
+      .toBeGreaterThanOrEqual(listboxScroll.height - 1);
+    await expect(firstOption, "the first option is still on screen after scrolling to the last one").not.toBeInViewport();
+
+    // Genuinely visible and hit-testable, not merely present under a clip.
+    await expect(lastOption).toBeVisible();
+    const flockName = (await lastOption.textContent())!.trim();
+    await lastOption.click();
+    await expect(pickerDialog(page)).not.toBeVisible();
+    await expect(selectorButton(page)).toHaveAccessibleName(`${tEn("dashboard:flockScopeLabel")} ${flockName}`);
   });
 
   test("one accessible flock: its name, with no scope control at all", async ({ page, signIn }) => {

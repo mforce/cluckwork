@@ -576,10 +576,19 @@ export function Dashboard() {
                       padding. Scoped to `md`: below it Dialog.tsx already
                       sets an explicit phone width.
 
-                      #937 — `dashboard-flock-picker` (styles.css) turns off
-                      this dialog's default overflow clip; see that rule for
-                      why. */}
-                  <Box className="dashboard-flock-picker" sx={{ minWidth: { md: "27rem" } }}>
+                      #937 — nothing follows the picker, so Paper's real
+                      height was just the 44px search row and MUI clipped
+                      the results popover (`position: absolute`, out of
+                      flow). Reserve height instead of disabling the clip:
+                      `overflow: visible` also changes what Popper's `flip`
+                      modifier reads as available space, flipping the
+                      popover above the search field. `dashboard-flock-
+                      picker` (styles.css) caps the listbox at ~6 rows
+                      instead of MUI's 40vh default, so the modal stays
+                      compact and only the listbox itself scrolls; 22.5rem
+                      matches that cap plus the pinned choice button, the
+                      meta/footer row and the search row itself. */}
+                  <Box className="dashboard-flock-picker" sx={{ minWidth: { md: "27rem" }, minHeight: "22.5rem" }}>
                     <FlockPicker
                       label={t("searchAccessibleFlocksLabel")}
                       eligibility="active-and-depleted"
