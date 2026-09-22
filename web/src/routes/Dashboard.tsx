@@ -566,29 +566,53 @@ export function Dashboard() {
                       Clear link (previously dead code) — left unwired it
                       would blank the engine's selection without touching
                       `scope`, reopening a version of this same desync. */}
-                  <FlockPicker
-                    label={t("searchAccessibleFlocksLabel")}
-                    eligibility="active-and-depleted"
-                    required={false}
-                    open={pickerOpen}
-                    onEscape={() => {}}
-                    onOutsideClick={() => {}}
-                    controlledCommitted={scope.kind === "flock" ? scope.flock : null}
-                    controlledGeneration={1}
-                    onCommit={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
-                    onClear={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
-                    pinnedChoice={
-                      <Button
-                        fullWidth
-                        onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
-                        aria-pressed={scope.kind === "all"}
-                        sx={{ justifyContent: "space-between", textTransform: "none", mx: 2, mt: 1, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
-                      >
-                        <span>{t("allFlocksOption")}</span>
-                        <Typography component="span" variant="caption" color="text.secondary">{accessibleCountLabel}</Typography>
-                      </Button>
-                    }
-                  />
+                  {/* #935 — Dialog's Paper has no width on desktop, only a
+                      maxWidth, so it shrink-wraps to content; this is the
+                      only FlockPicker caller outside a `.form-grid`, so
+                      `.dialog .form-grid .named-picker { width: 100% }`
+                      never reaches it. A percentage width wouldn't widen a
+                      shrink-to-fit ancestor either — `min-width` does. 27rem
+                      is the 30rem cap minus DialogContent's 24px each-side
+                      padding. Scoped to `md`: below it Dialog.tsx already
+                      sets an explicit phone width.
+
+                      #937 — nothing follows the picker, so Paper's real
+                      height was just the 44px search row and MUI clipped
+                      the results popover (`position: absolute`, out of
+                      flow). Reserve height instead of disabling the clip:
+                      `overflow: visible` also changes what Popper's `flip`
+                      modifier reads as available space, flipping the
+                      popover above the search field. `dashboard-flock-
+                      picker` (styles.css) caps the listbox at ~6 rows
+                      instead of MUI's 40vh default, so the modal stays
+                      compact and only the listbox itself scrolls; 22.5rem
+                      matches that cap plus the pinned choice button, the
+                      meta/footer row and the search row itself. */}
+                  <Box className="dashboard-flock-picker" sx={{ minWidth: { md: "27rem" }, minHeight: "22.5rem" }}>
+                    <FlockPicker
+                      label={t("searchAccessibleFlocksLabel")}
+                      eligibility="active-and-depleted"
+                      required={false}
+                      open={pickerOpen}
+                      onEscape={() => {}}
+                      onOutsideClick={() => {}}
+                      controlledCommitted={scope.kind === "flock" ? scope.flock : null}
+                      controlledGeneration={1}
+                      onCommit={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
+                      onClear={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                      pinnedChoice={
+                        <Button
+                          fullWidth
+                          onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                          aria-pressed={scope.kind === "all"}
+                          sx={{ justifyContent: "space-between", textTransform: "none", mx: 2, mt: 1, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
+                        >
+                          <span>{t("allFlocksOption")}</span>
+                          <Typography component="span" variant="caption" color="text.secondary">{accessibleCountLabel}</Typography>
+                        </Button>
+                      }
+                    />
+                  </Box>
                 </Dialog>
               )}
             </>

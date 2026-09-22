@@ -2655,6 +2655,15 @@ dl.mistakes {
   width: 100%;
 }
 
+/* #937 — Dashboard's Choose-flock dialog is the picker's sole content, so
+   MUI's default 40vh listbox cap made the whole modal tall; ~6 rows (36px
+   MUI option height) keeps it compact while the listbox still scrolls on
+   its own for the rest. Scoped to `dashboard-flock-picker` (Dashboard.tsx)
+   so every other FlockPicker/CustomerPicker caller keeps the 40vh default. */
+.dashboard-flock-picker .MuiAutocomplete-listbox {
+  max-height: 13.5rem;
+}
+
 /* Clear button (optional pickers only). */
 .named-picker-clear {
   font-size: 0.82rem;
