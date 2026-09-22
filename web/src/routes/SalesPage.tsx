@@ -15,6 +15,7 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { CONSOLE_LINK_SX } from "../components/FieldConsole";
 import { CustomerPicker } from "../components/CustomerPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
@@ -1273,7 +1274,7 @@ export function SalesPage() {
                         <td className="num">{discountCell}</td>
                         <td className="num">—</td>
                         <td>
-                          <BusyButton variant="text" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
+                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
                             onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
                           <button className="link" onClick={() => setEditor(null)}>{t("cancelEdit")}</button>
                           {editConflict && (
@@ -1304,7 +1305,7 @@ export function SalesPage() {
                               <button className="link" disabled={busy} onClick={() => {
                                 setEditor(lineDraft(active, i));
                               }}>{t("edit")}</button>
-                              <BusyButton variant="text" disabled={busy} busy={isPending(`remove-item:${i.id}`)}
+                              <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`remove-item:${i.id}`)}
                                 onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
                             </>
                           )}
@@ -1495,7 +1496,7 @@ export function SalesPage() {
                   busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                   {t("confirmOrderButton")}
                 </BusyButton>
-                <BusyButton variant="text" disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`cancel:${active.id}`)}
                   onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
                 <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
               </div>
@@ -1513,15 +1514,13 @@ export function SalesPage() {
                     {payments.items.map((p) => (
                       <tr key={p.id} className={p.voided ? "inactive" : undefined}>
                         <td className="nowrap">
-                          {/* #828 (review) — the Tooltip trigger is this leaf
-                              span, never the `<tr>`: a table row is a
-                              structural container, not a hover target a
-                              Tooltip should clone handlers onto. describeChild:
-                              the note DESCRIBES the date, it is not the date's
-                              accessible name. Scoped to one cell (not the
-                              whole row) so its trigger area never overlaps the
-                              void-reason Tooltip below — two Tooltips sharing
-                              a trigger area would fight to open at once. */}
+                          {/* The Tooltip trigger is this leaf span, not the
+                              `<tr>`: a table row is a structural container,
+                              not a hover target. describeChild: the note
+                              DESCRIBES the date, it is not the date's
+                              accessible name. Scoped to one cell, not the
+                              whole row, so its trigger area never overlaps
+                              the void-reason Tooltip below. */}
                           <Tooltip title={p.note ?? undefined} describeChild>
                             <Box component="span"><FarmDate iso={p.paymentDate} /></Box>
                           </Tooltip>
@@ -1539,7 +1538,7 @@ export function SalesPage() {
                               </Tooltip>
                             )
                             : isAdmin ? (
-                              <BusyButton variant="text" disabled={busy} busy={isPending(`void-payment:${p.id}`)}
+                              <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`void-payment:${p.id}`)}
                                 onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
                             ) : null}
                         </td>
@@ -1630,7 +1629,7 @@ export function SalesPage() {
           {active.status !== "Draft" && (
             <div className="actions">
               {active.status === "Confirmed" && isAdmin && (
-                <BusyButton variant="text" disabled={busy} busy={isPending(`void:${active.id}`)}
+                <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`void:${active.id}`)}
                   onClick={() => void onVoid()}>
                   {t("voidOrderButton")}
                 </BusyButton>

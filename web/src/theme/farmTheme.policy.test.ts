@@ -101,9 +101,9 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  // #828 (review) — MUI's own Tooltip default is a hardcoded dark grey with
-  // no farm token behind it at all, the one float in the app that did not
-  // read from the palette. It now reads like every other float instead.
+  // MUI's own Tooltip default is a hardcoded dark grey with no farm token
+  // behind it — the one float in the app that did not read from the
+  // palette. It now reads like every other float instead.
   it("reads the Tooltip surface from the farm palette, not MUI's hardcoded grey", () => {
     for (const { label, theme, panel, dialog } of themes) {
       const tooltip = slot(theme.components?.MuiTooltip?.styleOverrides?.tooltip,

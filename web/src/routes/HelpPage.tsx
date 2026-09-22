@@ -257,12 +257,10 @@ export function HelpPage() {
           <label className="help-search-field" htmlFor={searchId}>
             <Search size={18} aria-hidden />
             <span className="sr-only">{t("searchLabel")}</span>
-            {/* #828 (review) — the shortcut hint describes the INPUT (the
-                focusable element the shortcut actually applies to), not the
-                decorative `kbd`: `kbd` is aria-hidden, so anything Tooltip
-                wired to it would be unreachable to AT regardless. `aria-
-                keyshortcuts` names the key a screen reader cannot otherwise
-                discover from the visible "/" glyph. */}
+            {/* The shortcut hint describes the INPUT (the focusable element
+                the shortcut applies to), not the decorative, aria-hidden
+                `kbd`. `aria-keyshortcuts` names the key for a screen reader,
+                which cannot read it off the visible "/" glyph. */}
             <input id={searchId} ref={searchRef} type="search" value={query} placeholder={t("searchPlaceholder")}
               autoComplete="off" onChange={(e) => setQuery(e.target.value)}
               aria-describedby={searchShortcutHintId} aria-keyshortcuts="/" />

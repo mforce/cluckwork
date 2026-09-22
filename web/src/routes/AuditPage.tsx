@@ -528,17 +528,14 @@ export function AuditPage() {
               const summaryId = `audit-event-${e.id}`;
               const actorId = `audit-event-actor-${e.id}`;
               return (
-                // #828 (review) — `aria-describedby={actorId}` stays on
-                // `<details>` (the article's own actor description, untouched).
                 // The Tooltip trigger is the leaf span inside `<summary>`, not
-                // `<details>` itself: wrapping the structural container would
-                // have let Tooltip's own `aria-describedby` collide with the
-                // one already declared there — React's prop merge lets the
-                // OUTER element's own JSX props win, so the JSON description
-                // would have been silently dropped. Scoping to this span gives
-                // it a real, working association of its own. `|| undefined`
-                // (not `??`) also omits the attribute for an empty string, not
-                // only for null.
+                // `<details>`: `<details>` already declares its own
+                // `aria-describedby={actorId}` (the article's actor
+                // description), and JSX prop merge lets the outer element's
+                // own props win, so a Tooltip on `<details>` would silently
+                // drop the JSON description instead of combining with it.
+                // `|| undefined` (not `??`) also omits the attribute for an
+                // empty string, not only for null.
                 <details
                   key={e.id}
                   className="audit-event"

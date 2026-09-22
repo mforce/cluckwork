@@ -14,6 +14,7 @@ import type { EggGrade } from "../api/cluckwork";
 import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { CONSOLE_LINK_SX } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { ProvenanceCell } from "../components/ProvenanceCell";
@@ -303,12 +304,12 @@ export function GradesPage() {
                         <button className="link" disabled={busy}
                           onClick={() => startEdit(g)}>{t("editButton")}</button>
                         {g.active ? (
-                          <BusyButton variant="text" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
                             onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
                             {t("deactivateButton")}
                           </BusyButton>
                         ) : (
-                          <BusyButton variant="text" busy={isPending(`activate:${g.id}`)} disabled={busy}
+                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}
                             onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
                             {t("activateButton")}
                           </BusyButton>

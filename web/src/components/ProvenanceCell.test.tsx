@@ -35,9 +35,8 @@ function cell(): HTMLElement {
   return td as HTMLElement;
 }
 
-// The Tooltip trigger (#828 review): a leaf span, not the TableCell itself —
-// the full stamp's native `title` fallback (Tooltip's `describeChild`) lives
-// here, not on the cell.
+// The Tooltip trigger is a leaf span, not the TableCell: the full stamp's
+// native `title` fallback (Tooltip's `describeChild`) lives here.
 function stamp(): HTMLElement {
   const span = cell().querySelector(".muted");
   if (!span) throw new Error("expected the summary span the Tooltip wraps");

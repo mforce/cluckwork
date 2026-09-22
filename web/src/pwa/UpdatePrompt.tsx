@@ -76,21 +76,13 @@ export function UpdatePrompt() {
           and the E2E suite reads their absence as "nothing has gone wrong". */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">{missed}</p>
       {waiting && (
-        // #828 (review) — positioning is a plain `.update-banner-position`
-        // styles.css class on Snackbar's OWN root (via `className`, which
-        // Snackbar merges into its root slot's class list), not `sx`:
-        // measured against the sim stack, Snackbar's `sx`-driven
-        // `position`/`inset`/`zIndex` computed as `static`/`auto` at
-        // runtime — this app's CSP-nonced Emotion cache
-        // (FarmThemeProvider.tsx) blocked that specific style insertion
-        // (`Applying inline style violates ... style-src ... nonce-...`).
-        // A stylesheet class, loaded via the ordinary `<link
-        // rel="stylesheet">` every other fixed-position float in this file
-        // already relies on (`.brand-splash-backdrop`), is immune to it.
-        // `open` is not driven by MUI's own close transition: this whole
-        // tree mounts and unmounts through the `waiting &&` above, so React
-        // removes it immediately, with no exit-animation delay, the same
-        // instant swap the div it replaces gave Later/Reload.
+        // Positioning is `.update-banner-position` (styles.css), applied via
+        // `className` rather than `sx`: measured on the sim stack, Snackbar's
+        // own `sx`-driven position/inset/z-index did not take effect at
+        // runtime (computed `position` stayed `static`). `open` is not driven
+        // by MUI's own close transition: this whole tree mounts and unmounts
+        // through the `waiting &&` above, so React removes it immediately,
+        // the same instant swap the div it replaces gave Later/Reload.
         <Snackbar
           open
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}

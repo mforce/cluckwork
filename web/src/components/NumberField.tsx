@@ -145,11 +145,10 @@ export function NumberField({
   // a better glove target, not a cost. Step 1 keeps the plain icons — "+1"
   // everywhere would be noise restating the default.
   const unitStep = step > 1;
-  // Sizing and colour reuse the same tokens the retired `.numfield-step` CSS
-  // rule declared (styles.css, #828). The class names stay: EntryRow.tsx and
-  // DailyEntryPage.tsx target `.numfield`/`.numfield-step`/`.numfield input`
-  // from their OWN `sx` to resize the stepper per screen, and that descendant
-  // selector reaches these elements regardless of the underlying component.
+  // The class names stay on these elements (not styled from styles.css
+  // anymore): EntryRow.tsx and DailyEntryPage.tsx target `.numfield`/
+  // `.numfield-step`/`.numfield input` from their OWN `sx` to resize the
+  // stepper per screen.
   const stepSx = {
     display: "grid", placeItems: "center",
     width: unitStep ? "auto" : "2.25rem", minWidth: unitStep ? "2.25rem" : undefined,
@@ -193,11 +192,9 @@ export function NumberField({
           },
         }}
         sx={{
-          // Width lives on the INPUT, not this root: EntryRow.tsx and
-          // DailyEntryPage.tsx widen a grade's count via `"& .numfield
-          // input": { width: ... }` for a longer value (#430 clipped at
-          // phone width under the old fixed root width, which capped the
-          // wrapper regardless of what the input itself grew to).
+          // Width lives on the INPUT, not this root, so a caller's own
+          // `"& .numfield input": { width: ... }` override (EntryRow.tsx,
+          // DailyEntryPage.tsx) actually widens the visible control.
           "& input": {
             width: "4.75rem", textAlign: "right", fontVariantNumeric: "tabular-nums",
             MozAppearance: "textfield", padding: "0.4rem 0.5rem",

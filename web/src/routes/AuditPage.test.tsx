@@ -251,9 +251,9 @@ describe("AuditPage load + render", () => {
     expect(rowB.querySelector(".audit-event-body")?.children).toHaveLength(3);
   });
 
-  // #828 (review) — the raw-JSON hover tooltip must not fight the row's
-  // existing actor description for `aria-describedby`: both need to keep
-  // working, on different elements.
+  // The raw-JSON hover tooltip must not fight the row's existing actor
+  // description for `aria-describedby`: both need to keep working, on
+  // different elements.
   it("keeps the row's actor description AND gets a real, separate description for the JSON tooltip", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
     renderAudit();

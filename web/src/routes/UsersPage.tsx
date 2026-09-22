@@ -12,6 +12,7 @@ import {
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
+import { CONSOLE_LINK_SX } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
@@ -890,7 +891,7 @@ export function UsersPage() {
                 <li key={a.id}>
                   {flockName(a)}
                   {!openUserIsWorker && <span className="muted"> ({t("inactiveAssignmentLabel")})</span>}{" "}
-                  <BusyButton variant="text" disabled={busy || !flockStepUpPassword}
+                  <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy || !flockStepUpPassword}
                     busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
                     onClick={() => void onUnassign(a)}>
                     {t("removeAssignmentButton")}

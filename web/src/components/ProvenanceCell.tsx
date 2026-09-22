@@ -104,14 +104,11 @@ export function ProvenanceCell({
     // audit link is never clipped.
     <TableCell sx={{ padding: "0.6rem 1rem 0.6rem 0", whiteSpace: "nowrap" }}>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "14rem" }}>
-        {/* #828 (review) — the Tooltip trigger is this leaf span, never the
-            TableCell: a table cell is a structural container, not a hover
-            target a Tooltip should clone handlers onto. describeChild: the
-            full stamp DESCRIBES this span, it is not its accessible name —
-            MUI's default would otherwise replace the span's name (its visible
-            actor/date text) with the stamp. whiteSpace: pre-line on the
-            tooltip content keeps the `\n`-joined lines readable, matching
-            how a browser renders a multi-line native `title`. */}
+        {/* The Tooltip trigger is this leaf span, not the TableCell: a table
+            cell is a structural container, not a hover target. describeChild:
+            the full stamp DESCRIBES this span, it is not its accessible
+            name — MUI's default would otherwise replace the span's own name
+            (its visible actor/date text) with the stamp. */}
         <Tooltip title={fullStamp} describeChild>
           <Box
             component="span"

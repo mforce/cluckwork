@@ -14,6 +14,7 @@ import type { BirdMovement, Flock } from "../api/cluckwork";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
+import { CONSOLE_LINK_SX } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
@@ -439,7 +440,7 @@ export function FlocksPage() {
                           onClick={() => startEdit(f)}>{t("editButton")}</button>
                       )}
                       {isAdmin && f.status === "Active" && (
-                        <BusyButton variant="text" style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
+                        <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
                           onClick={() => void onDeplete(f)}>
                           {t("depleteButton")}
                         </BusyButton>
@@ -447,14 +448,14 @@ export function FlocksPage() {
                       {isAdmin && f.status !== "Archived" && (
                         // After the confirm dialog settles, THIS button is the
                         // pending indicator for the in-flight archive (#236).
-                        <BusyButton variant="text" style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
+                        <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
                           onClick={() => void onArchive(f)}>
                           {t("archiveButton")}
                         </BusyButton>
                       )}
                       {isAdmin && f.status !== "Active" && (
                         // The undo (#57): back to Active, full capture restored.
-                        <BusyButton variant="text" style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
+                        <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
                           onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
                           {t("reactivateButton")}
                         </BusyButton>

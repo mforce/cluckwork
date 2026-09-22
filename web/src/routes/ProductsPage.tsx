@@ -16,6 +16,7 @@ import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { CONSOLE_LINK_SX } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
@@ -479,8 +480,8 @@ export function ProductsPage() {
               {products.map((p) => (
                 <TableRow key={p.id} className={p.active ? undefined : "muted"}>
                   <TableCell sx={NOWRAP}>
-                    {/* #828 (review) — the Tooltip trigger is this leaf span,
-                        never the TableCell itself. */}
+                    {/* The Tooltip trigger is this leaf span, not the
+                        TableCell itself. */}
                     <Tooltip title={p.notes ?? undefined} describeChild>
                       <Box component="span">{p.name}</Box>
                     </Tooltip>
@@ -496,12 +497,12 @@ export function ProductsPage() {
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
                         <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
                         {p.active ? (
-                          <BusyButton variant="text" disabled={busy} busy={isPending(`deact:${p.id}`)}
+                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
                             onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
                             {t("deactivateButton")}
                           </BusyButton>
                         ) : (
-                          <BusyButton variant="text" disabled={busy} busy={isPending(`act:${p.id}`)}
+                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`act:${p.id}`)}
                             onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
                             {t("activateButton")}
                           </BusyButton>

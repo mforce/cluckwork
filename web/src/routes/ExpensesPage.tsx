@@ -615,7 +615,7 @@ export function ExpensesPage() {
               {categories.map((c, i) => (
                 <ListItem key={c.id} disableGutters divider={i < categories.length - 1}
                   secondaryAction={
-                    <BusyButton variant="text" type="button" busy={isPending(`toggle-category:${c.id}`)}
+                    <BusyButton variant="text" type="button" sx={CONSOLE_LINK_SX} busy={isPending(`toggle-category:${c.id}`)}
                       disabled={busy} onClick={() => onToggleCategory(c)}>
                       {c.active ? t("deactivateButton") : t("reactivateButton")}
                     </BusyButton>

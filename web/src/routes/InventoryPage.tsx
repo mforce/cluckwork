@@ -787,12 +787,12 @@ export function InventoryPage() {
                       <button className="link" disabled={busy}
                         onClick={() => startEdit(i)}>{t("editButton")}</button>
                       {i.active ? (
-                        <BusyButton variant="text" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
+                        <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${i.id}`)} disabled={busy}
                           onClick={() => void run(`deactivate:${i.id}`, () => commit(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key)))}>
                           {t("deactivateButton")}
                         </BusyButton>
                       ) : (
-                        <BusyButton variant="text" busy={isPending(`activate:${i.id}`)} disabled={busy}
+                        <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${i.id}`)} disabled={busy}
                           onClick={() => void run(`activate:${i.id}`, () => commit(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key)))}>
                           {t("activateButton")}
                         </BusyButton>

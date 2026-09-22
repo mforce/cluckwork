@@ -106,9 +106,8 @@ describe("BusyButton", () => {
     expect(button).toHaveClass("custom-class");
   });
 
-  // #828 (review) — completes D2 pair 8: BusyButton is always MUI `Button`
-  // now, the same as every other MUI `Button` in the app, never the raw
-  // `<button>` the #830 `component` bridge used to fall back to.
+  // BusyButton is always MUI `Button`, the same as any other `Button` in
+  // the app, never a raw `<button>`.
   describe("always MUI Button (#828)", () => {
     it("renders MUI Button's root by default, keeping the variant a caller passes", () => {
       render(

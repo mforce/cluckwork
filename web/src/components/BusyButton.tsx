@@ -8,10 +8,8 @@ type Props = {
   children?: ReactNode;
 } & Omit<ButtonProps, "children">;
 
-// #236/#828 — the busy trigger, always MUI's own `Button` (design D2 pair 8):
-// every caller states its own `variant`/`color` the way any other `Button` in
-// this app does, same as #830's `component={Button}` bridge callers always
-// did — there is no bespoke default here to diverge from that convention.
+// #236 — the busy trigger, always MUI's own `Button`: every caller states its
+// own `variant`/`color`, the same as any other `Button` in this app.
 // Children pass through untouched (dynamic labels like Login's "Signing in…"
 // swap stay the caller's); the wrapper's inline-flex gap is what seats the
 // spinner beside them. The ring sits INLINE before the label at full
