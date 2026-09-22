@@ -205,9 +205,8 @@ describe("useConfirm", () => {
 
   it("paints the action red only when the caller says it is destructive", async () => {
     // "Red" is `color="error"` on the MUI `Button` (mapped to `--danger` in
-    // FarmThemeProvider), not the hand-rolled `.btn-danger` class — that class
-    // stays alive for the many OTHER raw-button callers this slice does not
-    // touch (SettingsPage, UsersPage), so it is not a guard on this component.
+    // FarmThemeProvider), not the retired `.btn-danger` class (#828 completed
+    // D2 pair 8: every BusyButton caller now uses `color="error"` instead).
     const user = userEvent.setup();
     const { unmount } = render(<Host destructive />);
     await openConfirm(user);

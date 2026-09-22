@@ -56,9 +56,9 @@ const exactDynamicValues = new Map<string, readonly string[]>([
 const consultedDynamicValues = new Set<string>();
 
 const nonStyleClassHooks = new Set([
-  "brand-mark", "brand-splash-continue", "choice-set", "dash-sales-list", "day-none", "day-recorded",
-  "day-unrecorded", "dialog-backdrop", "entry-actions", "field", "hint", "more-group", "named-picker-retry",
-  "named-picker-trigger",
+  "brand-mark", "brand-splash-continue", "busy-label", "choice-set", "dash-sales-list", "day-none",
+  "day-recorded", "day-unrecorded", "dialog-backdrop", "entry-actions", "field", "hint", "more-group",
+  "named-picker-retry", "named-picker-trigger", "numfield", "numfield-step-unit", "spinner", "update-banner",
 ]);
 
 function field(node: AstNode, name: string): AstNode {
@@ -236,7 +236,11 @@ describe("MUI source policy (#824)", () => {
         if (name === "textTransform" && uppercaseKind(node.value, source)) uppercase.push(identity);
       });
     }
-    expect(dropShadows.sort()).toEqual(["theme/FarmThemeProvider.tsx:base.shadows[8]"]);
+    expect(dropShadows.sort()).toEqual([
+      "pwa/UpdatePrompt.tsx:\"var(--shadow-bar)\"",
+      "theme/FarmThemeProvider.tsx:base.shadows[8]",
+      "theme/FarmThemeProvider.tsx:base.shadows[8]",
+    ]);
     expect(uppercase.sort()).toEqual([
       "components/FieldConsole.tsx:\"uppercase\"",
       "routes/Dashboard.tsx:\"uppercase\"",

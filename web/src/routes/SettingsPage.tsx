@@ -641,7 +641,7 @@ export function SettingsPage() {
                       onChange={(e) => void onPickLogo(e)} />
                   </Button>
                   {hasLogo && (
-                    <BusyButton component={Button} type="button" variant="outlined" color="error"
+                    <BusyButton type="button" variant="outlined" color="error"
                       sx={{ borderColor: "divider", "&:hover": { borderColor: "divider" } }} disabled={busy}
                       busy={isPending("logo:remove")}
                       onClick={() => void onRemoveLogo()}>
@@ -691,7 +691,7 @@ export function SettingsPage() {
                       onChange={(e) => void onPickBanner(e)} />
                   </Button>
                   {hasBanner && (
-                    <BusyButton component={Button} type="button" variant="outlined" color="error"
+                    <BusyButton type="button" variant="outlined" color="error"
                       sx={{ borderColor: "divider", "&:hover": { borderColor: "divider" } }} disabled={busy}
                       busy={isPending("banner:remove")}
                       onClick={() => void onRemoveBanner()}>
@@ -942,7 +942,7 @@ export function SettingsPage() {
             <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
               {t("saveScopeNote")}
             </Typography>
-            <BusyButton type="submit" busy={saving} disabled={busy || stale}>
+            <BusyButton variant="contained" type="submit" busy={saving} disabled={busy || stale}>
               {saving ? t("savingButton") : t("saveButton")}
             </BusyButton>
           </Stack>

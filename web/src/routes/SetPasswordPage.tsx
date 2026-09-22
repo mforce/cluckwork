@@ -95,7 +95,7 @@ export function SetPasswordPage() {
           slotProps={{ htmlInput: { maxLength: 256 } }}
         />
         {error && <Alert severity="error">{error}</Alert>}
-        <BusyButton type="submit" busy={busy}>
+        <BusyButton variant="contained" type="submit" busy={busy}>
           {busy ? t("setPasswordSubmitting") : t("setPasswordButton")}
         </BusyButton>
         {/* Escape hatch: a gated user must always be able to sign out rather

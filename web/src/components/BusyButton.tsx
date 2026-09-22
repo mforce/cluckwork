@@ -1,29 +1,23 @@
-import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Box, Button, CircularProgress } from "@mui/material";
+import type { ButtonProps } from "@mui/material";
 
-type Props<C extends ElementType> = {
+type Props = {
   busy?: boolean;
-  /**
-   * #830 — the underlying element BusyButton renders. Defaults to a plain
-   * `<button>` (the other 40-odd call sites, byte-identical to before this
-   * prop existed); a caller that wants MUI's own root, variant class and sx
-   * — the daily-entry footer's `Button` — passes it here instead of this
-   * file growing a second component.
-   */
-  component?: C;
   children?: ReactNode;
-} & Omit<ComponentPropsWithoutRef<C>, "component" | "children" | "disabled"> & {
-  disabled?: boolean;
-};
+} & Omit<ButtonProps, "children">;
 
-// #236 — the busy trigger. Children pass through untouched (dynamic labels
-// like Login's "Signing in…" swap stay the caller's); the wrapper's inline-flex
-// gap is what seats the spinner beside them. The ring sits INLINE before the
-// label at full brightness — an earlier overlay version dimmed the label and
-// stacked the ring on top, and read as barely-there on the terracotta buttons
-// (owner call, 2026-07-28). The button widening slightly while busy is the
-// accepted cost; it is disabled for the duration, so nothing under the cursor
-// is clickable anyway.
+// #236 — the busy trigger, always MUI's own `Button`: every caller states its
+// own `variant`/`color`, the same as any other `Button` in this app.
+// Children pass through untouched (dynamic labels like Login's "Signing in…"
+// swap stay the caller's); the wrapper's inline-flex gap is what seats the
+// spinner beside them. The ring sits INLINE before the label at full
+// brightness — an earlier overlay version dimmed the label and stacked the
+// ring on top, and read as barely-there on the terracotta buttons (owner
+// call, 2026-07-28). The button widening slightly while busy is the accepted
+// cost; it is disabled for the duration, so nothing under the cursor is
+// clickable anyway.
 //
 // The live region is a SIBLING of the button, not a child: aria-busy tells AT
 // to defer announcing changes inside the busy element, so a region in there
@@ -32,19 +26,24 @@ type Props<C extends ElementType> = {
 // Settings logo status). It is .sr-only (absolute-positioned), so the
 // fragment adds no layout. The spinner is aria-hidden so the accessible name
 // stays exactly the children text — screen tests assert names verbatim.
-export function BusyButton<C extends ElementType = "button">({
-  busy = false, disabled, children, component, ...rest
-}: Props<C>) {
+export function BusyButton({ busy = false, disabled, children, ...rest }: Props) {
   const { t } = useTranslation("common");
-  const Component = (component ?? "button") as ElementType;
   return (
     <>
-      <Component {...rest} disabled={disabled || busy} aria-busy={busy || undefined}>
-        <span className="busy-label">
-          {busy && <span className="spinner" aria-hidden="true" />}
+      <Button {...rest} disabled={disabled || busy} aria-busy={busy || undefined}>
+        <Box component="span" className="busy-label" sx={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+          {busy && (
+            <CircularProgress
+              className="spinner"
+              size={16}
+              thickness={5}
+              aria-hidden="true"
+              sx={{ color: "currentColor", flexShrink: 0 }}
+            />
+          )}
           {children}
-        </span>
-      </Component>
+        </Box>
+      </Button>
       <span role="status" className="sr-only">
         {busy ? t("working") : ""}
       </span>

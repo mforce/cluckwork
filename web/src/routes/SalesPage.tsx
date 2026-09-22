@@ -3,7 +3,7 @@ import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import {
-  Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from "@mui/material";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder,
@@ -1189,7 +1189,7 @@ export function SalesPage() {
         actions={
           <DialogActions>
             <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
-            <BusyButton disabled={busy || !customer || !customerSnapshot.canSubmit}
+            <BusyButton variant="contained" disabled={busy || !customer || !customerSnapshot.canSubmit}
               busy={isPending("create-order")}
               onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
           </DialogActions>
@@ -1272,7 +1272,11 @@ export function SalesPage() {
                     "& td:nth-child(4)": { gridColumn: "1 / 3", gridRow: 2, textAlign: { xs: "left", md: "right" } },
                     "& td:nth-child(6)": { gridColumn: "3 / 5", gridRow: 2 },
                     "& :is(th, td):last-child": { gridColumn: 4, gridRow: 1 },
-                    "& tr[data-editing=true] td:nth-child(2)": { gridColumn: "1 / 4", gridRow: 5, "& .numfield": { maxWidth: 180 } },
+                    "& tr[data-editing=true] td:nth-child(2)": {
+                      gridColumn: "1 / 4", gridRow: 5,
+                      "& .numfield": { maxWidth: 180 },
+                      "& .numfield input": { width: { md: "3.875rem" } },
+                    },
                     "& tr[data-editing=true] td:nth-child(5)": { display: { xs: "block", md: "table-cell" }, gridColumn: "1 / 4", "& input": { width: { xs: "100%", md: "4.75rem" }, px: { md: .5 } } },
                     "& tr[data-editing=true] td:last-child": { whiteSpace: "normal" },
                   }}>
@@ -1356,7 +1360,7 @@ export function SalesPage() {
                             <TableCell align="right">—</TableCell>
                             <TableCell sx={MANIFEST_ACTIONS_SX}>
                               <Box sx={{ display: "inline-flex", flexWrap: "nowrap", alignItems: "center" }}>
-                                <BusyButton component={Button} size="small" sx={LINK_ACTION_SX} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
+                                <BusyButton variant="text" size="small" sx={LINK_ACTION_SX} disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
                                   onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
                                 <Button size="small" sx={SECONDARY_ACTION_SX} onClick={() => setEditor(null)}>{t("cancelEdit")}</Button>
                               </Box>
@@ -1388,7 +1392,7 @@ export function SalesPage() {
                                   <Button variant="text" size="small" sx={LINK_ACTION_SX} disabled={busy} onClick={() => {
                                     setEditor(lineDraft(active, i));
                                   }}>{t("edit")}</Button>
-                                  <BusyButton component={Button} size="small" sx={{ ...LINK_ACTION_SX, color: "var(--error)" }} disabled={busy} busy={isPending(`remove-item:${i.id}`)}
+                                  <BusyButton variant="text" size="small" sx={{ ...LINK_ACTION_SX, color: "var(--error)" }} disabled={busy} busy={isPending(`remove-item:${i.id}`)}
                                     onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
                                 </>
                               )}
@@ -1468,7 +1472,7 @@ export function SalesPage() {
                       slotProps={{ htmlInput: { min: 0, step: 10 ** -active.currencyMinorUnit } }}
                       onChange={(e) => setPrice(e.target.value)}
                     />
-                    <BusyButton component={Button} variant="contained" sx={{ gridColumn: "1 / -1", justifySelf: "start", "&&": { width: { xs: "100%", md: "auto" } } }} disabled={busy || !productId} busy={isPending("add-item")}
+                    <BusyButton variant="contained" sx={{ gridColumn: "1 / -1", justifySelf: "start", "&&": { width: { xs: "100%", md: "auto" } } }} disabled={busy || !productId} busy={isPending("add-item")}
                       onClick={onAddItem}>{t("addLine")}</BusyButton>
                   </Stack>
                   {/* Keep the hint outside the grid so translations cannot overlap the input. */}
@@ -1604,9 +1608,9 @@ export function SalesPage() {
                     "&&": { flexDirection: "row", flexWrap: "nowrap", justifyContent: "flex-end", gap: 1 },
                     "& > button": { flex: { xs: "1 1 50%", md: "0 1 auto" }, borderRadius: "4px", boxSizing: "border-box", minWidth: 0, minHeight: 44, px: 1, fontSize: ".8rem" },
                   }}>
-                    <BusyButton component={Button} variant="outlined" sx={{ bgcolor: "common.white", color: "var(--surface)", borderColor: "common.white", "&:hover": { bgcolor: "common.white", borderColor: "common.white" } }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                    <BusyButton variant="outlined" sx={{ bgcolor: "common.white", color: "var(--surface)", borderColor: "common.white", "&:hover": { bgcolor: "common.white", borderColor: "common.white" } }} disabled={busy} busy={isPending(`cancel:${active.id}`)}
                       onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
-                    <BusyButton component={Button} variant="contained" disabled={busy || active.items.length === 0}
+                    <BusyButton variant="contained" disabled={busy || active.items.length === 0}
                       busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                       {t("confirmOrderButton")}
                     </BusyButton>
@@ -1633,17 +1637,24 @@ export function SalesPage() {
                         </TableHead>
                         <TableBody>
                           {payments.items.map((p) => (
-                            <TableRow key={p.id} sx={p.voided ? { color: "var(--muted)" } : undefined}
-                              title={p.note ?? undefined}>
-                              <TableCell sx={NOWRAP}><FarmDate iso={p.paymentDate} /></TableCell>
+                            <TableRow key={p.id} sx={p.voided ? { color: "var(--muted)" } : undefined}>
+                              <TableCell sx={NOWRAP}>
+                                <Tooltip title={p.note ?? undefined} describeChild>
+                                  <Box component="span"><FarmDate iso={p.paymentDate} /></Box>
+                                </Tooltip>
+                              </TableCell>
                               <TableCell align="right">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</TableCell>
                               <TableCell>{t(`method${p.method as PaymentMethod}`)}</TableCell>
                               <TableCell sx={NOWRAP}>{p.referenceNumber ?? "—"}</TableCell>
                               <TableCell sx={NOWRAP}>
                                 {p.voided
-                                  ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
+                                  ? (
+                                    <Tooltip title={p.voidReason ?? undefined} describeChild>
+                                      <span className="badge badge-danger">{statusLabel("Voided")}</span>
+                                    </Tooltip>
+                                  )
                                   : isAdmin ? (
-                                    <BusyButton component={Button} size="small" sx={{ color: "#ffb4a2" }} disabled={busy} busy={isPending(`void-payment:${p.id}`)}
+                                    <BusyButton variant="text" size="small" sx={{ color: "#ffb4a2" }} disabled={busy} busy={isPending(`void-payment:${p.id}`)}
                                       onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
                                   ) : null}
                               </TableCell>
@@ -1686,7 +1697,7 @@ export function SalesPage() {
                     actions={
                       <DialogActions>
                         <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
-                        <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
+                        <BusyButton variant="contained" disabled={busy || !payAmount} busy={isPending("record-payment")}
                           onClick={onRecordPayment}>
                           {t("recordPayment")}
                         </BusyButton>
@@ -1745,7 +1756,7 @@ export function SalesPage() {
               {active.status !== "Draft" && (
                 <div className="actions">
                   {active.status === "Confirmed" && isAdmin && (
-                    <BusyButton component={Button} variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`void:${active.id}`)}
+                    <BusyButton variant="outlined" sx={{ color: "#ffb4a2", borderColor: "currentColor" }} disabled={busy} busy={isPending(`void:${active.id}`)}
                       onClick={() => void onVoid()}>
                       {t("voidOrderButton")}
                     </BusyButton>

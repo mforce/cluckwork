@@ -1076,15 +1076,18 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
 
   // Proves the Voided pill's bespoke <span> reads the catalog, not the
   // hardcoded literal the pre-sweep component had — voidReason stays raw DATA
-  // on the `title` attribute either way.
+  // on the MUI Tooltip either way (#828 — the pill's native `title` moved to
+  // a Tooltip, so hovering the pill is what surfaces it now).
   it("reads the Voided status pill from the catalog, not a hardcoded literal", async () => {
     await withOverride("history", "statusVoided", "VOIDED-BADGE-MARKER", async () => {
       mockListDailyEntries.mockResolvedValue([VOIDED]);
       renderWithProviders(<HistoryPage />, { token: ADMIN });
       const row = await screen.findByRole("row", { name: /Hen House 1/ });
-      expect(within(row).getByText("VOIDED-BADGE-MARKER")).toBeInTheDocument();
+      const pill = within(row).getByText("VOIDED-BADGE-MARKER");
+      expect(pill).toBeInTheDocument();
       expect(within(row).queryByText("Voided")).not.toBeInTheDocument();
-      expect(within(row).getByTitle("spoiled")).toBeInTheDocument(); // voidReason: raw DATA, untouched
+      fireEvent.mouseOver(pill);
+      expect(await screen.findByRole("tooltip")).toHaveTextContent("spoiled"); // voidReason: raw DATA, untouched
     });
   });
 
@@ -1122,9 +1125,11 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
       mockListDailyEntries.mockResolvedValue([MANAGER_ADJUSTED]);
       renderWithProviders(<HistoryPage />, { token: ADMIN });
       const row = await screen.findByRole("row", { name: /Hen House 1/ });
-      expect(within(row).getByText("ADJUSTED-BADGE-MARKER")).toBeInTheDocument();
+      const pill = within(row).getByText("ADJUSTED-BADGE-MARKER");
+      expect(pill).toBeInTheDocument();
       expect(within(row).queryByText("Adjusted")).not.toBeInTheDocument();
-      expect(within(row).getByTitle("recount")).toBeInTheDocument(); // adjustReason: raw DATA, untouched
+      fireEvent.mouseOver(pill);
+      expect(await screen.findByRole("tooltip")).toHaveTextContent("recount"); // adjustReason: raw DATA, untouched
     });
   });
 
@@ -1136,8 +1141,9 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
   it("interpolates the locked timestamp into the Locked pill's tooltip", async () => {
     mockListDailyEntries.mockResolvedValue([LOCKED]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
-    await screen.findByRole("row", { name: /Hen House 1/ });
-    expect(screen.getByTitle("Locked 2026-07-19T08:00:00Z")).toBeInTheDocument();
+    const row = await screen.findByRole("row", { name: /Hen House 1/ });
+    fireEvent.mouseOver(within(row).getByText("Locked"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Locked 2026-07-19T08:00:00Z");
   });
 
   // Paired wiring proof: overriding the TEMPLATE (not just the value the
@@ -1148,9 +1154,11 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
     await withOverride("history", "lockedAt", "TIME-MARKER {{time}} MARKER-END", async () => {
       mockListDailyEntries.mockResolvedValue([LOCKED]);
       renderWithProviders(<HistoryPage />, { token: ADMIN });
-      await screen.findByRole("row", { name: /Hen House 1/ });
-      expect(screen.getByTitle("TIME-MARKER 2026-07-19T08:00:00Z MARKER-END")).toBeInTheDocument();
-      expect(screen.queryByTitle(/^Locked /)).not.toBeInTheDocument();
+      const row = await screen.findByRole("row", { name: /Hen House 1/ });
+      fireEvent.mouseOver(within(row).getByText("Locked"));
+      const tooltip = await screen.findByRole("tooltip");
+      expect(tooltip).toHaveTextContent("TIME-MARKER 2026-07-19T08:00:00Z MARKER-END");
+      expect(tooltip).not.toHaveTextContent(/^Locked /);
     });
   });
 

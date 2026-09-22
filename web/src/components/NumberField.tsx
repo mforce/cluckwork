@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
+import { Box, IconButton, TextField } from "@mui/material";
 import { Minus, Plus } from "lucide-react";
 
 // Hold-to-repeat: one press, then a pause so a tap stays a tap, then ticks.
@@ -144,32 +145,73 @@ export function NumberField({
   // a better glove target, not a cost. Step 1 keeps the plain icons — "+1"
   // everywhere would be noise restating the default.
   const unitStep = step > 1;
+  // The class names stay on these elements (not styled from styles.css
+  // anymore): EntryRow.tsx and DailyEntryPage.tsx target `.numfield`/
+  // `.numfield-step`/`.numfield input` from their OWN `sx` to resize the
+  // stepper per screen.
+  const stepSx = {
+    display: "grid", placeItems: "center",
+    width: unitStep ? "auto" : "2.25rem", minWidth: unitStep ? "2.25rem" : undefined,
+    height: "auto", padding: unitStep ? "0 0.5rem" : 0,
+    border: "1px solid var(--hairline)", borderRadius: "var(--r-input)",
+    background: "var(--surface-2)", color: "var(--ink)",
+    userSelect: "none", touchAction: "manipulation",
+    fontSize: unitStep ? "0.85rem" : undefined, fontWeight: unitStep ? 600 : undefined,
+    fontVariantNumeric: unitStep ? "tabular-nums" : undefined,
+    whiteSpace: unitStep ? "nowrap" : undefined,
+    "&:hover:not(:disabled)": { background: "var(--tint-accent)", color: "var(--stat-accent)" },
+  } as const;
   return (
-    <span className="numfield">
-      <button type="button"
+    <Box component="span" className="numfield" sx={{ display: "inline-flex", alignItems: "stretch", gap: "0.3rem" }}>
+      <IconButton type="button"
         className={`numfield-step${unitStep ? " numfield-step-unit" : ""}`}
         disabled={disabled || value <= min}
         aria-label={unitStep ? t("decreaseByLabel", { label, step }) : t("decreaseLabel", { label })}
+        sx={stepSx}
         {...held(-1)}>
         {unitStep ? <span aria-hidden>−{step}</span> : <Minus size={16} aria-hidden />}
-      </button>
-      <input
+      </IconButton>
+      <TextField
         id={id}
-        aria-describedby={describedBy}
         type="number"
-        // -Infinity means "no floor" (signed adjustments); min="-Infinity" is
-        // not a valid HTML constraint, so the attribute is omitted entirely.
-        min={Number.isFinite(min) ? min : undefined}
+        size="small"
         value={value}
         disabled={disabled}
-        onChange={(e) => onChange(Math.max(min, e.target.valueAsNumber || 0))}
+        // `.value`, not `.valueAsNumber`: MUI types TextField's target as
+        // HTMLInputElement | HTMLTextAreaElement (this field is never
+        // multiline), and for a type="number" input `.value` reads the same
+        // string `.valueAsNumber` would parse — `""` on an invalid partial
+        // state, same as `.valueAsNumber`'s NaN, both caught by `|| 0`.
+        onChange={(e) => onChange(Math.max(min, Number(e.target.value) || 0))}
+        slotProps={{
+          htmlInput: {
+            // -Infinity means "no floor" (signed adjustments); min="-Infinity"
+            // is not a valid HTML constraint, so the attribute is omitted.
+            min: Number.isFinite(min) ? min : undefined,
+            "aria-describedby": describedBy,
+          },
+        }}
+        sx={{
+          // Width lives on the INPUT, not this root, so a caller's own
+          // `"& .numfield input": { width: ... }` override (EntryRow.tsx,
+          // DailyEntryPage.tsx) actually widens the visible control.
+          "& input": {
+            width: "4.75rem", textAlign: "right", fontVariantNumeric: "tabular-nums",
+            MozAppearance: "textfield", padding: "0.4rem 0.5rem",
+          },
+          "& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button": {
+            WebkitAppearance: "none", margin: 0,
+          },
+        }}
       />
-      <button type="button"
+      <IconButton type="button"
         className={`numfield-step${unitStep ? " numfield-step-unit" : ""}`}
         aria-label={unitStep ? t("increaseByLabel", { label, step }) : t("increaseLabel", { label })}
-        disabled={disabled || value >= max} {...held(1)}>
+        disabled={disabled || value >= max}
+        sx={stepSx}
+        {...held(1)}>
         {unitStep ? <span aria-hidden>+{step}</span> : <Plus size={16} aria-hidden />}
-      </button>
-    </span>
+      </IconButton>
+    </Box>
   );
 }

@@ -633,7 +633,7 @@ export function StockPage() {
           actions={(
             <DialogActions>
               <button type="button" className="link" onClick={closeWriteOff}>{tc("cancel")}</button>
-              <BusyButton type="submit" busy={isPending("write-off")} disabled={busy}>
+              <BusyButton variant="contained" type="submit" busy={isPending("write-off")} disabled={busy}>
                 {t("writeOffSubmitButton")}
               </BusyButton>
             </DialogActions>

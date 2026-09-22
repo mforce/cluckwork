@@ -20,7 +20,6 @@ export function GlossaryLink({ term }: { term: GlossaryKey }) {
       component={RouterLink}
       to={`/help#${entry.id}`}
       aria-label={label}
-      title={label}
       underline="none"
       sx={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",

@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, use
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useInRouterContext, useLocation } from "react-router";
 import { Search } from "lucide-react";
-import { Container, Typography } from "@mui/material";
+import { Container, Tooltip, Typography } from "@mui/material";
 import { AuthContext } from "../auth/AuthContext";
 import { navGroups } from "./nav";
 import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
@@ -94,6 +94,7 @@ export function HelpPage() {
   const { t: tc } = useTranslation("common");
   const { t: tn } = useTranslation("nav");
   const searchId = useId();
+  const searchShortcutHintId = `${searchId}-shortcut-hint`;
   const searchRef = useRef<HTMLInputElement>(null);
   const tocRef = useRef<HTMLElement>(null);
 
@@ -256,10 +257,21 @@ export function HelpPage() {
           <label className="help-search-field" htmlFor={searchId}>
             <Search size={18} aria-hidden />
             <span className="sr-only">{t("searchLabel")}</span>
+            {/* The shortcut hint describes the INPUT (the focusable element
+                the shortcut applies to), not the decorative, aria-hidden
+                `kbd`. `aria-keyshortcuts` names the key for a screen reader,
+                which cannot read it off the visible "/" glyph. */}
             <input id={searchId} ref={searchRef} type="search" value={query} placeholder={t("searchPlaceholder")}
-              autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
-            <kbd title={t("searchShortcutHint")} aria-hidden>/</kbd>
+              autoComplete="off" onChange={(e) => setQuery(e.target.value)}
+              aria-describedby={searchShortcutHintId} aria-keyshortcuts="/" />
+            <Tooltip title={t("searchShortcutHint")}>
+              <kbd aria-hidden>/</kbd>
+            </Tooltip>
           </label>
+          {/* Outside the <label>: its text content feeds the input's
+              accessible NAME (implicit labelling), and this text is a
+              DESCRIPTION, not a second name. */}
+          <span id={searchShortcutHintId} className="sr-only">{t("searchShortcutHint")}</span>
           {query !== "" && (
             <button type="button" className="link" onClick={() => setQuery("")}>{t("searchClear")}</button>
           )}

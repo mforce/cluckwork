@@ -256,6 +256,30 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       // `Paper`'s default of 1 — which this scale flattens. The picker popover is
       // one of #651's floats, so it takes the dialog shadow explicitly.
       MuiAutocomplete: { styleOverrides: { paper: { boxShadow: base.shadows[8] } } },
+      // #828 — MUI's own Tooltip default is a hardcoded dark grey
+      // (`rgba(97, 97, 97, 0.92)`), the one floating surface in the app that
+      // read from no farm token at all. This reads like every other float
+      // (Autocomplete's listbox, Dialog's paper): the app's own surface,
+      // ink and hairline tokens, the dialog shadow, and the panel radius
+      // (a tooltip is an info popover, not a control). `whiteSpace: pre-line`
+      // is theme-wide rather than per-callsite `sx`: it preserves a `\n`-
+      // joined multi-line `title` (ProvenanceCell's stamp, Audit's JSON)
+      // exactly like a native `title` attribute renders one, and a plain
+      // single-line tooltip wraps exactly the same under it as under the
+      // default `normal`.
+      MuiTooltip: {
+        styleOverrides: {
+          tooltip: {
+            backgroundColor: tokens["--surface"],
+            color: tokens["--ink"],
+            border: `1px solid ${tokens["--hairline"]}`,
+            borderRadius: panelRadius,
+            boxShadow: base.shadows[8],
+            whiteSpace: "pre-line",
+          },
+          arrow: { color: tokens["--surface"] },
+        },
+      },
       MuiButton: {
         // `Button` reads `shadows[2]`, `[4]`, `[6]` and `[8]` for the contained
         // variant's rest, hover, focus and press states, so under this scale a

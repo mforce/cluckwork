@@ -178,10 +178,13 @@ function declarationsFor(selector: string): Map<string, string> {
 // and `Autocomplete`'s own exception, `MuiAutocomplete.styleOverrides.paper`
 // at index 8, already pinned in `farmTheme.policy.test.ts`) — no new G2 row,
 // unchanged by this PR.
+// `.update-banner` retired here in #828: the service-worker update prompt is
+// now a MUI `Snackbar`/`Alert`, whose shadow is an explicit `sx` reading the
+// SAME `--shadow-bar` token this rule used to declare (UpdatePrompt.tsx) —
+// not a new G2 mapping, so no `farmTheme.policy.test.ts` row follows it.
 // Auth uses an elevation-0 Paper with its existing bespoke shadow token.
 const SHADOW_ALLOWED = [
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
-  ".update-banner",         // the service-worker update prompt
 ].sort();
 
 describe("#651 elevation: only a float casts a shadow", () => {
@@ -258,4 +261,39 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // this rule for — so the checks move to where the declaration actually
   // lives now, rather than staying here as a name that reads like it still
   // means something.
+});
+
+// #828 — the update banner's stacking order relative to the brand splash.
+// Both numbers are plain `z-index` declarations in this file, not MUI theme
+// z-indices or Emotion `sx`, so this is a static-text assertion.
+describe("#828 the update banner stays below the brand splash", () => {
+  it("declares a lower z-index than .brand-splash-backdrop", () => {
+    const banner = Number(declarationsFor(".update-banner-position").get("z-index"));
+    const splash = Number(declarationsFor(".brand-splash-backdrop").get("z-index"));
+    expect(Number.isNaN(banner), "banner z-index parsed").toBe(false);
+    expect(Number.isNaN(splash), "splash z-index parsed").toBe(false);
+    expect(banner).toBeLessThan(splash);
+  });
+});
+
+// #236/#828 — both the base `button:disabled` rule and the busy-button
+// counter-rule (`:where(button:disabled[aria-busy="true"]) { opacity: 1 }`)
+// are `:where()`-demoted to zero specificity, so whichever comes LATER in
+// source order wins. That ordering is the whole mechanism the counter-rule
+// depends on; this pins it so reordering the two rules fails loudly instead
+// of silently reintroducing the dimmed-spinner bug.
+describe("#236 the busy-button opacity override wins by source order", () => {
+  it("is declared after the base button:disabled rule", () => {
+    const positions = new Map<string, number>();
+    root.walkRules((rule) => {
+      const selector = clean(rule.selector);
+      if (selector === ":where(button:disabled)" || selector === ':where(button:disabled[aria-busy="true"])')
+        positions.set(selector, rule.source?.start?.line ?? -1);
+    });
+    const base = positions.get(":where(button:disabled)");
+    const override = positions.get(':where(button:disabled[aria-busy="true"])');
+    expect(base, "base rule found").not.toBeUndefined();
+    expect(override, "override rule found").not.toBeUndefined();
+    expect(override! > base!, "override must come after the base rule").toBe(true);
+  });
 });

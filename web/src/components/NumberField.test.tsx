@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { useState } from "react";
+import { Box } from "@mui/material";
 import { NumberField } from "./NumberField";
 import i18n from "../i18n";
 
@@ -456,6 +457,26 @@ describe("NumberField live limits", () => {
     expect(onChange).toHaveBeenCalledTimes(settled);
 
     await act(async () => { fireEvent.pointerUp(minus()); });
+  });
+});
+
+// A caller (EntryRow.tsx, DailyEntryPage.tsx) widens a grade's count via
+// `"& .numfield input": { width: ... }` on an ANCESTOR. The wrapper must
+// follow that width, not cap it at its own fixed value.
+describe("NumberField width", () => {
+  it("lets an ancestor's input-width override actually widen the field", () => {
+    render(
+      <Box sx={{ "& .numfield input": { width: "10rem" } }}>
+        <NumberField id="n" label="total eggs" value={430} onChange={() => {}} />
+      </Box>,
+    );
+
+    const input = field() as HTMLInputElement;
+    expect(getComputedStyle(input).width).toBe("160px"); // 10rem at the 16px default root
+
+    const root = input.closest(".MuiFormControl-root") as HTMLElement;
+    expect(root).not.toBeNull();
+    expect(getComputedStyle(root).width).not.toBe("76px"); // the field's own default (4.75rem)
   });
 });
 

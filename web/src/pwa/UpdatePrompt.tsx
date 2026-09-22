@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert, Button, Snackbar } from "@mui/material";
 import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { registerServiceWorker } from "./registerServiceWorker";
 
@@ -75,24 +76,42 @@ export function UpdatePrompt() {
           and the E2E suite reads their absence as "nothing has gone wrong". */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">{missed}</p>
       {waiting && (
-        // polite + status: announced by a screen reader without stealing focus
-        // from whatever is being typed.
-        <div className="update-banner" role="status" aria-live="polite">
-          <span className="update-banner-text">{t("updateAvailable")}</span>
-          <div className="update-banner-actions">
-            <button type="button" onClick={onReload} disabled={busy}>
-              {busy ? t("reloading") : t("reload")}
-            </button>
-            <button
-              type="button"
-              className="update-banner-later"
-              onClick={() => setDismissed(true)}
-              disabled={busy}
-            >
-              {t("later")}
-            </button>
-          </div>
-        </div>
+        // Positioning is `.update-banner-position` (styles.css), applied via
+        // `className` rather than `sx`: measured on the sim stack, Snackbar's
+        // own `sx`-driven position/inset/z-index did not take effect at
+        // runtime (computed `position` stayed `static`). `open` is not driven
+        // by MUI's own close transition: this whole tree mounts and unmounts
+        // through the `waiting &&` above, so React removes it immediately,
+        // the same instant swap the div it replaces gave Later/Reload.
+        <Snackbar
+          open
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          className="update-banner-position"
+        >
+          <Alert
+            role="status"
+            aria-live="polite"
+            severity="info"
+            icon={false}
+            className="update-banner"
+            sx={{
+              boxShadow: "var(--shadow-bar)", alignItems: "center",
+              "& .MuiAlert-action": { flexWrap: "wrap", rowGap: 0.5 },
+            }}
+            action={(
+              <>
+                <Button color="inherit" size="small" onClick={onReload} disabled={busy}>
+                  {busy ? t("reloading") : t("reload")}
+                </Button>
+                <Button color="inherit" size="small" onClick={() => setDismissed(true)} disabled={busy}>
+                  {t("later")}
+                </Button>
+              </>
+            )}
+          >
+            {t("updateAvailable")}
+          </Alert>
+        </Snackbar>
       )}
     </>
   );

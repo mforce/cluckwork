@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { Button } from "@mui/material";
+import type { FormEvent } from "react";
 import i18n from "../i18n";
 import { BusyButton } from "./BusyButton";
 
@@ -99,28 +99,19 @@ describe("BusyButton", () => {
   });
 
   it("passes button attributes through to the underlying button", () => {
-    render(<BusyButton type="submit" className="btn-danger">Void</BusyButton>);
+    render(<BusyButton type="submit" className="custom-class">Void</BusyButton>);
 
     const button = screen.getByRole("button", { name: "Void" });
     expect(button).toHaveAttribute("type", "submit");
-    expect(button).toHaveClass("btn-danger");
+    expect(button).toHaveClass("custom-class");
   });
 
-  // #830 — the daily-entry footer renders as MUI `Button`, but every other
-  // call site (40-odd) still wants the plain `<button>` this component always
-  // rendered. `component` defaults to "button" so those stay byte-identical;
-  // only a caller that opts in reaches MUI's own root, variant class, and sx.
-  describe("component prop (#830)", () => {
-    it("defaults to a plain <button> when component is omitted", () => {
-      render(<BusyButton onClick={() => {}}>Save</BusyButton>);
-      const button = screen.getByRole("button", { name: "Save" });
-      expect(button.tagName).toBe("BUTTON");
-      expect(button.className).not.toMatch(/MuiButton/);
-    });
-
-    it("renders through MUI Button when component is passed, keeping its variant", () => {
+  // BusyButton is always MUI `Button`, the same as any other `Button` in
+  // the app, never a raw `<button>`.
+  describe("always MUI Button (#828)", () => {
+    it("renders MUI Button's root by default, keeping the variant a caller passes", () => {
       render(
-        <BusyButton component={Button} variant="contained" onClick={() => {}}>
+        <BusyButton variant="contained" onClick={() => {}}>
           Submit day
         </BusyButton>,
       );
@@ -128,9 +119,9 @@ describe("BusyButton", () => {
       expect(button).toHaveClass("MuiButton-contained");
     });
 
-    it("keeps #236's busy semantics through a swapped-in component: aria-busy, disabled, sibling live region", () => {
+    it("keeps #236's busy semantics: aria-busy, disabled, sibling live region", () => {
       render(
-        <BusyButton component={Button} variant="outlined" busy>
+        <BusyButton variant="outlined" busy>
           Save draft
         </BusyButton>,
       );
@@ -141,6 +132,21 @@ describe("BusyButton", () => {
       const status = screen.getByRole("status");
       expect(status).toHaveTextContent("Working…");
       expect(button).not.toContainElement(status);
+    });
+
+    // A caller relying on the browser's OWN default `<button>` type
+    // ("submit") regressed silently when the underlying root became MUI's
+    // `Button`: MUI defaults an unset `type` to "button", not "submit", so a
+    // BusyButton meant to submit its enclosing form MUST say `type="submit"`.
+    it("submits its enclosing form only when type=\"submit\" is explicit", () => {
+      const onSubmit = vi.fn((e: FormEvent) => e.preventDefault());
+      render(
+        <form onSubmit={onSubmit}>
+          <BusyButton variant="contained" type="submit">Save</BusyButton>
+        </form>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(onSubmit).toHaveBeenCalledTimes(1);
     });
   });
 });

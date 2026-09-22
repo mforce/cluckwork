@@ -58,7 +58,7 @@ export function BrandSplash({ farmName, bannerContentHash, onDismiss }: BrandSpl
         )}
         {/* Plain button, no className: the base button style already reads as
             the primary action (repo convention — "link" is the secondary/
-            cancel style, "btn-danger" the destructive one, see useConfirm.tsx). */}
+            cancel style). */}
         <button type="button" ref={continueRef} className="brand-splash-continue"
           onClick={onDismiss}>
           {t("continue")}

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
 import {
-  Box, Checkbox, FormControlLabel, TextField, Typography,
+  Box, Checkbox, FormControlLabel, TextField, Tooltip, Typography,
 } from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
 import { FilterDateField } from "../components/FilterBar";
@@ -528,16 +528,25 @@ export function AuditPage() {
               const summaryId = `audit-event-${e.id}`;
               const actorId = `audit-event-actor-${e.id}`;
               return (
+                // The Tooltip trigger is the leaf span inside `<summary>`, not
+                // `<details>`: `<details>` already declares its own
+                // `aria-describedby={actorId}` (the article's actor
+                // description), and JSX prop merge lets the outer element's
+                // own props win, so a Tooltip on `<details>` would silently
+                // drop the JSON description instead of combining with it.
+                // `|| undefined` (not `??`) also omits the attribute for an
+                // empty string, not only for null.
                 <details
+                  key={e.id}
                   className="audit-event"
                   role="article"
-                  key={e.id}
-                  title={e.detailsJson ?? undefined}
                   aria-labelledby={summaryId}
                   aria-describedby={actorId}
                 >
                   <summary id={summaryId}>
-                    {timestamp} UTC · {action}
+                    <Tooltip title={e.detailsJson || undefined} describeChild>
+                      <Box component="span">{timestamp} UTC · {action}</Box>
+                    </Tooltip>
                   </summary>
                   <div className="audit-event-body">
                     <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>

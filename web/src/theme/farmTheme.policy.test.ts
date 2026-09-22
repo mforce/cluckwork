@@ -112,6 +112,25 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  // MUI's own Tooltip default is a hardcoded dark grey with no farm token
+  // behind it — the one float in the app that did not read from the
+  // palette. It now reads like every other float instead.
+  it("reads the Tooltip surface from the farm palette, not MUI's hardcoded grey", () => {
+    for (const { label, theme, panel, dialog } of themes) {
+      const tooltip = slot(theme.components?.MuiTooltip?.styleOverrides?.tooltip,
+        `${label} MuiTooltip tooltip`);
+      expect(tooltip.backgroundColor, `${label} tooltip background`).toBe(theme.palette.background.paper);
+      expect(tooltip.color, `${label} tooltip text`).toBe(theme.palette.text.primary);
+      expect(tooltip.border, `${label} tooltip border`).toBe(`1px solid ${theme.palette.divider}`);
+      expect(tooltip.borderRadius, `${label} tooltip radius`).toBe(panel);
+      expect(tooltip.boxShadow, `${label} tooltip shadow`).toBe(dialog);
+      // A `\n`-joined multi-line title (ProvenanceCell's stamp, Audit's raw
+      // JSON) must read as line breaks, the same as a native `title` renders
+      // one — MUI's own default (`normal`) collapses them to spaces.
+      expect(tooltip.whiteSpace, `${label} tooltip whiteSpace`).toBe("pre-line");
+    }
+  });
+
   it("gives the picker popover the dialog shadow it would otherwise lose", () => {
     for (const { label, theme, dialog } of themes) {
       const paper = slot(theme.components?.MuiAutocomplete?.styleOverrides?.paper,

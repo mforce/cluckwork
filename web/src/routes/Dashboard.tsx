@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
 import {
-  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
+  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -645,9 +645,15 @@ function TodayRow({ tile, today, fmt, t }: {
         bgcolor: missing ? "var(--tint-warn)" : draft ? "var(--surface-2)" : "var(--tint-ok)",
       }}>{missing ? <TriangleAlert size={15} /> : draft ? <CircleDashed size={15} /> : <Check size={15} />}</Box>
       <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
-        <Typography component={Link} to={href} sx={{ fontWeight: 600 }}
-          aria-label={missing ? t("tileLinkLabelMissing", { flock: flock.name }) : t("tileLinkLabel", { flock: flock.name })}
-          title={missing ? t("recordTodayHint") : undefined}>{flock.name}</Typography>
+        {/* describeChild: the hover hint describes the link, which already
+            names itself via `aria-label` above (that wins over anything
+            Tooltip would inject, describeChild or not) — this only adds the
+            hint as a description rather than trying to replace the name. */}
+        <Tooltip title={missing ? t("recordTodayHint") : undefined} describeChild>
+          <Typography component={Link} to={href} sx={{ fontWeight: 600 }}
+            aria-label={missing ? t("tileLinkLabelMissing", { flock: flock.name }) : t("tileLinkLabel", { flock: flock.name })}
+          >{flock.name}</Typography>
+        </Tooltip>
         <Box>{missing ? <StatusDot label={t("noEntryBadge")} forceColor="var(--warn)" /> : <StatusDot status={entry.status} label={stateLabel} />}</Box>
         {draft && <Typography component={Link} to={href} variant="body2">{t("continueHouseAction", { flock: flock.name })}</Typography>}
       </Box>
