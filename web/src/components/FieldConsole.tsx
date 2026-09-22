@@ -119,13 +119,12 @@ export function FieldConsole({ children }: { children: ReactNode }) {
 }
 
 // Keep the swipe cue outside the scrolling element so it stays visible as columns move.
-export function LedgerTableContainer({ children, alwaysShowSwipeCue = false, scrollHint = "columns", maxHeight }: {
+export function LedgerTableContainer({ children, alwaysShowSwipeCue = false, scrollHint = "columns" }: {
   children: ReactNode;
   alwaysShowSwipeCue?: boolean;
   // #908 — the setup lists' table also scrolls vertically within a bounded
   // region (the bottom inspector docks below it), so that cue names both axes.
   scrollHint?: "columns" | "columnsAndRows";
-  maxHeight?: number | { xs?: number; md?: number };
 }) {
   const { t } = useTranslation("common");
   return (
@@ -140,7 +139,7 @@ export function LedgerTableContainer({ children, alwaysShowSwipeCue = false, scr
       }}>
         {t(scrollHint === "columnsAndRows" ? "swipeColumnsScrollRows" : "swipeColumns")}
       </Typography>
-      <TableContainer sx={maxHeight ? { maxHeight, overflow: "auto" } : undefined}>{children}</TableContainer>
+      <TableContainer>{children}</TableContainer>
     </Box>
   );
 }
