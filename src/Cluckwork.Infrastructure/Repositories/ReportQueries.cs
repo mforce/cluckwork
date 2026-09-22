@@ -13,8 +13,16 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         [DailyEntryStatus.Submitted, DailyEntryStatus.Locked, DailyEntryStatus.ManagerAdjusted];
 
     public async Task<ProductionReport> GetProductionAsync(
-        DateOnly from, DateOnly to, CancellationToken ct = default)
+        DateOnly from, DateOnly to, Guid? flockId = null, CancellationToken ct = default)
     {
+        // #916 — every query below carries the same `flockId == null || …`
+        // conjunct, so a null scope leaves the SQL semantically what it was and
+        // a set scope narrows the eggs and the EXPOSURE together. Narrowing one
+        // without the other is the #780 defect in miniature: a farm-wide
+        // denominator under one flock's eggs rates that flock at a fraction of
+        // its real lay. The bird-movement queries below need no conjunct —
+        // they are already bounded by `flockIds`, which this filter shrinks.
+        //
         // Grouped by (date, flock, HOUSE), not by date (#780). Three figures
         // below need to know WHICH unit filed rather than how many did, and two
         // of them were wrong when this only knew the count:
@@ -31,7 +39,8 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         // Bounded by (days × flocks × houses) over a range the endpoint already
         // caps at 366 days, so this is the same order as the day loop below.
         var perUnit = await db.DailyEntries
-            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status))
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
+                && (flockId == null || e.FlockId == flockId.Value))
             .GroupBy(e => new { e.Date, e.FlockId, e.HouseId })
             .Select(g => new
             {
@@ -67,7 +76,8 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         var gradeTotals = await db.DailyEntryGrades
             .Where(g => db.DailyEntries.Any(e =>
                 e.Id == g.DailyEntryId && e.Date >= from && e.Date <= to
-                && OfficialStatuses.Contains(e.Status)))
+                && OfficialStatuses.Contains(e.Status)
+                && (flockId == null || e.FlockId == flockId.Value)))
             .GroupBy(g => g.EggGradeId)
             .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(x => x.Quantity) })
             .ToListAsync(ct);
@@ -93,14 +103,16 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         // which reads as an empty grade rather than as absence.
         var crackedTotals = await db.DailyEntries
             .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
-                && e.CrackedGradeId != null && e.CrackedEggs > 0)
+                && e.CrackedGradeId != null && e.CrackedEggs > 0
+                && (flockId == null || e.FlockId == flockId.Value))
             .GroupBy(e => e.CrackedGradeId!.Value)
             .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(e => e.CrackedEggs) })
             .ToListAsync(ct);
 
         var dirtyTotals = await db.DailyEntries
             .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
-                && e.DirtyGradeId != null && e.DirtyEggs > 0)
+                && e.DirtyGradeId != null && e.DirtyEggs > 0
+                && (flockId == null || e.FlockId == flockId.Value))
             .GroupBy(e => e.DirtyGradeId!.Value)
             .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(e => e.DirtyEggs) })
             .ToListAsync(ct);
@@ -140,7 +152,8 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         var flocks = await db.Flocks
             .Where(f => f.PlacementDate <= to
                      && (f.DepletedOn == null || f.DepletedOn >= from)
-                     && (f.ArchivedOn == null || f.ArchivedOn >= from))
+                     && (f.ArchivedOn == null || f.ArchivedOn >= from)
+                     && (flockId == null || f.Id == flockId.Value))
             .Select(f => new
             {
                 f.Id,

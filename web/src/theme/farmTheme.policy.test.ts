@@ -95,6 +95,17 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  it("keeps default component elevations flat", () => {
+    for (const { label, theme } of themes) {
+      const elevations = Object.entries(theme.components ?? {}).flatMap(([component, policy]) => {
+        const elevation = policy?.defaultProps && "elevation" in policy.defaultProps
+          ? policy.defaultProps.elevation : undefined;
+        return elevation === undefined ? [] : [`${component}:${String(elevation)}`];
+      });
+      expect(elevations.sort(), label).toEqual(["MuiAccordion:0", "MuiPaper:0"]);
+    }
+  });
+
   it("makes a Card a hairline box", () => {
     for (const { label, theme } of themes) {
       expect(theme.components?.MuiCard?.defaultProps?.variant, `${label} MuiCard`).toBe("outlined");

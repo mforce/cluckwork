@@ -18,12 +18,17 @@ import type { DayStripData, DayStripSlot } from "../lib/dashboard";
 // toolbar: Tab enters the strip at the selected day (the first, initially) and
 // the arrow keys move along it. Fourteen consecutive tab stops on the way past
 // a dashboard panel is not keyboard support, it is a keyboard obstacle.
-export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
+export function DayStrip({ data, label, title, peak, average, legend, tip, from, to }: {
   data: DayStripData;
   label: string;
   title: string;
   peak: string;
-  average: string | null;
+  // Always a sentence, never hidden: the mockup states the average's ABSENCE
+  // beside Peak rather than leaving a blank space there.
+  average: string;
+  // Translated by the caller — DayStrip stays props-only, never importing
+  // i18n itself.
+  legend: { complete: string; partial: string; noEntry: string };
   tip: (slot: DayStripSlot) => string;
   from: React.ReactNode;
   to: React.ReactNode;
@@ -96,7 +101,7 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
       <figcaption className="trend-scale">
         <span>{title}</span>
         <span className="trend-figures">
-          {average !== null && <span className="trend-avg">{average}</span>}
+          <span className="trend-avg">{average}</span>
           <span className="trend-peak">{peak}</span>
         </span>
       </figcaption>
@@ -155,6 +160,11 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
         <span>{from}</span>
         <span>{to}</span>
       </div>
+      <ul className="trend-legend">
+        <li><span className="trend-legend-swatch" aria-hidden="true" />{legend.complete}</li>
+        <li><span className="trend-legend-swatch partial" aria-hidden="true" />{legend.partial}</li>
+        <li><span className="trend-legend-swatch missing" aria-hidden="true" />{legend.noEntry}</li>
+      </ul>
     </figure>
   );
 }

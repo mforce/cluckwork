@@ -17,7 +17,7 @@ const part = (date: string, eggs: number, heightPct: number): DayStripSlot =>
 // all used to render as the same empty slot.
 const data: DayStripData = {
   slots: [rec("2026-07-01", 10, 100), rec("2026-07-02", 0, 2), part("2026-07-04", 6, 60), gap("2026-07-03", true)],
-  max: 10, average: 5, averagePct: 50, complete: 2, partial: 1, unrecorded: 1,
+  max: 10, average: 5, averagePct: 50, complete: 2, partial: 1, unrecorded: 1, scale: "complete",
 };
 
 const tip = (s: DayStripSlot) => {
@@ -29,9 +29,11 @@ const tip = (s: DayStripSlot) => {
   }
 };
 
+const legend = { complete: "Complete", partial: "Partial", noEntry: "No entry" };
+
 const strip = (d: DayStripData = data, label = "Eggs per day") => (
   <DayStrip
-    data={d} label={label} title="Eggs per day" peak="Peak 10" average="Avg 5"
+    data={d} label={label} title="Eggs per day" peak="Peak 10" average="Avg 5" legend={legend}
     tip={tip} from="1 Jul" to="3 Jul"
   />
 );
@@ -67,7 +69,7 @@ describe("DayStrip (#654, #777, #780)", () => {
     expect(screen.getByText("Avg 5")).toBeInTheDocument();
     expect(screen.getByText("1 Jul")).toBeInTheDocument();
 
-    rerender(strip({ slots: [gap("2026-08-01")], max: null, average: null, averagePct: null, complete: 0, partial: 0, unrecorded: 1 }, "Flat"));
+    rerender(strip({ slots: [gap("2026-08-01")], max: null, average: null, averagePct: null, complete: 0, partial: 0, unrecorded: 1, scale: "none" }, "Flat"));
     expect(screen.getByRole("group", { name: "Flat" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Eggs per day" })).not.toBeInTheDocument();
   });
@@ -212,5 +214,13 @@ describe("DayStrip (#654, #777, #780)", () => {
   it("keeps the readout's row present with nothing selected", () => {
     const { container } = render(strip());
     expect(container.querySelector(".tipdock")).toBeInTheDocument();
+  });
+
+  // #918 fidelity round — the approved mockup's key, always present and
+  // always all three states regardless of what the window actually contains.
+  it("renders the three-item legend the caller translates", () => {
+    render(strip());
+    const items = screen.getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual(["Complete", "Partial", "No entry"]);
   });
 });

@@ -643,6 +643,144 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(100, report.Days[2].HenDays);  // gone the day after
     }
 
+    // #916 — the Dashboard's Lay rate card gains a flock selector, so the
+    // report has to scope server-side. The eggs AND the exposure move together:
+    // filtering a farm-wide payload client-side gives the scoped flock's eggs
+    // over every flock's hen-days, which rates a healthy flock at a fraction of
+    // its real lay. This asserts the scoped figures against the hand-computed
+    // per-flock arithmetic, not against a re-derivation of the same code.
+    [Fact]
+    public async Task Production_ScopedToOneFlock_ReportsThatFlocksEggsOverItsOwnExposure()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        // Two flocks of 100 birds each, placed 30 days ago.
+        var flockA = await factory.SeedFlockAsync(accountId, farmId);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var day = Today.AddDays(-1);
+
+        async Task RecordAsync(Guid flockId, int total, int deaths)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId, date = day,
+                totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+                mortalityCount = deaths,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = total } }
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        }
+
+        await RecordAsync(flockA, 80, deaths: 3);
+        await RecordAsync(flockB, 40, deaths: 1);
+
+        var range = $"from={day:yyyy-MM-dd}&to={day:yyyy-MM-dd}";
+        var farmWide = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?{range}");
+        var scoped = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?{range}&flockId={flockA}");
+
+        // Unchanged without the parameter: both flocks, both exposures.
+        var whole = farmWide!.Days.Single();
+        Assert.Equal((120, 4), (whole.TotalEggs, whole.Deaths));
+        Assert.Equal((2, 2), (whole.RecordedFlocks, whole.ExpectedFlocks));
+        Assert.Equal((200L, 200L), (whole.HenDays, whole.RecordedHenDays));
+        Assert.Equal(60m, whole.HenDayPct); // 120 / 200
+
+        // Scoped: flock A's eggs only, and flock B's 100 birds are gone from the
+        // denominator too. Client-side filtering would leave 80 over 200 = 40%.
+        var only = scoped!.Days.Single();
+        Assert.Equal((80, 3), (only.TotalEggs, only.Deaths));
+        Assert.Equal((1, 1, 0), (only.RecordedFlocks, only.ExpectedFlocks, only.MissingFlocks));
+        Assert.Equal((100L, 100L, 80), (only.HenDays, only.RecordedHenDays, only.RatedEggs));
+        Assert.Equal(80m, only.HenDayPct);
+
+        // Period totals and the grade breakdown scope with it — the "By grade"
+        // table must not keep summing the other flock's eggs under the header.
+        Assert.Equal((80, 80), (scoped.TotalEggs, scoped.TotalSellable));
+        Assert.Equal((100L, 100L, 80), (scoped.TotalHenDays, scoped.TotalRecordedHenDays, scoped.TotalRatedEggs));
+        Assert.Equal(80m, scoped.PeriodHenDayPct);
+        Assert.Equal(80, Assert.Single(scoped.GradeTotals).Quantity);
+        Assert.Equal(120, Assert.Single(farmWide.GradeTotals).Quantity);
+
+        // Scoping to B gives B's figures, so neither answer is the accident of
+        // one flock happening to be the whole farm.
+        var other = (await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?{range}&flockId={flockB}"))!.Days.Single();
+        Assert.Equal((40, 1), (other.TotalEggs, other.Deaths));
+        Assert.Equal(40m, other.HenDayPct);
+        // The two scoped reports partition the farm-wide one.
+        Assert.Equal(whole.TotalEggs, only.TotalEggs + other.TotalEggs);
+        Assert.Equal(whole.HenDays, only.HenDays + other.HenDays);
+    }
+
+    // #916 — the selector must not become a discovery channel. A flock outside
+    // the caller's flock scope is 404, the same answer flock detail gives
+    // (#388), rather than an empty report (which says "this flock exists and
+    // filed nothing") or a farm-wide one (which leaks the other flock's eggs).
+    [Fact]
+    public async Task Production_FlockIdOutsideTheCallersScope_Returns404()
+    {
+        var ownerEmail = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(ownerEmail);
+        var farmId = Guid.NewGuid();
+        var assigned = await factory.SeedFlockAsync(accountId, farmId);
+        var unassigned = await factory.SeedFlockAsync(accountId, farmId);
+
+        var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, (string?)null);
+        var workerId = await factory.WithTenantScopeAsync(accountId, db =>
+            db.Users.Where(u => u.AccountId == accountId && u.Email == workerEmail)
+                .Select(u => u.Id).SingleAsync());
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.UserRoleAssignments.Add(Domain.Accounts.UserRoleAssignment.Create(
+                Guid.NewGuid(), accountId, workerId, farmId: null, houseId: null, flockId: assigned));
+            await db.SaveChangesAsync();
+        });
+        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+
+        var range = $"from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}";
+        Assert.Equal(HttpStatusCode.NotFound, (await worker.GetAsync(
+            $"/api/v1/reports/production?{range}&flockId={unassigned}")).StatusCode);
+        // Positive control: the scope guard is answering, not the parameter
+        // being rejected outright.
+        Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync(
+            $"/api/v1/reports/production?{range}&flockId={assigned}")).StatusCode);
+        // And the unscoped report still works for the same caller.
+        Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync(
+            $"/api/v1/reports/production?{range}")).StatusCode);
+    }
+
+    // #916 — same answer across a tenant boundary, and an id that names nothing
+    // at all. All three "cannot see it" cases are 404 and are deliberately
+    // indistinguishable: telling them apart would confirm another farm's flock
+    // id exists.
+    [Fact]
+    public async Task Production_FlockIdFromAnotherFarmOrNowhere_Returns404()
+    {
+        var mineEmail = $"u-{Guid.NewGuid():N}@test.local";
+        var mine = await factory.SeedAccountWithUserAsync(mineEmail);
+        var theirs = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var theirFlock = await factory.SeedFlockAsync(theirs, Guid.NewGuid());
+        var myFlock = await factory.SeedFlockAsync(mine, Guid.NewGuid());
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(mineEmail));
+
+        var range = $"from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}";
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(
+            $"/api/v1/reports/production?{range}&flockId={theirFlock}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(
+            $"/api/v1/reports/production?{range}&flockId={Guid.NewGuid()}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(
+            $"/api/v1/reports/production?{range}&flockId={myFlock}")).StatusCode);
+    }
+
     [Fact]
     public async Task SalesAndProfit_SummariesMatchLedger()
     {

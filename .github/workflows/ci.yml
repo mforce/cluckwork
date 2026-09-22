@@ -326,6 +326,11 @@ jobs:
       - name: Test the lockfix classifier
         run: node --test ../.github/scripts/lockfix.test.mjs
 
+      # Same shape as the two gates above: pure Node, self-tested before it is
+      # trusted to gate a real build later in this job (#825).
+      - name: Test the precache-ceiling guard
+        run: node --test scripts/verify-sw.test.mjs
+
       - name: Install dependencies
         run: npm ci
 

@@ -56,25 +56,31 @@ export function todaysEggs(entries: DailyEntry[]): number {
 // direction the issue is about: a day where one house of three filed is not a
 // low day, it is a day whose total is a FLOOR, and drawing it like a complete
 // day asserts a drop in production that the farm's own records do not claim.
+export const DAY_SLOT_KINDS = ["none", "unrecorded", "partial", "recorded"] as const;
+type DaySlotKind = (typeof DAY_SLOT_KINDS)[number];
+
 export type DayStripSlot =
   // `none` is a day that owed no filing at all — before the first placement, or
   // after the last flock left. It is NOT a gap, and counting it as one made a
   // farm's first fortnight announce fourteen missing days.
-  | { kind: "none"; date: string; weekBreak: boolean }
-  | { kind: "unrecorded"; date: string; expectedFlocks: number; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "none">; date: string; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "unrecorded">; date: string; expectedFlocks: number; weekBreak: boolean }
   // `filedFlocks` is how many of the flocks that OWED a count filed one, which
   // is what the readout compares against `expectedFlocks`. It is not
   // `recordedFlocks`: a flock filing outside its lifecycle window is counted
   // there and answers for nobody's expectation.
-  | { kind: "partial"; date: string; eggs: number; heightPct: number; filedFlocks: number; expectedFlocks: number; weekBreak: boolean }
-  | { kind: "recorded"; date: string; eggs: number; heightPct: number; weekBreak: boolean };
+  | { kind: Extract<DaySlotKind, "partial">; date: string; eggs: number; heightPct: number; filedFlocks: number; expectedFlocks: number; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "recorded">; date: string; eggs: number; heightPct: number; weekBreak: boolean };
 
 export interface DayStripData {
   slots: DayStripSlot[];
+  // The complete-day peak when one exists, else the largest partial total
+  // (#916). `scale` names which pool it came from.
+  max: number | null;
   // Over the COMPLETE days only — the days every house reported. A partial
   // day's total is a floor, so averaging it in drags the reference line down by
-  // however many houses forgot, which is the same defect one layer up.
-  max: number | null;
+  // however many houses forgot, which is the same defect one layer up. Unlike
+  // `max`, this never falls back to the partial pool — that would understate.
   average: number | null;
   // The average as a share of the peak, for the reference line. Separate from
   // `average` because the line is geometry and the figure is a count.
@@ -82,6 +88,9 @@ export interface DayStripData {
   complete: number;
   partial: number;
   unrecorded: number;
+  // "complete" is the ordinary rule; "partial" is #916's fallback when no day
+  // is complete; "none" means nothing in the window was recorded.
+  scale: "complete" | "partial" | "none";
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -101,7 +110,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; recentCount?: number }): DayStripData {
   const empty: DayStripData = {
     slots: [], max: null, average: null, averagePct: null,
-    complete: 0, partial: 0, unrecorded: 0,
+    complete: 0, partial: 0, unrecorded: 0, scale: "none",
   };
   if (days.length === 0) return empty;
 
@@ -113,15 +122,20 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
   // identities and reports the shortfall directly.
   const isComplete = (d: ProductionDay) => d.recordedFlocks > 0 && d.missingFlocks === 0;
   const complete = days.filter(isComplete).map((d) => d.totalEggs);
-  const max = complete.length === 0 ? null : Math.max(...complete);
   const average = complete.length === 0
     ? null
     : r1(complete.reduce((a, v) => a + v, 0) / complete.length);
+  // #916 — without this pool a window of only partial days had a null peak, so
+  // every bar floored at 2% however they actually compared.
+  const recorded = days.filter((d) => d.recordedFlocks > 0).map((d) => d.totalEggs);
+  const scale: DayStripData["scale"] = complete.length > 0 ? "complete" : recorded.length > 0 ? "partial" : "none";
+  const pool = complete.length > 0 ? complete : recorded;
+  const max = pool.length === 0 ? null : Math.max(...pool);
   const breakAt = recentCount > 0 && recentCount < days.length ? days.length - recentCount : -1;
 
-  // Height is a share of the complete-day peak. A partial day can therefore
-  // exceed 100% — two big houses out of three can beat a quiet complete day —
-  // so it is capped rather than allowed to overflow its slot.
+  // Height is a share of `max`, whichever pool it came from. A partial day
+  // can therefore exceed 100% — two big houses out of three can beat a quiet
+  // complete day — so it is capped rather than allowed to overflow its slot.
   const height = (eggs: number) =>
     max !== null && max > 0 ? Math.min(100, Math.max(2, r1((eggs / max) * 100))) : 2;
 
@@ -152,6 +166,7 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
     complete: complete.length,
     partial: slots.filter((s) => s.kind === "partial").length,
     unrecorded: slots.filter((s) => s.kind === "unrecorded").length,
+    scale,
   };
 }
 

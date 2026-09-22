@@ -12,6 +12,10 @@ React + Vite + TypeScript SPA for Cluckwork, consuming the JSON API
 
 ## Running
 
+Node 26+ (`.nvmrc` at the repo root; `engines` in `package.json` enforces it —
+`web/.npmrc` sets `engine-strict=true`, so `npm install` fails loudly on an
+older Node instead of silently rewriting `package-lock.json`).
+
 ```bash
 cp .env.example .env      # set VITE_API_TARGET if the API is not on :8080
 npm install

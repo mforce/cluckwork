@@ -66,10 +66,10 @@ public sealed class GateReportQueries(
     IReportQueries inner, TenantContext tenant, ReportGate gate) : IReportQueries
 {
     public async Task<ProductionReport> GetProductionAsync(
-        DateOnly from, DateOnly to, CancellationToken ct = default)
+        DateOnly from, DateOnly to, Guid? flockId = null, CancellationToken ct = default)
     {
         await gate.WaitIfArmedForAsync(tenant.AccountId, ct);
-        return await inner.GetProductionAsync(from, to, ct);
+        return await inner.GetProductionAsync(from, to, flockId, ct);
     }
 
     public Task<SalesSummary> GetSalesAsync(DateOnly from, DateOnly to, CancellationToken ct = default) =>

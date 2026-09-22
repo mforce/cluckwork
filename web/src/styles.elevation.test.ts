@@ -192,17 +192,8 @@ describe("#651 elevation: only a float casts a shadow", () => {
     expect(selectorsCastingShadow()).toEqual(SHADOW_ALLOWED);
   });
 
-  // #829 — `.panel` retired from this list: the selector no longer exists
-  // (the Dashboard's cards are gone, not migrated onto `MuiCard`), and
-  // `declarationsFor` on a selector nothing declares returns an empty map,
-  // so keeping it here would pass vacuously — exactly the trap 822's D4
-  // named for this rule ("passes vacuously once those selectors are gone").
-  // No MuiCard successor exists for `.panel` specifically because nothing
-  // replaced it with a card; `.card`/`.order-panel` below still do, and
-  // `farmTheme.policy.test.ts`'s "makes a Card a hairline box" is their G2.
-  it("a card and an order panel carry a border and nothing else", () => {
-    for (const selector of [".card", ".order-panel"])
-      expect(declarationsFor(selector).get("box-shadow")).toBeUndefined();
+  it("a card carries a border and nothing else", () => {
+    expect(declarationsFor(".card").get("box-shadow")).toBeUndefined();
   });
 
   it("the toolbar reads as inset, not as a floating card", () => {
@@ -238,24 +229,10 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     expect(tokenValue("--r-card")).toBe("12px");
   });
 
-  // Every surface this slice owns, INCLUDING a --r-input consumer. Without
-  // it the scale guard would assert nothing about the one token whose value
-  // actually changes, and would read as safety it does not provide.
-  //
-  // #829 retires `.panel` and `.capture-tile` from both lists below: the
-  // Dashboard no longer renders either selector (it is `sx`-laid-out MUI),
-  // so a radius token on a selector nothing renders would be a guard reading
-  // as safety it does not provide (AGENTS.md, "writing a guard"). `.card`
-  // and `.order-panel` stay — other screens still convert their own cards
-  // in #831 to #833. `.named-picker-trigger` retires here in #826: the
-  // closed-state picker no longer renders the page-owned `<button>` this
-  // class named — it is an MUI outlined field now, themed through
-  // `MuiOutlinedInput` (already asserted elsewhere) — so `input` alone is
-  // this list's remaining `--r-input` consumer.
+  // Include an input so the density check covers --r-input as well as panel radii.
   it.each([
     ".toolbar",
     ".card",
-    ".order-panel",
     ".entry-pane",
     "input",
     "button",
@@ -264,12 +241,9 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     expect(radius).toMatch(/^var\(--r-[a-z]+\)$/);
   });
 
-  // #864 narrows the meaning of --r-card to dialogs and sheets only: every
-  // card-like surface reads --r-panel instead. A generic "some r-* token"
-  // pattern match (above) would stay green if one of these silently reverted
-  // to --r-card, so this pins the SPECIFIC token per surface.
+  // --r-card is reserved for dialogs and sheets; other surfaces must keep their specific radius token.
   it.each([
-    ".card", ".order-panel", ".entry-pane", ".farm-warning", ".help-hero",
+    ".card", ".entry-pane", ".farm-warning", ".help-hero",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {
     expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
   });

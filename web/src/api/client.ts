@@ -779,8 +779,8 @@ export async function restoreSession(): Promise<boolean> {
 
 // --- Authenticated request with one transparent refresh-and-retry ---------
 
-export function apiGet<T>(path: string): Promise<T> {
-  return apiFetch<T>(path, { method: "GET" });
+export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return apiFetch<T>(path, { method: "GET", signal });
 }
 
 // Writes require an Idempotency-Key (server middleware): a retry with the same

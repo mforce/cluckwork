@@ -51,6 +51,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [`AuditEvents` is not time-partitioned (#505)](505-audit-events-no-time-partition.md) | AGENTS · Conventions |
 | [Suspension is immediate for use, not issuance (#579)](579-suspension-issuance-window.md) | AGENTS · Conventions |
 | [Writing a guard (a test that asserts an invariant)](407-writing-a-guard.md) | AGENTS · Writing a guard |
+| [Retire style guards with a named successor (#824)](824-style-guard-conversion.md) | AGENTS · Writing a guard |
 | [CI security gates, lock-file healing, Dependabot, action pinning (#146)](146-ci-security-gates.md) | AGENTS · CI security gates |
 | [Releases and image publishing — internals (#351)](351-releases.md) | AGENTS · Releases · and [`docs/releasing.md`](../releasing.md) |
 | [Both JWT keys checked at boot, serving-only (#510)](510-jwt-key-boot-check.md) | AGENTS · Conventions |

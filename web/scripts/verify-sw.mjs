@@ -14,7 +14,7 @@
 //
 // Usage: node scripts/verify-sw.mjs [dist]
 
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const dist = process.argv[2] ?? "dist";
@@ -161,6 +161,46 @@ check(apiish.length === 0, `API paths found in the precache manifest: ${apiish.j
 check(precached.length > 0, "precache manifest is empty — the app shell would not be cached at all");
 check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missingJs.join(", ")}`);
 
+// 4. Total precache weight, against an explicit ceiling (#825). #674 measured
+// +320 KiB (+24%) for MUI's provider plus a realistic component kit over the
+// hand-rolled baseline — real weight on a PWA meant for phones in sheds. Byte
+// sizes are the only precache measure that is environment-independent
+// (docs/decisions/407's writing-a-guard rule on golden values applies here
+// too: a timing-based guard would not be), so this is where enforcement
+// belongs; script duration is measured separately, on the real stack, in
+// tools/simulation/ui/specs/dashboard-script-duration.spec.ts.
+//
+// 1,900 KiB, measured against the branch this ceiling was set on (75388d2,
+// 2026-09-22): actual precache there is 1,806.38 KiB, after #826 and #827
+// retired NamedEntityPicker's and Dialog's hand-built code but before #828
+// (retires the isolated `NumberField`, ~-18 KiB projected in the issue's
+// 2026-09-16 "Numbers for the ceiling choice" comment — that figure covers
+// NumberField alone, not the hand-rolled tooltip positioning #828 also
+// retires) and #835 (adopts Inter's `opsz` axis, +118.9 KiB measured in
+// docs/designs/822-mui-revamp.md). Net projected after both land is ~1,907
+// KiB — OVER this ceiling by ~7 KiB, not absorbed by it. That is not an
+// oversight: docs/designs/822-mui-revamp.md's D7.2 already prices this in
+// and names the fallback (one display-size cut for `h1`/`h2` only, worth
+// 24.1 KiB) for exactly the case where #835 does not fit. A slice that adds
+// weight without retiring hand-built code names the reason in its PR body,
+// as a convention; it does not change this check's verdict.
+const PRECACHE_CEILING_KIB = 1900;
+let precacheBytes = 0;
+const missingOnDisk = [];
+for (const url of precached) {
+  const assetPath = join(dist, url.replace(/^\.?\//, ""));
+  if (!existsSync(assetPath)) { missingOnDisk.push(url); continue; }
+  precacheBytes += statSync(assetPath).size;
+}
+check(missingOnDisk.length === 0,
+  `precache manifest names files absent from ${dist}: ${missingOnDisk.join(", ")}`);
+const precacheKiB = precacheBytes / 1024;
+check(precacheKiB <= PRECACHE_CEILING_KIB,
+  `precache is ${precacheKiB.toFixed(2)} KiB, over the ${PRECACHE_CEILING_KIB} KiB ceiling ` +
+  `(#825) by ${(precacheKiB - PRECACHE_CEILING_KIB).toFixed(2)} KiB. Retire hand-built code, ` +
+  "or find equivalent savings elsewhere, to pass this check. Naming the reason in the PR body " +
+  "is the separate documentation convention #825 records; it does not make this check pass.");
+
 if (failures.length) {
   for (const f of failures) console.error(`::error::[service worker] ${f}`);
   console.error(`\n${failures.length} service-worker guarantee(s) broken in ${swPath}.`);
@@ -171,4 +211,8 @@ console.log(
   `[service worker] ${swPath}: /api and /health excluded from the navigation fallback, ` +
   `no runtime caching strategy, ${precached.length} shell entries precached, ` +
   `${emittedJs.length} JavaScript assets verified and no API path among them.`,
+);
+console.log(
+  `[precache budget] ${precacheKiB.toFixed(2)} KiB / ${PRECACHE_CEILING_KIB} KiB ceiling ` +
+  `(${(PRECACHE_CEILING_KIB - precacheKiB).toFixed(2)} KiB headroom).`,
 );

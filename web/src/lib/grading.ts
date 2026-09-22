@@ -20,7 +20,8 @@ export interface GradingInput {
 }
 
 /** "" = still counting down, "done" = reconciles exactly, "over" = unusable. */
-export type GradingTone = "" | "done" | "over";
+export const GRADING_TONES = ["", "done", "over"] as const;
+export type GradingTone = (typeof GRADING_TONES)[number];
 
 /** dailyEntry-namespace keys — a union so the typed t() still checks them. */
 export type GradingSaysKey =
