@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Box, TableContainer, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -128,9 +129,17 @@ export function LedgerTableContainer({ children, alwaysShowSwipeCue = false, scr
 }) {
   const { t } = useTranslation("common");
   return (
-    <Box sx={{ minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)" }}>
+    <Box sx={{
+      minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)",
+      // #939 codex review — a nested flex column so `TableContainer` below is
+      // the ONE element that both scrolls and is `position: sticky`'s
+      // containing block. Outside a flex parent (this component's seven
+      // other, unbounded callers) these properties are simply inert.
+      display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0,
+    }}>
       <Typography component="p" variant="body2" sx={{
         display: alwaysShowSwipeCue ? "block" : { xs: "block", md: "none" },
+        flex: "0 0 auto",
         m: 0, py: .5, px: 1,
         fontSize: ".65rem",
         textAlign: "right",
@@ -139,7 +148,7 @@ export function LedgerTableContainer({ children, alwaysShowSwipeCue = false, scr
       }}>
         {t(scrollHint === "columnsAndRows" ? "swipeColumnsScrollRows" : "swipeColumns")}
       </Typography>
-      <TableContainer>{children}</TableContainer>
+      <TableContainer sx={{ flex: "1 1 auto", minHeight: 0, overflow: "auto" }}>{children}</TableContainer>
     </Box>
   );
 }
@@ -217,7 +226,7 @@ export function ListInspectorPane({ table, inspector }: { table: ReactNode; insp
       border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", overflow: "hidden",
       height: { xs: 460, md: "clamp(280px, calc(100dvh - 380px), 520px)" },
     }}>
-      <Box sx={{ flex: "1 1 auto", minHeight: 0, overflow: "auto" }}>{table}</Box>
+      <Box sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>{table}</Box>
       <Box sx={{
         flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "auto",
         borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
@@ -253,4 +262,16 @@ export function selectableRowProps(selected: boolean, onSelect: () => void) {
       ...(selected && { bgcolor: "var(--tint-accent)", boxShadow: "inset 3px 0 var(--brand)" }),
     },
   };
+}
+
+// #939 codex review — a filter toggle, an archive/reactivate write, or any
+// other refresh can drop the selected row out of the visible set; without
+// this, the stale id can resurface as "selected" the moment that row becomes
+// visible again, with no new selection from the user.
+export function useClampSelection(
+  visibleIds: readonly string[], selectedId: string | null, setSelectedId: (id: string | null) => void,
+) {
+  useEffect(() => {
+    if (selectedId !== null && !visibleIds.includes(selectedId)) setSelectedId(null);
+  }, [visibleIds, selectedId, setSelectedId]);
 }
