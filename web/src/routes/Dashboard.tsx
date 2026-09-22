@@ -39,6 +39,8 @@ const MAX_PAGE = 500;
 // #916 — the Lay rate card's own scope, independent of every other panel.
 type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
 
+export const DASHBOARD_DELTA_CLASSES = ["trend-delta", "trend-delta is-down", "trend-delta is-up"] as const;
+
 // Six parallel reads; failed panels degrade independently. The server owns
 // the hen-day calculation for each seven-day reporting window.
 export function Dashboard() {
@@ -328,7 +330,7 @@ export function Dashboard() {
       }
     }
   };
-  const deltaClass = (delta: number | null) =>
+  const deltaClass = (delta: number | null): (typeof DASHBOARD_DELTA_CLASSES)[number] =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 
   // The attention line (D3.3, #829): missing houses only — the desktop-only

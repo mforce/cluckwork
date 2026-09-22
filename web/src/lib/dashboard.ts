@@ -56,18 +56,21 @@ export function todaysEggs(entries: DailyEntry[]): number {
 // direction the issue is about: a day where one house of three filed is not a
 // low day, it is a day whose total is a FLOOR, and drawing it like a complete
 // day asserts a drop in production that the farm's own records do not claim.
+export const DAY_SLOT_KINDS = ["none", "unrecorded", "partial", "recorded"] as const;
+type DaySlotKind = (typeof DAY_SLOT_KINDS)[number];
+
 export type DayStripSlot =
   // `none` is a day that owed no filing at all — before the first placement, or
   // after the last flock left. It is NOT a gap, and counting it as one made a
   // farm's first fortnight announce fourteen missing days.
-  | { kind: "none"; date: string; weekBreak: boolean }
-  | { kind: "unrecorded"; date: string; expectedFlocks: number; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "none">; date: string; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "unrecorded">; date: string; expectedFlocks: number; weekBreak: boolean }
   // `filedFlocks` is how many of the flocks that OWED a count filed one, which
   // is what the readout compares against `expectedFlocks`. It is not
   // `recordedFlocks`: a flock filing outside its lifecycle window is counted
   // there and answers for nobody's expectation.
-  | { kind: "partial"; date: string; eggs: number; heightPct: number; filedFlocks: number; expectedFlocks: number; weekBreak: boolean }
-  | { kind: "recorded"; date: string; eggs: number; heightPct: number; weekBreak: boolean };
+  | { kind: Extract<DaySlotKind, "partial">; date: string; eggs: number; heightPct: number; filedFlocks: number; expectedFlocks: number; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "recorded">; date: string; eggs: number; heightPct: number; weekBreak: boolean };
 
 export interface DayStripData {
   slots: DayStripSlot[];
