@@ -248,7 +248,11 @@ describe("UsersPage selected-record inspector (#908)", () => {
     fireEvent.click(screen.getByRole("row", { name: /worker@farm.test/ }));
     const inspector = screen.getByRole("region", { name: "User details" });
     fireEvent.click(within(inspector).getByRole("button", { name: "edit" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // #939 codex review — identifies THE EDIT dialog by name and checks the
+    // seeded user's own data, not just "some dialog exists": a miswiring to
+    // e.g. openPassword would satisfy a bare findByRole("dialog").
+    const dialog = await screen.findByRole("dialog", { name: "Edit user — worker@farm.test" });
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Wendy");
   });
 
   it("does not select the row when clicking one of its own row actions", async () => {
