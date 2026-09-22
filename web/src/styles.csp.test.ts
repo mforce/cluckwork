@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { extname, relative, resolve } from "node:path";
 import postcss from "postcss";
+import { parse } from "@babel/parser";
 
 // #735 (codex review of #736) — the API serves this stylesheet under
 // `img-src 'self' blob:` (SecurityHeaders.cs, pinned by SecurityHeadersTests),
@@ -48,6 +49,66 @@ describe("styles.css url() references satisfy the served CSP", () => {
         }
       }
     });
+    expect(offenders).toEqual([]);
+  });
+});
+
+function productionStyleSources(): string[] {
+  const root = resolve(process.cwd(), "src");
+  const visit = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) return entry.name === "test" ? [] : visit(path);
+    return [".ts", ".tsx"].includes(extname(path)) && !entry.name.includes(".test.") ? [path] : [];
+  });
+  return visit(root).sort();
+}
+
+// Emotion accepts CSS url() values from any production TypeScript module, so
+// this walk has the same source boundary as the class conversion census.
+describe("production TypeScript styling url() references satisfy the served CSP", () => {
+  it("uses only literal same-origin URLs", () => {
+    const offenders: string[] = [];
+    for (const file of productionStyleSources()) {
+      const source = readFileSync(file, "utf8");
+      const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
+      const visit = (value: unknown): void => {
+        if (typeof value !== "object" || value === null) return;
+        if (Array.isArray(value)) {
+          for (const child of value) visit(child);
+          return;
+        }
+        if (!("type" in value) || typeof value.type !== "string") return;
+        const node = value;
+        const line = "loc" in node && typeof node.loc === "object" && node.loc !== null
+          && "start" in node.loc && typeof node.loc.start === "object" && node.loc.start !== null
+          && "line" in node.loc.start && typeof node.loc.start.line === "number" ? node.loc.start.line : "?";
+        if (node.type === "TemplateLiteral" && "quasis" in node && Array.isArray(node.quasis)) {
+          const literal = node.quasis.map((quasi) => typeof quasi === "object" && quasi !== null && "value" in quasi
+            && typeof quasi.value === "object" && quasi.value !== null && "cooked" in quasi.value
+            && typeof quasi.value.cooked === "string" ? quasi.value.cooked : "").join("");
+          const decoded = unescapeCss(literal);
+          if (/url\(/i.test(decoded) && "expressions" in node
+            && Array.isArray(node.expressions) && node.expressions.length > 0) {
+            offenders.push(`${relative(process.cwd(), file)}:${line}: interpolated url()`);
+          } else {
+            for (const match of decoded.matchAll(urlToken)) {
+              const target = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+              if (!isSameOrigin(target)) offenders.push(`${relative(process.cwd(), file)}:${line}: ${target.slice(0, 60)}`);
+            }
+          }
+        } else if ((node.type === "StringLiteral" || node.type === "DirectiveLiteral")
+          && "value" in node && typeof node.value === "string") {
+          for (const match of unescapeCss(node.value).matchAll(urlToken)) {
+            const target = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+            if (!isSameOrigin(target)) {
+              offenders.push(`${relative(process.cwd(), file)}:${line}: ${target.slice(0, 60)}`);
+            }
+          }
+        }
+        for (const child of Object.values(node)) visit(child);
+      };
+      visit(tree.program);
+    }
     expect(offenders).toEqual([]);
   });
 });

@@ -2,7 +2,9 @@
 // lifecycle states read at a glance across the app's tables. The label text is
 // preserved verbatim, so screens (and the tests that query status by text) keep
 // working — this is presentation only.
-const VARIANT: Record<string, string> = {
+export const STATUS_BADGE_CLASSES = ["badge-ok", "badge-accent", "badge-warn", "badge-danger"] as const;
+
+const VARIANT: Record<string, (typeof STATUS_BADGE_CLASSES)[number]> = {
   // healthy / done
   active: "badge-ok",
   submitted: "badge-ok",
