@@ -5,6 +5,14 @@
 export const en = {
   common: {
     swipeColumns: "Swipe columns ↔",
+    // #908 — the setup lists' table also scrolls vertically within a bounded
+    // region (the bottom inspector docks below it), so the phone cue names
+    // both axes instead of `swipeColumns`' columns-only claim.
+    swipeColumnsScrollRows: "Swipe columns ↔ · Scroll rows ↕",
+    // #908 — shown in the bottom inspector before any row is selected.
+    inspectorEmptyPrompt: "Select a row to see its details",
+    // #908 — the bottom inspector's own aria-label, e.g. "Customer details".
+    inspectorLabel: "{{entity}} details",
     whatDoesTermMean: "What does “{{term}}” mean?",
     // #494 — the record-history cell shown on the list screens. "Last changed"
     // appears only when something happened after creation.
@@ -2138,6 +2146,8 @@ export const en = {
   // never `i18n.language` (formattingIndependence guard).
   customers: {
     title: "Customers",
+    // #908 — the bottom inspector's eyebrow/aria-label noun for one row.
+    entitySingular: "Customer",
     newCustomerButton: "New customer", // reused verbatim as the create-dialog title
 
     // Create-customer dialog

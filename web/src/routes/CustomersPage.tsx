@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Pencil, Plus, Users } from "lucide-react";
 import {
-  DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
+  DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField,
 } from "@mui/material";
 import {
   createCustomer, listCustomerBalances, listCustomers, updateCustomer,
@@ -16,6 +16,9 @@ import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
 import { DialogError } from "../components/DialogError";
+import {
+  LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX, selectableRowProps,
+} from "../components/FieldConsole";
 import { usePagedList } from "../components/usePagedList";
 import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
@@ -72,6 +75,10 @@ export function CustomersPage() {
   });
   const customers = customerList.rows;
   const [balances, setBalances] = useState<CustomerBalances | null>(null);
+  // #908 — the bottom inspector's selection; cleared once the selected row is
+  // gone from the loaded page (e.g. a fresh fetch that no longer includes it).
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedCustomer = customers?.find((c) => c.id === selectedId) ?? null;
   // #703 — the flight guard (#236), the per-place message slots (#479) and the
   // dialog-session generation (#477 part 2) come from one shared hook.
   const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
@@ -366,50 +373,79 @@ export function CustomersPage() {
         <EmptyState icon={Users} message={t("noCustomersMessage")}
           action={{ label: t("newCustomerButton"), onClick: () => { openDialog("create"); setCreating(true); } }} />
       ) : (
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>{t("nameHeader")}</TableCell>
-                <TableCell>{t("phoneHeader")}</TableCell>
-                <TableCell>{t("emailHeader")}</TableCell>
-                <TableCell>{t("addressHeader")}</TableCell>
-                <TableCell>{t("noteHeader")}</TableCell>
-                {isAdmin && <TableCell align="right">{t("outstandingHeader")}</TableCell>}
-                <TableCell></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {customers.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell sx={NOWRAP}>
-                    {canSeeSales
-                      ? <Link className="link" to={`/sales?customerId=${c.id}`}>{c.name}</Link>
-                      : c.name}
-                  </TableCell>
-                  <TableCell sx={NOWRAP}>{c.phone}</TableCell>
-                  <TableCell>{c.email ?? "—"}</TableCell>
-                  <TableCell>{c.address ?? "—"}</TableCell>
-                  <TableCell>{c.note ?? "—"}</TableCell>
-                  {isAdmin && (
-                    <TableCell align="right" sx={NOWRAP}>
-                      {balances === null || outstandingFor(c.id) === null
-                        ? "…"
-                        : fmt.money(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
-                    </TableCell>
-                  )}
-                  <TableCell sx={NOWRAP}>
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                      <button type="button" className="link" onClick={() => openEdit(c)}>
-                        <Pencil size={14} aria-hidden /> {t("editButton")}
-                      </button>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <ListInspectorPane
+          table={(
+            <LedgerTableContainer scrollHint="columnsAndRows">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("phoneHeader")}</TableCell>
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("emailHeader")}</TableCell>
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("addressHeader")}</TableCell>
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("noteHeader")}</TableCell>
+                    {isAdmin && <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("outstandingHeader")}</TableCell>}
+                    <TableCell sx={STICKY_TABLE_HEAD_SX}></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {customers.map((c) => (
+                    <TableRow key={c.id} {...selectableRowProps(c.id === selectedId, () => setSelectedId(c.id))}>
+                      <TableCell sx={NOWRAP}>
+                        {canSeeSales
+                          ? <Link className="link" to={`/sales?customerId=${c.id}`}>{c.name}</Link>
+                          : c.name}
+                      </TableCell>
+                      <TableCell sx={NOWRAP}>{c.phone}</TableCell>
+                      <TableCell>{c.email ?? "—"}</TableCell>
+                      <TableCell>{c.address ?? "—"}</TableCell>
+                      <TableCell>{c.note ?? "—"}</TableCell>
+                      {isAdmin && (
+                        <TableCell align="right" sx={NOWRAP}>
+                          {balances === null || outstandingFor(c.id) === null
+                            ? "…"
+                            : fmt.money(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
+                        </TableCell>
+                      )}
+                      <TableCell sx={NOWRAP}>
+                        <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                          <button type="button" className="link" onClick={() => openEdit(c)}>
+                            <Pencil size={14} aria-hidden /> {t("editButton")}
+                          </button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </LedgerTableContainer>
+          )}
+          inspector={(
+            <RecordInspector
+              ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
+              eyebrow={selectedCustomer ? t("entitySingular") : undefined}
+              title={selectedCustomer?.name}
+              subtitle={selectedCustomer?.phone}
+              emptyMessage={tc("inspectorEmptyPrompt")}
+              fields={selectedCustomer ? [
+                { label: t("emailFieldLabel"), value: selectedCustomer.email ?? "—" },
+                { label: t("addressFieldLabel"), value: selectedCustomer.address ?? "—" },
+                { label: t("noteFieldLabel"), value: selectedCustomer.note ?? "—" },
+                ...(isAdmin ? [{
+                  label: t("outstandingHeader"),
+                  value: balances === null || outstandingFor(selectedCustomer.id) === null
+                    ? "…"
+                    : fmt.money(outstandingFor(selectedCustomer.id)!, balances.currencyCode, balances.currencyMinorUnit),
+                }] : []),
+              ] : undefined}
+              actions={selectedCustomer && (
+                <button type="button" className="link" onClick={() => openEdit(selectedCustomer)}>
+                  <Pencil size={14} aria-hidden /> {t("editButton")}
+                </button>
+              )}
+            />
+          )}
+        />
       )}
 
       {customerList.canLoadMore && (

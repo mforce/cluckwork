@@ -6,6 +6,9 @@
 export const es = {
   common: {
     swipeColumns: "Deslice las columnas ↔",
+    swipeColumnsScrollRows: "Deslice las columnas ↔ · Desplace las filas ↕",
+    inspectorEmptyPrompt: "Seleccione una fila para ver los detalles",
+    inspectorLabel: "Detalles de {{entity}}",
     whatDoesTermMean: "¿Qué significa “{{term}}”?",
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
@@ -1582,6 +1585,7 @@ export const es = {
   // in this namespace).
   customers: {
     title: "Clientes",
+    entitySingular: "Cliente",
     newCustomerButton: "Nuevo cliente",
 
     // Create-customer dialog

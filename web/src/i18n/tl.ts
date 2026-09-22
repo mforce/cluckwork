@@ -11,6 +11,9 @@
 export const tl = {
   common: {
     swipeColumns: "I-swipe ang mga column ↔",
+    swipeColumnsScrollRows: "I-swipe ang mga column ↔ · I-scroll ang mga hilera ↕",
+    inspectorEmptyPrompt: "Pumili ng hilera para makita ang mga detalye",
+    inspectorLabel: "Mga detalye ng {{entity}}",
     whatDoesTermMean: "Ano ang ibig sabihin ng “{{term}}”?",
     "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
@@ -1642,6 +1645,7 @@ export const tl = {
   // in this namespace).
   customers: {
     title: "Mga Customer",
+    entitySingular: "Customer",
     newCustomerButton: "Bagong customer",
 
     // Create-customer dialog
