@@ -1194,6 +1194,7 @@ export const tl = {
   // native review.
   flocks: {
     title: "Mga Kawan",
+    entitySingular: "Kawan",
 
     // Imperative messages
     loadFlocksFailed: "Hindi na-load ang mga kawan. Gumagana ba ang API?",

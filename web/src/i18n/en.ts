@@ -1574,6 +1574,7 @@ export const en = {
   // the catalog or an enum helper.
   flocks: {
     title: "Flocks",
+    entitySingular: "Flock",
 
     // Imperative messages (mount-effect / ledger-load catch handlers — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).

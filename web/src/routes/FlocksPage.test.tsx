@@ -187,6 +187,41 @@ describe("FlocksPage loading + list", () => {
   });
 });
 
+// #908 — the table-plus-bottom-inspector redesign (Concept B).
+describe("FlocksPage selected-record inspector (#908)", () => {
+  it("shows a prompt before any row is selected, then fills in on click", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+
+    const row = screen.getByRole("row", { name: /Hen House 1/ });
+    fireEvent.click(row);
+
+    expect(row).toHaveAttribute("aria-selected", "true");
+    expect(within(inspector).getByRole("heading", { name: "Hen House 1" })).toBeInTheDocument();
+    expect(within(inspector).getByText("ISA Brown")).toBeInTheDocument();
+    expect(within(inspector).getByText("98 / 100")).toBeInTheDocument();
+  });
+
+  it("archives a flock from the inspector's own action", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(screen.getByRole("row", { name: /Hen House 1/ }));
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+
+    fireEvent.click(within(inspector).getByRole("button", { name: "archive" }));
+    await answer("Archive flock");
+
+    await waitFor(() => expect(mockArchive).toHaveBeenCalled());
+  });
+
+  it("does not select the row when opening its bird ledger", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    const row = screen.getByRole("row", { name: /Hen House 1/ });
+    fireEvent.click(within(row).getByRole("button", { name: "birds" }));
+    expect(row).toHaveAttribute("aria-selected", "false");
+  });
+});
+
 describe("FlocksPage create", () => {
   it("creates a flock with the full form body and a key, then resets the name", async () => {
     mockCreate.mockResolvedValue({ id: "new" });

@@ -1147,6 +1147,7 @@ export const es = {
   // name/breed are free-form farm data and stay raw.
   flocks: {
     title: "Lotes",
+    entitySingular: "Lote",
 
     // Imperative messages
     loadFlocksFailed: "No se pudieron cargar los lotes. ¿Está la API activa?",
