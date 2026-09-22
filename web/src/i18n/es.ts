@@ -2905,6 +2905,13 @@ export const es = {
     glossaryPageLoadingDef:
       "El breve mensaje que aparece mientras Cluckwork abre una pantalla que aún no se ha cargado. La navegación sigue disponible y el mensaje desaparece cuando la pantalla está lista.",
 
+    glossarySelectedRecordInspectorTerm: "Inspector del registro seleccionado",
+    glossarySelectedRecordInspectorDef:
+      "En las pantallas Clientes, Productos, Grados, Lotes y Usuarios, al hacer clic o activar una fila se "
+      + "muestran sus detalles completos en un panel anclado en la parte inferior de la lista, en lugar de una "
+      + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
+      + "marcada visiblemente.",
+
     glossarySearchablePickerTerm: "Selector de búsqueda",
     glossarySearchablePickerDef:
       "El control de escribir-para-buscar que se usa en los campos de nombre de parvada y de cliente. "

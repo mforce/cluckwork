@@ -3019,6 +3019,13 @@ export const tl = {
     glossaryPageLoadingDef:
       "Ang maikling mensaheng ipinapakita habang binubuksan ng Cluckwork ang isang screen na hindi pa nalo-load. Magagamit pa rin ang navigation, at nawawala ang mensahe kapag handa na ang screen.",
 
+    glossarySelectedRecordInspectorTerm: "Inspector ng napiling record",
+    glossarySelectedRecordInspectorDef:
+      "Sa mga screen na Customers, Products, Grades, Flocks at Users, ang pag-click o pag-activate sa isang "
+      + "row ay nagpapakita ng buong detalye nito sa isang panel na nakadikit sa ilalim ng listahan, sa halip "
+      + "na isang popup. Patuloy na nag-iisa mag-scroll ang table sa itaas, at nananatiling malinaw na markado "
+      + "ang napiling row.",
+
     glossarySearchablePickerTerm: "Picker na may search",
     glossarySearchablePickerDef:
       "Ang search-habang-nagta-type na control na ginagamit sa mga field ng pangalan ng kawan at customer. "

@@ -3605,6 +3605,12 @@ export const en = {
     glossaryPageLoadingDef:
       "The brief message shown while Cluckwork opens a screen that has not loaded yet. Navigation remains available, and the message disappears when the screen is ready.",
 
+    glossarySelectedRecordInspectorTerm: "Selected-record inspector",
+    glossarySelectedRecordInspectorDef:
+      "On the Customers, Products, Grades, Flocks and Users screens, clicking or activating a row shows its "
+      + "full details in a panel docked to the bottom of the list, instead of a popup. The table above it keeps "
+      + "scrolling on its own, and the selected row stays visibly marked.",
+
     // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),
     // not a paraphrase, for the same reason as gettingAroundSearchablePicker.
     glossarySearchablePickerTerm: "Searchable picker",
