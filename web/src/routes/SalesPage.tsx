@@ -1272,7 +1272,11 @@ export function SalesPage() {
                     "& td:nth-child(4)": { gridColumn: "1 / 3", gridRow: 2, textAlign: { xs: "left", md: "right" } },
                     "& td:nth-child(6)": { gridColumn: "3 / 5", gridRow: 2 },
                     "& :is(th, td):last-child": { gridColumn: 4, gridRow: 1 },
-                    "& tr[data-editing=true] td:nth-child(2)": { gridColumn: "1 / 4", gridRow: 5, "& .numfield": { maxWidth: 180 } },
+                    "& tr[data-editing=true] td:nth-child(2)": {
+                      gridColumn: "1 / 4", gridRow: 5,
+                      "& .numfield": { maxWidth: 180 },
+                      "& .numfield input": { width: { md: "3.875rem" } },
+                    },
                     "& tr[data-editing=true] td:nth-child(5)": { display: { xs: "block", md: "table-cell" }, gridColumn: "1 / 4", "& input": { width: { xs: "100%", md: "4.75rem" }, px: { md: .5 } } },
                     "& tr[data-editing=true] td:last-child": { whiteSpace: "normal" },
                   }}>
