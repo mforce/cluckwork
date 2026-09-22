@@ -895,6 +895,7 @@ export const tl = {
   grades: {
     title: "Mga Grado ng Itlog",
     loadingTitle: "Mga Grado",
+    entitySingular: "Grado",
 
     // Imperative message
     loadGradesFailed: "Hindi na-load ang mga grado. Gumagana ba ang API?",

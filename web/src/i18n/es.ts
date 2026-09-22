@@ -857,6 +857,7 @@ export const es = {
   grades: {
     title: "Grados de huevo",
     loadingTitle: "Grados",
+    entitySingular: "Grado",
 
     // Imperative message
     loadGradesFailed: "No se pudieron cargar los grados. ¿Está la API activa?",

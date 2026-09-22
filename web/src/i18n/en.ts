@@ -1205,6 +1205,7 @@ export const en = {
     // "fixed" as a drive-by (not this task's job).
     title: "Egg grades",
     loadingTitle: "Grades",
+    entitySingular: "Grade",
 
     // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern).

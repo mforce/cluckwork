@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Plus } from "lucide-react";
 import {
-  Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
+  Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell,
   TableHead, TableRow, TextField,
 } from "@mui/material";
 import {
@@ -14,7 +14,10 @@ import type { EggGrade } from "../api/cluckwork";
 import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
-import { CONSOLE_LINK_SX } from "../components/FieldConsole";
+import {
+  CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
+  selectableRowProps,
+} from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { ProvenanceCell } from "../components/ProvenanceCell";
@@ -45,6 +48,9 @@ export function GradesPage() {
   // nav link hides for workers; a direct URL just renders the list read-only.
   const { isAdmin } = useAuth();
   const [grades, setGrades] = useState<EggGrade[] | null>(null);
+  // #908 — the bottom inspector's selection.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedGrade = grades?.find((g) => g.id === selectedId) ?? null;
   // #703 — the flight guard (#236), the per-place message slots (#479) and the
   // dialog-session generation (#477 part 2) come from one shared hook; this
   // screen keeps only its idempotency-key and refresh discipline below, and
@@ -163,6 +169,42 @@ export function GradesPage() {
     });
   }
 
+  // #908 — shared between the row's own Actions cell and the inspector's
+  // actions, so both call sites stay one implementation.
+  function renderActions(g: EggGrade) {
+    return (
+      <>
+        {/* #493 — full audit trail for this record, distinct from the
+            created/last-changed summary in ProvenanceCell. Admin-gated:
+            /api/v1/audit is AdminOnly (codex review of #516). */}
+        {isAdmin && (
+          <Link className="link" to={`/audit?entityId=${g.id}`}>
+            {tc("recordHistory.viewHistoryLink")}
+          </Link>
+        )}
+        {isAdmin && (
+          <>
+            {/* Opens the edit dialog — non-mutating, so the spinner belongs
+                to the dialog's Save, not here (#242). */}
+            <button className="link" disabled={busy}
+              onClick={() => startEdit(g)}>{t("editButton")}</button>
+            {g.active ? (
+              <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+                onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
+                {t("deactivateButton")}
+              </BusyButton>
+            ) : (
+              <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}
+                onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
+                {t("activateButton")}
+              </BusyButton>
+            )}
+          </>
+        )}
+      </>
+    );
+  }
+
   if (errors.page && grades === null) {
     return <section><h2>{t("loadingTitle")}</h2><p className="error">{errors.page}</p></section>;
   }
@@ -264,65 +306,62 @@ export function GradesPage() {
           is nothing a dialog's own message could double up with. */}
       {errors.page && <p className="error">{errors.page}</p>}
 
-      <TableContainer>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{t("nameHeader")}</TableCell>
-              <TableCell>{t("typeHeader")}</TableCell>
-              <TableCell align="right">{t("sortHeader")}</TableCell>
-              <TableCell>{t("saleableHeader")}</TableCell>
-              <TableCell>{t("statusHeader")}</TableCell>
-              <TableCell>{tc("recordHistoryHeader")}</TableCell>
-              <TableCell></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {grades.map((g) => (
-              <TableRow key={g.id} className={g.active ? undefined : "inactive"}>
-                <TableCell sx={NOWRAP}>{g.name}</TableCell>
-                <TableCell sx={NOWRAP}>{gradeTypeLabel(g.gradeType)}</TableCell>
-                <TableCell align="right" sx={NOWRAP}>{fmt.count(g.sortOrder)}</TableCell>
-                <TableCell sx={NOWRAP}>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</TableCell>
-                <TableCell sx={NOWRAP}><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></TableCell>
-                <ProvenanceCell history={g} />
-                <TableCell sx={NOWRAP}>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                    {/* #493 — full audit trail for this record, distinct from
-                        the created/last-changed summary in ProvenanceCell.
-                        Admin-gated: /api/v1/audit is AdminOnly (codex review of
-                        #516). */}
-                    {isAdmin && (
-                      <Link className="link" to={`/audit?entityId=${g.id}`}>
-                        {tc("recordHistory.viewHistoryLink")}
-                      </Link>
-                    )}
-                    {isAdmin && (
-                      <>
-                        {/* Opens the edit dialog — non-mutating, so the spinner
-                            belongs to the dialog's Save, not here (#242). */}
-                        <button className="link" disabled={busy}
-                          onClick={() => startEdit(g)}>{t("editButton")}</button>
-                        {g.active ? (
-                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
-                            onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
-                            {t("deactivateButton")}
-                          </BusyButton>
-                        ) : (
-                          <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}
-                            onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
-                            {t("activateButton")}
-                          </BusyButton>
-                        )}
-                      </>
-                    )}
-                  </Stack>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <ListInspectorPane
+        table={(
+          <LedgerTableContainer scrollHint="columnsAndRows">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("typeHeader")}</TableCell>
+                  <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("sortHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("saleableHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("recordHistoryHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {grades.map((g) => (
+                  <TableRow key={g.id} className={g.active ? undefined : "inactive"}
+                    {...selectableRowProps(g.id === selectedId, () => setSelectedId(g.id))}>
+                    <TableCell sx={NOWRAP}>{g.name}</TableCell>
+                    <TableCell sx={NOWRAP}>{gradeTypeLabel(g.gradeType)}</TableCell>
+                    <TableCell align="right" sx={NOWRAP}>{fmt.count(g.sortOrder)}</TableCell>
+                    <TableCell sx={NOWRAP}>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</TableCell>
+                    <TableCell sx={NOWRAP}><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></TableCell>
+                    <ProvenanceCell history={g} />
+                    <TableCell sx={NOWRAP}>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                        {renderActions(g)}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </LedgerTableContainer>
+        )}
+        inspector={(
+          <RecordInspector
+            ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
+            eyebrow={selectedGrade ? t("entitySingular") : undefined}
+            title={selectedGrade?.name}
+            subtitle={selectedGrade ? gradeTypeLabel(selectedGrade.gradeType) : undefined}
+            emptyMessage={tc("inspectorEmptyPrompt")}
+            fields={selectedGrade ? [
+              { label: t("sortHeader"), value: fmt.count(selectedGrade.sortOrder) },
+              { label: t("saleableHeader"), value: selectedGrade.isSaleable ? t("saleableYesBadge") : "—" },
+              { label: t("statusHeader"), value: <StatusBadge status={selectedGrade.active ? "Active" : "Inactive"} label={statusLabel(selectedGrade.active ? "Active" : "Inactive")} /> },
+            ] : undefined}
+            actions={selectedGrade && (
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+                {renderActions(selectedGrade)}
+              </Stack>
+            )}
+          />
+        )}
+      />
     </section>
   );
 }
