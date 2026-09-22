@@ -1383,6 +1383,7 @@ export const es = {
   // {{label}}/{{email}}/{{role}} placeholders.
   users: {
     heading: "Usuarios",
+    entitySingular: "Usuario",
     newUserButton: "Nuevo usuario",
     roleDescription:
       "Los trabajadores registran el trabajo del día (opcionalmente "

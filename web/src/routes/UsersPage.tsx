@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
-  DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+  DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import {
   assignFlock as apiAssignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments,
@@ -12,7 +12,10 @@ import {
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
-import { CONSOLE_LINK_SX } from "../components/FieldConsole";
+import {
+  CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
+  selectableRowProps,
+} from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
@@ -49,6 +52,8 @@ export function UsersPage() {
   const { t: tc } = useTranslation("common");
 
   const [users, setUsers] = useState<User[] | null>(null);
+  // #908 — the bottom inspector's selection.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // #703 — the flight guard (#236), the per-place message slots (#479: the
   // page, and each dialog by its own name) and the dialog-session generation
   // (#477 part 2) come from one shared hook. Pending scopes stay per record —
@@ -718,6 +723,48 @@ export function UsersPage() {
   // flock-access dialog reads this to disable adding a new one and to mark
   // any retained rows on an elevated user as inactive.
   const openUserIsWorker = users.find((u) => u.id === openUser)?.role === "Worker";
+  // #908 — the bottom inspector's selection.
+  const selectedUser = users.find((u) => u.id === selectedId) ?? null;
+
+  // #908 — shared between the row's own Actions cell and the inspector's
+  // actions, so both call sites stay one implementation.
+  function renderActions(u: User) {
+    return (
+      <>
+        <button className="link" onClick={() => openEdit(u)}>
+          <Pencil size={14} aria-hidden /> {t("editButton")}
+        </button>
+        <button className="link" onClick={() => openPassword(u)}>
+          <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
+        </button>
+        <button className="link" onClick={() => openRole(u)}>
+          <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
+        </button>
+        <button className="link" onClick={() => openEmail(u)}>
+          <Mail size={14} aria-hidden /> {t("changeEmailButton")}
+        </button>
+        {/* #612 — shown for every role, not just Worker: a promoted user keeps
+            their retained rows (inert, but still visible and removable) even
+            though a NEW assignment is Worker-only. */}
+        <button className="link" onClick={() => void openAssignments(u.id)}>
+          {t("flocksButton")}
+        </button>
+        {/* The server 400s a self-target (Users.CannotDisableSelf/
+            CannotEnableSelf), so this stays off the caller's own row. */}
+        {myId !== u.id && (
+          u.disabledAt ? (
+            <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+              <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+            </button>
+          ) : (
+            <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
+              <Ban size={14} aria-hidden /> {t("disableButton")}
+            </button>
+          )
+        )}
+      </>
+    );
+  }
 
   return (
     <section>
@@ -794,67 +841,67 @@ export function UsersPage() {
       {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success">{message}</p>}
 
-      <TableContainer>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{t("emailColumnHeader")}</TableCell>
-              <TableCell>{t("nameColumnHeader")}</TableCell>
-              <TableCell>{t("roleColumnHeader")}</TableCell>
-              <TableCell>{t("statusColumnHeader")}</TableCell>
-              <TableCell></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {/* #356 — a disabled row renders muted (ProductsPage's active/inactive
-                precedent), and offers Enable in place of Disable. Neither action
-                appears on the caller's own row: the server 400s a self-target
-                (Users.CannotDisableSelf/CannotEnableSelf), so presenting the
-                button here would only ever fail. */}
-            {users.map((u) => (
-              <TableRow key={u.id} className={u.disabledAt ? "muted" : undefined}>
-                <TableCell sx={NOWRAP}>{u.email}</TableCell>
-                <TableCell sx={NOWRAP}>{u.displayName ?? "—"}</TableCell>
-                <TableCell sx={NOWRAP}>{roleLabel(u.role)}</TableCell>
-                <TableCell sx={NOWRAP}>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</TableCell>
-                <TableCell sx={NOWRAP}>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                    <button className="link" onClick={() => openEdit(u)}>
-                      <Pencil size={14} aria-hidden /> {t("editButton")}
-                    </button>
-                    <button className="link" onClick={() => openPassword(u)}>
-                      <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
-                    </button>
-                    <button className="link" onClick={() => openRole(u)}>
-                      <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
-                    </button>
-                    <button className="link" onClick={() => openEmail(u)}>
-                      <Mail size={14} aria-hidden /> {t("changeEmailButton")}
-                    </button>
-                    {/* #612 — shown for every role, not just Worker: a promoted
-                        user keeps their retained rows (inert, but still visible
-                        and removable) even though a NEW assignment is Worker-only. */}
-                    <button className="link" onClick={() => void openAssignments(u.id)}>
-                      {t("flocksButton")}
-                    </button>
-                    {myId !== u.id && (
-                      u.disabledAt ? (
-                        <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
-                          <RotateCcw size={14} aria-hidden /> {t("enableButton")}
-                        </button>
-                      ) : (
-                        <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
-                          <Ban size={14} aria-hidden /> {t("disableButton")}
-                        </button>
-                      )
-                    )}
-                  </Stack>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <ListInspectorPane
+        table={(
+          <LedgerTableContainer scrollHint="columnsAndRows">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("emailColumnHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameColumnHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("roleColumnHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusColumnHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {/* #356 — a disabled row renders muted (ProductsPage's active/inactive
+                    precedent), and offers Enable in place of Disable. Neither action
+                    appears on the caller's own row: the server 400s a self-target
+                    (Users.CannotDisableSelf/CannotEnableSelf), so presenting the
+                    button here would only ever fail. */}
+                {users.map((u) => (
+                  <TableRow key={u.id} className={u.disabledAt ? "muted" : undefined}
+                    {...selectableRowProps(u.id === selectedId, () => setSelectedId(u.id))}>
+                    <TableCell sx={NOWRAP}>{u.email}</TableCell>
+                    <TableCell sx={NOWRAP}>{u.displayName ?? "—"}</TableCell>
+                    <TableCell sx={NOWRAP}>{roleLabel(u.role)}</TableCell>
+                    <TableCell sx={NOWRAP}>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</TableCell>
+                    <TableCell sx={NOWRAP}>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
+                        {renderActions(u)}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </LedgerTableContainer>
+        )}
+        inspector={(
+          <RecordInspector
+            ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
+            eyebrow={selectedUser ? t("entitySingular") : undefined}
+            title={selectedUser?.email}
+            subtitle={selectedUser ? roleLabel(selectedUser.role) : undefined}
+            emptyMessage={tc("inspectorEmptyPrompt")}
+            fields={selectedUser ? [
+              { label: t("nameColumnHeader"), value: selectedUser.displayName ?? "—" },
+              {
+                label: t("statusColumnHeader"),
+                value: selectedUser.disabledAt
+                  ? <StatusBadge status="Inactive" label={t("disabledBadge")} />
+                  : "—",
+              },
+            ] : undefined}
+            actions={selectedUser && (
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+                {renderActions(selectedUser)}
+              </Stack>
+            )}
+          />
+        )}
+      />
 
       <Dialog
         open={openUser !== null}

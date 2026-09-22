@@ -1869,6 +1869,7 @@ export const en = {
   // as the option text on its own.
   users: {
     heading: "Users",
+    entitySingular: "User",
     newUserButton: "New user", // reused verbatim as the create-dialog title
     roleDescription:
       "Workers record the day's work (optionally narrowed to assigned "

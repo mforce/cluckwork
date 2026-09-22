@@ -1440,6 +1440,7 @@ export const tl = {
   // native review to confirm against local farm-software usage.
   users: {
     heading: "Mga User",
+    entitySingular: "User",
     newUserButton: "Bagong user",
     roleDescription:
       "Itinatala ng mga manggagawa ang trabaho ng araw (opsyonal na "

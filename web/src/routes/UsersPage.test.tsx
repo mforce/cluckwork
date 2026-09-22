@@ -228,6 +228,45 @@ describe("UsersPage load", () => {
   });
 });
 
+// #908 — the table-plus-bottom-inspector redesign (Concept B).
+describe("UsersPage selected-record inspector (#908)", () => {
+  it("shows a prompt before any row is selected, then fills in on click", async () => {
+    await renderReady(ADMIN);
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    fireEvent.click(row);
+
+    expect(row).toHaveAttribute("aria-selected", "true");
+    expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toBeInTheDocument();
+    expect(within(inspector).getByText("Wendy")).toBeInTheDocument();
+  });
+
+  it("opens the same edit dialog from the inspector's own edit action", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("row", { name: /worker@farm.test/ }));
+    const inspector = screen.getByRole("region", { name: "User details" });
+    fireEvent.click(within(inspector).getByRole("button", { name: "edit" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("does not select the row when clicking one of its own row actions", async () => {
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    fireEvent.click(within(row).getByRole("button", { name: "flocks" }));
+    expect(row).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("withholds disable/enable from the inspector on the caller's own row", async () => {
+    mockListUsers.mockResolvedValue([SELF_USER, WORKER_USER]);
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("row", { name: /self@farm.test/ }));
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+  });
+});
+
 // F131: create moved into a dialog — open it, then assert the same behaviour.
 const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New user", hidden: true }));
 const dialog = () => screen.getByRole("dialog");
