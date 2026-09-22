@@ -195,6 +195,9 @@ export const es = {
     skipToContent: "Saltar al contenido principal",
     primaryNavAriaLabel: "Principal",
     signOut: "Cerrar sesión",
+    // machine-drafted (#182) — pending native review. #936: More-menu
+    // recovery action for a deferred update prompt.
+    updateAvailableAction: "Actualización disponible",
     versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "No se pudo cargar la configuración de esta granja, así que las "
@@ -261,6 +264,7 @@ export const es = {
   // (UpdatePrompt.tsx, src/pwa).
   pwa: {
     updateAvailable: "Hay una nueva versión de Cluckwork lista.",
+    versionChange: "v{{current}} → v{{available}}",
     reload: "Recargar",
     reloading: "Recargando…",
     later: "Más tarde",

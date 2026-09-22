@@ -2,10 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { UpdatePrompt } from "./UpdatePrompt";
 import { registerServiceWorker } from "./registerServiceWorker";
+import { resetUpdateStoreForTests } from "./updateStore";
+import { useCachedBannerUrl } from "../lib/bannerCache";
 import i18n from "../i18n";
 
 vi.mock("./registerServiceWorker", () => ({ registerServiceWorker: vi.fn() }));
 const mockRegister = vi.mocked(registerServiceWorker);
+
+vi.mock("../lib/bannerCache", () => ({ useCachedBannerUrl: vi.fn() }));
+const mockBannerUrl = vi.mocked(useCachedBannerUrl);
 
 /** Renders, then hands back the update callback the component supplied. */
 async function renderAndCapture() {
@@ -22,30 +27,21 @@ async function renderAndCapture() {
   };
 }
 
-const banner = () => screen.queryByText(/new version of Cluckwork is ready/i);
+const overlay = () => screen.queryByText(/new version of Cluckwork is ready/i);
 
-beforeEach(() => vi.resetAllMocks());
-
-// The banner's positioning (including its z-index) is the plain
-// `.update-banner-position` styles.css class, not inline `sx`. jsdom loads
-// no stylesheet, so the z-index-ordering-vs-the-brand-splash assertion
-// lives in styles.elevation.test.ts, which reads styles.css directly; this
-// test only pins that the banner carries the class that rule is keyed on.
-describe("UpdatePrompt stacking (#828)", () => {
-  it("positions itself through the .update-banner-position class, not inline/sx", async () => {
-    const { announce } = await renderAndCapture();
-    await announce(vi.fn().mockResolvedValue(undefined));
-
-    const positioned = screen.getByText(/new version of Cluckwork is ready/i)
-      .closest(".update-banner-position") as HTMLElement;
-    expect(positioned).not.toBeNull();
-  });
+beforeEach(() => {
+  vi.resetAllMocks();
+  resetUpdateStoreForTests();
+  mockBannerUrl.mockReturnValue(null);
+  // test/setup.ts stubs global fetch to a blanket 401; fetchAvailableVersion
+  // treats that as "no available version" (never guesses), which is exactly
+  // what most of these tests want as their default.
 });
 
-describe("UpdatePrompt (#142)", () => {
+describe("UpdatePrompt overlay (#936)", () => {
   it("renders nothing until an update is actually waiting", async () => {
     await renderAndCapture();
-    expect(banner()).not.toBeInTheDocument();
+    expect(overlay()).not.toBeInTheDocument();
   });
 
   it("stays invisible where service workers are unsupported", async () => {
@@ -53,17 +49,37 @@ describe("UpdatePrompt (#142)", () => {
     // announces — the component must add no UI at all.
     mockRegister.mockResolvedValue(null);
     await act(async () => { render(<UpdatePrompt />); });
-    expect(banner()).not.toBeInTheDocument();
+    expect(overlay()).not.toBeInTheDocument();
   });
 
-  it("shows the banner once an update is announced", async () => {
+  it("shows the overlay, as a status region, once an update is announced", async () => {
     const { announce } = await renderAndCapture();
     announce(vi.fn().mockResolvedValue(undefined));
 
-    expect(banner()).toBeInTheDocument();
-    // Announced politely so a screen reader doesn't steal focus mid-entry.
+    expect(overlay()).toBeInTheDocument();
+    // Announced politely so a screen reader doesn't steal focus mid-entry —
+    // not a real modal (see UpdatePrompt.tsx: nothing sets the rest of the
+    // page inert), so this deliberately is NOT role="dialog"/aria-modal.
     expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+  });
+
+  it("renders no banner image when none is cached for this device", async () => {
+    const { announce } = await renderAndCapture();
+    announce(vi.fn().mockResolvedValue(undefined));
+    expect(document.querySelector(".update-overlay-banner")).toBeNull();
+  });
+
+  it("reuses the device-cached farm banner when one is available", async () => {
+    mockBannerUrl.mockReturnValue("blob:farm-banner");
+    const { announce } = await renderAndCapture();
+    announce(vi.fn().mockResolvedValue(undefined));
+    const image = document.querySelector(".update-overlay-banner") as HTMLImageElement | null;
+    expect(image).not.toBeNull();
+    expect(image?.src).toContain("blob:farm-banner");
+    // Decorative: the substantive content is the status text, not the image.
+    expect(image?.alt).toBe("");
   });
 
   it("activates the waiting worker when Reload is pressed", async () => {
@@ -104,10 +120,10 @@ describe("UpdatePrompt (#142)", () => {
     });
 
     expect(screen.getByRole("button", { name: "Reload" })).toBeEnabled();
-    expect(banner()).toBeInTheDocument();
+    expect(overlay()).toBeInTheDocument();
   });
 
-  it("Later dismisses the banner without activating", async () => {
+  it("Later dismisses the overlay without activating", async () => {
     const activate = vi.fn();
     const { announce } = await renderAndCapture();
     announce(activate);
@@ -116,20 +132,46 @@ describe("UpdatePrompt (#142)", () => {
       fireEvent.click(screen.getByRole("button", { name: "Later" }));
     });
 
-    expect(banner()).not.toBeInTheDocument();
+    expect(overlay()).not.toBeInTheDocument();
     expect(activate).not.toHaveBeenCalled();
   });
 
-  it("a NEWER update re-shows the banner after an earlier one was dismissed", async () => {
+  it("a NEWER update re-shows the overlay after an earlier one was dismissed", async () => {
     const { announce } = await renderAndCapture();
     announce(vi.fn());
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Later" }));
     });
-    expect(banner()).not.toBeInTheDocument();
+    expect(overlay()).not.toBeInTheDocument();
 
     announce(vi.fn()); // a second deploy lands
-    expect(banner()).toBeInTheDocument();
+    expect(overlay()).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Version handshake (#936)
+// ---------------------------------------------------------------------------
+
+// The fetch/validation logic (fetchAvailableVersion) and the "is this worth
+// showing" decision (describeVersionChange) are unit-tested directly in
+// appVersion.test.ts with explicit strings — VITE_APP_VERSION is read ONCE
+// at module scope (matching AppLayout.tsx's identical, identically-untestable
+// pattern) and is unset in every test build, so CURRENT_VERSION can never be
+// stubbed to a real value here. What IS testable at this level is the
+// integration: a successful handshake still correctly renders NOTHING when
+// the current build's own version is unknown, exactly like AppLayout's own
+// "#458 — dev/test builds" test.
+describe("UpdatePrompt version handshake wiring (#936)", () => {
+  it("never shows a version line when this build's own version is unset, even if the handshake succeeds", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ version: "9.9.9" }), { status: 200 }),
+    ));
+    const { announce } = await renderAndCapture();
+    await act(async () => { announce(vi.fn()); });
+    await act(async () => {}); // flush the fetch microtask queued by the effect
+
+    expect(document.querySelector(".update-overlay-version")).toBeNull();
   });
 });
 
@@ -137,15 +179,9 @@ describe("UpdatePrompt (#142)", () => {
 // i18n wiring (#182, Task 9, batch B1)
 // ---------------------------------------------------------------------------
 
-// `pwa` is English-only (not in TRANSLATED_NAMESPACES — see
-// translations-status.ts) — src/pwa is also outside the i18n:scan default
-// path, so this externalization won't move the scan count either. Under ANY
-// UI language the rendered text falls back to this exact English string, same
-// as a still-hardcoded literal would render — asserting it, even under a
-// non-English locale, would prove nothing (CONTRIBUTING-i18n.md's fallback
-// trap). Swap the catalog value at runtime instead, the same i18n.addResource
-// technique the other Task 8/9 wiring tests use, so each marker only renders
-// if UpdatePrompt actually reads the catalog.
+// `pwa` under ANY UI language falls back to English unless a test swaps the
+// catalog value at runtime (see translations-status.ts) — asserting English
+// proves nothing about whether the component reads the catalog at all.
 describe("UpdatePrompt i18n wiring (#182, Task 9)", () => {
   async function withOverride(key: string, value: string, run: () => Promise<void>) {
     const original = i18n.getResource("en", "pwa", key) as string;
@@ -157,12 +193,12 @@ describe("UpdatePrompt i18n wiring (#182, Task 9)", () => {
     }
   }
 
-  it("reads the update-available banner text from the catalog, not a hardcoded literal", async () => {
+  it("reads the update-available headline from the catalog, not a hardcoded literal", async () => {
     await withOverride("updateAvailable", "UPDATE-AVAILABLE-MARKER", async () => {
       const { announce } = await renderAndCapture();
       announce(vi.fn().mockResolvedValue(undefined));
       expect(screen.getByText("UPDATE-AVAILABLE-MARKER")).toBeInTheDocument();
-      expect(banner()).not.toBeInTheDocument();
+      expect(overlay()).not.toBeInTheDocument();
     });
   });
 

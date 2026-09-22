@@ -1,6 +1,6 @@
 import { Fragment, Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { LogOut } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Alert, Box, Button, Drawer, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography,
@@ -12,6 +12,7 @@ import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
 import { useFarm } from "../farm/useFarm";
+import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import { navGroups, tabEntries } from "./nav";
 import type { NavEntry } from "./nav";
 
@@ -37,6 +38,11 @@ export function AppLayout() {
   const { farm, loadFailed, refresh } = useFarm();
   const navigate = useNavigate();
   const location = useLocation();
+  // #936 — the deferred-update recovery action: visible only while an update
+  // is actually waiting, whether or not the overlay itself was dismissed via
+  // Later. Reads the SAME store UpdatePrompt.tsx registers against, so this
+  // never triggers a second registerServiceWorker call.
+  const updateWaiting = useIsUpdateWaiting();
 
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
@@ -121,6 +127,13 @@ export function AppLayout() {
 
         <Box sx={{ mt: "auto", px: 1, py: 1.5, borderTop: "1px solid var(--hairline)" }}>
           <ThemeToggle iconSize={ICON} />
+          {updateWaiting && (
+            <Button variant="text" color="inherit" onClick={reopenUpdate}
+              startIcon={<RefreshCw size={ICON} strokeWidth={1.5} aria-hidden />}
+              sx={{ justifyContent: "flex-start", width: "100%" }}>
+              {t("updateAvailableAction")}
+            </Button>
+          )}
           <Button variant="text" color="inherit" onClick={onLogout} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
             sx={{ justifyContent: "flex-start", width: "100%" }}>
             {t("signOut")}

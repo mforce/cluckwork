@@ -206,6 +206,9 @@ export const tl = {
     skipToContent: "Lumaktaw papunta sa pangunahing content",
     primaryNavAriaLabel: "Pangunahin",
     signOut: "Mag-sign out",
+    // machine-drafted (#182) — pending native review. #936: More-menu
+    // recovery action for a deferred update prompt.
+    updateAvailableAction: "May bagong bersyon",
     versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "Hindi na-load ang mga setting ng bukid na ito, kaya susundin ng mga "
@@ -273,6 +276,7 @@ export const tl = {
   // (UpdatePrompt.tsx, src/pwa).
   pwa: {
     updateAvailable: "May bagong bersyon ng Cluckwork na handa na.",
+    versionChange: "v{{current}} → v{{available}}",
     reload: "I-reload",
     reloading: "Nire-reload…",
     later: "Mamaya",

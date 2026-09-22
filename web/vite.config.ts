@@ -1,8 +1,28 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
+import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+
+// #936 — the "available version" side channel (pwa/appVersion.ts). Emitted
+// as a build-only asset, deliberately not part of the Workbox precache glob
+// below (no `.json` in `globPatterns`), so a page's `fetch("/version.json",
+// { cache: "no-store" })` always reaches the network — never the currently
+// ACTIVE worker's cache — regardless of which build is waiting.
+function versionManifest(version: string | undefined): Plugin {
+  return {
+    name: "cluckwork-version-manifest",
+    apply: "build",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify({ version: version ?? null }),
+      });
+    },
+  };
+}
 
 export function resolveDevServer(processEnvironment: NodeJS.ProcessEnv): {
   port: number;
@@ -40,6 +60,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      versionManifest(env.VITE_APP_VERSION),
       // #142 — installable PWA. Scope is the app SHELL only: the service worker
       // makes the SPA launchable from a home screen and survivable on a bad
       // connection. It caches no application data — offline capture is #50.
