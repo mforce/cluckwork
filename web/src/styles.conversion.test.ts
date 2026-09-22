@@ -243,6 +243,9 @@ describe("MUI source policy (#824)", () => {
     ]);
     expect(uppercase.sort()).toEqual([
       "components/FieldConsole.tsx:\"uppercase\"",
+      // #908 — the bottom inspector's eyebrow label, a second deliberate site
+      // in the same file (the table-head style above it is the first).
+      "components/FieldConsole.tsx:\"uppercase\"",
       "routes/Dashboard.tsx:\"uppercase\"",
       "routes/SalesPage.tsx:\"uppercase\"",
     ]);
