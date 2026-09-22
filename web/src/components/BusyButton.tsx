@@ -1,5 +1,6 @@
 import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Box, CircularProgress } from "@mui/material";
 
 type Props<C extends ElementType> = {
   busy?: boolean;
@@ -40,10 +41,18 @@ export function BusyButton<C extends ElementType = "button">({
   return (
     <>
       <Component {...rest} disabled={disabled || busy} aria-busy={busy || undefined}>
-        <span className="busy-label">
-          {busy && <span className="spinner" aria-hidden="true" />}
+        <Box component="span" className="busy-label" sx={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+          {busy && (
+            <CircularProgress
+              className="spinner"
+              size={16}
+              thickness={5}
+              aria-hidden="true"
+              sx={{ color: "currentColor", flexShrink: 0 }}
+            />
+          )}
           {children}
-        </span>
+        </Box>
       </Component>
       <span role="status" className="sr-only">
         {busy ? t("working") : ""}

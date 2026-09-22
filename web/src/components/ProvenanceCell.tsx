@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Box, TableCell } from "@mui/material";
+import { Box, TableCell, Tooltip } from "@mui/material";
 import type { RecordHistory } from "../api/cluckwork";
 import { useFarm } from "../farm/useFarm";
 import { relativeTime } from "../lib/relativeTime";
@@ -102,20 +102,25 @@ export function ProvenanceCell({
     // (Sales, Expenses, History, until #831) still render this inside a plain
     // `table.data`. The ellipsis sits on the summary line alone so a stacked
     // audit link is never clipped.
-    <TableCell title={fullStamp} sx={{ padding: "0.6rem 1rem 0.6rem 0", whiteSpace: "nowrap" }}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "14rem" }}>
-        <Box
-          component="span"
-          className="muted"
-          sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}
-        >
-          {relativeTime(summary ? summary.at : (officialAt as string), farm?.timeZoneId)}
-          {summary && <> · {actorHandle(summary.email)}</>}
+    // #828 — describeChild: the full stamp DESCRIBES the visible summary, it
+    // is not the cell's accessible name; MUI's default would otherwise
+    // replace the cell's name (its visible actor/date text) with the stamp.
+    <Tooltip title={fullStamp} describeChild>
+      <TableCell sx={{ padding: "0.6rem 1rem 0.6rem 0", whiteSpace: "nowrap" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "14rem" }}>
+          <Box
+            component="span"
+            className="muted"
+            sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}
+          >
+            {relativeTime(summary ? summary.at : (officialAt as string), farm?.timeZoneId)}
+            {summary && <> · {actorHandle(summary.email)}</>}
+          </Box>
+          {auditHref && (
+            <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
+          )}
         </Box>
-        {auditHref && (
-          <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
-        )}
-      </Box>
-    </TableCell>
+      </TableCell>
+    </Tooltip>
   );
 }

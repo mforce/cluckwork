@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Inbox } from "lucide-react";
 import {
-  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from "@mui/material";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
@@ -512,10 +512,17 @@ export function HistoryPage() {
       Submitted: { label: t("statusSubmitted"), color: "var(--success)" },
     };
     const state = states[e.status] ?? { label: t("statusDraft"), color: "var(--muted)" };
-    return <Box component="span" title={state.title} sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap" }}>
-      <Box component="span" aria-hidden="true" sx={{ width: "6px", height: "6px", borderRadius: "50%", bgcolor: state.color, flexShrink: 0 }} />
-      {state.label}
-    </Box>;
+    return (
+      // describeChild: the reason/timestamp DESCRIBES the pill, it is not the
+      // pill's accessible NAME — without it Tooltip's default replaces the
+      // pill's name (the label text below) with the title text instead.
+      <Tooltip title={state.title} describeChild>
+        <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap" }}>
+          <Box component="span" aria-hidden="true" sx={{ width: "6px", height: "6px", borderRadius: "50%", bgcolor: state.color, flexShrink: 0 }} />
+          {state.label}
+        </Box>
+      </Tooltip>
+    );
   }
 
   // The setup read (flocks + grades) failing with nothing to show is the one

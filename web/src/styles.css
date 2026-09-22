@@ -1041,69 +1041,10 @@ input.cell {
 .entry-chip.over { background: var(--tint-danger); }
 .entry-chip.over b { color: var(--error); }
 
-/* ---- number entry with thumb-sized steppers (F134) ---- */
-.numfield {
-  display: inline-flex;
-  align-items: stretch;
-  gap: 0.3rem;
-}
-
-/* Sized to its content: an egg count is four digits, not three hundred pixels.
-   The native spinner is hidden — it is a 10px target and absent on touch. */
-.numfield input {
-  width: 4.75rem;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-.numfield input::-webkit-outer-spin-button,
-.numfield input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-/* The dialog full-width input rule (".dialog .form-grid input…" above) would
-   stretch the stepper's input across the dialog and throw − and + to opposite
-   edges — the very reach problem F134's flanking buttons exist to avoid
-   (#250). Same specificity as that rule, later in the file, so it wins. */
-.dialog .numfield input:not([type="checkbox"]) {
-  width: 4.75rem;
-}
-
-.numfield-step {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  padding: 0;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-input);
-  background: var(--surface-2);
-  color: var(--ink);
-  /* A held button must not select the label text or fire the OS long-press
-     menu under a thumb. */
-  user-select: none;
-  touch-action: manipulation;
-}
-
-.numfield-step:hover:not(:disabled) {
-  background: var(--tint-accent);
-  color: var(--stat-accent);
-}
-
-/* #444 — a non-1 step renders its amount ("+30") instead of the bare icon.
-   Width goes auto so "+360" (Case) fits; the wider button is a better glove
-   target, which is the point of these controls. */
-.numfield-step-unit {
-  width: auto;
-  min-width: 2.25rem;
-  padding: 0 0.5rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
+/* #828 — the thumb-sized number stepper (F134) is now NumberField.tsx's own
+   `sx` (MUI TextField + IconButton). `.numfield`/`.numfield-step` survive as
+   class names only: EntryRow.tsx and DailyEntryPage.tsx target them from
+   their own `sx` to resize the stepper per screen. */
 
 /* -------------------------------------------- Toolbar (inset filter bar) */
 /* #653 — the bounded date-range filter bar: Reports (the whole filter row),
@@ -2515,92 +2456,32 @@ dl.mistakes {
 }
 
 
-/* #142 — the "new version is ready" banner. Fixed to the bottom so it is within
-   thumb reach on a barn phone, at z-index 30: above the tab bar (20) so it is
-   never hidden behind it, below the dialog (50) so a modal still wins. */
-.update-banner {
-  position: fixed;
-  inset: auto 1rem 1rem auto;
-  z-index: 30;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-  max-width: min(30rem, calc(100vw - 2rem));
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--hairline);
-  border-radius: 0.6rem;
-  background: var(--surface);
-  box-shadow: var(--shadow-bar);
-  color: var(--ink);
-}
-
-.update-banner-text {
-  flex: 1 1 12rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.update-banner-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Secondary action: present but not competing with Reload. */
-.update-banner-later {
-  background: none;
-  border: 1px solid var(--hairline);
-  color: var(--muted);
-}
-
-@media (max-width: 900px) {
-  .update-banner {
-    /* Clear the fixed tab bar (min-height 3.4rem) and the home indicator, so
-       the banner never sits on top of the navigation. */
-    inset: auto 1rem calc(3.4rem + env(safe-area-inset-bottom) + 0.75rem) 1rem;
-    max-width: none;
-  }
-}
+/* #142/#828 — the "new version is ready" banner is now UpdatePrompt.tsx's own
+   MUI `Snackbar`/`Alert`, positioned and shadowed through its own `sx`
+   (including the phone tab-bar clearance and the below-dialog z-index this
+   block used to carry). `.update-banner` survives only as a class name on
+   the `Alert` (UpdatePrompt.integration.test.tsx queries it), with no rule
+   here behind it. */
 
 /* ------------------------------------------------- Busy buttons (#236) */
 
-/* Without this, the global button:disabled { opacity: .5 } halves the whole
-   busy subtree — spinner included — reproducing the exact dead-button look the
-   busy state exists to replace. The rule being overridden is the base
-   `button:disabled` in the button styles near the top of this file. Both are
-   `:where()`-demoted (#823), so this one wins on source order rather than on
-   specificity: keep it below that rule. */
+/* #828 — the spinner and its wrapper (`.spinner`, `.busy-label`) are now
+   BusyButton.tsx's own `sx` around MUI `CircularProgress`; those two class
+   names survive only as query hooks (BusyButton.test.tsx), with no rule here
+   behind them.
+   This rule stays: BusyButton's `component` prop defaults to a plain
+   `<button>` (about 40 call sites still get it, #830), and without this the
+   global `button:disabled { opacity: .5 }` halves the whole busy subtree —
+   spinner included — reproducing the exact dead-button look the busy state
+   exists to replace. The rule being overridden is the base `button:disabled`
+   in the button styles near the top of this file. Both are `:where()`-
+   demoted (#823), so this one wins on source order rather than on
+   specificity: keep it below that rule. A caller that opts into MUI's own
+   `Button` (`component={Button}`) never needs this: MUI dims a disabled
+   button by swapping its palette colours, not by an `opacity` this rule
+   would have to counter. */
 :where(button:disabled[aria-busy="true"]) {
   opacity: 1;
-}
-
-/* inline-flex so callers' icon/text pairs keep their gap inside the wrapper —
-   and so the spinner, rendered as the wrapper's first child while busy, seats
-   beside the label with that same gap. */
-.busy-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-/* Beside the label at full brightness, not overlaid on a dimmed one — the
-   overlay version read as barely-there on filled buttons (owner call,
-   2026-07-28). currentColor keeps it legible on every button variant (brand
-   pill, danger, link). flex-shrink 0: the ring must never be crushed by a long
-   label. No reduced-motion query here: the global rule above already kills the
-   animation, and a static ring beside a "Saving…" label still reads as busy. */
-.spinner {
-  flex-shrink: 0;
-  width: 1em;
-  height: 1em;
-  border: 3px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 /* #512 — the searchable named-entity picker (FlockPicker / CustomerPicker).

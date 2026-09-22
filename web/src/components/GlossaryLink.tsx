@@ -19,8 +19,10 @@ export function GlossaryLink({ term }: { term: GlossaryKey }) {
     <MuiLink
       component={RouterLink}
       to={`/help#${entry.id}`}
+      // #828 — no `title`: it repeated this same text verbatim, adding no
+      // information a native tooltip would have that `aria-label` does not
+      // already carry.
       aria-label={label}
-      title={label}
       underline="none"
       sx={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",

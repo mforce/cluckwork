@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert, Button, Snackbar } from "@mui/material";
 import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { registerServiceWorker } from "./registerServiceWorker";
 
@@ -75,24 +76,51 @@ export function UpdatePrompt() {
           and the E2E suite reads their absence as "nothing has gone wrong". */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">{missed}</p>
       {waiting && (
-        // polite + status: announced by a screen reader without stealing focus
-        // from whatever is being typed.
-        <div className="update-banner" role="status" aria-live="polite">
-          <span className="update-banner-text">{t("updateAvailable")}</span>
-          <div className="update-banner-actions">
-            <button type="button" onClick={onReload} disabled={busy}>
-              {busy ? t("reloading") : t("reload")}
-            </button>
-            <button
-              type="button"
-              className="update-banner-later"
-              onClick={() => setDismissed(true)}
-              disabled={busy}
-            >
-              {t("later")}
-            </button>
-          </div>
-        </div>
+        // Snackbar renders inline (no portal, see Snackbar.js), so it inherits
+        // aria-hidden from a Dialog's already-inert ancestor exactly like the
+        // plain div it replaces (#485) — nothing here needs to reach across a
+        // portal boundary. `open` is not driven by MUI's own close transition:
+        // this whole tree mounts and unmounts through the `waiting &&` above,
+        // so React removes it immediately, with no exit-animation delay, the
+        // same instant swap the div gave Later/Reload.
+        <Snackbar
+          open
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          sx={{
+            // Below every Dialog (MUI's own z-index.modal), same as the
+            // retired `.update-banner`'s "z-index 30, below the dialog (50)":
+            // #485 already makes this inert while a dialog is open, but a
+            // hidden node with a HIGHER z-index would still paint over the
+            // dialog it is supposed to lose to.
+            zIndex: (theme) => theme.zIndex.modal - 1,
+            insetInlineEnd: "1rem", insetInlineStart: "auto", top: "auto", transform: "none",
+            insetBlockEnd: {
+              xs: "calc(3.4rem + env(safe-area-inset-bottom) + 0.75rem)",
+              md: "1rem",
+            },
+            maxWidth: { xs: "none", md: "min(30rem, calc(100vw - 2rem))" },
+          }}
+        >
+          <Alert
+            role="status"
+            aria-live="polite"
+            severity="info"
+            className="update-banner"
+            sx={{ boxShadow: "var(--shadow-bar)", alignItems: "center" }}
+            action={(
+              <>
+                <Button color="inherit" size="small" onClick={onReload} disabled={busy}>
+                  {busy ? t("reloading") : t("reload")}
+                </Button>
+                <Button color="inherit" size="small" onClick={() => setDismissed(true)} disabled={busy}>
+                  {t("later")}
+                </Button>
+              </>
+            )}
+          >
+            {t("updateAvailable")}
+          </Alert>
+        </Snackbar>
       )}
     </>
   );

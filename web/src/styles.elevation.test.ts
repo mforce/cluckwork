@@ -178,10 +178,13 @@ function declarationsFor(selector: string): Map<string, string> {
 // and `Autocomplete`'s own exception, `MuiAutocomplete.styleOverrides.paper`
 // at index 8, already pinned in `farmTheme.policy.test.ts`) — no new G2 row,
 // unchanged by this PR.
+// `.update-banner` retired here in #828: the service-worker update prompt is
+// now a MUI `Snackbar`/`Alert`, whose shadow is an explicit `sx` reading the
+// SAME `--shadow-bar` token this rule used to declare (UpdatePrompt.tsx) —
+// not a new G2 mapping, so no `farmTheme.policy.test.ts` row follows it.
 // Auth uses an elevation-0 Paper with its existing bespoke shadow token.
 const SHADOW_ALLOWED = [
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
-  ".update-banner",         // the service-worker update prompt
 ].sort();
 
 describe("#651 elevation: only a float casts a shadow", () => {

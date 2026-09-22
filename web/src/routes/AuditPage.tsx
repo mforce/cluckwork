@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
 import {
-  Box, Checkbox, FormControlLabel, TextField, Typography,
+  Box, Checkbox, FormControlLabel, TextField, Tooltip, Typography,
 } from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
 import { FilterDateField } from "../components/FilterBar";
@@ -528,26 +528,29 @@ export function AuditPage() {
               const summaryId = `audit-event-${e.id}`;
               const actorId = `audit-event-actor-${e.id}`;
               return (
-                <details
-                  className="audit-event"
-                  role="article"
-                  key={e.id}
-                  title={e.detailsJson ?? undefined}
-                  aria-labelledby={summaryId}
-                  aria-describedby={actorId}
-                >
-                  <summary id={summaryId}>
-                    {timestamp} UTC · {action}
-                  </summary>
-                  <div className="audit-event-body">
-                    <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>
-                    <Typography component="p" variant="body2">{action}</Typography>
-                    <Typography component="p" variant="body2">
-                      {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
-                    </Typography>
-                    <AuditDetails event={e} />
-                  </div>
-                </details>
+                // #828 — the raw JSON payload on hover, which is more detail
+                // than the parsed summary AuditDetails shows once expanded.
+                // describeChild: this DESCRIBES the row, it is not its name.
+                <Tooltip key={e.id} title={e.detailsJson ?? ""} describeChild>
+                  <details
+                    className="audit-event"
+                    role="article"
+                    aria-labelledby={summaryId}
+                    aria-describedby={actorId}
+                  >
+                    <summary id={summaryId}>
+                      {timestamp} UTC · {action}
+                    </summary>
+                    <div className="audit-event-body">
+                      <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>
+                      <Typography component="p" variant="body2">{action}</Typography>
+                      <Typography component="p" variant="body2">
+                        {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
+                      </Typography>
+                      <AuditDetails event={e} />
+                    </div>
+                  </details>
+                </Tooltip>
               );
             })}
           </div>

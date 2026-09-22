@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
+import { Tooltip } from "@mui/material";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder,
   listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
@@ -1510,21 +1511,30 @@ export function SalesPage() {
                   </thead>
                   <tbody>
                     {payments.items.map((p) => (
-                      <tr key={p.id} className={p.voided ? "inactive" : undefined}
-                        title={p.note ?? undefined}>
+                      // #828 — describeChild: the note describes the row, it
+                      // is not the row's name.
+                      <Tooltip key={p.id} title={p.note ?? undefined} describeChild>
+                      <tr className={p.voided ? "inactive" : undefined}>
                         <td className="nowrap"><FarmDate iso={p.paymentDate} /></td>
                         <td className="num">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                         <td>{t(`method${p.method as PaymentMethod}`)}</td>
                         <td className="nowrap">{p.referenceNumber ?? "—"}</td>
                         <td>
                           {p.voided
-                            ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
+                            ? (
+                              // describeChild: the reason describes the badge,
+                              // it is not the badge's ("Voided") accessible name.
+                              <Tooltip title={p.voidReason ?? undefined} describeChild>
+                                <span className="badge badge-danger">{statusLabel("Voided")}</span>
+                              </Tooltip>
+                            )
                             : isAdmin ? (
                               <BusyButton className="link" disabled={busy} busy={isPending(`void-payment:${p.id}`)}
                                 onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
                             ) : null}
                         </td>
                       </tr>
+                      </Tooltip>
                     ))}
                   </tbody>
                 </table>

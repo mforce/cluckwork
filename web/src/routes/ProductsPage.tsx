@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Package, Plus } from "lucide-react";
 import {
   Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, TextField,
+  TableHead, TableRow, TextField, Tooltip,
 } from "@mui/material";
 import {
   activateProduct, createProduct, deactivateProduct,
@@ -478,7 +478,9 @@ export function ProductsPage() {
             <TableBody>
               {products.map((p) => (
                 <TableRow key={p.id} className={p.active ? undefined : "muted"}>
-                  <TableCell title={p.notes ?? undefined} sx={NOWRAP}>{p.name}</TableCell>
+                  <Tooltip title={p.notes ?? undefined} describeChild>
+                    <TableCell sx={NOWRAP}>{p.name}</TableCell>
+                  </Tooltip>
                   <TableCell sx={NOWRAP}>{gradeName(p.eggGradeId)}</TableCell>
                   <TableCell sx={NOWRAP}>{p.defaultUnit}</TableCell>
                   <TableCell align="right" sx={NOWRAP}>{p.defaultPriceMinorUnits === null
