@@ -176,6 +176,39 @@ describe("CSS conversion class manifest (#824 G1)", () => {
   });
 });
 
+// #939 codex review — a bare `file:literal` identity cannot tell two sites in
+// the SAME file apart, so removing a reviewed site and adding an unrelated
+// one elsewhere leaves the count (and therefore the guard) unchanged. Tagging
+// each site with its nearest top-level export/component name closes that:
+// swapping the enclosing declaration is exactly the substitution a reviewer
+// would notice, and two sites that genuinely share one declaration (as
+// `createFarmTheme`'s two shadow sites do) are still allowed to collide,
+// honestly, rather than inventing a distinction the code doesn't have.
+function containerName(node: AstNode): string | null {
+  if (node.type === "FunctionDeclaration" && isNode(node.id)) return text(node.id, "name");
+  if (node.type === "ExportNamedDeclaration" && isNode(node.declaration)) return containerName(node.declaration);
+  if (node.type === "VariableDeclaration") {
+    const declarations = node.declarations;
+    if (Array.isArray(declarations) && declarations.length === 1 && isNode(declarations[0])
+      && isNode(declarations[0].id) && declarations[0].id.type === "Identifier") {
+      return text(declarations[0].id, "name");
+    }
+  }
+  return null;
+}
+
+function walkTopLevel(programValue: unknown, visit: (node: AstNode, container: string | null) => void): void {
+  if (!isNode(programValue)) throw new Error("not a Program node");
+  const program = programValue;
+  const body = program.body;
+  if (!Array.isArray(body)) throw new Error("Program.body is not an array");
+  for (const statement of body) {
+    if (!isNode(statement)) continue;
+    const container = containerName(statement);
+    walk(statement, (node) => visit(node, container));
+  }
+}
+
 function propertyName(node: AstNode): string | null {
   if (node.type !== "ObjectProperty" || !isNode(node.key)) return null;
   if (node.key.type === "Identifier") return text(node.key, "name");
@@ -228,26 +261,27 @@ describe("MUI source policy (#824)", () => {
     for (const file of productionFiles([".ts", ".tsx"])) {
       const source = readFileSync(file, "utf8");
       const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
-      walk(tree.program, (node) => {
+      walkTopLevel(tree.program, (node, container) => {
         const name = propertyName(node);
         if (name === null || !isNode(node.value)) return;
-        const identity = `${relative(sourceRoot, file)}:${sourceText(node.value, source)}`;
+        const identity = `${relative(sourceRoot, file)}${container ? `#${container}` : ""}:${sourceText(node.value, source)}`;
         if (name === "boxShadow" && shadowKind(node.value, source) === "drop") dropShadows.push(identity);
         if (name === "textTransform" && uppercaseKind(node.value, source)) uppercase.push(identity);
       });
     }
     expect(dropShadows.sort()).toEqual([
-      "pwa/UpdatePrompt.tsx:\"var(--shadow-bar)\"",
-      "theme/FarmThemeProvider.tsx:base.shadows[8]",
-      "theme/FarmThemeProvider.tsx:base.shadows[8]",
+      "pwa/UpdatePrompt.tsx#UpdatePrompt:\"var(--shadow-bar)\"",
+      "theme/FarmThemeProvider.tsx#createFarmTheme:base.shadows[8]",
+      "theme/FarmThemeProvider.tsx#createFarmTheme:base.shadows[8]",
     ]);
     expect(uppercase.sort()).toEqual([
-      "components/FieldConsole.tsx:\"uppercase\"",
-      // #908 — the bottom inspector's eyebrow label, a second deliberate site
-      // in the same file (the table-head style above it is the first).
-      "components/FieldConsole.tsx:\"uppercase\"",
-      "routes/Dashboard.tsx:\"uppercase\"",
-      "routes/SalesPage.tsx:\"uppercase\"",
+      // #908 — the table-head style and the bottom inspector's eyebrow label
+      // are two DIFFERENT top-level components in this file; the container
+      // tag is what actually tells them apart now, not just a shared count.
+      "components/FieldConsole.tsx#FieldConsole:\"uppercase\"",
+      "components/FieldConsole.tsx#RecordInspector:\"uppercase\"",
+      "routes/Dashboard.tsx#Dashboard:\"uppercase\"",
+      "routes/SalesPage.tsx#SalesPage:\"uppercase\"",
     ]);
   });
 
