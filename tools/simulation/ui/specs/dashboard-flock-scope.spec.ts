@@ -308,6 +308,38 @@ test.describe("Dashboard Lay rate flock scope", () => {
       .toHaveText(tEn("namedEntityPicker:noResults"));
   });
 
+  // #935 — the shared Dialog's Paper has a maxWidth but no width, so an
+  // unconstrained desktop Paper shrink-wraps to its content instead of
+  // reaching the 30rem non-wide cap. This picker is the one caller that
+  // renders the engine directly (no `trigger`, outside a `.form-grid`), so
+  // the existing `.dialog .form-grid .named-picker { width: 100% }` rule
+  // never reached it; filtering made the gap visible because a bare search
+  // field is narrower than the option rows the listbox has to show.
+  test("the picker dialog holds its 30rem desktop width while filtering, with no horizontal overflow", async ({ page, signIn }) => {
+    await signIn(owner());
+    await page.goto("/");
+    await openPicker(page);
+    await searchField(page).fill("Sim House");
+    await expect(resultsList(page).getByRole("option").first()).toBeVisible();
+
+    const panel = page.locator(".dialog");
+    const box = await panel.evaluate((el) => ({
+      width: el.getBoundingClientRect().width,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }));
+    // 30rem at the default 16px root font size; a few px of slack for
+    // scrollbar/subpixel rounding, never the ~247px the shrink-wrap regression produced.
+    expect(box.width, `the dialog panel is only ${box.width}px wide while filtering`).toBeGreaterThanOrEqual(460);
+    expect(box.scrollWidth, "the dialog panel scrolls sideways while filtering").toBeLessThanOrEqual(box.clientWidth + 1);
+
+    const doc = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(doc.scrollWidth, "the page scrolls sideways while the picker is open and filtered").toBeLessThanOrEqual(doc.clientWidth + 1);
+  });
+
   test("one accessible flock: its name, with no scope control at all", async ({ page, signIn }) => {
     // `restrictedWorker()` is the fixture's single-flock reader: #613's flock-
     // scope query filter narrows the READ as well as the write, so `GET
@@ -424,5 +456,33 @@ test.describe("Dashboard Lay rate flock scope", { tag: "@phone" }, () => {
     await openPicker(page);
     await expect(searchField(page)).toBeVisible();
     await expect(pinnedAllFlocksChoice(page)).toBeVisible();
+  });
+
+  // #935 — the phone Paper already gets an explicit `calc(100% - 32px)`
+  // width from Dialog.tsx, so this pins that the fix above (a desktop-only
+  // `md`-breakpoint min-width) leaves the phone panel and its filtered
+  // results within that width, never wider.
+  test("the picker dialog stays within its phone width while filtering, with no horizontal overflow", async ({ page, signIn }) => {
+    await signIn(owner());
+    await page.goto("/");
+    await openPicker(page);
+    await searchField(page).fill("Sim House");
+    await expect(resultsList(page).getByRole("option").first()).toBeVisible();
+
+    const panel = page.locator(".dialog");
+    const box = await panel.evaluate((el) => ({
+      width: el.getBoundingClientRect().width,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }));
+    // calc(100% - 32px) at 390px viewport = 358px.
+    expect(box.width, `the dialog panel is ${box.width}px wide, wider than the phone cap`).toBeLessThanOrEqual(360);
+    expect(box.scrollWidth, "the dialog panel scrolls sideways while filtering").toBeLessThanOrEqual(box.clientWidth + 1);
+
+    const doc = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(doc.scrollWidth, "the page scrolls sideways while the picker is open and filtered").toBeLessThanOrEqual(doc.clientWidth + 1);
   });
 });

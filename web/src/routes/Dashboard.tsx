@@ -566,29 +566,48 @@ export function Dashboard() {
                       Clear link (previously dead code) — left unwired it
                       would blank the engine's selection without touching
                       `scope`, reopening a version of this same desync. */}
-                  <FlockPicker
-                    label={t("searchAccessibleFlocksLabel")}
-                    eligibility="active-and-depleted"
-                    required={false}
-                    open={pickerOpen}
-                    onEscape={() => {}}
-                    onOutsideClick={() => {}}
-                    controlledCommitted={scope.kind === "flock" ? scope.flock : null}
-                    controlledGeneration={1}
-                    onCommit={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
-                    onClear={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
-                    pinnedChoice={
-                      <Button
-                        fullWidth
-                        onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
-                        aria-pressed={scope.kind === "all"}
-                        sx={{ justifyContent: "space-between", textTransform: "none", mx: 2, mt: 1, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
-                      >
-                        <span>{t("allFlocksOption")}</span>
-                        <Typography component="span" variant="caption" color="text.secondary">{accessibleCountLabel}</Typography>
-                      </Button>
-                    }
-                  />
+                  {/* #935 — the shared Dialog's Paper has a maxWidth but no
+                      width, so on desktop it shrink-wraps to this picker's own
+                      content: Dashboard is the only FlockPicker/CustomerPicker
+                      caller with no `trigger`, rendering the engine directly
+                      outside a `.form-grid`, so `.dialog .form-grid
+                      .named-picker { width: 100% }` never reaches it. A
+                      percentage width on a child would not widen a
+                      shrink-to-fit ancestor either — the same reason
+                      `.form-grid .named-picker` uses a rem `min-width`, never
+                      a percentage. 27rem is the 30rem non-wide dialog cap
+                      minus DialogContent's 24px each-side padding, so the
+                      Paper's shrink-to-fit width reaches that cap on desktop
+                      instead of hugging the search field. Scoped to `md` and
+                      up: below it Dialog.tsx already gives the phone Paper an
+                      explicit `calc(100% - 32px)` width, where an
+                      unconditional min-width would overflow instead of
+                      fixing anything. */}
+                  <Box sx={{ minWidth: { md: "27rem" } }}>
+                    <FlockPicker
+                      label={t("searchAccessibleFlocksLabel")}
+                      eligibility="active-and-depleted"
+                      required={false}
+                      open={pickerOpen}
+                      onEscape={() => {}}
+                      onOutsideClick={() => {}}
+                      controlledCommitted={scope.kind === "flock" ? scope.flock : null}
+                      controlledGeneration={1}
+                      onCommit={(f) => { setScope({ kind: "flock", flock: f }); setPickerOpen(false); }}
+                      onClear={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                      pinnedChoice={
+                        <Button
+                          fullWidth
+                          onClick={() => { setScope({ kind: "all" }); setPickerOpen(false); }}
+                          aria-pressed={scope.kind === "all"}
+                          sx={{ justifyContent: "space-between", textTransform: "none", mx: 2, mt: 1, width: "calc(100% - 32px)", "&&": { minHeight: 44 } }}
+                        >
+                          <span>{t("allFlocksOption")}</span>
+                          <Typography component="span" variant="caption" color="text.secondary">{accessibleCountLabel}</Typography>
+                        </Button>
+                      }
+                    />
+                  </Box>
                 </Dialog>
               )}
             </>
