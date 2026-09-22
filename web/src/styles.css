@@ -710,6 +710,19 @@ input.cell {
    selector below — still reached by unconverted callers' own raw markup
    inside the dialog's content — keeps matching unchanged. */
 
+/* #937 — `.dashboard-flock-picker` is the only in-flow content of
+   Dashboard's Choose-flock dialog; its Autocomplete results popover is
+   `disablePortal` + `position: absolute` (#826), so it never grows
+   DialogContent's own auto height. MUI's Paper sets `overflow-y: auto`,
+   which also clips the X axis (a `visible` axis next to a non-`visible` one
+   computes to `auto`), so with no sibling field below to give the dialog
+   room, the popover got clipped and forced a scroll on the DIALOG rather
+   than just its own already-bounded (40vh, self-scrolling) listbox. */
+.dialog:has(.dashboard-flock-picker),
+.dialog:has(.dashboard-flock-picker) .MuiDialogContent-root {
+  overflow: visible;
+}
+
 /* Row-shaped page forms become a stacked column once they are in a dialog —
    there is no list to sit above any more, so fields get the full width. */
 .dialog .inline-form,

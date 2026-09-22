@@ -335,6 +335,31 @@ test.describe("Dashboard Lay rate flock scope", () => {
     expect(doc.scrollWidth, "the page scrolls sideways while the picker is open and filtered").toBeLessThanOrEqual(doc.clientWidth + 1);
   });
 
+  // #937 — nothing follows the picker in this dialog, so unlike every other
+  // FlockPicker-in-Dialog caller (sibling fields give THEIR dialogs natural
+  // height), Paper's default `overflow-y: auto` clipped the non-portaled
+  // results popover and forced a scroll on the dialog itself. Left unfiltered
+  // on open, against the fixture's ~100-flock catalog, so the popover is
+  // tall enough to hit the clip if it regresses.
+  test("the picker dialog does not need to scroll to show its own results popover", async ({ page, signIn }) => {
+    await signIn(owner());
+    await page.goto("/");
+    await openPicker(page);
+    await expect(resultsList(page).getByRole("option").first()).toBeVisible();
+
+    const panel = page.locator(".dialog");
+    const box = await panel.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+    expect(box.scrollHeight, "the dialog panel itself scrolls to reveal the results popover")
+      .toBeLessThanOrEqual(box.clientHeight + 1);
+
+    // The listbox's own bottom-most visible option should be inside the
+    // dialog's painted box, not clipped past it.
+    const lastOptionBottom = await resultsList(page).getByRole("option").last().evaluate((el) => el.getBoundingClientRect().bottom);
+    const panelBottom = await panel.evaluate((el) => el.getBoundingClientRect().bottom);
+    expect(lastOptionBottom, "the last visible option sits below the dialog panel's own bottom edge")
+      .toBeLessThanOrEqual(panelBottom + 1);
+  });
+
   test("one accessible flock: its name, with no scope control at all", async ({ page, signIn }) => {
     // `restrictedWorker()` is the fixture's single-flock reader: #613's flock-
     // scope query filter narrows the READ as well as the write, so `GET

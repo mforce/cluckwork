@@ -574,8 +574,12 @@ export function Dashboard() {
                       shrink-to-fit ancestor either — `min-width` does. 27rem
                       is the 30rem cap minus DialogContent's 24px each-side
                       padding. Scoped to `md`: below it Dialog.tsx already
-                      sets an explicit phone width. */}
-                  <Box sx={{ minWidth: { md: "27rem" } }}>
+                      sets an explicit phone width.
+
+                      #937 — `dashboard-flock-picker` (styles.css) turns off
+                      this dialog's default overflow clip; see that rule for
+                      why. */}
+                  <Box className="dashboard-flock-picker" sx={{ minWidth: { md: "27rem" } }}>
                     <FlockPicker
                       label={t("searchAccessibleFlocksLabel")}
                       eligibility="active-and-depleted"
