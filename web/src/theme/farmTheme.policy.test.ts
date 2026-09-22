@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Theme } from "@mui/material/styles";
 import { BRANDS } from "../lib/brand";
+import { contrast } from "../test/cssTokens";
 import type { Mode } from "../test/cssTokens";
 import { pixelsFrom } from "./farmTokens";
 import { createFarmTheme } from "./FarmThemeProvider";
@@ -324,6 +325,29 @@ describe("farm theme policy (#823 G2)", () => {
       // one size whether selected or not.
       const selectedLabel = slot(labelStyle["&.Mui-selected"], `${label} tab selected label`);
       expect(selectedLabel.fontSize, `${label} tab selected label size`).toBe(11);
+    }
+  });
+
+  // #939 codex/owner review — Tabs' own default (`textColor="primary"`) paints
+  // the selected label and indicator with the raw brand colour, which
+  // styles.css keeps mode-independent on purpose (#149's dark palette blocks
+  // never redeclare `--brand`) and so clears roughly 1:1 against a dark
+  // surface — the same defect `MuiBottomNavigationAction` above was fixed for.
+  // Asserts the ACTUAL computed contrast, not just "uses the token", so a
+  // future edit to `--stat-accent` itself would still be caught here.
+  it("keeps the selected tab and its indicator readable (>=4.5:1) against both background slots, every palette and mode", () => {
+    for (const { label, theme } of themes) {
+      const tab = slot(theme.components?.MuiTab?.styleOverrides?.root, `${label} MuiTab root`);
+      const selected = slot(tab["&.Mui-selected"], `${label} MuiTab selected`);
+      const tabColor = selected.color as string;
+
+      const tabs = slot(theme.components?.MuiTabs?.styleOverrides?.indicator, `${label} MuiTabs indicator`);
+      const indicatorColor = tabs.backgroundColor as string;
+
+      for (const bg of [theme.palette.background.paper, theme.palette.background.default]) {
+        expect(contrast(tabColor, bg), `${label} selected tab vs ${bg}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(indicatorColor, bg), `${label} tab indicator vs ${bg}`).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 

@@ -424,6 +424,27 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
           },
         },
       },
+      // #939 codex/owner review — `Tabs`' own default (`textColor="primary"`)
+      // paints the selected label and indicator with `palette.primary.main`
+      // (raw `--brand`), which is mode-independent (styles.css keeps the
+      // `--brand` family out of the dark block on purpose) and so reads as
+      // near-invisible on a dark surface (~1:1). `--stat-accent` is the same
+      // "active" device `MuiBottomNavigationAction` and the sidebar's
+      // active-item rule already use above, and it clears 4.5:1 against both
+      // `--surface` and `--canvas` in light AND dark mode for all four brand
+      // palettes (farmTheme.policy.test.ts pins the dark-mode figure).
+      MuiTabs: {
+        styleOverrides: {
+          indicator: { backgroundColor: tokens["--stat-accent"] },
+        },
+      },
+      MuiTab: {
+        styleOverrides: {
+          root: {
+            "&.Mui-selected": { color: tokens["--stat-accent"] },
+          },
+        },
+      },
       // Ledger row heights (DIRECTION.md): 36px desktop, 52px phone.
       MuiTableRow: {
         styleOverrides: {
