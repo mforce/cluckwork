@@ -491,7 +491,7 @@ export function WaterPage() {
             slotProps={{ htmlInput: { maxLength: 500 } }}
             onChange={(e) => setNote(e.target.value)}
           />
-          <BusyButton component={Button} variant="contained" type="submit" busy={busy}
+          <BusyButton variant="contained" type="submit" busy={busy}
             disabled={!captureFlock || !captureFlockSnapshot.canSubmit}>
             {editingId ? t("saveCorrectionButton") : t("recordWaterButton")}
           </BusyButton>

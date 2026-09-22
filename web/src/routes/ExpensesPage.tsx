@@ -594,7 +594,7 @@ export function ExpensesPage() {
               actions={(
                 <DialogActions>
                   <button type="button" className="link" onClick={closeAddCategory}>{tc("cancel")}</button>
-                  <BusyButton type="submit" busy={isPending("add-category")} disabled={busy}>{t("addCategoryButton")}</BusyButton>
+                  <BusyButton variant="contained" type="submit" busy={isPending("add-category")} disabled={busy}>{t("addCategoryButton")}</BusyButton>
                 </DialogActions>
               )}
               formProps={{ onSubmit: onAddCategory }}
@@ -615,7 +615,7 @@ export function ExpensesPage() {
               {categories.map((c, i) => (
                 <ListItem key={c.id} disableGutters divider={i < categories.length - 1}
                   secondaryAction={
-                    <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
+                    <BusyButton variant="text" type="button" busy={isPending(`toggle-category:${c.id}`)}
                       disabled={busy} onClick={() => onToggleCategory(c)}>
                       {c.active ? t("deactivateButton") : t("reactivateButton")}
                     </BusyButton>
@@ -710,7 +710,7 @@ export function ExpensesPage() {
           onChange={(e) => setNote(e.target.value)}
         />
         {/* Unknown currency precision or an unresolved flock prevents a valid write. */}
-        <BusyButton component={Button} variant="contained" type="submit" busy={isPending("add")}
+        <BusyButton variant="contained" type="submit" busy={isPending("add")}
           disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>
           {t("recordExpenseButton")}
         </BusyButton>
@@ -756,7 +756,7 @@ export function ExpensesPage() {
               onClick={closeEdit}>{tc("cancel")}</button>
             {/* #512 (T028): canSubmit also gates the visible control; the
                 handler guard above is the real boundary. */}
-            <BusyButton type="submit" busy={isPending("edit")}
+            <BusyButton variant="contained" type="submit" busy={isPending("edit")}
               disabled={busy || !editFlockSnapshot.canSubmit}>
               {t("saveCorrectionButton")}
             </BusyButton>

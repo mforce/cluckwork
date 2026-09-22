@@ -246,7 +246,7 @@ export function CustomersPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={busy}>{t("addCustomerButton")}</BusyButton>
+            <BusyButton variant="contained" type="submit" busy={busy}>{t("addCustomerButton")}</BusyButton>
           </DialogActions>
         )}
         formProps={{ onSubmit: onCreate }}
@@ -300,7 +300,7 @@ export function CustomersPage() {
             <button type="button" className="link" disabled={editWriteInFlight} onClick={closeEdit}>
               {tc("cancel")}
             </button>
-            <BusyButton type="submit" disabled={busy}
+            <BusyButton variant="contained" type="submit" disabled={busy}
               busy={isPending("edit-customer")}>{tc("save")}</BusyButton>
           </DialogActions>
         )}

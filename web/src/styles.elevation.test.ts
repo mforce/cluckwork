@@ -288,3 +288,18 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // lives now, rather than staying here as a name that reads like it still
   // means something.
 });
+
+// #828 (review) — the update banner's stacking order relative to the brand
+// splash. Both numbers live in this file as plain `z-index` declarations
+// (not MUI theme z-indices, and not Emotion `sx` — the banner's positioning
+// moved OUT of `sx` specifically because it proved unreliable at runtime),
+// so this is a static-text assertion, not a computed-style one.
+describe("#828 the update banner stays below the brand splash", () => {
+  it("declares a lower z-index than .brand-splash-backdrop", () => {
+    const banner = Number(declarationsFor(".update-banner-position").get("z-index"));
+    const splash = Number(declarationsFor(".brand-splash-backdrop").get("z-index"));
+    expect(Number.isNaN(banner), "banner z-index parsed").toBe(false);
+    expect(Number.isNaN(splash), "splash z-index parsed").toBe(false);
+    expect(banner).toBeLessThan(splash);
+  });
+});

@@ -135,7 +135,7 @@ export function AccountPage() {
             {error && <Alert severity="error">{error}</Alert>}
             {message && <Alert severity="success">{message}</Alert>}
             <Stack direction="row">
-              <BusyButton type="submit" busy={busy}>{t("changePasswordButton")}</BusyButton>
+              <BusyButton variant="contained" type="submit" busy={busy}>{t("changePasswordButton")}</BusyButton>
             </Stack>
           </Stack>
         </AccordionDetails>

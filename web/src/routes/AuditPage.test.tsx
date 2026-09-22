@@ -251,6 +251,35 @@ describe("AuditPage load + render", () => {
     expect(rowB.querySelector(".audit-event-body")?.children).toHaveLength(3);
   });
 
+  // #828 (review) — the raw-JSON hover tooltip must not fight the row's
+  // existing actor description for `aria-describedby`: both need to keep
+  // working, on different elements.
+  it("keeps the row's actor description AND gets a real, separate description for the JSON tooltip", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
+    renderAudit();
+
+    const rowA = await screen.findByRole("article", { description: /admin@farm\.test/ });
+    // The row's own aria-describedby (the actor line) is untouched.
+    expect(rowA).toHaveAccessibleDescription(/admin@farm\.test/);
+
+    const summaryText = getPanelSummary(rowA).querySelector("span") as HTMLElement;
+    expect(summaryText).not.toBeNull();
+    fireEvent.mouseOver(summaryText);
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent('{"count":5}');
+    // A REAL association, not a dangling id: the id the summary text points
+    // at via aria-describedby resolves to the open tooltip's own content.
+    const describedIds = (summaryText.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+    expect(describedIds.length).toBeGreaterThan(0);
+    expect(describedIds.some((id) => document.getElementById(id) === tooltip)).toBe(true);
+
+    // No detailsJson (EVENT_B): the tooltip omits an empty title entirely,
+    // rather than carrying `title=""`.
+    const rowB = screen.getByRole("article", { description: /manager@farm\.test/ });
+    const rowBSummaryText = getPanelSummary(rowB).querySelector("span") as HTMLElement;
+    expect(rowBSummaryText).not.toHaveAttribute("title");
+  });
+
   it("renders a read-only view with no mutation controls (and no paging on a short page)", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]); // 2 < PAGE ⇒ no 'load more'
     renderAudit();

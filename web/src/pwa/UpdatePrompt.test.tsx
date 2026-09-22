@@ -26,6 +26,25 @@ const banner = () => screen.queryByText(/new version of Cluckwork is ready/i);
 
 beforeEach(() => vi.resetAllMocks());
 
+// #828 (review) — the banner's positioning (including its z-index) is a
+// plain `.update-banner-position` styles.css class, not MUI Snackbar's own
+// `sx` (measured unreliable in this app's CSP-nonced Emotion setup — see
+// styles.css's own comment on the class). jsdom loads no stylesheet, so the
+// actual z-index-ordering-vs-the-brand-splash assertion lives in
+// styles.elevation.test.ts, which reads styles.css directly the way every
+// other guard in this file does; this test only pins that the banner
+// carries the class the CSS rule is keyed on.
+describe("UpdatePrompt stacking (#828 review)", () => {
+  it("positions itself through the .update-banner-position class, not inline/sx", async () => {
+    const { announce } = await renderAndCapture();
+    await announce(vi.fn().mockResolvedValue(undefined));
+
+    const positioned = screen.getByText(/new version of Cluckwork is ready/i)
+      .closest(".update-banner-position") as HTMLElement;
+    expect(positioned).not.toBeNull();
+  });
+});
+
 describe("UpdatePrompt (#142)", () => {
   it("renders nothing until an update is actually waiting", async () => {
     await renderAndCapture();

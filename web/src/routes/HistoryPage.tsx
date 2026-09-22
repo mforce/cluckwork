@@ -614,7 +614,7 @@ export function HistoryPage() {
             {/* #394: an adjustment has no draft state — Save stays disabled
                 until grading reconciles exactly, the same rule Daily
                 Entry's submit uses. */}
-            <BusyButton component={Button} variant="contained" type="submit" busy={isPending("adjust")}
+            <BusyButton variant="contained" type="submit" busy={isPending("adjust")}
               disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
           </DialogActions>
         )}
@@ -805,7 +805,7 @@ export function HistoryPage() {
                         <>
                           <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }} disabled={busy}
                             onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
-                          <BusyButton component={Button} size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)", ml: 1 }} busy={isPending(`void:${e.id}`)}
+                          <BusyButton variant="text" size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)", ml: 1 }} busy={isPending(`void:${e.id}`)}
                             disabled={busy}
                             onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
                         </>

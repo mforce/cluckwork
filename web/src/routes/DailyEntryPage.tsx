@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Box, Button, Paper, TextField, Typography, useMediaQuery } from "@mui/material";
+import { Box, Paper, TextField, Typography, useMediaQuery } from "@mui/material";
 import {
   createFlock, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
@@ -962,7 +962,7 @@ export function DailyEntryPage() {
           <DialogError errors={errors} scope="new-flock" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeNewFlock}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("new-flock")} disabled={busy}>
+            <BusyButton variant="contained" type="submit" busy={isPending("new-flock")} disabled={busy}>
               {t("createFlockButton")}
             </BusyButton>
           </div>
@@ -1193,9 +1193,7 @@ export function DailyEntryPage() {
               footer is two 48px rectangular buttons, outlined "Save draft" /
               contained "Submit day", never the stylesheet's pill `<button>`
               (which clamped "Save & submit (creates egg lots)" into a
-              three-line ellipse at 390, the #740 shape). `component={Button}`
-              routes BusyButton through MUI's own root instead of the plain
-              `<button>` every other call site still gets — see BusyButton.tsx.
+              three-line ellipse at 390, the #740 shape).
               `whiteSpace: "nowrap"` is the other half: MUI's default button
               text wraps, and a wrapped label inside a fixed-height control
               clips instead of growing the ellipse this control no longer has.
@@ -1208,7 +1206,7 @@ export function DailyEntryPage() {
               #830). `var(--ink)`/`var(--rule-strong)` match the mockup's
               `.btn.secondary` instead, and both tokens ARE redefined for dark
               mode. */}
-          <BusyButton component={Button} variant="outlined"
+          <BusyButton variant="outlined"
             busy={isPending("save")}
             sx={{
               minHeight: 48, whiteSpace: "nowrap",
@@ -1221,7 +1219,7 @@ export function DailyEntryPage() {
               "done" state the chip already shows, so the gate can never say
               one thing and disable another. A draft may stay partially (or
               entirely un-)graded; only submit is gated. */}
-          <BusyButton component={Button} variant="contained"
+          <BusyButton variant="contained"
             busy={isPending("submit")}
             sx={{ minHeight: 48, whiteSpace: "nowrap" }}
             disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone !== "done" || entryLocked || prefillFailed || prefillPending}

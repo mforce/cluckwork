@@ -500,7 +500,7 @@ export function InventoryPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addItemButton")}</BusyButton>
+            <BusyButton variant="contained" type="submit" busy={isPending("create")} disabled={busy}>{t("addItemButton")}</BusyButton>
           </DialogActions>
         )}
         formProps={{ onSubmit: onCreate }}
@@ -542,7 +542,7 @@ export function InventoryPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
+            <BusyButton variant="contained" type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
           </DialogActions>
@@ -623,7 +623,7 @@ export function InventoryPage() {
               actions={(
                 <DialogActions>
                   <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
-                  <BusyButton type="submit" busy={isPending("purchase")} disabled={busy}>
+                  <BusyButton variant="contained" type="submit" busy={isPending("purchase")} disabled={busy}>
                     {t("recordPurchaseSubmitButton")}
                   </BusyButton>
                 </DialogActions>
@@ -682,7 +682,7 @@ export function InventoryPage() {
               actions={(
                 <DialogActions>
                   <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
-                  <BusyButton type="submit" busy={isPending("adjust")}
+                  <BusyButton variant="contained" type="submit" busy={isPending("adjust")}
                     disabled={busy || !adjustLotId}>
                     {t("recordCorrectionButton")}
                   </BusyButton>
@@ -787,12 +787,12 @@ export function InventoryPage() {
                       <button className="link" disabled={busy}
                         onClick={() => startEdit(i)}>{t("editButton")}</button>
                       {i.active ? (
-                        <BusyButton className="link" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
+                        <BusyButton variant="text" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
                           onClick={() => void run(`deactivate:${i.id}`, () => commit(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key)))}>
                           {t("deactivateButton")}
                         </BusyButton>
                       ) : (
-                        <BusyButton className="link" busy={isPending(`activate:${i.id}`)} disabled={busy}
+                        <BusyButton variant="text" busy={isPending(`activate:${i.id}`)} disabled={busy}
                           onClick={() => void run(`activate:${i.id}`, () => commit(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key)))}>
                           {t("activateButton")}
                         </BusyButton>

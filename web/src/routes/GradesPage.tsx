@@ -188,7 +188,7 @@ export function GradesPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addGradeButton")}</BusyButton>
+            <BusyButton variant="contained" type="submit" busy={isPending("create")} disabled={busy}>{t("addGradeButton")}</BusyButton>
           </DialogActions>
         )}
         formProps={{ onSubmit: onCreate }}
@@ -228,7 +228,7 @@ export function GradesPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
+            <BusyButton variant="contained" type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
           </DialogActions>
@@ -303,12 +303,12 @@ export function GradesPage() {
                         <button className="link" disabled={busy}
                           onClick={() => startEdit(g)}>{t("editButton")}</button>
                         {g.active ? (
-                          <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+                          <BusyButton variant="text" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
                             onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
                             {t("deactivateButton")}
                           </BusyButton>
                         ) : (
-                          <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
+                          <BusyButton variant="text" busy={isPending(`activate:${g.id}`)} disabled={busy}
                             onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
                             {t("activateButton")}
                           </BusyButton>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
-import { Tooltip } from "@mui/material";
+import { Box, Tooltip } from "@mui/material";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder,
   listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
@@ -1165,7 +1165,7 @@ export function SalesPage() {
           <DialogError errors={errors} scope="create-order" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
-            <BusyButton disabled={busy || !customer || !customerSnapshot.canSubmit}
+            <BusyButton variant="contained" disabled={busy || !customer || !customerSnapshot.canSubmit}
               busy={isPending("create-order")}
               onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
           </div>
@@ -1273,7 +1273,7 @@ export function SalesPage() {
                         <td className="num">{discountCell}</td>
                         <td className="num">—</td>
                         <td>
-                          <BusyButton className="link" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
+                          <BusyButton variant="text" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
                             onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
                           <button className="link" onClick={() => setEditor(null)}>{t("cancelEdit")}</button>
                           {editConflict && (
@@ -1304,7 +1304,7 @@ export function SalesPage() {
                               <button className="link" disabled={busy} onClick={() => {
                                 setEditor(lineDraft(active, i));
                               }}>{t("edit")}</button>
-                              <BusyButton className="link" disabled={busy} busy={isPending(`remove-item:${i.id}`)}
+                              <BusyButton variant="text" disabled={busy} busy={isPending(`remove-item:${i.id}`)}
                                 onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
                             </>
                           )}
@@ -1434,7 +1434,7 @@ export function SalesPage() {
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
                     onChange={(e) => setPrice(e.target.value)} />
                 </label>
-                <BusyButton disabled={busy || !productId} busy={isPending("add-item")}
+                <BusyButton variant="contained" disabled={busy || !productId} busy={isPending("add-item")}
                   onClick={onAddItem}>{t("addLine")}</BusyButton>
               </div>
               {/* #720 R11 — AFTER .form-grid, not a grid cell: a third child in
@@ -1491,11 +1491,11 @@ export function SalesPage() {
                 </p>
               )}
               <div className="actions">
-                <BusyButton disabled={busy || active.items.length === 0}
+                <BusyButton variant="contained" disabled={busy || active.items.length === 0}
                   busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                   {t("confirmOrderButton")}
                 </BusyButton>
-                <BusyButton className="link" disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                <BusyButton variant="text" disabled={busy} busy={isPending(`cancel:${active.id}`)}
                   onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
                 <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
               </div>
@@ -1511,11 +1511,21 @@ export function SalesPage() {
                   </thead>
                   <tbody>
                     {payments.items.map((p) => (
-                      // #828 — describeChild: the note describes the row, it
-                      // is not the row's name.
-                      <Tooltip key={p.id} title={p.note ?? undefined} describeChild>
-                      <tr className={p.voided ? "inactive" : undefined}>
-                        <td className="nowrap"><FarmDate iso={p.paymentDate} /></td>
+                      <tr key={p.id} className={p.voided ? "inactive" : undefined}>
+                        <td className="nowrap">
+                          {/* #828 (review) — the Tooltip trigger is this leaf
+                              span, never the `<tr>`: a table row is a
+                              structural container, not a hover target a
+                              Tooltip should clone handlers onto. describeChild:
+                              the note DESCRIBES the date, it is not the date's
+                              accessible name. Scoped to one cell (not the
+                              whole row) so its trigger area never overlaps the
+                              void-reason Tooltip below — two Tooltips sharing
+                              a trigger area would fight to open at once. */}
+                          <Tooltip title={p.note ?? undefined} describeChild>
+                            <Box component="span"><FarmDate iso={p.paymentDate} /></Box>
+                          </Tooltip>
+                        </td>
                         <td className="num">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                         <td>{t(`method${p.method as PaymentMethod}`)}</td>
                         <td className="nowrap">{p.referenceNumber ?? "—"}</td>
@@ -1529,12 +1539,11 @@ export function SalesPage() {
                               </Tooltip>
                             )
                             : isAdmin ? (
-                              <BusyButton className="link" disabled={busy} busy={isPending(`void-payment:${p.id}`)}
+                              <BusyButton variant="text" disabled={busy} busy={isPending(`void-payment:${p.id}`)}
                                 onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
                             ) : null}
                         </td>
                       </tr>
-                      </Tooltip>
                     ))}
                   </tbody>
                 </table>
@@ -1606,7 +1615,7 @@ export function SalesPage() {
                   <DialogError errors={errors} scope="record-payment" />
                   <div className="dialog-foot">
                     <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
-                    <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
+                    <BusyButton variant="contained" disabled={busy || !payAmount} busy={isPending("record-payment")}
                       onClick={onRecordPayment}>
                       {t("recordPayment")}
                     </BusyButton>
@@ -1621,7 +1630,7 @@ export function SalesPage() {
           {active.status !== "Draft" && (
             <div className="actions">
               {active.status === "Confirmed" && isAdmin && (
-                <BusyButton className="link" disabled={busy} busy={isPending(`void:${active.id}`)}
+                <BusyButton variant="text" disabled={busy} busy={isPending(`void:${active.id}`)}
                   onClick={() => void onVoid()}>
                   {t("voidOrderButton")}
                 </BusyButton>

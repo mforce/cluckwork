@@ -193,9 +193,13 @@ export function NumberField({
           },
         }}
         sx={{
-          width: "4.75rem",
+          // Width lives on the INPUT, not this root: EntryRow.tsx and
+          // DailyEntryPage.tsx widen a grade's count via `"& .numfield
+          // input": { width: ... }` for a longer value (#430 clipped at
+          // phone width under the old fixed root width, which capped the
+          // wrapper regardless of what the input itself grew to).
           "& input": {
-            textAlign: "right", fontVariantNumeric: "tabular-nums",
+            width: "4.75rem", textAlign: "right", fontVariantNumeric: "tabular-nums",
             MozAppearance: "textfield", padding: "0.4rem 0.5rem",
           },
           "& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button": {

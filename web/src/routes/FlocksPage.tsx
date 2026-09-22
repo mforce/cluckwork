@@ -285,7 +285,7 @@ export function FlocksPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
+            <BusyButton variant="contained" type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
           </DialogActions>
         )}
         formProps={{ onSubmit: onCreate }}
@@ -329,7 +329,7 @@ export function FlocksPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
+            <BusyButton variant="contained" type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
           </DialogActions>
@@ -439,7 +439,7 @@ export function FlocksPage() {
                           onClick={() => startEdit(f)}>{t("editButton")}</button>
                       )}
                       {isAdmin && f.status === "Active" && (
-                        <BusyButton className="link" style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
+                        <BusyButton variant="text" style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
                           onClick={() => void onDeplete(f)}>
                           {t("depleteButton")}
                         </BusyButton>
@@ -447,14 +447,14 @@ export function FlocksPage() {
                       {isAdmin && f.status !== "Archived" && (
                         // After the confirm dialog settles, THIS button is the
                         // pending indicator for the in-flight archive (#236).
-                        <BusyButton className="link" style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
+                        <BusyButton variant="text" style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
                           onClick={() => void onArchive(f)}>
                           {t("archiveButton")}
                         </BusyButton>
                       )}
                       {isAdmin && f.status !== "Active" && (
                         // The undo (#57): back to Active, full capture restored.
-                        <BusyButton className="link" style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
+                        <BusyButton variant="text" style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
                           onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
                           {t("reactivateButton")}
                         </BusyButton>
@@ -495,7 +495,7 @@ export function FlocksPage() {
               actions={(
                 <DialogActions>
                   <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
-                  <BusyButton type="submit"
+                  <BusyButton variant="contained" type="submit"
                     busy={isPending("record-movement")}
                     disabled={busy || mvQty === 0}>
                     {t("recordButton")}

@@ -528,29 +528,38 @@ export function AuditPage() {
               const summaryId = `audit-event-${e.id}`;
               const actorId = `audit-event-actor-${e.id}`;
               return (
-                // #828 — the raw JSON payload on hover, which is more detail
-                // than the parsed summary AuditDetails shows once expanded.
-                // describeChild: this DESCRIBES the row, it is not its name.
-                <Tooltip key={e.id} title={e.detailsJson ?? ""} describeChild>
-                  <details
-                    className="audit-event"
-                    role="article"
-                    aria-labelledby={summaryId}
-                    aria-describedby={actorId}
-                  >
-                    <summary id={summaryId}>
-                      {timestamp} UTC · {action}
-                    </summary>
-                    <div className="audit-event-body">
-                      <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>
-                      <Typography component="p" variant="body2">{action}</Typography>
-                      <Typography component="p" variant="body2">
-                        {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
-                      </Typography>
-                      <AuditDetails event={e} />
-                    </div>
-                  </details>
-                </Tooltip>
+                // #828 (review) — `aria-describedby={actorId}` stays on
+                // `<details>` (the article's own actor description, untouched).
+                // The Tooltip trigger is the leaf span inside `<summary>`, not
+                // `<details>` itself: wrapping the structural container would
+                // have let Tooltip's own `aria-describedby` collide with the
+                // one already declared there — React's prop merge lets the
+                // OUTER element's own JSX props win, so the JSON description
+                // would have been silently dropped. Scoping to this span gives
+                // it a real, working association of its own. `|| undefined`
+                // (not `??`) also omits the attribute for an empty string, not
+                // only for null.
+                <details
+                  key={e.id}
+                  className="audit-event"
+                  role="article"
+                  aria-labelledby={summaryId}
+                  aria-describedby={actorId}
+                >
+                  <summary id={summaryId}>
+                    <Tooltip title={e.detailsJson || undefined} describeChild>
+                      <Box component="span">{timestamp} UTC · {action}</Box>
+                    </Tooltip>
+                  </summary>
+                  <div className="audit-event-body">
+                    <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>
+                    <Typography component="p" variant="body2">{action}</Typography>
+                    <Typography component="p" variant="body2">
+                      {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
+                    </Typography>
+                    <AuditDetails event={e} />
+                  </div>
+                </details>
               );
             })}
           </div>

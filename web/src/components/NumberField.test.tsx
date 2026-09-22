@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { useState } from "react";
+import { Box } from "@mui/material";
 import { NumberField } from "./NumberField";
 import i18n from "../i18n";
 
@@ -456,6 +457,31 @@ describe("NumberField live limits", () => {
     expect(onChange).toHaveBeenCalledTimes(settled);
 
     await act(async () => { fireEvent.pointerUp(minus()); });
+  });
+});
+
+// A caller (EntryRow.tsx, DailyEntryPage.tsx) widens a grade's count via
+// `"& .numfield input": { width: ... }` on an ANCESTOR — the review that
+// caught this found the TextField's own root ALSO carrying a fixed width
+// (4.75rem), which clipped the input whenever a caller asked for more room
+// (#430 at phone width, a 3-digit day total under DailyEntryPage's wider
+// override). The root must follow the input's width, not cap it.
+describe("NumberField width (review fix)", () => {
+  it("lets an ancestor's input-width override actually widen the field, with no competing width on the wrapper", () => {
+    render(
+      <Box sx={{ "& .numfield input": { width: "10rem" } }}>
+        <NumberField id="n" label="total eggs" value={430} onChange={() => {}} />
+      </Box>,
+    );
+
+    const input = field() as HTMLInputElement;
+    expect(getComputedStyle(input).width).toBe("160px"); // 10rem at the 16px default root
+
+    const root = input.closest(".MuiFormControl-root") as HTMLElement;
+    expect(root).not.toBeNull();
+    // The old bug: a literal 4.75rem (76px) on the root, unconditionally
+    // capping the input regardless of what an ancestor asked for.
+    expect(getComputedStyle(root).width).not.toBe("76px");
   });
 });
 

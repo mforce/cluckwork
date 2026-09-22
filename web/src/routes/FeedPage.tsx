@@ -333,7 +333,7 @@ export function FeedPage() {
             slotProps={{ htmlInput: { maxLength: 500 } }}
             onChange={(e) => setNote(e.target.value)}
           />
-          <BusyButton component={Button} variant="contained" type="submit" busy={busy}
+          <BusyButton variant="contained" type="submit" busy={busy}
             disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
             {t("recordFeedButton")}
           </BusyButton>

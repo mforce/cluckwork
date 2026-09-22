@@ -35,6 +35,15 @@ function cell(): HTMLElement {
   return td as HTMLElement;
 }
 
+// The Tooltip trigger (#828 review): a leaf span, not the TableCell itself —
+// the full stamp's native `title` fallback (Tooltip's `describeChild`) lives
+// here, not on the cell.
+function stamp(): HTMLElement {
+  const span = cell().querySelector(".muted");
+  if (!span) throw new Error("expected the summary span the Tooltip wraps");
+  return span as HTMLElement;
+}
+
 describe("ProvenanceCell", () => {
   it("shows the creator's actor, not the whole email, when only created", () => {
     renderCell({
@@ -55,7 +64,7 @@ describe("ProvenanceCell", () => {
       lastChangedByEmail: null,
       lastChangedAtUtc: null,
     });
-    expect(cell().getAttribute("title")).toBe("Created by ana@farm.test on 2026-05-01 08:00:00");
+    expect(stamp().getAttribute("title")).toBe("Created by ana@farm.test on 2026-05-01 08:00:00");
   });
 
   it("says nothing about a change on the title when the record has never been changed", () => {
@@ -67,7 +76,7 @@ describe("ProvenanceCell", () => {
       lastChangedByEmail: null,
       lastChangedAtUtc: null,
     });
-    expect(cell().getAttribute("title")).not.toMatch(/Last changed/i);
+    expect(stamp().getAttribute("title")).not.toMatch(/Last changed/i);
   });
 
   it("shows the last changer, not the creator, as the visible actor once the record has been changed", () => {
@@ -79,7 +88,7 @@ describe("ProvenanceCell", () => {
     });
     expect(screen.getByText(/bo/)).toBeInTheDocument();
     expect(screen.queryByText(/^ana/)).not.toBeInTheDocument();
-    const title = cell().getAttribute("title") ?? "";
+    const title = stamp().getAttribute("title") ?? "";
     expect(title).toContain("Created by ana@farm.test on 2026-05-01 08:00:00");
     expect(title).toContain("Last changed by bo@farm.test on 2026-05-03 14:30:00");
   });
@@ -93,7 +102,7 @@ describe("ProvenanceCell", () => {
       lastChangedByEmail: "ana@farm.test",
       lastChangedAtUtc: CHANGED,
     });
-    expect(cell().getAttribute("title")).toContain("Last changed by ana@farm.test");
+    expect(stamp().getAttribute("title")).toContain("Last changed by ana@farm.test");
   });
 
   it("prefers the change over the creation as the visible actor even in the SAME instant", () => {
@@ -133,7 +142,7 @@ describe("ProvenanceCell", () => {
       lastChangedAtUtc: CHANGED,
     });
     expect(screen.getByText(/cy/)).toBeInTheDocument();
-    expect(cell().getAttribute("title")).not.toMatch(/Created by/i);
+    expect(stamp().getAttribute("title")).not.toMatch(/Created by/i);
   });
 
   it("keeps the promotion instant off the visible line but on the title (submitted)", () => {
@@ -151,7 +160,7 @@ describe("ProvenanceCell", () => {
       "submitted",
     );
     expect(screen.queryByText(/Submitted/i)).not.toBeInTheDocument();
-    expect(cell().getAttribute("title")).toContain("Submitted 2026-05-05 09:15:00");
+    expect(stamp().getAttribute("title")).toContain("Submitted 2026-05-05 09:15:00");
   });
 
   it("calls it confirmed on a sales order, not submitted", () => {
@@ -165,7 +174,7 @@ describe("ProvenanceCell", () => {
       },
       "confirmed",
     );
-    const title = cell().getAttribute("title") ?? "";
+    const title = stamp().getAttribute("title") ?? "";
     expect(title).toContain("Confirmed 2026-05-05 09:15:00");
     expect(title).not.toContain("Submitted");
   });
@@ -181,7 +190,7 @@ describe("ProvenanceCell", () => {
       lastChangedAtUtc: null,
       madeOfficialAtUtc: OFFICIAL,
     });
-    expect(cell().getAttribute("title")).not.toMatch(/Submitted|Confirmed/i);
+    expect(stamp().getAttribute("title")).not.toMatch(/Submitted|Confirmed/i);
   });
 
   it("stays silent on a draft that has not been submitted yet", () => {
@@ -195,7 +204,7 @@ describe("ProvenanceCell", () => {
       },
       "submitted",
     );
-    expect(cell().getAttribute("title")).not.toMatch(/Submitted/i);
+    expect(stamp().getAttribute("title")).not.toMatch(/Submitted/i);
   });
 
   it("falls back to the bare instant, with no actor, when only a promotion step exists", () => {

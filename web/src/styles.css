@@ -446,17 +446,10 @@ body {
   cursor: default;
 }
 
-/* The confirming action of a destructive dialog (F135). Deliberately the only
-   red fill in the app: it means "this cannot be taken back", so spending it
-   anywhere else would blunt it. */
-button.btn-danger {
-  background: var(--danger);
-  color: var(--on-danger);
-}
-
-button.btn-danger:hover:not(:disabled) {
-  background: var(--danger-press);
-}
+/* #828 — `.btn-danger` (F135's destructive-action fill) is retired: its one
+   remaining caller (UsersPage's step-up disable) now reads `color="error"`
+   on the MUI `Button` every BusyButton renders, same as every other
+   destructive action in the app. */
 
 /* Inline action / navigation buttons — text, not pills. Ink, like links
    (#834): underlined at rest in the 28% ink rule, full ink on hover and
@@ -2456,12 +2449,43 @@ dl.mistakes {
 }
 
 
-/* #142/#828 — the "new version is ready" banner is now UpdatePrompt.tsx's own
-   MUI `Snackbar`/`Alert`, positioned and shadowed through its own `sx`
-   (including the phone tab-bar clearance and the below-dialog z-index this
-   block used to carry). `.update-banner` survives only as a class name on
-   the `Alert` (UpdatePrompt.integration.test.tsx queries it), with no rule
-   here behind it. */
+/* #142/#828 — the "new version is ready" banner is a MUI `Snackbar` holding
+   an `Alert` (D2 pair 18), but the Snackbar's POSITIONING is this plain
+   class, passed through `className` rather than `sx`: measured against the
+   sim stack, Snackbar's own `sx`-driven `position`/`inset`/`zIndex` computed
+   as `static`/`auto` at runtime — this app's CSP-nonced Emotion cache
+   (FarmThemeProvider.tsx) blocked that specific style insertion (`Applying
+   inline style violates ... style-src ... nonce-...`), the same class of
+   failure the CSP comment there already documents for a missing nonce,
+   reached here through a path that still is not root-caused. A stylesheet
+   class, loaded via the ordinary `<link rel="stylesheet">` every other
+   fixed-position float in this file already relies on (`.brand-splash-
+   backdrop` above), is immune to it: `className` merges into Snackbar's own
+   root slot (`useSlot('root', { className: [classes.root, className], ... })`
+   in `Snackbar.js`), and #823's `prepend: true` Emotion cache config already
+   guarantees this file's rules win any tie against MUI's own generated
+   class at equal specificity — the exact mechanism the rest of this app
+   already leans on. */
+.update-banner-position {
+  position: fixed;
+  inset: auto 1rem 1rem auto;
+  /* A plain, small number in the SAME local scheme `.brand-splash-backdrop`
+     (55) uses, not MUI's own zIndex.modal (1300): the splash and every MUI
+     Dialog must both win over this banner (#485 already makes it inert
+     while either is up, but a hidden node with a HIGHER z-index would still
+     paint over the thing it is supposed to lose to). */
+  z-index: 30;
+  max-width: min(30rem, calc(100vw - 2rem));
+}
+
+@media (max-width: 900px) {
+  .update-banner-position {
+    /* Clears the fixed tab bar and the home indicator, so the banner never
+       sits on top of the navigation. */
+    inset: auto 1rem calc(3.4rem + env(safe-area-inset-bottom) + 0.75rem) 1rem;
+    max-width: none;
+  }
+}
 
 /* ------------------------------------------------- Busy buttons (#236) */
 
@@ -2469,17 +2493,16 @@ dl.mistakes {
    BusyButton.tsx's own `sx` around MUI `CircularProgress`; those two class
    names survive only as query hooks (BusyButton.test.tsx), with no rule here
    behind them.
-   This rule stays: BusyButton's `component` prop defaults to a plain
-   `<button>` (about 40 call sites still get it, #830), and without this the
-   global `button:disabled { opacity: .5 }` halves the whole busy subtree —
-   spinner included — reproducing the exact dead-button look the busy state
-   exists to replace. The rule being overridden is the base `button:disabled`
-   in the button styles near the top of this file. Both are `:where()`-
-   demoted (#823), so this one wins on source order rather than on
-   specificity: keep it below that rule. A caller that opts into MUI's own
-   `Button` (`component={Button}`) never needs this: MUI dims a disabled
-   button by swapping its palette colours, not by an `opacity` this rule
-   would have to counter. */
+   This rule still applies to every BusyButton: it always renders MUI's own
+   `Button` now (#828 completes D2 pair 8; there is no more native-`<button>`
+   default to fall back to), which is still a real `<button disabled>` DOM
+   node — MUI dims a disabled Button by swapping its palette colours, never
+   by `opacity`, so the global `button:disabled { opacity: .5 }` rule (this
+   file's button styles, near the top) is untouched by anything MUI sets and
+   would still halve the whole busy subtree, spinner included, reproducing
+   the exact dead-button look the busy state exists to replace. Both rules
+   are `:where()`-demoted (#823), so this one wins on source order rather
+   than on specificity: keep it below that rule. */
 :where(button:disabled[aria-busy="true"]) {
   opacity: 1;
 }

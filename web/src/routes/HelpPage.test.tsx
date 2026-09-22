@@ -1111,6 +1111,28 @@ describe("HelpPage visual pass (#657)", () => {
     expect(within(hero as HTMLElement).getByRole("searchbox", { name: "Search the guide" })).toBeInTheDocument();
   });
 
+  // #828 (review) — the "/" shortcut hint must describe the FOCUSABLE search
+  // input, not the decorative (aria-hidden) `kbd` glyph beside it, and the
+  // input must name its own keyboard shortcut so AT can discover it without
+  // relying on a visual "/" glyph.
+  it("describes the search input's / shortcut through a real aria-describedby, and names it via aria-keyshortcuts", () => {
+    render(<HelpPage />);
+    const search = screen.getByRole("searchbox", { name: "Search the guide" });
+    expect(search).toHaveAttribute("aria-keyshortcuts", "/");
+    expect(search).toHaveAccessibleDescription("Press / to search");
+
+    const describedIds = (search.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+    expect(describedIds.length).toBeGreaterThan(0);
+    // The description lives OUTSIDE the <label>, so it never leaks into the
+    // input's NAME (an earlier version of this fix put it inside the label
+    // and the name became "Search the guide Press / to search").
+    for (const id of describedIds) {
+      const node = document.getElementById(id);
+      expect(node).not.toBeNull();
+      expect(node!.closest("label")).toBeNull();
+    }
+  });
+
   it("focuses the search on / unless the user is already typing somewhere", async () => {
     const user = userEvent.setup();
     render(<HelpPage />);

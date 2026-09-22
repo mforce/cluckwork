@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Package, Plus } from "lucide-react";
 import {
-  Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
+  Box, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, TextField, Tooltip,
 } from "@mui/material";
 import {
@@ -317,7 +317,7 @@ export function ProductsPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton disabled={busy} busy={isPending("create")}>{t("addProductButton")}</BusyButton>
+            <BusyButton variant="contained" type="submit" disabled={busy} busy={isPending("create")}>{t("addProductButton")}</BusyButton>
           </DialogActions>
         )}
         formProps={{ onSubmit: (e) => void onCreate(e) }}
@@ -375,7 +375,7 @@ export function ProductsPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
+            <BusyButton variant="contained" type="submit" disabled={busy}
               busy={isPending("edit")}>{tc("save")}</BusyButton>
           </DialogActions>
         )}
@@ -435,7 +435,7 @@ export function ProductsPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeEditConversion}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
+            <BusyButton variant="contained" type="submit" disabled={busy}
               busy={isPending("edit-conversion")}>{tc("save")}</BusyButton>
           </DialogActions>
         )}
@@ -478,9 +478,13 @@ export function ProductsPage() {
             <TableBody>
               {products.map((p) => (
                 <TableRow key={p.id} className={p.active ? undefined : "muted"}>
-                  <Tooltip title={p.notes ?? undefined} describeChild>
-                    <TableCell sx={NOWRAP}>{p.name}</TableCell>
-                  </Tooltip>
+                  <TableCell sx={NOWRAP}>
+                    {/* #828 (review) — the Tooltip trigger is this leaf span,
+                        never the TableCell itself. */}
+                    <Tooltip title={p.notes ?? undefined} describeChild>
+                      <Box component="span">{p.name}</Box>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell sx={NOWRAP}>{gradeName(p.eggGradeId)}</TableCell>
                   <TableCell sx={NOWRAP}>{p.defaultUnit}</TableCell>
                   <TableCell align="right" sx={NOWRAP}>{p.defaultPriceMinorUnits === null
@@ -492,12 +496,12 @@ export function ProductsPage() {
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
                         <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
                         {p.active ? (
-                          <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
+                          <BusyButton variant="text" disabled={busy} busy={isPending(`deact:${p.id}`)}
                             onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
                             {t("deactivateButton")}
                           </BusyButton>
                         ) : (
-                          <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
+                          <BusyButton variant="text" disabled={busy} busy={isPending(`act:${p.id}`)}
                             onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
                             {t("activateButton")}
                           </BusyButton>

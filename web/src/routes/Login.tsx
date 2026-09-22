@@ -337,7 +337,7 @@ export function Login() {
           slotProps={{ htmlInput: { maxLength: 256 } }}
         />
         {error && <Alert severity="error">{error}</Alert>}
-        <BusyButton type="submit" busy={busy}>
+        <BusyButton variant="contained" type="submit" busy={busy}>
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
       </Stack>

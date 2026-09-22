@@ -734,7 +734,7 @@ export function UsersPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
+            <BusyButton variant="contained" type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
           </DialogActions>
         )}
         formProps={{ onSubmit: onCreate }}
@@ -890,7 +890,7 @@ export function UsersPage() {
                 <li key={a.id}>
                   {flockName(a)}
                   {!openUserIsWorker && <span className="muted"> ({t("inactiveAssignmentLabel")})</span>}{" "}
-                  <BusyButton className="link" disabled={busy || !flockStepUpPassword}
+                  <BusyButton variant="text" disabled={busy || !flockStepUpPassword}
                     busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
                     onClick={() => void onUnassign(a)}>
                     {t("removeAssignmentButton")}
@@ -944,7 +944,7 @@ export function UsersPage() {
                   </button>
                 }
               />
-              <BusyButton disabled={busy || !assignFlock || !assignFlockSnapshot.canSubmit || !flockStepUpPassword}
+              <BusyButton variant="contained" disabled={busy || !assignFlock || !assignFlockSnapshot.canSubmit || !flockStepUpPassword}
                 busy={openUser !== null && isPending(`assign:${openUser}:${assignFlock?.id ?? ""}`)}
                 onClick={() => void onAssign()}>
                 {t("assignFlockButton")}
@@ -972,7 +972,7 @@ export function UsersPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
+            <BusyButton variant="contained" type="submit" disabled={busy}
               busy={editUser !== null && isPending(`update:${editUser.id}`)}>{tc("save")}</BusyButton>
           </DialogActions>
         )}
@@ -998,7 +998,7 @@ export function UsersPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
+            <BusyButton variant="contained" type="submit" disabled={busy}
               busy={pwUser !== null && isPending(`set-password:${pwUser.id}`)}>{t("setPasswordButton")}</BusyButton>
           </DialogActions>
         )}
@@ -1041,7 +1041,7 @@ export function UsersPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
+            <BusyButton variant="contained" type="submit" disabled={busy}
               busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
           </DialogActions>
         )}
@@ -1083,7 +1083,7 @@ export function UsersPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeEmail}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
+            <BusyButton variant="contained" type="submit" disabled={busy}
               busy={emailUser !== null && isPending(`change-email:${emailUser.id}`)}>
               {t("changeEmailSubmitButton")}
             </BusyButton>
@@ -1145,8 +1145,8 @@ export function UsersPage() {
         actions={(
           <DialogActions>
             <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
-            <BusyButton type="submit" disabled={busy}
-              className={stepUpMode === "disable" ? "btn-danger" : undefined}
+            <BusyButton variant="contained" type="submit" disabled={busy}
+              color={stepUpMode === "disable" ? "error" : undefined}
               busy={stepUpUser !== null && stepUpMode !== null
                 && isPending(`${stepUpMode}:${stepUpUser.id}`)}>
               {stepUpMode === "disable" ? t("disableSubmitButton") : t("enableSubmitButton")}

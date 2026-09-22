@@ -76,37 +76,36 @@ export function UpdatePrompt() {
           and the E2E suite reads their absence as "nothing has gone wrong". */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">{missed}</p>
       {waiting && (
-        // Snackbar renders inline (no portal, see Snackbar.js), so it inherits
-        // aria-hidden from a Dialog's already-inert ancestor exactly like the
-        // plain div it replaces (#485) — nothing here needs to reach across a
-        // portal boundary. `open` is not driven by MUI's own close transition:
-        // this whole tree mounts and unmounts through the `waiting &&` above,
-        // so React removes it immediately, with no exit-animation delay, the
-        // same instant swap the div gave Later/Reload.
+        // #828 (review) — positioning is a plain `.update-banner-position`
+        // styles.css class on Snackbar's OWN root (via `className`, which
+        // Snackbar merges into its root slot's class list), not `sx`:
+        // measured against the sim stack, Snackbar's `sx`-driven
+        // `position`/`inset`/`zIndex` computed as `static`/`auto` at
+        // runtime — this app's CSP-nonced Emotion cache
+        // (FarmThemeProvider.tsx) blocked that specific style insertion
+        // (`Applying inline style violates ... style-src ... nonce-...`).
+        // A stylesheet class, loaded via the ordinary `<link
+        // rel="stylesheet">` every other fixed-position float in this file
+        // already relies on (`.brand-splash-backdrop`), is immune to it.
+        // `open` is not driven by MUI's own close transition: this whole
+        // tree mounts and unmounts through the `waiting &&` above, so React
+        // removes it immediately, with no exit-animation delay, the same
+        // instant swap the div it replaces gave Later/Reload.
         <Snackbar
           open
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-          sx={{
-            // Below every Dialog (MUI's own z-index.modal), same as the
-            // retired `.update-banner`'s "z-index 30, below the dialog (50)":
-            // #485 already makes this inert while a dialog is open, but a
-            // hidden node with a HIGHER z-index would still paint over the
-            // dialog it is supposed to lose to.
-            zIndex: (theme) => theme.zIndex.modal - 1,
-            insetInlineEnd: "1rem", insetInlineStart: "auto", top: "auto", transform: "none",
-            insetBlockEnd: {
-              xs: "calc(3.4rem + env(safe-area-inset-bottom) + 0.75rem)",
-              md: "1rem",
-            },
-            maxWidth: { xs: "none", md: "min(30rem, calc(100vw - 2rem))" },
-          }}
+          className="update-banner-position"
         >
           <Alert
             role="status"
             aria-live="polite"
             severity="info"
+            icon={false}
             className="update-banner"
-            sx={{ boxShadow: "var(--shadow-bar)", alignItems: "center" }}
+            sx={{
+              boxShadow: "var(--shadow-bar)", alignItems: "center",
+              "& .MuiAlert-action": { flexWrap: "wrap", rowGap: 0.5 },
+            }}
             action={(
               <>
                 <Button color="inherit" size="small" onClick={onReload} disabled={busy}>
