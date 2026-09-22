@@ -163,6 +163,13 @@ describe.each(BRANDS)("palette: %s", (brand) => {
   // and --link/--link-rule themselves do not (--ink is theme-scoped only),
   // so this is the check that would catch a palette whose --surface-2 got
   // too close to ink.
+  //
+  // Scope, stated because #930 hit it: this walks only the :root token
+  // DEFAULTS resolveTokens() rebuilds from styles.css — never a component
+  // that re-scopes --link on its own subtree (FieldConsole did, shadowing
+  // this default for every dark-theme row link). jsdom can't resolve a real
+  // custom-property cascade either (see cssTokens.ts), so a component-scoped
+  // override needs a live render in a real browser: ledger-theme.spec.ts.
   it.each(MODES)("%s: link text clears WCAG AA (4.5:1) on --surface and --surface-2", (mode) => {
     const t = resolveTokens(attrFor(brand), mode);
     const at = (k: string) => t.get(k)!;

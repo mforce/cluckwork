@@ -43,6 +43,12 @@ const LINK_ACTION_SX = {
   minWidth: 0, p: 0, fontWeight: 700, borderRadius: 0, color: "var(--link)",
   textDecoration: "underline", textDecorationColor: "var(--rule-strong)", textUnderlineOffset: "3px",
   "&:hover": { textDecoration: "underline", bgcolor: "transparent" },
+  // #930 — MUI's own dark-mode action.disabled (rgba(255,255,255,0.3)) clears
+  // only ~2.6:1 against --surface/--surface-2, under the 3:1 floor. `opacity:
+  // 1` overrides the global `:where(button:disabled) { opacity: .5 }`
+  // (styles.css) — left unset, it halves --muted's own contrast to
+  // 2.84:1/2.68:1, still under 3:1.
+  "&.Mui-disabled": { color: "var(--muted)", opacity: 1 },
 };
 // Secondary reading of LINK_ACTION_SX for an action that sits beside a
 // primary one in the same manifest-row cell (save/cancel) — same text-link
