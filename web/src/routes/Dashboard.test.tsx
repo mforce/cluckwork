@@ -160,18 +160,6 @@ const panel = async (title: string) =>
 // it) can be queried together without depending on layout classNames.
 const todayRow = (flockName: string) => screen.getByRole("group", { name: flockName });
 
-// The last house of a multi-page farm, reached through the pager rather than
-// assumed to be on page one.
-async function user501(scr: typeof screen) {
-  const user = userEvent.setup();
-  for (let i = 0; i < 62; i += 1) {
-    await user.click(scr.getByRole("button", { name: "Next page of Morning collection" }));
-  }
-  const row = scr.getByRole("group", { name: "Flock f500" });
-  expect(within(row).getByText("77")).toBeInTheDocument();
-  expect(within(row).queryByText("Not recorded")).not.toBeInTheDocument();
-}
-
 // The total row's label ("Today so far") and its numeral are separate
 // elements (#883 round 4, finding D — the mockup pairs a fixed label with a
 // numeral beside it, never a sentence built by interpolating the figure into
@@ -532,8 +520,15 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
   // its eggs left out of the day's total.
   it("reads every house's entry past the first server page", async () => {
     stubMatchMedia(true);
-    const many = Array.from({ length: 501 }, (_, i) => flock(`f${i}`, "Active"));
-    const filed = many.map((f, i) => entry(f.id, "Submitted", i === 500 ? 77 : 1));
+    // 501 flocks and 501 entry rows, so BOTH drains need a second page, while
+    // only the 501st house is a TILE: the first 500 are depleted and their one
+    // entry each is Voided, which `captureTiles` drops (#82) though the server
+    // still serves those rows. Paging 62 rows deep to reach it instead cost
+    // 3.6s and timed out under CI's coverage gate.
+    const many = Array.from({ length: 501 }, (_, i) =>
+      flock(`f${i}`, i === 500 ? "Active" : "Depleted"));
+    const filed = many.map((f, i) =>
+      (i === 500 ? entry(f.id, "Submitted", 77) : entry(f.id, "Voided", 9)));
     mockFlocks.mockImplementation((params) => {
       const offset = params?.offset ?? 0;
       return Promise.resolve(many.slice(offset, offset + (params?.limit ?? 500)));
@@ -544,13 +539,16 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     });
     renderWithProviders(<Dashboard />);
 
-    expect(await screen.findByText("501 of 501 houses in")).toBeInTheDocument();
+    expect(await screen.findByText("1 of 1 house in")).toBeInTheDocument();
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500]);
     expect(mockEntries.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500]);
-    // 500 houses at one egg and the 501st at 77.
-    expect(await todayTotal()).toBe("577");
+    expect(await todayTotal()).toBe("77");
 
-    // The last house, on the final page, is recorded rather than missing.
-    await user501(screen);
+    // The house whose entry only the SECOND page carries is recorded, not
+    // missing, and carries that page's figure.
+    const row = todayRow("Flock f500");
+    expect(within(row).getByText("77")).toBeInTheDocument();
+    expect(within(row).queryByText("Not recorded")).not.toBeInTheDocument();
   });
 
   // The drain stops after 20 full pages, and
