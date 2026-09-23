@@ -208,6 +208,36 @@ describe("apiFetch — unrecoverable session reason", () => {
   });
 });
 
+// #915 — the Dashboard drains two lists a page at a time and cancels the walk
+// when the reader leaves. That only stops the request in flight if the signal
+// reaches `fetch`, which no test above this one looks at.
+describe("request cancellation reaches the wire", () => {
+  it("hands apiGet's signal to fetch", async () => {
+    const controller = new AbortController();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await apiGet("/flocks", controller.signal);
+    const init = (fetchMock.mock.calls[0] as Call)[1] as RequestInit;
+    expect(init.signal).toBe(controller.signal);
+  });
+
+  it("lets an abort reject a request that is still open", async () => {
+    const controller = new AbortController();
+    // A server that never answers: only the abort can end this.
+    fetchMock.mockImplementation((_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        if (init.signal?.aborted) {
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+          return;
+        }
+        init.signal?.addEventListener("abort", () =>
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
+      }));
+    const pending = apiGet("/flocks", controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow();
+  });
+});
+
 // #217 — every request mints a W3C traceparent so a browser action correlates
 // with the API's request log and spans (#214). The client remembers the last
 // trace id so a crash report can join the failed screen's server-side story.

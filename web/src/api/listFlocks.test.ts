@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { listFlocks, getFlock } from "./cluckwork";
+import { listFlocks, listDailyEntries, getFlock } from "./cluckwork";
 import { apiGet, ApiError } from "./client";
 
 // The screen tests mock this whole module, so none of them exercises the URL
@@ -118,5 +118,22 @@ describe("getFlock exact read (#512, US3)", () => {
     await expect(getFlock("f9")).resolves.toBe(flock);
     expect(mockGet).toHaveBeenCalledTimes(2);
     expect(mockGet).toHaveBeenNthCalledWith(2, "/flocks/f9");
+  });
+});
+
+// #915 — the Dashboard cancels its drain on unmount. The client has to forward
+// the signal for that to reach the wire; asserting only the URL leaves a
+// dropped `signal` argument invisible.
+describe("the list clients forward their abort signal", () => {
+  it("passes listFlocks' signal straight to apiGet", async () => {
+    const controller = new AbortController();
+    await listFlocks({ limit: 500, offset: 0 }, controller.signal);
+    expect(mockGet.mock.calls.at(-1)?.[1]).toBe(controller.signal);
+  });
+
+  it("passes listDailyEntries' signal straight to apiGet", async () => {
+    const controller = new AbortController();
+    await listDailyEntries({ from: "2026-07-21", to: "2026-07-21", limit: 500 }, controller.signal);
+    expect(mockGet.mock.calls.at(-1)?.[1]).toBe(controller.signal);
   });
 });

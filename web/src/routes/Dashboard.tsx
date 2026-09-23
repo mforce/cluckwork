@@ -143,6 +143,8 @@ export function Dashboard() {
   const [flocksTruncated, setFlocksTruncated] = useState(false);
   const [entriesTruncated, setEntriesTruncated] = useState(false);
   const [flocksRetrying, setFlocksRetrying] = useState(false);
+  // Bumped by Retry so the panels effect re-runs under its own ownership.
+  const [panelsGeneration, setPanelsGeneration] = useState(0);
 
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
   // ReadOnly/Denied can't read customers or orders — the API now returns 403
@@ -187,13 +189,23 @@ export function Dashboard() {
     if (!ordersHasMore) return;
     setOrdersExtending(true);
     setOrdersExtendFailed(false);
+    // Whether the page in view was already complete decides where this lands.
+    const pageWasFull = orderSlice.length === RECENT_ORDERS;
     const outcome = await ordersLoadMore();
     setOrdersExtending(false);
     // A page of nothing is the end of the list, which is an answer rather than
     // a failure, and a dropped page is one nobody is waiting for. Only a
     // refusal is the reader's to see.
-    if (outcome.status === "refused") setOrdersExtendFailed(true);
-    else if (outcome.status === "loaded" && outcome.rows > 0) setOrdersPage(next);
+    if (outcome.status === "refused") { setOrdersExtendFailed(true); return; }
+    if (outcome.status !== "loaded" || outcome.rows === 0) return;
+    // A page that arrived PARTLY new leaves the page in view short, and those
+    // rows belong to it. Moving on would step over them: page 2 holding one
+    // order, then filling with four more as the reader asks for page 3.
+    //
+    // A full page in view plus at least one new row IS the destination having
+    // a row: the list already reaches this page's last index, so anything
+    // appended lands past it. No second check earns its place here.
+    if (pageWasFull) setOrdersPage(next);
   };
   // A refetch starts the reader at the first page again (#915): the page they
   // were on described a list that no longer exists.
@@ -232,18 +244,14 @@ export function Dashboard() {
     ? (panelsOutcome.reason instanceof ApiError ? panelsOutcome.reason.message : i18n.t("dashboard:loadFailed"))
     : null;
 
-  // Retry re-issues ONLY the flock list; the dialog's own discovery is a
-  // separate server call and is unaffected either way. A success proves at
-  // least one panel now has data, whatever the other three are doing.
-  const fetchFlocks = () => {
+  // Retry asks the effect below to run again rather than issuing a read of its
+  // own. A second copy of a request needs a second copy of the cancellation
+  // and generation guards, and the copy it had carried neither: a retry
+  // started under one role could answer after a newer role's batch had
+  // finished and overwrite it, and it kept draining after the reader left.
+  const retryFlocks = () => {
     setFlocksRetrying(true);
-    const controller = new AbortController();
-    drainPages((offset, limit, signal) => listFlocks({ limit, offset }, signal), controller.signal)
-      .then(({ rows, truncated }) => {
-        setFlocks(rows); setFlocksTruncated(truncated); setFlocksFailed(false); setFlocksRetrying(false);
-        setPanelsOutcome({ state: "someOk" });
-      })
-      .catch(() => { setFlocksFailed(true); setFlocksRetrying(false); });
+    setPanelsGeneration((n) => n + 1);
   };
 
   useEffect(() => {
@@ -267,6 +275,7 @@ export function Dashboard() {
       setPanelsOutcome(rejected.length === issued.length
         ? { state: "allFailed", reason: rejected[0]?.reason }
         : { state: "someOk" });
+      setFlocksRetrying(false);
       setLoading(false);
     });
     return () => { cancelled = true; controller.abort(); };
@@ -274,7 +283,7 @@ export function Dashboard() {
     // role-gated: `panelsOutcome` is half the "everything failed" verdict, and
     // a role change starts a new generation whose verdict must be decided
     // freshly rather than inherited from the previous role's healthy one.
-  }, [today, canSeeSales]);
+  }, [today, canSeeSales, panelsGeneration]);
 
   // #916 — the production report alone, re-run on scope/today/soleFlockId,
   // separate from the effect above so picking a flock never re-fetches the
@@ -366,11 +375,13 @@ export function Dashboard() {
   // page on screen. A farm with more missing houses than the old cap
   // undercounted both (#883).
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
-  // the drain's ceiling is a real limit, so the panel
-  // states a LOWER BOUND rather than presenting its own array length as the
-  // farm's size. A truncated entry list matters just as much: houses past it
-  // read as missing and their eggs are left out of the day's total.
-  const housesIncomplete = flocksTruncated || entriesTruncated;
+  // Two different gaps, and conflating them made the panel disown a count it
+  // actually had. A truncated FLOCK list means the farm's size is unknown, so
+  // every figure over it is a lower bound. A truncated ENTRY list leaves that
+  // count exact and makes the STATUS side incomplete instead: houses whose
+  // entry was never read show as missing and their eggs never reach the total.
+  const housesIncomplete = flocksTruncated;
+  const entryDataIncomplete = entriesTruncated;
   const housePage = panelPage(allTiles ?? [], housesPage, housesPerPage);
   const housesPagerLabel = housesIncomplete
     ? t("pagerHousesAtLeast", {
@@ -538,7 +549,8 @@ export function Dashboard() {
               ))}
               {attentionMore > 0 && <Typography component={Link} to="/daily-entry" sx={{ color: "inherit" }}>{t("attentionMore", { count: attentionMore })}</Typography>}
             </Box>
-          ) : <Typography>{t(allTiles.length === 0 ? "noFlocksMessage" : "allHousesRecorded")}</Typography>}
+          ) : <Typography>{t(allTiles.length === 0 ? "noFlocksMessage"
+            : entryDataIncomplete ? "entriesIncompleteBrief" : "allHousesRecorded")}</Typography>}
         </Box>
         {allTiles !== null && entries !== null && <Box sx={{ borderLeft: { md: "1px solid #62535e" }, borderTop: { xs: "1px solid #62535e", md: 0 }, pl: { md: 2.5 }, pt: { xs: 1.5, md: 0 }, minWidth: 150 }}>
           <Typography variant="caption">{t("todaySoFarLabel")}</Typography>
@@ -588,6 +600,9 @@ export function Dashboard() {
                 {yesterdayClose !== null && <Typography variant="caption" color="text.secondary">{t("yesterdayByClose", { total: fmt.count(yesterdayClose) })}</Typography>}
                 {housesIncomplete && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                   {t("housesIncompleteNotice", { count: allTiles.length, total: fmt.count(allTiles.length) })}
+                </Typography>}
+                {entryDataIncomplete && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                  {t("entriesIncompleteNotice")}
                 </Typography>}
               </Box>
             </>
@@ -707,7 +722,7 @@ export function Dashboard() {
             // flock-list read must not read as a genuinely empty farm.
             <Box sx={{ mt: "18px", mb: "8px" }}>
               <Alert severity="error" className="error" action={
-                <Button color="inherit" size="small" disabled={flocksRetrying} onClick={fetchFlocks}>
+                <Button color="inherit" size="small" disabled={flocksRetrying} onClick={retryFlocks}>
                   {flocksRetrying ? tp("loading") : tp("retry")}
                 </Button>
               }>

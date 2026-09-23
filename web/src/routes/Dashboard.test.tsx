@@ -351,6 +351,60 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0]);
   });
 
+  // Retry minted its own controller and never aborted it, nor checked whether
+  // its answer still belonged to the current role.
+  it("lets a role change outrank a Retry that is still running", async () => {
+    const user = userEvent.setup();
+    const older = [flock("old1", "Active"), flock("old2", "Active")];
+    const newer = [flock("new1", "Active")];
+    let releaseRetry: (() => void) | null = null;
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseRetry = () => resolve(older); }))
+      .mockResolvedValue(newer);
+    mockEntries.mockResolvedValue([]);
+
+    const { rerender } = render(
+      <MemoryRouter><AuthOverride role="Admin"><Dashboard /></AuthOverride></MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(releaseRetry).not.toBeNull());
+
+    // ReadOnly, because that is a role change the panels batch actually
+    // re-runs for (#918): it changes what the screen may read.
+    rerender(<MemoryRouter><AuthOverride role="ReadOnly"><Dashboard /></AuthOverride></MemoryRouter>);
+    await screen.findByRole("group", { name: "Flock new1" });
+    releaseRetry!(); // the abandoned retry answers late
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(screen.getByRole("group", { name: "Flock new1" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Flock old1" })).not.toBeInTheDocument();
+  });
+
+  it("stops a Retry's drain once the reader has left", async () => {
+    const user = userEvent.setup();
+    const hold: Array<() => void> = [];
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockImplementation((params) => {
+        const offset = params?.offset ?? 0;
+        return new Promise((resolve) => {
+          hold.push(() => resolve(Array.from({ length: 500 }, (_, i) => flock(`f${offset + i}`, "Active"))));
+        });
+      });
+    mockEntries.mockResolvedValue([]);
+    const view = renderWithProviders(<Dashboard />);
+    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(hold).toHaveLength(1));
+
+    view.unmount();
+    hold[0]!();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // The failed first load, the retry's first page, and nothing after it.
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 0]);
+  });
+
   it("gives a phone six houses a page, not the desktop eight", async () => {
     stubMatchMedia(false); // < 900px
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
@@ -431,9 +485,11 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     mockEntries.mockResolvedValue([]);
     renderWithProviders(<Dashboard />);
 
-    expect(await screen.findByText("0 of 10000+ houses in")).toBeInTheDocument();
-    expect(screen.getByText("Houses 1 to 8 of 10,000+")).toBeInTheDocument();
-    expect(screen.getByText("Showing the first 10,000 houses. This farm has more."))
+    // "At least", never "there are more": twenty full pages do not prove a
+    // 10,001st house exists, and a farm of exactly 10,000 is fully counted.
+    expect(await screen.findByText("0 of at least 10000 houses in")).toBeInTheDocument();
+    expect(screen.getByText("Houses 1 to 8 of at least 10,000")).toBeInTheDocument();
+    expect(screen.getByText("Showing the first 10,000 houses. There may be more."))
       .toBeInTheDocument();
     // The bar cannot state a share of an unknown whole.
     expect(screen.getByRole("progressbar", { name: "Morning collection" }))
@@ -455,9 +511,30 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
       Promise.resolve(page.map((e) => ({ ...e, id: `${e.id}-${params?.offset ?? 0}` }))));
     renderWithProviders(<Dashboard />);
 
-    expect(await screen.findByText("Showing the first 40 houses. This farm has more."))
+    // The flock drain finished, so the house count is exact. Only the entry
+    // side is incomplete, and the panel says which.
+    expect(await screen.findByText("0 of 40 houses in")).toBeInTheDocument();
+    expect(screen.queryByText(/There may be more/)).not.toBeInTheDocument();
+    expect(screen.getByText("Some entries could not be read, so today's status and total cover part of the farm."))
       .toBeInTheDocument();
-    expect(screen.getByText("0 of 40+ houses in")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .toHaveAttribute("aria-valuenow", "0");
+  });
+
+  // With entries incomplete, "every house has an entry today" is a claim the
+  // data cannot support even when every house the panel read has one.
+  it("never claims the whole farm is recorded while entries are incomplete", async () => {
+    stubMatchMedia(true);
+    const houses = Array.from({ length: 3 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve((params?.offset ?? 0) === 0 ? houses : []));
+    const page = Array.from({ length: 500 }, (_, i) => entry(`f${i % 3}`, "Submitted", 1));
+    mockEntries.mockImplementation((params) =>
+      Promise.resolve(page.map((e) => ({ ...e, id: `${e.id}-${params?.offset ?? 0}` }))));
+    renderWithProviders(<Dashboard />);
+
+    await screen.findByText("3 of 3 houses in");
+    expect(screen.queryByText("Every house has an entry today.")).not.toBeInTheDocument();
   });
 
   it("states an exact total when the drain reached the end", async () => {
@@ -1844,6 +1921,35 @@ describe("Dashboard Recent orders paging (#915)", () => {
     expect(screen.getByRole("listitem", { name: "SO-5" })).toBeInTheDocument();
     expect(screen.queryByText("Orders 6 to 5")).not.toBeInTheDocument();
     expect(asked).toEqual([0, 5, 10]);
+  });
+
+  // A page that arrives PARTLY new leaves the page in view short. Advancing
+  // from it skipped the rows that the next fetch put on it: page 2 held only
+  // order 6, the following tap filled it with 7-10 and moved to page 3, and
+  // nobody ever saw them.
+  it("shows a page that filled up rather than stepping over it", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      // Four the reader already has, and one new one.
+      if (offset === 5) return Promise.resolve([...catalogue.slice(1, 5), catalogue[5]!]);
+      return Promise.resolve(catalogue.slice(6, 11));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 6")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "SO-5" })).toBeInTheDocument();
+
+    // The second tap fills the page in view. The reader stays on it and sees
+    // orders 7 to 10 instead of them scrolling past behind page 3.
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    for (const ref of ["SO-5", "SO-6", "SO-7", "SO-8", "SO-9"]) {
+      expect(screen.getByRole("listitem", { name: ref })).toBeInTheDocument();
+    }
   });
 
   it("offers no pager when the first page is the whole list", async () => {
