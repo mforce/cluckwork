@@ -670,6 +670,38 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }
   });
 
+  // #914 — past fourteen days the strip draws one bar a week, and a week's
+  // readout carries two dates, a day count and two figures. It gets a taller
+  // reserved row; if that row ever stops holding it the box grows UPWARD over
+  // the scale caption, which no unit test can see.
+  test("a weekly lay-rate readout stays inside its reserved row", async ({ page, signIn }) => {
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(owner());
+    await page.goto("/");
+    const strip = page.getByRole("group").and(page.locator(".daystrip"));
+    await expect(strip).toBeVisible();
+
+    await page.getByLabel(tEn("dashboard:rangeLabel"), { exact: true }).selectOption("30");
+    const bars = strip.getByRole("button");
+    await expect(bars).toHaveCount(5);
+
+    let worst = -Infinity;
+    for (const bar of await bars.all()) {
+      await bar.click();
+      const fit = await page.evaluate(() => {
+        const dock = document.querySelector(".tipdock");
+        const tip = document.querySelector(".tipdock .tip");
+        if (dock === null || tip === null) return null;
+        const d = dock.getBoundingClientRect();
+        const t = tip.getBoundingClientRect();
+        return Math.max(d.top - t.top, t.bottom - d.bottom);
+      });
+      if (fit !== null) worst = Math.max(worst, fit);
+    }
+    expect(worst, "a weekly readout overflows the row the strip reserves for it").toBeLessThanOrEqual(1);
+  });
+
   test("lay rate keeps fourteen full-height days on one phone row", async ({ page, signIn }) => {
     await page.context().clearCookies();
     await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
