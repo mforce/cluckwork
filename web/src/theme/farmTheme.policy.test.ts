@@ -399,6 +399,17 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  // Every table now sits inside a bordered FieldConsole panel; the shared
+  // padding's zero left inset (above) was written for a borderless ledger and
+  // leaves the first cell's text flush against that border.
+  it("gives the first cell of every row a left inset matching the last cell's right inset", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiTableCell?.styleOverrides?.root, `${label} MuiTableCell root`);
+      const first = slot(root["&:where(:first-of-type)"], `${label} MuiTableCell first-of-type`);
+      expect(first.paddingLeft, `${label} first cell left inset`).toBe("1rem");
+    }
+  });
+
   it("sets the direction's type scale (display/title/section/rows/caption)", () => {
     for (const { label, theme } of themes) {
       const phone = theme.breakpoints.down("md");
