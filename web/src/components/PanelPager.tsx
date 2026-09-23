@@ -17,7 +17,14 @@ export function PanelPager({ label, previousLabel, nextLabel, hasPrevious, hasNe
 }) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mt: 1 }}>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      {/* Rows can arrive ABOVE this pager without the page number moving —
+          a short page filling up — and a reader standing on the buttons has
+          nothing else to tell them. The range is the one thing that changes,
+          so it announces itself. Mounted with the pager, never alongside its
+          own first text, which is unreliably announced. */}
+      <Typography variant="caption" color="text.secondary" aria-live="polite" aria-atomic="true">
+        {label}
+      </Typography>
       <Box sx={{ display: "flex", flexShrink: 0 }}>
         <IconButton aria-label={previousLabel} disabled={!hasPrevious} onClick={onPrevious} sx={PAGER_BUTTON_SX}>
           <ChevronLeft size={18} aria-hidden focusable={false} />

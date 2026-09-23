@@ -255,24 +255,37 @@ export function Dashboard() {
     let cancelled = false;
     const controller = new AbortController();
     setPanelsOutcome({ state: "pending" }); // a fresh load starts clean, never on a stale verdict
-    Promise.allSettled([
-      drainPages((offset, limit, signal) => listFlocks({ limit, offset }, signal), controller.signal),
-      drainPages((offset, limit, signal) => listDailyEntries({ from: today, to: today, limit, offset }, signal), controller.signal),
-      getStock(),
-    ]).then(([f, e, s]) => {
+    const flockRead = drainPages((offset, limit, signal) => listFlocks({ limit, offset }, signal), controller.signal);
+    const entryRead = drainPages((offset, limit, signal) => listDailyEntries({ from: today, to: today, limit, offset }, signal), controller.signal);
+    const stockRead = getStock();
+
+    // Each panel commits the moment its OWN read settles. Holding them behind
+    // the batch tied a recovered flock list to a stock request that may never
+    // answer — `fetch` here carries no timeout — which left Retry disabled on
+    // a list that had already come back. They still share one generation and
+    // one controller, so `cancelled` and the abort cover all three.
+    flockRead.then(({ rows, truncated }) => {
       if (cancelled) return;
-      if (f.status === "fulfilled") {
-        setFlocks(f.value.rows); setFlocksTruncated(f.value.truncated); setFlocksFailed(false);
-      } else { setFlocksFailed(true); }
-      if (e.status === "fulfilled") { setEntries(e.value.rows); setEntriesTruncated(e.value.truncated); }
-      if (s.status === "fulfilled") setStock(s.value);
-      setHousesPage(0);
-      const issued = [f, e, s];
+      setFlocks(rows); setFlocksTruncated(truncated); setFlocksFailed(false);
+      setFlocksRetrying(false); setHousesPage(0);
+    }).catch(() => {
+      if (cancelled) return;
+      setFlocksFailed(true); setFlocksRetrying(false);
+    });
+    entryRead.then(({ rows, truncated }) => {
+      if (cancelled) return;
+      setEntries(rows); setEntriesTruncated(truncated);
+    }).catch(() => {});
+    stockRead.then((rows) => { if (!cancelled) setStock(rows); }).catch(() => {});
+
+    // The page-level verdict still needs every answer, because "everything
+    // failed" is only true once nothing is outstanding.
+    Promise.allSettled([flockRead, entryRead, stockRead]).then((issued) => {
+      if (cancelled) return;
       const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
       setPanelsOutcome(rejected.length === issued.length
         ? { state: "allFailed", reason: rejected[0]?.reason }
         : { state: "someOk" });
-      setFlocksRetrying(false);
       setLoading(false);
     });
     return () => { cancelled = true; controller.abort(); };

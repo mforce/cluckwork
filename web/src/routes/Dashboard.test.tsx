@@ -405,6 +405,29 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 0]);
   });
 
+  // `fetch` has no timeout, so a stalled stock read can hang for the life of
+  // the page. Holding the flock result behind it left Retry disabled forever
+  // on a flock list that had already come back.
+  it("recovers the flock panel on Retry even while another panel hangs", async () => {
+    const user = userEvent.setup();
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockResolvedValue([flock("back1", "Active")]);
+    mockEntries.mockResolvedValue([]);
+    mockStock.mockResolvedValueOnce(STOCK).mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(<Dashboard />);
+
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    await user.click(retry);
+
+    // The flock list is on screen and the panel error is gone, with the stock
+    // request still outstanding.
+    expect(await screen.findByRole("group", { name: "Flock back1" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("Could not load the flock list.")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
   it("gives a phone six houses a page, not the desktop eight", async () => {
     stubMatchMedia(false); // < 900px
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
@@ -1945,6 +1968,33 @@ describe("Dashboard Recent orders paging (#915)", () => {
     for (const ref of ["SO-5", "SO-6", "SO-7", "SO-8", "SO-9"]) {
       expect(screen.getByRole("listitem", { name: ref })).toBeInTheDocument();
     }
+  });
+
+  // Rows appearing ABOVE the pager is invisible to a screen reader standing on
+  // the pager: the page number does not change, the button keeps its name, and
+  // the only thing that moves is a range nobody is told about. The range is a
+  // live region so the fill is announced, and it is mounted with the OLD text
+  // first — a region that appears together with its text is unreliably
+  // announced.
+  it("announces the new range when rows fill the page in view", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      if (offset === 5) return Promise.resolve([...catalogue.slice(1, 5), catalogue[5]!]);
+      return Promise.resolve(catalogue.slice(6, 11));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    const announced = await screen.findByText("Orders 6 to 6");
+    expect(announced).toHaveAttribute("aria-live", "polite");
+    expect(announced).toHaveAttribute("aria-atomic", "true");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    // The SAME node carries the new range, so the change is what is announced.
+    await waitFor(() => expect(announced).toHaveTextContent("Orders 6 to 10"));
   });
 
   it("offers no pager when the first page is the whole list", async () => {
