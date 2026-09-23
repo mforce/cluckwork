@@ -1,16 +1,10 @@
 import { test, expect } from "../src/fixtures";
 import { owner } from "../src/cast";
 
-// #939 codex review — the setup lists (#908) bound the table to a fixed-height
-// region and dock the inspector below it; only the table's own scroll should
-// move, with its header staying pinned above the rows. `position: sticky`'s
-// containing block is whichever ancestor actually scrolls, and that need not
-// be the element a class name suggests — walking up from the header itself
-// to whichever ancestor genuinely has scrollable overflow is what a real
-// scroll wheel would hit, and is the only way to find the actual scroller
-// regardless of which element that turns out to be. A screenshot at rest
-// cannot catch a header stuck to the wrong one; only scrolling and
-// re-measuring can.
+// #908's bounded table region owns its own scroll, and the header must stay
+// pinned above the rows. `position: sticky`'s containing block is whichever
+// ancestor actually scrolls, not necessarily the one a class name suggests,
+// so this walks up from the header to find it.
 test("Flocks' table header stays pinned while its own bounded region scrolls", async ({ page, signIn }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(owner());

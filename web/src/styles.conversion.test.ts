@@ -176,14 +176,10 @@ describe("CSS conversion class manifest (#824 G1)", () => {
   });
 });
 
-// #939 codex review — a bare `file:literal` identity cannot tell two sites in
-// the SAME file apart, so removing a reviewed site and adding an unrelated
-// one elsewhere leaves the count (and therefore the guard) unchanged. Tagging
-// each site with its nearest top-level export/component name closes that:
-// swapping the enclosing declaration is exactly the substitution a reviewer
-// would notice, and two sites that genuinely share one declaration (as
-// `createFarmTheme`'s two shadow sites do) are still allowed to collide,
-// honestly, rather than inventing a distinction the code doesn't have.
+// #824 — a bare `file:literal` identity can't tell two sites in the SAME
+// file apart, so removing a reviewed site and adding an unrelated one
+// elsewhere leaves the collected count unchanged. Tagging each site with its
+// nearest top-level export/component name closes that.
 function containerName(node: AstNode): string | null {
   if (node.type === "FunctionDeclaration" && isNode(node.id)) return text(node.id, "name");
   if (node.type === "ExportNamedDeclaration" && isNode(node.declaration)) return containerName(node.declaration);
@@ -197,13 +193,10 @@ function containerName(node: AstNode): string | null {
   return null;
 }
 
-// #939 codex review round 2 — the container alone still can't tell two sites
-// APART WITHIN one component: moving `textTransform: "uppercase"` from
-// FieldConsole's `"& .MuiTableCell-head"` rule to its `"&& h2"` rule keeps
-// the same container and the same collected literal. The path is the chain
-// of enclosing object-property keys BETWEEN the container and the property
-// itself, so the two rules above resolve to different paths and the guard
-// can tell a moved site from a merely-renamed one.
+// #824 — the container alone can't tell two sites apart WITHIN one component
+// (moving `textTransform: "uppercase"` between two of FieldConsole's own sx
+// keys keeps the same container). The path is the chain of enclosing
+// object-property keys between the container and the property itself.
 function pathKey(node: AstNode): string | null {
   if (node.type !== "ObjectProperty" || !isNode(node.key)) return null;
   if (node.key.type === "Identifier") return text(node.key, "name");
@@ -303,10 +296,10 @@ describe("MUI source policy (#824)", () => {
       "theme/FarmThemeProvider.tsx#createFarmTheme > components > MuiTooltip > styleOverrides > tooltip > boxShadow:base.shadows[8]",
     ]);
     expect(uppercase.sort()).toEqual([
-      // #908/#939 — the property path (not just the container) is what tells
-      // FieldConsole's two sites apart now: moving this one from
+      // #824 — the property path (not just the container) is what tells
+      // FieldConsole's two sites apart: moving this one from
       // "& .MuiTableCell-head" to a sibling key like "&& h2" changes its
-      // identity instead of silently keeping the same collected count.
+      // identity instead of keeping the same collected count.
       "components/FieldConsole.tsx#FieldConsole > & .MuiTableCell-head > textTransform:\"uppercase\"",
       "components/FieldConsole.tsx#RecordInspector > textTransform:\"uppercase\"",
       "routes/Dashboard.tsx#Dashboard > textTransform:\"uppercase\"",

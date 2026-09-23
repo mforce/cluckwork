@@ -214,8 +214,8 @@ describe("FlocksPage selected-record inspector (#908)", () => {
     await waitFor(() => expect(mockArchive).toHaveBeenCalled());
   });
 
-  // #939 codex review — a stale selectedId must not resurface as "selected"
-  // once its row becomes visible again with no new choice from the user.
+  // #908 — a stale selectedId must not resurface as "selected" once its row
+  // becomes visible again with no new choice from the user.
   it("does not let a hidden-then-reshown archived flock resurface as selected", async () => {
     await renderReady(ADMIN, [ACTIVE, ARCHIVED]);
     const toggle = screen.getByRole("checkbox");

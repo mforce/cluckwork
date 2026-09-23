@@ -131,10 +131,10 @@ export function LedgerTableContainer({ children, alwaysShowSwipeCue = false, scr
   return (
     <Box sx={{
       minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)",
-      // #939 codex review — a nested flex column so `TableContainer` below is
-      // the ONE element that both scrolls and is `position: sticky`'s
-      // containing block. Outside a flex parent (this component's seven
-      // other, unbounded callers) these properties are simply inert.
+      // #908 — a nested flex column so `TableContainer` below is the ONE
+      // element that both scrolls and is `position: sticky`'s containing
+      // block. Outside a flex parent (this component's seven other,
+      // unbounded callers) these properties are simply inert.
       display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0,
     }}>
       <Typography component="p" variant="body2" sx={{
@@ -264,10 +264,10 @@ export function selectableRowProps(selected: boolean, onSelect: () => void) {
   };
 }
 
-// #939 codex review — a filter toggle, an archive/reactivate write, or any
-// other refresh can drop the selected row out of the visible set; without
-// this, the stale id can resurface as "selected" the moment that row becomes
-// visible again, with no new selection from the user.
+// #908 — a filter toggle, an archive/reactivate write, or any other refresh
+// can drop the selected row out of the visible set; without this, the stale
+// id can resurface as "selected" the moment that row becomes visible again,
+// with no new selection from the user.
 export function useClampSelection(
   visibleIds: readonly string[], selectedId: string | null, setSelectedId: (id: string | null) => void,
 ) {

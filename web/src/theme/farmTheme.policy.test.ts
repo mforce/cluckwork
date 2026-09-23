@@ -328,13 +328,10 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  // #939 codex/owner review — Tabs' own default (`textColor="primary"`) paints
-  // the selected label and indicator with the raw brand colour, which
-  // styles.css keeps mode-independent on purpose (#149's dark palette blocks
-  // never redeclare `--brand`) and so clears roughly 1:1 against a dark
-  // surface — the same defect `MuiBottomNavigationAction` above was fixed for.
-  // Asserts the ACTUAL computed contrast, not just "uses the token", so a
-  // future edit to `--stat-accent` itself would still be caught here.
+  // Tabs' own default (`textColor="primary"`) paints the selected label with
+  // the raw brand colour, which #149's dark palette blocks never redeclare —
+  // the same defect fixed for `MuiBottomNavigationAction` above. Asserts the
+  // ACTUAL computed contrast, not just "uses the token".
   it("keeps the selected tab and its indicator readable (>=4.5:1) against both background slots, every palette and mode", () => {
     for (const { label, theme } of themes) {
       const tab = slot(theme.components?.MuiTab?.styleOverrides?.root, `${label} MuiTab root`);

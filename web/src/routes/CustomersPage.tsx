@@ -78,9 +78,9 @@ export function CustomersPage() {
   const [balances, setBalances] = useState<CustomerBalances | null>(null);
   // #908 — the bottom inspector's selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // #939 codex review — clears the selection if the row it names ever leaves
-  // the loaded page (this screen never removes a row today, but the same
-  // shape is wired uniformly across all five setup lists).
+  // #908 — clears the selection if the row it names ever leaves the loaded
+  // page (this screen never removes a row today, but the same shape is
+  // wired uniformly across all five setup lists).
   useClampSelection(customers?.map((c) => c.id) ?? [], selectedId, setSelectedId);
   const selectedCustomer = customers?.find((c) => c.id === selectedId) ?? null;
   // #703 — the flight guard (#236), the per-place message slots (#479) and the

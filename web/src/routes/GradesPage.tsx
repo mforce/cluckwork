@@ -50,9 +50,9 @@ export function GradesPage() {
   const [grades, setGrades] = useState<EggGrade[] | null>(null);
   // #908 — the bottom inspector's selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // #939 codex review — clears the selection if the row it names ever leaves
-  // the catalog (this screen never removes a grade today, but the same shape
-  // is wired uniformly across all five setup lists).
+  // #908 — clears the selection if the row it names ever leaves the catalog
+  // (this screen never removes a grade today, but the same shape is wired
+  // uniformly across all five setup lists).
   useClampSelection(grades?.map((g) => g.id) ?? [], selectedId, setSelectedId);
   const selectedGrade = grades?.find((g) => g.id === selectedId) ?? null;
   // #703 — the flight guard (#236), the per-place message slots (#479) and the

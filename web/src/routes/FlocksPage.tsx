@@ -67,8 +67,8 @@ export function FlocksPage() {
   const [showArchived, setShowArchived] = useState(false);
   // #908 — the bottom inspector's selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // #939 codex review — clears the selection if the row it names leaves the
-  // visible set (the archived-filter toggle, or an archive/reactivate write).
+  // #908 — clears the selection if the row it names leaves the visible set
+  // (the archived-filter toggle, or an archive/reactivate write).
   useClampSelection(
     (flocks ?? []).filter((f) => showArchived || f.status !== "Archived").map((f) => f.id),
     selectedId, setSelectedId,
