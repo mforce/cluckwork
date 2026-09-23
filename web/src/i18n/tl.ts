@@ -687,6 +687,7 @@ export const tl = {
     // the same text — same treatment as every other plural pair here.
     todayInCount_one: "{{in}} sa {{count}} bahay-manukan ang naitala",
     todayInCount_other: "{{in}} sa {{count}} bahay-manukan ang naitala",
+    todayInCountAtLeast: "{{in}} sa {{count}}+ bahay-manukan ang naitala",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
     noEntryBadge: "Walang tala",
     todaySoFarLabel: "Ngayon, hanggang ngayon",
@@ -703,6 +704,8 @@ export const tl = {
     tileLinkLabelMissing: "{{flock}}: wala pang tala, buksan ang tala ngayong araw",
     recordTodayHint: "Itala ngayon",
     pagerHouses: "Bahay-manukan {{first}} hanggang {{last}} sa {{total}}",
+    pagerHousesAtLeast: "Bahay-manukan {{first}} hanggang {{last}} sa {{total}}+",
+    housesIncompleteNotice: "Ipinapakita ang unang {{total}} bahay-manukan. May higit pa ang bukid na ito.",
     pagerOrders: "Order {{first}} hanggang {{last}} sa {{total}}",
     pagerOrdersOpen: "Order {{first}} hanggang {{last}}",
     pagerPrevious: "Naunang page ng {{panel}}",

@@ -883,6 +883,10 @@ export const en = {
     // figure.
     todayInCount_one: "{{in}} of {{count}} house in",
     todayInCount_other: "{{in}} of {{count}} houses in",
+    // The house list stopped at the drain's ceiling, so the farm has more
+    // houses than this panel has read. Never plural forms — the ceiling is
+    // always well past 1.
+    todayInCountAtLeast: "{{in}} of {{count}}+ houses in",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
     noEntryBadge: "Not recorded",
     // Fixed text beside the numeral, not a sentence the total is
@@ -928,6 +932,10 @@ export const en = {
     // a page at a time, so its total is unknown until the last page lands and
     // the label says only how far the reader has come until then.
     pagerHouses: "Houses {{first}} to {{last}} of {{total}}",
+    // The drain stopped at its ceiling, so the farm has more houses than
+    // this panel read. Never plural forms — the ceiling is well past 1.
+    pagerHousesAtLeast: "Houses {{first}} to {{last}} of {{total}}+",
+    housesIncompleteNotice: "Showing the first {{total}} houses. This farm has more.",
     pagerOrders: "Orders {{first}} to {{last}} of {{total}}",
     pagerOrdersOpen: "Orders {{first}} to {{last}}",
     pagerPrevious: "Previous page of {{panel}}",

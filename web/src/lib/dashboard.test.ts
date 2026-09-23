@@ -65,6 +65,32 @@ describe("captureTiles (#654, INV-3, INV-9)", () => {
   });
 });
 
+// Codex round 2, finding 3 (P2). Both of the panel's lists are drained now,
+// so a scan per flock is quadratic in the farm's size.
+describe("captureTiles on a drained farm", () => {
+  it("joins two thousand flocks to two thousand entries, missing ones first", () => {
+    const flocks = Array.from({ length: 2000 }, (_, i) => flock(`f${i}`, "Active"));
+    // Every third house has not filed; one Voided row sits ahead of a real one.
+    const entries = flocks
+      .filter((_, i) => i % 3 !== 0)
+      .flatMap((f, i) => (i === 0
+        ? [entry(f.id, "Voided", 999, `v-${f.id}`), entry(f.id, "Submitted", 5)]
+        : [entry(f.id, "Submitted", 5)]));
+    const tiles = captureTiles(flocks, entries);
+
+    expect(tiles).toHaveLength(2000);
+    expect(tiles.filter((t) => t.entry === null)).toHaveLength(667);
+    expect(tiles.slice(0, 667).every((t) => t.entry === null)).toBe(true);
+    expect(tiles[0].flock.id).toBe("f0");
+    expect(tiles[666].flock.id).toBe("f1998");
+    expect(tiles[667].flock.id).toBe("f1");
+    // The Voided row is skipped for the flock that carries both.
+    expect(tiles[667].entry?.status).toBe("Submitted");
+    expect(tiles[667].entry?.totalEggs).toBe(5);
+    expect(tiles[1999].flock.id).toBe("f1999");
+  });
+});
+
 describe("panelPage (#915 — every house reachable, one page at a time)", () => {
   const ids = ["a", "b", "c", "d", "e", "f", "g"];
 

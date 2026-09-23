@@ -160,6 +160,18 @@ const panel = async (title: string) =>
 // it) can be queried together without depending on layout classNames.
 const todayRow = (flockName: string) => screen.getByRole("group", { name: flockName });
 
+// The last house of a multi-page farm, reached through the pager rather than
+// assumed to be on page one.
+async function user501(scr: typeof screen) {
+  const user = userEvent.setup();
+  for (let i = 0; i < 62; i += 1) {
+    await user.click(scr.getByRole("button", { name: "Next page of Morning collection" }));
+  }
+  const row = scr.getByRole("group", { name: "Flock f500" });
+  expect(within(row).getByText("77")).toBeInTheDocument();
+  expect(within(row).queryByText("Not recorded")).not.toBeInTheDocument();
+}
+
 // The total row's label ("Today so far") and its numeral are separate
 // elements (#883 round 4, finding D — the mockup pairs a fixed label with a
 // numeral beside it, never a sentence built by interpolating the figure into
@@ -315,6 +327,30 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(await screen.findByText("Houses 1 to 8 of 15")).toBeInTheDocument();
   });
 
+  // Codex round 2, finding 4 (P2). Cleanup only guarded the final state
+  // update, so an abandoned drain kept walking the farm — up to 38 more list
+  // requests after the reader had left the screen.
+  it("stops asking for later pages once the reader has left", async () => {
+    stubMatchMedia(true);
+    const many = Array.from({ length: 2600 }, (_, i) => flock(`f${i}`, "Active"));
+    const hold: Array<() => void> = [];
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return new Promise((resolve) => {
+        hold.push(() => resolve(many.slice(offset, offset + 500)));
+      });
+    });
+    mockEntries.mockResolvedValue([]);
+    const view = renderWithProviders(<Dashboard />);
+    await waitFor(() => expect(hold).toHaveLength(1));
+
+    view.unmount();
+    hold[0]!(); // the first page lands after the screen is gone
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0]);
+  });
+
   it("gives a phone six houses a page, not the desktop eight", async () => {
     stubMatchMedia(false); // < 900px
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
@@ -354,6 +390,90 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(await screen.findByText("0 of 1201 houses in")).toBeInTheDocument();
     expect(screen.getByText("Houses 1 to 8 of 1,201")).toBeInTheDocument();
     expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500, 1000]);
+  });
+
+  // Codex round 2, finding 5 (P3). With no entries in that fixture, putting
+  // the daily-entry read back to a single 500-row request left the whole suite
+  // green — and a farm whose 501st house HAS filed would read as missing, with
+  // its eggs left out of the day's total.
+  it("reads every house's entry past the first server page", async () => {
+    stubMatchMedia(true);
+    const many = Array.from({ length: 501 }, (_, i) => flock(`f${i}`, "Active"));
+    const filed = many.map((f, i) => entry(f.id, "Submitted", i === 500 ? 77 : 1));
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(many.slice(offset, offset + (params?.limit ?? 500)));
+    });
+    mockEntries.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(filed.slice(offset, offset + (params?.limit ?? 500)));
+    });
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByText("501 of 501 houses in")).toBeInTheDocument();
+    expect(mockEntries.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500]);
+    // 500 houses at one egg and the 501st at 77.
+    expect(await todayTotal()).toBe("577");
+
+    // The last house, on the final page, is recorded rather than missing.
+    await user501(screen);
+  });
+
+  // Codex round 2, finding 2 (P2). The drain stops after 20 full pages, and
+  // the panel then presented 10,000 as the farm's exact size: the caption, the
+  // progress bar and the pager all read the drained array's length. Verified
+  // against the render — only the Lay rate card's own caption said "at least".
+  it("says the house list is incomplete when the drain hits its ceiling", async () => {
+    stubMatchMedia(true);
+    const page = Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve(page.map((f) => ({ ...f, id: `${f.id}-${params?.offset ?? 0}` }))));
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByText("0 of 10000+ houses in")).toBeInTheDocument();
+    expect(screen.getByText("Houses 1 to 8 of 10,000+")).toBeInTheDocument();
+    expect(screen.getByText("Showing the first 10,000 houses. This farm has more."))
+      .toBeInTheDocument();
+    // The bar cannot state a share of an unknown whole.
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .not.toHaveAttribute("aria-valuenow");
+  });
+
+  // The reviewer's second half: a truncated ENTRY list is just as incomplete.
+  // Houses past its ceiling read as missing and their eggs never reach the
+  // day's total, so the panel must not present its figures as the whole farm's
+  // even when the FLOCK list finished.
+  it("says the list is incomplete when the entries hit the ceiling, not just the flocks", async () => {
+    stubMatchMedia(true);
+    const houses = Array.from({ length: 40 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve((params?.offset ?? 0) === 0 ? houses : []));
+    // Every entry page comes back full, so the entry drain never finds an end.
+    const page = Array.from({ length: 500 }, (_, i) => entry(`ghost${i}`, "Submitted", 1));
+    mockEntries.mockImplementation((params) =>
+      Promise.resolve(page.map((e) => ({ ...e, id: `${e.id}-${params?.offset ?? 0}` }))));
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByText("Showing the first 40 houses. This farm has more."))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 of 40+ houses in")).toBeInTheDocument();
+  });
+
+  it("states an exact total when the drain reached the end", async () => {
+    stubMatchMedia(true);
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(offset === 0
+        ? Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active"))
+        : []);
+    });
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("0 of 500 houses in")).toBeInTheDocument();
+    expect(screen.queryByText(/This farm has more/)).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .toHaveAttribute("aria-valuenow", "0");
   });
 
   it("offers no pager when every house fits on one page", async () => {
@@ -1443,7 +1563,7 @@ describe("Dashboard follows the farm's day and locale", () => {
     // the report windows: with the clock frozen at 23:30Z a +14 farm is already
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
-    expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500, offset: 0 });
+    expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500, offset: 0 }, expect.any(AbortSignal));
     expect(mockReport).toHaveBeenCalledWith("2026-06-24", "2026-07-21", undefined, expect.any(AbortSignal));
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
@@ -1695,6 +1815,35 @@ describe("Dashboard Recent orders paging (#915)", () => {
     expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Previous page of Recent orders" }));
     expect(await screen.findByText("Orders 6 to 10 of 12")).toBeInTheDocument();
+  });
+
+  // Codex round 2, finding 1 (P2). `loadMore` reported the rows the SERVER
+  // sent, not the rows the list gained: newer orders arriving after page 1
+  // shift every offset, so an offset-5 request can return the same five rows
+  // the reader already has. Advancing on that put the label on "Orders 6 to 5"
+  // over an empty panel.
+  it("keeps paging through a page of rows it already has, and never lands on an empty one", async () => {
+    const user = userEvent.setup();
+    const asked: number[] = [];
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      asked.push(offset);
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      // Five newer orders landed, so this offset serves page one again.
+      if (offset === 5) return Promise.resolve(catalogue.slice(0, 5));
+      return Promise.resolve(catalogue.slice(5, 10));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+
+    // The duplicate page is consumed inside the same request, so the reader
+    // reaches real rows rather than an empty page six.
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "SO-5" })).toBeInTheDocument();
+    expect(screen.queryByText("Orders 6 to 5")).not.toBeInTheDocument();
+    expect(asked).toEqual([0, 5, 10]);
   });
 
   it("offers no pager when the first page is the whole list", async () => {

@@ -55,12 +55,17 @@ const MAX_PAGE = 500;
 // say "at least" instead of a figure they cannot stand behind.
 const MAX_DRAIN_PAGES = 20;
 
+// `signal` stops the WALK as well as the request in flight: leaving the
+// Dashboard mid-drain used to leave the loop asking for every later page,
+// dozens of reads nobody was waiting for.
 async function drainPages<T>(
-  fetchPage: (offset: number, limit: number) => Promise<T[]>,
+  fetchPage: (offset: number, limit: number, signal: AbortSignal) => Promise<T[]>,
+  signal: AbortSignal,
 ): Promise<{ rows: T[]; truncated: boolean }> {
   const rows: T[] = [];
   for (let page = 0; page < MAX_DRAIN_PAGES; page += 1) {
-    const batch = await fetchPage(page * MAX_PAGE, MAX_PAGE);
+    if (signal.aborted) return { rows, truncated: false };
+    const batch = await fetchPage(page * MAX_PAGE, MAX_PAGE, signal);
     rows.push(...batch);
     if (batch.length < MAX_PAGE) return { rows, truncated: false };
   }
@@ -136,6 +141,7 @@ export function Dashboard() {
   // `flocksFailed` on click showed that same false zero in the gap before.
   const [flocksFailed, setFlocksFailed] = useState(false);
   const [flocksTruncated, setFlocksTruncated] = useState(false);
+  const [entriesTruncated, setEntriesTruncated] = useState(false);
   const [flocksRetrying, setFlocksRetrying] = useState(false);
 
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
@@ -231,7 +237,8 @@ export function Dashboard() {
   // least one panel now has data, whatever the other three are doing.
   const fetchFlocks = () => {
     setFlocksRetrying(true);
-    drainPages((offset, limit) => listFlocks({ limit, offset }))
+    const controller = new AbortController();
+    drainPages((offset, limit, signal) => listFlocks({ limit, offset }, signal), controller.signal)
       .then(({ rows, truncated }) => {
         setFlocks(rows); setFlocksTruncated(truncated); setFlocksFailed(false); setFlocksRetrying(false);
         setPanelsOutcome({ state: "someOk" });
@@ -241,17 +248,18 @@ export function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setPanelsOutcome({ state: "pending" }); // a fresh load starts clean, never on a stale verdict
     Promise.allSettled([
-      drainPages((offset, limit) => listFlocks({ limit, offset })),
-      drainPages((offset, limit) => listDailyEntries({ from: today, to: today, limit, offset })),
+      drainPages((offset, limit, signal) => listFlocks({ limit, offset }, signal), controller.signal),
+      drainPages((offset, limit, signal) => listDailyEntries({ from: today, to: today, limit, offset }, signal), controller.signal),
       getStock(),
     ]).then(([f, e, s]) => {
       if (cancelled) return;
       if (f.status === "fulfilled") {
         setFlocks(f.value.rows); setFlocksTruncated(f.value.truncated); setFlocksFailed(false);
       } else { setFlocksFailed(true); }
-      if (e.status === "fulfilled") setEntries(e.value.rows);
+      if (e.status === "fulfilled") { setEntries(e.value.rows); setEntriesTruncated(e.value.truncated); }
       if (s.status === "fulfilled") setStock(s.value);
       setHousesPage(0);
       const issued = [f, e, s];
@@ -261,7 +269,7 @@ export function Dashboard() {
         : { state: "someOk" });
       setLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
     // #918 — `canSeeSales` is a dep even though none of these three reads is
     // role-gated: `panelsOutcome` is half the "everything failed" verdict, and
     // a role change starts a new generation whose verdict must be decided
@@ -358,7 +366,19 @@ export function Dashboard() {
   // page on screen. A farm with more missing houses than the old cap
   // undercounted both (#883).
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
+  // #940 review round 2 — the drain's ceiling is a real limit, so the panel
+  // states a LOWER BOUND rather than presenting its own array length as the
+  // farm's size. A truncated entry list matters just as much: houses past it
+  // read as missing and their eggs are left out of the day's total.
+  const housesIncomplete = flocksTruncated || entriesTruncated;
   const housePage = panelPage(allTiles ?? [], housesPage, housesPerPage);
+  const housesPagerLabel = housesIncomplete
+    ? t("pagerHousesAtLeast", {
+        first: fmt.count(housePage.first), last: fmt.count(housePage.last), total: fmt.count(housePage.total),
+      })
+    : t("pagerHouses", {
+        first: fmt.count(housePage.first), last: fmt.count(housePage.last), total: fmt.count(housePage.total),
+      });
 
   const scopedFlock = soleFlock ?? (scope.kind === "flock" ? scope.flock : null);
   const scopeName = scopedFlock ? scopedFlock.name : t("allFlocksOption");
@@ -532,17 +552,27 @@ export function Dashboard() {
         <Card component="section" sx={sectionSx}>
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("todayPanelTitle")}><Link to="/daily-entry">{t("collectionTitle")}</Link></Typography>
-            {allTiles !== null && <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>{t("todayInCount", { in: recordedHouses, count: allTiles.length })}</Typography>}
+            {allTiles !== null && <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>
+              {housesIncomplete
+                ? t("todayInCountAtLeast", { in: recordedHouses, count: allTiles.length })
+                : t("todayInCount", { in: recordedHouses, count: allTiles.length })}
+            </Typography>}
           </Box>
           {allTiles === null || entries === null ? panelError : allTiles.length === 0 ? (
             <EmptyState icon={Bird} message={t("noFlocksMessage")} />
           ) : (
             <>
-              <LinearProgress variant="determinate" value={recordedHouses / allTiles.length * 100} aria-label={t("collectionTitle")}
+              {/* A share of an unknown whole is not a share. With the list
+                  incomplete the bar carries no value at all rather than one
+                  measured against a ceiling. */}
+              <LinearProgress
+                variant={housesIncomplete ? "indeterminate" : "determinate"}
+                value={housesIncomplete ? undefined : recordedHouses / allTiles.length * 100}
+                aria-label={t("collectionTitle")}
                 sx={{ height: 5, borderRadius: 2, mb: 1, bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--success)" } }} />
               {housePage.items.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
               {housePage.pageCount > 1 && <PanelPager
-                label={t("pagerHouses", { first: fmt.count(housePage.first), last: fmt.count(housePage.last), total: fmt.count(housePage.total) })}
+                label={housesPagerLabel}
                 previousLabel={t("pagerPrevious", { panel: t("collectionTitle") })}
                 nextLabel={t("pagerNext", { panel: t("collectionTitle") })}
                 hasPrevious={housePage.page > 0}
@@ -556,6 +586,9 @@ export function Dashboard() {
                   <Typography className="num" sx={{ fontFamily: "Georgia, serif", fontWeight: 600, fontSize: "1.8rem" }}>{fmt.count(todaysEggs(entries))}</Typography>
                 </Box>
                 {yesterdayClose !== null && <Typography variant="caption" color="text.secondary">{t("yesterdayByClose", { total: fmt.count(yesterdayClose) })}</Typography>}
+                {housesIncomplete && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                  {t("housesIncompleteNotice", { count: allTiles.length, total: fmt.count(allTiles.length) })}
+                </Typography>}
               </Box>
             </>
           )}

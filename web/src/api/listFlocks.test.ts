@@ -12,6 +12,12 @@ vi.mock("./client", async (importOriginal) => {
 
 const mockGet = vi.mocked(apiGet);
 
+// These pin the URL, not the argument list: `listFlocks` also forwards an
+// optional AbortSignal now (the Dashboard's drain cancels on unmount), so
+// asserting the whole call would fail on an argument these tests are not
+// about.
+const requestedPath = () => mockGet.mock.calls.at(-1)?.[0];
+
 // A scoped 404 from the server (the entity exists but the caller cannot see
 // it). The picker's unavailable state must distinguish this from a transport
 // failure, so the exact read must propagate ApiError, never swallow it.
@@ -25,29 +31,29 @@ beforeEach(() => {
 describe("listFlocks query string (#512)", () => {
   it("sends a bare path when no parameter is asked for", async () => {
     await listFlocks();
-    expect(mockGet).toHaveBeenCalledWith("/flocks");
+    expect(requestedPath()).toBe("/flocks");
   });
 
   it("carries only the new search parameter when nothing else is asked", async () => {
     await listFlocks({ search: "zulu" });
-    expect(mockGet).toHaveBeenCalledWith("/flocks?search=zulu");
+    expect(requestedPath()).toBe("/flocks?search=zulu");
   });
 
   it("keeps the legacy includeArchived=true call byte-for-byte", async () => {
     // /flocks?includeArchived=true must remain exactly what every pre-#512
     // caller sent.
     await listFlocks({ includeArchived: true });
-    expect(mockGet).toHaveBeenCalledWith("/flocks?includeArchived=true");
+    expect(requestedPath()).toBe("/flocks?includeArchived=true");
   });
 
   it("omits includeArchived when it is not true", async () => {
     await listFlocks({ includeArchived: false });
-    expect(mockGet).toHaveBeenCalledWith("/flocks");
+    expect(requestedPath()).toBe("/flocks");
   });
 
   it("keeps the legacy limit-only call unchanged", async () => {
     await listFlocks({ limit: 500 });
-    expect(mockGet).toHaveBeenCalledWith("/flocks?limit=500");
+    expect(requestedPath()).toBe("/flocks?limit=500");
   });
 
   it("carries every new parameter in one request", async () => {
@@ -57,28 +63,26 @@ describe("listFlocks query string (#512)", () => {
       limit: 50,
       offset: 50,
     });
-    expect(mockGet).toHaveBeenCalledWith(
-      "/flocks?search=page+two&eligibility=all&limit=50&offset=50",
-    );
+    expect(requestedPath()).toBe("/flocks?search=page+two&eligibility=all&limit=50&offset=50");
   });
 
   it("omits offset at the server's own default of zero", async () => {
     // The endpoint floors offset at 0, so omitting it is the same request —
     // matching the existing listCustomers/listBirdMovements convention.
     await listFlocks({ limit: 50, offset: 0 });
-    expect(mockGet).toHaveBeenCalledWith("/flocks?limit=50");
+    expect(requestedPath()).toBe("/flocks?limit=50");
   });
 
   it("encodes search literals so wildcards stay literal on the wire", async () => {
     await listFlocks({ search: "50%_off" });
-    expect(mockGet).toHaveBeenCalledWith("/flocks?search=50%25_off");
+    expect(requestedPath()).toBe("/flocks?search=50%25_off");
   });
 
   it("never serializes eligibility and includeArchived together", async () => {
     // The server 400s the conflicting combination, so the client refuses to
     // build it: eligibility wins, the legacy alias is dropped.
     await listFlocks({ eligibility: "active", includeArchived: true });
-    expect(mockGet).toHaveBeenCalledWith("/flocks?eligibility=active");
+    expect(requestedPath()).toBe("/flocks?eligibility=active");
   });
 });
 
@@ -87,14 +91,14 @@ describe("getFlock exact read (#512, US3)", () => {
     const flock = { id: "f1" };
     mockGet.mockResolvedValueOnce(flock);
     await expect(getFlock("f1")).resolves.toBe(flock);
-    expect(mockGet).toHaveBeenCalledWith("/flocks/f1");
+    expect(requestedPath()).toBe("/flocks/f1");
   });
 
   it("propagates a scoped 404 as the same ApiError (unavailable, not swallowed)", async () => {
     mockGet.mockRejectedValueOnce(scoped404());
     await expect(getFlock("flk-missing")).rejects.toMatchObject({ status: 404 });
     expect(mockGet).toHaveBeenCalledTimes(1);
-    expect(mockGet).toHaveBeenCalledWith("/flocks/flk-missing");
+    expect(requestedPath()).toBe("/flocks/flk-missing");
   });
 
   it("propagates a transport error untouched (recovery distinguishes it from a scoped 404)", async () => {

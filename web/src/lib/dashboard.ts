@@ -11,16 +11,30 @@ import type { DailyEntry, Flock, ProductionDay, ProductionReport, StockRow } fro
 export interface CaptureTile { flock: Flock; entry: DailyEntry | null }
 
 // Voided entries vacate their day (#82): a voided row never stands in for the
-// flock's entry — a day with only voided rows is "no entry yet".
-const entryFor = (entries: DailyEntry[], flockId: string): DailyEntry | null =>
-  entries.find((e) => e.flockId === flockId && e.status !== "Voided") ?? null;
+// flock's entry — a day with only voided rows is "no entry yet". The FIRST
+// non-voided row for a flock wins, which is the order a scan would have found
+// it in.
+function entriesByFlock(entries: DailyEntry[]): Map<string, DailyEntry> {
+  const byFlock = new Map<string, DailyEntry>();
+  for (const entry of entries) {
+    if (entry.status === "Voided" || byFlock.has(entry.flockId)) continue;
+    byFlock.set(entry.flockId, entry);
+  }
+  return byFlock;
+}
 
 // "no entry" is a missed-capture flag — only meaningful for active flocks.
 // Depleted/archived flocks stay visible only if they do have an entry today.
 // Missing tiles first (the alarm state), API order preserved inside each group.
+//
+// One pass to index the entries, then one lookup per flock. A scan per flock
+// is O(flocks × entries), and both lists are now drained rather than capped at
+// 500: a 10,000-house day would have cost up to 100 million comparisons on the
+// main thread, with the reader already waiting on two full drains.
 export function captureTiles(flocks: Flock[], entries: DailyEntry[]): CaptureTile[] {
+  const byFlock = entriesByFlock(entries);
   const tiles = flocks
-    .map((flock) => ({ flock, entry: entryFor(entries, flock.id) }))
+    .map((flock) => ({ flock, entry: byFlock.get(flock.id) ?? null }))
     .filter((t) => t.flock.status === "Active" || t.entry !== null);
   return [...tiles.filter((t) => t.entry === null), ...tiles.filter((t) => t.entry !== null)];
 }
