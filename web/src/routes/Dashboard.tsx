@@ -199,12 +199,9 @@ export function Dashboard() {
     if (outcome.status === "refused") { setOrdersExtendFailed(true); return; }
     if (outcome.status !== "loaded" || outcome.rows === 0) return;
     // A page that arrived PARTLY new leaves the page in view short, and those
-    // rows belong to it. Moving on would step over them: page 2 holding one
-    // order, then filling with four more as the reader asks for page 3.
-    //
-    // A full page in view plus at least one new row IS the destination having
-    // a row: the list already reaches this page's last index, so anything
-    // appended lands past it. No second check earns its place here.
+    // rows belong to it — moving on would step over them. A FULL page plus a
+    // new row is also the destination having one, since the list already
+    // reaches this page's last index, so no second check earns its place.
     if (pageWasFull) setOrdersPage(next);
   };
   // A refetch starts the reader at the first page again (#915): the page they
@@ -229,10 +226,10 @@ export function Dashboard() {
   // counter: `panelsOutcome` resets to "pending" the instant a new panels
   // batch starts and `trendOutcome` resets the instant a new trend fetch
   // starts, so the derived verdict below only ever reads two CURRENT
-  // answers, never a stale one paired with a fresh one. Retry (`fetchFlocks`)
-  // updates `panelsOutcome` too — the prior ref-based design left a stale
-  // "all four failed" outcome in place after a successful retry, hiding a
-  // dashboard that had actually recovered.
+  // answers, never a stale one paired with a fresh one. Retry re-runs that
+  // same batch, so it updates `panelsOutcome` too — the prior ref-based
+  // design left a stale "all four failed" outcome in place after a successful
+  // retry, hiding a dashboard that had actually recovered.
   type PanelsOutcome = { state: "pending" } | { state: "someOk" } | { state: "allFailed"; reason: unknown };
   const [panelsOutcome, setPanelsOutcome] = useState<PanelsOutcome>({ state: "pending" });
   const [trendOutcome, setTrendOutcome] = useState<"pending" | "success" | "failure">("pending");

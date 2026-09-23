@@ -1494,16 +1494,11 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     expect(within(await panel("Stock")).getByText("Could not load.")).toBeInTheDocument();
   });
 
-  // #918 — Codex review, P2-2. `fetchFlocks` (Retry) updated `flocks`/
-  // `flocksFailed` but never the panels outcome, so the ORIGINAL "all four
-  // panels failed" record survived a successful retry. Sequence: all four
-  // panel reads fail while both production reads succeed (the setup above)
-  // → Retry succeeds with a single flock → the auto-triggered sole-flock
-  // production read then fails → the stale record used to make the
-  // page-level gate hide the entire dashboard, including the selector that
-  // had just recovered. Mutation-verified: dropping `fetchFlocks`'s
-  // `setPanelsOutcome({state:"someOk"})` turns this red (the full-page
-  // message reappears), confirmed locally then reverted.
+  // #918 — Retry used to update `flocks`/`flocksFailed` but never the panels
+  // outcome, so the ORIGINAL "all four panels failed" record survived a
+  // successful retry and the page-level gate hid a dashboard that had just
+  // recovered. Retry now re-runs the panels batch, which decides that verdict
+  // freshly.
   it("keeps the recovered dashboard up after Retry, even when the auto-triggered sole-flock production read then fails", async () => {
     const user = userEvent.setup();
     for (const m of [mockFlocks, mockEntries, mockStock, mockOrders]) m.mockImplementation(boom);
