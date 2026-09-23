@@ -297,15 +297,12 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             // every row of 22 ledger tables at 1280.
             [phone]: { minHeight: PHONE_TOUCH_TARGET_PX },
           },
-          // `Button` defaults to `color="primary"`, and on these two variants
-          // that colour is the FOREGROUND. `palette.primary.main` is raw
-          // `--brand`, which #149's dark palette blocks never redeclare, so it
-          // cleared 1.18:1 against the dark card — the same defect as MuiTabs
-          // below and `MuiBottomNavigationAction`. `--stat-accent` is the
-          // already-derived per-brand "active" accent those two use, and it
-          // equals raw `--brand` in light, so light mode is untouched.
-          // `contained` is deliberately not here: there the brand is the
-          // BACKGROUND and its own contrast text is what sits on it.
+          // On these two variants `color="primary"` — `Button`'s own default —
+          // is the FOREGROUND, and `palette.primary.main` is raw `--brand`,
+          // which #149's dark palette never redeclares: 1.18:1 on the dark
+          // card, the same defect as MuiTabs and `MuiBottomNavigationAction`.
+          // `--stat-accent` equals raw `--brand` in light, so light is
+          // untouched. `contained` is excluded: there brand is the BACKGROUND.
           textPrimary: { color: tokens["--stat-accent"] },
           outlinedPrimary: {
             color: tokens["--stat-accent"],

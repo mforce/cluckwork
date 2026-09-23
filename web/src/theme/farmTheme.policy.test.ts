@@ -348,15 +348,11 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  // `Button`'s own default is `color="primary"`, and on the text and outlined
-  // variants that brand colour is the FOREGROUND — against a dark surface it
-  // is the same defect as the Tabs above and `MuiBottomNavigationAction`
-  // before them, because #149's dark palette blocks never redeclare `--brand`.
-  // Fourteen call sites across seven screens take that default today.
-  //
-  // Reads the colour MUI will ACTUALLY paint — the override when the theme
-  // declares one, otherwise `palette.primary.main` — so this fails with a real
-  // ratio whether the override is wrong or simply absent.
+  // `Button` defaults to `color="primary"`, which on the text and outlined
+  // variants is the FOREGROUND — the same defect as the Tabs above, and taken
+  // by fourteen call sites across seven screens. Reads the colour MUI will
+  // ACTUALLY paint, so this fails with a real ratio whether the override is
+  // wrong or simply absent.
   it("keeps a text or outlined primary button readable (>=4.5:1) on every surface, palette and mode", () => {
     const buttonInk = (theme: Theme, variantSlot: "textPrimary" | "outlinedPrimary") => {
       const overrides = theme.components?.MuiButton?.styleOverrides as
