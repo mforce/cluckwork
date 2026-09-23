@@ -1571,8 +1571,8 @@ describe("Dashboard Lay rate range (#914)", () => {
     await waitFor(() => expect(bars()).toHaveLength(5));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 60), daysBefore(today, 1), undefined, expect.any(AbortSignal));
 
-    const first = `${label(daysBefore(today, 30))} – ${label(daysBefore(today, 24))}, 7 days – 700 eggs, 100 a day`;
-    const last = `${label(daysBefore(today, 2))} – ${label(daysBefore(today, 1))}, 2 days – 200 eggs, 100 a day`;
+    const first = `${label(daysBefore(today, 30))} – ${label(daysBefore(today, 24))} (7 days) · 100 a day · 700 in all`;
+    const last = `${label(daysBefore(today, 2))} – ${label(daysBefore(today, 1))} (2 days) · 100 a day · 200 in all`;
     expect(bars().map((b) => b.getAttribute("aria-label"))[0]).toBe(first);
     expect(bars().map((b) => b.getAttribute("aria-label"))[4]).toBe(last);
     expect(screen.getByText("Eggs per day · complete-week scale")).toBeInTheDocument();

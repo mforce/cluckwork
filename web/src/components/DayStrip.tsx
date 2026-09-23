@@ -73,13 +73,15 @@ export function DayStrip({ data, label, title, peak, average, legend, tip, from,
     // way the two cannot disagree.
     const slot = stripRef.current?.children[activeIndex];
     if (dock === null || box === null || !(slot instanceof HTMLElement)) return;
+    // #914 — a weekly readout fills the dock, so there is nothing to clamp.
+    if (data.bucketed) { box.style.left = "0px"; return; }
     const half = box.offsetWidth / 2;
     const centre = slot.offsetLeft + slot.offsetWidth / 2;
     const x = half * 2 >= dock.offsetWidth
       ? dock.offsetWidth / 2
       : Math.min(Math.max(centre, half), dock.offsetWidth - half);
     box.style.left = `${x}px`;
-  }, [activeIndex, tip]);
+  }, [activeIndex, tip, data.bucketed]);
 
   const select = (slot: DayStripSlot, keyboard = false) => {
     setActiveDate(slot.date);
@@ -116,7 +118,7 @@ export function DayStrip({ data, label, title, peak, average, legend, tip, from,
           live region mounted together with its text is unreliably announced
           anyway (NamedEntityPicker keeps a permanently mounted one for that
           reason). */}
-      <div className="tipdock" ref={dockRef} aria-hidden="true">
+      <div className={data.bucketed ? "tipdock is-wide" : "tipdock"} ref={dockRef} aria-hidden="true">
         {active !== null && <span className="tip" ref={tipRef}>{tip(active)}</span>}
       </div>
       <div

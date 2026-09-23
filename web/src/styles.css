@@ -1497,6 +1497,18 @@ label.check {
   height: 2.2rem;
 }
 
+/* #914 — a weekly bar's readout carries two dates, a day count and two
+   figures, which no single line holds. It gets the dock's full width and a
+   taller reserved row rather than growing upward over the scale caption. */
+.tipdock.is-wide {
+  height: 3.6rem;
+}
+
+.tipdock.is-wide .tip {
+  width: 100%;
+  transform: none;
+}
+
 /* Positioned by a measured clamp from the component, not by index arithmetic.
    `left` is written there; everything that does not depend on the text's own
    width lives here. */

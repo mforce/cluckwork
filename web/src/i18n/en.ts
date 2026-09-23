@@ -1006,14 +1006,14 @@ export const en = {
     // #914 — one week's readout. It states its own day count, which is how the
     // window's last bucket says it is short, and both the week's total and the
     // per-day rate its bar height actually reads.
-    trendWeekTip_one: "{{from}} – {{to}}, {{days}} day – {{total}} eggs, {{perDay}} a day",
-    trendWeekTip_other: "{{from}} – {{to}}, {{days}} days – {{total}} eggs, {{perDay}} a day",
-    trendWeekTipPartial_one: "{{from}} – {{to}}, {{days}} day – {{total}} eggs, {{perDay}} a day, not every flock recorded every day",
-    trendWeekTipPartial_other: "{{from}} – {{to}}, {{days}} days – {{total}} eggs, {{perDay}} a day, not every flock recorded every day",
-    trendWeekTipNone_one: "{{from}} – {{to}}, {{days}} day – no entry",
-    trendWeekTipNone_other: "{{from}} – {{to}}, {{days}} days – no entry",
-    trendWeekTipNoFlocks_one: "{{from}} – {{to}}, {{days}} day – no flocks",
-    trendWeekTipNoFlocks_other: "{{from}} – {{to}}, {{days}} days – no flocks",
+    trendWeekTip_one: "{{from}} – {{to}} ({{days}} day) · {{perDay}} a day · {{total}} in all",
+    trendWeekTip_other: "{{from}} – {{to}} ({{days}} days) · {{perDay}} a day · {{total}} in all",
+    trendWeekTipPartial_one: "{{from}} – {{to}} ({{days}} day) · {{perDay}} a day · {{total}} in all · partly recorded",
+    trendWeekTipPartial_other: "{{from}} – {{to}} ({{days}} days) · {{perDay}} a day · {{total}} in all · partly recorded",
+    trendWeekTipNone_one: "{{from}} – {{to}} ({{days}} day) · no entry",
+    trendWeekTipNone_other: "{{from}} – {{to}} ({{days}} days) · no entry",
+    trendWeekTipNoFlocks_one: "{{from}} – {{to}} ({{days}} day) · no flocks",
+    trendWeekTipNoFlocks_other: "{{from}} – {{to}} ({{days}} days) · no flocks",
     henDaySubLabel_one: "Hen-day, {{range}} against the {{days}} day before",
     henDaySubLabel_other: "Hen-day, {{range}} against the {{days}} days before",
     // #914 — the card's window. {{range}} is always the window's own dates:
