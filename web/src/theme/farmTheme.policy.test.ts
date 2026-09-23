@@ -354,17 +354,26 @@ describe("farm theme policy (#823 G2)", () => {
   // ACTUALLY paint, so this fails with a real ratio whether the override is
   // wrong or simply absent.
   it("keeps a text or outlined primary button readable (>=4.5:1) on every surface, palette and mode", () => {
-    const buttonInk = (theme: Theme, variantSlot: "textPrimary" | "outlinedPrimary") => {
-      const overrides = theme.components?.MuiButton?.styleOverrides as
-        Record<string, Record<string, unknown> | undefined> | undefined;
-      return (overrides?.[variantSlot]?.color as string | undefined) ?? theme.palette.primary.main;
+    // Resolved the way MUI resolves it: the matching `variants` entry when the
+    // theme declares one, otherwise `palette.primary.main`. Reading a slot by
+    // name would pass over an override MUI never applies, which is how the v5
+    // slot names slipped through once already — `FarmThemeProvider.render`
+    // renders the real button and is the check that caught it.
+    const buttonInk = (theme: Theme, variant: "text" | "outlined") => {
+      const variants = theme.components?.MuiButton?.variants ?? [];
+      const match = variants.find((v) => {
+        const props = v.props as { variant?: string; color?: string };
+        return props.variant === variant && props.color === "primary";
+      });
+      const style = match?.style as Record<string, unknown> | undefined;
+      return (style?.color as string | undefined) ?? theme.palette.primary.main;
     };
 
     for (const { label, theme } of themes) {
-      for (const variantSlot of ["textPrimary", "outlinedPrimary"] as const) {
-        const ink = buttonInk(theme, variantSlot);
+      for (const variant of ["text", "outlined"] as const) {
+        const ink = buttonInk(theme, variant);
         for (const bg of [theme.palette.background.paper, theme.palette.background.default]) {
-          expect(contrast(ink, bg), `${label} ${variantSlot} vs ${bg}`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(ink, bg), `${label} ${variant} button vs ${bg}`).toBeGreaterThanOrEqual(4.5);
         }
       }
     }

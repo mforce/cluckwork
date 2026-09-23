@@ -297,18 +297,32 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             // every row of 22 ledger tables at 1280.
             [phone]: { minHeight: PHONE_TOUCH_TARGET_PX },
           },
-          // On these two variants `color="primary"` — `Button`'s own default —
-          // is the FOREGROUND, and `palette.primary.main` is raw `--brand`,
-          // which #149's dark palette never redeclares: 1.18:1 on the dark
-          // card, the same defect as MuiTabs and `MuiBottomNavigationAction`.
-          // `--stat-accent` equals raw `--brand` in light, so light is
-          // untouched. `contained` is excluded: there brand is the BACKGROUND.
-          textPrimary: { color: tokens["--stat-accent"] },
-          outlinedPrimary: {
-            color: tokens["--stat-accent"],
-            borderColor: alpha(tokens["--stat-accent"], 0.5),
-          },
         },
+        // On the text and outlined variants `color="primary"` — `Button`'s own
+        // default, taken by fourteen call sites — is the FOREGROUND, and
+        // `palette.primary.main` is raw `--brand`, which #149's dark palette
+        // never redeclares: 1.18:1 on the dark card, the same defect as
+        // MuiTabs and `MuiBottomNavigationAction`. `--stat-accent` equals raw
+        // `--brand` in light, so light is untouched, and `contained` is left
+        // alone because there the brand is the BACKGROUND.
+        //
+        // `variants`, not the v5 `textPrimary`/`outlinedPrimary` slots: MUI v6
+        // replaced those composites with separate `MuiButton-text` and
+        // `MuiButton-colorPrimary` classes, so an override written against the
+        // old names is dropped in silence.
+        variants: [
+          {
+            props: { variant: "text" as const, color: "primary" as const },
+            style: { color: tokens["--stat-accent"] },
+          },
+          {
+            props: { variant: "outlined" as const, color: "primary" as const },
+            style: {
+              color: tokens["--stat-accent"],
+              borderColor: alpha(tokens["--stat-accent"], 0.5),
+            },
+          },
+        ],
       },
       MuiChip: { styleOverrides: { root: { borderRadius: pillRadius } } },
       // No `MuiDialogActions` override: dialog footers stay a right-aligned
