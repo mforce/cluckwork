@@ -137,8 +137,7 @@ export function Dashboard() {
   // #915 — Recent orders pages through the shared list hook rather than a
   // second homegrown one (#469): its ticket discipline is what keeps a
   // superseded page from painting over a newer one. A role that cannot see
-  // sales issues no request at all (INV-2, #127), so the hook's own mount
-  // fetch resolves empty instead of 403ing the panel.
+  // sales issues no request at all (INV-2, #127).
   const orders = usePagedList<SalesOrder, never>({
     fetchPage: useCallback(
       (offset: number, limit: number) =>
@@ -321,8 +320,8 @@ export function Dashboard() {
   const panelError = <Alert severity="error" className="error">{t("panelLoadError")}</Alert>;
   // The FULL capture-status list — the attention line, the progress bar and
   // the "N of M houses in" caption count every active flock, never only the
-  // page on screen. A farm with more than a page of missing houses
-  // undercounted both on the capped list (CodeRabbit, #883).
+  // page on screen. A farm with more missing houses than the old cap
+  // undercounted both (#883).
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
   const housePage = panelPage(allTiles ?? [], housesPage, housesPerPage);
 
@@ -589,24 +588,24 @@ export function Dashboard() {
             : orders.rows === null ? <LinearProgress aria-label={t("salesPanelTitle")} sx={{ height: 5, borderRadius: 2 }} />
               : orderRows.length === 0 ? <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} /> : (
             <>
-            <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
-              {orderSlice.map((o) => <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
-                display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 1.5, py: 1.25, borderTop: "1px solid var(--rule)",
-              }}>
-                <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
-                  <Typography component={Link} to={`/sales?customerId=${o.customerId}`} sx={{ fontWeight: 600 }}>{rowCustomerName(o)}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{o.referenceNumber}</Typography>
-                  {o.items[0] && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    {fmt.count(o.items[0].quantity)}{o.items[0].eggGradeName ? ` ${o.items[0].eggGradeName}` : ""}{o.items.length > 1 ? ` +${fmt.count(o.items.length - 1)}` : ""}
-                  </Typography>}
-                </Box>
-                <Box sx={{ textAlign: "right" }}>
-                  <Typography className="num" sx={{ fontWeight: 600 }}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
-                  <StatusDot status={o.status} label={statusLabel(o.status)} />
-                  {o.status === "Draft" && <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ width: "100%", justifyContent: "flex-end" }}>{t("salesRowConfirmAction")}</Typography>}
-                </Box>
-              </Box>)}
-            </Box>
+              <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
+                {orderSlice.map((o) => <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
+                  display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 1.5, py: 1.25, borderTop: "1px solid var(--rule)",
+                }}>
+                  <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                    <Typography component={Link} to={`/sales?customerId=${o.customerId}`} sx={{ fontWeight: 600 }}>{rowCustomerName(o)}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{o.referenceNumber}</Typography>
+                    {o.items[0] && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      {fmt.count(o.items[0].quantity)}{o.items[0].eggGradeName ? ` ${o.items[0].eggGradeName}` : ""}{o.items.length > 1 ? ` +${fmt.count(o.items.length - 1)}` : ""}
+                    </Typography>}
+                  </Box>
+                  <Box sx={{ textAlign: "right" }}>
+                    <Typography className="num" sx={{ fontWeight: 600 }}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
+                    <StatusDot status={o.status} label={statusLabel(o.status)} />
+                    {o.status === "Draft" && <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ width: "100%", justifyContent: "flex-end" }}>{t("salesRowConfirmAction")}</Typography>}
+                  </Box>
+                </Box>)}
+              </Box>
             {(ordersPage > 0 || ordersHasMore) && <PanelPager
               label={ordersHasMore
                 ? t("pagerOrdersOpen", { first: fmt.count(ordersFrom + 1), last: fmt.count(ordersFrom + orderSlice.length) })
@@ -633,10 +632,8 @@ export function Dashboard() {
           {/* #916/#918 — matches the approved mockup's DOM order exactly
               (production-flock-selector-v2.html): head, scope, context,
               scale+dock+strip+rule+legend (all inside DayStrip), hen-day KPI
-              LAST. #914 adds the range control after the scope, where the
-              window it names is read. The head's fixed "Last 14 days" caption
-              went with it: the control states the window now, and two copies
-              of it would disagree the moment one was missed. */}
+              LAST. #914 adds the range control after the scope and drops the
+              head's fixed "Last 14 days" caption, which the control replaces. */}
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
           </Box>

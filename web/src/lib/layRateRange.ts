@@ -5,11 +5,10 @@
 // arithmetic has literal oracles and the screen only renders what it returns.
 import { daysBefore, inclusiveDays, isIsoCalendarDate } from "./dates";
 
-// The presets the card offers. 14 is the middle one rather than the 15 #914
-// proposed: 15 days cannot be drawn one bar per day (MAX_DAY_SLOTS is 14, sized
-// by the card's own width), so a 15-day preset would collapse to three weekly
-// bars — 7, 7 and 1 — where 14 keeps a full fortnight of daily bars and the
-// phone geometry #912 settled.
+// 14 is the middle preset rather than the 15 #914 proposed: 15 days cannot be
+// drawn one bar per day (MAX_DAY_SLOTS is 14, sized by the card's width), so a
+// 15-day preset would collapse to weekly bars of 7, 7 and 1, where 14 keeps a
+// full fortnight of daily bars and the phone geometry #912 settled.
 export const RANGE_PRESETS = [7, 14, 30] as const;
 export type RangePreset = (typeof RANGE_PRESETS)[number];
 

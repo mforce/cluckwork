@@ -80,20 +80,16 @@ export const DAY_SLOT_KINDS = ["none", "unrecorded", "partial", "recorded"] as c
 type DaySlotKind = (typeof DAY_SLOT_KINDS)[number];
 
 // #914 — the strip holds at most this many bars. A bar plus its gap needs 24px
-// on a phone (22px slots, 2px gaps — #912's owner decision, in 342px of plot)
-// and 26px on desktop (4px gaps, in 387px of plot); both divide to 14. Past
-// this the window is drawn one bar per week instead, never narrower bars and
-// never a horizontal scroll inside the card.
+// on a phone (22px slots, 2px gaps — #912, in 342px of plot) and 26px on
+// desktop (4px gaps, in 387px of plot); both divide to 14. Past this the
+// window draws one bar per week, never narrower bars and never a scrollbar.
 export const MAX_DAY_SLOTS = 14;
 export const WEEK_DAYS = 7;
 
-// What one bar stands for: a single day, or up to a week of them. `perDayEggs`
-// is what the bar's HEIGHT reads, not `totalEggs` — a short last bucket holds
-// fewer days and its total would otherwise draw a collapse in production that
-// the farm's own records never claimed, the same misreading #780 closed for
-// partly recorded days. The flock counts are flock-DAYS once a period covers
-// more than one day, which is exactly what "did every house file every day"
-// needs.
+// What one bar stands for: a single day, or up to a week of them. The bar's
+// HEIGHT reads `perDayEggs`, not `totalEggs` — a short last bucket's total
+// would otherwise draw a collapse the farm's records never claimed, the same
+// misreading #780 closed. The flock counts are flock-DAYS past one day.
 export interface StripPeriod {
   date: string;
   endDate: string;

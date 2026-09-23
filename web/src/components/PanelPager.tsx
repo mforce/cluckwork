@@ -4,12 +4,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 // #915 — paging inside a Dashboard panel, never an inner scroll region: a
 // nested scroller fights the page scroll on touch and traps keyboard users.
-//
-// Two steps rather than numbered pages, because one of the two lists it serves
-// (Recent orders) is fetched a page at a time and its length is unknown until
-// the last page arrives — numbered pages there would either lie about how many
-// exist or grow under the reader's finger. Every string arrives translated:
-// this stays props-only, like DayStrip.
+// Two steps rather than numbered pages, because Recent orders is fetched a
+// page at a time and its length is unknown until the last page lands.
 export function PanelPager({ label, previousLabel, nextLabel, hasPrevious, hasNext, onPrevious, onNext }: {
   label: string;
   previousLabel: string;
