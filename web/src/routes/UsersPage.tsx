@@ -24,7 +24,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
-import { ROLE_VALUES, roleLabel } from "../i18n/enums";
+import { ROLE_VALUES, roleLabel, statusLabel } from "../i18n/enums";
 import { useAuth } from "../auth/useAuth";
 
 
@@ -873,7 +873,7 @@ export function UsersPage() {
                     <TableCell sx={NOWRAP}>
                       {u.disabledAt
                         ? <StatusBadge status="Inactive" label={t("disabledBadge")} />
-                        : <StatusBadge status="Active" label={t("activeBadge")} />}
+                        : <StatusBadge status="Active" label={statusLabel("Active")} />}
                     </TableCell>
                     <TableCell sx={NOWRAP}>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
@@ -899,7 +899,7 @@ export function UsersPage() {
                 label: t("statusColumnHeader"),
                 value: selectedUser.disabledAt
                   ? <StatusBadge status="Inactive" label={t("disabledBadge")} />
-                  : <StatusBadge status="Active" label={t("activeBadge")} />,
+                  : <StatusBadge status="Active" label={statusLabel("Active")} />,
               },
             ] : undefined}
             actions={selectedUser && (

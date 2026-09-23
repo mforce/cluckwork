@@ -1920,9 +1920,8 @@ export const en = {
     flocksButton: "flocks",
     // #356/#908 — row actions and their badge. Disabled rows render muted with
     // this badge (StatusBadge tinted via "Inactive", labelled "Disabled"
-    // rather than the generic term); an active row shows the counterpart so
-    // status is never blank.
-    activeBadge: "Active",
+    // rather than the generic term); an active row uses statusLabel("Active")
+    // (i18n/enums.ts) rather than a second Active translation (#688).
     disabledBadge: "Disabled",
     disableButton: "disable",
     enableButton: "enable",

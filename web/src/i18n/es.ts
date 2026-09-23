@@ -1425,7 +1425,6 @@ export const es = {
     changeEmailButton: "cambiar correo",
     changeEmailSubmitButton: "Cambiar correo",
     flocksButton: "lotes",
-    activeBadge: "Activo",
     disabledBadge: "Deshabilitado",
     disableButton: "deshabilitar",
     enableButton: "habilitar",

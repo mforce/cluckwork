@@ -364,14 +364,22 @@ describe("ProductsPage edit", () => {
   });
 
   // #908 acceptance: destructive actions must read as distinct from the
-  // primary edit action by more than colour alone, via CONSOLE_DESTRUCTIVE_LINK_SX.
+  // primary edit action by more than colour alone — assert the actual icon
+  // and colour, not just the colour (a colour-blind reader needs the shape).
   it("marks deactivate as destructive, distinct from edit and activate", async () => {
     await renderReady(ADMIN);
     const activeRow = screen.getByRole("row", { name: /Grade A Dozen/ });
-    expect(within(activeRow).getByRole("button", { name: "deactivate" })).toHaveStyle({ color: "var(--danger)" });
-    expect(within(activeRow).getByRole("button", { name: "edit" })).not.toHaveStyle({ color: "var(--danger)" });
-    expect(within(screen.getByRole("row", { name: /Legacy Tray/ })).getByRole("button", { name: "activate" }))
-      .not.toHaveStyle({ color: "var(--danger)" });
+    const deactivate = within(activeRow).getByRole("button", { name: "deactivate" });
+    expect(deactivate).toHaveStyle({ color: "var(--error)" });
+    expect(deactivate.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
+
+    const edit = within(activeRow).getByRole("button", { name: "edit" });
+    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
+
+    const activate = within(screen.getByRole("row", { name: /Legacy Tray/ })).getByRole("button", { name: "activate" });
+    expect(activate).not.toHaveStyle({ color: "var(--error)" });
+    expect(activate.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 });
 

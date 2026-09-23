@@ -271,19 +271,24 @@ describe("UsersPage selected-record inspector (#908)", () => {
   });
 
   // #908 acceptance: status is never blank in the inspector either, and the
-  // shared renderActions carries the same destructive marker there as in the row.
+  // shared renderActions carries the same destructive marker there as in the
+  // row — assert the actual StatusBadge/icon, not just text/colour.
   it("shows an explicit status in the inspector for both an active and a disabled user", async () => {
     mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
     await renderReady(ADMIN);
     const inspector = screen.getByRole("region", { name: "User details" });
 
     fireEvent.click(screen.getByRole("row", { name: /worker@farm.test/ }));
-    expect(within(inspector).getByText("Active")).toBeInTheDocument();
-    expect(within(inspector).getByRole("button", { name: "disable" })).toHaveStyle({ color: "var(--danger)" });
-    expect(within(inspector).getByRole("button", { name: "edit" })).not.toHaveStyle({ color: "var(--danger)" });
+    expect(within(inspector).getByText("Active")).toHaveClass("badge", "badge-ok");
+    const disable = within(inspector).getByRole("button", { name: "disable" });
+    expect(disable).toHaveStyle({ color: "var(--error)" });
+    expect(disable.querySelector(".lucide-ban")).toBeInTheDocument();
+    const edit = within(inspector).getByRole("button", { name: "edit" });
+    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit.querySelector(".lucide-ban")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("row", { name: /disabled@farm.test/ }));
-    expect(within(inspector).getByText("Disabled")).toBeInTheDocument();
+    expect(within(inspector).getByText("Disabled")).toHaveClass("badge", "badge-danger");
   });
 });
 
@@ -1307,16 +1312,17 @@ describe("UsersPage disable/enable (#356)", () => {
 
     const row = screen.getByRole("row", { name: /disabled@farm.test/ });
     expect(row).toHaveClass("muted");
-    expect(within(row).getByText("Disabled")).toBeInTheDocument();
+    expect(within(row).getByText("Disabled")).toHaveClass("badge", "badge-danger");
     expect(within(row).queryByText("Active")).not.toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "enable" })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
 
     // #908 acceptance: status is never blank — the still-active sibling row
-    // stays unmuted, shows an explicit Active badge, and offers Disable.
+    // stays unmuted, shows an explicit Active badge (the real StatusBadge,
+    // not plain text), and offers Disable.
     const activeRow = screen.getByRole("row", { name: /worker@farm.test/ });
     expect(activeRow).not.toHaveClass("muted");
-    expect(within(activeRow).getByText("Active")).toBeInTheDocument();
+    expect(within(activeRow).getByText("Active")).toHaveClass("badge", "badge-ok");
     expect(within(activeRow).queryByText("Disabled")).not.toBeInTheDocument();
     expect(within(activeRow).getByRole("button", { name: "disable" })).toBeInTheDocument();
   });

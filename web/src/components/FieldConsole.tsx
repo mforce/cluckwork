@@ -27,10 +27,13 @@ export const CONSOLE_LINK_SX = {
 // read as distinct from CONSOLE_LINK_SX's edit link by more than colour: pair
 // this with a leading icon (e.g. TriangleAlert) at every call site, so shape
 // carries the signal colour alone would miss for a colour-blind reader.
+// `--error`, not `--danger`: `--danger` was designed as a filled-button
+// background, and dark mode's value measures ~3:1 as small text, under AA
+// (codex review round 3); `--error` is the token already tuned for that case.
 export const CONSOLE_DESTRUCTIVE_LINK_SX = {
   ...CONSOLE_LINK_SX,
-  color: "var(--danger)",
-  textDecorationColor: "var(--danger)",
+  color: "var(--error)",
+  textDecorationColor: "var(--error)",
   "&:hover": { textDecoration: "underline", backgroundColor: "var(--tint-danger)" },
 };
 // #831 Concept B: cancel the panel padding so the header divider reaches both edges.

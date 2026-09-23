@@ -570,15 +570,27 @@ describe("FlocksPage lifecycle", () => {
   });
 
   // #908 acceptance: destructive actions must read as distinct from the
-  // primary edit action by more than colour alone, via CONSOLE_DESTRUCTIVE_LINK_SX.
+  // primary edit action by more than colour alone — assert the actual icon
+  // and colour, not just the colour (a colour-blind reader needs the shape).
   it("marks deplete and archive as destructive, distinct from edit and reactivate", async () => {
     await renderReady(ADMIN, [ACTIVE, DEPLETED]);
     const activeRow = getRowByCellText("Hen House 1");
-    expect(within(activeRow).getByRole("button", { name: "deplete" })).toHaveStyle({ color: "var(--danger)" });
-    expect(within(activeRow).getByRole("button", { name: "archive" })).toHaveStyle({ color: "var(--danger)" });
-    expect(within(activeRow).getByRole("button", { name: "edit" })).not.toHaveStyle({ color: "var(--danger)" });
+    const deplete = within(activeRow).getByRole("button", { name: "deplete" });
+    expect(deplete).toHaveStyle({ color: "var(--error)" });
+    expect(deplete.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
+
+    const archive = within(activeRow).getByRole("button", { name: "archive" });
+    expect(archive).toHaveStyle({ color: "var(--error)" });
+    expect(archive.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
+
+    const edit = within(activeRow).getByRole("button", { name: "edit" });
+    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
+
     const depletedRow = screen.getByRole("row", { name: /Depleted Flock/ });
-    expect(within(depletedRow).getByRole("button", { name: "reactivate" })).not.toHaveStyle({ color: "var(--danger)" });
+    const reactivate = within(depletedRow).getByRole("button", { name: "reactivate" });
+    expect(reactivate).not.toHaveStyle({ color: "var(--error)" });
+    expect(reactivate.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 });
 
