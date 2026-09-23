@@ -75,7 +75,7 @@ describe("customRangeError (#914)", () => {
   });
 });
 
-// Codex gpt-6-sol round 1, finding 5 (P3). A window whose comparison period
+// A window whose comparison period
 // would start before the calendar begins has no comparison to make, and the
 // arithmetic that produced it cannot be trusted either.
 describe("customRangeError at the edge of the calendar", () => {

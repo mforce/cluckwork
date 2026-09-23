@@ -932,7 +932,7 @@ export const en = {
     pagerOrdersOpen: "Orders {{first}} to {{last}}",
     pagerPrevious: "Previous page of {{panel}}",
     pagerNext: "Next page of {{panel}}",
-    // #940 review — a next page the server refused. The rows already on
+    // a next page the server refused. The rows already on
     // screen are untouched, so this offers the page again rather than
     // replacing them with a panel error.
     pagerNextFailed: "Could not load the next page.",
@@ -1732,14 +1732,12 @@ export const en = {
   // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
   // products/stock/flocks above: es/tl are machine-drafted (#182), pending
   // native review.
-  //
   // DATA left raw, never routed through this catalog: the timezone list
   // (Intl.supportedValuesOf), the locale/currency VALUES the admin types, the
   // "en-US" locale-format example (allowlisted in i18n-scan-allowlist.txt),
   // and the curated palettes' lowercase ids (aubergine/forest/slate/
   // terracotta — matched by exact-match CSS selectors and written into
   // data-brand). Their DISPLAY names (paletteAubergine etc. below) ARE copy.
-  //
   // Enum wiring: the Unit system and First day of week SELECTs are closed
   // vocabularies, so their OPTION text is rendered through the shared
   // `enums.ts` helpers (unitSystemLabel/weekdayLabel — both pre-built for
@@ -1909,7 +1907,6 @@ export const en = {
   // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
   // products/stock/flocks/settings above: es/tl are machine-drafted (#182),
   // pending native review.
-  //
   // Role enum wiring: the table's Role cell, the create-form Role picker's
   // option text, and the create-success message all render the closed
   // `role` vocabulary through roleLabel() (enums.ts) rather than a key here
@@ -2070,7 +2067,6 @@ export const en = {
   // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
   // products/stock/flocks/settings/users above: es/tl are machine-drafted
   // (#182), pending native review.
-  //
   // PLAN CORRECTION (verified by controller): this screen has NO
   // payment-method/category enum. `ExpenseCategory` rows are free-form,
   // admin-created records (createExpenseCategory), not a closed API
@@ -2081,7 +2077,6 @@ export const en = {
   // kind of free-form farm DATA and stay raw too. Money stays on the existing
   // farm-locale `formatMoney` — never `i18n.language` (formattingIndependence
   // guard).
-  //
   // Money-decimal validation copy (enterValidAmount/noDecimalPlaces/
   // atMostDecimals/enterAmountGreaterThanZero) duplicates sales/products'
   // near-identical strings but is kept as its OWN local key set here per the
@@ -2191,7 +2186,6 @@ export const en = {
   // dashboard/water/grades/inventory/products/stock/flocks/settings/users/
   // expenses above: es/tl are machine-drafted (#182), pending native
   // review.
-  //
   // No status/enum on this screen — Customer has no closed-vocabulary field,
   // so nothing here routes through enums.ts. Customer name/phone/email/
   // address/note are free-form farm DATA (createCustomer's own fields) and
@@ -2240,7 +2234,6 @@ export const en = {
   // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
   // products/stock/flocks/settings/users/expenses/customers above: es/tl are
   // machine-drafted (#182), pending native review.
-  //
   // Entry-status pills (statusCell): DELIBERATELY NOT routed through the
   // shared `enums` status family, even though enums.status already carries
   // Draft/Submitted/Locked/ManagerAdjusted/Voided (Task 4/12) — this screen's
@@ -2252,13 +2245,11 @@ export const en = {
   // already points AT this screen's own "Adjusted" pill as the precedent
   // Dashboard's retrofit matched. lockedAt interpolates the raw lockedAtUtc
   // timestamp (DATA) into the tooltip text (COPY).
-  //
   // The nothingToAdjustMessage 409-rebind message interpolates
   // fresh.status.toLowerCase() — lowercasing a raw wire enum value is
   // locale-fragile (only ever reads correctly in English); tracked as a
   // native-pass deferral (#182), not solved by this task (see the code
   // comment at the call site, HistoryPage.tsx rebindAfterConflict).
-  //
   // DATA left raw, never routed through this catalog: entry dates
   // (e.date/adjusting.date), flock/grade names (flockName/gradeName, with
   // their id.slice(0,8) fallback), the "—" placeholder for an entry with no
@@ -2398,7 +2389,6 @@ export const en = {
   // native review. Production renders for everyone; the Money section
   // (sales/expenses/profit) is admin-gated — isAdmin is checked by the
   // component, not this catalog.
-  //
   // DATA left raw, never routed through this catalog: every date
   // (d.date/from/to), every numeric count/total (totalEggs, cracked/dirty/
   // discarded, sellable, deaths, henDays, henDayPct and their period
@@ -2592,7 +2582,6 @@ export const en = {
   // key mechanically and the key is self-documenting. `enums` IS in
   // TRANSLATED_NAMESPACES: es/tl carry machine-drafted enum translations
   // (#182, pending native review).
-  //
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
   // changes DELIBERATELY (its reviewer must eyeball them):

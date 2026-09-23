@@ -47,16 +47,12 @@ const HOUSES_PER_PAGE_DESKTOP = 8;
 const HOUSES_PER_PAGE_PHONE = 6;
 // The server clamps a list request at 500 rows.
 const MAX_PAGE = 500;
-// #940 review, finding 3 — and past 500 the tail used to drop silently, which
-// #915 made visible: the "N more flocks" link that used to carry the remainder
-// is gone, so a farm with more houses than one page had houses the Dashboard
-// could neither reach nor count. Both of this panel's lists are drained
-// instead of truncated, because the progress bar and the "N of M houses in"
-// caption answer for the FARM and cannot do that from a first page. The cost
-// is one extra request per further 500 houses and none at all below that,
-// which is every farm today. The ceiling only has to make the loop terminate;
-// at it, the counts say "at least" rather than a figure they cannot stand
-// behind.
+// #915 — both of this panel's lists are DRAINED rather than truncated: the
+// progress bar and the "N of M houses in" caption answer for the farm, which
+// a first page cannot tell them, and every house has to be reachable now that
+// no link carries the remainder. Below 500 houses this costs no extra request
+// at all. The ceiling only has to make the loop terminate; at it the counts
+// say "at least" instead of a figure they cannot stand behind.
 const MAX_DRAIN_PAGES = 20;
 
 async function drainPages<T>(
@@ -157,9 +153,9 @@ export function Dashboard() {
   const [housesPage, setHousesPage] = useState(0);
 
   // #915 — Recent orders pages through the shared list hook rather than a
-  // second homegrown one (#469): its ticket discipline is what keeps a
-  // superseded page from painting over a newer one. A role that cannot see
-  // sales issues no request at all (INV-2, #127).
+  // second homegrown one (#469): its ticket discipline keeps a superseded page
+  // from painting over a newer one. A role that cannot see sales issues no
+  // request at all (INV-2, #127).
   const orders = usePagedList<SalesOrder, never>({
     fetchPage: useCallback(
       (offset: number, limit: number) =>
@@ -176,16 +172,9 @@ export function Dashboard() {
   const ordersFrom = ordersPage * RECENT_ORDERS;
   const orderSlice = orderRows.slice(ordersFrom, ordersFrom + RECENT_ORDERS);
   const { hasMore: ordersHasMore, loadMore: ordersLoadMore } = orders;
-  // #940 review, findings 1 and 2 — one request per tap, and the page number
-  // moves only once its rows are here.
-  //
-  // This was an effect reconciling a page number against the loaded rows, and
-  // both defects came from that shape: a page the server refused left the
-  // condition true with `hasMore` still set, so the effect re-issued it every
-  // time `loading` settled, and a page the server answered EMPTY still moved
-  // the reader onto it ("Orders 6 to 5"). Asking is now something the reader
-  // does, once, and the answer decides whether the view moves.
-  //
+  // #915 — one request per tap, and the page number moves only once its rows
+  // are here. An effect reconciling the page number against the loaded rows
+  // re-issued a refused page forever and moved the reader onto an empty one.
   const showNextOrders = async () => {
     const next = ordersPage + 1;
     if (next * RECENT_ORDERS < orderRows.length) { setOrdersPage(next); return; }
@@ -288,7 +277,6 @@ export function Dashboard() {
   // IGNORED, not cancelled, so it could sit in flight and hold one of the
   // account's report-concurrency permits until it timed out on its own; the
   // AbortController below actually cancels it on cleanup.
-  //
   // #918 — Codex review: the current and previous weeks used to be two
   // adjacent requests; together with the yesterday-close fetch below, that
   // was three of the account's four shared report-concurrency permits per
@@ -462,15 +450,10 @@ export function Dashboard() {
   // farm-locale formatted before it reaches a catalog string (#650). The
   // unrecorded arm carries no count at all — that is the point of #780 — and
   // the partial arm says its total is a floor rather than the day's output.
-  //
-  // #914 — a bucketed slot covers up to a week, so it says its own span and
-  // day count (which is how a short last bucket labels itself) and carries
-  // both the period's total and its per-day rate, the figure its bar height
-  // actually reads. The wording follows the STRIP's mode, not the bucket's own
-  // length: a window of 15, 22 or 29 days leaves a one-day last bucket, and
-  // reading that one off `dayCount` gave it the daily sentence beside twelve
-  // weekly ones — no day count, and a total presented as a rate (#940 review,
-  // finding 4).
+  // #914 — a bucketed slot says its own span and day count, which is how a
+  // short last bucket labels itself. The wording follows the STRIP's mode, not
+  // the bucket's length: 15, 22 or 29 days leave a ONE-day last bucket, and
+  // reading that off `dayCount` gave it the daily sentence beside weekly ones.
   const trendTip = (line: DayStripData) => (slot: DayStripSlot) => {
     const date = fmt.date(slot.date);
     const span = { from: date, to: fmt.date(slot.endDate), count: slot.dayCount, days: fmt.count(slot.dayCount) };
@@ -636,7 +619,7 @@ export function Dashboard() {
 
         {canSeeSales && <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 1 } }}>
           <Box sx={headingSx}><Typography variant="h3" aria-label={t("salesPanelTitle")}><Link to="/sales">{t("recentOrdersTitle")}</Link></Typography></Box>
-          {/* #940 review, finding 1 — the panel error belongs to a read that left
+          {/* the panel error belongs to a read that left
               NOTHING on screen. A next page that failed says nothing about the
               page the reader is already looking at, so those rows stay and the
               refusal is offered back as a retry under them. */}

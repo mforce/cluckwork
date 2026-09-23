@@ -1,11 +1,9 @@
 // Farm-local calendar date (YYYY-MM-DD).
-//
 // `timeZone` is the farm's IANA zone from §4.5 settings, supplied by
 // useFarmToday(). Since #35 the API decides "is this date in the future?"
 // against the FARM's today, so a browser ahead of the farm would otherwise
 // offer a date the server refuses, and one behind it would hide a legitimate
 // one (#123).
-//
 // Omitted means browser-local — not a shortcut but the only answer available
 // when the farm's zone is not known: before /account resolves, and after a
 // load that failed. It is also what every date input did before this.
@@ -57,7 +55,7 @@ export function isKnownTimeZone(timeZone: string): boolean {
 // builds its probe. NOT `Date.UTC(year, …)`, which applies the ECMAScript
 // two-digit-year mapping: `Date.UTC(99, 11, 31)` is 1999, so every date in
 // years 1-99 landed nineteen centuries out and any span crossing year 100 came
-// back negative (#940 review, finding 5).
+// back negative (#914).
 function utcMidnight(year: number, month: number, day: number): Date {
   const probe = new Date(0);
   probe.setUTCFullYear(year, month - 1, day);
@@ -72,7 +70,6 @@ function toIsoDate(instant: Date): string {
 }
 
 // N days before a farm-local calendar date (YYYY-MM-DD in, YYYY-MM-DD out).
-//
 // Arithmetic on the DATE PARTS through UTC, never on a local Date: a farm-local
 // day is a calendar square, not an instant. `new Date(y, m, d - n)` would work
 // too — it normalizes, and it is what ReportsPage used before this — but it
@@ -89,7 +86,6 @@ export function daysBefore(isoDate: string, days: number): string {
 // string production requires year >= 1, and the audit endpoint binds DateOnly,
 // whose MinValue is 0001-01-01. The boundary table in dates.test.ts is the
 // specification — every case this has been got wrong is a row in it.
-//
 // setUTCFullYear, NOT Date.UTC: Date.UTC applies the ECMAScript two-digit-year
 // mapping, so Date.UTC(50, 0, 1) is 1950 and a round-trip built on it rejects
 // every year 1-99. new Date(0) is exactly 1970-01-01T00:00:00.000Z and every

@@ -105,7 +105,6 @@ describe("daysBefore", () => {
 
   it("crosses a DST boundary as plain calendar days", () => {
     // US DST springs forward on 2026-03-08 and falls back on 2026-11-01.
-    //
     // Stated honestly, because the obvious framing does not hold: these cases
     // would ALSO pass a naive `getTime() - days * 86400000` on a UTC runner,
     // and nothing here pins TZ (agent review of #123). They pin the calendar
@@ -239,7 +238,7 @@ describe("inclusiveDays (#914)", () => {
     expect(inclusiveDays("2026-07-21", "2026-07-20")).toBe(0);
   });
 
-  // Codex gpt-6-sol round 1, finding 5 (P3). Date.UTC applies the ECMAScript
+  // Date.UTC applies the ECMAScript
   // two-digit-year mapping, so year 99 became 1999 and a span across the year
   // 100 boundary came back NEGATIVE — short enough to walk past a length cap.
   // isIsoCalendarDate already avoids this with setUTCFullYear.
@@ -250,7 +249,7 @@ describe("inclusiveDays (#914)", () => {
   });
 });
 
-describe("daysBefore across the first hundred years (#940 review, finding 5)", () => {
+describe("daysBefore across the first hundred years (#914)", () => {
   it("steps back through year 100 without the two-digit-year mapping", () => {
     expect(daysBefore("0100-01-01", 1)).toBe("0099-12-31");
     expect(daysBefore("0001-01-02", 1)).toBe("0001-01-01");

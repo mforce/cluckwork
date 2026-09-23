@@ -107,7 +107,6 @@ const order = (id: string, ref: string, customerName: string | null): SalesOrder
 // client-side by `splitProductionReport`. #914 — the card's default range is
 // 14 days, so that request now covers 28: `daysBefore(today,28)..
 // daysBefore(today,1)`, split at `daysBefore(today,14)`.
-//
 // The DRAWN fortnight keeps the values it had (307..301 then 327..321), so
 // every bar assertion below is unchanged. Each half's `ratedEggs` total sits
 // on its own first day (nothing checks a day's own `ratedEggs`), reproducing
@@ -337,7 +336,7 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
       .toHaveAttribute("aria-valuenow", "25");
   });
 
-  // Codex gpt-6-sol round 1, finding 3 (P2). The panel read one 500-flock page
+  // The panel read one 500-flock page
   // and the "N more flocks" link that used to carry the rest is gone, so a farm
   // past that cap had houses nothing on the Dashboard could reach or count.
   it("reaches every house on a farm larger than one server page", async () => {
@@ -955,7 +954,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // with 501 accessible flocks reads as exactly 500 both in the context
   // caption and the picker's own pinned "All flocks" choice, presenting a
   // truncated count as if it were exact.
-  // #940 review, finding 3 — a full first page is no longer truncation: the
+  // a full first page is no longer truncation: the
   // panel asks for the next one. Truncation is now the drain's own ceiling,
   // and only there does the count become a lower bound.
   it("counts a farm of exactly one server page exactly, having asked for the page after it", async () => {
@@ -1395,7 +1394,6 @@ describe("Dashboard recent sales rows (#512)", () => {
 
 // #883 round 2, finding 5 — DIRECTION.md line 9's row action: a draft order
 // gets a row action; a non-draft row has none.
-//
 // Codex CLI review round 2 (finding 3): the label read "Confirm order" —
 // the Sales page's OWN control for the real, in-place confirm — while this
 // row's link only opens the customer's WHOLE filtered order list (there is
@@ -1664,7 +1662,7 @@ describe("Dashboard Lay rate range (#914)", () => {
     expect(bars()).toHaveLength(14);
   });
 
-  // Codex gpt-6-sol round 1, finding 4 (P2). A 15-day window buckets to 7, 7
+  // A 15-day window buckets to 7, 7
   // and 1, and the one-day bucket took the DAILY wording — losing its day
   // count and the per-day-rate-versus-total reading every other bar carries.
   it("keeps the weekly wording on a one-day last bucket", async () => {
@@ -1746,7 +1744,7 @@ describe("Dashboard Recent orders paging (#915)", () => {
     expect(screen.queryByRole("button", { name: /page of Recent orders/ })).not.toBeInTheDocument();
   });
 
-  // Codex gpt-6-sol round 1, finding 1 (P1). A failed next-page request left
+  // A failed next-page request left
   // `hasMore` true, so the reconciling effect re-issued it every time `loading`
   // settled — an unasked-for retry loop — and the panel showed an error over a
   // page of rows that had loaded perfectly well.
@@ -1780,7 +1778,7 @@ describe("Dashboard Recent orders paging (#915)", () => {
     expect(asked()).toBe(2);
   });
 
-  // Codex gpt-6-sol round 1, finding 2 (P2). The page number moved before the
+  // The page number moved before the
   // rows existed, so a full last page followed by an empty one read
   // "Orders 6 to 5".
   it("stays on the last page with rows when the next one comes back empty", async () => {

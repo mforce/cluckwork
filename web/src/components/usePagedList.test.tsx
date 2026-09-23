@@ -871,7 +871,7 @@ describe("usePagedList — a write that supersedes an unsettled replacement (#64
 });
 
 
-// #940 review, findings 1 and 2 — a screen that pages by INDEX has to tell
+// a screen that pages by INDEX has to tell
 // three answers apart. Conflating them put an unasked-for retry loop and a
 // false error in front of a reader on the Dashboard.
 describe("usePagedList — what a page request reports back", () => {

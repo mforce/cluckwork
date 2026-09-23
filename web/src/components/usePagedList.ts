@@ -4,14 +4,12 @@ import { errText } from "../lib/errText";
 // #469 — one implementation of the async discipline PR #467 arrived at over 11
 // review rounds, instead of the four homegrown variants (StockPage, AuditPage,
 // FeedPage, ReportsPage) and the four screens that had none.
-//
 // The rule everything below serves: THE VIEW BELONGS TO THE NEWEST USER
 // INTENT. Every load claims a monotonic ticket at the moment the user asks for
 // it, and touches state only while it still holds the current one — checked
 // after EVERY await, in the failure path as much as the success path, because
 // a superseded request's rejection is exactly as stale as its response and
 // painting it over a healthy view is the bug users actually reported.
-//
 // Consequences that are easy to get wrong and are pinned by tests:
 //   * `loading` belongs to the ticket holder, so a superseded settle cannot
 //     clear a flag it no longer owns (a stuck spinner is the failure mode).
@@ -24,7 +22,6 @@ import { errText } from "../lib/errText";
 //     made while the write is in flight is newer intent and wins; the write's
 //     own refresh stands down (FeedPage had this backwards and repainted the
 //     old filter's rows over the new ones).
-//
 // Filter changes are expressed as a new `fetchPage` identity: screens build it
 // with useCallback over their filter state, exactly as AuditPage and FeedPage
 // already did, so "the filter changed" and "reload from the top" are the same
@@ -197,7 +194,6 @@ export function usePagedList<T extends { id: string }, M = never>({
     // FeedPage must not, because its whole page — filter controls included —
     // is gated on having rows. Screens read `loading` and decide; blanking
     // here took Feed's own filters off the screen mid-change.
-    //
     // No setHasMore(false) either: `canLoadMore` already folds in `loading`,
     // so the pager is withdrawn for the whole reload. A mutation check proved
     // an explicit reset changed no observable behaviour, and an unpinned line
@@ -213,18 +209,11 @@ export function usePagedList<T extends { id: string }, M = never>({
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
 
-  // What became of this page request. A screen that pages by INDEX rather than
-  // by appending needs all three apart (#940 review, findings 1 and 2):
-  //
-  //   * `loaded` carries how many rows the SERVER handed over, which `rows`
-  //     cannot tell the caller — after the await React has scheduled the state
-  //     update but not necessarily rendered it, so a caller reading its own
-  //     render's `rows` reads the count from before the page landed. `rows: 0`
-  //     is a real answer, and it is how the LAST page announces itself.
-  //   * `refused` is the one the reader should be told about and offered again.
-  //   * `dropped` is a page nobody is waiting for any more — one was already in
-  //     flight, or a newer intent claimed the ticket. Reporting either as a
-  //     failure puts an error in front of a reader who only tapped twice.
+  // What became of this page request; a screen that pages by INDEX needs all
+  // three apart (#915). `rows: 0` is a real answer — it is how the LAST page
+  // announces itself — and that count cannot come from `rows`, which React may
+  // not have rendered when this resolves. A `dropped` page is one nobody waits
+  // for, and calling it a failure shows an error to a reader who tapped twice.
   const loadMore = useCallback(async (): Promise<LoadMoreResult> => {
     if (loadingRef.current) return { status: "dropped" };
     const seq = ++req.current;
