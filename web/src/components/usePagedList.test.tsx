@@ -105,10 +105,9 @@ describe("usePagedList — first load and paging", () => {
     // rows then leaves it parked forever and the older records — the ones
     // #465 exists to reach — become unreachable no matter how often the user
     // clicks.
-    //
     // One ask used to stop on that empty-handed page and need a second click.
     // A screen that pages by INDEX cannot do that: it would move the reader
-    // onto a page with no rows (#940 review round 2). The ask now keeps going
+    // onto a page with no rows (#915). The ask now keeps going
     // until the list gains something, and the cursor still moves by what the
     // SERVER returned rather than by what survived dedupe.
     const fetchPage = vi.fn()
@@ -953,7 +952,7 @@ describe("usePagedList — what a page request reports back", () => {
   });
 });
 
-// #940 review round 2, finding 1 — what `loadMore` reports is what the LIST
+// what `loadMore` reports is what the LIST
 // gained, which a screen paging by index acts on directly.
 describe("usePagedList — a page that adds nothing", () => {
   it("reports the rows the list gained, not the rows the server sent", async () => {

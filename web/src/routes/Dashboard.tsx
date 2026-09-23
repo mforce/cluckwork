@@ -366,7 +366,7 @@ export function Dashboard() {
   // page on screen. A farm with more missing houses than the old cap
   // undercounted both (#883).
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
-  // #940 review round 2 — the drain's ceiling is a real limit, so the panel
+  // the drain's ceiling is a real limit, so the panel
   // states a LOWER BOUND rather than presenting its own array length as the
   // farm's size. A truncated entry list matters just as much: houses past it
   // read as missing and their eggs are left out of the day's total.

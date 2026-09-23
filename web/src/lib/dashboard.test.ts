@@ -65,7 +65,7 @@ describe("captureTiles (#654, INV-3, INV-9)", () => {
   });
 });
 
-// Codex round 2, finding 3 (P2). Both of the panel's lists are drained now,
+// Both of the panel's lists are drained now,
 // so a scan per flock is quadratic in the farm's size.
 describe("captureTiles on a drained farm", () => {
   it("joins two thousand flocks to two thousand entries, missing ones first", () => {

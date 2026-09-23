@@ -327,7 +327,7 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(await screen.findByText("Houses 1 to 8 of 15")).toBeInTheDocument();
   });
 
-  // Codex round 2, finding 4 (P2). Cleanup only guarded the final state
+  // Cleanup only guarded the final state
   // update, so an abandoned drain kept walking the farm — up to 38 more list
   // requests after the reader had left the screen.
   it("stops asking for later pages once the reader has left", async () => {
@@ -392,7 +392,7 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500, 1000]);
   });
 
-  // Codex round 2, finding 5 (P3). With no entries in that fixture, putting
+  // With no entries in that fixture, putting
   // the daily-entry read back to a single 500-row request left the whole suite
   // green — and a farm whose 501st house HAS filed would read as missing, with
   // its eggs left out of the day's total.
@@ -419,7 +419,7 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     await user501(screen);
   });
 
-  // Codex round 2, finding 2 (P2). The drain stops after 20 full pages, and
+  // The drain stops after 20 full pages, and
   // the panel then presented 10,000 as the farm's exact size: the caption, the
   // progress bar and the pager all read the drained array's length. Verified
   // against the render — only the Lay rate card's own caption said "at least".
@@ -1817,7 +1817,7 @@ describe("Dashboard Recent orders paging (#915)", () => {
     expect(await screen.findByText("Orders 6 to 10 of 12")).toBeInTheDocument();
   });
 
-  // Codex round 2, finding 1 (P2). `loadMore` reported the rows the SERVER
+  // `loadMore` reported the rows the SERVER
   // sent, not the rows the list gained: newer orders arriving after page 1
   // shift every offset, so an offset-5 request can return the same five rows
   // the reader already has. Advancing on that put the label on "Orders 6 to 5"

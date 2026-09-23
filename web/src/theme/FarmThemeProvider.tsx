@@ -298,18 +298,13 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             [phone]: { minHeight: PHONE_TOUCH_TARGET_PX },
           },
         },
-        // On the text and outlined variants `color="primary"` — `Button`'s own
-        // default, taken by fourteen call sites — is the FOREGROUND, and
-        // `palette.primary.main` is raw `--brand`, which #149's dark palette
-        // never redeclares: 1.18:1 on the dark card, the same defect as
-        // MuiTabs and `MuiBottomNavigationAction`. `--stat-accent` equals raw
-        // `--brand` in light, so light is untouched, and `contained` is left
-        // alone because there the brand is the BACKGROUND.
-        //
-        // `variants`, not the v5 `textPrimary`/`outlinedPrimary` slots: MUI v6
-        // replaced those composites with separate `MuiButton-text` and
-        // `MuiButton-colorPrimary` classes, so an override written against the
-        // old names is dropped in silence.
+        // On text and outlined, `color="primary"` — `Button`'s default, taken
+        // by fourteen call sites — is the FOREGROUND, and `palette.primary.main`
+        // is raw `--brand`, which #149's dark palette never redeclares: 1.18:1
+        // on the dark card. `--stat-accent` equals raw `--brand` in light, and
+        // `contained` is left alone because there the brand is the BACKGROUND.
+        // `variants`, not v5's `textPrimary`/`outlinedPrimary`: MUI v6 replaced
+        // those composites, so the old slot names are dropped in silence.
         variants: [
           {
             props: { variant: "text" as const, color: "primary" as const },
