@@ -241,11 +241,10 @@ export function Dashboard() {
     ? (panelsOutcome.reason instanceof ApiError ? panelsOutcome.reason.message : i18n.t("dashboard:loadFailed"))
     : null;
 
-  // Retry asks the effect below to run again rather than issuing a read of its
-  // own. A second copy of a request needs a second copy of the cancellation
-  // and generation guards, and the copy it had carried neither: a retry
-  // started under one role could answer after a newer role's batch had
-  // finished and overwrite it, and it kept draining after the reader left.
+  // Retry re-runs the effect below rather than issuing a read of its own: a
+  // second request needs a second copy of the cancellation and generation
+  // guards, and the copy it had carried neither — it could answer after a
+  // newer role's batch and kept draining after the reader left.
   const retryFlocks = () => {
     setFlocksRetrying(true);
     setPanelsGeneration((n) => n + 1);
@@ -259,11 +258,10 @@ export function Dashboard() {
     const entryRead = drainPages((offset, limit, signal) => listDailyEntries({ from: today, to: today, limit, offset }, signal), controller.signal);
     const stockRead = getStock();
 
-    // Each panel commits the moment its OWN read settles. Holding them behind
-    // the batch tied a recovered flock list to a stock request that may never
-    // answer — `fetch` here carries no timeout — which left Retry disabled on
-    // a list that had already come back. They still share one generation and
-    // one controller, so `cancelled` and the abort cover all three.
+    // Each panel commits when its OWN read settles. Behind the batch, a
+    // recovered flock list waited on a stock request that may never answer
+    // (`fetch` carries no timeout), leaving Retry disabled on a list already
+    // back. One generation and one controller still cover all three.
     flockRead.then(({ rows, truncated }) => {
       if (cancelled) return;
       setFlocks(rows); setFlocksTruncated(truncated); setFlocksFailed(false);
