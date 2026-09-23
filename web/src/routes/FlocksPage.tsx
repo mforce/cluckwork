@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Bird, FilterX, Plus } from "lucide-react";
+import { Bird, FilterX, Plus, TriangleAlert } from "lucide-react";
 import {
   Box, Divider, DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   TextField, Typography,
@@ -16,8 +16,8 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import {
-  CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
-  selectableRowProps, useClampSelection,
+  CONSOLE_DESTRUCTIVE_LINK_SX, CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector,
+  STICKY_TABLE_HEAD_SX, selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -294,17 +294,17 @@ export function FlocksPage() {
             onClick={() => startEdit(f)}>{t("editButton")}</button>
         )}
         {isAdmin && f.status === "Active" && (
-          <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
+          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
             onClick={() => void onDeplete(f)}>
-            {t("depleteButton")}
+            <TriangleAlert size={14} aria-hidden /> {t("depleteButton")}
           </BusyButton>
         )}
         {isAdmin && f.status !== "Archived" && (
           // After the confirm dialog settles, THIS button is the pending
           // indicator for the in-flight archive (#236).
-          <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
+          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
             onClick={() => void onArchive(f)}>
-            {t("archiveButton")}
+            <TriangleAlert size={14} aria-hidden /> {t("archiveButton")}
           </BusyButton>
         )}
         {isAdmin && f.status !== "Active" && (

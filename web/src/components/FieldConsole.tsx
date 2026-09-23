@@ -23,6 +23,16 @@ export const CONSOLE_LINK_SX = {
   // half opacity measures 2.84:1/2.68:1, still under 3:1.
   "&.Mui-disabled": { color: "var(--muted)", opacity: 1 },
 };
+// #908 — a destructive action (deactivate, archive, deplete, disable) must
+// read as distinct from CONSOLE_LINK_SX's edit link by more than colour: pair
+// this with a leading icon (e.g. TriangleAlert) at every call site, so shape
+// carries the signal colour alone would miss for a colour-blind reader.
+export const CONSOLE_DESTRUCTIVE_LINK_SX = {
+  ...CONSOLE_LINK_SX,
+  color: "var(--danger)",
+  textDecorationColor: "var(--danger)",
+  "&:hover": { textDecoration: "underline", backgroundColor: "var(--tint-danger)" },
+};
 // #831 Concept B: cancel the panel padding so the header divider reaches both edges.
 export const CONSOLE_PAPER_HEAD_SX = {
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "15px",

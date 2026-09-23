@@ -1918,9 +1918,11 @@ export const en = {
     changeEmailButton: "change email",
     changeEmailSubmitButton: "Change email",
     flocksButton: "flocks",
-    // #356 — row actions and their badge. Disabled rows render muted with this
-    // badge (StatusBadge tinted via the "Inactive" status, labelled distinctly
-    // so it always reads "Disabled" rather than the generic "Inactive").
+    // #356/#908 — row actions and their badge. Disabled rows render muted with
+    // this badge (StatusBadge tinted via "Inactive", labelled "Disabled"
+    // rather than the generic term); an active row shows the counterpart so
+    // status is never blank.
+    activeBadge: "Active",
     disabledBadge: "Disabled",
     disableButton: "disable",
     enableButton: "enable",

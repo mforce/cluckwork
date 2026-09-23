@@ -568,6 +568,18 @@ describe("FlocksPage lifecycle", () => {
     expect(mockReactivate).toHaveBeenCalledWith("f2", expect.any(String));
     expect(screen.queryByRole("dialog")).toBeNull(); // reactivate is the undo — no guard
   });
+
+  // #908 acceptance: destructive actions must read as distinct from the
+  // primary edit action by more than colour alone, via CONSOLE_DESTRUCTIVE_LINK_SX.
+  it("marks deplete and archive as destructive, distinct from edit and reactivate", async () => {
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+    const activeRow = getRowByCellText("Hen House 1");
+    expect(within(activeRow).getByRole("button", { name: "deplete" })).toHaveStyle({ color: "var(--danger)" });
+    expect(within(activeRow).getByRole("button", { name: "archive" })).toHaveStyle({ color: "var(--danger)" });
+    expect(within(activeRow).getByRole("button", { name: "edit" })).not.toHaveStyle({ color: "var(--danger)" });
+    const depletedRow = screen.getByRole("row", { name: /Depleted Flock/ });
+    expect(within(depletedRow).getByRole("button", { name: "reactivate" })).not.toHaveStyle({ color: "var(--danger)" });
+  });
 });
 
 describe("FlocksPage pending states (#236)", () => {

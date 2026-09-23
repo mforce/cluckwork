@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Package, Plus } from "lucide-react";
+import { Package, Plus, TriangleAlert } from "lucide-react";
 import {
   Box, Checkbox, DialogActions, FormControlLabel, Stack, Tab, Table, TableBody, TableCell, Tabs,
   TableHead, TableRow, TextField, Tooltip,
@@ -17,8 +17,8 @@ import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import {
-  CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
-  selectableRowProps, useClampSelection,
+  CONSOLE_DESTRUCTIVE_LINK_SX, CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector,
+  STICKY_TABLE_HEAD_SX, selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -314,9 +314,9 @@ export function ProductsPage() {
       <>
         <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
         {p.active ? (
-          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
+          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
             onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
-            {t("deactivateButton")}
+            <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
           </BusyButton>
         ) : (
           <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`act:${p.id}`)}

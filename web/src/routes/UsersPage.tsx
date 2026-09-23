@@ -13,8 +13,8 @@ import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import {
-  CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
-  selectableRowProps, useClampSelection,
+  CONSOLE_DESTRUCTIVE_LINK_SX, CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector,
+  STICKY_TABLE_HEAD_SX, selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { FlockPicker } from "../components/FlockPicker";
@@ -761,9 +761,9 @@ export function UsersPage() {
               <RotateCcw size={14} aria-hidden /> {t("enableButton")}
             </button>
           ) : (
-            <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
+            <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
               <Ban size={14} aria-hidden /> {t("disableButton")}
-            </button>
+            </BusyButton>
           )
         )}
       </>
@@ -855,7 +855,7 @@ export function UsersPage() {
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameColumnHeader")}</TableCell>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("roleColumnHeader")}</TableCell>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusColumnHeader")}</TableCell>
-                  <TableCell sx={STICKY_TABLE_HEAD_SX}></TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("actions")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -870,7 +870,11 @@ export function UsersPage() {
                     <TableCell sx={NOWRAP}>{u.email}</TableCell>
                     <TableCell sx={NOWRAP}>{u.displayName ?? "—"}</TableCell>
                     <TableCell sx={NOWRAP}>{roleLabel(u.role)}</TableCell>
-                    <TableCell sx={NOWRAP}>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</TableCell>
+                    <TableCell sx={NOWRAP}>
+                      {u.disabledAt
+                        ? <StatusBadge status="Inactive" label={t("disabledBadge")} />
+                        : <StatusBadge status="Active" label={t("activeBadge")} />}
+                    </TableCell>
                     <TableCell sx={NOWRAP}>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
                         {renderActions(u)}
@@ -895,7 +899,7 @@ export function UsersPage() {
                 label: t("statusColumnHeader"),
                 value: selectedUser.disabledAt
                   ? <StatusBadge status="Inactive" label={t("disabledBadge")} />
-                  : "—",
+                  : <StatusBadge status="Active" label={t("activeBadge")} />,
               },
             ] : undefined}
             actions={selectedUser && (

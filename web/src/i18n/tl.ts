@@ -1483,6 +1483,7 @@ export const tl = {
     changeEmailButton: "palitan ang email",
     changeEmailSubmitButton: "Palitan ang email",
     flocksButton: "mga kawan",
+    activeBadge: "Aktibo",
     disabledBadge: "Naka-disable",
     disableButton: "i-disable",
     enableButton: "i-enable",

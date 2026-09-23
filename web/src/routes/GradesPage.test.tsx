@@ -225,6 +225,18 @@ describe("GradesPage admin actions", () => {
     expect(mockActivate).toHaveBeenCalledWith("g2", expect.any(String));
   });
 
+  // #908 acceptance: destructive actions must read as distinct from the
+  // primary edit action by more than colour alone, via CONSOLE_DESTRUCTIVE_LINK_SX.
+  it("marks deactivate as destructive, distinct from edit and activate", async () => {
+    await renderReady(ADMIN);
+    expect(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" }))
+      .toHaveStyle({ color: "var(--danger)" });
+    expect(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }))
+      .not.toHaveStyle({ color: "var(--danger)" });
+    expect(within(screen.getByRole("row", { name: /Legacy/ })).getByRole("button", { name: "activate" }))
+      .not.toHaveStyle({ color: "var(--danger)" });
+  });
+
   it("replays the SAME idempotency key after a failed create, and rotates it after success", async () => {
     // fail once, then succeed twice
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));

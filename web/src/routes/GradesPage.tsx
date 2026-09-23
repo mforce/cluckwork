@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Plus } from "lucide-react";
+import { Plus, TriangleAlert } from "lucide-react";
 import {
   Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell,
   TableHead, TableRow, TextField,
@@ -15,8 +15,8 @@ import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import {
-  CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector, STICKY_TABLE_HEAD_SX,
-  selectableRowProps, useClampSelection,
+  CONSOLE_DESTRUCTIVE_LINK_SX, CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector,
+  STICKY_TABLE_HEAD_SX, selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -193,9 +193,9 @@ export function GradesPage() {
             <button className="link" disabled={busy}
               onClick={() => startEdit(g)}>{t("editButton")}</button>
             {g.active ? (
-              <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+              <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
                 onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
-                {t("deactivateButton")}
+                <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
               </BusyButton>
             ) : (
               <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}

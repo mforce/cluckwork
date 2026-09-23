@@ -362,6 +362,17 @@ describe("ProductsPage edit", () => {
     });
     expect(mockActivate).toHaveBeenCalledWith("p2", expect.any(String));
   });
+
+  // #908 acceptance: destructive actions must read as distinct from the
+  // primary edit action by more than colour alone, via CONSOLE_DESTRUCTIVE_LINK_SX.
+  it("marks deactivate as destructive, distinct from edit and activate", async () => {
+    await renderReady(ADMIN);
+    const activeRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+    expect(within(activeRow).getByRole("button", { name: "deactivate" })).toHaveStyle({ color: "var(--danger)" });
+    expect(within(activeRow).getByRole("button", { name: "edit" })).not.toHaveStyle({ color: "var(--danger)" });
+    expect(within(screen.getByRole("row", { name: /Legacy Tray/ })).getByRole("button", { name: "activate" }))
+      .not.toHaveStyle({ color: "var(--danger)" });
+  });
 });
 
 describe("ProductsPage packed-unit conversions", () => {
