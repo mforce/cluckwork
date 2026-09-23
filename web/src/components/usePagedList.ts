@@ -222,11 +222,10 @@ export function usePagedList<T extends { id: string }, M = never>({
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
 
-  // What became of this page request; a screen that pages by INDEX needs all
-  // three apart (#915). `rows: 0` is a real answer — it is how the LAST page
-  // announces itself — and that count cannot come from `rows`, which React may
-  // not have rendered when this resolves. A `dropped` page is one nobody waits
-  // for, and calling it a failure shows an error to a reader who tapped twice.
+  // What became of this page request; a screen paging by INDEX needs all three
+  // apart (#915). `rows: 0` is how the LAST page announces itself, and that
+  // count cannot come from `rows`, which React may not have rendered yet. A
+  // `dropped` page is one nobody waits for, not a failure to show the reader.
   const loadMore = useCallback(async (): Promise<LoadMoreResult> => {
     if (loadingRef.current) return { status: "dropped" };
     const seq = ++req.current;

@@ -428,6 +428,63 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
+  // `getStock()` carries no timeout, so one stalled read used to hold the
+  // WHOLE screen on its full-page loading view — hiding panels that had
+  // already answered, and their errors and Retry with them.
+  it("shows the panels that answered while another read is still outstanding", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 12)]);
+    mockStock.mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(<Dashboard />);
+
+    // The collection panel is on screen with its row, and the full-page
+    // loading view is gone.
+    expect(await screen.findByRole("group", { name: "Flock f1" })).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    expect(screen.getByText("1 of 1 house in")).toBeInTheDocument();
+    // Stock has not answered, so it says so rather than claiming a failure.
+    expect(screen.getByRole("progressbar", { name: "Stock" })).toBeInTheDocument();
+    expect(within(await panel("Stock")).queryByText("Could not load.")).not.toBeInTheDocument();
+  });
+
+  it("shows panel errors and Retry while another read is still outstanding", async () => {
+    mockFlocks.mockRejectedValue(new Error("flocks down"));
+    mockEntries.mockRejectedValue(new Error("entries down"));
+    mockStock.mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(<Dashboard />);
+
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    // The flock-list failure offers its own recovery, not a dead screen.
+    expect(screen.getByText("Could not load the flock list.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+    // Two reads failed and one is outstanding, so "everything failed" is not
+    // yet a verdict anyone can reach.
+    expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument();
+  });
+
+  // A read that has not answered YET is not a read that failed, and a
+  // generation that follows a failed one must start from a clean slate: the
+  // previous failure would otherwise be painted over a request in flight.
+  it("shows the collection panel loading, not failed, once a new generation is in flight", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockRejectedValueOnce(new Error("entries down"))
+      .mockImplementation(() => new Promise(() => {}));
+    mockStock.mockResolvedValue(STOCK);
+    const { rerender } = render(
+      <MemoryRouter><AuthOverride role="Admin"><Dashboard /></AuthOverride></MemoryRouter>,
+    );
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
+
+    // A role change starts a fresh generation whose entry read never answers.
+    rerender(<MemoryRouter><AuthOverride role="ReadOnly"><Dashboard /></AuthOverride></MemoryRouter>);
+
+    const today = await panel("Today");
+    await waitFor(() =>
+      expect(within(today).queryByText("Could not load.")).not.toBeInTheDocument());
+    expect(within(today).getByRole("progressbar", { name: "Morning collection" })).toBeInTheDocument();
+  });
+
   it("gives a phone six houses a page, not the desktop eight", async () => {
     stubMatchMedia(false); // < 900px
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));

@@ -141,6 +141,10 @@ export function Dashboard() {
   // `flocksFailed` on click showed that same false zero in the gap before.
   const [flocksFailed, setFlocksFailed] = useState(false);
   const [flocksTruncated, setFlocksTruncated] = useState(false);
+  // Told apart from "not here yet": a panel that has not answered shows its own
+  // loading state, never the error of a read that has not failed.
+  const [entriesFailed, setEntriesFailed] = useState(false);
+  const [stockFailed, setStockFailed] = useState(false);
   const [entriesTruncated, setEntriesTruncated] = useState(false);
   const [flocksRetrying, setFlocksRetrying] = useState(false);
   // Bumped by Retry so the panels effect re-runs under its own ownership.
@@ -254,6 +258,8 @@ export function Dashboard() {
     let cancelled = false;
     const controller = new AbortController();
     setPanelsOutcome({ state: "pending" }); // a fresh load starts clean, never on a stale verdict
+    setEntriesFailed(false);
+    setStockFailed(false);
     const flockRead = drainPages((offset, limit, signal) => listFlocks({ limit, offset }, signal), controller.signal);
     const entryRead = drainPages((offset, limit, signal) => listDailyEntries({ from: today, to: today, limit, offset }, signal), controller.signal);
     const stockRead = getStock();
@@ -262,6 +268,10 @@ export function Dashboard() {
     // recovered flock list waited on a stock request that may never answer
     // (`fetch` carries no timeout), leaving Retry disabled on a list already
     // back. One generation and one controller still cover all three.
+    // The first answer ends the full-page gate. One stalled read — `getStock`
+    // carries no timeout — used to hold the whole screen, hiding the panels
+    // that HAD answered along with their own errors and Retry.
+    const settle = () => { if (!cancelled) setLoading(false); };
     flockRead.then(({ rows, truncated }) => {
       if (cancelled) return;
       setFlocks(rows); setFlocksTruncated(truncated); setFlocksFailed(false);
@@ -269,12 +279,13 @@ export function Dashboard() {
     }).catch(() => {
       if (cancelled) return;
       setFlocksFailed(true); setFlocksRetrying(false);
-    });
+    }).finally(settle);
     entryRead.then(({ rows, truncated }) => {
       if (cancelled) return;
       setEntries(rows); setEntriesTruncated(truncated);
-    }).catch(() => {});
-    stockRead.then((rows) => { if (!cancelled) setStock(rows); }).catch(() => {});
+    }).catch(() => { if (!cancelled) setEntriesFailed(true); }).finally(settle);
+    stockRead.then((rows) => { if (!cancelled) setStock(rows); })
+      .catch(() => { if (!cancelled) setStockFailed(true); }).finally(settle);
 
     // The page-level verdict still needs every answer, because "everything
     // failed" is only true once nothing is outstanding.
@@ -284,7 +295,6 @@ export function Dashboard() {
       setPanelsOutcome(rejected.length === issued.length
         ? { state: "allFailed", reason: rejected[0]?.reason }
         : { state: "someOk" });
-      setLoading(false);
     });
     return () => { cancelled = true; controller.abort(); };
     // #918 — `canSeeSales` is a dep even though none of these three reads is
@@ -578,7 +588,10 @@ export function Dashboard() {
                 : t("todayInCount", { in: recordedHouses, count: allTiles.length })}
             </Typography>}
           </Box>
-          {allTiles === null || entries === null ? panelError : allTiles.length === 0 ? (
+          {allTiles === null || entries === null
+            ? (flocksFailed || entriesFailed ? panelError
+              : <LinearProgress aria-label={t("collectionTitle")} sx={{ height: 5, borderRadius: 2 }} />)
+            : allTiles.length === 0 ? (
             <EmptyState icon={Bird} message={t("noFlocksMessage")} />
           ) : (
             <>
@@ -621,7 +634,10 @@ export function Dashboard() {
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("stockPanelTitle")}><Link to="/stock">{t("availableStockTitle")}</Link></Typography>
           </Box>
-          {bar === null || stock === null ? panelError : stock.length === 0 ? <EmptyState icon={Egg} message={t("noStockMessage")} /> : (
+          {bar === null || stock === null
+            ? (stockFailed ? panelError
+              : <LinearProgress aria-label={t("stockPanelTitle")} sx={{ height: 5, borderRadius: 2 }} />)
+            : stock.length === 0 ? <EmptyState icon={Egg} message={t("noStockMessage")} /> : (
             <>
               <Typography className="stock-total" sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1, mb: 2,
                 "& .stock-fig": { fontFamily: "Georgia, serif", fontSize: "2.5rem" } }}>
