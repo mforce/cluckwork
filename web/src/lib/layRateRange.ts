@@ -5,11 +5,9 @@
 // arithmetic has literal oracles and the screen only renders what it returns.
 import { daysBefore, inclusiveDays, isIsoCalendarDate } from "./dates";
 
-// 14 is the middle preset rather than the 15 #914 proposed: 15 days cannot be
-// drawn one bar per day (MAX_DAY_SLOTS is 14, sized by the card's width), so a
-// 15-day preset would collapse to weekly bars of 7, 7 and 1, where 14 keeps a
-// full fortnight of daily bars and the phone geometry #912 settled.
-export const RANGE_PRESETS = [7, 14, 30] as const;
+// Only what the card can draw ONE BAR A DAY (owner, 2026-09-23). Longer
+// ranges, and the display that could carry them, are #941's.
+export const RANGE_PRESETS = [7, 14] as const;
 export type RangePreset = (typeof RANGE_PRESETS)[number];
 
 export type LayRateRange =
@@ -18,10 +16,11 @@ export type LayRateRange =
 
 export const DEFAULT_RANGE: LayRateRange = { kind: "preset", days: 14 };
 
-// The widest custom range the card accepts. 90 days is 13 weekly bars, inside
-// the 14 the strip can hold, so the cap and the strip's own ceiling agree
-// instead of each needing the other to be lenient.
-export const MAX_RANGE_DAYS = 90;
+// The widest window the strip can draw at a readable width: a bar plus its gap
+// needs 24px on a phone (22px slots, 2px gaps — #912, in 342px of plot), which
+// divides to 14. Past it the card would have to change what a bar MEANS, and
+// that is #941's job rather than a quiet re-scaling of this one.
+export const MAX_RANGE_DAYS = 14;
 
 export interface TrendWindow {
   from: string;

@@ -26,7 +26,7 @@ import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import {
-  captureTiles, dayStrip, henDayTrend, panelPage, stockBar, stripPeriods, todaysEggs,
+  captureTiles, dayStrip, henDayTrend, panelPage, stockBar, todaysEggs,
 } from "../lib/dashboard";
 import type { CaptureTile, DayStripData, DayStripSlot } from "../lib/dashboard";
 import {
@@ -376,7 +376,7 @@ export function Dashboard() {
   const contextScope = scopedFlock ? scopedFlock.name : accessibleCountLabel;
 
   const trendData = trend === null ? null : {
-    line: dayStrip({ periods: stripPeriods(trend.current.days) }),
+    line: dayStrip({ days: trend.current.days }),
     henDay: henDayTrend(trend.current, trend.previous),
   };
   const bar = stock === null ? null : stockBar(stock);
@@ -450,29 +450,8 @@ export function Dashboard() {
   // farm-locale formatted before it reaches a catalog string (#650). The
   // unrecorded arm carries no count at all — that is the point of #780 — and
   // the partial arm says its total is a floor rather than the day's output.
-  // #914 — a bucketed slot says its own span and day count, which is how a
-  // short last bucket labels itself. The wording follows the STRIP's mode, not
-  // the bucket's length: 15, 22 or 29 days leave a ONE-day last bucket, and
-  // reading that off `dayCount` gave it the daily sentence beside weekly ones.
-  const trendTip = (line: DayStripData) => (slot: DayStripSlot) => {
+  const trendTip = (slot: DayStripSlot) => {
     const date = fmt.date(slot.date);
-    const span = { from: date, to: fmt.date(slot.endDate), count: slot.dayCount, days: fmt.count(slot.dayCount) };
-    if (line.bucketed) {
-      switch (slot.kind) {
-        case "none":
-          return t("trendWeekTipNoFlocks", span);
-        case "unrecorded":
-          return t("trendWeekTipNone", span);
-        case "partial":
-          return t("trendWeekTipPartial", {
-            ...span, total: fmt.count(slot.eggs), perDay: fmt.count(slot.perDayEggs),
-          });
-        case "recorded":
-          return t("trendWeekTip", {
-            ...span, total: fmt.count(slot.eggs), perDay: fmt.count(slot.perDayEggs),
-          });
-      }
-    }
     switch (slot.kind) {
       case "none":
         return t("trendDayTipNoFlocks", { date });
@@ -864,17 +843,14 @@ export function Dashboard() {
             : trendData === null ? panelError : <>
               <DayStrip data={trendData.line} label={trendLabel(trendData.line)}
                 title={t(
-                  trendData.line.scale === "none" ? "trendScaleTitleNone"
-                    : trendData.line.scale === "partial"
-                      ? (trendData.line.bucketed ? "trendScaleTitleWeekPartial" : "trendScaleTitlePartial")
-                      : (trendData.line.bucketed ? "trendScaleTitleWeek" : "trendScaleTitle"),
+                  trendData.line.scale === "partial" ? "trendScaleTitlePartial"
+                    : trendData.line.scale === "none" ? "trendScaleTitleNone"
+                      : "trendScaleTitle",
                 )}
                 peak={t("trendPeak", { total: trendData.line.max === null ? "—" : fmt.count(trendData.line.max) })}
-                average={trendData.line.average === null
-                  ? t(trendData.line.bucketed ? "trendNoCompleteWeekAvg" : "trendNoCompleteAvg")
-                  : t(trendData.line.bucketed ? "trendCompleteWeekAvg" : "trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
+                average={trendData.line.average === null ? t("trendNoCompleteAvg") : t("trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
                 legend={{ complete: t("legendComplete"), partial: t("legendPartial"), noEntry: t("legendNoEntry") }}
-                tip={trendTip(trendData.line)} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
+                tip={trendTip} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
               <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
               <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>
                 {t("henDaySubLabel", { range: rangeSpan, count: plotted.days, days: fmt.count(plotted.days) })}

@@ -11,8 +11,10 @@ const TODAY = "2026-07-21";
 const LATEST = "2026-07-20";
 
 describe("trendWindow (#914)", () => {
-  it("offers 7, 14 and 30 days and starts on 14", () => {
-    expect(RANGE_PRESETS).toEqual([7, 14, 30]);
+  // #914 as scoped by the owner on 2026-09-23: the card draws DAILY bars and
+  // nothing else, so it offers only what it can draw. Longer ranges are #941's.
+  it("offers 7 and 14 days and starts on 14", () => {
+    expect(RANGE_PRESETS).toEqual([7, 14]);
     expect(DEFAULT_RANGE).toEqual({ kind: "preset", days: 14 });
   });
 
@@ -23,23 +25,19 @@ describe("trendWindow (#914)", () => {
     });
   });
 
-  it("gives the seven-day preset seven days and the thirty-day preset thirty", () => {
+  it("gives the seven-day preset seven days", () => {
     expect(trendWindow({ kind: "preset", days: 7 }, TODAY)).toEqual({
       from: "2026-07-14", to: "2026-07-20", days: 7,
       previousFrom: "2026-07-07", previousTo: "2026-07-13",
-    });
-    expect(trendWindow({ kind: "preset", days: 30 }, TODAY)).toEqual({
-      from: "2026-06-21", to: "2026-07-20", days: 30,
-      previousFrom: "2026-05-22", previousTo: "2026-06-20",
     });
   });
 
   // The two windows are adjacent by construction, which is what lets the card
   // fetch them as ONE report and split it.
   it("measures a custom range inclusively and mirrors its length backwards", () => {
-    expect(trendWindow({ kind: "custom", from: "2026-01-01", to: "2026-03-01" }, TODAY)).toEqual({
-      from: "2026-01-01", to: "2026-03-01", days: 60,
-      previousFrom: "2025-11-02", previousTo: "2025-12-31",
+    expect(trendWindow({ kind: "custom", from: "2026-01-01", to: "2026-01-10" }, TODAY)).toEqual({
+      from: "2026-01-01", to: "2026-01-10", days: 10,
+      previousFrom: "2025-12-22", previousTo: "2025-12-31",
     });
   });
 
@@ -67,11 +65,13 @@ describe("customRangeError (#914)", () => {
     expect(customRangeError("2026-07-01", "2026-07-21", LATEST)).toBe("future");
   });
 
-  // Rejected in the form, never silently truncated.
-  it("takes exactly ninety days and refuses the ninety-first", () => {
-    expect(MAX_RANGE_DAYS).toBe(90);
-    expect(customRangeError("2026-01-01", "2026-03-31", LATEST)).toBeNull();
-    expect(customRangeError("2026-01-01", "2026-04-01", LATEST)).toBe("tooLong");
+  // Rejected in the form, never silently truncated. The cap is what the strip
+  // can draw one bar a day: past it the card would have to change what a bar
+  // MEANS, which is #941's job, not a quiet re-scaling of this one.
+  it("takes exactly fourteen days and refuses the fifteenth", () => {
+    expect(MAX_RANGE_DAYS).toBe(14);
+    expect(customRangeError("2026-07-07", "2026-07-20", LATEST)).toBeNull();
+    expect(customRangeError("2026-07-06", "2026-07-20", LATEST)).toBe("tooLong");
   });
 });
 
@@ -89,7 +89,7 @@ describe("customRangeError at the edge of the calendar", () => {
 
   it("refuses a range with no equal window before it", () => {
     expect(customRangeError("0001-01-05", "0001-01-10", LATEST)).toBe("beforeCalendar");
-    expect(customRangeError("0001-01-01", "0001-03-31", LATEST)).toBe("beforeCalendar");
+    expect(customRangeError("0001-01-01", "0001-01-10", LATEST)).toBe("beforeCalendar");
   });
 
   it("accepts a range whose comparison window starts exactly on 0001-01-01", () => {
@@ -101,12 +101,12 @@ describe("customRangeError at the edge of the calendar", () => {
 
 describe("remembered range (#914, #535 per-farm storage)", () => {
   it("round-trips a preset and a custom range", () => {
-    expect(formatStoredRange({ kind: "preset", days: 30 })).toBe("30");
-    expect(formatStoredRange({ kind: "custom", from: "2026-01-01", to: "2026-03-01" }))
-      .toBe("2026-01-01..2026-03-01");
-    expect(parseStoredRange("30", LATEST)).toEqual({ kind: "preset", days: 30 });
-    expect(parseStoredRange("2026-01-01..2026-03-01", LATEST))
-      .toEqual({ kind: "custom", from: "2026-01-01", to: "2026-03-01" });
+    expect(formatStoredRange({ kind: "preset", days: 7 })).toBe("7");
+    expect(formatStoredRange({ kind: "custom", from: "2026-01-01", to: "2026-01-10" }))
+      .toBe("2026-01-01..2026-01-10");
+    expect(parseStoredRange("7", LATEST)).toEqual({ kind: "preset", days: 7 });
+    expect(parseStoredRange("2026-01-01..2026-01-10", LATEST))
+      .toEqual({ kind: "custom", from: "2026-01-01", to: "2026-01-10" });
   });
 
   it("reads nothing remembered as nothing remembered", () => {
@@ -118,8 +118,16 @@ describe("remembered range (#914, #535 per-farm storage)", () => {
   it("drops a stored value the form itself would reject", () => {
     expect(parseStoredRange("15", LATEST)).toBeNull();
     expect(parseStoredRange("nonsense", LATEST)).toBeNull();
-    expect(parseStoredRange("2026-01-01..2026-04-01", LATEST)).toBeNull();
     expect(parseStoredRange("2026-01-01..2026-07-21", LATEST)).toBeNull();
-    expect(parseStoredRange("2026-01-01..2026-03-01..2026-04-01", LATEST)).toBeNull();
+    expect(parseStoredRange("2026-01-01..2026-01-10..2026-02-01", LATEST)).toBeNull();
+  });
+
+  // A device that remembered a window this build no longer draws — a 30-day
+  // preset, or a custom range longer than the new cap — must come back to the
+  // default rather than to a range the card cannot honour.
+  it("forgets a remembered range the card can no longer draw", () => {
+    expect(parseStoredRange("30", LATEST)).toBeNull();
+    expect(parseStoredRange("2026-06-21..2026-07-20", LATEST)).toBeNull();
+    expect(parseStoredRange("2026-05-01..2026-07-20", LATEST)).toBeNull();
   });
 });

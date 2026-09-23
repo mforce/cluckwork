@@ -79,52 +79,31 @@ export function todaysEggs(entries: DailyEntry[]): number {
 export const DAY_SLOT_KINDS = ["none", "unrecorded", "partial", "recorded"] as const;
 type DaySlotKind = (typeof DAY_SLOT_KINDS)[number];
 
-// #914 — the strip holds at most this many bars. A bar plus its gap needs 24px
-// on a phone (22px slots, 2px gaps — #912, in 342px of plot) and 26px on
-// desktop (4px gaps, in 387px of plot); both divide to 14. Past this the
-// window draws one bar per week, never narrower bars and never a scrollbar.
-export const MAX_DAY_SLOTS = 14;
+// The week hairline falls every seven days inside the strip.
 export const WEEK_DAYS = 7;
 
-// What one bar stands for: a single day, or up to a week of them. The bar's
-// HEIGHT reads `perDayEggs`, not `totalEggs` — a short last bucket's total
-// would otherwise draw a collapse the farm's records never claimed, the same
-// misreading #780 closed. The flock counts are flock-DAYS past one day.
-export interface StripPeriod {
-  date: string;
-  endDate: string;
-  dayCount: number;
-  totalEggs: number;
-  perDayEggs: number;
-  recordedFlocks: number;
-  missingFlocks: number;
-  expectedFlocks: number;
-}
-
 export type DayStripSlot =
-  // `none` is a period that owed no filing at all — before the first placement,
-  // or after the last flock left. It is NOT a gap, and counting it as one made a
+  // `none` is a day that owed no filing at all — before the first placement, or
+  // after the last flock left. It is NOT a gap, and counting it as one made a
   // farm's first fortnight announce fourteen missing days.
-  | { kind: Extract<DaySlotKind, "none">; date: string; endDate: string; dayCount: number; weekBreak: boolean }
-  | { kind: Extract<DaySlotKind, "unrecorded">; date: string; endDate: string; dayCount: number; expectedFlocks: number; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "none">; date: string; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "unrecorded">; date: string; expectedFlocks: number; weekBreak: boolean }
   // `filedFlocks` is how many of the flocks that OWED a count filed one, which
   // is what the readout compares against `expectedFlocks`. It is not
   // `recordedFlocks`: a flock filing outside its lifecycle window is counted
   // there and answers for nobody's expectation.
-  | { kind: Extract<DaySlotKind, "partial">; date: string; endDate: string; dayCount: number; eggs: number; perDayEggs: number; heightPct: number; filedFlocks: number; expectedFlocks: number; weekBreak: boolean }
-  | { kind: Extract<DaySlotKind, "recorded">; date: string; endDate: string; dayCount: number; eggs: number; perDayEggs: number; heightPct: number; weekBreak: boolean };
+  | { kind: Extract<DaySlotKind, "partial">; date: string; eggs: number; heightPct: number; filedFlocks: number; expectedFlocks: number; weekBreak: boolean }
+  | { kind: Extract<DaySlotKind, "recorded">; date: string; eggs: number; heightPct: number; weekBreak: boolean };
 
 export interface DayStripData {
   slots: DayStripSlot[];
-  // The complete-period peak when one exists, else the largest partial one
-  // (#916). `scale` names which pool it came from. In eggs per day, so a
-  // weekly strip's Peak reads on the same scale as a daily one's.
+  // The complete-day peak when one exists, else the largest partial total
+  // (#916). `scale` names which pool it came from.
   max: number | null;
-  // Over the COMPLETE periods only — the ones every house reported on every
-  // day. A partial period's total is a floor, so averaging it in drags the
-  // reference line down by however many houses forgot, which is the same
-  // defect one layer up. Unlike `max`, this never falls back to the partial
-  // pool — that would understate.
+  // Over the COMPLETE days only — the days every house reported. A partial
+  // day's total is a floor, so averaging it in drags the reference line down by
+  // however many houses forgot, which is the same defect one layer up. Unlike
+  // `max`, this never falls back to the partial pool — that would understate.
   average: number | null;
   // The average as a share of the peak, for the reference line. Separate from
   // `average` because the line is geometry and the figure is a count.
@@ -132,71 +111,30 @@ export interface DayStripData {
   complete: number;
   partial: number;
   unrecorded: number;
-  // "complete" is the ordinary rule; "partial" is #916's fallback when no
-  // period is complete; "none" means nothing in the window was recorded.
+  // "complete" is the ordinary rule; "partial" is #916's fallback when no day
+  // is complete; "none" means nothing in the window was recorded.
   scale: "complete" | "partial" | "none";
-  // #914 — one bar per week rather than per day. The card words its scale
-  // caption, its average and every bar's readout from this.
-  bucketed: boolean;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-// One period per day: the shape the strip has had since #654.
-export function dailyPeriods(days: ProductionDay[]): StripPeriod[] {
-  return days.map((d) => ({
-    date: d.date, endDate: d.date, dayCount: 1,
-    totalEggs: d.totalEggs, perDayEggs: d.totalEggs,
-    recordedFlocks: d.recordedFlocks, missingFlocks: d.missingFlocks, expectedFlocks: d.expectedFlocks,
-  }));
-}
-
-// #914 — 7-day buckets from the START of the window, so the LAST one is the
-// short one when the window does not divide. Forward from the start rather than
-// back from the end because the reader's eye anchors on the range's own first
-// date, which is the label under the strip.
-export function weekPeriods(days: ProductionDay[]): StripPeriod[] {
-  const periods: StripPeriod[] = [];
-  for (let i = 0; i < days.length; i += WEEK_DAYS) {
-    const chunk = days.slice(i, i + WEEK_DAYS);
-    const sum = (pick: (d: ProductionDay) => number) => chunk.reduce((total, d) => total + pick(d), 0);
-    const totalEggs = sum((d) => d.totalEggs);
-    periods.push({
-      date: chunk[0].date,
-      endDate: chunk[chunk.length - 1].date,
-      dayCount: chunk.length,
-      totalEggs,
-      perDayEggs: r1(totalEggs / chunk.length),
-      recordedFlocks: sum((d) => d.recordedFlocks),
-      missingFlocks: sum((d) => d.missingFlocks),
-      expectedFlocks: sum((d) => d.expectedFlocks),
-    });
-  }
-  return periods;
-}
-
-export function stripPeriods(days: ProductionDay[]): StripPeriod[] {
-  return days.length > MAX_DAY_SLOTS ? weekPeriods(days) : dailyPeriods(days);
-}
-
 // A bar is anchored at zero and its height is its share of the peak. Not a
 // cropped axis: the panel answers "did production hold", and shortening the
-// axis to dramatise a small swing would misstate the ratios between periods.
+// axis to dramatise a small swing would misstate the ratios between days.
 //
-// Every period with a figure floors at 2%, including one that produced no eggs —
+// Every day with a figure floors at 2%, including one that produced no eggs —
 // that stub at the baseline is the whole visible difference between "the flock
-// laid nothing and someone said so" and "nobody looked". A period nobody
-// recorded draws no bar at all, so the two can never render alike.
+// laid nothing and someone said so" and "nobody looked". A day nobody recorded
+// draws no bar at all, so the two can never render alike.
 //
-// The week break marks each seven-day boundary inside a DAILY strip, which on
-// the fourteen-day default falls exactly where it always has. A weekly strip
-// needs none: every bar is already a week.
-export function dayStrip({ periods }: { periods: StripPeriod[] }): DayStripData {
+// The week break marks each seven-day boundary, which on the fourteen-day
+// default falls exactly where it always has.
+export function dayStrip({ days }: { days: ProductionDay[] }): DayStripData {
   const empty: DayStripData = {
     slots: [], max: null, average: null, averagePct: null,
-    complete: 0, partial: 0, unrecorded: 0, scale: "none", bucketed: false,
+    complete: 0, partial: 0, unrecorded: 0, scale: "none",
   };
-  if (periods.length === 0) return empty;
+  if (days.length === 0) return empty;
 
   // Completeness is `missingFlocks`, never a comparison of the two counts.
   // `recordedFlocks` counts any flock that filed and `expectedFlocks` counts the
@@ -204,55 +142,52 @@ export function dayStrip({ periods }: { periods: StripPeriod[] }): DayStripData 
   // against filings {A, C} gives 2 and 2, so B's missing filing read as a
   // complete day and its shortfall went into Peak and Avg. The server compares
   // identities and reports the shortfall directly.
-  const isComplete = (p: StripPeriod) => p.recordedFlocks > 0 && p.missingFlocks === 0;
-  const complete = periods.filter(isComplete).map((p) => p.perDayEggs);
+  const isComplete = (d: ProductionDay) => d.recordedFlocks > 0 && d.missingFlocks === 0;
+  const complete = days.filter(isComplete).map((d) => d.totalEggs);
   const average = complete.length === 0
     ? null
     : r1(complete.reduce((a, v) => a + v, 0) / complete.length);
   // #916 — without this pool a window of only partial days had a null peak, so
   // every bar floored at 2% however they actually compared.
-  const recorded = periods.filter((p) => p.recordedFlocks > 0).map((p) => p.perDayEggs);
+  const recorded = days.filter((d) => d.recordedFlocks > 0).map((d) => d.totalEggs);
   const scale: DayStripData["scale"] = complete.length > 0 ? "complete" : recorded.length > 0 ? "partial" : "none";
   const pool = complete.length > 0 ? complete : recorded;
   const max = pool.length === 0 ? null : Math.max(...pool);
-  const bucketed = periods.some((p) => p.dayCount > 1);
 
-  // Height is a share of `max`, whichever pool it came from. A partial period
+  // Height is a share of `max`, whichever pool it came from. A partial day
   // can therefore exceed 100% — two big houses out of three can beat a quiet
-  // complete one — so it is capped rather than allowed to overflow its slot.
-  const height = (perDayEggs: number) =>
-    max !== null && max > 0 ? Math.min(100, Math.max(2, r1((perDayEggs / max) * 100))) : 2;
+  // complete day — so it is capped rather than allowed to overflow its slot.
+  const height = (eggs: number) =>
+    max !== null && max > 0 ? Math.min(100, Math.max(2, r1((eggs / max) * 100))) : 2;
 
-  const slots: DayStripSlot[] = periods.map((p, i) => {
-    const span = { date: p.date, endDate: p.endDate, dayCount: p.dayCount };
-    const weekBreak = !bucketed && i > 0 && i % WEEK_DAYS === 0;
-    if (p.expectedFlocks === 0 && p.recordedFlocks === 0) {
-      return { kind: "none", ...span, weekBreak };
+  const slots: DayStripSlot[] = days.map((d, i) => {
+    const weekBreak = i > 0 && i % WEEK_DAYS === 0;
+    if (d.expectedFlocks === 0 && d.recordedFlocks === 0) {
+      return { kind: "none", date: d.date, weekBreak };
     }
-    if (p.recordedFlocks === 0) {
-      return { kind: "unrecorded", ...span, expectedFlocks: p.expectedFlocks, weekBreak };
+    if (d.recordedFlocks === 0) {
+      return { kind: "unrecorded", date: d.date, expectedFlocks: d.expectedFlocks, weekBreak };
     }
-    if (!isComplete(p)) {
+    if (!isComplete(d)) {
       return {
-        kind: "partial", ...span, eggs: p.totalEggs, perDayEggs: p.perDayEggs, heightPct: height(p.perDayEggs),
-        filedFlocks: p.expectedFlocks - p.missingFlocks, expectedFlocks: p.expectedFlocks, weekBreak,
+        kind: "partial", date: d.date, eggs: d.totalEggs, heightPct: height(d.totalEggs),
+        filedFlocks: d.expectedFlocks - d.missingFlocks, expectedFlocks: d.expectedFlocks, weekBreak,
       };
     }
-    return { kind: "recorded", ...span, eggs: p.totalEggs, perDayEggs: p.perDayEggs, heightPct: height(p.perDayEggs), weekBreak };
+    return { kind: "recorded", date: d.date, eggs: d.totalEggs, heightPct: height(d.totalEggs), weekBreak };
   });
 
   return {
     slots,
     max,
     average,
-    // A window whose every complete period is zero has a real average of 0 and
-    // no scale to place it on, so it gets no line rather than one on the floor.
+    // A window whose every complete day is zero has a real average of 0 and no
+    // scale to place it on, so it gets no line rather than one on the floor.
     averagePct: average === null || max === null || max === 0 ? null : r1((average / max) * 100),
     complete: complete.length,
     partial: slots.filter((s) => s.kind === "partial").length,
     unrecorded: slots.filter((s) => s.kind === "unrecorded").length,
     scale,
-    bucketed,
   };
 }
 

@@ -348,6 +348,32 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  // `Button`'s own default is `color="primary"`, and on the text and outlined
+  // variants that brand colour is the FOREGROUND — against a dark surface it
+  // is the same defect as the Tabs above and `MuiBottomNavigationAction`
+  // before them, because #149's dark palette blocks never redeclare `--brand`.
+  // Fourteen call sites across seven screens take that default today.
+  //
+  // Reads the colour MUI will ACTUALLY paint — the override when the theme
+  // declares one, otherwise `palette.primary.main` — so this fails with a real
+  // ratio whether the override is wrong or simply absent.
+  it("keeps a text or outlined primary button readable (>=4.5:1) on every surface, palette and mode", () => {
+    const buttonInk = (theme: Theme, variantSlot: "textPrimary" | "outlinedPrimary") => {
+      const overrides = theme.components?.MuiButton?.styleOverrides as
+        Record<string, Record<string, unknown> | undefined> | undefined;
+      return (overrides?.[variantSlot]?.color as string | undefined) ?? theme.palette.primary.main;
+    };
+
+    for (const { label, theme } of themes) {
+      for (const variantSlot of ["textPrimary", "outlinedPrimary"] as const) {
+        const ink = buttonInk(theme, variantSlot);
+        for (const bg of [theme.palette.background.paper, theme.palette.background.default]) {
+          expect(contrast(ink, bg), `${label} ${variantSlot} vs ${bg}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
   it("sets desktop/phone ledger row heights", () => {
     for (const { label, theme } of themes) {
       const root = slot(theme.components?.MuiTableRow?.styleOverrides?.root, `${label} MuiTableRow root`);

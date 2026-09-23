@@ -121,9 +121,9 @@ over every house, never the page on screen. A Voided entry does not count (it
 vacated its day, #82); a Draft does (captured, not yet submitted). Depleted
 and archived flocks appear only when they do have an entry today. Recent
 orders pages the same way, five at a time, fetching each page as it is asked
-for. Beside them the dashboard shows the chosen **Lay rate range** from the
-**Production report** (submitted days only, ending yesterday or earlier —
-never today, unlike Reports) with the report's own **Hen-day %** for that
+for. Beside them the dashboard shows the chosen **Lay rate range** — up to a
+fortnight, one bar a day — from the **Production report** (submitted days
+only, ending yesterday or earlier — never today, unlike Reports) with the report's own **Hen-day %** for that
 window against the window of the same length before it, and stock as one
 stacked bar by grade whose total is the Stock screen's.
 
@@ -751,27 +751,27 @@ over rather than the figure itself. Distinct from a day nobody recorded,
 which has no figure at all.
 
 **Lay rate strip scale (#916, #914)** — Peak scales every bar to the largest
-**complete** period's figure when the window has one. When it does not — every
-recorded period in the window is partial — Peak falls back to the largest
-**partial** figure instead, and the caption says "partial days only" (or
-"partial weeks only" on a weekly strip) so the bars are never read as
-full-farm output. A window with no recorded period at all has no Peak and
-draws every bar at the 2% floor's absence (nothing to scale against). The Avg
-line never falls back: it stays complete-period-only in every case, because
-averaging a floor understates whatever the missing houses would have added.
-Every bar reads **eggs per day**, on a weekly strip as much as a daily one,
-so a short last week is not drawn as a fall in production.
+**complete** day's total when the window has one. When it does not — every
+recorded day in the window is partial — Peak falls back to the largest
+**partial** day's total instead, and the caption says "partial days only" so
+the bars are never read as full-farm output. A window with no recorded day at
+all has no Peak and draws every bar at the 2% floor's absence (nothing to
+scale against). The Avg line never falls back: it stays complete-day-only in
+every case, because averaging a floor understates whatever the missing houses
+would have added.
 
 **Lay rate range (#914)** — the window the Dashboard's Lay rate card plots:
-the last **7**, **14** or **30** finished days, or a **custom range** entered
-as two plain dates and capped at **90 days** — a longer one is refused in the
-form, never silently shortened. The window always ends on the farm's
-yesterday or earlier, because the card counts submitted days only. The choice
-is remembered per device and per farm. Up to 14 days the strip draws one bar
-per day, with a hairline at each seven-day boundary; past that it draws **one
-bar per week** (7-day buckets from the start of the window, so the last one
-may be short and says its own day count). The hen-day figure below always
-compares the chosen window against the window of the same length before it.
+the last **7** or **14** finished days, or a **custom range** entered as two
+plain dates and capped at **14 days**. The card draws **one bar per day** and
+nothing coarser, so a longer range is refused in the form rather than redrawn
+at another scale — 14 days is what the strip holds at a readable width (22px
+slots and 2px gaps in the phone card's 342px of plot). The window always ends
+on the farm's yesterday or earlier, because the card counts submitted days
+only, and a hairline marks each seven-day boundary inside it. The choice is
+remembered per device and per farm. The hen-day figure below always compares
+the chosen window against the window of the same length before it. Longer
+ranges, and the expanded view that could carry them, are #941 (owner
+decision, 2026-09-23).
 
 **Lay rate flock scope (#916)** — the Dashboard's Lay rate card reads one
 scope: **All flocks** (every flock the signed-in user can see) or one

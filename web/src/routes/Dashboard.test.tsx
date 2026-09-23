@@ -1594,24 +1594,6 @@ describe("Dashboard Lay rate range (#914)", () => {
     expect(screen.getByText(`Hen-day, ${rangeSpan(7)} against the 7 days before`)).toBeInTheDocument();
   });
 
-  // Thirty days is five bars: four whole weeks and a two-day remainder, which
-  // says its own length rather than being read as a collapse in production.
-  it("collapses a thirty-day window into weekly bars that name their own span", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<Dashboard />);
-    await screen.findByRole("group", { name: /^Eggs per day, / });
-    await user.selectOptions(screen.getByLabelText("Range"), "30");
-    await waitFor(() => expect(bars()).toHaveLength(5));
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 60), daysBefore(today, 1), undefined, expect.any(AbortSignal));
-
-    const first = `${label(daysBefore(today, 30))} – ${label(daysBefore(today, 24))} (7 days) · 100 a day · 700 in all`;
-    const last = `${label(daysBefore(today, 2))} – ${label(daysBefore(today, 1))} (2 days) · 100 a day · 200 in all`;
-    expect(bars().map((b) => b.getAttribute("aria-label"))[0]).toBe(first);
-    expect(bars().map((b) => b.getAttribute("aria-label"))[4]).toBe(last);
-    expect(screen.getByText("Eggs per day · complete-week scale")).toBeInTheDocument();
-    expect(screen.getByText("Complete-week avg 100.0 a day")).toBeInTheDocument();
-  });
-
   it("remembers the chosen range on this device for the next visit", async () => {
     const user = userEvent.setup();
     bindAccount("11111111-1111-4111-8111-111111111111");
@@ -1632,45 +1614,7 @@ describe("Dashboard Lay rate range (#914)", () => {
     renderWithProviders(<Dashboard />);
     await screen.findByRole("group", { name: /^Eggs per day, / });
     await user.selectOptions(screen.getByLabelText("Range"), "custom");
-    const from = daysBefore(today, 40);
-    const to = daysBefore(today, 21);
-    await user.clear(screen.getByLabelText("From"));
-    await user.type(screen.getByLabelText("From"), from);
-    await user.clear(screen.getByLabelText("To"));
-    await user.type(screen.getByLabelText("To"), to);
-    await user.click(screen.getByRole("button", { name: "Apply" }));
-
-    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(from, 20), to, undefined, expect.any(AbortSignal)));
-    await waitFor(() => expect(bars()).toHaveLength(3)); // 20 days, weekly: 7, 7, 6
-  });
-
-  // Rejected in the form, never silently shortened: the plotted window is
-  // still the fourteen days the reader was looking at.
-  it("refuses a custom range past ninety days and leaves the card where it was", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<Dashboard />);
-    await screen.findByRole("group", { name: /^Eggs per day, / });
-    const callsBefore = mockReport.mock.calls.length;
-    await user.selectOptions(screen.getByLabelText("Range"), "custom");
-    await user.clear(screen.getByLabelText("From"));
-    await user.type(screen.getByLabelText("From"), daysBefore(today, 91));
-    await user.click(screen.getByRole("button", { name: "Apply" }));
-
-    expect(await screen.findByText("Choose a range of at most 90 days.")).toBeInTheDocument();
-    expect(mockReport.mock.calls).toHaveLength(callsBefore);
-    expect(bars()).toHaveLength(14);
-  });
-
-  // A 15-day window buckets to 7, 7
-  // and 1, and the one-day bucket took the DAILY wording — losing its day
-  // count and the per-day-rate-versus-total reading every other bar carries.
-  it("keeps the weekly wording on a one-day last bucket", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<Dashboard />);
-    await screen.findByRole("group", { name: /^Eggs per day, / });
-    await user.selectOptions(screen.getByLabelText("Range"), "custom");
-    const from = daysBefore(today, 15);
+    const from = daysBefore(today, 10);
     const to = daysBefore(today, 1);
     await user.clear(screen.getByLabelText("From"));
     await user.type(screen.getByLabelText("From"), from);
@@ -1678,10 +1622,26 @@ describe("Dashboard Lay rate range (#914)", () => {
     await user.type(screen.getByLabelText("To"), to);
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    await waitFor(() => expect(bars()).toHaveLength(3));
-    const last = daysBefore(today, 1);
-    expect(bars()[2].getAttribute("aria-label"))
-      .toBe(`${label(last)} – ${label(last)} (1 day) · 100 a day · 100 in all`);
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(from, 10), to, undefined, expect.any(AbortSignal)));
+    await waitFor(() => expect(bars()).toHaveLength(10)); // one bar a day, always
+  });
+
+  // Rejected in the form, never silently shortened: the plotted window is
+  // still the fourteen days the reader was looking at.
+  it("refuses a custom range past the fourteen days it can draw, and stays put", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    const callsBefore = mockReport.mock.calls.length;
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    await user.clear(screen.getByLabelText("From"));
+    await user.type(screen.getByLabelText("From"), daysBefore(today, 20));
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(await screen.findByText("Choose a range of at most 14 days.")).toBeInTheDocument();
+    expect(mockReport.mock.calls).toHaveLength(callsBefore);
+    expect(bars()).toHaveLength(14);
   });
 
   it("refuses a range that ends after the newest day it plots", async () => {

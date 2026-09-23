@@ -696,27 +696,15 @@ export const es = {
     // con una etiqueta distinta para que nadie lo lea como producción total.
     trendScaleTitlePartial: "Huevos por día · solo días incompletos",
     trendScaleTitleNone: "Huevos por día · sin cifras registradas",
-    trendScaleTitleWeek: "Huevos por día · escala de semanas completas",
-    trendScaleTitleWeekPartial: "Huevos por día · solo semanas incompletas",
     trendPeak: "Máximo {{total}}",
     trendCompleteAvg: "Prom. de días completos {{total}}",
     trendNoCompleteAvg: "Sin promedio de días completos",
-    trendCompleteWeekAvg: "Prom. de semanas completas {{total}} por día",
-    trendNoCompleteWeekAvg: "Sin promedio de semanas completas",
     trendDayTip_one: "{{date}} – {{total}} huevo",
     trendDayTip_other: "{{date}} – {{total}} huevos",
     trendDayTipPartial_one: "{{date}} – {{total}} huevo, {{recorded}} de {{expected}} lotes",
     trendDayTipPartial_other: "{{date}} – {{total}} huevos, {{recorded}} de {{expected}} lotes",
     trendDayTipNone: "{{date}} – sin registro",
     trendDayTipNoFlocks: "{{date}} – sin lotes",
-    trendWeekTip_one: "{{from}} – {{to}} ({{days}} día) · {{perDay}} por día · {{total}} en total",
-    trendWeekTip_other: "{{from}} – {{to}} ({{days}} días) · {{perDay}} por día · {{total}} en total",
-    trendWeekTipPartial_one: "{{from}} – {{to}} ({{days}} día) · {{perDay}} por día · {{total}} en total · incompleto",
-    trendWeekTipPartial_other: "{{from}} – {{to}} ({{days}} días) · {{perDay}} por día · {{total}} en total · incompleto",
-    trendWeekTipNone_one: "{{from}} – {{to}} ({{days}} día) · sin registro",
-    trendWeekTipNone_other: "{{from}} – {{to}} ({{days}} días) · sin registro",
-    trendWeekTipNoFlocks_one: "{{from}} – {{to}} ({{days}} día) · sin lotes",
-    trendWeekTipNoFlocks_other: "{{from}} – {{to}} ({{days}} días) · sin lotes",
     henDaySubLabel_one: "Postura, {{range}} frente al {{days}} día anterior",
     henDaySubLabel_other: "Postura, {{range}} frente a los {{days}} días anteriores",
     rangeSpan: "{{from}} – {{to}}",
@@ -2179,14 +2167,13 @@ export const es = {
       + "<strong>Máximo</strong> y <strong>Prom.</strong> salen solo de los días que registraron todos los "
       + "lotes. El % de postura divide entre los días-gallina de los lotes que registraron, así que un lote que olvida "
       + "reduce sobre cuánto se mide la cifra, nunca la cifra misma. <strong>Período</strong> elige la ventana "
-      + "— los últimos 7, 14 o 30 días completos, o <strong>Período personalizado…</strong> con "
-      + "<strong>Desde</strong>, <strong>Hasta</strong> y <strong>Aplicar</strong> hasta 90 días; un período "
-      + "más largo se rechaza en el formulario en vez de acortarse, y la elección se recuerda en este "
+      + "— los últimos 7 o 14 días completos, o <strong>Período personalizado…</strong> con "
+      + "<strong>Desde</strong>, <strong>Hasta</strong> y <strong>Aplicar</strong> hasta 14 días; esta tarjeta "
+      + "siempre dibuja una barra por día, así que un período más largo se rechaza en el formulario en vez de "
+      + "redibujarse a otra escala, y la elección se recuerda en este "
       + "dispositivo. La ventana siempre termina ayer o antes y cuenta <strong>solo días enviados</strong> — "
       + "un día aún en borrador se lee como Sin registro hasta que se envía, a diferencia de Informes, donde "
-      + "el rango puede llegar a hoy. Pasados los 14 días las barras pasan a una por semana, cada una con los "
-      + "huevos por día de esa semana (y cuántos días abarca, para que una última semana corta no se lea como "
-      + "una caída de producción). Elija "
+      + "el rango puede llegar a hoy. Elija "
       + "<strong>Todos los lotes</strong> o un solo lote encima del gráfico para acotar toda la tarjeta "
       + "— barras, integridad, Prom. y ambos períodos de postura — a ese lote; con un solo lote accesible "
       + "su nombre aparece sin selector. Cuando ningún día del período está completo, el Máximo se ajusta "
@@ -3065,10 +3052,10 @@ export const es = {
     glossaryCaptureStatusDef: "Si cada lote activo tiene un registro diario de hoy. Recolección de la mañana muestra una fila por lote, primero los que faltan, y cuenta los borradores como registrados. La lista se pagina dentro del panel — seis naves por página en el teléfono, ocho en una pantalla más ancha — así que se puede llegar a todas; la barra de progreso y el recuento de naves abarcan todas, no la página mostrada. Sin registro enlaza al Registro diario de ese lote y ese día.",
 
     glossaryLayRateStripScaleTerm: "Escala de la franja de tasa de postura",
-    glossaryLayRateStripScaleDef: "La franja de Tasa de postura ajusta sus barras al período completo más alto. Cuando ningún período está completo, se ajusta al parcial más alto y dice \"solo días incompletos\" para que las barras nunca se lean como producción total de la granja. Toda barra indica huevos por día, también las semanales, así que una última semana corta no se dibuja como una caída de producción.",
+    glossaryLayRateStripScaleDef: "La franja de Tasa de postura ajusta sus barras al día completo más alto. Cuando ningún día del período está completo, se ajusta al día parcial más alto y dice \"solo días incompletos\" para que las barras nunca se lean como producción total de la granja.",
 
     glossaryLayRateRangeTerm: "Período de la tasa de postura",
-    glossaryLayRateRangeDef: "El período que dibuja la tarjeta Tasa de postura: los últimos 7, 14 o 30 días completos, o un período personalizado de dos fechas de hasta 90 días — uno más largo se rechaza en el formulario, nunca se acorta. El período siempre termina ayer o antes, y la elección se recuerda en este dispositivo. Pasados los 14 días las barras pasan a una por semana, la última posiblemente corta y diciéndolo; el % de postura compara el período elegido con el período anterior de la misma duración.",
+    glossaryLayRateRangeDef: "El período que dibuja la tarjeta Tasa de postura: los últimos 7 o 14 días completos, o un período personalizado de dos fechas de hasta 14 días. La tarjeta dibuja una barra por día y nada más grueso, así que un período más largo se rechaza en el formulario en vez de redibujarse a otra escala. El período siempre termina ayer o antes, la elección se recuerda en este dispositivo, y el % de postura compara el período elegido con el período anterior de la misma duración.",
 
     glossaryLayRateFlockScopeTerm: "Ámbito de lote de la tasa de postura",
     glossaryLayRateFlockScopeDef: "La tarjeta de Tasa de postura del panel puede mostrar Todos los lotes o un lote elegido. Toda la tarjeta sigue esa elección — la franja, la completitud, el promedio y ambos períodos de comparación de postura — y las cifras vienen del servidor, no de filtrar la vista de Todos los lotes. Los demás paneles del panel no cambian.",
