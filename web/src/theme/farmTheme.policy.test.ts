@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Theme } from "@mui/material/styles";
 import { BRANDS } from "../lib/brand";
+import { contrast } from "../test/cssTokens";
 import type { Mode } from "../test/cssTokens";
 import { pixelsFrom } from "./farmTokens";
 import { createFarmTheme } from "./FarmThemeProvider";
@@ -327,6 +328,26 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  // Tabs' own default (`textColor="primary"`) paints the selected label with
+  // the raw brand colour, which #149's dark palette blocks never redeclare —
+  // the same defect fixed for `MuiBottomNavigationAction` above. Asserts the
+  // ACTUAL computed contrast, not just "uses the token".
+  it("keeps the selected tab and its indicator readable (>=4.5:1) against both background slots, every palette and mode", () => {
+    for (const { label, theme } of themes) {
+      const tab = slot(theme.components?.MuiTab?.styleOverrides?.root, `${label} MuiTab root`);
+      const selected = slot(tab["&.Mui-selected"], `${label} MuiTab selected`);
+      const tabColor = selected.color as string;
+
+      const tabs = slot(theme.components?.MuiTabs?.styleOverrides?.indicator, `${label} MuiTabs indicator`);
+      const indicatorColor = tabs.backgroundColor as string;
+
+      for (const bg of [theme.palette.background.paper, theme.palette.background.default]) {
+        expect(contrast(tabColor, bg), `${label} selected tab vs ${bg}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(indicatorColor, bg), `${label} tab indicator vs ${bg}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
   it("sets desktop/phone ledger row heights", () => {
     for (const { label, theme } of themes) {
       const root = slot(theme.components?.MuiTableRow?.styleOverrides?.root, `${label} MuiTableRow root`);
@@ -375,6 +396,17 @@ describe("farm theme policy (#823 G2)", () => {
       const narrow = slot(root[phone], `${label} MuiTableCell phone`);
       expect(narrow.fontSize, `${label} phone row size`).toBe("1rem");
       expect(narrow.lineHeight, `${label} phone row line-height`).toBe(24 / 16);
+    }
+  });
+
+  // Every table now sits inside a bordered FieldConsole panel; the shared
+  // padding's zero left inset (above) was written for a borderless ledger and
+  // leaves the first cell's text flush against that border.
+  it("gives the first cell of every row a left inset matching the last cell's right inset", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiTableCell?.styleOverrides?.root, `${label} MuiTableCell root`);
+      const first = slot(root["&:where(:first-of-type)"], `${label} MuiTableCell first-of-type`);
+      expect(first.paddingLeft, `${label} first cell left inset`).toBe("1rem");
     }
   });
 

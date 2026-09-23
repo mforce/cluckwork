@@ -228,6 +228,70 @@ describe("UsersPage load", () => {
   });
 });
 
+// #908 — the table-plus-bottom-inspector redesign (Concept B).
+describe("UsersPage selected-record inspector (#908)", () => {
+  it("shows a prompt before any row is selected, then fills in on click", async () => {
+    await renderReady(ADMIN);
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    fireEvent.click(row);
+
+    expect(row).toHaveAttribute("aria-selected", "true");
+    expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toBeInTheDocument();
+    expect(within(inspector).getByText("Wendy")).toBeInTheDocument();
+  });
+
+  it("opens the same edit dialog from the inspector's own edit action", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("row", { name: /worker@farm.test/ }));
+    const inspector = screen.getByRole("region", { name: "User details" });
+    fireEvent.click(within(inspector).getByRole("button", { name: "edit" }));
+    // Identifies THE EDIT dialog by name and checks the seeded user's own
+    // data, not just "some dialog exists": a miswiring to e.g. openPassword
+    // would satisfy a bare findByRole("dialog").
+    const dialog = await screen.findByRole("dialog", { name: "Edit user — worker@farm.test" });
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Wendy");
+  });
+
+  it("does not select the row when clicking one of its own row actions", async () => {
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    fireEvent.click(within(row).getByRole("button", { name: "flocks" }));
+    expect(row).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("withholds disable/enable from the inspector on the caller's own row", async () => {
+    mockListUsers.mockResolvedValue([SELF_USER, WORKER_USER]);
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("row", { name: /self@farm.test/ }));
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+  });
+
+  // #908 acceptance: status is never blank in the inspector either, and the
+  // shared renderActions carries the same destructive marker there as in the
+  // row — assert the actual StatusBadge/icon, not just text/colour.
+  it("shows an explicit status in the inspector for both an active and a disabled user", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
+    await renderReady(ADMIN);
+    const inspector = screen.getByRole("region", { name: "User details" });
+
+    fireEvent.click(screen.getByRole("row", { name: /worker@farm.test/ }));
+    expect(within(inspector).getByText("Active")).toHaveClass("badge", "badge-ok");
+    const disable = within(inspector).getByRole("button", { name: "disable" });
+    expect(disable).toHaveStyle({ color: "var(--error)" });
+    expect(disable.querySelector(".lucide-ban")).toBeInTheDocument();
+    const edit = within(inspector).getByRole("button", { name: "edit" });
+    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit.querySelector(".lucide-ban")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("row", { name: /disabled@farm.test/ }));
+    expect(within(inspector).getByText("Disabled")).toHaveClass("badge", "badge-danger");
+  });
+});
+
 // F131: create moved into a dialog — open it, then assert the same behaviour.
 const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New user", hidden: true }));
 const dialog = () => screen.getByRole("dialog");
@@ -1239,19 +1303,26 @@ describe("UsersPage disable/enable (#356)", () => {
     return { promise, resolve };
   }
 
-  it("renders a disabled user's row muted with a Disabled badge, offering Enable and not Disable", async () => {
+  it("renders a disabled user's row muted with a Disabled badge, an active row with an Active badge", async () => {
     mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
     await renderReady(ADMIN);
 
+    // #908 acceptance: the Actions column carries a header, like Products.
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+
     const row = screen.getByRole("row", { name: /disabled@farm.test/ });
     expect(row).toHaveClass("muted");
-    expect(within(row).getByText("Disabled")).toBeInTheDocument();
+    expect(within(row).getByText("Disabled")).toHaveClass("badge", "badge-danger");
+    expect(within(row).queryByText("Active")).not.toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "enable" })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
 
-    // The still-active sibling row stays unmuted, un-badged, and offers Disable.
+    // #908 acceptance: status is never blank — the still-active sibling row
+    // stays unmuted, shows an explicit Active badge (the real StatusBadge,
+    // not plain text), and offers Disable.
     const activeRow = screen.getByRole("row", { name: /worker@farm.test/ });
     expect(activeRow).not.toHaveClass("muted");
+    expect(within(activeRow).getByText("Active")).toHaveClass("badge", "badge-ok");
     expect(within(activeRow).queryByText("Disabled")).not.toBeInTheDocument();
     expect(within(activeRow).getByRole("button", { name: "disable" })).toBeInTheDocument();
   });

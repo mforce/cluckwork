@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Box, TableContainer, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +22,19 @@ export const CONSOLE_LINK_SX = {
   // (`:where(button:disabled[aria-busy="true"])`) — left unset, --muted at
   // half opacity measures 2.84:1/2.68:1, still under 3:1.
   "&.Mui-disabled": { color: "var(--muted)", opacity: 1 },
+};
+// #908 — a destructive action (deactivate, archive, deplete, disable) must
+// read as distinct from CONSOLE_LINK_SX's edit link by more than colour: pair
+// this with a leading icon (e.g. TriangleAlert) at every call site, so shape
+// carries the signal colour alone would miss for a colour-blind reader.
+// `--error`, not `--danger`: `--danger` was designed as a filled-button
+// background, and dark mode's value measures ~3:1 as small text, under AA
+// (codex review round 3); `--error` is the token already tuned for that case.
+export const CONSOLE_DESTRUCTIVE_LINK_SX = {
+  ...CONSOLE_LINK_SX,
+  color: "var(--error)",
+  textDecorationColor: "var(--error)",
+  "&:hover": { textDecoration: "underline", backgroundColor: "var(--tint-danger)" },
 };
 // #831 Concept B: cancel the panel padding so the header divider reaches both edges.
 export const CONSOLE_PAPER_HEAD_SX = {
@@ -119,24 +133,158 @@ export function FieldConsole({ children }: { children: ReactNode }) {
 }
 
 // Keep the swipe cue outside the scrolling element so it stays visible as columns move.
-export function LedgerTableContainer({ children, alwaysShowSwipeCue = false }: {
+export function LedgerTableContainer({ children, alwaysShowSwipeCue = false, scrollHint = "columns" }: {
   children: ReactNode;
   alwaysShowSwipeCue?: boolean;
+  // #908 — the setup lists' table also scrolls vertically within a bounded
+  // region (the bottom inspector docks below it), so that cue names both axes.
+  scrollHint?: "columns" | "columnsAndRows";
 }) {
   const { t } = useTranslation("common");
   return (
-    <Box sx={{ minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)" }}>
+    <Box sx={{
+      minWidth: 0, borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)",
+      // #908 — a nested flex column so `TableContainer` below is the ONE
+      // element that both scrolls and is `position: sticky`'s containing
+      // block. Outside a flex parent (this component's seven other,
+      // unbounded callers) these properties are simply inert.
+      display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0,
+    }}>
       <Typography component="p" variant="body2" sx={{
         display: alwaysShowSwipeCue ? "block" : { xs: "block", md: "none" },
+        flex: "0 0 auto",
         m: 0, py: .5, px: 1,
         fontSize: ".65rem",
         textAlign: "right",
         bgcolor: "var(--surface-2)",
         color: "text.secondary",
       }}>
-        {t("swipeColumns")}
+        {t(scrollHint === "columnsAndRows" ? "swipeColumnsScrollRows" : "swipeColumns")}
       </Typography>
-      <TableContainer>{children}</TableContainer>
+      <TableContainer sx={{ flex: "1 1 auto", minHeight: 0, overflow: "auto" }}>{children}</TableContainer>
     </Box>
   );
+}
+
+// #908 — a sticky header keeps column labels visible while `LedgerTableContainer`
+// scrolls a bounded-height table region vertically (Concept B's inspector docks
+// below that same region, so the table's own scroll is what stays contained).
+export const STICKY_TABLE_HEAD_SX = { position: "sticky" as const, top: 0, zIndex: 1, bgcolor: "var(--surface)" };
+
+export interface InspectorField {
+  label: string;
+  value: ReactNode;
+}
+
+// #908 — the setup lists' selected-record panel, docked below the table
+// (Concept B, issue #908's owner-approved direction). Renders nothing but the
+// empty prompt until a row is selected.
+export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, actions, emptyMessage }: {
+  ariaLabel: string;
+  eyebrow?: string;
+  title?: ReactNode;
+  subtitle?: ReactNode;
+  fields?: InspectorField[];
+  actions?: ReactNode;
+  emptyMessage: string;
+}) {
+  if (title === undefined) {
+    return (
+      <Box component="aside" role="region" aria-label={ariaLabel} sx={{ p: 2, color: "text.secondary", fontSize: ".8125rem" }}>
+        {emptyMessage}
+      </Box>
+    );
+  }
+  return (
+    <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
+      <Box sx={{ ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "14px 18px" }}>
+        {eyebrow && (
+          <Typography component="span" sx={{
+            display: "block", fontSize: ".625rem", textTransform: "uppercase", letterSpacing: ".1em", opacity: .75,
+          }}>{eyebrow}</Typography>
+        )}
+        <Typography component="h3" variant="h3" sx={{ m: "6px 0 3px", color: "inherit" }}>{title}</Typography>
+        {subtitle && <Typography component="p" variant="body2" sx={{ m: 0, opacity: .8 }}>{subtitle}</Typography>}
+      </Box>
+      {fields && fields.length > 0 && (
+        <Box component="dl" sx={{
+          m: 0, p: "13px 18px", display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+          columnGap: "16px",
+        }}>
+          {fields.map((field, i) => (
+            <Box key={i} sx={{
+              display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
+              py: ".4rem", borderBottom: "1px solid var(--rule)", fontSize: ".75rem",
+            }}>
+              <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>
+              <Typography component="dd" sx={{ m: 0, fontWeight: 650, fontSize: "inherit", overflowWrap: "anywhere" }}>
+                {field.value}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, px: "18px", pb: "14px" }}>{actions}</Box>}
+    </Box>
+  );
+}
+
+// #908 — a flex column so the table owns its own scroll above a bottom-docked
+// inspector, in the same region, never overlapping it (Concept B).
+export function ListInspectorPane({ table, inspector }: { table: ReactNode; inspector: ReactNode }) {
+  return (
+    <Box sx={{
+      display: "flex", flexDirection: "column", minWidth: 0,
+      border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", overflow: "hidden",
+      height: { xs: 460, md: "clamp(280px, calc(100dvh - 380px), 520px)" },
+    }}>
+      <Box sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>{table}</Box>
+      <Box sx={{
+        flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "auto",
+        borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
+      }}>
+        {inspector}
+      </Box>
+    </Box>
+  );
+}
+
+// #908 — shared row-selection wiring: click OR Enter/Space selects the row,
+// `aria-selected` exposes it to assistive tech (issue #908's keyboard/AX
+// requirement), and the accent bar makes selection visible without relying on
+// colour alone.
+export function selectableRowProps(selected: boolean, onSelect: () => void) {
+  return {
+    // A row action (a button or link inside the row) owns its own click; the
+    // row's own selection is a fallback for the rest of the row's surface.
+    onClick: (e: MouseEvent<HTMLTableRowElement>) => {
+      if ((e.target as HTMLElement).closest("button, a")) return;
+      onSelect();
+    },
+    onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if ((e.target as HTMLElement).closest("button, a")) return;
+      e.preventDefault();
+      onSelect();
+    },
+    tabIndex: 0,
+    "aria-selected": selected,
+    sx: {
+      cursor: "pointer",
+      ...(selected && { bgcolor: "var(--tint-accent)", boxShadow: "inset 3px 0 var(--brand)" }),
+    },
+  };
+}
+
+// #908 — a filter toggle, an archive/reactivate write, or any other refresh
+// can drop the selected row out of the visible set; without this, the stale
+// id can resurface as "selected" the moment that row becomes visible again,
+// with no new selection from the user.
+export function useClampSelection(
+  visibleIds: readonly string[], selectedId: string | null, setSelectedId: (id: string | null) => void,
+) {
+  useEffect(() => {
+    if (selectedId !== null && !visibleIds.includes(selectedId)) setSelectedId(null);
+  }, [visibleIds, selectedId, setSelectedId]);
 }

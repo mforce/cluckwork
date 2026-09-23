@@ -26,6 +26,7 @@ const ENTRIES = [
   // Getting around
   { key: "Navigation", group: "gettingAround", spec: "Navigation" },
   { key: "PageLoading", group: "gettingAround", spec: "Page loading" },
+  { key: "SelectedRecordInspector", group: "gettingAround", spec: "Selected-record inspector" },
   { key: "SearchablePicker", group: "gettingAround", spec: "Searchable picker", rich: true },
   { key: "SomethingWentWrongScreen", group: "gettingAround", spec: "\"Something went wrong\" screen" },
   { key: "InstallToHomeScreen", group: "gettingAround", spec: "Install to home screen", rich: true },

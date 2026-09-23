@@ -424,6 +424,23 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
           },
         },
       },
+      // `Tabs`' own default (`textColor="primary"`) paints the selected label
+      // with `palette.primary.main` (raw `--brand`), which styles.css keeps
+      // out of the dark block on purpose and so reads near-invisible on a
+      // dark surface. `--stat-accent` is the same "active" device
+      // `MuiBottomNavigationAction` and the sidebar already use.
+      MuiTabs: {
+        styleOverrides: {
+          indicator: { backgroundColor: tokens["--stat-accent"] },
+        },
+      },
+      MuiTab: {
+        styleOverrides: {
+          root: {
+            "&.Mui-selected": { color: tokens["--stat-accent"] },
+          },
+        },
+      },
       // Ledger row heights (DIRECTION.md): 36px desktop, 52px phone.
       MuiTableRow: {
         styleOverrides: {
@@ -473,7 +490,12 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       //
       // Padding is `table.data td`'s own value rather than `size="small"`'s
       // symmetric default: the default's extra 16px per cell pushed Flocks'
-      // widest row past its container at 1280.
+      // widest row past its container at 1280. The zero left inset assumed a
+      // borderless ledger; every table now sits in a bordered panel, so the
+      // first cell needs the last cell's own 1rem, or its text sits flush
+      // against the border. `:where()` holds this at the base rule's own
+      // specificity, so FieldConsole's and Dashboard's own higher-specificity
+      // overrides still win where they already gave a table a correct inset.
       MuiTableCell: {
         styleOverrides: {
           root: {
@@ -481,6 +503,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             lineHeight: 20 / 14,
             fontVariantNumeric: "tabular-nums",
             padding: "0.6rem 1rem 0.6rem 0",
+            "&:where(:first-of-type)": { paddingLeft: "1rem" },
             [phone]: { fontSize: "1rem", lineHeight: 24 / 16 },
           },
         },

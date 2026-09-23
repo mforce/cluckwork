@@ -3,6 +3,17 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { contrast, declaredKeys, literalColourIn, luminance, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
+import { CONSOLE_DESTRUCTIVE_LINK_SX } from "./components/FieldConsole";
+
+// Reads the actual token name a style declares (e.g. "var(--error)" -> "--error"),
+// rather than assuming which token the code uses — a future edit that points
+// this at a different token is checked for contrast under its own name, not
+// silently skipped.
+function tokenNameIn(value: string): string {
+  const match = /var\((--[a-z0-9-]+)\)/.exec(value);
+  if (!match) throw new Error(`not a bare var() reference: ${value}`);
+  return match[1];
+}
 
 // Non-default palettes carry a data-brand attribute; the default carries none.
 const attrFor = (brand: string) => (brand === DEFAULT_BRAND ? null : brand);
@@ -154,6 +165,21 @@ describe.each(BRANDS)("palette: %s", (brand) => {
     // is checked against every background it can land on.
     for (const bg of ["--surface", "--surface-2", "--canvas"])
       expect(contrast(at("--focus"), at(bg))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // #908 — the destructive marker's text colour, read from the actual style
+  // rather than assumed. Checked against its own hover fill too, since
+  // CONSOLE_LINK_SX's hover only underlines but this variant also paints a
+  // fill (--tint-danger) the text must stay readable over.
+  it.each(MODES)("%s: destructive link text clears WCAG AA against rest and hover fill", (mode) => {
+    const t = resolveTokens(attrFor(brand), mode);
+    const at = (k: string) => t.get(k)!;
+    const textToken = tokenNameIn(CONSOLE_DESTRUCTIVE_LINK_SX.color);
+    const hoverFillToken = tokenNameIn(CONSOLE_DESTRUCTIVE_LINK_SX["&:hover"].backgroundColor);
+    expect(contrast(at(textToken), at("--surface")), `${brand}/${mode} ${textToken} vs --surface`)
+      .toBeGreaterThanOrEqual(4.5);
+    expect(contrast(at(textToken), at(hoverFillToken)), `${brand}/${mode} ${textToken} vs ${hoverFillToken}`)
+      .toBeGreaterThanOrEqual(4.5);
   });
 
   // #834 — the Slack-blue link retirement (DIRECTION.md, owner decision

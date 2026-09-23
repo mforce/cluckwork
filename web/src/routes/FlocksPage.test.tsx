@@ -187,6 +187,88 @@ describe("FlocksPage loading + list", () => {
   });
 });
 
+// #908 — the table-plus-bottom-inspector redesign (Concept B).
+describe("FlocksPage selected-record inspector (#908)", () => {
+  it("shows a prompt before any row is selected, then fills in on click", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+
+    const row = screen.getByRole("row", { name: /Hen House 1/ });
+    fireEvent.click(row);
+
+    expect(row).toHaveAttribute("aria-selected", "true");
+    expect(within(inspector).getByRole("heading", { name: "Hen House 1" })).toBeInTheDocument();
+    expect(within(inspector).getByText("ISA Brown")).toBeInTheDocument();
+    expect(within(inspector).getByText("98 / 100")).toBeInTheDocument();
+  });
+
+  it("archives a flock from the inspector's own action", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(screen.getByRole("row", { name: /Hen House 1/ }));
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+
+    fireEvent.click(within(inspector).getByRole("button", { name: "archive" }));
+    await answer("Archive flock");
+
+    await waitFor(() => expect(mockArchive).toHaveBeenCalled());
+  });
+
+  // #908 — a stale selectedId must not resurface as "selected" once its row
+  // becomes visible again with no new choice from the user.
+  it("does not let a hidden-then-reshown archived flock resurface as selected", async () => {
+    await renderReady(ADMIN, [ACTIVE, ARCHIVED]);
+    const toggle = screen.getByRole("checkbox");
+    fireEvent.click(toggle); // show archived
+    const archivedRow = await screen.findByRole("row", { name: /Old Coop/ });
+    fireEvent.click(archivedRow);
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect(within(inspector).getByRole("heading", { name: "Old Coop" })).toBeInTheDocument();
+
+    fireEvent.click(toggle); // hide archived again (the row leaves `visible`)
+    fireEvent.click(toggle); // show archived again — no new click on the row itself
+
+    // Without clearing the stale id, this row comes back marked selected and
+    // the inspector shows its data again with no new choice from the user.
+    const resurfacedRow = await screen.findByRole("row", { name: /Old Coop/ });
+    expect(resurfacedRow).toHaveAttribute("aria-selected", "false");
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+  });
+
+  it("does not let a selected flock resurface as selected after being archived and reshown", async () => {
+    // A second, still-visible flock (Depleted, not filtered by showArchived)
+    // keeps the inspector region itself on screen after the write, so this
+    // is about the stale selection, not the whole list emptying out.
+    mockArchive.mockResolvedValue(undefined);
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+    fireEvent.click(screen.getByRole("row", { name: /Hen House 1/ }));
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect(within(inspector).getByRole("heading", { name: "Hen House 1" })).toBeInTheDocument();
+
+    // The post-write refresh (commit) reloads the list; the flock now comes
+    // back Archived, and showArchived is still false, so the row disappears.
+    mockListFlocks.mockResolvedValue([{ ...ACTIVE, status: "Archived" }, DEPLETED]);
+    fireEvent.click(within(inspector).getByRole("button", { name: "archive" }));
+    await answer("Archive flock");
+    await waitFor(() => expect(mockArchive).toHaveBeenCalled());
+    await waitFor(() => expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument());
+
+    // Reshow archived rows — no new click on the row itself. Without clearing
+    // the stale id, it comes back marked selected.
+    fireEvent.click(await screen.findByRole("checkbox"));
+    const resurfacedRow = await screen.findByRole("row", { name: /Hen House 1/ });
+    expect(resurfacedRow).toHaveAttribute("aria-selected", "false");
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+  });
+
+  it("does not select the row when opening its bird ledger", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    const row = screen.getByRole("row", { name: /Hen House 1/ });
+    fireEvent.click(within(row).getByRole("button", { name: "birds" }));
+    expect(row).toHaveAttribute("aria-selected", "false");
+  });
+});
+
 describe("FlocksPage create", () => {
   it("creates a flock with the full form body and a key, then resets the name", async () => {
     mockCreate.mockResolvedValue({ id: "new" });
@@ -485,6 +567,30 @@ describe("FlocksPage lifecycle", () => {
 
     expect(mockReactivate).toHaveBeenCalledWith("f2", expect.any(String));
     expect(screen.queryByRole("dialog")).toBeNull(); // reactivate is the undo — no guard
+  });
+
+  // #908 acceptance: destructive actions must read as distinct from the
+  // primary edit action by more than colour alone — assert the actual icon
+  // and colour, not just the colour (a colour-blind reader needs the shape).
+  it("marks deplete and archive as destructive, distinct from edit and reactivate", async () => {
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+    const activeRow = getRowByCellText("Hen House 1");
+    const deplete = within(activeRow).getByRole("button", { name: "deplete" });
+    expect(deplete).toHaveStyle({ color: "var(--error)" });
+    expect(deplete.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
+
+    const archive = within(activeRow).getByRole("button", { name: "archive" });
+    expect(archive).toHaveStyle({ color: "var(--error)" });
+    expect(archive.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
+
+    const edit = within(activeRow).getByRole("button", { name: "edit" });
+    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
+
+    const depletedRow = screen.getByRole("row", { name: /Depleted Flock/ });
+    const reactivate = within(depletedRow).getByRole("button", { name: "reactivate" });
+    expect(reactivate).not.toHaveStyle({ color: "var(--error)" });
+    expect(reactivate.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 });
 

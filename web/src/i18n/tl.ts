@@ -11,6 +11,9 @@
 export const tl = {
   common: {
     swipeColumns: "I-swipe ang mga column ↔",
+    swipeColumnsScrollRows: "I-swipe ang mga column ↔ · I-scroll ang mga hilera ↕",
+    inspectorEmptyPrompt: "Pumili ng hilera para makita ang mga detalye",
+    inspectorLabel: "Mga detalye ng {{entity}}",
     whatDoesTermMean: "Ano ang ibig sabihin ng “{{term}}”?",
     "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
@@ -892,6 +895,7 @@ export const tl = {
   grades: {
     title: "Mga Grado ng Itlog",
     loadingTitle: "Mga Grado",
+    entitySingular: "Grado",
 
     // Imperative message
     loadGradesFailed: "Hindi na-load ang mga grado. Gumagana ba ang API?",
@@ -1042,6 +1046,8 @@ export const tl = {
   // sales.reference above) — flag for native review.
   products: {
     title: "Mga Produkto",
+    entitySingular: "Produkto",
+    packedUnitEntitySingular: "Nakapaketeng yunit",
 
     // Imperative messages
     loadCatalogFailed: "Hindi na-load ang catalog. Gumagana ba ang API?",
@@ -1190,6 +1196,7 @@ export const tl = {
   // native review.
   flocks: {
     title: "Mga Kawan",
+    entitySingular: "Kawan",
 
     // Imperative messages
     loadFlocksFailed: "Hindi na-load ang mga kawan. Gumagana ba ang API?",
@@ -1435,6 +1442,7 @@ export const tl = {
   // native review to confirm against local farm-software usage.
   users: {
     heading: "Mga User",
+    entitySingular: "User",
     newUserButton: "Bagong user",
     roleDescription:
       "Itinatala ng mga manggagawa ang trabaho ng araw (opsyonal na "
@@ -1642,6 +1650,7 @@ export const tl = {
   // in this namespace).
   customers: {
     title: "Mga Customer",
+    entitySingular: "Customer",
     newCustomerButton: "Bagong customer",
 
     // Create-customer dialog
@@ -3009,6 +3018,13 @@ export const tl = {
     glossaryPageLoadingTerm: "Pag-load ng page",
     glossaryPageLoadingDef:
       "Ang maikling mensaheng ipinapakita habang binubuksan ng Cluckwork ang isang screen na hindi pa nalo-load. Magagamit pa rin ang navigation, at nawawala ang mensahe kapag handa na ang screen.",
+
+    glossarySelectedRecordInspectorTerm: "Inspector ng napiling record",
+    glossarySelectedRecordInspectorDef:
+      "Sa mga screen na Mga Customer, Mga Produkto, Mga Grado, Mga Kawan, at Mga User, ang pag-click o pag-activate sa isang "
+      + "row ay nagpapakita ng buong detalye nito sa isang panel na nakadikit sa ilalim ng listahan, sa halip "
+      + "na isang popup. Patuloy na nag-iisa mag-scroll ang table sa itaas, at nananatiling malinaw na markado "
+      + "ang napiling row.",
 
     glossarySearchablePickerTerm: "Picker na may search",
     glossarySearchablePickerDef:

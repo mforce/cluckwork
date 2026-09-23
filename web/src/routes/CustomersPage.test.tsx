@@ -70,6 +70,71 @@ describe("CustomersPage list", () => {
   });
 });
 
+// #908 — the table-plus-bottom-inspector redesign (Concept B).
+describe("CustomersPage selected-record inspector (#908)", () => {
+  it("shows a prompt, not a blank panel, before any row is selected", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    const inspector = screen.getByRole("region", { name: "Customer details" });
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+  });
+
+  it("selects a row on click, marks it aria-selected, and fills the inspector", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    const row = await findRowByCellText("Acme Eggs");
+    expect(row).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.click(row);
+
+    expect(row).toHaveAttribute("aria-selected", "true");
+    const inspector = screen.getByRole("region", { name: "Customer details" });
+    expect(within(inspector).getByRole("heading", { name: "Acme Eggs" })).toBeInTheDocument();
+    expect(within(inspector).getByText("555-1")).toBeInTheDocument();
+    expect(within(inspector).getByText("a@x.co")).toBeInTheDocument();
+  });
+
+  it("selects a row via keyboard (Enter), without following a nested link", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    const row = await findRowByCellText("Bravo Co");
+
+    fireEvent.keyDown(row, { key: "Enter" });
+
+    expect(row).toHaveAttribute("aria-selected", "true");
+    const inspector = screen.getByRole("region", { name: "Customer details" });
+    expect(within(inspector).getByRole("heading", { name: "Bravo Co" })).toBeInTheDocument();
+  });
+
+  it("clicking the customer's Sales link does not also select the row", async () => {
+    renderWithProviders(<CustomersPage />, { token: ADMIN });
+    const row = await findRowByCellText("Acme Eggs");
+    const link = within(row).getByRole("link", { name: "Acme Eggs" });
+
+    fireEvent.click(link);
+
+    // A click on a link or button inside the row is that control's own
+    // action, not a row selection — otherwise every existing row action
+    // would also silently repaint the row as selected.
+    expect(row).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("clicking the row's own Edit action opens the edit dialog without also selecting the row", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    const row = await findRowByCellText("Acme Eggs");
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+    expect(await screen.findByRole("dialog", { name: "Edit Acme Eggs" })).toBeInTheDocument();
+    expect(row).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("opens the same edit dialog from the inspector's own Edit action", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    const row = await findRowByCellText("Acme Eggs");
+    fireEvent.click(row);
+    const inspector = screen.getByRole("region", { name: "Customer details" });
+    fireEvent.click(within(inspector).getByRole("button", { name: "edit" }));
+    expect(await screen.findByRole("dialog", { name: "Edit Acme Eggs" })).toBeInTheDocument();
+  });
+});
+
 // #512 US5 (T056/T058, FR-045) — customer names link into URL-filtered
 // Sales by canonical id, but only for a role authorized to see Sales.
 describe("CustomersPage customer-name links (#512 US5)", () => {

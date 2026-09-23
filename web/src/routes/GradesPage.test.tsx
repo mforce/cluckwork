@@ -75,6 +75,40 @@ describe("GradesPage display", () => {
   });
 });
 
+// #908 — the table-plus-bottom-inspector redesign (Concept B).
+describe("GradesPage selected-record inspector (#908)", () => {
+  it("shows a prompt before any row is selected, then fills in on click", async () => {
+    await renderReady(ADMIN);
+    const inspector = screen.getByRole("region", { name: "Grade details" });
+    expect(within(inspector).getByText("Select a row to see its details")).toBeInTheDocument();
+
+    const rowA = screen.getByRole("row", { name: /Grade A/ });
+    fireEvent.click(rowA);
+
+    expect(rowA).toHaveAttribute("aria-selected", "true");
+    expect(within(inspector).getByRole("heading", { name: "Grade A" })).toBeInTheDocument();
+    expect(within(inspector).getByText("Size")).toBeInTheDocument();
+  });
+
+  it("shows an inactive grade's own activate action in the inspector", async () => {
+    await renderReady(ADMIN);
+    const rowOld = screen.getByRole("row", { name: /Legacy/ });
+    fireEvent.click(rowOld);
+
+    const inspector = screen.getByRole("region", { name: "Grade details" });
+    expect(within(inspector).getByRole("heading", { name: "Legacy" })).toBeInTheDocument();
+    fireEvent.click(within(inspector).getByRole("button", { name: "activate" }));
+    await waitFor(() => expect(mockActivate).toHaveBeenCalled());
+  });
+
+  it("does not select the row when clicking one of its own action links", async () => {
+    await renderReady(ADMIN);
+    const rowA = screen.getByRole("row", { name: /Grade A/ });
+    fireEvent.click(within(rowA).getByRole("button", { name: "edit" }));
+    expect(rowA).toHaveAttribute("aria-selected", "false");
+  });
+});
+
 // #494 — the record-history column is a shared component, well tested on its
 // own; what is NOT tested by that unit suite is the per-page WIRING that hands
 // it the CORRECT row's history object. A page passing the wrong variable (a
@@ -189,6 +223,24 @@ describe("GradesPage admin actions", () => {
       fireEvent.click(within(screen.getByRole("row", { name: /Legacy/ })).getByRole("button", { name: "activate" }));
     });
     expect(mockActivate).toHaveBeenCalledWith("g2", expect.any(String));
+  });
+
+  // #908 acceptance: destructive actions must read as distinct from the
+  // primary edit action by more than colour alone — assert the actual icon
+  // and colour, not just the colour (a colour-blind reader needs the shape).
+  it("marks deactivate as destructive, distinct from edit and activate", async () => {
+    await renderReady(ADMIN);
+    const deactivate = within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" });
+    expect(deactivate).toHaveStyle({ color: "var(--error)" });
+    expect(deactivate.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
+
+    const edit = within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" });
+    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
+
+    const activate = within(screen.getByRole("row", { name: /Legacy/ })).getByRole("button", { name: "activate" });
+    expect(activate).not.toHaveStyle({ color: "var(--error)" });
+    expect(activate.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 
   it("replays the SAME idempotency key after a failed create, and rotates it after success", async () => {

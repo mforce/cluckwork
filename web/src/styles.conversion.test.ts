@@ -176,6 +176,59 @@ describe("CSS conversion class manifest (#824 G1)", () => {
   });
 });
 
+// #824 — a bare `file:literal` identity can't tell two sites in the SAME
+// file apart, so removing a reviewed site and adding an unrelated one
+// elsewhere leaves the collected count unchanged. Tagging each site with its
+// nearest top-level export/component name closes that.
+function containerName(node: AstNode): string | null {
+  if (node.type === "FunctionDeclaration" && isNode(node.id)) return text(node.id, "name");
+  if (node.type === "ExportNamedDeclaration" && isNode(node.declaration)) return containerName(node.declaration);
+  if (node.type === "VariableDeclaration") {
+    const declarations = node.declarations;
+    if (Array.isArray(declarations) && declarations.length === 1 && isNode(declarations[0])
+      && isNode(declarations[0].id) && declarations[0].id.type === "Identifier") {
+      return text(declarations[0].id, "name");
+    }
+  }
+  return null;
+}
+
+// #824 — the container alone can't tell two sites apart WITHIN one component
+// (moving `textTransform: "uppercase"` between two of FieldConsole's own sx
+// keys keeps the same container). The path is the chain of enclosing
+// object-property keys between the container and the property itself.
+function pathKey(node: AstNode): string | null {
+  if (node.type !== "ObjectProperty" || !isNode(node.key)) return null;
+  if (node.key.type === "Identifier") return text(node.key, "name");
+  if (node.key.type === "StringLiteral") return text(node.key, "value");
+  return null;
+}
+
+function walkTopLevel(
+  programValue: unknown, visit: (node: AstNode, container: string | null, path: readonly string[]) => void,
+): void {
+  if (!isNode(programValue)) throw new Error("not a Program node");
+  const program = programValue;
+  const body = program.body;
+  if (!Array.isArray(body)) throw new Error("Program.body is not an array");
+
+  function descend(value: unknown, container: string | null, path: readonly string[]): void {
+    if (!isNode(value)) return;
+    visit(value, container, path);
+    const key = pathKey(value);
+    const childPath = key === null ? path : [...path, key];
+    for (const field of Object.values(value)) {
+      if (isNode(field)) descend(field, container, childPath);
+      else if (Array.isArray(field)) for (const item of field) descend(item, container, childPath);
+    }
+  }
+
+  for (const statement of body) {
+    if (!isNode(statement)) continue;
+    descend(statement, containerName(statement), []);
+  }
+}
+
 function propertyName(node: AstNode): string | null {
   if (node.type !== "ObjectProperty" || !isNode(node.key)) return null;
   if (node.key.type === "Identifier") return text(node.key, "name");
@@ -228,23 +281,29 @@ describe("MUI source policy (#824)", () => {
     for (const file of productionFiles([".ts", ".tsx"])) {
       const source = readFileSync(file, "utf8");
       const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
-      walk(tree.program, (node) => {
+      walkTopLevel(tree.program, (node, container, path) => {
         const name = propertyName(node);
         if (name === null || !isNode(node.value)) return;
-        const identity = `${relative(sourceRoot, file)}:${sourceText(node.value, source)}`;
+        const identity = `${relative(sourceRoot, file)}${container ? `#${container}` : ""}`
+          + `${path.length ? ` > ${path.join(" > ")}` : ""} > ${name}:${sourceText(node.value, source)}`;
         if (name === "boxShadow" && shadowKind(node.value, source) === "drop") dropShadows.push(identity);
         if (name === "textTransform" && uppercaseKind(node.value, source)) uppercase.push(identity);
       });
     }
     expect(dropShadows.sort()).toEqual([
-      "pwa/UpdatePrompt.tsx:\"var(--shadow-bar)\"",
-      "theme/FarmThemeProvider.tsx:base.shadows[8]",
-      "theme/FarmThemeProvider.tsx:base.shadows[8]",
+      "pwa/UpdatePrompt.tsx#UpdatePrompt > boxShadow:\"var(--shadow-bar)\"",
+      "theme/FarmThemeProvider.tsx#createFarmTheme > components > MuiAutocomplete > styleOverrides > paper > boxShadow:base.shadows[8]",
+      "theme/FarmThemeProvider.tsx#createFarmTheme > components > MuiTooltip > styleOverrides > tooltip > boxShadow:base.shadows[8]",
     ]);
     expect(uppercase.sort()).toEqual([
-      "components/FieldConsole.tsx:\"uppercase\"",
-      "routes/Dashboard.tsx:\"uppercase\"",
-      "routes/SalesPage.tsx:\"uppercase\"",
+      // #824 — the property path (not just the container) is what tells
+      // FieldConsole's two sites apart: moving this one from
+      // "& .MuiTableCell-head" to a sibling key like "&& h2" changes its
+      // identity instead of keeping the same collected count.
+      "components/FieldConsole.tsx#FieldConsole > & .MuiTableCell-head > textTransform:\"uppercase\"",
+      "components/FieldConsole.tsx#RecordInspector > textTransform:\"uppercase\"",
+      "routes/Dashboard.tsx#Dashboard > textTransform:\"uppercase\"",
+      "routes/SalesPage.tsx#SalesPage > textTransform:\"uppercase\"",
     ]);
   });
 

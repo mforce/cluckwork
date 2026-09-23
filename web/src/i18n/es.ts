@@ -6,6 +6,9 @@
 export const es = {
   common: {
     swipeColumns: "Deslice las columnas ↔",
+    swipeColumnsScrollRows: "Deslice las columnas ↔ · Desplace las filas ↕",
+    inspectorEmptyPrompt: "Seleccione una fila para ver los detalles",
+    inspectorLabel: "Detalles de {{entity}}",
     whatDoesTermMean: "¿Qué significa “{{term}}”?",
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
@@ -854,6 +857,7 @@ export const es = {
   grades: {
     title: "Grados de huevo",
     loadingTitle: "Grados",
+    entitySingular: "Grado",
 
     // Imperative message
     loadGradesFailed: "No se pudieron cargar los grados. ¿Está la API activa?",
@@ -1003,6 +1007,8 @@ export const es = {
   // raw — never routed through the catalog.
   products: {
     title: "Productos",
+    entitySingular: "Producto",
+    packedUnitEntitySingular: "Unidad empacada",
 
     // Imperative messages
     loadCatalogFailed: "No se pudo cargar el catálogo. ¿Está la API activa?",
@@ -1143,6 +1149,7 @@ export const es = {
   // name/breed are free-form farm data and stay raw.
   flocks: {
     title: "Lotes",
+    entitySingular: "Lote",
 
     // Imperative messages
     loadFlocksFailed: "No se pudieron cargar los lotes. ¿Está la API activa?",
@@ -1378,6 +1385,7 @@ export const es = {
   // {{label}}/{{email}}/{{role}} placeholders.
   users: {
     heading: "Usuarios",
+    entitySingular: "Usuario",
     newUserButton: "Nuevo usuario",
     roleDescription:
       "Los trabajadores registran el trabajo del día (opcionalmente "
@@ -1582,6 +1590,7 @@ export const es = {
   // in this namespace).
   customers: {
     title: "Clientes",
+    entitySingular: "Cliente",
     newCustomerButton: "Nuevo cliente",
 
     // Create-customer dialog
@@ -2895,6 +2904,13 @@ export const es = {
     glossaryPageLoadingTerm: "Carga de página",
     glossaryPageLoadingDef:
       "El breve mensaje que aparece mientras Cluckwork abre una pantalla que aún no se ha cargado. La navegación sigue disponible y el mensaje desaparece cuando la pantalla está lista.",
+
+    glossarySelectedRecordInspectorTerm: "Inspector del registro seleccionado",
+    glossarySelectedRecordInspectorDef:
+      "En las pantallas Clientes, Productos, Grados, Lotes y Usuarios, al hacer clic o activar una fila se "
+      + "muestran sus detalles completos en un panel anclado en la parte inferior de la lista, en lugar de una "
+      + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
+      + "marcada visiblemente.",
 
     glossarySearchablePickerTerm: "Selector de búsqueda",
     glossarySearchablePickerDef:

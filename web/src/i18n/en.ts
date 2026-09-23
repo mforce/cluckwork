@@ -5,6 +5,14 @@
 export const en = {
   common: {
     swipeColumns: "Swipe columns ↔",
+    // #908 — the setup lists' table also scrolls vertically within a bounded
+    // region (the bottom inspector docks below it), so the phone cue names
+    // both axes instead of `swipeColumns`' columns-only claim.
+    swipeColumnsScrollRows: "Swipe columns ↔ · Scroll rows ↕",
+    // #908 — shown in the bottom inspector before any row is selected.
+    inspectorEmptyPrompt: "Select a row to see its details",
+    // #908 — the bottom inspector's own aria-label, e.g. "Customer details".
+    inspectorLabel: "{{entity}} details",
     whatDoesTermMean: "What does “{{term}}” mean?",
     // #494 — the record-history cell shown on the list screens. "Last changed"
     // appears only when something happened after creation.
@@ -1197,6 +1205,7 @@ export const en = {
     // "fixed" as a drive-by (not this task's job).
     title: "Egg grades",
     loadingTitle: "Grades",
+    entitySingular: "Grade",
 
     // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern).
@@ -1378,6 +1387,8 @@ export const en = {
   // dialog's title).
   products: {
     title: "Products",
+    entitySingular: "Product",
+    packedUnitEntitySingular: "Packed unit",
 
     // Imperative messages (the mount-effect catch, and the price parser's
     // thrown errors — caught inside the create/edit submit handlers — see
@@ -1565,6 +1576,7 @@ export const en = {
   // the catalog or an enum helper.
   flocks: {
     title: "Flocks",
+    entitySingular: "Flock",
 
     // Imperative messages (mount-effect / ledger-load catch handlers — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
@@ -1859,6 +1871,7 @@ export const en = {
   // as the option text on its own.
   users: {
     heading: "Users",
+    entitySingular: "User",
     newUserButton: "New user", // reused verbatim as the create-dialog title
     roleDescription:
       "Workers record the day's work (optionally narrowed to assigned "
@@ -1905,9 +1918,10 @@ export const en = {
     changeEmailButton: "change email",
     changeEmailSubmitButton: "Change email",
     flocksButton: "flocks",
-    // #356 — row actions and their badge. Disabled rows render muted with this
-    // badge (StatusBadge tinted via the "Inactive" status, labelled distinctly
-    // so it always reads "Disabled" rather than the generic "Inactive").
+    // #356/#908 — row actions and their badge. Disabled rows render muted with
+    // this badge (StatusBadge tinted via "Inactive", labelled "Disabled"
+    // rather than the generic term); an active row uses statusLabel("Active")
+    // (i18n/enums.ts) rather than a second Active translation (#688).
     disabledBadge: "Disabled",
     disableButton: "disable",
     enableButton: "enable",
@@ -2138,6 +2152,8 @@ export const en = {
   // never `i18n.language` (formattingIndependence guard).
   customers: {
     title: "Customers",
+    // #908 — the bottom inspector's eyebrow/aria-label noun for one row.
+    entitySingular: "Customer",
     newCustomerButton: "New customer", // reused verbatim as the create-dialog title
 
     // Create-customer dialog
@@ -3589,6 +3605,12 @@ export const en = {
     glossaryPageLoadingTerm: "Page loading",
     glossaryPageLoadingDef:
       "The brief message shown while Cluckwork opens a screen that has not loaded yet. Navigation remains available, and the message disappears when the screen is ready.",
+
+    glossarySelectedRecordInspectorTerm: "Selected-record inspector",
+    glossarySelectedRecordInspectorDef:
+      "On the Customers, Products, Grades, Flocks and Users screens, clicking or activating a row shows its "
+      + "full details in a panel docked to the bottom of the list, instead of a popup. The table above it keeps "
+      + "scrolling on its own, and the selected row stays visibly marked.",
 
     // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),
     // not a paraphrase, for the same reason as gettingAroundSearchablePicker.

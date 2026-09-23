@@ -73,6 +73,14 @@ sidebar or bottom navigation stays available. The message disappears when the
 screen is ready, and a failed page chunk uses the existing **"Something went
 wrong" screen** instead of blanking the app.
 
+**Selected-record inspector (#908)** — on the farm's setup lists (Customers,
+Products, Grades, Flocks, Users), clicking or activating a row shows its full
+details in a panel docked to the bottom of the list, instead of a popup. The
+table above it keeps its own scrolling and comparison columns; the inspector
+never covers a row, and the row it is showing stays visibly marked. On a
+phone, the table scrolls in both directions within its own bounded area, so it
+carries a **Swipe columns ↔ · Scroll rows ↕** hint.
+
 **Searchable picker (#512)** — the type-to-search control used for flock and
 customer name fields app-wide. Typing explores the results without changing
 the current choice — the previous committed name/entity stays in effect until
