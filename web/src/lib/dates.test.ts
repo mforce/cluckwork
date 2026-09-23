@@ -238,4 +238,21 @@ describe("inclusiveDays (#914)", () => {
   it("goes negative when the end precedes the start", () => {
     expect(inclusiveDays("2026-07-21", "2026-07-20")).toBe(0);
   });
+
+  // Codex gpt-6-sol round 1, finding 5 (P3). Date.UTC applies the ECMAScript
+  // two-digit-year mapping, so year 99 became 1999 and a span across the year
+  // 100 boundary came back NEGATIVE — short enough to walk past a length cap.
+  // isIsoCalendarDate already avoids this with setUTCFullYear.
+  it("measures a span in the first hundred years the calendar has", () => {
+    expect(inclusiveDays("0099-12-31", "0100-01-01")).toBe(2);
+    expect(inclusiveDays("0001-01-01", "0001-03-31")).toBe(90);
+    expect(inclusiveDays("0050-01-01", "0150-01-01")).toBe(36525);
+  });
+});
+
+describe("daysBefore across the first hundred years (#940 review, finding 5)", () => {
+  it("steps back through year 100 without the two-digit-year mapping", () => {
+    expect(daysBefore("0100-01-01", 1)).toBe("0099-12-31");
+    expect(daysBefore("0001-01-02", 1)).toBe("0001-01-01");
+  });
 });

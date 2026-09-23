@@ -53,6 +53,24 @@ export function isKnownTimeZone(timeZone: string): boolean {
   }
 }
 
+// One UTC midnight from calendar parts, built the way `isIsoCalendarDate`
+// builds its probe. NOT `Date.UTC(year, …)`, which applies the ECMAScript
+// two-digit-year mapping: `Date.UTC(99, 11, 31)` is 1999, so every date in
+// years 1-99 landed nineteen centuries out and any span crossing year 100 came
+// back negative (#940 review, finding 5).
+function utcMidnight(year: number, month: number, day: number): Date {
+  const probe = new Date(0);
+  probe.setUTCFullYear(year, month - 1, day);
+  return probe;
+}
+
+// Zero-padded to four digits: an unpadded year 99 gives "99-12-31", which no
+// other function here accepts as a date.
+function toIsoDate(instant: Date): string {
+  const pad = (n: number, width = 2) => String(n).padStart(width, "0");
+  return `${pad(instant.getUTCFullYear(), 4)}-${pad(instant.getUTCMonth() + 1)}-${pad(instant.getUTCDate())}`;
+}
+
 // N days before a farm-local calendar date (YYYY-MM-DD in, YYYY-MM-DD out).
 //
 // Arithmetic on the DATE PARTS through UTC, never on a local Date: a farm-local
@@ -63,9 +81,7 @@ export function isKnownTimeZone(timeZone: string): boolean {
 // and any DST rule it carries, out of the arithmetic entirely.
 export function daysBefore(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split("-").map(Number);
-  const shifted = new Date(Date.UTC(year, month - 1, day - days));
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+  return toIsoDate(utcMidnight(year, month, day - days));
 }
 
 // #666 — is this string a date the control can display AND the server can bind?
@@ -106,7 +122,7 @@ export function ageWeeks(placementDate: string, nowMs: number = Date.now()): num
 export function inclusiveDays(from: string, to: string): number {
   const ms = (iso: string) => {
     const [year, month, day] = iso.split("-").map(Number);
-    return Date.UTC(year, month - 1, day);
+    return utcMidnight(year, month, day).getTime();
   };
   return Math.round((ms(to) - ms(from)) / 86_400_000) + 1;
 }

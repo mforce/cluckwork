@@ -35,6 +35,11 @@ import { errText } from "../lib/errText";
 // picker reads as a legitimate number for the wrong period.
 export type PageResult<T, M> = T[] | { items: T[]; meta: M };
 
+export type LoadMoreResult =
+  | { status: "loaded"; rows: number }
+  | { status: "refused" }
+  | { status: "dropped" };
+
 type WindowRefreshOutcome =
   | { status: "applied" }
   | { status: "stale" }
@@ -58,7 +63,7 @@ export function usePagedList<T extends { id: string }, M = never>({
   loading: boolean;
   reloading: boolean;
   error: string | null;
-  loadMore: () => Promise<void>;
+  loadMore: () => Promise<LoadMoreResult>;
   runWrite: <R>(write: () => Promise<R>) => Promise<R>;
   runWriteWithCommittedRow: (write: () => Promise<T>) => Promise<T>;
   reload: () => Promise<void>;
@@ -208,11 +213,26 @@ export function usePagedList<T extends { id: string }, M = never>({
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
 
-  const loadMore = useCallback(async () => {
-    if (loadingRef.current) return;
+  // What became of this page request. A screen that pages by INDEX rather than
+  // by appending needs all three apart (#940 review, findings 1 and 2):
+  //
+  //   * `loaded` carries how many rows the SERVER handed over, which `rows`
+  //     cannot tell the caller — after the await React has scheduled the state
+  //     update but not necessarily rendered it, so a caller reading its own
+  //     render's `rows` reads the count from before the page landed. `rows: 0`
+  //     is a real answer, and it is how the LAST page announces itself.
+  //   * `refused` is the one the reader should be told about and offered again.
+  //   * `dropped` is a page nobody is waiting for any more — one was already in
+  //     flight, or a newer intent claimed the ticket. Reporting either as a
+  //     failure puts an error in front of a reader who only tapped twice.
+  const loadMore = useCallback(async (): Promise<LoadMoreResult> => {
+    if (loadingRef.current) return { status: "dropped" };
     const seq = ++req.current;
     requestedCursorRef.current = cursorRef.current + pageSize;
-    await load(cursorRef.current, seq);
+    const before = cursorRef.current;
+    const landed = await load(cursorRef.current, seq);
+    if (landed) return { status: "loaded", rows: cursorRef.current - before };
+    return seq === req.current ? { status: "refused" } : { status: "dropped" };
   }, [load, pageSize]);
 
   // Re-fetch every page the user currently has, not just the newest one. A

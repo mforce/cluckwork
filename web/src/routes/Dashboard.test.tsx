@@ -1,6 +1,6 @@
 // web/src/routes/Dashboard.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
@@ -335,6 +335,26 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(await screen.findByText("5 of 20 houses in")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Morning collection" }))
       .toHaveAttribute("aria-valuenow", "25");
+  });
+
+  // Codex gpt-6-sol round 1, finding 3 (P2). The panel read one 500-flock page
+  // and the "N more flocks" link that used to carry the rest is gone, so a farm
+  // past that cap had houses nothing on the Dashboard could reach or count.
+  it("reaches every house on a farm larger than one server page", async () => {
+    stubMatchMedia(true);
+    const many = Array.from({ length: 1201 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(many.slice(offset, offset + (params?.limit ?? 500)));
+    });
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+
+    // `todayInCount` interpolates {{count}} raw, so the caption has no
+    // thousands separator here while the pager's own figure does.
+    expect(await screen.findByText("0 of 1201 houses in")).toBeInTheDocument();
+    expect(screen.getByText("Houses 1 to 8 of 1,201")).toBeInTheDocument();
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500, 1000]);
   });
 
   it("offers no pager when every house fits on one page", async () => {
@@ -935,16 +955,31 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // with 501 accessible flocks reads as exactly 500 both in the context
   // caption and the picker's own pinned "All flocks" choice, presenting a
   // truncated count as if it were exact.
-  it("presents the accessible count as a lower bound, not exact, once the flock list is truncated at MAX_PAGE", async () => {
-    const user = userEvent.setup();
-    mockFlocks.mockResolvedValue(Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active")));
+  // #940 review, finding 3 — a full first page is no longer truncation: the
+  // panel asks for the next one. Truncation is now the drain's own ceiling,
+  // and only there does the count become a lower bound.
+  it("counts a farm of exactly one server page exactly, having asked for the page after it", async () => {
+    mockFlocks.mockImplementation((params) => Promise.resolve(
+      (params?.offset ?? 0) === 0 ? Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active")) : [],
+    ));
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    expect(await screen.findByText(/^500\+ accessible flocks · /)).toBeInTheDocument();
-    expect(screen.queryByText(/^500 accessible flocks · /)).not.toBeInTheDocument();
+    expect(await screen.findByText(/^500 accessible flocks · /)).toBeInTheDocument();
+    expect(screen.queryByText(/^500\+ accessible flocks · /)).not.toBeInTheDocument();
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500]);
+  });
+
+  it("presents the accessible count as a lower bound once the drain hits its ceiling", async () => {
+    const user = userEvent.setup();
+    const page = Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve(page.map((f) => ({ ...f, id: `${f.id}-${params?.offset ?? 0}` }))));
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(await screen.findByText(/^10000\+ accessible flocks · /)).toBeInTheDocument();
 
     await openPicker(user);
-    expect(screen.getByText("500+ accessible flocks")).toBeInTheDocument();
+    expect(screen.getByText("10000+ accessible flocks")).toBeInTheDocument();
   });
 
   // #916 SELECTION.md — the only-one-flock view must report the SAME figures
@@ -1410,7 +1445,7 @@ describe("Dashboard follows the farm's day and locale", () => {
     // the report windows: with the clock frozen at 23:30Z a +14 farm is already
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
-    expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
+    expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500, offset: 0 });
     expect(mockReport).toHaveBeenCalledWith("2026-06-24", "2026-07-21", undefined, expect.any(AbortSignal));
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
@@ -1629,6 +1664,28 @@ describe("Dashboard Lay rate range (#914)", () => {
     expect(bars()).toHaveLength(14);
   });
 
+  // Codex gpt-6-sol round 1, finding 4 (P2). A 15-day window buckets to 7, 7
+  // and 1, and the one-day bucket took the DAILY wording — losing its day
+  // count and the per-day-rate-versus-total reading every other bar carries.
+  it("keeps the weekly wording on a one-day last bucket", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    const from = daysBefore(today, 15);
+    const to = daysBefore(today, 1);
+    await user.clear(screen.getByLabelText("From"));
+    await user.type(screen.getByLabelText("From"), from);
+    await user.clear(screen.getByLabelText("To"));
+    await user.type(screen.getByLabelText("To"), to);
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(bars()).toHaveLength(3));
+    const last = daysBefore(today, 1);
+    expect(bars()[2].getAttribute("aria-label"))
+      .toBe(`${label(last)} – ${label(last)} (1 day) · 100 a day · 100 in all`);
+  });
+
   it("refuses a range that ends after the newest day it plots", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Dashboard />);
@@ -1687,5 +1744,109 @@ describe("Dashboard Recent orders paging (#915)", () => {
     renderWithProviders(<Dashboard />);
     await screen.findByRole("listitem", { name: "SO-0" });
     expect(screen.queryByRole("button", { name: /page of Recent orders/ })).not.toBeInTheDocument();
+  });
+
+  // Codex gpt-6-sol round 1, finding 1 (P1). A failed next-page request left
+  // `hasMore` true, so the reconciling effect re-issued it every time `loading`
+  // settled — an unasked-for retry loop — and the panel showed an error over a
+  // page of rows that had loaded perfectly well.
+  it("asks once when a next page fails, keeps the loaded page, and retries only when asked", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      return Promise.reject(new Error("page two is down"));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    await screen.findByRole("button", { name: "Retry the next page of Recent orders" });
+
+    // One request for the page that failed, and it stays one.
+    const asked = () => mockOrders.mock.calls.filter(([p]) => (p?.offset ?? 0) === 5).length;
+    expect(asked()).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(asked()).toBe(1);
+
+    // The page the reader is on is still on screen, not replaced by an error.
+    expect(screen.getByRole("listitem", { name: "SO-0" })).toBeInTheDocument();
+    expect(screen.getByText("Orders 1 to 5")).toBeInTheDocument();
+
+    mockOrders.mockImplementation((params) =>
+      Promise.resolve(catalogue.slice(params?.offset ?? 0, (params?.offset ?? 0) + (params?.limit ?? 5))));
+    await user.click(screen.getByRole("button", { name: "Retry the next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(asked()).toBe(2);
+  });
+
+  // Codex gpt-6-sol round 1, finding 2 (P2). The page number moved before the
+  // rows existed, so a full last page followed by an empty one read
+  // "Orders 6 to 5".
+  it("stays on the last page with rows when the next one comes back empty", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(catalogue.slice(0, 5).slice(offset, offset + 5));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    // The total settles at what the server actually has; no page beyond it.
+    expect(await screen.findByText("Orders 1 to 5 of 5")).toBeInTheDocument();
+    expect(screen.queryByText("Orders 6 to 5")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled();
+    expect(screen.getByRole("listitem", { name: "SO-0" })).toBeInTheDocument();
+  });
+
+  it("settles the total on the last full page when the one after it is empty", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(catalogue.slice(0, 10).slice(offset, offset + 5));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10 of 10")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled();
+  });
+
+  it("answers one tap while a page is in flight, never two", async () => {
+    let release: () => void = () => {};
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      return new Promise<SalesOrder[]>((resolve) => {
+        release = () => resolve(catalogue.slice(offset, offset + 5));
+      });
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    // Two taps before React can re-render the disabled state — the race a
+    // state flag alone does not win.
+    const next = screen.getByRole("button", { name: "Next page of Recent orders" });
+    fireEvent.click(next);
+    fireEvent.click(next);
+
+    // The tap is answered by disabling the control, not by moving the label
+    // onto a page whose rows have not arrived.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled());
+    expect(screen.getByText("Orders 1 to 5")).toBeInTheDocument();
+    // The second tap is DROPPED, never reported as a failure. `usePagedList`
+    // refuses a concurrent page with the same `null` it uses for a refused
+    // one, so a caller that cannot tell those apart shows the reader an error
+    // for having tapped twice.
+    expect(screen.queryByText("Could not load the next page.")).not.toBeInTheDocument();
+
+    release?.();
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load the next page.")).not.toBeInTheDocument();
+    expect(mockOrders.mock.calls.filter(([p]) => (p?.offset ?? 0) === 5)).toHaveLength(1);
   });
 });

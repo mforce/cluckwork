@@ -45,10 +45,31 @@ const RECENT_ORDERS = 5;
 // one page at a time, so nothing hides behind a link any more.
 const HOUSES_PER_PAGE_DESKTOP = 8;
 const HOUSES_PER_PAGE_PHONE = 6;
-// Server clamps list limits at 500. One farm won't exceed that in Phase 1.x;
-// past 500 flocks the tail silently drops — revisit with real paging if that
-// day comes.
+// The server clamps a list request at 500 rows.
 const MAX_PAGE = 500;
+// #940 review, finding 3 — and past 500 the tail used to drop silently, which
+// #915 made visible: the "N more flocks" link that used to carry the remainder
+// is gone, so a farm with more houses than one page had houses the Dashboard
+// could neither reach nor count. Both of this panel's lists are drained
+// instead of truncated, because the progress bar and the "N of M houses in"
+// caption answer for the FARM and cannot do that from a first page. The cost
+// is one extra request per further 500 houses and none at all below that,
+// which is every farm today. The ceiling only has to make the loop terminate;
+// at it, the counts say "at least" rather than a figure they cannot stand
+// behind.
+const MAX_DRAIN_PAGES = 20;
+
+async function drainPages<T>(
+  fetchPage: (offset: number, limit: number) => Promise<T[]>,
+): Promise<{ rows: T[]; truncated: boolean }> {
+  const rows: T[] = [];
+  for (let page = 0; page < MAX_DRAIN_PAGES; page += 1) {
+    const batch = await fetchPage(page * MAX_PAGE, MAX_PAGE);
+    rows.push(...batch);
+    if (batch.length < MAX_PAGE) return { rows, truncated: false };
+  }
+  return { rows, truncated: true };
+}
 
 // #916 — the Lay rate card's own scope, independent of every other panel.
 type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
@@ -118,6 +139,7 @@ export function Dashboard() {
   // holds the unavailable state up until the retried read SETTLES — clearing
   // `flocksFailed` on click showed that same false zero in the gap before.
   const [flocksFailed, setFlocksFailed] = useState(false);
+  const [flocksTruncated, setFlocksTruncated] = useState(false);
   const [flocksRetrying, setFlocksRetrying] = useState(false);
 
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
@@ -148,19 +170,42 @@ export function Dashboard() {
     errorText: () => i18n.t("dashboard:panelLoadError"),
   });
   const [ordersPage, setOrdersPage] = useState(0);
+  const [ordersExtending, setOrdersExtending] = useState(false);
+  const [ordersExtendFailed, setOrdersExtendFailed] = useState(false);
   const orderRows = orders.rows ?? [];
   const ordersFrom = ordersPage * RECENT_ORDERS;
   const orderSlice = orderRows.slice(ordersFrom, ordersFrom + RECENT_ORDERS);
-  const { hasMore: ordersHasMore, loading: ordersLoading, loadMore: ordersLoadMore } = orders;
-  // Paging forward past what is loaded asks the server for exactly one more
-  // page. The page number moves first so the pager answers the tap; a failed
-  // fetch surfaces through the hook's own error rather than silently rewinding.
-  useEffect(() => {
-    if (orderRows.length <= ordersFrom && ordersHasMore && !ordersLoading) void ordersLoadMore();
-  }, [orderRows.length, ordersFrom, ordersHasMore, ordersLoading, ordersLoadMore]);
+  const { hasMore: ordersHasMore, loadMore: ordersLoadMore } = orders;
+  // #940 review, findings 1 and 2 — one request per tap, and the page number
+  // moves only once its rows are here.
+  //
+  // This was an effect reconciling a page number against the loaded rows, and
+  // both defects came from that shape: a page the server refused left the
+  // condition true with `hasMore` still set, so the effect re-issued it every
+  // time `loading` settled, and a page the server answered EMPTY still moved
+  // the reader onto it ("Orders 6 to 5"). Asking is now something the reader
+  // does, once, and the answer decides whether the view moves.
+  //
+  const showNextOrders = async () => {
+    const next = ordersPage + 1;
+    if (next * RECENT_ORDERS < orderRows.length) { setOrdersPage(next); return; }
+    if (!ordersHasMore) return;
+    setOrdersExtending(true);
+    setOrdersExtendFailed(false);
+    const outcome = await ordersLoadMore();
+    setOrdersExtending(false);
+    // A page of nothing is the end of the list, which is an answer rather than
+    // a failure, and a dropped page is one nobody is waiting for. Only a
+    // refusal is the reader's to see.
+    if (outcome.status === "refused") setOrdersExtendFailed(true);
+    else if (outcome.status === "loaded" && outcome.rows > 0) setOrdersPage(next);
+  };
   // A refetch starts the reader at the first page again (#915): the page they
   // were on described a list that no longer exists.
-  useEffect(() => { setOrdersPage(0); }, [canSeeSales]);
+  useEffect(() => {
+    setOrdersPage(0);
+    setOrdersExtendFailed(false);
+  }, [canSeeSales]);
 
   const scopeLabelId = useId();
   const scopeValueId = useId();
@@ -197,9 +242,9 @@ export function Dashboard() {
   // least one panel now has data, whatever the other three are doing.
   const fetchFlocks = () => {
     setFlocksRetrying(true);
-    listFlocks({ limit: MAX_PAGE })
-      .then((f) => {
-        setFlocks(f); setFlocksFailed(false); setFlocksRetrying(false);
+    drainPages((offset, limit) => listFlocks({ limit, offset }))
+      .then(({ rows, truncated }) => {
+        setFlocks(rows); setFlocksTruncated(truncated); setFlocksFailed(false); setFlocksRetrying(false);
         setPanelsOutcome({ state: "someOk" });
       })
       .catch(() => { setFlocksFailed(true); setFlocksRetrying(false); });
@@ -209,13 +254,15 @@ export function Dashboard() {
     let cancelled = false;
     setPanelsOutcome({ state: "pending" }); // a fresh load starts clean, never on a stale verdict
     Promise.allSettled([
-      listFlocks({ limit: MAX_PAGE }),
-      listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
+      drainPages((offset, limit) => listFlocks({ limit, offset })),
+      drainPages((offset, limit) => listDailyEntries({ from: today, to: today, limit, offset })),
       getStock(),
     ]).then(([f, e, s]) => {
       if (cancelled) return;
-      if (f.status === "fulfilled") { setFlocks(f.value); setFlocksFailed(false); } else { setFlocksFailed(true); }
-      if (e.status === "fulfilled") setEntries(e.value);
+      if (f.status === "fulfilled") {
+        setFlocks(f.value.rows); setFlocksTruncated(f.value.truncated); setFlocksFailed(false);
+      } else { setFlocksFailed(true); }
+      if (e.status === "fulfilled") setEntries(e.value.rows);
       if (s.status === "fulfilled") setStock(s.value);
       setHousesPage(0);
       const issued = [f, e, s];
@@ -334,7 +381,7 @@ export function Dashboard() {
   // really more; the "at least" form says so instead of presenting a
   // truncated count as exact.
   const accessibleCount = flocks?.length ?? 0;
-  const accessibleCountTruncated = flocks !== null && flocks.length === MAX_PAGE;
+  const accessibleCountTruncated = flocksTruncated;
   const accessibleCountLabel = accessibleCountTruncated
     ? t("accessibleFlocksCountAtLeast", { count: accessibleCount })
     : t("accessibleFlocksCount", { count: accessibleCount });
@@ -376,6 +423,7 @@ export function Dashboard() {
       case "future": return t("rangeErrorFuture", { date: fmt.date(latestDay) });
       case "tooLong": return t("rangeErrorTooLong", { count: MAX_RANGE_DAYS, days: fmt.count(MAX_RANGE_DAYS) });
       case "incomplete": return t("rangeErrorIncomplete");
+      case "beforeCalendar": return t("rangeErrorBeforeCalendar");
     }
   };
 
@@ -418,11 +466,15 @@ export function Dashboard() {
   // #914 — a bucketed slot covers up to a week, so it says its own span and
   // day count (which is how a short last bucket labels itself) and carries
   // both the period's total and its per-day rate, the figure its bar height
-  // actually reads.
-  const trendTip = (slot: DayStripSlot) => {
+  // actually reads. The wording follows the STRIP's mode, not the bucket's own
+  // length: a window of 15, 22 or 29 days leaves a one-day last bucket, and
+  // reading that one off `dayCount` gave it the daily sentence beside twelve
+  // weekly ones — no day count, and a total presented as a rate (#940 review,
+  // finding 4).
+  const trendTip = (line: DayStripData) => (slot: DayStripSlot) => {
     const date = fmt.date(slot.date);
     const span = { from: date, to: fmt.date(slot.endDate), count: slot.dayCount, days: fmt.count(slot.dayCount) };
-    if (slot.dayCount > 1) {
+    if (line.bucketed) {
       switch (slot.kind) {
         case "none":
           return t("trendWeekTipNoFlocks", span);
@@ -584,7 +636,11 @@ export function Dashboard() {
 
         {canSeeSales && <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 1 } }}>
           <Box sx={headingSx}><Typography variant="h3" aria-label={t("salesPanelTitle")}><Link to="/sales">{t("recentOrdersTitle")}</Link></Typography></Box>
-          {orders.error !== null ? panelError
+          {/* #940 review, finding 1 — the panel error belongs to a read that left
+              NOTHING on screen. A next page that failed says nothing about the
+              page the reader is already looking at, so those rows stay and the
+              refusal is offered back as a retry under them. */}
+          {orderRows.length === 0 && orders.error !== null ? panelError
             : orders.rows === null ? <LinearProgress aria-label={t("salesPanelTitle")} sx={{ height: 5, borderRadius: 2 }} />
               : orderRows.length === 0 ? <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} /> : (
             <>
@@ -606,17 +662,30 @@ export function Dashboard() {
                   </Box>
                 </Box>)}
               </Box>
-            {(ordersPage > 0 || ordersHasMore) && <PanelPager
+            {/* A full first page means paging is a live concept here, so the
+                pager stays once the end is found rather than vanishing under
+                the tap that found it — with the total it just settled. */}
+            {(ordersPage > 0 || ordersHasMore || orderRows.length >= RECENT_ORDERS) && <PanelPager
               label={ordersHasMore
                 ? t("pagerOrdersOpen", { first: fmt.count(ordersFrom + 1), last: fmt.count(ordersFrom + orderSlice.length) })
                 : t("pagerOrders", { first: fmt.count(ordersFrom + 1), last: fmt.count(ordersFrom + orderSlice.length), total: fmt.count(orderRows.length) })}
               previousLabel={t("pagerPrevious", { panel: t("recentOrdersTitle") })}
               nextLabel={t("pagerNext", { panel: t("recentOrdersTitle") })}
-              hasPrevious={ordersPage > 0}
-              hasNext={ordersFrom + RECENT_ORDERS < orderRows.length || ordersHasMore}
+              hasPrevious={ordersPage > 0 && !ordersExtending}
+              hasNext={!ordersExtending && (ordersFrom + RECENT_ORDERS < orderRows.length || ordersHasMore)}
               onPrevious={() => setOrdersPage(ordersPage - 1)}
-              onNext={() => setOrdersPage(ordersPage + 1)}
+              onNext={() => { void showNextOrders(); }}
             />}
+            {ordersExtendFailed && <Alert severity="error" className="error" sx={{ mt: 1 }} action={
+              <Button
+                color="inherit" size="small"
+                aria-label={t("pagerRetryNext", { panel: t("recentOrdersTitle") })}
+                onClick={() => { void showNextOrders(); }}
+                sx={{ "&&": { minHeight: 44 } }}
+              >
+                {tp("retry")}
+              </Button>
+            }>{t("pagerNextFailed")}</Alert>}
             </>
           )}
         </Card>}
@@ -822,7 +891,7 @@ export function Dashboard() {
                   ? t(trendData.line.bucketed ? "trendNoCompleteWeekAvg" : "trendNoCompleteAvg")
                   : t(trendData.line.bucketed ? "trendCompleteWeekAvg" : "trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
                 legend={{ complete: t("legendComplete"), partial: t("legendPartial"), noEntry: t("legendNoEntry") }}
-                tip={trendTip} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
+                tip={trendTip(trendData.line)} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
               <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
               <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>
                 {t("henDaySubLabel", { range: rangeSpan, count: plotted.days, days: fmt.count(plotted.days) })}

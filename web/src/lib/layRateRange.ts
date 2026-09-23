@@ -41,14 +41,24 @@ export function trendWindow(range: LayRateRange, today: string): TrendWindow {
   return { from, to, days, previousFrom: daysBefore(from, days), previousTo: daysBefore(from, 1) };
 }
 
-export type CustomRangeError = "incomplete" | "order" | "future" | "tooLong";
+export type CustomRangeError = "incomplete" | "order" | "future" | "tooLong" | "beforeCalendar";
+
+// The first day the proleptic Gregorian calendar the app uses has, and the
+// floor `isIsoCalendarDate` already enforces on a single date.
+const CALENDAR_START = "0001-01-01";
 
 // `latest` is the newest day the card will plot, which is the farm's yesterday.
 export function customRangeError(from: string, to: string, latest: string): CustomRangeError | null {
   if (!isIsoCalendarDate(from) || !isIsoCalendarDate(to)) return "incomplete";
   if (from > to) return "order";
   if (to > latest) return "future";
-  if (inclusiveDays(from, to) > MAX_RANGE_DAYS) return "tooLong";
+  const days = inclusiveDays(from, to);
+  if (days > MAX_RANGE_DAYS) return "tooLong";
+  // The card always compares against an equal window directly before this one.
+  // A range that leaves no room for it has nothing to compare against, and the
+  // report request that would carry it starts outside the calendar (#940
+  // review, finding 5).
+  if (daysBefore(from, days) < CALENDAR_START) return "beforeCalendar";
   return null;
 }
 

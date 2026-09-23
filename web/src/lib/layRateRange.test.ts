@@ -75,6 +75,30 @@ describe("customRangeError (#914)", () => {
   });
 });
 
+// Codex gpt-6-sol round 1, finding 5 (P3). A window whose comparison period
+// would start before the calendar begins has no comparison to make, and the
+// arithmetic that produced it cannot be trusted either.
+describe("customRangeError at the edge of the calendar", () => {
+  // Under the two-digit-year mapping this span measured NEGATIVE, which walked
+  // straight past the length cap. It is an ordinary two-day range.
+  it("measures a span across year 100 instead of letting it past the cap", () => {
+    expect(customRangeError("0099-12-31", "0100-01-01", LATEST)).toBeNull();
+    expect(trendWindow({ kind: "custom", from: "0099-12-31", to: "0100-01-01" }, TODAY))
+      .toMatchObject({ days: 2, previousFrom: "0099-12-29", previousTo: "0099-12-30" });
+  });
+
+  it("refuses a range with no equal window before it", () => {
+    expect(customRangeError("0001-01-05", "0001-01-10", LATEST)).toBe("beforeCalendar");
+    expect(customRangeError("0001-01-01", "0001-03-31", LATEST)).toBe("beforeCalendar");
+  });
+
+  it("accepts a range whose comparison window starts exactly on 0001-01-01", () => {
+    expect(customRangeError("0001-01-11", "0001-01-20", LATEST)).toBeNull();
+    expect(trendWindow({ kind: "custom", from: "0001-01-11", to: "0001-01-20" }, TODAY))
+      .toMatchObject({ days: 10, previousFrom: "0001-01-01", previousTo: "0001-01-10" });
+  });
+});
+
 describe("remembered range (#914, #535 per-farm storage)", () => {
   it("round-trips a preset and a custom range", () => {
     expect(formatStoredRange({ kind: "preset", days: 30 })).toBe("30");

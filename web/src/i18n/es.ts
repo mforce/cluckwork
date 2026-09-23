@@ -680,6 +680,8 @@ export const es = {
     pagerOrdersOpen: "Pedidos {{first}} a {{last}}",
     pagerPrevious: "Página anterior de {{panel}}",
     pagerNext: "Página siguiente de {{panel}}",
+    pagerNextFailed: "No se pudo cargar la página siguiente.",
+    pagerRetryNext: "Reintentar la página siguiente de {{panel}}",
 
     // Últimos 14 días (#654)
     trendPanelTitle: "Tendencia de la tasa de postura",
@@ -726,6 +728,7 @@ export const es = {
     rangeToLabel: "Hasta",
     rangeApply: "Aplicar",
     rangeErrorIncomplete: "Indique ambas fechas.",
+    rangeErrorBeforeCalendar: "El período debe dejar espacio para un período igual antes de él.",
     rangeErrorOrder: "La fecha inicial no debe ser posterior a la final.",
     rangeErrorFuture: "El período debe terminar el {{date}} o antes.",
     rangeErrorTooLong_one: "Elija un período de {{days}} día como máximo.",

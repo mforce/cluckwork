@@ -932,6 +932,11 @@ export const en = {
     pagerOrdersOpen: "Orders {{first}} to {{last}}",
     pagerPrevious: "Previous page of {{panel}}",
     pagerNext: "Next page of {{panel}}",
+    // #940 review — a next page the server refused. The rows already on
+    // screen are untouched, so this offers the page again rather than
+    // replacing them with a panel error.
+    pagerNextFailed: "Could not load the next page.",
+    pagerRetryNext: "Retry the next page of {{panel}}",
 
     // Last 14 days (#654, #777): the production report's own figures —
     // submitted days only, fixed window (yesterday back). The strip plots eggs
@@ -1028,6 +1033,7 @@ export const en = {
     rangeToLabel: "To",
     rangeApply: "Apply",
     rangeErrorIncomplete: "Enter both dates.",
+    rangeErrorBeforeCalendar: "The range must leave room for an equal period before it.",
     rangeErrorOrder: "The start date must not be after the end date.",
     // The card plots finished days only, so its newest day is the farm's
     // yesterday rather than today.

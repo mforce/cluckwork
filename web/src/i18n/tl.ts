@@ -707,6 +707,8 @@ export const tl = {
     pagerOrdersOpen: "Order {{first}} hanggang {{last}}",
     pagerPrevious: "Naunang page ng {{panel}}",
     pagerNext: "Susunod na page ng {{panel}}",
+    pagerNextFailed: "Hindi na-load ang susunod na page.",
+    pagerRetryNext: "Subukan muli ang susunod na page ng {{panel}}",
 
     // Dami ng itlog bawat inahin (#654)
     trendPanelTitle: "Tendensiya ng dami ng itlog bawat inahin",
@@ -759,6 +761,7 @@ export const tl = {
     rangeToLabel: "Hanggang",
     rangeApply: "Ilapat",
     rangeErrorIncomplete: "Ilagay ang parehong petsa.",
+    rangeErrorBeforeCalendar: "Dapat may puwang ang saklaw para sa kasintagal na panahon bago ito.",
     rangeErrorOrder: "Hindi dapat mas huli ang simulang petsa kaysa sa huling petsa.",
     rangeErrorFuture: "Dapat magtapos ang saklaw sa {{date}} o mas maaga.",
     rangeErrorTooLong_one: "Pumili ng saklaw na hanggang {{days}} araw lamang.",
