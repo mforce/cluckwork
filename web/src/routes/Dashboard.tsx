@@ -1,10 +1,10 @@
 // web/src/routes/Dashboard.tsx
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
 import {
-  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography, useMediaQuery,
+  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -17,20 +17,34 @@ import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
 import { Dialog } from "../components/Dialog";
+import { FilterDateField } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
+import { PanelPager } from "../components/PanelPager";
+import { usePagedList } from "../components/usePagedList";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import {
-  captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
+  captureTiles, dayStrip, henDayTrend, panelPage, stockBar, stripPeriods, todaysEggs,
 } from "../lib/dashboard";
 import type { CaptureTile, DayStripData, DayStripSlot } from "../lib/dashboard";
+import {
+  DEFAULT_RANGE, MAX_RANGE_DAYS, RANGE_PRESETS, RANGE_STORAGE_KEY, customRangeError,
+  formatStoredRange, parseStoredRange, trendWindow,
+} from "../lib/layRateRange";
+import type { CustomRangeError, LayRateRange } from "../lib/layRateRange";
+import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
 import { splitProductionReport } from "../lib/productionReportSplit";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
 const RECENT_ORDERS = 5;
+// #915 — a glance panel, not a ledger: eight houses fill the desktop card
+// without scrolling it, six fit the phone's. Every house is still reachable,
+// one page at a time, so nothing hides behind a link any more.
+const HOUSES_PER_PAGE_DESKTOP = 8;
+const HOUSES_PER_PAGE_PHONE = 6;
 // Server clamps list limits at 500. One farm won't exceed that in Phase 1.x;
 // past 500 flocks the tail silently drops — revisit with real paging if that
 // day comes.
@@ -38,6 +52,10 @@ const MAX_PAGE = 500;
 
 // #916 — the Lay rate card's own scope, independent of every other panel.
 type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
+
+// The native select's own control box carries the 44px phone target; MUI sizes
+// it from the font otherwise.
+const RANGE_FIELD_SX = { "& .MuiInputBase-input": { minHeight: 44, boxSizing: "border-box" } };
 
 export const DASHBOARD_DELTA_CLASSES = ["trend-delta", "trend-delta is-down", "trend-delta is-up"] as const;
 
@@ -58,7 +76,6 @@ export function Dashboard() {
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
   const [stock, setStock] = useState<StockRow[] | null>(null);
-  const [orders, setOrders] = useState<SalesOrder[] | null>(null);
   // Both windows or nothing: a line drawn from one week and a delta against
   // a missing one would be a figure nobody can reconcile.
   const [trend, setTrend] = useState<{ current: ProductionReport; previous: ProductionReport } | null>(null);
@@ -76,6 +93,26 @@ export function Dashboard() {
   const [scope, setScope] = useState<FlockScope>({ kind: "all" });
   const [trendLoading, setTrendLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // #914 — the plotted window, remembered per device and per farm. The card
+  // never plots today (owner decision A), so `latest` is the farm's yesterday
+  // and a remembered custom range is re-validated against it rather than
+  // trusted: storage outlives every rule this build knows.
+  const latestDay = daysBefore(today, 1);
+  const [range, setRange] = useState<LayRateRange>(
+    () => parseStoredRange(readAccountScoped(RANGE_STORAGE_KEY), latestDay) ?? DEFAULT_RANGE,
+  );
+  const chooseRange = (next: LayRateRange) => {
+    setRange(next);
+    writeAccountScoped(RANGE_STORAGE_KEY, formatStoredRange(next));
+  };
+  const plotted = trendWindow(range, today);
+  const { from, to, previousFrom } = plotted;
+  // The custom form's own draft, separate from the applied range so typing a
+  // date never refetches and a rejected span leaves the plotted window alone.
+  const [customOpen, setCustomOpen] = useState(range.kind === "custom");
+  const [draftFrom, setDraftFrom] = useState(plotted.from);
+  const [draftTo, setDraftTo] = useState(plotted.to);
+  const [rangeError, setRangeError] = useState<CustomRangeError | null>(null);
   // #918 — the flock LIST read can fail alone while the other three panels
   // succeed; "failed" must not read as "0 accessible flocks". `flocksRetrying`
   // holds the unavailable state up until the retried read SETTLES — clearing
@@ -94,6 +131,37 @@ export function Dashboard() {
   // Match the navigation breakpoint when folding the missing-house summary.
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
+  const housesPerPage = isDesktop ? HOUSES_PER_PAGE_DESKTOP : HOUSES_PER_PAGE_PHONE;
+  const [housesPage, setHousesPage] = useState(0);
+
+  // #915 — Recent orders pages through the shared list hook rather than a
+  // second homegrown one (#469): its ticket discipline is what keeps a
+  // superseded page from painting over a newer one. A role that cannot see
+  // sales issues no request at all (INV-2, #127), so the hook's own mount
+  // fetch resolves empty instead of 403ing the panel.
+  const orders = usePagedList<SalesOrder, never>({
+    fetchPage: useCallback(
+      (offset: number, limit: number) =>
+        canSeeSales ? listOrders({ limit, offset }) : Promise.resolve<SalesOrder[]>([]),
+      [canSeeSales],
+    ),
+    pageSize: RECENT_ORDERS,
+    errorText: () => i18n.t("dashboard:panelLoadError"),
+  });
+  const [ordersPage, setOrdersPage] = useState(0);
+  const orderRows = orders.rows ?? [];
+  const ordersFrom = ordersPage * RECENT_ORDERS;
+  const orderSlice = orderRows.slice(ordersFrom, ordersFrom + RECENT_ORDERS);
+  const { hasMore: ordersHasMore, loading: ordersLoading, loadMore: ordersLoadMore } = orders;
+  // Paging forward past what is loaded asks the server for exactly one more
+  // page. The page number moves first so the pager answers the tap; a failed
+  // fetch surfaces through the hook's own error rather than silently rewinding.
+  useEffect(() => {
+    if (orderRows.length <= ordersFrom && ordersHasMore && !ordersLoading) void ordersLoadMore();
+  }, [orderRows.length, ordersFrom, ordersHasMore, ordersLoading, ordersLoadMore]);
+  // A refetch starts the reader at the first page again (#915): the page they
+  // were on described a list that no longer exists.
+  useEffect(() => { setOrdersPage(0); }, [canSeeSales]);
 
   const scopeLabelId = useId();
   const scopeValueId = useId();
@@ -117,7 +185,11 @@ export function Dashboard() {
   type PanelsOutcome = { state: "pending" } | { state: "someOk" } | { state: "allFailed"; reason: unknown };
   const [panelsOutcome, setPanelsOutcome] = useState<PanelsOutcome>({ state: "pending" });
   const [trendOutcome, setTrendOutcome] = useState<"pending" | "success" | "failure">("pending");
-  const errorMessage = panelsOutcome.state === "allFailed" && trendOutcome === "failure"
+  // #915 — Recent orders left the parallel batch for the paged list hook, so
+  // its verdict now comes from that hook. A role without the sales panel
+  // contributes nothing either way, exactly as its skipped fetch did before.
+  const ordersFailed = !canSeeSales || orders.error !== null;
+  const errorMessage = panelsOutcome.state === "allFailed" && trendOutcome === "failure" && ordersFailed
     ? (panelsOutcome.reason instanceof ApiError ? panelsOutcome.reason.message : i18n.t("dashboard:loadFailed"))
     : null;
 
@@ -141,16 +213,13 @@ export function Dashboard() {
       listFlocks({ limit: MAX_PAGE }),
       listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
       getStock(),
-      canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
-    ]).then(([f, e, s, o]) => {
+    ]).then(([f, e, s]) => {
       if (cancelled) return;
       if (f.status === "fulfilled") { setFlocks(f.value); setFlocksFailed(false); } else { setFlocksFailed(true); }
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
-      if (o.status === "fulfilled") setOrders(o.value);
-      // Only the fetches we actually issued count toward "everything failed":
-      // the sales read is an inert placeholder when the role can't see it.
-      const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
+      setHousesPage(0);
+      const issued = [f, e, s];
       const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
       setPanelsOutcome(rejected.length === issued.length
         ? { state: "allFailed", reason: rejected[0]?.reason }
@@ -158,6 +227,10 @@ export function Dashboard() {
       setLoading(false);
     });
     return () => { cancelled = true; };
+    // #918 — `canSeeSales` is a dep even though none of these three reads is
+    // role-gated: `panelsOutcome` is half the "everything failed" verdict, and
+    // a role change starts a new generation whose verdict must be decided
+    // freshly rather than inherited from the previous role's healthy one.
   }, [today, canSeeSales]);
 
   // #916 — the production report alone, re-run on scope/today/soleFlockId,
@@ -186,12 +259,14 @@ export function Dashboard() {
     const controller = new AbortController();
     setTrendLoading(true);
     setTrendOutcome("pending"); // re-decided freshly on every dispatch, never frozen at a stale outcome
-    // The last 7 complete days and the 7 before them — yesterday back, so an
-    // unsubmitted today never ends the line in a false dip (owner decision A).
-    getProductionReport(daysBefore(today, 14), daysBefore(today, 1), flockId, controller.signal)
+    // #914 — the chosen window and the window of the same length before it, in
+    // ONE contiguous request that `splitProductionReport` divides at the
+    // chosen window's first day. Only the later half is drawn; the earlier
+    // half exists for the hen-day comparison alone.
+    getProductionReport(previousFrom, to, flockId, controller.signal)
       .then((report) => {
         if (controller.signal.aborted) return;
-        const { earlier, later } = splitProductionReport(report, daysBefore(today, 7));
+        const { earlier, later } = splitProductionReport(report, from);
         setTrend({ current: later, previous: earlier });
         setTrendLoading(false);
         setTrendOutcome("success");
@@ -203,7 +278,7 @@ export function Dashboard() {
         setTrendOutcome("failure");
       });
     return () => controller.abort();
-  }, [today, scope, soleFlockId, canSeeSales]);
+  }, [from, to, previousFrom, scope, soleFlockId, canSeeSales]);
 
   // #918 — Codex review: yesterday's close belongs to the farm-wide Morning
   // collection panel, so it is fetched WITHOUT a flock id and depends only on
@@ -244,12 +319,12 @@ export function Dashboard() {
   }
 
   const panelError = <Alert severity="error" className="error">{t("panelLoadError")}</Alert>;
-  // The FULL capture-status list, uncapped — the attention line and the "N of
-  // M houses in" caption must count every active flock, not only the 12
-  // `visibleTiles` caps the RENDERED row list at. A farm with more than 12
-  // missing houses undercounted both on the capped list (CodeRabbit, #883).
+  // The FULL capture-status list — the attention line, the progress bar and
+  // the "N of M houses in" caption count every active flock, never only the
+  // page on screen. A farm with more than a page of missing houses
+  // undercounted both on the capped list (CodeRabbit, #883).
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
-  const tiles = allTiles === null ? null : visibleTiles(allTiles);
+  const housePage = panelPage(allTiles ?? [], housesPage, housesPerPage);
 
   const scopedFlock = soleFlock ?? (scope.kind === "flock" ? scope.flock : null);
   const scopeName = scopedFlock ? scopedFlock.name : t("allFlocksOption");
@@ -267,13 +342,43 @@ export function Dashboard() {
   const contextScope = scopedFlock ? scopedFlock.name : accessibleCountLabel;
 
   const trendData = trend === null ? null : {
-    line: dayStrip({
-      days: [...trend.previous.days, ...trend.current.days],
-      recentCount: trend.current.days.length,
-    }),
+    line: dayStrip({ periods: stripPeriods(trend.current.days) }),
     henDay: henDayTrend(trend.current, trend.previous),
   };
   const bar = stock === null ? null : stockBar(stock);
+  // The window's own dates, which every sentence about the card's range uses
+  // rather than a preset's wording: a custom range has no preset to name, and
+  // one string cannot be built from a stem plus a suffix (#650).
+  const rangeSpan = t("rangeSpan", { from: fmt.date(from), to: fmt.date(to) });
+  const presetLabel = (days: number) => t("rangePresetOption", { count: days, total: fmt.count(days) });
+  const rangeSelection = range.kind === "custom" || customOpen ? "custom" : String(range.days);
+  const selectRange = (value: string) => {
+    setRangeError(null);
+    const preset = RANGE_PRESETS.find((days) => String(days) === value);
+    if (preset === undefined) {
+      setDraftFrom(from);
+      setDraftTo(to);
+      setCustomOpen(true);
+      return;
+    }
+    setCustomOpen(false);
+    chooseRange({ kind: "preset", days: preset });
+  };
+  // Rejected in the form, never silently truncated: a window the card quietly
+  // shortened would leave the reader comparing a period they did not ask for.
+  const applyCustomRange = () => {
+    const error = customRangeError(draftFrom, draftTo, latestDay);
+    setRangeError(error);
+    if (error === null) chooseRange({ kind: "custom", from: draftFrom, to: draftTo });
+  };
+  const rangeErrorText = (error: CustomRangeError) => {
+    switch (error) {
+      case "order": return t("rangeErrorOrder");
+      case "future": return t("rangeErrorFuture", { date: fmt.date(latestDay) });
+      case "tooLong": return t("rangeErrorTooLong", { count: MAX_RANGE_DAYS, days: fmt.count(MAX_RANGE_DAYS) });
+      case "incomplete": return t("rangeErrorIncomplete");
+    }
+  };
 
   // Every figure is farm-locale formatted before it reaches a catalog string (#650).
   const deltaText = (delta: number | null) =>
@@ -291,16 +396,16 @@ export function Dashboard() {
       // slots and announce that none had an entry. `partial` is always 0 here:
       // a partial slot requires a recorded figure, which "none" has none of.
       return line.partial === 0 && line.unrecorded === 0
-        ? t("trendStripLabelNoFlocks")
-        : t("trendStripLabelNone");
+        ? t("trendStripLabelNoFlocks", { range: rangeSpan })
+        : t("trendStripLabelNone", { range: rangeSpan });
     }
     if (line.scale === "partial") {
       // The fallback peak: no complete day exists, so there is still no
       // average (that stays complete-day-only), but Peak is real and the
       // sentence must say so, not fall back to "no peak or average".
-      return t("trendStripLabelPartialScale", { max: fmt.count(line.max!) });
+      return t("trendStripLabelPartialScale", { range: rangeSpan, max: fmt.count(line.max!) });
     }
-    const figures = { max: fmt.count(line.max!), avg: fmt.count(line.average!, 1) };
+    const figures = { range: rangeSpan, max: fmt.count(line.max!), avg: fmt.count(line.average!, 1) };
     const gaps = line.partial + line.unrecorded;
     return gaps === 0
       ? t("trendStripLabel", figures)
@@ -310,8 +415,30 @@ export function Dashboard() {
   // farm-locale formatted before it reaches a catalog string (#650). The
   // unrecorded arm carries no count at all — that is the point of #780 — and
   // the partial arm says its total is a floor rather than the day's output.
+  //
+  // #914 — a bucketed slot covers up to a week, so it says its own span and
+  // day count (which is how a short last bucket labels itself) and carries
+  // both the period's total and its per-day rate, the figure its bar height
+  // actually reads.
   const trendTip = (slot: DayStripSlot) => {
     const date = fmt.date(slot.date);
+    const span = { from: date, to: fmt.date(slot.endDate), count: slot.dayCount, days: fmt.count(slot.dayCount) };
+    if (slot.dayCount > 1) {
+      switch (slot.kind) {
+        case "none":
+          return t("trendWeekTipNoFlocks", span);
+        case "unrecorded":
+          return t("trendWeekTipNone", span);
+        case "partial":
+          return t("trendWeekTipPartial", {
+            ...span, total: fmt.count(slot.eggs), perDay: fmt.count(slot.perDayEggs),
+          });
+        case "recorded":
+          return t("trendWeekTip", {
+            ...span, total: fmt.count(slot.eggs), perDay: fmt.count(slot.perDayEggs),
+          });
+      }
+    }
     switch (slot.kind) {
       case "none":
         return t("trendDayTipNoFlocks", { date });
@@ -394,20 +521,28 @@ export function Dashboard() {
             <Typography variant="h3" aria-label={t("todayPanelTitle")}><Link to="/daily-entry">{t("collectionTitle")}</Link></Typography>
             {allTiles !== null && <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>{t("todayInCount", { in: recordedHouses, count: allTiles.length })}</Typography>}
           </Box>
-          {tiles === null || entries === null ? panelError : tiles.shown.length === 0 ? (
+          {allTiles === null || entries === null ? panelError : allTiles.length === 0 ? (
             <EmptyState icon={Bird} message={t("noFlocksMessage")} />
           ) : (
             <>
-              <LinearProgress variant="determinate" value={recordedHouses / (tiles.shown.length + tiles.hidden) * 100} aria-label={t("collectionTitle")}
+              <LinearProgress variant="determinate" value={recordedHouses / allTiles.length * 100} aria-label={t("collectionTitle")}
                 sx={{ height: 5, borderRadius: 2, mb: 1, bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--success)" } }} />
-              {tiles.shown.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
+              {housePage.items.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
+              {housePage.pageCount > 1 && <PanelPager
+                label={t("pagerHouses", { first: fmt.count(housePage.first), last: fmt.count(housePage.last), total: fmt.count(housePage.total) })}
+                previousLabel={t("pagerPrevious", { panel: t("collectionTitle") })}
+                nextLabel={t("pagerNext", { panel: t("collectionTitle") })}
+                hasPrevious={housePage.page > 0}
+                hasNext={housePage.page + 1 < housePage.pageCount}
+                onPrevious={() => setHousesPage(housePage.page - 1)}
+                onNext={() => setHousesPage(housePage.page + 1)}
+              />}
               <Box sx={{ bgcolor: "var(--surface-2)", mx: { xs: -2, md: -2.25 }, mb: { xs: -2, md: -2.25 }, mt: 1.5, px: 2.25, py: 1.5 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                   <Typography>{t("collectedToday")}</Typography>
                   <Typography className="num" sx={{ fontFamily: "Georgia, serif", fontWeight: 600, fontSize: "1.8rem" }}>{fmt.count(todaysEggs(entries))}</Typography>
                 </Box>
                 {yesterdayClose !== null && <Typography variant="caption" color="text.secondary">{t("yesterdayByClose", { total: fmt.count(yesterdayClose) })}</Typography>}
-                {tiles.hidden > 0 && <Typography component={Link} to="/daily-entry" variant="body2" sx={{ display: "block" }}>{t("moreFlocks", { count: tiles.hidden, total: fmt.count(tiles.hidden) })}</Typography>}
               </Box>
             </>
           )}
@@ -450,9 +585,12 @@ export function Dashboard() {
 
         {canSeeSales && <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 1 } }}>
           <Box sx={headingSx}><Typography variant="h3" aria-label={t("salesPanelTitle")}><Link to="/sales">{t("recentOrdersTitle")}</Link></Typography></Box>
-          {orders === null ? panelError : orders.length === 0 ? <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} /> : (
+          {orders.error !== null ? panelError
+            : orders.rows === null ? <LinearProgress aria-label={t("salesPanelTitle")} sx={{ height: 5, borderRadius: 2 }} />
+              : orderRows.length === 0 ? <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} /> : (
+            <>
             <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
-              {orders.map((o) => <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
+              {orderSlice.map((o) => <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
                 display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 1.5, py: 1.25, borderTop: "1px solid var(--rule)",
               }}>
                 <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
@@ -469,6 +607,18 @@ export function Dashboard() {
                 </Box>
               </Box>)}
             </Box>
+            {(ordersPage > 0 || ordersHasMore) && <PanelPager
+              label={ordersHasMore
+                ? t("pagerOrdersOpen", { first: fmt.count(ordersFrom + 1), last: fmt.count(ordersFrom + orderSlice.length) })
+                : t("pagerOrders", { first: fmt.count(ordersFrom + 1), last: fmt.count(ordersFrom + orderSlice.length), total: fmt.count(orderRows.length) })}
+              previousLabel={t("pagerPrevious", { panel: t("recentOrdersTitle") })}
+              nextLabel={t("pagerNext", { panel: t("recentOrdersTitle") })}
+              hasPrevious={ordersPage > 0}
+              hasNext={ordersFrom + RECENT_ORDERS < orderRows.length || ordersHasMore}
+              onPrevious={() => setOrdersPage(ordersPage - 1)}
+              onNext={() => setOrdersPage(ordersPage + 1)}
+            />}
+            </>
           )}
         </Card>}
 
@@ -483,10 +633,12 @@ export function Dashboard() {
           {/* #916/#918 — matches the approved mockup's DOM order exactly
               (production-flock-selector-v2.html): head, scope, context,
               scale+dock+strip+rule+legend (all inside DayStrip), hen-day KPI
-              LAST. */}
+              LAST. #914 adds the range control after the scope, where the
+              window it names is read. The head's fixed "Last 14 days" caption
+              went with it: the control states the window now, and two copies
+              of it would disagree the moment one was missed. */}
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
-            <Typography variant="caption" color="text.secondary">{t("trendPanelTitle")}</Typography>
           </Box>
 
           {flocksFailed ? (
@@ -532,8 +684,49 @@ export function Dashboard() {
                   </Button>
                 )}
               </Box>
+              {/* #914 — a native select and two plain date fields, the shape
+                  every other filter on the app already uses. The MUI date
+                  range picker is a paid @mui/x package and stays out of the
+                  822 plan's dependency set. */}
+              <Box sx={{ mb: "8px" }}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label={t("rangeLabel")}
+                  value={rangeSelection}
+                  slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+                  onChange={(e) => selectRange(e.target.value)}
+                  sx={RANGE_FIELD_SX}
+                >
+                  {RANGE_PRESETS.map((days) => <option key={days} value={String(days)}>{presetLabel(days)}</option>)}
+                  <option value="custom">{t("rangeCustomOption")}</option>
+                </TextField>
+                {customOpen && (
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1, alignItems: "flex-end" }}>
+                    <FilterDateField
+                      label={t("rangeFromLabel")} value={draftFrom}
+                      slotProps={{ htmlInput: { max: latestDay } }}
+                      onChange={(e) => setDraftFrom(e.target.value)}
+                      sx={{ flex: "1 1 8rem", maxWidth: "none" }}
+                    />
+                    <FilterDateField
+                      label={t("rangeToLabel")} value={draftTo}
+                      slotProps={{ htmlInput: { max: latestDay } }}
+                      onChange={(e) => setDraftTo(e.target.value)}
+                      sx={{ flex: "1 1 8rem", maxWidth: "none" }}
+                    />
+                    <Button variant="outlined" color="inherit" onClick={applyCustomRange} sx={{ "&&": { minHeight: 44 } }}>
+                      {t("rangeApply")}
+                    </Button>
+                  </Box>
+                )}
+                {rangeError !== null && (
+                  <Alert severity="error" className="error" sx={{ mt: 1 }}>{rangeErrorText(rangeError)}</Alert>
+                )}
+              </Box>
               <Typography className="trend-context" variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                {t("layRateContext", { scope: contextScope, from: fmt.date(daysBefore(today, 14)), to: fmt.date(daysBefore(today, 1)) })}
+                {t("layRateContext", { scope: contextScope, from: fmt.date(from), to: fmt.date(to) })}
               </Typography>
 
               {soleFlock === null && (
@@ -622,16 +815,21 @@ export function Dashboard() {
             : trendData === null ? panelError : <>
               <DayStrip data={trendData.line} label={trendLabel(trendData.line)}
                 title={t(
-                  trendData.line.scale === "partial" ? "trendScaleTitlePartial"
-                    : trendData.line.scale === "none" ? "trendScaleTitleNone"
-                      : "trendScaleTitle",
+                  trendData.line.scale === "none" ? "trendScaleTitleNone"
+                    : trendData.line.scale === "partial"
+                      ? (trendData.line.bucketed ? "trendScaleTitleWeekPartial" : "trendScaleTitlePartial")
+                      : (trendData.line.bucketed ? "trendScaleTitleWeek" : "trendScaleTitle"),
                 )}
                 peak={t("trendPeak", { total: trendData.line.max === null ? "—" : fmt.count(trendData.line.max) })}
-                average={trendData.line.average === null ? t("trendNoCompleteAvg") : t("trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
+                average={trendData.line.average === null
+                  ? t(trendData.line.bucketed ? "trendNoCompleteWeekAvg" : "trendNoCompleteAvg")
+                  : t(trendData.line.bucketed ? "trendCompleteWeekAvg" : "trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
                 legend={{ complete: t("legendComplete"), partial: t("legendPartial"), noEntry: t("legendNoEntry") }}
-                tip={trendTip} from={<FarmDate iso={daysBefore(today, 14)} />} to={<FarmDate iso={daysBefore(today, 1)} />} />
+                tip={trendTip} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
               <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
-              <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>{t("henDaySubLabel")}</Typography>
+              <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>
+                {t("henDaySubLabel", { range: rangeSpan, count: plotted.days, days: fmt.count(plotted.days) })}
+              </Typography>
           </>}
         </Card>
       </Box>

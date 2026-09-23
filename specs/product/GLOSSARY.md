@@ -113,16 +113,19 @@ graded breakdown of sellable eggs. One entry per flock per day (natural key).
 today. The dashboard's Morning collection shows one row per active flock with
 today's eggs and the entry's status, the flocks without an entry first; a row
 reading **no entry** is the missed-capture alarm — the loudest element on the
-screen — and links to Daily entry for that flock and day. The list shows at
-most twelve rows and a "N more flocks" link for the rest, so a missing house
-is never behind the link while twelve or fewer are missing. A Voided entry
-does not count (it vacated its day, #82); a Draft does (captured, not yet
-submitted). Depleted and archived flocks appear only when they do have an
-entry today. Beside it the dashboard shows the last 14 days from the
-**Production report** (submitted days only, yesterday back — a fixed window,
-unlike Reports) with the report's own **Hen-day %** for the last 7 finished
-days against the 7 before, and stock as one stacked bar by grade whose total
-is the Stock screen's.
+screen — and links to Daily entry for that flock and day. The list is **paged
+inside the panel** (#915) — six houses at a time on a phone, eight on a wider
+screen — so every house is reachable without leaving the dashboard; nothing
+hides behind a link. The progress bar and the "N of M houses in" count are
+over every house, never the page on screen. A Voided entry does not count (it
+vacated its day, #82); a Draft does (captured, not yet submitted). Depleted
+and archived flocks appear only when they do have an entry today. Recent
+orders pages the same way, five at a time, fetching each page as it is asked
+for. Beside them the dashboard shows the chosen **Lay rate range** from the
+**Production report** (submitted days only, ending yesterday or earlier —
+never today, unlike Reports) with the report's own **Hen-day %** for that
+window against the window of the same length before it, and stock as one
+stacked bar by grade whose total is the Stock screen's.
 
 **Daily entry steps (#134)** — the capture screen is two numbered panes side by
 side: **1 Egg counts** and **2 Grading**. Flock and date sit above them as
@@ -747,15 +750,28 @@ flocks that did file, so a missing flock lowers what the figure is measured
 over rather than the figure itself. Distinct from a day nobody recorded,
 which has no figure at all.
 
-**14-day strip scale (#916)** — Peak scales every bar to the largest
-**complete** day's total when the window has one. When it does not — every
-recorded day in the window is partial — Peak falls back to the largest
-**partial** day's total instead, and the caption says "partial days only" so
-the bars are never read as full-farm output. A window with no recorded day
-at all has no Peak and draws every bar at the 2% floor's absence (nothing to
-scale against). The Avg line never falls back: it stays complete-day-only in
-every case, because averaging a floor understates whatever the missing
-houses would have added.
+**Lay rate strip scale (#916, #914)** — Peak scales every bar to the largest
+**complete** period's figure when the window has one. When it does not — every
+recorded period in the window is partial — Peak falls back to the largest
+**partial** figure instead, and the caption says "partial days only" (or
+"partial weeks only" on a weekly strip) so the bars are never read as
+full-farm output. A window with no recorded period at all has no Peak and
+draws every bar at the 2% floor's absence (nothing to scale against). The Avg
+line never falls back: it stays complete-period-only in every case, because
+averaging a floor understates whatever the missing houses would have added.
+Every bar reads **eggs per day**, on a weekly strip as much as a daily one,
+so a short last week is not drawn as a fall in production.
+
+**Lay rate range (#914)** — the window the Dashboard's Lay rate card plots:
+the last **7**, **14** or **30** finished days, or a **custom range** entered
+as two plain dates and capped at **90 days** — a longer one is refused in the
+form, never silently shortened. The window always ends on the farm's
+yesterday or earlier, because the card counts submitted days only. The choice
+is remembered per device and per farm. Up to 14 days the strip draws one bar
+per day, with a hairline at each seven-day boundary; past that it draws **one
+bar per week** (7-day buckets from the start of the window, so the last one
+may be short and says its own day count). The hen-day figure below always
+compares the chosen window against the window of the same length before it.
 
 **Lay rate flock scope (#916)** — the Dashboard's Lay rate card reads one
 scope: **All flocks** (every flock the signed-in user can see) or one

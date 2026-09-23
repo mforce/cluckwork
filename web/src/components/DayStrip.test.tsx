@@ -6,18 +6,18 @@ import { DayStrip } from "./DayStrip";
 import type { DayStripData, DayStripSlot } from "../lib/dashboard";
 
 const rec = (date: string, eggs: number, heightPct: number, weekBreak = false): DayStripSlot =>
-  ({ kind: "recorded", date, eggs, heightPct, weekBreak });
+  ({ kind: "recorded", date, endDate: date, dayCount: 1, eggs, perDayEggs: eggs, heightPct, weekBreak });
 const gap = (date: string, weekBreak = false): DayStripSlot =>
-  ({ kind: "unrecorded", date, expectedFlocks: 3, weekBreak });
+  ({ kind: "unrecorded", date, endDate: date, dayCount: 1, expectedFlocks: 3, weekBreak });
 const part = (date: string, eggs: number, heightPct: number): DayStripSlot =>
-  ({ kind: "partial", date, eggs, heightPct, filedFlocks: 1, expectedFlocks: 3, weekBreak: false });
+  ({ kind: "partial", date, endDate: date, dayCount: 1, eggs, perDayEggs: eggs, heightPct, filedFlocks: 1, expectedFlocks: 3, weekBreak: false });
 
 // Four days, one per state: one that laid, one that laid nothing and was
 // recorded, one only some houses reported, one nobody recorded. The last three
 // all used to render as the same empty slot.
 const data: DayStripData = {
   slots: [rec("2026-07-01", 10, 100), rec("2026-07-02", 0, 2), part("2026-07-04", 6, 60), gap("2026-07-03", true)],
-  max: 10, average: 5, averagePct: 50, complete: 2, partial: 1, unrecorded: 1, scale: "complete",
+  max: 10, average: 5, averagePct: 50, complete: 2, partial: 1, unrecorded: 1, scale: "complete", bucketed: false,
 };
 
 const tip = (s: DayStripSlot) => {
@@ -69,7 +69,7 @@ describe("DayStrip (#654, #777, #780)", () => {
     expect(screen.getByText("Avg 5")).toBeInTheDocument();
     expect(screen.getByText("1 Jul")).toBeInTheDocument();
 
-    rerender(strip({ slots: [gap("2026-08-01")], max: null, average: null, averagePct: null, complete: 0, partial: 0, unrecorded: 1, scale: "none" }, "Flat"));
+    rerender(strip({ slots: [gap("2026-08-01")], max: null, average: null, averagePct: null, complete: 0, partial: 0, unrecorded: 1, scale: "none", bucketed: false }, "Flat"));
     expect(screen.getByRole("group", { name: "Flat" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Eggs per day" })).not.toBeInTheDocument();
   });

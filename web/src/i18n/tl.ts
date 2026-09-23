@@ -684,7 +684,7 @@ export const tl = {
     // Katayuan ng pagtatala (#654)
     todayPanelTitle: "Ngayon",
     // Tagalog nouns do not inflect for number, so both plural forms carry
-    // the same text — same treatment as moreFlocks_one/_other below.
+    // the same text — same treatment as every other plural pair here.
     todayInCount_one: "{{in}} sa {{count}} bahay-manukan ang naitala",
     todayInCount_other: "{{in}} sa {{count}} bahay-manukan ang naitala",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
@@ -702,38 +702,67 @@ export const tl = {
     tileLinkLabel: "{{flock}}: buksan ang tala ngayong araw",
     tileLinkLabelMissing: "{{flock}}: wala pang tala, buksan ang tala ngayong araw",
     recordTodayHint: "Itala ngayon",
-    moreFlocks_one: "{{total}} pang kawan",
-    moreFlocks_other: "{{total}} pang kawan",
+    pagerHouses: "Bahay-manukan {{first}} hanggang {{last}} sa {{total}}",
+    pagerOrders: "Order {{first}} hanggang {{last}} sa {{total}}",
+    pagerOrdersOpen: "Order {{first}} hanggang {{last}}",
+    pagerPrevious: "Naunang page ng {{panel}}",
+    pagerNext: "Susunod na page ng {{panel}}",
 
-    // Huling 14 araw (#654)
-    trendPanelTitle: "Huling 14 araw",
+    // Dami ng itlog bawat inahin (#654)
+    trendPanelTitle: "Tendensiya ng dami ng itlog bawat inahin",
     // "average", not "katamtaman": the figure beside the chart is labelled
     // Average in this locale, and #688 says a locale must not use two words for
     // one control. (`katamtaman` also reads as middling rather than a mean.)
-    trendStripLabel: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}}. Lahat ng kawan ay may tala bawat araw.",
-    trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng kawan. {{blank}} araw ang hindi kumpleto.",
-    trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng kawan. {{blank}} araw ang hindi kumpleto.",
-    trendStripLabelNone: "Itlog bawat araw, huling 14 araw. Walang araw sa panahong ito ang may tala.",
-    trendStripLabelPartialScale: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, mga araw na hindi kumpleto lamang. Walang araw na may tala ang lahat ng kawan, kaya walang average.",
-    trendStripLabelNoFlocks: "Itlog bawat araw, huling 14 araw. Walang kawan sa bukid sa panahong ito.",
+    trendStripLabel: "Itlog bawat araw, {{range}}. Pinakamataas {{max}}, average {{avg}}. Lahat ng kawan ay may tala bawat araw.",
+    trendStripLabelBlanks_one: "Itlog bawat araw, {{range}}. Pinakamataas {{max}}, average {{avg}} sa mga panahong may tala ang lahat ng kawan. {{blank}} panahon ang hindi kumpleto.",
+    trendStripLabelBlanks_other: "Itlog bawat araw, {{range}}. Pinakamataas {{max}}, average {{avg}} sa mga panahong may tala ang lahat ng kawan. {{blank}} panahon ang hindi kumpleto.",
+    trendStripLabelNone: "Itlog bawat araw, {{range}}. Walang araw sa panahong ito ang may tala.",
+    trendStripLabelPartialScale: "Itlog bawat araw, {{range}}. Pinakamataas {{max}}, mga panahong hindi kumpleto lamang. Walang panahong may tala ang lahat ng kawan, kaya walang average.",
+    trendStripLabelNoFlocks: "Itlog bawat araw, {{range}}. Walang kawan sa bukid sa panahong ito.",
     trendScaleTitle: "Itlog bawat araw · sukat ng kumpletong araw",
     // #916 — walang kumpletong araw sa panahong ito, kaya ang sukat ay ang
     // pinakamataas na BAHAGYANG bilang, may sariling label para hindi ito
     // mabasa bilang kabuuang ani.
     trendScaleTitlePartial: "Itlog bawat araw · mga araw na hindi kumpleto lamang",
     trendScaleTitleNone: "Itlog bawat araw · walang naitalang bilang",
+    trendScaleTitleWeek: "Itlog bawat araw · sukat ng kumpletong linggo",
+    trendScaleTitleWeekPartial: "Itlog bawat araw · mga linggong hindi kumpleto lamang",
     trendPeak: "Pinakamataas {{total}}",
     // The loanword, as this catalog already uses for Hen-day and Draft:
     // "Katamtaman" wrapped the caption onto a second line on a 331px panel.
     trendCompleteAvg: "Average ng kumpletong araw {{total}}",
     trendNoCompleteAvg: "Walang average ng kumpletong araw",
+    trendCompleteWeekAvg: "Average ng kumpletong linggo {{total}} bawat araw",
+    trendNoCompleteWeekAvg: "Walang average ng kumpletong linggo",
     trendDayTip_one: "{{date}} – {{total}} itlog",
     trendDayTip_other: "{{date}} – {{total}} itlog",
     trendDayTipPartial_one: "{{date}} – {{total}} itlog, {{recorded}} sa {{expected}} kawan",
     trendDayTipPartial_other: "{{date}} – {{total}} itlog, {{recorded}} sa {{expected}} kawan",
     trendDayTipNone: "{{date}} – walang tala",
     trendDayTipNoFlocks: "{{date}} – walang kawan",
-    henDaySubLabel: "Hen-day, huling 7 araw laban sa naunang 7",
+    trendWeekTip_one: "{{from}} – {{to}}, {{days}} araw – {{total}} itlog, {{perDay}} bawat araw",
+    trendWeekTip_other: "{{from}} – {{to}}, {{days}} araw – {{total}} itlog, {{perDay}} bawat araw",
+    trendWeekTipPartial_one: "{{from}} – {{to}}, {{days}} araw – {{total}} itlog, {{perDay}} bawat araw, hindi lahat ng kawan ay may tala bawat araw",
+    trendWeekTipPartial_other: "{{from}} – {{to}}, {{days}} araw – {{total}} itlog, {{perDay}} bawat araw, hindi lahat ng kawan ay may tala bawat araw",
+    trendWeekTipNone_one: "{{from}} – {{to}}, {{days}} araw – walang tala",
+    trendWeekTipNone_other: "{{from}} – {{to}}, {{days}} araw – walang tala",
+    trendWeekTipNoFlocks_one: "{{from}} – {{to}}, {{days}} araw – walang kawan",
+    trendWeekTipNoFlocks_other: "{{from}} – {{to}}, {{days}} araw – walang kawan",
+    henDaySubLabel_one: "Hen-day, {{range}} laban sa naunang {{days}} araw",
+    henDaySubLabel_other: "Hen-day, {{range}} laban sa naunang {{days}} araw",
+    rangeSpan: "{{from}} – {{to}}",
+    rangeLabel: "Saklaw",
+    rangePresetOption_one: "Huling {{total}} araw",
+    rangePresetOption_other: "Huling {{total}} araw",
+    rangeCustomOption: "Sariling saklaw…",
+    rangeFromLabel: "Mula",
+    rangeToLabel: "Hanggang",
+    rangeApply: "Ilapat",
+    rangeErrorIncomplete: "Ilagay ang parehong petsa.",
+    rangeErrorOrder: "Hindi dapat mas huli ang simulang petsa kaysa sa huling petsa.",
+    rangeErrorFuture: "Dapat magtapos ang saklaw sa {{date}} o mas maaga.",
+    rangeErrorTooLong_one: "Pumili ng saklaw na hanggang {{days}} araw lamang.",
+    rangeErrorTooLong_other: "Pumili ng saklaw na hanggang {{days}} araw lamang.",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
@@ -2221,26 +2250,32 @@ export const tl = {
       + "ang Subukan ulit.",
 
     dashboardHeading: "Dashboard",
-    dashboardTiles: "Ipinapakita ng <strong>Koleksyon ngayong umaga</strong> ang progreso at isang hanay bawat aktibong kawan, una ang may <strong>Walang tala</strong>. Gamitin ang <strong>Itala</strong> para sa walang tala o <strong>Ituloy</strong> para sa draft. Hanggang labindalawang bahay ang nakalista, na may link sa iba. Pinagsasama ng buod ngayong umaga ang mga bahay na walang tala at ang kabuuan ngayon, kasama ang mga draft.",
+    dashboardTiles: "Ipinapakita ng <strong>Koleksyon ngayong umaga</strong> ang progreso at isang hanay bawat aktibong kawan, una ang may <strong>Walang tala</strong>. Gamitin ang <strong>Itala</strong> para sa walang tala o <strong>Ituloy</strong> para sa draft. May pahina ang listahan sa loob ng panel — anim na bahay-manukan bawat pahina sa telepono, walo sa mas malapad na screen — kaya naaabot ang lahat nang hindi umaalis sa Dashboard; sinasaklaw ng progress bar at ng bilang sa itaas nito ang lahat ng bahay-manukan, hindi lang ang pahinang nakikita. Pinagsasama ng buod ngayong umaga ang mga bahay na walang tala at ang kabuuan ngayon, kasama ang mga draft.",
     dashboardTrend:
       "<strong>Dami ng itlog bawat inahin</strong>: itlog bawat araw mula sa report ng produksyon, na may "
-      + "<strong>hen-day %</strong> para sa huling 7 kumpletong araw at kung paano ito gumalaw kumpara "
-      + "sa 7 araw bago nito. Ituro ang isang araw, o pumasok sa tsart gamit ang tab at gamitin ang mga "
+      + "<strong>hen-day %</strong> para sa napiling panahon at kung paano ito gumalaw kumpara "
+      + "sa naunang panahong kasintagal nito. Ituro ang isang bar, o pumasok sa tsart gamit ang tab at gamitin ang mga "
       + "arrow key, para basahin ito nang mag-isa. Ang araw na isinumite nang walang itlog ay may marka sa "
       + "base; ang araw na walang nagsumite ay walang laman at mababasang <strong>Walang tala</strong>; ang "
       + "araw na iilang kawan lang ang nagsumite ay may guhit, dahil ang kabuuan nito ay ang "
       + "pinakamababang naprodyus at hindi ang aktwal na naprodyus. Ang <strong>Pinakamataas</strong> at "
       + "<strong>Average</strong> ay mula lamang sa mga araw na may tala ang lahat ng kawan. Ang hen-day % "
       + "ay hinahati sa hen-days ng mga kawang may tala, kaya ang kawang nakalimot ay nagpapaliit sa sinusukat, "
-      + "hindi sa mismong porsyento. Nakapirmi ang window (mula kahapon pabalik) at binibilang lang ang "
-      + "<strong>mga naisumiteng araw</strong> — ang araw na Draft pa ay mababasang Walang tala hanggang "
-      + "maisumite, hindi tulad sa Mga Report kung saan pinipili mo ang saklaw. Piliin ang "
+      + "hindi sa mismong porsyento. Pinipili ng <strong>Saklaw</strong> ang window — ang huling 7, 14 o 30 "
+      + "kumpletong araw, o <strong>Sariling saklaw…</strong> gamit ang <strong>Mula</strong>, "
+      + "<strong>Hanggang</strong> at <strong>Ilapat</strong> hanggang 90 araw; tinatanggihan sa form ang mas "
+      + "mahaba sa halip na paikliin, at naaalala ang pinili sa device na ito. Palaging nagtatapos kahapon o "
+      + "mas maaga ang window at binibilang lang ang <strong>mga naisumiteng araw</strong> — ang araw na Draft "
+      + "pa ay mababasang Walang tala hanggang maisumite, hindi tulad sa Mga Report kung saan maaaring umabot "
+      + "sa ngayon ang saklaw. Lampas sa 14 araw, nagiging isang bar bawat linggo ang mga bar, bawat isa ay "
+      + "itlog bawat araw ng linggong iyon (at kung ilang araw ang sakop nito, para hindi mabasang pagbaba ng "
+      + "produksyon ang maikling huling linggo). Piliin ang "
       + "<strong>Lahat ng kawan</strong> o iisang kawan sa itaas ng tsart para isaklaw ang buong kard "
       + "— mga bar, pagkakumpleto, Average, at parehong panahon ng hen-day — sa kawang iyon; kung iisa "
       + "lang ang accessible na kawan, lalabas ang pangalan nito nang walang picker. Kapag walang "
       + "kumpletong araw sa window, isinusukat ang Pinakamataas sa pinakamataas na hindi kumpletong araw "
       + "sa halip at sinasabing \"mga araw na hindi kumpleto lamang\".",
-    dashboardOrders: "Ipinapakita ng <strong>Mga kamakailang order</strong> ang customer, halaga at katayuan, kasama ang bilang at kasalukuyang pangalan ng grado sa unang linya. Ang +N ay bilang ng dagdag na linya. Kapag pinalitan ang pangalan ng grado, magbabago rin ito sa lumang order; bilang lang ang makikita kung hindi available ang grado.",
+    dashboardOrders: "Ipinapakita ng <strong>Mga kamakailang order</strong> ang customer, halaga at katayuan, kasama ang bilang at kasalukuyang pangalan ng grado sa unang linya, limang order bawat pahina. Ang pagsulong ng pahina ay kumukuha ng susunod na lima, kaya lumalabas ang kabuuan pagdating ng huling pahina. Ang +N ay bilang ng dagdag na linya. Kapag pinalitan ang pangalan ng grado, magbabago rin ito sa lumang order; bilang lang ang makikita kung hindi available ang grado.",
     dashboardStock: "Ipinapakita ng <strong>Magagamit na stock</strong> ang kabuuan at isang <strong>stacked bar</strong> ayon sa grado, kasunod ang talahanayan ng <strong>Grado</strong>, <strong>Bilang</strong> at <strong>Bahagi</strong>. Itapat ang pointer o ituon ang keyboard sa hanay para markahan ito. Hiwalay na nakalista ang restricted na itlog. Pareho ang mga bilang sa Stock.",
 
     signingInHeading: "Pag-sign in",
@@ -3138,10 +3173,13 @@ export const tl = {
     glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Ang pag-grade nang lampas sa kabuuan ay nagpapataas nito para tumugma. Draft hanggang isumite.",
 
     glossaryCaptureStatusTerm: "Katayuan ng pagtatala",
-    glossaryCaptureStatusDef: "Kung may araw-araw na tala ngayong araw ang bawat aktibong kawan. Ipinapakita ng Koleksyon ngayong umaga ang isang hanay bawat kawan, una ang mga walang tala, at itinuturing na may tala ang mga draft. Ang Walang tala ay nakalink sa Araw-araw na Tala para sa kawan at araw na iyon.",
+    glossaryCaptureStatusDef: "Kung may araw-araw na tala ngayong araw ang bawat aktibong kawan. Ipinapakita ng Koleksyon ngayong umaga ang isang hanay bawat kawan, una ang mga walang tala, at itinuturing na may tala ang mga draft. May pahina ang listahan sa loob ng panel — anim na bahay-manukan bawat pahina sa telepono, walo sa mas malapad na screen — kaya naaabot ang lahat; sinasaklaw ng progress bar at ng bilang ng bahay-manukan ang lahat, hindi lang ang pahinang nakikita. Ang Walang tala ay nakalink sa Araw-araw na Tala para sa kawan at araw na iyon.",
 
-    glossaryLayRateStripScaleTerm: "Sukat ng guhit na 14 araw",
-    glossaryLayRateStripScaleDef: "Isinusukat ng guhit ng Dami ng itlog bawat inahin ang mga bar nito sa pinakamataas na kumpletong araw. Kapag walang kumpletong araw sa panahong iyon, isinusukat ito sa pinakamataas na hindi kumpletong araw sa halip, at sinasabing \"mga araw na hindi kumpleto lamang\" para hindi mabasa ang mga bar bilang kabuuang ani ng bukid.",
+    glossaryLayRateStripScaleTerm: "Sukat ng guhit ng dami ng itlog bawat inahin",
+    glossaryLayRateStripScaleDef: "Isinusukat ng guhit ng Dami ng itlog bawat inahin ang mga bar nito sa pinakamataas na kumpletong panahon. Kapag walang kumpletong panahon, isinusukat ito sa pinakamataas na hindi kumpleto sa halip, at sinasabing \"mga araw na hindi kumpleto lamang\" para hindi mabasa ang mga bar bilang kabuuang ani ng bukid. Itlog bawat araw ang binabasa ng bawat bar, pati na ang lingguhan, kaya hindi nagmumukhang pagbaba ng produksyon ang maikling huling linggo.",
+
+    glossaryLayRateRangeTerm: "Saklaw ng dami ng itlog bawat inahin",
+    glossaryLayRateRangeDef: "Ang panahong iginuguhit ng kard na Dami ng itlog bawat inahin: ang huling 7, 14 o 30 kumpletong araw, o sariling saklaw na dalawang petsa hanggang 90 araw — tinatanggihan sa form ang mas mahaba, hindi pinaikli. Palaging nagtatapos kahapon o mas maaga ang panahon, at naaalala ang pinili sa device na ito. Lampas sa 14 araw, nagiging isang bar bawat linggo ang mga bar, maaaring maikli ang huli at sinasabi nito iyon; inihahambing ng hen-day ang napiling panahon sa naunang panahong kasintagal nito.",
 
     glossaryLayRateFlockScopeTerm: "Saklaw ng kawan sa dami ng itlog bawat inahin",
     glossaryLayRateFlockScopeDef: "Maaaring ipakita ng kard ng Dami ng itlog bawat inahin sa Dashboard ang Lahat ng kawan o isang piniling kawan. Sinusunod ng buong kard ang pinili — ang guhit, pagkakumpleto, ang average, at parehong panahon ng paghahambing ng postura — at galing sa server ang mga bilang, hindi sa pag-filter ng tanawin ng Lahat ng kawan. Hindi nagbabago ang ibang bahagi ng Dashboard.",

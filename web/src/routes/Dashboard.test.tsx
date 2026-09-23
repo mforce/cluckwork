@@ -13,9 +13,12 @@ import {
 } from "../api/cluckwork";
 import type { DailyEntry, Flock, ProductionDay, ProductionReport, SalesOrder, StockRow } from "../api/cluckwork";
 import { daysBefore, todayIso } from "../lib/dates";
+import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
+import { DEFAULT_LOCALE, formatDate } from "../lib/format";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, account } from "../test/fixtures";
 import { stubMatchMedia } from "../test/matchMedia";
+import { getRowByCellText } from "../test/rows";
 
 // The rollover test (#918 round 3, finding 2) needs a role change the SAME
 // mounted Dashboard sees, so a hand-built AuthContext stands in for
@@ -100,20 +103,25 @@ const order = (id: string, ref: string, customerName: string | null): SalesOrder
   outstandingMinorUnits: null, items: [],
 });
 
-// #918 — Codex review: the two adjacent trend windows are now ONE
-// `daysBefore(today,14)..daysBefore(today,1)` request, split client-side by
-// `splitProductionReport`. Values: previous week 307..301, current week
-// 327..321, unchanged from before. Each week's `ratedEggs` total sits on its
-// first day (nothing checks a day's own `ratedEggs`) so the recomputed
-// periodHenDayPct reproduces the old two-call fixture's 85.1/87.4 exactly:
-// round(596*100/700, 1) = 85.1, round(612*100/700, 1) = 87.4.
-const previousDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
-  day(daysBefore(today, n + 7), 300 + n, 1, 1, i === 0 ? 596 : 0));
-const currentDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
-  day(daysBefore(today, n), 320 + n, 1, 1, i === 0 ? 612 : 0));
+// #918 — the trend window and its comparison window are ONE request, split
+// client-side by `splitProductionReport`. #914 — the card's default range is
+// 14 days, so that request now covers 28: `daysBefore(today,28)..
+// daysBefore(today,1)`, split at `daysBefore(today,14)`.
+//
+// The DRAWN fortnight keeps the values it had (307..301 then 327..321), so
+// every bar assertion below is unchanged. Each half's `ratedEggs` total sits
+// on its own first day (nothing checks a day's own `ratedEggs`), reproducing
+// the same periodHenDayPct pair over 14 days of 100 recorded hen-days each:
+// round(1192*100/1400, 1) = 85.1, round(1224*100/1400, 1) = 87.4.
+const previousDays = (today: string) => Array.from({ length: 14 }, (_, i) =>
+  day(daysBefore(today, 28 - i), 300, 1, 1, i === 0 ? 1192 : 0));
+const currentDays = (today: string) => [
+  ...[7, 6, 5, 4, 3, 2, 1].map((n, i) => day(daysBefore(today, n + 7), 300 + n, 1, 1, i === 0 ? 1224 : 0)),
+  ...[7, 6, 5, 4, 3, 2, 1].map((n) => day(daysBefore(today, n), 320 + n, 1, 1, 0)),
+];
 const fortnightFor = (today: string) => report(null, [...previousDays(today), ...currentDays(today)]);
 const reportByWindow = (today: string) => (from: string, to: string) => {
-  if (from === daysBefore(today, 14) && to === daysBefore(today, 1)) return Promise.resolve(fortnightFor(today));
+  if (from === daysBefore(today, 28) && to === daysBefore(today, 1)) return Promise.resolve(fortnightFor(today));
   // #918 — Codex review: the Morning collection panel's own yesterday-close
   // caption is its OWN farm-wide, single-day fetch (never `flockId`-scoped),
   // so a from===to request answers with just that one day. 321 matches the
@@ -126,6 +134,10 @@ const reportByWindow = (today: string) => (from: string, to: string) => {
 // same value the screen uses, so the report-call oracle below is exact. The
 // farm-scoped test at the bottom is the one that proves the FARM's day wins.
 const today = todayIso();
+// #914 — every sentence about the card's window names its own dates, in the
+// same formatter the screen uses. The default range is fourteen finished days.
+const rangeSpan = (days = 14) =>
+  `${formatDate(daysBefore(today, days), DEFAULT_LOCALE, null)} – ${formatDate(daysBefore(today, 1), DEFAULT_LOCALE, null)}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -275,18 +287,61 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(screen.queryByText(/1,177/)).not.toBeInTheDocument();
   });
 
-  it("caps the list at 12 rows, the missing ones first, and links the rest (INV-9)", async () => {
+  // #915 — the twelve-row cap and its "N more flocks" link are gone: every
+  // house is reachable from the panel itself, missing ones still first.
+  it("pages the list, missing houses first, and states where the reader is", async () => {
+    const user = userEvent.setup();
+    stubMatchMedia(true); // desktop: eight houses a page
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
     mockEntries.mockResolvedValue(Array.from({ length: 12 }, (_, i) => entry(`f${i}`, "Submitted", 1))); // f12..f14 missing
     renderWithProviders(<Dashboard />);
-    const more = await screen.findByRole("link", { name: "3 more flocks" });
-    expect(more).toHaveAttribute("href", "/daily-entry");
-    const rowLinks = screen.getAllByRole("link", { name: /open today's entry/ });
-    expect(rowLinks).toHaveLength(12);
-    const missingNames = rowLinks.slice(0, 3).map((t) => t.getAttribute("aria-label"));
-    expect(missingNames).toEqual(["Flock f12: no entry yet, open today's entry", "Flock f13: no entry yet, open today's entry", "Flock f14: no entry yet, open today's entry"]);
-    expect(["f12", "f13", "f14"].every((id) =>
-      within(todayRow(`Flock ${id}`)).queryByRole("link", { name: `Record Flock ${id}` }) !== null)).toBe(true);
+
+    await screen.findByText("Houses 1 to 8 of 15");
+    const firstPage = screen.getAllByRole("link", { name: /open today's entry/ });
+    expect(firstPage).toHaveLength(8);
+    expect(firstPage.slice(0, 3).map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Flock f12: no entry yet, open today's entry",
+      "Flock f13: no entry yet, open today's entry",
+      "Flock f14: no entry yet, open today's entry",
+    ]);
+    expect(screen.queryByRole("link", { name: /more flocks/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next page of Morning collection" }));
+    expect(await screen.findByText("Houses 9 to 15 of 15")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /open today's entry/ })).toHaveLength(7);
+    // The last house on the farm is reachable without leaving the Dashboard.
+    expect(todayRow("Flock f11")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Previous page of Morning collection" }));
+    expect(await screen.findByText("Houses 1 to 8 of 15")).toBeInTheDocument();
+  });
+
+  it("gives a phone six houses a page, not the desktop eight", async () => {
+    stubMatchMedia(false); // < 900px
+    mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Houses 1 to 6 of 15")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /open today's entry/ })).toHaveLength(6);
+  });
+
+  // The progress bar and the "N of M houses in" caption answer for the FARM,
+  // never for the page on screen.
+  it("counts and measures every house, not only the page shown", async () => {
+    stubMatchMedia(true);
+    mockFlocks.mockResolvedValue(Array.from({ length: 20 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue(Array.from({ length: 5 }, (_, i) => entry(`f${i}`, "Submitted", 1)));
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("5 of 20 houses in")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .toHaveAttribute("aria-valuenow", "25");
+  });
+
+  it("offers no pager when every house fits on one page", async () => {
+    stubMatchMedia(true);
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Today so far");
+    expect(screen.queryByRole("button", { name: /page of Morning collection/ })).not.toBeInTheDocument();
   });
 });
 
@@ -371,12 +426,12 @@ describe("Dashboard attention line (#829, #864)", () => {
   });
 
   // CodeRabbit, PR #883 round 1: missingHouses and the "N of M houses in"
-  // caption were both derived from `tiles.shown`, the list `visibleTiles`
-  // caps at 12 — so a farm with more than 12 missing houses undercounted
-  // both, since every one of the 12 shown was itself missing (missing-first
-  // ordering) and nothing past the cap was ever counted. They now come from
-  // the FULL, uncapped capture-status list.
-  it("counts every missing house, not only the 12 visibleTiles caps the row list at", async () => {
+  // caption were both derived from the RENDERED row list, which was capped —
+  // so a farm with more missing houses than the cap undercounted both, since
+  // every row shown was itself missing (missing-first ordering) and nothing
+  // past the cap was ever counted. They come from the FULL capture-status
+  // list, which #915's paging leaves untouched.
+  it("counts every missing house, not only the ones on the page", async () => {
     stubMatchMedia(true); // desktop cap (2 shown) — this test is about the COUNT, not the width
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
     mockEntries.mockResolvedValue([]); // all 15 missing
@@ -432,14 +487,16 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   // trend windows are one request now, split client-side; this pins the
   // total at two (that request plus the yesterday-close fetch) so the
   // ceiling cannot creep back to three.
-  it("asks the production report for exactly one 14-day window plus one single-day yesterday fetch — never more", async () => {
+  it("asks the production report for exactly one 28-day window plus one single-day yesterday fetch — never more", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
     expect(mockReport).toHaveBeenCalledTimes(2);
     // #916 — the third argument is the flock scope; All flocks (the default)
     // passes undefined, so the report stays farm-wide exactly as before.
     // #918 — Codex review: the fourth argument aborts a superseded request.
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    // #914 — one request covers the plotted window AND the equal window before
+    // it, which the card splits; the default range makes that 28 days.
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 1), daysBefore(today, 1));
   });
 
@@ -448,7 +505,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     // 4,396 eggs over 14 recorded days is 314.0 — the average is over the days
     // with an entry, which is a figure that only exists since #780.
     const strip = await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. Peak 327, average 314.0. Every flock recorded every day.",
+      name: `Eggs per day, ${rangeSpan()}. Peak 327, average 314.0. Every flock recorded every day.`,
     });
     // 301..307 then 321..327, so the peak (327) is the 8th day and every other
     // bar is its exact share of it.
@@ -463,7 +520,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(slots.map((d) => d.classList.contains("day-week")).indexOf(true)).toBe(7);
     expect(screen.getByText("87.4%")).toBeInTheDocument();
     expect(screen.getByText("+2.3 pts")).toBeInTheDocument();
-    expect(screen.getByText("Hen-day, last 7 days against the 7 before")).toBeInTheDocument();
+    expect(screen.getByText(`Hen-day, ${rangeSpan()} against the 14 days before`)).toBeInTheDocument();
   });
 
   it("keeps fourteen days in one flex row at 390px", async () => {
@@ -471,7 +528,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     stubMatchMedia(false);
     try {
       renderWithProviders(<Dashboard />);
-      const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+      const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
       expect(within(strip).getAllByRole("button")).toHaveLength(14);
       const styles = Array.from(document.styleSheets)
         .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
@@ -497,7 +554,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("names the days that are not fully recorded, and averages over the rest", async () => {
     withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByRole("group", { name: /6 days are not fully recorded\.$/ })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: /6 periods are not fully recorded\.$/ })).toBeInTheDocument();
   });
 
   // #780 — the branch that exists so the panel never announces a peak it has no
@@ -511,7 +568,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. No day in this window has an entry.",
+      name: `Eggs per day, ${rangeSpan()}. No day in this window has an entry.`,
     });
     // No bars at all, and the scale shows a dash rather than a fabricated 0.
     expect(strip.querySelectorAll(".day > i")).toHaveLength(0);
@@ -534,7 +591,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. Peak 327, partial days only. No day was recorded by every flock, so there is no average.",
+      name: `Eggs per day, ${rangeSpan()}. Peak 327, partial periods only. No period was recorded by every flock, so there is no average.`,
     })).toBeInTheDocument();
   });
 
@@ -547,7 +604,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
         ...r, days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
     expect(strip.querySelectorAll(".day-partial")).toHaveLength(2); // day 6 of each window
     const names = screen.getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
@@ -559,7 +616,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("draws an empty slot for a day nobody recorded, and a stub for one that produced nothing", async () => {
     withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
     expect(strip.querySelectorAll(".day")).toHaveLength(14);
     // 8 recorded days draw a bar; the 6 with no entry draw nothing.
     expect(strip.querySelectorAll(".day > i")).toHaveLength(8);
@@ -574,7 +631,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
         ...r, days: r.days.map((d, i) => (i % 7 > 3 ? { ...d, totalEggs: 0, recordedFlocks: i % 7 > 5 ? 0 : 1, missingFlocks: i % 7 > 5 ? d.expectedFlocks : 0 } : d)),
       })));
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
     const heights = Array.from(strip.querySelectorAll(".day > i")).map((b) => (b as HTMLElement).style.height);
     // 8 days with real figures, plus days 4 and 5 of each window at the stub.
     expect(heights).toHaveLength(12);
@@ -593,7 +650,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
         days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
-    await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    await screen.findByRole("group", { name: /^Eggs per day, / });
     const names = screen.getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
       .filter((n): n is string => n !== null && n.includes("of 3 flocks"));
@@ -604,7 +661,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("says 'no entry' for an unrecorded day rather than a count of zero", async () => {
     withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    await screen.findByRole("group", { name: /^Eggs per day, / });
     const names = screen.getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
       .filter((n): n is string => n !== null && n.includes("–"));
@@ -613,12 +670,12 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 
   it("shows a negative delta with the minus form, one decimal on both figures", async () => {
-    // Index 7 is the current week's first day, carrying that week's whole
-    // `ratedEggs` total (#918 — see `currentDays`). 560/700 = round(80.0,1);
-    // the previous week's 85.1 stays untouched, so the delta is 80.0-85.1.
+    // Index 14 is the plotted window's first day, carrying that window's whole
+    // `ratedEggs` total (see `currentDays`). 1120/1400 = round(80.0,1); the
+    // comparison window's 85.1 stays untouched, so the delta is 80.0-85.1.
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i === 7 ? { ...d, ratedEggs: 560 } : d)),
+        ...r, days: r.days.map((d, i) => (i === 14 ? { ...d, ratedEggs: 1120 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByText("80.0%")).toBeInTheDocument();
@@ -673,7 +730,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   it("defaults to All flocks; the selector's accessible name and the context caption both say so", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
     // The context caption: "{count} accessible flocks · {range}" — the count
     // is the same 3 the other panels' fixture already assumes.
@@ -796,7 +853,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
 
   it("renders the strip's three-item legend, Complete/Partial/No entry", async () => {
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
     const items = within(trendPanel).getAllByRole("listitem");
     expect(items.map((li) => li.textContent)).toEqual(["Complete", "Partial", "No entry"]);
@@ -806,7 +863,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // hen-day KPI — moved from the top of the card to the bottom.
   it("renders the hen-day KPI after the strip, not before it", async () => {
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     const strip = await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
     const kpi = trendPanel.querySelector(".trend-kpi");
     expect(kpi).not.toBeNull();
@@ -827,7 +884,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await waitForPickerToClose();
 
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 14), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
+      daysBefore(today, 28), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
     // Today's collection panel does not refetch on a Lay rate scope change.
     expect(mockEntries).not.toHaveBeenCalled();
@@ -837,7 +894,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await user.click(screen.getByRole("button", { name: /^All flocks/ }));
     await waitForPickerToClose();
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
+      daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
   });
 
@@ -898,12 +955,12 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   it("shows the sole accessible flock as plain text, with no picker, and scopes to it exactly as a manual pick would", async () => {
     mockFlocks.mockResolvedValue([flock("f1", "Active")]);
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     expect(within(trendPanel).getByText("Flock f1")).toBeInTheDocument();
     expect(within(trendPanel).queryByRole("button", { name: /All flocks/ })).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button").some((b) => b.getAttribute("aria-haspopup") === "dialog")).toBe(false);
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 14), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
+      daysBefore(today, 28), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
   });
 
   // #918 — Codex review, finding 3. `cancelled` is what stops a stale scope's
@@ -1058,7 +1115,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     const user = userEvent.setup();
     mockFlocks.mockRejectedValueOnce(new Error("down"));
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     expect(await within(trendPanel).findByText("Could not load the flock list.")).toBeInTheDocument();
     expect(within(trendPanel).queryByText(/accessible flocks ·/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Flock /i })).not.toBeInTheDocument();
@@ -1120,7 +1177,7 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(within(stock).queryByRole("row", { name: /Grade A/ })).not.toBeInTheDocument();
+    expect(within(stock).queryByText("Grade A")).not.toBeInTheDocument();
     expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
@@ -1161,7 +1218,7 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
   it("the production report failed → trend panel errors, others intact", async () => {
     mockReport.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
-    expect(within(await panel("Last 14 days")).getByText("Could not load.")).toBeInTheDocument();
+    expect(within(await panel("Lay rate trend")).getByText("Could not load.")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(screen.queryByText(/Hen-day/)).not.toBeInTheDocument();
     await expectOthersIntact("trend");
@@ -1221,7 +1278,7 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     for (const m of [mockFlocks, mockEntries, mockStock, mockOrders]) m.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(await screen.findByText("87.4%")).toBeInTheDocument(); // the setup above's own healthy state
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     await within(trendPanel).findByText("Could not load the flock list.");
 
     mockFlocks.mockResolvedValueOnce([flock("f1", "Active")]); // Retry recovers exactly one flock
@@ -1354,7 +1411,7 @@ describe("Dashboard follows the farm's day and locale", () => {
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
     expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
-    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-21", undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith("2026-06-24", "2026-07-21", undefined, expect.any(AbortSignal));
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
     expect(screen.getByText("+2,3 pts")).toBeInTheDocument();
@@ -1372,7 +1429,7 @@ describe("Dashboard i18n wiring (#654)", () => {
     });
     await withOverride("dashboard", "trendPanelTitle", "TREND-MARKER", async () => {
       renderWithProviders(<Dashboard />);
-      expect(await screen.findByText("TREND-MARKER")).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "TREND-MARKER", level: 3 })).toBeInTheDocument();
     });
     await withOverride("dashboard", "todaySoFarLabel", "TOTAL-MARKER", async () => {
       renderWithProviders(<Dashboard />);
@@ -1418,11 +1475,15 @@ describe("Operations desk", () => {
     const user = userEvent.setup();
     renderWithProviders(<Dashboard />);
     const table = await screen.findByRole("table", { name: "Stock by grade" });
-    const row = within(table).getByRole("row", { name: "Grade A 1,240 79.5%" });
+    // #557's lint counts the Dashboard as a paged screen now, so rows are
+    // resolved from one cell rather than by accessible name.
+    const row = getRowByCellText("1,240");
+    expect(row).toHaveTextContent("Grade A1,24079.5%");
     row.focus();
     expect(row).toHaveFocus();
     await user.tab();
-    expect(within(table).getByRole("row", { name: "Grade B 320 20.5%" })).toHaveFocus();
+    expect(getRowByCellText("320")).toHaveFocus();
+    expect(table).toContainElement(row);
   });
 
   it.each([
@@ -1445,15 +1506,186 @@ describe("Operations desk", () => {
 
   it("labels missing, partial and complete production days and navigates them with arrows", async () => {
     const user = userEvent.setup();
-    mockReport.mockImplementation((from) => Promise.resolve(from === daysBefore(today, 14)
-      ? report(80, [day("2026-07-01", 0, 0, 2), day("2026-07-02", 40, 1, 2), day("2026-07-03", 80, 2, 2)])
+    // Inside the plotted window, so the card's own split keeps all three (the
+    // days before it belong to the hen-day comparison and are never drawn).
+    const [d3, d2, d1] = [3, 2, 1].map((n) => daysBefore(today, n));
+    const label = (iso: string) => formatDate(iso, DEFAULT_LOCALE, null);
+    mockReport.mockImplementation((from) => Promise.resolve(from === daysBefore(today, 28)
+      ? report(80, [day(d3, 0, 0, 2), day(d2, 40, 1, 2), day(d1, 80, 2, 2)])
       : report(85, [])));
     renderWithProviders(<Dashboard />);
-    const missing = await screen.findByRole("button", { name: "07/01/2026 – no entry" });
+    const missing = await screen.findByRole("button", { name: `${label(d3)} – no entry` });
     missing.focus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("button", { name: "07/02/2026 – 40 eggs, 1 of 2 flocks" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: `${label(d2)} – 40 eggs, 1 of 2 flocks` })).toHaveFocus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("button", { name: "07/03/2026 – 80 eggs" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: `${label(d1)} – 80 eggs` })).toHaveFocus();
+  });
+});
+
+// #914 — the card's window is chosen, remembered, and collapses to one bar a
+// week once a day a bar cannot be read.
+describe("Dashboard Lay rate range (#914)", () => {
+  const nextDay = (iso: string) => daysBefore(iso, -1);
+  // Every day complete and identical, so a bar's height says only which
+  // period it belongs to.
+  const spanReport = (from: string, to: string) => {
+    const days = [];
+    for (let d = from; d <= to; d = nextDay(d)) days.push(day(d, 100));
+    return report(null, days);
+  };
+  const anyWindow = (from: string, to: string) => Promise.resolve(
+    from === to ? report(null, [day(from, 321)]) : spanReport(from, to),
+  );
+  const label = (iso: string) => formatDate(iso, DEFAULT_LOCALE, null);
+  const bars = () => within(screen.getByRole("group", { name: /^Eggs per day, / })).getAllByRole("button");
+
+  beforeEach(() => { mockReport.mockImplementation(anyWindow); });
+  afterEach(() => clearBoundAccount());
+
+  it("starts on fourteen days, one bar a day, and asks for the fourteen before them too", async () => {
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    expect(bars()).toHaveLength(14);
+    expect(screen.getByLabelText("Range")).toHaveValue("14");
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+  });
+
+  it("switches to seven days and refetches that window and the seven before it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "7");
+    await waitFor(() => expect(bars()).toHaveLength(7));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(screen.getByText(`Hen-day, ${rangeSpan(7)} against the 7 days before`)).toBeInTheDocument();
+  });
+
+  // Thirty days is five bars: four whole weeks and a two-day remainder, which
+  // says its own length rather than being read as a collapse in production.
+  it("collapses a thirty-day window into weekly bars that name their own span", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "30");
+    await waitFor(() => expect(bars()).toHaveLength(5));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 60), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+
+    const first = `${label(daysBefore(today, 30))} – ${label(daysBefore(today, 24))}, 7 days – 700 eggs, 100 a day`;
+    const last = `${label(daysBefore(today, 2))} – ${label(daysBefore(today, 1))}, 2 days – 200 eggs, 100 a day`;
+    expect(bars().map((b) => b.getAttribute("aria-label"))[0]).toBe(first);
+    expect(bars().map((b) => b.getAttribute("aria-label"))[4]).toBe(last);
+    expect(screen.getByText("Eggs per day · complete-week scale")).toBeInTheDocument();
+    expect(screen.getByText("Complete-week avg 100.0 a day")).toBeInTheDocument();
+  });
+
+  it("remembers the chosen range on this device for the next visit", async () => {
+    const user = userEvent.setup();
+    bindAccount("11111111-1111-4111-8111-111111111111");
+    const first = renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "7");
+    await waitFor(() => expect(bars()).toHaveLength(7));
+    first.unmount();
+
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await waitFor(() => expect(bars()).toHaveLength(7));
+    expect(screen.getByLabelText("Range")).toHaveValue("7");
+  });
+
+  it("plots a custom range the form accepts", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    const from = daysBefore(today, 40);
+    const to = daysBefore(today, 21);
+    await user.clear(screen.getByLabelText("From"));
+    await user.type(screen.getByLabelText("From"), from);
+    await user.clear(screen.getByLabelText("To"));
+    await user.type(screen.getByLabelText("To"), to);
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(from, 20), to, undefined, expect.any(AbortSignal)));
+    await waitFor(() => expect(bars()).toHaveLength(3)); // 20 days, weekly: 7, 7, 6
+  });
+
+  // Rejected in the form, never silently shortened: the plotted window is
+  // still the fourteen days the reader was looking at.
+  it("refuses a custom range past ninety days and leaves the card where it was", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    const callsBefore = mockReport.mock.calls.length;
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    await user.clear(screen.getByLabelText("From"));
+    await user.type(screen.getByLabelText("From"), daysBefore(today, 91));
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(await screen.findByText("Choose a range of at most 90 days.")).toBeInTheDocument();
+    expect(mockReport.mock.calls).toHaveLength(callsBefore);
+    expect(bars()).toHaveLength(14);
+  });
+
+  it("refuses a range that ends after the newest day it plots", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    await user.clear(screen.getByLabelText("To"));
+    await user.type(screen.getByLabelText("To"), today);
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+    expect(await screen.findByText(`The range must end on or before ${label(daysBefore(today, 1))}.`))
+      .toBeInTheDocument();
+  });
+});
+
+// #915 — Recent orders pages through the list the Sales screen already pages,
+// one server page at a time.
+describe("Dashboard Recent orders paging (#915)", () => {
+  const catalogue = Array.from({ length: 12 }, (_, i) => order(`o${i}`, `SO-${i}`, "Ramos Grocery"));
+
+  beforeEach(() => {
+    mockOrders.mockImplementation((params) =>
+      Promise.resolve(catalogue.slice(params?.offset ?? 0, (params?.offset ?? 0) + (params?.limit ?? 5))));
+  });
+
+  it("shows five orders, then fetches the next five on demand", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Orders 1 to 5")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "SO-0" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(mockOrders).toHaveBeenCalledWith({ limit: 5, offset: 5 });
+    expect(screen.getByRole("listitem", { name: "SO-5" })).toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: "SO-0" })).not.toBeInTheDocument();
+  });
+
+  // The total is unknown until the server hands over a short page, so the
+  // label claims one only once that page has arrived — and from then on it
+  // states it on every page, including the ones already visited.
+  it("names the total once the last page arrives, and stops offering a next page", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    await screen.findByText("Orders 6 to 10");
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+
+    expect(await screen.findByText("Orders 11 to 12 of 12")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Previous page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10 of 12")).toBeInTheDocument();
+  });
+
+  it("offers no pager when the first page is the whole list", async () => {
+    mockOrders.mockResolvedValue(catalogue.slice(0, 2));
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("listitem", { name: "SO-0" });
+    expect(screen.queryByRole("button", { name: /page of Recent orders/ })).not.toBeInTheDocument();
   });
 });

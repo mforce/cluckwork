@@ -1,7 +1,8 @@
 // web/src/lib/dashboard.test.ts
 import { describe, it, expect } from "vitest";
 import {
-  GRADE_COLOURS, TILE_CAP, captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
+  GRADE_COLOURS, MAX_DAY_SLOTS, captureTiles, dailyPeriods, dayStrip, henDayTrend, panelPage,
+  stockBar, stripPeriods, todaysEggs, weekPeriods,
 } from "./dashboard";
 import type { DailyEntry, Flock, ProductionDay, ProductionReport, StockRow } from "../api/cluckwork";
 import { NO_RECORD_HISTORY } from "../test/fixtures";
@@ -65,32 +66,35 @@ describe("captureTiles (#654, INV-3, INV-9)", () => {
   });
 });
 
-describe("visibleTiles (#654, INV-9 — the cap never hides a missing flock while ≤ 12 are missing)", () => {
-  const tilesOf = (missing: number, present: number) => captureTiles(
-    Array.from({ length: missing + present }, (_, i) => flock(`f${i}`, "Active")),
-    Array.from({ length: present }, (_, i) => entry(`f${i}`, "Submitted", 1)), // f0..f(present-1) have entries
-  );
-  it("shows everything when at or under the cap", () => {
-    const tiles = tilesOf(3, 9);
-    expect(visibleTiles(tiles)).toEqual({ shown: tiles, hidden: 0 });
-    expect(TILE_CAP).toBe(12);
+describe("panelPage (#915 — every house reachable, one page at a time)", () => {
+  const ids = ["a", "b", "c", "d", "e", "f", "g"];
+
+  it("slices the asked-for page and states its 1-based bounds", () => {
+    expect(panelPage(ids, 0, 3)).toEqual({
+      items: ["a", "b", "c"], page: 0, pageCount: 3, first: 1, last: 3, total: 7,
+    });
+    expect(panelPage(ids, 1, 3)).toEqual({
+      items: ["d", "e", "f"], page: 1, pageCount: 3, first: 4, last: 6, total: 7,
+    });
   });
-  it("shows the first 12 — all three missing flocks included — and counts the rest", () => {
-    const tiles = tilesOf(3, 12);
-    const { shown, hidden } = visibleTiles(tiles);
-    // The exact twelve, in order: keeping the count and the missing-first
-    // property while picking a different twelve is the wrong implementation
-    // this pins.
-    expect(shown.map((t) => t.flock.id)).toEqual(tiles.slice(0, 12).map((t) => t.flock.id));
-    expect(shown.slice(0, 3).every((t) => t.entry === null)).toBe(true);
-    expect(hidden).toBe(3);
+
+  it("gives the last page only what is left, never a padded one", () => {
+    expect(panelPage(ids, 2, 3)).toEqual({
+      items: ["g"], page: 2, pageCount: 3, first: 7, last: 7, total: 7,
+    });
   });
-  it("with 13 missing flocks shows 12 of them and counts one hidden", () => {
-    const tiles = tilesOf(13, 0);
-    const { shown, hidden } = visibleTiles(tiles);
-    expect(shown.map((t) => t.flock.id)).toEqual(tiles.slice(0, 12).map((t) => t.flock.id));
-    expect(shown.every((t) => t.entry === null)).toBe(true);
-    expect(hidden).toBe(1);
+
+  // The reader's page number outlives the list it was chosen against: a
+  // refetch that drops rows would otherwise render an empty panel with no
+  // control to get back from.
+  it("clamps a page past the end onto the last one", () => {
+    expect(panelPage(ids, 9, 3)).toMatchObject({ items: ["g"], page: 2, first: 7, last: 7 });
+  });
+
+  it("keeps one empty page for an empty list, with no bounds to state", () => {
+    expect(panelPage([], 0, 6)).toEqual({
+      items: [], page: 0, pageCount: 1, first: 0, last: 0, total: 0,
+    });
   });
 });
 
@@ -109,7 +113,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     d.slots.map((s) => [s.date, s.kind, s.kind === "recorded" ? s.heightPct : null]);
 
   it("sizes each bar as its share of the peak, oldest first", () => {
-    const d = dayStrip({ days: [day("2026-07-01", 5), day("2026-07-02", 10), day("2026-07-03", 8)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 5), day("2026-07-02", 10), day("2026-07-03", 8)]) });
     expect(shape(d)).toEqual([
       ["2026-07-01", "recorded", 50], ["2026-07-02", "recorded", 100], ["2026-07-03", "recorded", 80],
     ]);
@@ -120,7 +124,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // arrived as totalEggs 0 and drew the same empty slot, so the chart asserted
   // a zero it had no evidence for.
   it("separates a day that produced no eggs from a day nobody recorded", () => {
-    const d = dayStrip({ days: [day("2026-07-01", 400), day("2026-07-02", 0), missing("2026-07-03")] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 400), day("2026-07-02", 0), missing("2026-07-03")]) });
     expect(shape(d)).toEqual([
       ["2026-07-01", "recorded", 100],
       // Recorded and genuinely zero: a stub at the baseline, not nothing.
@@ -133,7 +137,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   it("computes the peak and the average over the recorded days only", () => {
     // The unrecorded day is worth nothing to either. Averaging over the
     // calendar rather than over the evidence would report 166.7.
-    const d = dayStrip({ days: [day("2026-07-01", 300), missing("2026-07-02"), day("2026-07-03", 200)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 300), missing("2026-07-02"), day("2026-07-03", 200)]) });
     expect(d).toMatchObject({ max: 300, average: 250, averagePct: 83.3 });
   });
 
@@ -141,7 +145,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // it must not set the peak, must not move the average, and must not be drawn
   // as a complete day that produced less.
   it("keeps a partly recorded day out of the peak and the average", () => {
-    const d = dayStrip({ days: [day("2026-07-01", 300), partly("2026-07-02", 500, 2, 3), day("2026-07-03", 200)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 300), partly("2026-07-02", 500, 2, 3), day("2026-07-03", 200)]) });
     expect(d).toMatchObject({ max: 300, average: 250, complete: 2, partial: 1, unrecorded: 0, scale: "complete" });
     expect(d.slots[1]).toMatchObject({ kind: "partial", eggs: 500, filedFlocks: 2, expectedFlocks: 3 });
     // 500 over a 300 peak would overflow the slot, so the bar caps at the top.
@@ -157,7 +161,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     const skewed: ProductionDay = {
       ...day("2026-07-02", 400), recordedFlocks: 2, expectedFlocks: 2, missingFlocks: 1,
     };
-    const d = dayStrip({ days: [day("2026-07-01", 900), skewed] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 900), skewed]) });
     expect(d.slots[1]).toMatchObject({ kind: "partial", filedFlocks: 1, expectedFlocks: 2 });
     // The short day sets neither figure.
     expect(d).toMatchObject({ max: 900, average: 900, complete: 1, partial: 1 });
@@ -169,7 +173,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // day with a real figure (500), so the strip must scale to it rather than
   // collapse — the missing day beside it stays undrawable either way.
   it("scales to the partial peak (not the 2% floor) when no day is complete, and keeps the average unset", () => {
-    const d = dayStrip({ days: [partly("2026-07-01", 500, 2, 3), missing("2026-07-02")] });
+    const d = dayStrip({ periods: dailyPeriods([partly("2026-07-01", 500, 2, 3), missing("2026-07-02")]) });
     expect(d).toMatchObject({
       max: 500, average: null, averagePct: null, complete: 0, partial: 1, unrecorded: 1, scale: "partial",
     });
@@ -182,11 +186,11 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // against a floor that would draw all three as the same hairline stub.
   it("scales every bar to the partial peak across a whole no-complete-day window", () => {
     const d = dayStrip({
-      days: [
+      periods: dailyPeriods([
         partly("2026-07-01", 300, 2, 3),
         partly("2026-07-02", 600, 1, 3),
         partly("2026-07-03", 450, 2, 3),
-      ],
+      ]),
     });
     expect(d).toMatchObject({ max: 600, average: null, complete: 0, partial: 3, scale: "partial" });
     expect(d.slots.map((s) => (s.kind === "partial" ? s.heightPct : null))).toEqual([50, 100, 75]);
@@ -195,7 +199,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // #916 — a recorded zero stays a floor stub even under the fallback scale:
   // 0 must not be misread as "nothing happened" (that is `unrecorded`).
   it("keeps the 2% floor for a partial day that recorded zero, under the fallback scale", () => {
-    const d = dayStrip({ days: [partly("2026-07-01", 0, 2, 3), partly("2026-07-02", 400, 2, 3)] });
+    const d = dayStrip({ periods: dailyPeriods([partly("2026-07-01", 0, 2, 3), partly("2026-07-02", 400, 2, 3)]) });
     expect(d).toMatchObject({ max: 400, scale: "partial" });
     expect(d.slots[0]).toMatchObject({ kind: "partial", heightPct: 2 });
   });
@@ -204,13 +208,13 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // among bigger partial totals still sets the peak, and the partial days
   // still cap at 100% rather than pulling the peak up to their own total.
   it("keeps the complete-day scale (never the partial fallback) when any complete day exists", () => {
-    const d = dayStrip({ days: [day("2026-07-01", 200), partly("2026-07-02", 900, 2, 3)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 200), partly("2026-07-02", 900, 2, 3)]) });
     expect(d).toMatchObject({ max: 200, average: 200, complete: 1, partial: 1, scale: "complete" });
     expect(d.slots[1]).toMatchObject({ kind: "partial", heightPct: 100 });
   });
 
   it("reports scale \"none\" when nothing in the window was recorded at all", () => {
-    const d = dayStrip({ days: [missing("2026-07-01"), missing("2026-07-02")] });
+    const d = dayStrip({ periods: dailyPeriods([missing("2026-07-01"), missing("2026-07-02")]) });
     expect(d).toMatchObject({ max: null, average: null, scale: "none" });
   });
 
@@ -218,7 +222,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     // Before the first placement, 0 recorded of 0 expected is not a shortfall.
     // The old shape called it `unrecorded`, so a new farm's first fortnight
     // announced fourteen missing filings against an obligation nobody had.
-    const d = dayStrip({ days: [day("2026-07-01", 0, 0, 0, 0)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 0, 0, 0, 0)]) });
     expect(d).toMatchObject({ complete: 0, partial: 0, unrecorded: 0 });
     expect(d.slots[0].kind).toBe("none");
   });
@@ -230,48 +234,106 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   // reads "2 of 1 flocks". The `> 0` conjunct short-circuits the 0/0 case above
   // before `>=` is ever evaluated, so that test does NOT cover this.
   it("counts a day where more flocks filed than were expected as complete", () => {
-    const d = dayStrip({ days: [day("2026-07-01", 90, 100, 2, 1)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 90, 100, 2, 1)]) });
     expect(d).toMatchObject({ complete: 1, partial: 0, unrecorded: 0 });
     expect(d.slots[0].kind).toBe("recorded");
   });
 
   it("floors a recorded day at 2% so the farm's worst real day is still a bar", () => {
-    const d = dayStrip({ days: [day("2026-07-01", 1000), day("2026-07-02", 3)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 1000), day("2026-07-02", 3)]) });
     expect(d.slots[1]).toMatchObject({ date: "2026-07-02", kind: "recorded", heightPct: 2 });
   });
 
-  it("marks the week boundary at the start of the recent window, and nowhere else", () => {
+  // #914 — the boundary now marks each seven-day step inside a DAILY strip,
+  // which on the fourteen-day default falls exactly where it always has.
+  it("marks every seven-day boundary in a daily strip, and nowhere else", () => {
     const days = Array.from({ length: 14 }, (_, i) => day(`2026-07-${String(i + 1).padStart(2, "0")}`, 100 + i));
-    const breaks = dayStrip({ days, recentCount: 7 }).slots.map((s) => s.weekBreak);
+    const breaks = dayStrip({ periods: dailyPeriods(days) }).slots.map((s) => s.weekBreak);
     expect(breaks.filter(Boolean)).toHaveLength(1);
     expect(breaks.indexOf(true)).toBe(7);
-    expect(dayStrip({ days, recentCount: 7 }).slots[7].date).toBe("2026-07-08");
+    expect(dayStrip({ periods: dailyPeriods(days) }).slots[7].date).toBe("2026-07-08");
   });
 
-  it("draws no boundary when the recent window is absent or is the whole window", () => {
+  it("draws no boundary in a window shorter than a week", () => {
     const days = [day("2026-07-01", 1), day("2026-07-02", 2)];
-    expect(dayStrip({ days }).slots.some((s) => s.weekBreak)).toBe(false);
-    expect(dayStrip({ days, recentCount: 2 }).slots.some((s) => s.weekBreak)).toBe(false);
+    expect(dayStrip({ periods: dailyPeriods(days) }).slots.some((s) => s.weekBreak)).toBe(false);
   });
 
   it("keeps a stub on every day when every recorded day is zero, and draws no average line", () => {
     // A real average of 0 with no scale to place it on. The line would sit on
     // the floor and read as data.
-    const d = dayStrip({ days: [day("2026-07-01", 0), day("2026-07-02", 0)] });
+    const d = dayStrip({ periods: dailyPeriods([day("2026-07-01", 0), day("2026-07-02", 0)]) });
     expect(shape(d)).toEqual([["2026-07-01", "recorded", 2], ["2026-07-02", "recorded", 2]]);
     expect(d).toMatchObject({ max: 0, average: 0, averagePct: null });
   });
 
   it("has no peak and no average when no day in the window was recorded", () => {
-    const d = dayStrip({ days: [missing("2026-07-01"), missing("2026-07-02")] });
+    const d = dayStrip({ periods: dailyPeriods([missing("2026-07-01"), missing("2026-07-02")]) });
     expect(shape(d)).toEqual([["2026-07-01", "unrecorded", null], ["2026-07-02", "unrecorded", null]]);
     expect(d).toMatchObject({ max: null, average: null, complete: 0, unrecorded: 2 });
   });
 
   it("is empty for no days and one full-height slot for one day", () => {
-    expect(dayStrip({ days: [] })).toMatchObject({ slots: [], max: null, average: null });
-    expect(dayStrip({ days: [day("2026-07-01", 7)] }).slots[0])
+    expect(dayStrip({ periods: dailyPeriods([]) })).toMatchObject({ slots: [], max: null, average: null });
+    expect(dayStrip({ periods: dailyPeriods([day("2026-07-01", 7)]) }).slots[0])
       .toMatchObject({ kind: "recorded", heightPct: 100 });
+  });
+});
+
+describe("stripPeriods / weekPeriods (#914 — one bar per week past the strip's ceiling)", () => {
+  const span = (n: number, from = 1) => Array.from({ length: n }, (_, i) =>
+    day(`2026-07-${String(from + i).padStart(2, "0")}`, 100));
+
+  it("keeps one period per day up to the strip's ceiling", () => {
+    expect(MAX_DAY_SLOTS).toBe(14);
+    const periods = stripPeriods(span(14));
+    expect(periods).toHaveLength(14);
+    expect(periods[0]).toEqual({
+      date: "2026-07-01", endDate: "2026-07-01", dayCount: 1,
+      totalEggs: 100, perDayEggs: 100, recordedFlocks: 1, missingFlocks: 0, expectedFlocks: 1,
+    });
+  });
+
+  it("collapses one day past the ceiling into weeks, the last one short", () => {
+    const periods = stripPeriods(span(15));
+    expect(periods.map((p) => [p.date, p.endDate, p.dayCount])).toEqual([
+      ["2026-07-01", "2026-07-07", 7],
+      ["2026-07-08", "2026-07-14", 7],
+      ["2026-07-15", "2026-07-15", 1],
+    ]);
+  });
+
+  it("sums a week's eggs and flock-days, and reports its own eggs-per-day", () => {
+    const [first] = weekPeriods([
+      ...span(6), partly("2026-07-07", 40, 2, 3),
+    ]);
+    expect(first).toEqual({
+      date: "2026-07-01", endDate: "2026-07-07", dayCount: 7,
+      totalEggs: 640, perDayEggs: 91.4,
+      recordedFlocks: 8, missingFlocks: 1, expectedFlocks: 9,
+    });
+  });
+
+  // The whole reason a bar reads eggs PER DAY: plotted by its total, the short
+  // last bucket would draw a seventh of the height on a farm that produced
+  // exactly as much each day.
+  it("draws a short last week at the same height as a full one at the same daily rate", () => {
+    const d = dayStrip({ periods: stripPeriods(span(15)) });
+    expect(d.bucketed).toBe(true);
+    expect(d.slots.map((slot) => (slot.kind === "recorded" ? slot.heightPct : null))).toEqual([100, 100, 100]);
+    expect(d.slots.map((slot) => (slot.kind === "recorded" ? slot.eggs : null))).toEqual([700, 700, 100]);
+    expect(d).toMatchObject({ max: 100, average: 100, complete: 3, partial: 0, unrecorded: 0 });
+  });
+
+  it("marks no week boundary once every bar is already a week", () => {
+    expect(dayStrip({ periods: stripPeriods(span(15)) }).slots.some((slot) => slot.weekBreak)).toBe(false);
+  });
+
+  // A week where one house missed one day is a floor, exactly as a partly
+  // recorded day is — the flock-day sums are what say so.
+  it("calls a week partial when any house missed any day in it", () => {
+    const d = dayStrip({ periods: stripPeriods([...span(14), ...span(6, 15), partly("2026-07-21", 40, 2, 3)]) });
+    expect(d.slots.map((slot) => slot.kind)).toEqual(["recorded", "recorded", "partial"]);
   });
 });
 

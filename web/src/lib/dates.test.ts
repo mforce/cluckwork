@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { todayIso, ageWeeks, daysBefore, isKnownTimeZone, isIsoCalendarDate } from "./dates";
+import { todayIso, ageWeeks, daysBefore, inclusiveDays, isKnownTimeZone, isIsoCalendarDate } from "./dates";
 
 describe("todayIso", () => {
   afterEach(() => vi.useRealTimers());
@@ -215,5 +215,27 @@ describe("isIsoCalendarDate", () => {
 
   it.each(REJECTED)("rejects %s", (v) => {
     expect(isIsoCalendarDate(v)).toBe(false);
+  });
+});
+
+describe("inclusiveDays (#914)", () => {
+  it("counts a single day as one", () => {
+    expect(inclusiveDays("2026-07-21", "2026-07-21")).toBe(1);
+  });
+
+  it("counts both ends of a span", () => {
+    expect(inclusiveDays("2026-07-01", "2026-07-14")).toBe(14);
+    expect(inclusiveDays("2026-01-01", "2026-03-01")).toBe(60);
+  });
+
+  it("counts a leap day", () => {
+    expect(inclusiveDays("2024-02-01", "2024-03-01")).toBe(30);
+    expect(inclusiveDays("2026-02-01", "2026-03-01")).toBe(29);
+  });
+
+  // Callers reject a reversed span rather than normalising it, so the count
+  // has to stay signed instead of quietly reporting a plausible length.
+  it("goes negative when the end precedes the start", () => {
+    expect(inclusiveDays("2026-07-21", "2026-07-20")).toBe(0);
   });
 });

@@ -923,9 +923,15 @@ export const en = {
     // Hover text on a tile with no entry yet — the tile is already a link to
     // that flock's day, and this says what tapping it is for.
     recordTodayHint: "Record today",
-    // Past the 12-tile cap. {{total}} formatted; {{count}} raw for plural selection.
-    moreFlocks_one: "{{total}} more flock",
-    moreFlocks_other: "{{total}} more flocks",
+    // #915 — the pager under a panel's list. Every figure is farm-locale
+    // formatted before it reaches the string (#650). Recent orders is fetched
+    // a page at a time, so its total is unknown until the last page lands and
+    // the label says only how far the reader has come until then.
+    pagerHouses: "Houses {{first}} to {{last}} of {{total}}",
+    pagerOrders: "Orders {{first}} to {{last}} of {{total}}",
+    pagerOrdersOpen: "Orders {{first}} to {{last}}",
+    pagerPrevious: "Previous page of {{panel}}",
+    pagerNext: "Next page of {{panel}}",
 
     // Last 14 days (#654, #777): the production report's own figures —
     // submitted days only, fixed window (yesterday back). The strip plots eggs
@@ -933,7 +939,7 @@ export const en = {
     // for the last 7 finished days, and its delta against the 7 before.
     // ("Finished", not "complete": since #780 a COMPLETE day means one every
     // flock recorded, which is a different property and decides Peak and Avg.)
-    trendPanelTitle: "Last 14 days",
+    trendPanelTitle: "Lay rate trend",
     // The group's summary. Every day is also a button carrying its own figure,
     // so this no longer repeats the lowest and the latest — it says what the
     // scale is and how much of the window is missing. Whole strings, not a
@@ -943,18 +949,18 @@ export const en = {
     // reference by however many flocks forgot. One count for the days that are
     // not complete, whichever way they fall short: the slot's own name says
     // which, and i18next selects a plural on one number, not two.
-    trendStripLabel: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}}. Every flock recorded every day.",
-    trendStripLabelBlanks_one: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every flock recorded. {{blank}} day is not fully recorded.",
-    trendStripLabelBlanks_other: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every flock recorded. {{blank}} days are not fully recorded.",
+    trendStripLabel: "Eggs per day, {{range}}. Peak {{max}}, average {{avg}}. Every flock recorded every day.",
+    trendStripLabelBlanks_one: "Eggs per day, {{range}}. Peak {{max}}, average {{avg}} across the periods every flock recorded. {{blank}} period is not fully recorded.",
+    trendStripLabelBlanks_other: "Eggs per day, {{range}}. Peak {{max}}, average {{avg}} across the periods every flock recorded. {{blank}} periods are not fully recorded.",
     // Nothing at all in the window, so there is no peak and no average to name
     // — reporting either as 0 is the conflation #780 closed.
-    trendStripLabelNone: "Eggs per day, last 14 days. No day in this window has an entry.",
+    trendStripLabelNone: "Eggs per day, {{range}}. No day in this window has an entry.",
     // #916 — some days have figures, but none is complete: Peak scales to the
     // largest partial day instead of falling back to nothing.
-    trendStripLabelPartialScale: "Eggs per day, last 14 days. Peak {{max}}, partial days only. No day was recorded by every flock, so there is no average.",
+    trendStripLabelPartialScale: "Eggs per day, {{range}}. Peak {{max}}, partial periods only. No period was recorded by every flock, so there is no average.",
     // Nobody owed a filing in this window — no flock was placed yet, or the
     // last one has gone. Distinct from nobody having filed.
-    trendStripLabelNoFlocks: "Eggs per day, last 14 days. No flock was on the farm in this window.",
+    trendStripLabelNoFlocks: "Eggs per day, {{range}}. No flock was on the farm in this window.",
     // #918 — the three scale states, worded exactly as the approved mockup
     // (production-flock-selector-v2.html's own `stats().caption`).
     trendScaleTitle: "Eggs per day · complete-day scale",
@@ -963,6 +969,12 @@ export const en = {
     // full-farm output.
     trendScaleTitlePartial: "Eggs per day · partial days only",
     trendScaleTitleNone: "Eggs per day · no recorded figures",
+    // #914 — past MAX_DAY_SLOTS the strip draws one bar per week, so the
+    // caption names the week rather than the day. A bar still reads eggs per
+    // day: a short last week plotted by its TOTAL would draw a collapse the
+    // farm never had.
+    trendScaleTitleWeek: "Eggs per day · complete-week scale",
+    trendScaleTitleWeekPartial: "Eggs per day · partial weeks only",
     // Peak always renders, even as "Peak —" (fmt.count never runs on null;
     // the caller passes the dash itself) — the mockup states the absence
     // rather than omitting the word. Avg has the same rule: always one of
@@ -970,6 +982,8 @@ export const en = {
     trendPeak: "Peak {{total}}",
     trendCompleteAvg: "Complete-day avg {{total}}",
     trendNoCompleteAvg: "No complete-day average",
+    trendCompleteWeekAvg: "Complete-week avg {{total}} a day",
+    trendNoCompleteWeekAvg: "No complete-week average",
     // The readout for one day, and the accessible name of that day's slot.
     // The dash separates the date from the figure in every locale.
     trendDayTip_one: "{{date}} – {{total}} egg",
@@ -989,7 +1003,37 @@ export const en = {
     // missing. Counting these as gaps made a new farm's first fortnight
     // announce fourteen missing filings.
     trendDayTipNoFlocks: "{{date}} – no flocks",
-    henDaySubLabel: "Hen-day, last 7 days against the 7 before",
+    // #914 — one week's readout. It states its own day count, which is how the
+    // window's last bucket says it is short, and both the week's total and the
+    // per-day rate its bar height actually reads.
+    trendWeekTip_one: "{{from}} – {{to}}, {{days}} day – {{total}} eggs, {{perDay}} a day",
+    trendWeekTip_other: "{{from}} – {{to}}, {{days}} days – {{total}} eggs, {{perDay}} a day",
+    trendWeekTipPartial_one: "{{from}} – {{to}}, {{days}} day – {{total}} eggs, {{perDay}} a day, not every flock recorded every day",
+    trendWeekTipPartial_other: "{{from}} – {{to}}, {{days}} days – {{total}} eggs, {{perDay}} a day, not every flock recorded every day",
+    trendWeekTipNone_one: "{{from}} – {{to}}, {{days}} day – no entry",
+    trendWeekTipNone_other: "{{from}} – {{to}}, {{days}} days – no entry",
+    trendWeekTipNoFlocks_one: "{{from}} – {{to}}, {{days}} day – no flocks",
+    trendWeekTipNoFlocks_other: "{{from}} – {{to}}, {{days}} days – no flocks",
+    henDaySubLabel_one: "Hen-day, {{range}} against the {{days}} day before",
+    henDaySubLabel_other: "Hen-day, {{range}} against the {{days}} days before",
+    // #914 — the card's window. {{range}} is always the window's own dates:
+    // a custom range has no preset to name, and one sentence cannot be built
+    // from a stem plus a suffix (#650).
+    rangeSpan: "{{from}} – {{to}}",
+    rangeLabel: "Range",
+    rangePresetOption_one: "Last {{total}} day",
+    rangePresetOption_other: "Last {{total}} days",
+    rangeCustomOption: "Custom range…",
+    rangeFromLabel: "From",
+    rangeToLabel: "To",
+    rangeApply: "Apply",
+    rangeErrorIncomplete: "Enter both dates.",
+    rangeErrorOrder: "The start date must not be after the end date.",
+    // The card plots finished days only, so its newest day is the farm's
+    // yesterday rather than today.
+    rangeErrorFuture: "The range must end on or before {{date}}.",
+    rangeErrorTooLong_one: "Choose a range of at most {{days}} day.",
+    rangeErrorTooLong_other: "Choose a range of at most {{days}} days.",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
@@ -2855,24 +2899,30 @@ export const en = {
 
     // Dashboard (#654) — the landing screen's three questions.
     dashboardHeading: "Dashboard",
-    dashboardTiles: "<strong>Morning collection</strong> shows progress and one row per active flock, with <strong>No entry</strong> rows first. Use <strong>Record</strong> for a missing entry or <strong>Continue</strong> for a draft. The list shows up to twelve houses, with a link to the rest. The morning brief combines missing houses with today’s total, including drafts.",
+    dashboardTiles: "<strong>Morning collection</strong> shows progress and one row per active flock, with <strong>No entry</strong> rows first. Use <strong>Record</strong> for a missing entry or <strong>Continue</strong> for a draft. The list is paged inside the panel — six houses a page on a phone, eight on a wider screen — so every house is reachable without leaving the Dashboard; the progress bar and the houses-in count above it cover every house, not the page on screen. The morning brief combines missing houses with today’s total, including drafts.",
     dashboardTrend:
       "<strong>Lay rate</strong>: eggs per day from the production report, with <strong>hen-day %"
-      + "</strong> for the last 7 finished days and how it moved against the 7 before. Point at a day, "
+      + "</strong> for the chosen window and how it moved against the window of the same length "
+      + "before it. Point at a bar, "
       + "or tab into the chart and use the arrow keys, to read that day on its own. A day the farm "
       + "submitted with no eggs keeps a mark on the baseline; a day nobody submitted is an empty slot "
       + "and reads as <strong>No entry</strong>; a day only some flocks submitted is drawn hatched, "
       + "because its total is the least the farm produced rather than what it produced. "
       + "<strong>Peak</strong> and <strong>Avg</strong> come only from the days every flock recorded. "
       + "Hen-day % divides by the hen-days of the flocks that recorded, so a flock that forgets lowers "
-      + "what the figure is measured over, never the rate itself. The window is fixed (yesterday back) and counts "
-      + "<strong>submitted days only</strong> — a day still in Draft reads as No entry until it is "
-      + "submitted, unlike Reports where you choose the range. Choose <strong>All flocks</strong> or "
+      + "what the figure is measured over, never the rate itself. <strong>Range</strong> chooses the window "
+      + "— the last 7, 14 or 30 finished days, or <strong>Custom range…</strong> with <strong>From</strong>, "
+      + "<strong>To</strong> and <strong>Apply</strong> for anything up to 90 days; a longer range is refused "
+      + "in the form rather than shortened, and the choice is remembered on this device. The window always "
+      + "ends yesterday or earlier and counts <strong>submitted days only</strong> — a day still in Draft "
+      + "reads as No entry until it is submitted, unlike Reports where the range may reach today. Past 14 "
+      + "days the bars collapse to one a week, each reading that week’s eggs per day (and saying how many "
+      + "days it covers, so a short last week is not read as a fall in production). Choose <strong>All flocks</strong> or "
       + "a single flock above the chart to scope the whole card — bars, completeness, Avg and both "
       + "hen-day periods — to that flock; with only one accessible flock its name shows without a "
       + "picker. When no day in the window is fully recorded, Peak scales to the largest partial day "
       + "instead and says \"partial days only\".",
-    dashboardOrders: "<strong>Recent orders</strong> shows each customer, amount and status, with the first line’s quantity and current grade name. +N counts additional lines. Renaming a grade also changes its name here on old orders; an unavailable grade leaves the quantity alone.",
+    dashboardOrders: "<strong>Recent orders</strong> shows each customer, amount and status, with the first line’s quantity and current grade name, five orders a page. Paging forward fetches the next five, so the total appears once the last page arrives. +N counts additional lines. Renaming a grade also changes its name here on old orders; an unavailable grade leaves the quantity alone.",
     dashboardStock: "<strong>Available stock</strong> shows the total and a <strong>stacked bar</strong> of its grade composition, followed by a <strong>Grade</strong>, <strong>Count</strong> and <strong>Share</strong> table. Hover or focus a row to highlight it. Restricted eggs are listed separately. These are the same available counts as Stock.",
 
     // Signing in
@@ -3712,10 +3762,13 @@ export const en = {
     glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Grading past the total raises it to match. Draft until submitted.",
 
     glossaryCaptureStatusTerm: "Capture status",
-    glossaryCaptureStatusDef: "Whether each active flock has a daily entry for today. Morning collection shows one row per flock, missing ones first, and counts drafts as recorded. No entry links to Daily entry for that flock and day.",
+    glossaryCaptureStatusDef: "Whether each active flock has a daily entry for today. Morning collection shows one row per flock, missing ones first, and counts drafts as recorded. The list is paged inside the panel — six houses a page on a phone, eight on a wider screen — so every house is reachable; the progress bar and the houses-in count cover every house, not the page shown. No entry links to Daily entry for that flock and day.",
 
-    glossaryLayRateStripScaleTerm: "14-day strip scale",
-    glossaryLayRateStripScaleDef: "The Lay rate strip scales its bars to the largest fully recorded day. When no day in the window is fully recorded, it scales to the largest partial day instead and says \"partial days only\" so the bars are never read as full-farm output.",
+    glossaryLayRateStripScaleTerm: "Lay rate strip scale",
+    glossaryLayRateStripScaleDef: "The Lay rate strip scales its bars to the largest fully recorded period. When no period in the window is fully recorded, it scales to the largest partial one instead and says \"partial days only\" so the bars are never read as full-farm output. Every bar reads eggs per day, weekly bars included, so a short last week is not drawn as a fall in production.",
+
+    glossaryLayRateRangeTerm: "Lay rate range",
+    glossaryLayRateRangeDef: "The window the Lay rate card plots: the last 7, 14 or 30 finished days, or a custom range of two dates up to 90 days — a longer one is refused in the form, never shortened. The window always ends yesterday or earlier, and the choice is remembered on this device. Past 14 days the bars collapse to one a week, the last week possibly short and saying so; the hen-day figure compares the chosen window with the window of the same length before it.",
 
     glossaryLayRateFlockScopeTerm: "Lay rate flock scope",
     glossaryLayRateFlockScopeDef: "The Dashboard's Lay rate card can show All flocks or one chosen flock. The whole card follows the choice — the strip, completeness, the average and both hen-day comparison periods — and the figures come from the server, not from filtering the All flocks view. Other Dashboard panels do not change.",

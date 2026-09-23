@@ -97,3 +97,16 @@ export function ageWeeks(placementDate: string, nowMs: number = Date.now()): num
   const days = (nowMs - placed.getTime()) / 86_400_000;
   return Math.max(0, Math.floor(days / 7));
 }
+
+// How many calendar days `from`..`to` covers, both ends included (#914). Same
+// UTC-parts arithmetic as daysBefore, and for the same reason: the inputs are
+// the FARM's calendar squares, so the runner's own zone and DST rules must stay
+// out of it. Negative when `to` precedes `from`, which callers reject rather
+// than normalise.
+export function inclusiveDays(from: string, to: string): number {
+  const ms = (iso: string) => {
+    const [year, month, day] = iso.split("-").map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((ms(to) - ms(from)) / 86_400_000) + 1;
+}
