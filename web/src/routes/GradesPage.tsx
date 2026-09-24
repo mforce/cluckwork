@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -176,37 +176,26 @@ export function GradesPage() {
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
   function renderActions(g: EggGrade) {
-    return (
-      <>
-        {/* #493 — full audit trail for this record, distinct from the
-            created/last-changed summary in ProvenanceCell. Admin-gated:
-            /api/v1/audit is AdminOnly (codex review of #516). */}
-        {isAdmin && (
-          <Link className="link" to={`/audit?entityId=${g.id}`}>
-            {tc("recordHistory.viewHistoryLink")}
-          </Link>
+    return {
+      primary: isAdmin && (
+        <button className="link" disabled={busy} onClick={() => startEdit(g)}>{t("editButton")}</button>
+      ),
+      secondary: isAdmin && <>
+        <Link className="link" to={`/audit?entityId=${g.id}`}>{tc("recordHistory.viewHistoryLink")}</Link>
+        {!g.active && (
+          <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}
+            onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
+            {t("activateButton")}
+          </BusyButton>
         )}
-        {isAdmin && (
-          <>
-            {/* Opens the edit dialog — non-mutating, so the spinner belongs
-                to the dialog's Save, not here (#242). */}
-            <button className="link" disabled={busy}
-              onClick={() => startEdit(g)}>{t("editButton")}</button>
-            {g.active ? (
-              <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
-                onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
-                <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
-              </BusyButton>
-            ) : (
-              <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}
-                onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
-                {t("activateButton")}
-              </BusyButton>
-            )}
-          </>
-        )}
-      </>
-    );
+      </>,
+      destructive: isAdmin && g.active && (
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+          onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
+          <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
+        </BusyButton>
+      ),
+    };
   }
 
   if (errors.page && grades === null) {
@@ -311,6 +300,7 @@ export function GradesPage() {
       {errors.page && <p className="error">{errors.page}</p>}
 
       <ListInspectorPane
+        tableLabel={t("title")}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
             <Table size="small">
@@ -337,7 +327,7 @@ export function GradesPage() {
                     <ProvenanceCell history={g} />
                     <TableCell sx={NOWRAP}>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                        {renderActions(g)}
+                        {Object.entries(renderActions(g)).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -349,20 +339,15 @@ export function GradesPage() {
         inspector={(
           <RecordInspector
             ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-            eyebrow={selectedGrade ? t("entitySingular") : undefined}
             title={selectedGrade?.name}
-            subtitle={selectedGrade ? gradeTypeLabel(selectedGrade.gradeType) : undefined}
             emptyMessage={tc("inspectorEmptyPrompt")}
             fields={selectedGrade ? [
+              { label: t("typeHeader"), value: gradeTypeLabel(selectedGrade.gradeType) },
               { label: t("sortHeader"), value: fmt.count(selectedGrade.sortOrder) },
               { label: t("saleableHeader"), value: selectedGrade.isSaleable ? t("saleableYesBadge") : "—" },
               { label: t("statusHeader"), value: <StatusBadge status={selectedGrade.active ? "Active" : "Inactive"} label={statusLabel(selectedGrade.active ? "Active" : "Inactive")} /> },
             ] : undefined}
-            actions={selectedGrade && (
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                {renderActions(selectedGrade)}
-              </Stack>
-            )}
+            actions={selectedGrade ? renderActions(selectedGrade) : undefined}
           />
         )}
       />

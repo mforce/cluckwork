@@ -1,7 +1,9 @@
+import { useState } from "react";
+import userEvent from "@testing-library/user-event";
 import { Table, TableBody, TableCell, TableFooter, TableRow } from "@mui/material";
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { FieldConsole, LedgerTableContainer } from "./FieldConsole";
+import { FieldConsole, LedgerTableContainer, ListInspectorPane, RecordInspector, selectableRowProps } from "./FieldConsole";
 import { ledgerCellStyles } from "../test/ledgerCellStyles";
 
 it("keeps numeric ledger values on one line while prose can wrap", () => {
@@ -32,4 +34,61 @@ it("walks arbitrary rows and footer variants, rejecting emphasis masked by MUI c
     "Masked: row color var(--muted), cell rgba(0, 0, 0, 0.87)",
     "Masked: row fontWeight 600, cell 400",
   ]);
+});
+
+function SelectableList() {
+  const [selected, setSelected] = useState(false);
+  return <ListInspectorPane tableLabel="Records"
+    table={<Table><TableBody><TableRow {...selectableRowProps(selected, () => setSelected(true))}>
+      <TableCell>First record</TableCell><TableCell><button>Edit record</button></TableCell>
+    </TableRow></TableBody></Table>}
+    inspector={<RecordInspector ariaLabel="Record details" emptyMessage="Select a record"
+      {...(selected ? { title: "First record", actions: { primary: <button>Inspect action</button> } } : {})} />}
+  />;
+}
+
+it.each(["{Enter}", " "])("moves keyboard selection into the shared inspector on %s and Escape back", async (key) => {
+  const user = userEvent.setup();
+  render(<SelectableList />);
+  const row = screen.getByRole("row");
+  row.focus();
+  await user.keyboard(key);
+  expect(screen.getByRole("heading", { name: "First record" })).toHaveFocus();
+  await user.tab();
+  expect(screen.getByRole("button", { name: "Inspect action" })).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(row).toHaveFocus();
+});
+
+it("keeps mouse selection focused on the row", async () => {
+  const user = userEvent.setup();
+  render(<SelectableList />);
+  const row = screen.getByRole("row");
+  await user.click(screen.getByRole("cell", { name: "First record" }));
+  expect(screen.getByRole("heading", { name: "First record" })).toBeInTheDocument();
+  expect(row).toHaveFocus();
+});
+
+it("leaves row button clicks and keyboard activation with the button", async () => {
+  const user = userEvent.setup();
+  render(<SelectableList />);
+  const button = screen.getByRole("button", { name: "Edit record" });
+  await user.click(button);
+  await user.keyboard("{Enter} ");
+  expect(button).toHaveFocus();
+  expect(screen.queryByRole("heading", { name: "First record" })).not.toBeInTheDocument();
+});
+
+it("orders inspector actions by purpose, independent of property order", () => {
+  render(<RecordInspector ariaLabel="Record details" title="First record" emptyMessage="Select a record"
+    actions={{ destructive: <button>Archive</button>, secondary: <button>History</button>, primary: <button>Edit</button> }} />);
+  expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Edit", "History", "Archive"]);
+});
+
+it("keeps long inspector names on one line without shortening their accessible name", () => {
+  const name = "A customer with a long name that exceeds the phone inspector width";
+  render(<RecordInspector ariaLabel="Record details" title={name} emptyMessage="Select a record" />);
+  expect(screen.getByRole("heading", { name })).toHaveStyle({
+    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  });
 });

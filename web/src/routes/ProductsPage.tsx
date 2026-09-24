@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Package, Plus, TriangleAlert } from "lucide-react";
@@ -310,22 +310,21 @@ export function ProductsPage() {
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
   function renderProductActions(p: Product) {
-    return (
-      <>
-        <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
-        {p.active ? (
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
-            onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
-            <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
-          </BusyButton>
-        ) : (
-          <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`act:${p.id}`)}
-            onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
-            {t("activateButton")}
-          </BusyButton>
-        )}
-      </>
-    );
+    return {
+      primary: <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>,
+      secondary: !p.active && (
+        <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`act:${p.id}`)}
+          onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
+          {t("activateButton")}
+        </BusyButton>
+      ),
+      destructive: p.active && (
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
+          onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
+          <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
+        </BusyButton>
+      ),
+    };
   }
 
   function renderConversionActions(c: EggUnitConversion) {
@@ -520,6 +519,7 @@ export function ProductsPage() {
             action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); } } : undefined} />
         ) : (
           <ListInspectorPane
+            tableLabel={t("title")}
             table={(
               <LedgerTableContainer scrollHint="columnsAndRows">
                 <Table size="small">
@@ -553,7 +553,7 @@ export function ProductsPage() {
                         {isAdmin && (
                           <TableCell sx={NOWRAP}>
                             <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                              {renderProductActions(p)}
+                              {Object.entries(renderProductActions(p)).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
                             </Stack>
                           </TableCell>
                         )}
@@ -566,11 +566,10 @@ export function ProductsPage() {
             inspector={(
               <RecordInspector
                 ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-                eyebrow={selectedProduct ? t("entitySingular") : undefined}
                 title={selectedProduct?.name}
-                subtitle={selectedProduct ? gradeName(selectedProduct.eggGradeId) : undefined}
                 emptyMessage={tc("inspectorEmptyPrompt")}
                 fields={selectedProduct ? [
+                  { label: t("gradeHeader"), value: gradeName(selectedProduct.eggGradeId) },
                   { label: t("soldPerHeader"), value: selectedProduct.defaultUnit },
                   {
                     label: t("defaultPriceHeader"),
@@ -581,11 +580,7 @@ export function ProductsPage() {
                   { label: t("statusHeader"), value: <StatusBadge status={selectedProduct.active ? "Active" : "Inactive"} label={statusLabel(selectedProduct.active ? "Active" : "Inactive")} /> },
                   ...(selectedProduct.notes ? [{ label: t("notesLabel"), value: selectedProduct.notes }] : []),
                 ] : undefined}
-                actions={isAdmin && selectedProduct && (
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                    {renderProductActions(selectedProduct)}
-                  </Stack>
-                )}
+                actions={isAdmin && selectedProduct ? renderProductActions(selectedProduct) : undefined}
               />
             )}
           />
@@ -594,6 +589,7 @@ export function ProductsPage() {
 
       <Box role="tabpanel" id="packed-units-tabpanel" aria-labelledby="packed-units-tab" hidden={tab !== "packedUnits"}>
         <ListInspectorPane
+          tableLabel={t("packedUnitsHeading")}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
               <Table size="small">
@@ -622,14 +618,13 @@ export function ProductsPage() {
           inspector={(
             <RecordInspector
               ariaLabel={tc("inspectorLabel", { entity: t("packedUnitEntitySingular") })}
-              eyebrow={selectedConv ? t("packedUnitEntitySingular") : undefined}
               title={selectedConv?.unitCode}
               emptyMessage={tc("inspectorEmptyPrompt")}
               fields={selectedConv ? [
                 { label: t("eggsPerUnitHeader"), value: fmt.count(selectedConv.eggsPerUnit) },
                 { label: t("statusHeader"), value: statusLabel(selectedConv.active ? "Active" : "Inactive") },
               ] : undefined}
-              actions={isAdmin && selectedConv && renderConversionActions(selectedConv)}
+              actions={isAdmin && selectedConv ? { primary: renderConversionActions(selectedConv) } : undefined}
             />
           )}
         />

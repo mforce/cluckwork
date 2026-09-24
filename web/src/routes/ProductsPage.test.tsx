@@ -176,7 +176,8 @@ describe("ProductsPage tabs + selected-record inspector (#908)", () => {
 
     expect(row).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "Grade A Dozen" })).toBeInTheDocument();
-    expect(within(inspector).getByText("Grade A")).toBeInTheDocument();
+    const gradeField = within(inspector).getByText("Grade", { selector: "dt" }).parentElement!;
+    expect(within(gradeField).getByText("Grade A", { selector: "dd" })).toBeInTheDocument();
     expect(within(inspector).getByText("KWD 0.500")).toBeInTheDocument();
   });
 
@@ -942,4 +943,15 @@ describe("ProductsPage codex-f2 repro (#703 review r2)", () => {
     await act(async () => { gate.reject(new ApiError(422, "Validation failed", "A-ONLY-ERROR")); }); // A fails
     expect(within(dialog()).queryByText(/A-ONLY-ERROR/)).not.toBeInTheDocument();
   });
+});
+
+it("keeps corrective actions outside the destructive group for an inactive record", async () => {
+  await renderReady(ADMIN);
+  fireEvent.click(screen.getByRole("row", { name: /Legacy Tray/ }));
+  const inspector = screen.getByRole("region", { name: "Product details" });
+  expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "activate"]);
+  const corrective = within(inspector).getByRole("button", { name: "activate" });
+  expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
+  expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+  expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
 });

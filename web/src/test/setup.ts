@@ -11,6 +11,11 @@ import { ledgerCellStyles } from "./ledgerCellStyles";
 Element.prototype.scrollIntoView ??= vi.fn();
 
 beforeEach(() => {
+  // JSDOM has no layout engine; real sizing is covered by Playwright.
+  vi.stubGlobal("ResizeObserver", class {
+    observe() {}
+    disconnect() {}
+  });
   // Default to "no session": any fetch a test doesn't explicitly mock — notably
   // the AuthProvider load-time silent refresh (#145) — resolves 401, so the
   // bootstrap settles as unauthenticated without a real network call. Tests that

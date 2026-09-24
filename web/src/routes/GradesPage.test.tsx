@@ -87,7 +87,8 @@ describe("GradesPage selected-record inspector (#908)", () => {
 
     expect(rowA).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "Grade A" })).toBeInTheDocument();
-    expect(within(inspector).getByText("Size")).toBeInTheDocument();
+    const typeField = within(inspector).getByText("Type", { selector: "dt" }).parentElement!;
+    expect(within(typeField).getByText("Size", { selector: "dd" })).toBeInTheDocument();
   });
 
   it("shows an inactive grade's own activate action in the inspector", async () => {
@@ -628,4 +629,15 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockList).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
   });
+});
+
+it("keeps corrective actions outside the destructive group for an inactive record", async () => {
+  await renderReady(ADMIN);
+  fireEvent.click(screen.getByRole("row", { name: /Legacy/ }));
+  const inspector = screen.getByRole("region", { name: "Grade details" });
+  expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "Audit history", "activate"]);
+  const corrective = within(inspector).getByRole("button", { name: "activate" });
+  expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
+  expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+  expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
 });

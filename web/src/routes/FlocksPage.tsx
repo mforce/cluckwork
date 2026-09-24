@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -280,33 +280,19 @@ export function FlocksPage() {
 
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
-  function renderActions(f: Flock) {
-    return (
-      <>
+  function renderActions(f: Flock, location: "row" | "inspector") {
+    return {
+      primary: isAdmin && (
+        <button className="link" style={NOWRAP} disabled={busy} onClick={() => startEdit(f)}>{t("editButton")}</button>
+      ),
+      secondary: <>
         <button className="link" style={NOWRAP} disabled={busy}
           onClick={() => void openLedger(f.id)}>
           {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
         </button>
-        {isAdmin && (
-          // Opens the edit dialog — non-mutating, so the spinner belongs to
-          // the dialog's Save, not here (#242).
-          <button className="link" style={NOWRAP} disabled={busy}
-            onClick={() => startEdit(f)}>{t("editButton")}</button>
-        )}
-        {isAdmin && f.status === "Active" && (
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
-            onClick={() => void onDeplete(f)}>
-            <TriangleAlert size={14} aria-hidden /> {t("depleteButton")}
-          </BusyButton>
-        )}
-        {isAdmin && f.status !== "Archived" && (
-          // After the confirm dialog settles, THIS button is the pending
-          // indicator for the in-flight archive (#236).
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
-            onClick={() => void onArchive(f)}>
-            <TriangleAlert size={14} aria-hidden /> {t("archiveButton")}
-          </BusyButton>
-        )}
+        {location === "inspector" && isAdmin && <Link className="link" to={`/audit?entityId=${f.id}`}>
+          {tc("recordHistory.viewHistoryLink")}
+        </Link>}
         {isAdmin && f.status !== "Active" && (
           // The undo (#57): back to Active, full capture restored.
           <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
@@ -314,8 +300,21 @@ export function FlocksPage() {
             {t("reactivateButton")}
           </BusyButton>
         )}
-      </>
-    );
+      </>,
+      destructive: isAdmin && f.status !== "Archived" && <>
+        {f.status === "Active" && (
+          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
+            onClick={() => void onDeplete(f)}>
+            <TriangleAlert size={14} aria-hidden /> {t("depleteButton")}
+          </BusyButton>
+        )}
+        {/* #236 — the trigger indicates progress after the confirm dialog closes. */}
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
+          onClick={() => void onArchive(f)}>
+          <TriangleAlert size={14} aria-hidden /> {t("archiveButton")}
+        </BusyButton>
+      </>,
+    };
   }
 
   return (
@@ -434,98 +433,83 @@ export function FlocksPage() {
         </label>
       )}
 
-      {visible.length === 0 ? (
-        // #655 — `visible` is already filtered by `showArchived`; when
-        // everything is archived and the toggle is off, this is "filtered to
-        // nothing" (offer to reveal them), never "nothing exists yet" (which
-        // needs `archivedCount === 0` too — the toggle can't be responsible
-        // for an empty `flocks` array in the first place).
-        archivedCount > 0
-          ? <EmptyState icon={FilterX} message={t("noFlocksMatch")}
-              action={{ label: tc("clearFiltersButton"), onClick: () => setShowArchived(true) }} />
-          : <EmptyState icon={Bird} message={t("noFlocksMessage")}
-              action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); openDialog("create"); setCreating(true); } } : undefined} />
-      ) : (
-        <ListInspectorPane
-          table={(
-            <LedgerTableContainer scrollHint="columnsAndRows">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("breedHeader")}</TableCell>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("placedHeader")}</TableCell>
-                    <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("ageHeader")}</TableCell>
-                    <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("birdsHeader")}</TableCell>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("recordHistoryHeader")}</TableCell>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}></TableCell>
+      <ListInspectorPane
+        tableLabel={t("title")}
+        table={visible.length === 0 ? (
+          // #655 — distinguish an empty farm from a filter that hides all its flocks.
+          archivedCount > 0
+            ? <EmptyState icon={FilterX} message={t("noFlocksMatch")}
+                action={{ label: tc("clearFiltersButton"), onClick: () => setShowArchived(true) }} />
+            : <EmptyState icon={Bird} message={t("noFlocksMessage")}
+                action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); openDialog("create"); setCreating(true); } } : undefined} />
+        ) : (
+          <LedgerTableContainer scrollHint="columnsAndRows">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("breedHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("placedHeader")}</TableCell>
+                  <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("ageHeader")}</TableCell>
+                  <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("birdsHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("recordHistoryHeader")}</TableCell>
+                  <TableCell sx={STICKY_TABLE_HEAD_SX}></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {visible.map((f) => (
+                  <TableRow key={f.id} className={f.status === "Archived" ? "inactive" : undefined}
+                    {...selectableRowProps(f.id === selectedId, () => setSelectedId(f.id))}>
+                    <TableCell sx={NOWRAP}>{f.name}</TableCell>
+                    <TableCell sx={NOWRAP}>{f.breed}</TableCell>
+                    <TableCell sx={NOWRAP}><FarmDate iso={f.placementDate} /></TableCell>
+                    <TableCell align="right" sx={NOWRAP}>{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</TableCell>
+                    <TableCell align="right" sx={NOWRAP}>
+                      {fmt.count(f.currentBirds)}
+                      {f.currentBirds !== f.initialCount &&
+                        <span className="muted"> / {fmt.count(f.initialCount)}</span>}
+                    </TableCell>
+                    <TableCell sx={NOWRAP}><StatusBadge status={f.status} label={statusLabel(f.status)} /></TableCell>
+                    {/* The audit link (#493, AdminOnly) lives under the provenance
+                        summary, not in Actions: with it inline, an Active
+                        flock's row ran past the container at 1280 and hid
+                        deplete/archive behind an uncued scroll. */}
+                    <ProvenanceCell history={f} auditHref={isAdmin ? `/audit?entityId=${f.id}` : undefined} />
+                    {/* The verbs may flow onto a second line, as table.data always
+                        allowed; each verb stays whole. */}
+                    <TableCell>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 0.5, alignItems: "center" }}>
+                        {Object.entries(renderActions(f, "row")).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
+                      </Stack>
+                    </TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {visible.map((f) => (
-                    <TableRow key={f.id} className={f.status === "Archived" ? "inactive" : undefined}
-                      {...selectableRowProps(f.id === selectedId, () => setSelectedId(f.id))}>
-                      <TableCell sx={NOWRAP}>{f.name}</TableCell>
-                      <TableCell sx={NOWRAP}>{f.breed}</TableCell>
-                      <TableCell sx={NOWRAP}><FarmDate iso={f.placementDate} /></TableCell>
-                      <TableCell align="right" sx={NOWRAP}>{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</TableCell>
-                      <TableCell align="right" sx={NOWRAP}>
-                        {fmt.count(f.currentBirds)}
-                        {f.currentBirds !== f.initialCount &&
-                          <span className="muted"> / {fmt.count(f.initialCount)}</span>}
-                      </TableCell>
-                      <TableCell sx={NOWRAP}><StatusBadge status={f.status} label={statusLabel(f.status)} /></TableCell>
-                      {/* The audit link (#493, AdminOnly) lives under the provenance
-                          summary, not in Actions: with it inline, an Active
-                          flock's row ran past the container at 1280 and hid
-                          deplete/archive behind an uncued scroll. */}
-                      <ProvenanceCell history={f} auditHref={isAdmin ? `/audit?entityId=${f.id}` : undefined} />
-                      {/* The verbs may flow onto a second line, as table.data always
-                          allowed; each verb stays whole. */}
-                      <TableCell>
-                        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 0.5, alignItems: "center" }}>
-                          {renderActions(f)}
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </LedgerTableContainer>
-          )}
-          inspector={(
-            <RecordInspector
-              ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-              eyebrow={selectedFlock ? t("entitySingular") : undefined}
-              title={selectedFlock?.name}
-              subtitle={selectedFlock?.breed}
-              emptyMessage={tc("inspectorEmptyPrompt")}
-              fields={selectedFlock ? [
-                { label: t("placedHeader"), value: <FarmDate iso={selectedFlock.placementDate} /> },
-                { label: t("ageHeader"), value: t("ageWeeksSuffix", { weeks: ageWeeks(selectedFlock.placementDate) }) },
-                {
-                  label: t("birdsHeader"),
-                  value: selectedFlock.currentBirds !== selectedFlock.initialCount
-                    ? `${fmt.count(selectedFlock.currentBirds)} / ${fmt.count(selectedFlock.initialCount)}`
-                    : fmt.count(selectedFlock.currentBirds),
-                },
-                { label: t("statusHeader"), value: <StatusBadge status={selectedFlock.status} label={statusLabel(selectedFlock.status)} /> },
-              ] : undefined}
-              actions={selectedFlock && (
-                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                  {renderActions(selectedFlock)}
-                  {isAdmin && (
-                    <Link className="link" to={`/audit?entityId=${selectedFlock.id}`}>
-                      {tc("recordHistory.viewHistoryLink")}
-                    </Link>
-                  )}
-                </Stack>
-              )}
-            />
-          )}
-        />
-      )}
+                ))}
+              </TableBody>
+            </Table>
+          </LedgerTableContainer>
+        )}
+        inspector={(
+          <RecordInspector
+            ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
+            title={selectedFlock?.name}
+            emptyMessage={tc("inspectorEmptyPrompt")}
+            fields={selectedFlock ? [
+              { label: t("breedHeader"), value: selectedFlock.breed },
+              { label: t("placedHeader"), value: <FarmDate iso={selectedFlock.placementDate} /> },
+              { label: t("ageHeader"), value: t("ageWeeksSuffix", { weeks: ageWeeks(selectedFlock.placementDate) }) },
+              {
+                label: t("birdsHeader"),
+                value: selectedFlock.currentBirds !== selectedFlock.initialCount
+                  ? `${fmt.count(selectedFlock.currentBirds)} / ${fmt.count(selectedFlock.initialCount)}`
+                  : fmt.count(selectedFlock.currentBirds),
+              },
+              { label: t("statusHeader"), value: <StatusBadge status={selectedFlock.status} label={statusLabel(selectedFlock.status)} /> },
+            ] : undefined}
+            actions={selectedFlock ? renderActions(selectedFlock, "inspector") : undefined}
+          />
+        )}
+      />
 
       {ledgerFlockId && (
         // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —

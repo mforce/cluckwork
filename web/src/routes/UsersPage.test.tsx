@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -155,6 +156,11 @@ beforeEach(() => {
   mockStepUp.mockResolvedValue({ token: "grant-default", expiresAt: "2026-01-01T00:05:00Z" });
 });
 
+function userActions(row: HTMLElement) {
+  flushSync(() => fireEvent.click(row));
+  return within(screen.getByRole("region", { name: "User details", hidden: true }));
+}
+
 async function renderReady(token: Record<string, unknown>) {
   renderWithProviders(<UsersPage />, { token });
   await screen.findByText("worker@farm.test");
@@ -202,7 +208,7 @@ describe("UsersPage load", () => {
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     expect(within(workerRow).getByText("Worker")).toBeInTheDocument();
     expect(within(workerRow).getByText("Wendy")).toBeInTheDocument();
-    expect(within(workerRow).getByRole("button", { name: "flocks" })).toBeInTheDocument();
+    expect(userActions(workerRow).getByRole("button", { name: "flocks" })).toBeInTheDocument();
 
     const adminRow = screen.getByRole("row", { name: /boss@farm.test/ });
     expect(within(adminRow).getByText("Admin")).toBeInTheDocument();
@@ -210,7 +216,7 @@ describe("UsersPage load", () => {
     // #612 — shown for every role now, not just Worker: a promoted user's
     // RETAINED assignment rows must stay visible/removable even though a
     // new assignment onto them is refused.
-    expect(within(adminRow).getByRole("button", { name: "flocks" })).toBeInTheDocument();
+    expect(userActions(adminRow).getByRole("button", { name: "flocks" })).toBeInTheDocument();
   });
 
   // #182, Task 22 — the table's Role cell renders roleLabel(u.role), not the
@@ -230,6 +236,37 @@ describe("UsersPage load", () => {
 
 // #908 — the table-plus-bottom-inspector redesign (Concept B).
 describe("UsersPage selected-record inspector (#908)", () => {
+  it.each(["{Enter}", " "])("focuses the inspector on %s with edit one Tab away", async (key) => {
+    const user = userEvent.setup();
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    row.focus();
+    await user.keyboard(key);
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toHaveFocus();
+    await user.tab();
+    expect(within(inspector).getByRole("button", { name: "edit" })).toHaveFocus();
+    await user.tab();
+    expect(within(inspector).getByRole("button", { name: "role" })).toHaveFocus();
+    await user.tab();
+    expect(within(inspector).getByRole("button", { name: "password" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(row).toHaveFocus();
+    await user.keyboard(key);
+    expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toHaveFocus();
+  });
+
+  it("keeps edit and role in the row and every action in the selected user's inspector", async () => {
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    expect(within(row).getAllByRole("button").map((button) => button.textContent?.trim()))
+      .toEqual(["edit", "role"]);
+    fireEvent.click(row);
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).getAllByRole("button").map((button) => button.textContent?.trim()))
+      .toEqual(["edit", "role", "password", "change email", "flocks", "disable"]);
+  });
+
   it("shows a prompt before any row is selected, then fills in on click", async () => {
     await renderReady(ADMIN);
     const inspector = screen.getByRole("region", { name: "User details" });
@@ -241,6 +278,8 @@ describe("UsersPage selected-record inspector (#908)", () => {
     expect(row).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toBeInTheDocument();
     expect(within(inspector).getByText("Wendy")).toBeInTheDocument();
+    const roleField = within(inspector).getByText("Role", { selector: "dt" }).parentElement!;
+    expect(within(roleField).getByText("Worker", { selector: "dd" })).toBeInTheDocument();
   });
 
   it("opens the same edit dialog from the inspector's own edit action", async () => {
@@ -258,7 +297,7 @@ describe("UsersPage selected-record inspector (#908)", () => {
   it("does not select the row when clicking one of its own row actions", async () => {
     await renderReady(ADMIN);
     const row = screen.getByRole("row", { name: /worker@farm.test/ });
-    fireEvent.click(within(row).getByRole("button", { name: "flocks" }));
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
     expect(row).toHaveAttribute("aria-selected", "false");
   });
 
@@ -270,9 +309,6 @@ describe("UsersPage selected-record inspector (#908)", () => {
     expect(within(inspector).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
   });
 
-  // #908 acceptance: status is never blank in the inspector either, and the
-  // shared renderActions carries the same destructive marker there as in the
-  // row — assert the actual StatusBadge/icon, not just text/colour.
   it("shows an explicit status in the inspector for both an active and a disabled user", async () => {
     mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
     await renderReady(ADMIN);
@@ -487,12 +523,12 @@ describe("UsersPage edit name (#163)", () => {
 
 describe("UsersPage set password (#165)", () => {
   const openPw = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "password", hidden: true }));
+    fireEvent.click(userActions(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "password", hidden: true }));
 
   // Runtime-generated so no literal secret lands in source (GitGuardian).
   const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
 
-  it("sets a user's password from the row action, sending id + password + a key", async () => {
+  it("sets a user's password from the inspector action, sending id + password + a key", async () => {
     mockSetUserPassword.mockResolvedValue(undefined);
     await renderReady(ADMIN);
     const password = freshPassword();
@@ -667,7 +703,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     mockSetUserPassword.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+    fireEvent.click(userActions(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
       .getByRole("button", { name: "password", hidden: true }));
     const newPassword = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), {
@@ -684,7 +720,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     });
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+    fireEvent.click(userActions(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
       .getByRole("button", { name: "password", hidden: true }));
     const reopenedPassword = crypto.randomUUID();
     const reopenedProof = crypto.randomUUID();
@@ -802,7 +838,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     await renderReady(ADMIN);
 
     const openPassword = () => fireEvent.click(
-      within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+      userActions(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
         .getByRole("button", { name: "password", hidden: true }),
     );
     openPassword();
@@ -884,7 +920,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
 describe("UsersPage change email (#357)", () => {
   const openEmail = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true }))
+    fireEvent.click(userActions(screen.getByRole("row", { name: rowName, hidden: true }))
       .getByRole("button", { name: /change email/i, hidden: true }));
   const emailInput = () => within(dialog()).getByLabelText("Login email");
   const passwordInput = () => within(dialog()).getByLabelText(/Your current password/);
@@ -1161,7 +1197,7 @@ describe("UsersPage change email (#357)", () => {
 
     await act(async () => { fireEvent.click(submit()); });
 
-    expect(await screen.findByText("corrected@farm.test")).toBeInTheDocument();
+    expect(await screen.findByRole("cell", { name: "corrected@farm.test" })).toBeInTheDocument();
     expect(screen.getByText(/Login email changed to corrected@farm\.test/)).toBeInTheDocument();
     expect(mockListUsers).toHaveBeenCalledTimes(2);
   });
@@ -1290,9 +1326,9 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
 // step-up proof, matching the other durable user-access mutations.
 describe("UsersPage disable/enable (#356)", () => {
   const disableRow = (rowName: RegExp) =>
-    within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "disable", hidden: true });
+    userActions(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "disable", hidden: true });
   const enableRow = (rowName: RegExp) =>
-    within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "enable", hidden: true });
+    userActions(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "enable", hidden: true });
 
   // Same idiom as the #236 pending-states block below (client.test.ts style):
   // a promise this test controls, so it can assert what the component does
@@ -1314,8 +1350,8 @@ describe("UsersPage disable/enable (#356)", () => {
     expect(row).toHaveClass("muted");
     expect(within(row).getByText("Disabled")).toHaveClass("badge", "badge-danger");
     expect(within(row).queryByText("Active")).not.toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "enable" })).toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+    expect(userActions(row).getByRole("button", { name: "enable" })).toBeInTheDocument();
+    expect(userActions(row).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
 
     // #908 acceptance: status is never blank — the still-active sibling row
     // stays unmuted, shows an explicit Active badge (the real StatusBadge,
@@ -1324,7 +1360,7 @@ describe("UsersPage disable/enable (#356)", () => {
     expect(activeRow).not.toHaveClass("muted");
     expect(within(activeRow).getByText("Active")).toHaveClass("badge", "badge-ok");
     expect(within(activeRow).queryByText("Disabled")).not.toBeInTheDocument();
-    expect(within(activeRow).getByRole("button", { name: "disable" })).toBeInTheDocument();
+    expect(userActions(activeRow).getByRole("button", { name: "disable" })).toBeInTheDocument();
   });
 
   it("offers neither Disable nor Enable on the caller's own row", async () => {
@@ -1332,10 +1368,10 @@ describe("UsersPage disable/enable (#356)", () => {
     await renderReady(ADMIN); // ADMIN token's sub is "u1", matching SELF_USER's id
 
     const selfRow = screen.getByRole("row", { name: /self@farm.test/ });
-    expect(within(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
-    expect(within(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
+    expect(userActions(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+    expect(userActions(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
     // A non-self row in the same render is unaffected.
-    expect(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+    expect(userActions(screen.getByRole("row", { name: /worker@farm.test/ }))
       .getByRole("button", { name: "disable" })).toBeInTheDocument();
   });
 
@@ -1350,9 +1386,9 @@ describe("UsersPage disable/enable (#356)", () => {
     await screen.findByText("worker@farm.test");
 
     const selfRow = screen.getByRole("row", { name: /self@farm.test/ });
-    expect(within(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
-    expect(within(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+    expect(userActions(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+    expect(userActions(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
+    expect(userActions(screen.getByRole("row", { name: /worker@farm.test/ }))
       .getByRole("button", { name: "disable" })).toBeInTheDocument();
   });
 
@@ -1516,14 +1552,14 @@ describe("UsersPage disable/enable (#356)", () => {
     await act(async () => {
       fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
     });
-    expect(await within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+    expect(await userActions(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
       .findByRole("button", { name: /enable/i, hidden: true })).toBeInTheDocument();
 
     // The still-open dialog is still titled Disable, still showing the old
     // error — reopening it is a fresh user action, not automatic.
     expect(screen.getByRole("dialog", { name: /Disable — worker@farm\.test/, hidden: true })).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+    fireEvent.click(userActions(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
       .getByRole("button", { name: /enable/i, hidden: true }));
     const enableDialog = await screen.findByRole("dialog", { name: /Enable — worker@farm\.test/ });
     expect(within(enableDialog).queryByText(/sole remaining owner/)).not.toBeInTheDocument();
@@ -1814,7 +1850,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
 
     expect(mockListAssignments).toHaveBeenCalledWith("u-w");
@@ -1838,7 +1874,7 @@ describe("UsersPage flock scoping", () => {
 
     const adminRow = screen.getByRole("row", { name: /boss@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(adminRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(adminRow).getByRole("button", { name: "flocks" }));
     });
 
     const panel = await screen.findByRole("dialog", { name: /Flock access — boss@farm.test/ });
@@ -1867,7 +1903,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
 
     expect(await screen.findByText(/No assignments — account-wide access/)).toBeInTheDocument();
@@ -1886,7 +1922,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
 
@@ -1917,7 +1953,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
 
@@ -1947,7 +1983,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
 
@@ -1987,7 +2023,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     const item = await screen.findByRole("listitem");
     // #646 — the dialog no longer preselects a flock (a role grant must not
@@ -2016,7 +2052,7 @@ describe("UsersPage flock scoping", () => {
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     // Open, switch the pick off the default (fl1 -> fl2), then close.
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
     await pickFlock("Coop B");
@@ -2027,7 +2063,7 @@ describe("UsersPage flock scoping", () => {
     // Reopen — the picker is back to BLANK, not the stale fl2, so a
     // distracted admin cannot assign the previous worker's pick by accident.
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks", hidden: true }));
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
     expect(assignTrigger()).toHaveAccessibleName("Flock");
@@ -2040,7 +2076,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     const panel = await screen.findByRole("dialog", { name: /Flock access/ });
 
@@ -2068,7 +2104,7 @@ describe("UsersPage flock scoping", () => {
     // Open worker A, remove its assignment — the refresh now hangs (busy).
     const rowA = screen.getByRole("row", { name: /worker@farm\.test/ });
     await act(async () => {
-      fireEvent.click(within(rowA).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(rowA).getByRole("button", { name: "flocks" }));
     });
     const panelA = await screen.findByRole("dialog", { name: /Flock access — worker@farm\.test/ });
     fillFlockPassword();
@@ -2080,7 +2116,7 @@ describe("UsersPage flock scoping", () => {
     fireEvent.click(within(panelA).getByRole("button", { name: "Done" }));
     const rowB = screen.getByRole("row", { name: /worker2@farm\.test/, hidden: true });
     await act(async () => {
-      fireEvent.click(within(rowB).getByRole("button", { name: "flocks", hidden: true }));
+      fireEvent.click(userActions(rowB).getByRole("button", { name: "flocks", hidden: true }));
     });
     const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm\.test/ });
     expect(within(panelB).getByText(/No assignments — account-wide access/)).toBeInTheDocument();
@@ -2098,7 +2134,7 @@ describe("UsersPage flock scoping", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
     // #646 — the dialog no longer preselects a flock (a role grant must not
@@ -2131,7 +2167,7 @@ describe("UsersPage flock scoping", () => {
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
     // #646 — the dialog no longer preselects a flock (a role grant must not
@@ -2160,7 +2196,7 @@ describe("UsersPage flock scoping", () => {
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     const item = await screen.findByRole("listitem");
     fillFlockPassword();
@@ -2183,7 +2219,7 @@ describe("UsersPage flock scoping", () => {
     setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
+    const open = () => fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks", hidden: true }));
 
     await act(async () => { open(); });
     await screen.findByText(/account-wide access/);
@@ -2219,7 +2255,7 @@ describe("UsersPage flock scoping", () => {
     mockUnassignFlock.mockResolvedValue(undefined);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
+    const open = () => fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks", hidden: true }));
 
     await act(async () => { open(); });
     const item = await screen.findByRole("listitem");
@@ -2258,7 +2294,7 @@ describe("UsersPage flock scoping", () => {
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
     // #646 — the dialog no longer preselects a flock (a role grant must not
@@ -2299,7 +2335,7 @@ describe("UsersPage flock scoping", () => {
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     const item = await screen.findByRole("listitem");
     fillFlockPassword();
@@ -2334,7 +2370,7 @@ describe("UsersPage flock scoping", () => {
       .mockResolvedValueOnce([]);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
+    const open = () => fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks", hidden: true }));
 
     // First open's load hangs — no dialog yet, so there's nothing to close;
     // a second click on the SAME row's button re-invokes openAssignments and
@@ -2372,7 +2408,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // Fresh blank generation: the trigger shows the uncommitted label…
@@ -2391,7 +2427,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     await renderReady(ADMIN);
 
     const rowA = screen.getByRole("row", { name: /worker@farm\.test/ });
-    await act(async () => { fireEvent.click(within(rowA).getByRole("button", { name: "flocks" })); });
+    await act(async () => { fireEvent.click(userActions(rowA).getByRole("button", { name: "flocks" })); });
     await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // Worker A commits fl2 off the fl1 default…
     await pickFlock("Coop B");
@@ -2400,7 +2436,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     // …and the dialog is closed and reopened for worker B.
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     const rowB = screen.getByRole("row", { name: /worker2@farm\.test/, hidden: true });
-    await act(async () => { fireEvent.click(within(rowB).getByRole("button", { name: "flocks", hidden: true })); });
+    await act(async () => { fireEvent.click(userActions(rowB).getByRole("button", { name: "flocks", hidden: true })); });
     const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm.test/ });
     // #646 — B's fresh generation is back on the BLANK default; A's pick
     // never leaks into B's dialog. The leak is what this test guards, and it
@@ -2415,7 +2451,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await act(async () => { fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" })); });
     await screen.findByRole("dialog", { name: /Flock access/ });
     // Explore (type) without committing, then close.
     fireEvent.click(assignTrigger());
@@ -2426,7 +2462,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
 
     // Reopen: the fresh generation restores the committed default's label —
     // the abandoned query text is gone, not retained.
-    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true })); });
+    await act(async () => { fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks", hidden: true })); });
     await screen.findByRole("dialog", { name: /Flock access/ });
     expect(assignTrigger()).toHaveAccessibleName("Flock");
     expect(assignTrigger()).toHaveValue("Select a flock");
@@ -2447,7 +2483,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await act(async () => { fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" })); });
     const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // The retained row renders the EXACT archived name from its OWN row data
     // (the display list does not even carry fl3 — a list lookup would have
@@ -2483,7 +2519,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await act(async () => { fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" })); });
     const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     const item = await within(panel).findByRole("listitem");
     expect(within(item).getByText(i18n.t("users:assignmentFlockUnavailable"))).toBeInTheDocument();
@@ -2496,7 +2532,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await act(async () => { fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" })); });
     const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     const item = await within(panel).findByRole("listitem");
     expect(within(item).getByText(i18n.t("users:farmWideAssignmentLabel"))).toBeInTheDocument();
@@ -2508,7 +2544,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await act(async () => { fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" })); });
     await screen.findByRole("dialog", { name: /Flock access/ });
 
     // Open the picker and TYPE (exploration) — the committed fl1 default is
@@ -2579,7 +2615,7 @@ describe("UsersPage pending states (#236)", () => {
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
     });
     const items = await screen.findAllByRole("listitem");
     // #646 — the dialog no longer preselects a flock (a role grant must not
@@ -2702,7 +2738,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
       await renderReady(ADMIN);
       const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
       await act(async () => {
-        fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+        fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
       });
       expect(
         await screen.findByRole("dialog", { name: "FLOCK-MARKER worker@farm.test MARKER-END" }),
@@ -2715,7 +2751,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
       await renderReady(ADMIN);
       const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
       await act(async () => {
-        fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+        fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
       });
       expect(await screen.findByText("FLOCK-STEPUP-MARKER")).toBeInTheDocument();
     });
@@ -2727,7 +2763,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
       await renderReady(ADMIN);
       const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
       await act(async () => {
-        fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+        fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
       });
       expect(await screen.findByText("NO-ASSIGN-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/account-wide access/)).not.toBeInTheDocument();
@@ -2776,7 +2812,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
     await withOverride("users", "passwordMismatchMessage", "MISMATCH-MARKER", async () => {
       await renderReady(ADMIN);
       const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-      fireEvent.click(within(workerRow).getByRole("button", { name: "password" }));
+      fireEvent.click(userActions(workerRow).getByRole("button", { name: "password" }));
       fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: "aaaaaaaaaaaa" } });
       fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: "bbbbbbbbbbbb" } });
       fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
@@ -2799,7 +2835,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
       async () => {
         await renderReady(ADMIN);
         const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-        fireEvent.click(within(workerRow).getByRole("button", { name: "password" }));
+        fireEvent.click(userActions(workerRow).getByRole("button", { name: "password" }));
         const password = `pw-${crypto.randomUUID()}`;
         fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: password } });
         fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: password } });
@@ -2874,7 +2910,7 @@ describe("UsersPage step-up authentication (#308)", () => {
   const selectAdminRole = () =>
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Admin" } });
   const openPwFor = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "password" }));
+    fireEvent.click(userActions(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "password" }));
 
   it("always shows the required step-up field, including for the default Worker role", async () => {
     await renderReady(ADMIN);
@@ -3083,7 +3119,7 @@ describe("UsersPage step-up authentication (#308)", () => {
 describe("UsersPage error placement (#479)", () => {
   const rowFor = (email: string) => screen.getByRole("row", { name: new RegExp(email), hidden: true });
   const openRowDialog = (email: string, action: string) =>
-    fireEvent.click(within(rowFor(email)).getByRole("button", { name: action, hidden: true }));
+    fireEvent.click(userActions(rowFor(email)).getByRole("button", { name: action, hidden: true }));
 
   it("shows a failed create inside the create dialog only", async () => {
     mockCreateUser.mockRejectedValue(new ApiError(409, "Conflict", "That email is already registered."));
@@ -3375,7 +3411,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     return { promise, resolve };
   }
   const rowButton = (rowName: RegExp, label: string | RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: label, hidden: true }));
+    fireEvent.click(userActions(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: label, hidden: true }));
   const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
   const fillProof = (value = OWNER_STEP_UP_PASSWORD) =>
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value } });
@@ -3854,7 +3890,7 @@ describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
     return { promise, resolve };
   }
   const disableRow = (rowName: RegExp) =>
-    within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "disable", hidden: true });
+    userActions(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "disable", hidden: true });
   const fillProof = (target: HTMLElement) =>
     fireEvent.change(within(target).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
 
@@ -3924,7 +3960,7 @@ describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
     fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(disableRow(/worker@farm.test/)).toBeDisabled();
-    expect(within(screen.getByRole("row", { name: /disabled@farm.test/ })).getByRole("button", { name: "enable" })).toBeDisabled();
+    expect(userActions(screen.getByRole("row", { name: /disabled@farm.test/ })).getByRole("button", { name: "enable" })).toBeDisabled();
 
     await act(async () => { write.resolve(); });
     expect(disableRow(/worker@farm.test/)).toBeEnabled();
@@ -3947,7 +3983,7 @@ describe("UsersPage dismissed disable continuation (#703 PR 4)", () => {
     mockStepUp.mockReturnValue(grant.promise);
     mockDisableUser.mockResolvedValue(undefined);
     await renderReady(ADMIN);
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ })).getByRole("button", { name: "disable" }));
+    fireEvent.click(userActions(screen.getByRole("row", { name: /worker@farm.test/ })).getByRole("button", { name: "disable" }));
     const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
     fireEvent.change(within(dlg).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
@@ -3959,4 +3995,16 @@ describe("UsersPage dismissed disable continuation (#703 PR 4)", () => {
     expect(mockListUsers).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/worker@farm\.test has been disabled/)).not.toBeInTheDocument();
   });
+});
+
+it("keeps corrective actions outside the destructive group for an inactive record", async () => {
+  mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
+  await renderReady(ADMIN);
+  fireEvent.click(screen.getByRole("row", { name: /disabled@farm.test/ }));
+  const inspector = screen.getByRole("region", { name: "User details" });
+  expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "role", "password", "change email", "flocks", "enable"]);
+  const corrective = within(inspector).getByRole("button", { name: "enable" });
+  expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
+  expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+  expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
 });

@@ -2288,7 +2288,10 @@ export const es = {
       + "pide al Administrador (propietario) que ha iniciado sesión que vuelva a ingresar su contraseña actual. "
       + "Un cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
       + "restablecimiento de contraseña. Los controles que no puede usar "
-      + "están ocultos, y el servidor los rechaza de todos modos.",
+      + "están ocultos, y el servidor los rechaza de todos modos. "
+      + "Seleccione la fila de otro usuario para encontrar <strong>contraseña</strong>, <strong>cambiar "
+      + "correo</strong>, <strong>lotes</strong> y <strong>deshabilitar</strong> o <strong>habilitar</strong> "
+      + "en el panel debajo de la tabla.",
     // #356 (machine-drafted, pending native review)
     rolesDisableUser:
       "<strong>Deshabilitar un inicio de sesión</strong> (pantalla Usuarios, solo Admin/propietario) corta el "
@@ -2940,7 +2943,9 @@ export const es = {
       "En las pantallas Clientes, Productos, Grados, Lotes y Usuarios, al hacer clic o activar una fila se "
       + "muestran sus detalles completos en un panel anclado en la parte inferior de la lista, en lugar de una "
       + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
-      + "marcada visiblemente.",
+      + "marcada visiblemente. "
+      + "En Usuarios, editar y rol siguen en la fila. Seleccione la fila de otro usuario para acceder a contraseña, "
+      + "cambiar correo, lotes y deshabilitar o habilitar en este panel.",
 
     glossarySearchablePickerTerm: "Selector de búsqueda",
     glossarySearchablePickerDef:

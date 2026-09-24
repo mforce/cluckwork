@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
@@ -730,44 +730,39 @@ export function UsersPage() {
   // #908 — the bottom inspector's selection.
   const selectedUser = users.find((u) => u.id === selectedId) ?? null;
 
-  // #908 — shared between the row's own Actions cell and the inspector's
-  // actions, so both call sites stay one implementation.
-  function renderActions(u: User) {
-    return (
-      <>
-        <button className="link" onClick={() => openEdit(u)}>
-          <Pencil size={14} aria-hidden /> {t("editButton")}
-        </button>
-        <button className="link" onClick={() => openPassword(u)}>
-          <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
-        </button>
+  function renderActions(u: User, location: "row" | "inspector") {
+    return {
+      primary: <button className="link" onClick={() => openEdit(u)}>
+        <Pencil size={14} aria-hidden /> {t("editButton")}
+      </button>,
+      secondary: <>
         <button className="link" onClick={() => openRole(u)}>
           <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
         </button>
-        <button className="link" onClick={() => openEmail(u)}>
-          <Mail size={14} aria-hidden /> {t("changeEmailButton")}
-        </button>
-        {/* #612 — shown for every role, not just Worker: a promoted user keeps
-            their retained rows (inert, but still visible and removable) even
-            though a NEW assignment is Worker-only. */}
-        <button className="link" onClick={() => void openAssignments(u.id)}>
-          {t("flocksButton")}
-        </button>
-        {/* The server 400s a self-target (Users.CannotDisableSelf/
-            CannotEnableSelf), so this stays off the caller's own row. */}
-        {myId !== u.id && (
-          u.disabledAt ? (
+        {location === "inspector" && <>
+          <button className="link" onClick={() => openPassword(u)}>
+            <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
+          </button>
+          <button className="link" onClick={() => openEmail(u)}>
+            <Mail size={14} aria-hidden /> {t("changeEmailButton")}
+          </button>
+          {/* #612 — promoted users retain assignments that can still be removed. */}
+          <button className="link" onClick={() => void openAssignments(u.id)}>
+            {t("flocksButton")}
+          </button>
+          {myId !== u.id && u.disabledAt && (
             <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
               <RotateCcw size={14} aria-hidden /> {t("enableButton")}
             </button>
-          ) : (
-            <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
-              <Ban size={14} aria-hidden /> {t("disableButton")}
-            </BusyButton>
-          )
-        )}
-      </>
-    );
+          )}
+        </>}
+      </>,
+      destructive: location === "inspector" && myId !== u.id && !u.disabledAt && (
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
+          <Ban size={14} aria-hidden /> {t("disableButton")}
+        </BusyButton>
+      ),
+    };
   }
 
   return (
@@ -846,9 +841,10 @@ export function UsersPage() {
       {message && <p className="success">{message}</p>}
 
       <ListInspectorPane
+        tableLabel={t("heading")}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
-            <Table size="small">
+            <Table size="small" sx={{ "& .MuiTableCell-root": { pr: { md: 1.5, lg: 2 } } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("emailColumnHeader")}</TableCell>
@@ -877,7 +873,7 @@ export function UsersPage() {
                     </TableCell>
                     <TableCell sx={NOWRAP}>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                        {renderActions(u)}
+                        {Object.entries(renderActions(u, "row")).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -889,11 +885,10 @@ export function UsersPage() {
         inspector={(
           <RecordInspector
             ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-            eyebrow={selectedUser ? t("entitySingular") : undefined}
             title={selectedUser?.email}
-            subtitle={selectedUser ? roleLabel(selectedUser.role) : undefined}
             emptyMessage={tc("inspectorEmptyPrompt")}
             fields={selectedUser ? [
+              { label: t("roleColumnHeader"), value: roleLabel(selectedUser.role) },
               { label: t("nameColumnHeader"), value: selectedUser.displayName ?? "—" },
               {
                 label: t("statusColumnHeader"),
@@ -902,11 +897,7 @@ export function UsersPage() {
                   : <StatusBadge status="Active" label={statusLabel("Active")} />,
               },
             ] : undefined}
-            actions={selectedUser && (
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                {renderActions(selectedUser)}
-              </Stack>
-            )}
+            actions={selectedUser ? renderActions(selectedUser, "inspector") : undefined}
           />
         )}
       />

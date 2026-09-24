@@ -89,7 +89,8 @@ describe("CustomersPage selected-record inspector (#908)", () => {
     expect(row).toHaveAttribute("aria-selected", "true");
     const inspector = screen.getByRole("region", { name: "Customer details" });
     expect(within(inspector).getByRole("heading", { name: "Acme Eggs" })).toBeInTheDocument();
-    expect(within(inspector).getByText("555-1")).toBeInTheDocument();
+    const phoneField = within(inspector).getByText("Phone", { selector: "dt" }).parentElement!;
+    expect(within(phoneField).getByText("555-1", { selector: "dd" })).toBeInTheDocument();
     expect(within(inspector).getByText("a@x.co")).toBeInTheDocument();
   });
 

@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor, render, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
@@ -199,8 +200,45 @@ describe("FlocksPage selected-record inspector (#908)", () => {
 
     expect(row).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "Hen House 1" })).toBeInTheDocument();
-    expect(within(inspector).getByText("ISA Brown")).toBeInTheDocument();
+    const breedField = within(inspector).getByText("Breed", { selector: "dt" }).parentElement!;
+    expect(within(breedField).getByText("ISA Brown", { selector: "dd" })).toBeInTheDocument();
     expect(within(inspector).getByText("98 / 100")).toBeInTheDocument();
+  });
+
+  it.each([
+    { name: "next row", flocks: [ACTIVE, DEPLETED], selected: ACTIVE, target: DEPLETED.name },
+    { name: "previous row at the end", flocks: [ACTIVE, DEPLETED], selected: DEPLETED, target: ACTIVE.name },
+    { name: "empty table region", flocks: [ACTIVE], selected: ACTIVE, target: null },
+  ])("returns focus to the $name after archiving from the inspector", async ({ flocks, selected, target }) => {
+    const user = userEvent.setup();
+    await renderReady(ADMIN, flocks);
+    const row = screen.getByRole("row", { name: new RegExp(selected.name) });
+    row.focus();
+    await user.keyboard("{Enter}");
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect(within(inspector).getByRole("heading", { name: selected.name })).toHaveFocus();
+    await user.click(within(inspector).getByRole("button", { name: "archive" }));
+    mockListFlocks.mockResolvedValue(flocks.map((flock) => flock.id === selected.id ? { ...flock, status: "Archived" } : flock));
+    await user.click(await screen.findByRole("button", { name: "Archive flock" }));
+    await waitFor(() => expect(screen.queryByRole("row", { name: new RegExp(selected.name) })).not.toBeInTheDocument());
+    await waitFor(() => expect(target
+      ? screen.getByRole("row", { name: new RegExp(target) })
+      : screen.getByRole("region", { name: "Flocks" })).toHaveFocus());
+  });
+
+  it.each([
+    { name: "Depleted Flock", archived: false, actions: ["edit", "birds", "Audit history", "reactivate", "archive"] },
+    { name: "Old Coop", archived: true, actions: ["edit", "birds", "Audit history", "reactivate"] },
+  ])("keeps corrective actions outside the destructive group for $name", async ({ name, archived, actions }) => {
+    await renderReady(ADMIN, [ACTIVE, DEPLETED, ARCHIVED]);
+    if (archived) fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("row", { name: new RegExp(name) }));
+    const inspector = screen.getByRole("region", { name: "Flock details" });
+    expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(actions);
+    const corrective = within(inspector).getByRole("button", { name: "reactivate" });
+    expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
+    expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+    expect(corrective.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 
   it("archives a flock from the inspector's own action", async () => {

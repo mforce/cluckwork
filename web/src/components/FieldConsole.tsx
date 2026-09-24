@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Box, TableContainer, Typography } from "@mui/material";
+import type { Theme } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 export const CONSOLE_PANEL_SX = {
@@ -179,15 +180,36 @@ export interface InspectorField {
 // #908 — the setup lists' selected-record panel, docked below the table
 // (Concept B, issue #908's owner-approved direction). Renders nothing but the
 // empty prompt until a row is selected.
-export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, actions, emptyMessage }: {
+export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessage }: {
   ariaLabel: string;
-  eyebrow?: string;
   title?: ReactNode;
-  subtitle?: ReactNode;
   fields?: InspectorField[];
-  actions?: ReactNode;
+  actions?: { primary: ReactNode; secondary?: ReactNode; destructive?: ReactNode };
   emptyMessage: string;
 }) {
+  const { t } = useTranslation("audit");
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const fieldsRef = useRef<HTMLDListElement>(null);
+  const [hiddenEdges, setHiddenEdges] = useState({ top: false, bottom: false });
+  useEffect(() => {
+    const details = detailsRef.current;
+    const content = fieldsRef.current;
+    if (!details || !content) return;
+    const measure = () => {
+      const top = details.scrollTop > 1;
+      const bottom = details.scrollHeight - details.clientHeight - details.scrollTop > 1;
+      setHiddenEdges(previous => previous.top === top && previous.bottom === bottom ? previous : { top, bottom });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(details);
+    observer.observe(content);
+    details.addEventListener("scroll", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      details.removeEventListener("scroll", measure);
+    };
+  }, [title, fields]);
   if (title === undefined) {
     return (
       <Box component="aside" role="region" aria-label={ariaLabel} sx={{ p: 2, color: "text.secondary", fontSize: ".8125rem" }}>
@@ -196,54 +218,157 @@ export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, a
     );
   }
   return (
-    <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
-      <Box sx={{ ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "14px 18px" }}>
-        {eyebrow && (
-          <Typography component="span" sx={{
-            display: "block", fontSize: ".625rem", textTransform: "uppercase", letterSpacing: ".1em", opacity: .75,
-          }}>{eyebrow}</Typography>
-        )}
-        <Typography component="h3" variant="h3" sx={{ m: "6px 0 3px", color: "inherit" }}>{title}</Typography>
-        {subtitle && <Typography component="p" variant="body2" sx={{ m: 0, opacity: .8 }}>{subtitle}</Typography>}
+    <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0, display: "flex", flexDirection: "column", maxHeight: "inherit" }}>
+      <Box sx={(theme) => ({
+        ...CONSOLE_RAIL_SX, flexShrink: 0, borderRadius: 0, border: 0, mx: "-1px", p: "7.5px 19px",
+        ...(theme.palette.mode === "dark" && {
+          bgcolor: "var(--stat-accent)", color: "var(--surface)",
+        }),
+      })}>
+        <Typography component="h3" variant="h3" noWrap tabIndex={-1} sx={{
+          m: 0, color: "inherit",
+          "&:focus-visible": { outline: "none" },
+        }}>{title}</Typography>
       </Box>
       {fields && fields.length > 0 && (
-        <Box component="dl" sx={{
-          m: 0, p: "13px 18px", display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-          columnGap: "16px",
-        }}>
-          {fields.map((field, i) => (
-            <Box key={i} sx={{
-              display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
-              py: ".4rem", borderBottom: "1px solid var(--rule)", fontSize: ".75rem",
-            }}>
-              <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>
-              <Typography component="dd" sx={{ m: 0, fontWeight: 650, fontSize: "inherit", overflowWrap: "anywhere" }}>
-                {field.value}
-              </Typography>
-            </Box>
-          ))}
+        <Box ref={detailsRef} role="region" aria-label={t("detailsHeader")}
+          tabIndex={hiddenEdges.top || hiddenEdges.bottom ? 0 : -1} sx={{
+            flex: "1 1 auto", minHeight: 0, overflowY: "auto",
+            backgroundImage: [
+              hiddenEdges.top ? "linear-gradient(var(--rule), transparent)" : "none",
+              hiddenEdges.bottom ? "linear-gradient(transparent, var(--rule))" : "none",
+            ].join(", "),
+            backgroundSize: "100% 8px", backgroundPosition: "center top, center bottom", backgroundRepeat: "no-repeat",
+            "&:focus-visible": { outline: "2px solid var(--stat-accent)", outlineOffset: -2 },
+          }}>
+          <Box component="dl" ref={fieldsRef} sx={{
+            m: 0, p: "13px 18px", display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+            columnGap: "16px",
+          }}>
+            {fields.map((field, i) => (
+              <Box key={i} sx={(theme) => ({
+                display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
+                py: ".4rem", borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
+                fontSize: ".75rem",
+              })}>
+                <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>
+                <Typography component="dd" sx={{ m: 0, fontWeight: 650, fontSize: "inherit", overflowWrap: "anywhere" }}>
+                  {field.value}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
         </Box>
       )}
-      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, px: "18px", pb: "14px" }}>{actions}</Box>}
+      {actions && <Box sx={(theme) => ({
+        display: "flex", flexShrink: 0, flexWrap: "wrap", alignItems: "center", columnGap: .75, px: 1.5, pb: 1,
+        bgcolor: theme.palette.mode === "dark" ? "var(--surface-2)" : "var(--surface)",
+        borderTop: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
+      })}>
+        {actions.primary}
+        {actions.secondary}
+        {actions.destructive && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: .75, borderLeft: "1px solid var(--rule)", pl: .75 }}>
+          {actions.destructive}
+        </Box>}
+      </Box>}
     </Box>
   );
 }
 
 // #908 — a flex column so the table owns its own scroll above a bottom-docked
 // inspector, in the same region, never overlapping it (Concept B).
-export function ListInspectorPane({ table, inspector }: { table: ReactNode; inspector: ReactNode }) {
+export function ListInspectorPane({ table, inspector, tableLabel }: { table: ReactNode; inspector: ReactNode; tableLabel: string }) {
+  const paneRef = useRef<HTMLDivElement>(null);
+  const inspectorRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [keyboardSelection, setKeyboardSelection] = useState(0);
+  const [paneTop, setPaneTop] = useState(0);
+  useLayoutEffect(() => {
+    const tableRegion = tableRef.current;
+    const inspectorRegion = inspectorRef.current;
+    if (!tableRegion || !inspectorRegion) return;
+    let origin: { element: HTMLElement; rowIndex: number } | null = null;
+    const rememberFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (inspectorRegion.contains(target)) {
+        const rows = [...tableRegion.querySelectorAll('tr[aria-selected]')];
+        origin = { element: target, rowIndex: rows.findIndex((row) => row.getAttribute("aria-selected") === "true") };
+      } else if (!target.closest('[role="dialog"]')) {
+        origin = null;
+      }
+    };
+    // A closing dialog can outlive the row refresh. Recover once its focus is released.
+    const observer = new MutationObserver(() => {
+      if (!origin || origin.element.isConnected) return;
+      if (inspectorRegion.querySelector("h3")) {
+        origin = null;
+        return;
+      }
+      if (document.activeElement !== document.body) return;
+      const rows = tableRegion.querySelectorAll<HTMLElement>('tr[aria-selected]');
+      const target = rows[Math.min(origin.rowIndex, rows.length - 1)] ?? tableRegion;
+      origin = null;
+      target.focus();
+    });
+    document.addEventListener("focusin", rememberFocus);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      document.removeEventListener("focusin", rememberFocus);
+      observer.disconnect();
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const pane = paneRef.current;
+    if (!pane) return;
+    const measure = () => setPaneTop(pane.getBoundingClientRect().top + window.scrollY);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    if (keyboardSelection > 0) inspectorRef.current?.querySelector<HTMLElement>("h3")?.focus();
+  }, [keyboardSelection]);
   return (
-    <Box sx={{
+    <Box ref={paneRef} onKeyDown={(event) => {
+      if (event.target instanceof HTMLTableRowElement && event.target.tabIndex === 0
+          && (event.key === "Enter" || event.key === " ")) {
+        setKeyboardSelection((selection) => selection + 1);
+      }
+    }} sx={{
       display: "flex", flexDirection: "column", minWidth: 0,
       border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", overflow: "hidden",
-      height: { xs: 460, md: "clamp(280px, calc(100dvh - 380px), 520px)" },
+      "&:has(aside h3)": { border: 0, p: "1px", boxShadow: "inset 0 0 0 1px var(--rule)" },
+      height: {
+        xs: `max(280px, calc(100dvh - ${paneTop}px - var(--tabbar-h) - 8px))`,
+        md: "clamp(280px, calc(100dvh - 380px), 520px)",
+      },
     }}>
-      <Box sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>{table}</Box>
-      <Box sx={{
-        flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "auto",
+      <Box ref={tableRef} role="region" aria-label={tableLabel} tabIndex={-1} sx={{
+        flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column",
+        "&:focus-visible": { outline: "2px solid var(--ink)", outlineOffset: -2 },
+      }}>{table}</Box>
+      <Box ref={inspectorRef} onKeyDown={(event) => {
+        if (event.key !== "Escape" || !(event.target instanceof Node)
+            || !event.currentTarget.contains(event.target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        paneRef.current?.querySelector<HTMLElement>('tr[aria-selected="true"]')?.focus();
+      }} sx={(theme) => ({
+        flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "hidden",
         borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
-      }}>
+        "&:has(h3)": {
+          borderTop: 0, mx: "-1px", px: "1px",
+          boxShadow: "inset 1px 0 var(--rule), inset -1px 0 var(--rule)",
+          ...(theme.palette.mode === "dark" && { bgcolor: "var(--surface-2)" }),
+        },
+      })}>
         {inspector}
       </Box>
     </Box>
@@ -270,10 +395,14 @@ export function selectableRowProps(selected: boolean, onSelect: () => void) {
     },
     tabIndex: 0,
     "aria-selected": selected,
-    sx: {
+    sx: (theme: Theme) => ({
       cursor: "pointer",
-      ...(selected && { bgcolor: "var(--tint-accent)", boxShadow: "inset 3px 0 var(--brand)" }),
-    },
+      ...(selected && {
+        bgcolor: theme.palette.mode === "dark"
+          ? "color-mix(in srgb, var(--stat-accent) 35%, var(--surface))" : "var(--tint-accent)",
+        boxShadow: `inset ${theme.palette.mode === "dark" ? 8 : 3}px 0 var(--stat-accent)`,
+      }),
+    }),
   };
 }
 

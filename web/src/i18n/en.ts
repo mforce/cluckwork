@@ -2188,7 +2188,6 @@ export const en = {
   // never `i18n.language` (formattingIndependence guard).
   customers: {
     title: "Customers",
-    // #908 — the bottom inspector's eyebrow/aria-label noun for one row.
     entitySingular: "Customer",
     newCustomerButton: "New customer", // reused verbatim as the create-dialog title
 
@@ -3009,7 +3008,10 @@ export const en = {
       + "and changing any user's role asks the signed-in Admin (owner) to re-enter their current password. A role "
       + "change signs the affected sign-in out everywhere on its next request, the same "
       + "way a password reset does. Controls you can't use are hidden, "
-      + "and the server refuses them regardless.",
+      + "and the server refuses them regardless. "
+      + "Select another user's row to find <strong>password</strong>, <strong>change email</strong>, "
+      + "<strong>flocks</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below "
+      + "the table.",
     // #356 — disable/re-enable a colleague's sign-in.
     rolesDisableUser:
       "<strong>Disabling a sign-in</strong> (Users screen, Admin/owner only) cuts off access immediately — "
@@ -3647,7 +3649,9 @@ export const en = {
     glossarySelectedRecordInspectorDef:
       "On the Customers, Products, Grades, Flocks and Users screens, clicking or activating a row shows its "
       + "full details in a panel docked to the bottom of the list, instead of a popup. The table above it keeps "
-      + "scrolling on its own, and the selected row stays visibly marked.",
+      + "scrolling on its own, and the selected row stays visibly marked. "
+      + "On Users, edit and role stay in the row. Select another user's row for password, change email, "
+      + "flocks, and disable or enable in this panel.",
 
     // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),
     // not a paraphrase, for the same reason as gettingAroundSearchablePicker.

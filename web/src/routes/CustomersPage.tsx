@@ -378,6 +378,7 @@ export function CustomersPage() {
           action={{ label: t("newCustomerButton"), onClick: () => { openDialog("create"); setCreating(true); } }} />
       ) : (
         <ListInspectorPane
+          tableLabel={t("title")}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
               <Table size="small">
@@ -427,11 +428,10 @@ export function CustomersPage() {
           inspector={(
             <RecordInspector
               ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-              eyebrow={selectedCustomer ? t("entitySingular") : undefined}
               title={selectedCustomer?.name}
-              subtitle={selectedCustomer?.phone}
               emptyMessage={tc("inspectorEmptyPrompt")}
               fields={selectedCustomer ? [
+                { label: t("phoneHeader"), value: selectedCustomer.phone ?? "—" },
                 { label: t("emailFieldLabel"), value: selectedCustomer.email ?? "—" },
                 { label: t("addressFieldLabel"), value: selectedCustomer.address ?? "—" },
                 { label: t("noteFieldLabel"), value: selectedCustomer.note ?? "—" },
@@ -442,11 +442,11 @@ export function CustomersPage() {
                     : fmt.money(outstandingFor(selectedCustomer.id)!, balances.currencyCode, balances.currencyMinorUnit),
                 }] : []),
               ] : undefined}
-              actions={selectedCustomer && (
+              actions={selectedCustomer ? { primary: (
                 <button type="button" className="link" onClick={() => openEdit(selectedCustomer)}>
                   <Pencil size={14} aria-hidden /> {t("editButton")}
                 </button>
-              )}
+              ) } : undefined}
             />
           )}
         />
