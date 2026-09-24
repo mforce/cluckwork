@@ -160,14 +160,14 @@ export const listFlocks = (params?: {
   search?: string;
   eligibility?: FlockEligibility;
   includeArchived?: boolean;
-}) => {
+}, signal?: AbortSignal) => {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
   if (params?.eligibility) q.set("eligibility", params.eligibility);
   else if (params?.includeArchived) q.set("includeArchived", "true");
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
-  return apiGet<Flock[]>(`/flocks${q.toString() !== "" ? `?${q}` : ""}`);
+  return apiGet<Flock[]>(`/flocks${q.toString() !== "" ? `?${q}` : ""}`, signal);
 };
 
 // #512 — exact resolution: the full flock or a 404. The picker adapters map a
@@ -244,7 +244,7 @@ export const voidDailyEntry = (id: string, body: { version: number; reason: stri
 
 export const listDailyEntries = (params?: {
   flockId?: string; from?: string; to?: string; limit?: number; offset?: number;
-}) => {
+}, signal?: AbortSignal) => {
   const q = new URLSearchParams();
   if (params?.flockId) q.set("flockId", params.flockId);
   if (params?.from) q.set("from", params.from);
@@ -252,7 +252,7 @@ export const listDailyEntries = (params?: {
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.size > 0 ? `?${q}` : "";
-  return apiGet<DailyEntry[]>(`/daily-entries${qs}`);
+  return apiGet<DailyEntry[]>(`/daily-entries${qs}`, signal);
 };
 
 export const getStock = () => apiGet<StockRow[]>("/stock");

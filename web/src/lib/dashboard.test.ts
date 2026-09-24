@@ -1,7 +1,7 @@
 // web/src/lib/dashboard.test.ts
 import { describe, it, expect } from "vitest";
 import {
-  GRADE_COLOURS, TILE_CAP, captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
+  GRADE_COLOURS, captureTiles, dayStrip, henDayTrend, panelPage, stockBar, todaysEggs,
 } from "./dashboard";
 import type { DailyEntry, Flock, ProductionDay, ProductionReport, StockRow } from "../api/cluckwork";
 import { NO_RECORD_HISTORY } from "../test/fixtures";
@@ -65,32 +65,61 @@ describe("captureTiles (#654, INV-3, INV-9)", () => {
   });
 });
 
-describe("visibleTiles (#654, INV-9 — the cap never hides a missing flock while ≤ 12 are missing)", () => {
-  const tilesOf = (missing: number, present: number) => captureTiles(
-    Array.from({ length: missing + present }, (_, i) => flock(`f${i}`, "Active")),
-    Array.from({ length: present }, (_, i) => entry(`f${i}`, "Submitted", 1)), // f0..f(present-1) have entries
-  );
-  it("shows everything when at or under the cap", () => {
-    const tiles = tilesOf(3, 9);
-    expect(visibleTiles(tiles)).toEqual({ shown: tiles, hidden: 0 });
-    expect(TILE_CAP).toBe(12);
+// Both of the panel's lists are drained now,
+// so a scan per flock is quadratic in the farm's size.
+describe("captureTiles on a drained farm", () => {
+  it("joins two thousand flocks to two thousand entries, missing ones first", () => {
+    const flocks = Array.from({ length: 2000 }, (_, i) => flock(`f${i}`, "Active"));
+    // Every third house has not filed; one Voided row sits ahead of a real one.
+    const entries = flocks
+      .filter((_, i) => i % 3 !== 0)
+      .flatMap((f, i) => (i === 0
+        ? [entry(f.id, "Voided", 999, `v-${f.id}`), entry(f.id, "Submitted", 5)]
+        : [entry(f.id, "Submitted", 5)]));
+    const tiles = captureTiles(flocks, entries);
+
+    expect(tiles).toHaveLength(2000);
+    expect(tiles.filter((t) => t.entry === null)).toHaveLength(667);
+    expect(tiles.slice(0, 667).every((t) => t.entry === null)).toBe(true);
+    expect(tiles[0].flock.id).toBe("f0");
+    expect(tiles[666].flock.id).toBe("f1998");
+    expect(tiles[667].flock.id).toBe("f1");
+    // The Voided row is skipped for the flock that carries both.
+    expect(tiles[667].entry?.status).toBe("Submitted");
+    expect(tiles[667].entry?.totalEggs).toBe(5);
+    expect(tiles[1999].flock.id).toBe("f1999");
   });
-  it("shows the first 12 — all three missing flocks included — and counts the rest", () => {
-    const tiles = tilesOf(3, 12);
-    const { shown, hidden } = visibleTiles(tiles);
-    // The exact twelve, in order: keeping the count and the missing-first
-    // property while picking a different twelve is the wrong implementation
-    // this pins.
-    expect(shown.map((t) => t.flock.id)).toEqual(tiles.slice(0, 12).map((t) => t.flock.id));
-    expect(shown.slice(0, 3).every((t) => t.entry === null)).toBe(true);
-    expect(hidden).toBe(3);
+});
+
+describe("panelPage (#915 — every house reachable, one page at a time)", () => {
+  const ids = ["a", "b", "c", "d", "e", "f", "g"];
+
+  it("slices the asked-for page and states its 1-based bounds", () => {
+    expect(panelPage(ids, 0, 3)).toEqual({
+      items: ["a", "b", "c"], page: 0, pageCount: 3, first: 1, last: 3, total: 7,
+    });
+    expect(panelPage(ids, 1, 3)).toEqual({
+      items: ["d", "e", "f"], page: 1, pageCount: 3, first: 4, last: 6, total: 7,
+    });
   });
-  it("with 13 missing flocks shows 12 of them and counts one hidden", () => {
-    const tiles = tilesOf(13, 0);
-    const { shown, hidden } = visibleTiles(tiles);
-    expect(shown.map((t) => t.flock.id)).toEqual(tiles.slice(0, 12).map((t) => t.flock.id));
-    expect(shown.every((t) => t.entry === null)).toBe(true);
-    expect(hidden).toBe(1);
+
+  it("gives the last page only what is left, never a padded one", () => {
+    expect(panelPage(ids, 2, 3)).toEqual({
+      items: ["g"], page: 2, pageCount: 3, first: 7, last: 7, total: 7,
+    });
+  });
+
+  // The reader's page number outlives the list it was chosen against: a
+  // refetch that drops rows would otherwise render an empty panel with no
+  // control to get back from.
+  it("clamps a page past the end onto the last one", () => {
+    expect(panelPage(ids, 9, 3)).toMatchObject({ items: ["g"], page: 2, first: 7, last: 7 });
+  });
+
+  it("keeps one empty page for an empty list, with no bounds to state", () => {
+    expect(panelPage([], 0, 6)).toEqual({
+      items: [], page: 0, pageCount: 1, first: 0, last: 0, total: 0,
+    });
   });
 });
 
@@ -240,18 +269,19 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     expect(d.slots[1]).toMatchObject({ date: "2026-07-02", kind: "recorded", heightPct: 2 });
   });
 
-  it("marks the week boundary at the start of the recent window, and nowhere else", () => {
+  // #914 — the boundary marks each seven-day step, which on the fourteen-day
+  // default falls exactly where it always has.
+  it("marks every seven-day boundary, and nowhere else", () => {
     const days = Array.from({ length: 14 }, (_, i) => day(`2026-07-${String(i + 1).padStart(2, "0")}`, 100 + i));
-    const breaks = dayStrip({ days, recentCount: 7 }).slots.map((s) => s.weekBreak);
+    const breaks = dayStrip({ days: days }).slots.map((s) => s.weekBreak);
     expect(breaks.filter(Boolean)).toHaveLength(1);
     expect(breaks.indexOf(true)).toBe(7);
-    expect(dayStrip({ days, recentCount: 7 }).slots[7].date).toBe("2026-07-08");
+    expect(dayStrip({ days: days }).slots[7].date).toBe("2026-07-08");
   });
 
-  it("draws no boundary when the recent window is absent or is the whole window", () => {
+  it("draws no boundary in a window shorter than a week", () => {
     const days = [day("2026-07-01", 1), day("2026-07-02", 2)];
-    expect(dayStrip({ days }).slots.some((s) => s.weekBreak)).toBe(false);
-    expect(dayStrip({ days, recentCount: 2 }).slots.some((s) => s.weekBreak)).toBe(false);
+    expect(dayStrip({ days: days }).slots.some((s) => s.weekBreak)).toBe(false);
   });
 
   it("keeps a stub on every day when every recorded day is zero, and draws no average line", () => {

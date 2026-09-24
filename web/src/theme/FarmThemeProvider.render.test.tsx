@@ -158,3 +158,36 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
       .toMatch(/(?:^|,\s*)color 160ms/);
   });
 });
+
+// A theme override MUI never applies is invisible to the policy test, which
+// reads what `createFarmTheme` DECLARES. MUI v6 replaced `Button`'s composite
+// `textPrimary`/`outlinedPrimary` slots with `variants` — the rendered classes
+// are `MuiButton-text` and `MuiButton-colorPrimary`, separately — so an
+// override written against the v5 slot names is dropped in silence and the
+// brand stays the foreground. Only a render can tell.
+describe("a text or outlined primary Button's own ink (#914)", () => {
+  for (const mode of ["light", "dark"] as const) {
+    it(`takes the contrast-safe accent in ${mode}, not the raw brand`, () => {
+      const tokens = tokensFor(DEFAULT_BRAND, mode);
+      const theme = createFarmTheme(tokens, mode);
+      const { container } = render(
+        <ThemeProvider theme={theme}>
+          <Button>All flocks</Button>
+          <Button variant="outlined">Choose</Button>
+        </ThemeProvider>,
+      );
+      const [text, outlined] = [...container.querySelectorAll(".MuiButton-root")];
+      for (const [what, el] of [["text", text], ["outlined", outlined]] as const) {
+        expect(getComputedStyle(el as Element).color, `${mode} ${what} button ink`)
+          .toBe(hexToRgb(tokens["--stat-accent"]));
+      }
+    });
+  }
+});
+
+function hexToRgb(hex: string): string {
+  const value = hex.trim().replace("#", "");
+  const full = value.length === 3 ? value.split("").map((c) => c + c).join("") : value;
+  const n = Number.parseInt(full, 16);
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+}

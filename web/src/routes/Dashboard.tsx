@@ -1,10 +1,10 @@
 // web/src/routes/Dashboard.tsx
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
 import {
-  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography, useMediaQuery,
+  Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -17,27 +17,67 @@ import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
 import { Dialog } from "../components/Dialog";
+import { FilterDateField } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
+import { PanelPager } from "../components/PanelPager";
+import { usePagedList } from "../components/usePagedList";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import {
-  captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
+  captureTiles, dayStrip, henDayTrend, panelPage, stockBar, todaysEggs,
 } from "../lib/dashboard";
 import type { CaptureTile, DayStripData, DayStripSlot } from "../lib/dashboard";
+import {
+  DEFAULT_RANGE, MAX_RANGE_DAYS, RANGE_PRESETS, RANGE_STORAGE_KEY, customRangeError,
+  formatStoredRange, parseStoredRange, trendWindow,
+} from "../lib/layRateRange";
+import type { CustomRangeError, LayRateRange } from "../lib/layRateRange";
+import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
 import { splitProductionReport } from "../lib/productionReportSplit";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
 const RECENT_ORDERS = 5;
-// Server clamps list limits at 500. One farm won't exceed that in Phase 1.x;
-// past 500 flocks the tail silently drops — revisit with real paging if that
-// day comes.
+// #915 — a glance panel, not a ledger: eight houses fill the desktop card
+// without scrolling it, six fit the phone's. Every house is still reachable,
+// one page at a time, so nothing hides behind a link any more.
+const HOUSES_PER_PAGE_DESKTOP = 8;
+const HOUSES_PER_PAGE_PHONE = 6;
+// The server clamps a list request at 500 rows.
 const MAX_PAGE = 500;
+// #915 — both of this panel's lists are DRAINED rather than truncated: the
+// progress bar and the "N of M houses in" caption answer for the farm, which
+// a first page cannot tell them, and every house has to be reachable now that
+// no link carries the remainder. Below 500 houses this costs no extra request
+// at all. The ceiling only has to make the loop terminate; at it the counts
+// say "at least" instead of a figure they cannot stand behind.
+const MAX_DRAIN_PAGES = 20;
+
+// `signal` stops the WALK as well as the request in flight: leaving the
+// Dashboard mid-drain used to leave the loop asking for every later page,
+// dozens of reads nobody was waiting for.
+async function drainPages<T>(
+  fetchPage: (offset: number, limit: number, signal: AbortSignal) => Promise<T[]>,
+  signal: AbortSignal,
+): Promise<{ rows: T[]; truncated: boolean }> {
+  const rows: T[] = [];
+  for (let page = 0; page < MAX_DRAIN_PAGES; page += 1) {
+    if (signal.aborted) return { rows, truncated: false };
+    const batch = await fetchPage(page * MAX_PAGE, MAX_PAGE, signal);
+    rows.push(...batch);
+    if (batch.length < MAX_PAGE) return { rows, truncated: false };
+  }
+  return { rows, truncated: true };
+}
 
 // #916 — the Lay rate card's own scope, independent of every other panel.
 type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
+
+// The native select's own control box carries the 44px phone target; MUI sizes
+// it from the font otherwise.
+const RANGE_FIELD_SX = { "& .MuiInputBase-input": { minHeight: 44, boxSizing: "border-box" } };
 
 export const DASHBOARD_DELTA_CLASSES = ["trend-delta", "trend-delta is-down", "trend-delta is-up"] as const;
 
@@ -58,7 +98,6 @@ export function Dashboard() {
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
   const [stock, setStock] = useState<StockRow[] | null>(null);
-  const [orders, setOrders] = useState<SalesOrder[] | null>(null);
   // Both windows or nothing: a line drawn from one week and a delta against
   // a missing one would be a figure nobody can reconcile.
   const [trend, setTrend] = useState<{ current: ProductionReport; previous: ProductionReport } | null>(null);
@@ -76,12 +115,40 @@ export function Dashboard() {
   const [scope, setScope] = useState<FlockScope>({ kind: "all" });
   const [trendLoading, setTrendLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // #914 — the plotted window, remembered per device and per farm. The card
+  // never plots today (owner decision A), so `latest` is the farm's yesterday
+  // and a remembered custom range is re-validated against it rather than
+  // trusted: storage outlives every rule this build knows.
+  const latestDay = daysBefore(today, 1);
+  const [range, setRange] = useState<LayRateRange>(
+    () => parseStoredRange(readAccountScoped(RANGE_STORAGE_KEY), latestDay) ?? DEFAULT_RANGE,
+  );
+  const chooseRange = (next: LayRateRange) => {
+    setRange(next);
+    writeAccountScoped(RANGE_STORAGE_KEY, formatStoredRange(next));
+  };
+  const plotted = trendWindow(range, today);
+  const { from, to, previousFrom } = plotted;
+  // The custom form's own draft, separate from the applied range so typing a
+  // date never refetches and a rejected span leaves the plotted window alone.
+  const [customOpen, setCustomOpen] = useState(range.kind === "custom");
+  const [draftFrom, setDraftFrom] = useState(plotted.from);
+  const [draftTo, setDraftTo] = useState(plotted.to);
+  const [rangeError, setRangeError] = useState<CustomRangeError | null>(null);
   // #918 — the flock LIST read can fail alone while the other three panels
   // succeed; "failed" must not read as "0 accessible flocks". `flocksRetrying`
   // holds the unavailable state up until the retried read SETTLES — clearing
   // `flocksFailed` on click showed that same false zero in the gap before.
   const [flocksFailed, setFlocksFailed] = useState(false);
+  const [flocksTruncated, setFlocksTruncated] = useState(false);
+  // Told apart from "not here yet": a panel that has not answered shows its own
+  // loading state, never the error of a read that has not failed.
+  const [entriesFailed, setEntriesFailed] = useState(false);
+  const [stockFailed, setStockFailed] = useState(false);
+  const [entriesTruncated, setEntriesTruncated] = useState(false);
   const [flocksRetrying, setFlocksRetrying] = useState(false);
+  // Bumped by Retry so the panels effect re-runs under its own ownership.
+  const [panelsGeneration, setPanelsGeneration] = useState(0);
 
   // PROTECTED (INV-2, #127) — copied verbatim; do not edit.
   // ReadOnly/Denied can't read customers or orders — the API now returns 403
@@ -94,6 +161,59 @@ export function Dashboard() {
   // Match the navigation breakpoint when folding the missing-house summary.
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const attentionCap = isDesktop ? 2 : 1;
+  const housesPerPage = isDesktop ? HOUSES_PER_PAGE_DESKTOP : HOUSES_PER_PAGE_PHONE;
+  const [housesPage, setHousesPage] = useState(0);
+
+  // #915 — Recent orders pages through the shared list hook rather than a
+  // second homegrown one (#469): its ticket discipline keeps a superseded page
+  // from painting over a newer one. A role that cannot see sales issues no
+  // request at all (INV-2, #127).
+  const orders = usePagedList<SalesOrder, never>({
+    fetchPage: useCallback(
+      (offset: number, limit: number) =>
+        canSeeSales ? listOrders({ limit, offset }) : Promise.resolve<SalesOrder[]>([]),
+      [canSeeSales],
+    ),
+    pageSize: RECENT_ORDERS,
+    errorText: () => i18n.t("dashboard:panelLoadError"),
+  });
+  const [ordersPage, setOrdersPage] = useState(0);
+  const [ordersExtending, setOrdersExtending] = useState(false);
+  const [ordersExtendFailed, setOrdersExtendFailed] = useState(false);
+  const orderRows = orders.rows ?? [];
+  const ordersFrom = ordersPage * RECENT_ORDERS;
+  const orderSlice = orderRows.slice(ordersFrom, ordersFrom + RECENT_ORDERS);
+  const { hasMore: ordersHasMore, loadMore: ordersLoadMore } = orders;
+  // #915 — one request per tap, and the page number moves only once its rows
+  // are here. An effect reconciling the page number against the loaded rows
+  // re-issued a refused page forever and moved the reader onto an empty one.
+  const showNextOrders = async () => {
+    const next = ordersPage + 1;
+    if (next * RECENT_ORDERS < orderRows.length) { setOrdersPage(next); return; }
+    if (!ordersHasMore) return;
+    setOrdersExtending(true);
+    setOrdersExtendFailed(false);
+    // Whether the page in view was already complete decides where this lands.
+    const pageWasFull = orderSlice.length === RECENT_ORDERS;
+    const outcome = await ordersLoadMore();
+    setOrdersExtending(false);
+    // A page of nothing is the end of the list, which is an answer rather than
+    // a failure, and a dropped page is one nobody is waiting for. Only a
+    // refusal is the reader's to see.
+    if (outcome.status === "refused") { setOrdersExtendFailed(true); return; }
+    if (outcome.status !== "loaded" || outcome.rows === 0) return;
+    // A page that arrived PARTLY new leaves the page in view short, and those
+    // rows belong to it — moving on would step over them. A FULL page plus a
+    // new row is also the destination having one, since the list already
+    // reaches this page's last index, so no second check earns its place.
+    if (pageWasFull) setOrdersPage(next);
+  };
+  // A refetch starts the reader at the first page again (#915): the page they
+  // were on described a list that no longer exists.
+  useEffect(() => {
+    setOrdersPage(0);
+    setOrdersExtendFailed(false);
+  }, [canSeeSales]);
 
   const scopeLabelId = useId();
   const scopeValueId = useId();
@@ -110,55 +230,78 @@ export function Dashboard() {
   // counter: `panelsOutcome` resets to "pending" the instant a new panels
   // batch starts and `trendOutcome` resets the instant a new trend fetch
   // starts, so the derived verdict below only ever reads two CURRENT
-  // answers, never a stale one paired with a fresh one. Retry (`fetchFlocks`)
-  // updates `panelsOutcome` too — the prior ref-based design left a stale
-  // "all four failed" outcome in place after a successful retry, hiding a
-  // dashboard that had actually recovered.
+  // answers, never a stale one paired with a fresh one. Retry re-runs that
+  // same batch, so it updates `panelsOutcome` too — the prior ref-based
+  // design left a stale "all four failed" outcome in place after a successful
+  // retry, hiding a dashboard that had actually recovered.
   type PanelsOutcome = { state: "pending" } | { state: "someOk" } | { state: "allFailed"; reason: unknown };
   const [panelsOutcome, setPanelsOutcome] = useState<PanelsOutcome>({ state: "pending" });
   const [trendOutcome, setTrendOutcome] = useState<"pending" | "success" | "failure">("pending");
-  const errorMessage = panelsOutcome.state === "allFailed" && trendOutcome === "failure"
+  // #915 — Recent orders left the parallel batch for the paged list hook, so
+  // its verdict now comes from that hook. A role without the sales panel
+  // contributes nothing either way, exactly as its skipped fetch did before.
+  const ordersFailed = !canSeeSales || orders.error !== null;
+  const errorMessage = panelsOutcome.state === "allFailed" && trendOutcome === "failure" && ordersFailed
     ? (panelsOutcome.reason instanceof ApiError ? panelsOutcome.reason.message : i18n.t("dashboard:loadFailed"))
     : null;
 
-  // Retry re-issues ONLY the flock list; the dialog's own discovery is a
-  // separate server call and is unaffected either way. A success proves at
-  // least one panel now has data, whatever the other three are doing.
-  const fetchFlocks = () => {
+  // Retry re-runs the effect below rather than issuing a read of its own: a
+  // second request needs a second copy of the cancellation and generation
+  // guards, and the copy it had carried neither — it could answer after a
+  // newer role's batch and kept draining after the reader left.
+  const retryFlocks = () => {
     setFlocksRetrying(true);
-    listFlocks({ limit: MAX_PAGE })
-      .then((f) => {
-        setFlocks(f); setFlocksFailed(false); setFlocksRetrying(false);
-        setPanelsOutcome({ state: "someOk" });
-      })
-      .catch(() => { setFlocksFailed(true); setFlocksRetrying(false); });
+    setPanelsGeneration((n) => n + 1);
   };
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setPanelsOutcome({ state: "pending" }); // a fresh load starts clean, never on a stale verdict
-    Promise.allSettled([
-      listFlocks({ limit: MAX_PAGE }),
-      listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
-      getStock(),
-      canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
-    ]).then(([f, e, s, o]) => {
+    setEntriesFailed(false);
+    setStockFailed(false);
+    const flockRead = drainPages((offset, limit, signal) => listFlocks({ limit, offset }, signal), controller.signal);
+    const entryRead = drainPages((offset, limit, signal) => listDailyEntries({ from: today, to: today, limit, offset }, signal), controller.signal);
+    const stockRead = getStock();
+
+    // Each panel commits when its OWN read settles. Behind the batch, a
+    // recovered flock list waited on a stock request that may never answer
+    // (`fetch` carries no timeout), leaving Retry disabled on a list already
+    // back. One generation and one controller still cover all three.
+    // The first answer ends the full-page gate. One stalled read — `getStock`
+    // carries no timeout — used to hold the whole screen, hiding the panels
+    // that HAD answered along with their own errors and Retry.
+    const settle = () => { if (!cancelled) setLoading(false); };
+    flockRead.then(({ rows, truncated }) => {
       if (cancelled) return;
-      if (f.status === "fulfilled") { setFlocks(f.value); setFlocksFailed(false); } else { setFlocksFailed(true); }
-      if (e.status === "fulfilled") setEntries(e.value);
-      if (s.status === "fulfilled") setStock(s.value);
-      if (o.status === "fulfilled") setOrders(o.value);
-      // Only the fetches we actually issued count toward "everything failed":
-      // the sales read is an inert placeholder when the role can't see it.
-      const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
+      setFlocks(rows); setFlocksTruncated(truncated); setFlocksFailed(false);
+      setFlocksRetrying(false); setHousesPage(0);
+    }).catch(() => {
+      if (cancelled) return;
+      setFlocksFailed(true); setFlocksRetrying(false);
+    }).finally(settle);
+    entryRead.then(({ rows, truncated }) => {
+      if (cancelled) return;
+      setEntries(rows); setEntriesTruncated(truncated);
+    }).catch(() => { if (!cancelled) setEntriesFailed(true); }).finally(settle);
+    stockRead.then((rows) => { if (!cancelled) setStock(rows); })
+      .catch(() => { if (!cancelled) setStockFailed(true); }).finally(settle);
+
+    // The page-level verdict still needs every answer, because "everything
+    // failed" is only true once nothing is outstanding.
+    Promise.allSettled([flockRead, entryRead, stockRead]).then((issued) => {
+      if (cancelled) return;
       const rejected = issued.filter((r): r is PromiseRejectedResult => r.status === "rejected");
       setPanelsOutcome(rejected.length === issued.length
         ? { state: "allFailed", reason: rejected[0]?.reason }
         : { state: "someOk" });
-      setLoading(false);
     });
-    return () => { cancelled = true; };
-  }, [today, canSeeSales]);
+    return () => { cancelled = true; controller.abort(); };
+    // #918 — `canSeeSales` is a dep even though none of these three reads is
+    // role-gated: `panelsOutcome` is half the "everything failed" verdict, and
+    // a role change starts a new generation whose verdict must be decided
+    // freshly rather than inherited from the previous role's healthy one.
+  }, [today, canSeeSales, panelsGeneration]);
 
   // #916 — the production report alone, re-run on scope/today/soleFlockId,
   // separate from the effect above so picking a flock never re-fetches the
@@ -169,7 +312,6 @@ export function Dashboard() {
   // IGNORED, not cancelled, so it could sit in flight and hold one of the
   // account's report-concurrency permits until it timed out on its own; the
   // AbortController below actually cancels it on cleanup.
-  //
   // #918 — Codex review: the current and previous weeks used to be two
   // adjacent requests; together with the yesterday-close fetch below, that
   // was three of the account's four shared report-concurrency permits per
@@ -186,12 +328,14 @@ export function Dashboard() {
     const controller = new AbortController();
     setTrendLoading(true);
     setTrendOutcome("pending"); // re-decided freshly on every dispatch, never frozen at a stale outcome
-    // The last 7 complete days and the 7 before them — yesterday back, so an
-    // unsubmitted today never ends the line in a false dip (owner decision A).
-    getProductionReport(daysBefore(today, 14), daysBefore(today, 1), flockId, controller.signal)
+    // #914 — the chosen window and the window of the same length before it, in
+    // ONE contiguous request that `splitProductionReport` divides at the
+    // chosen window's first day. Only the later half is drawn; the earlier
+    // half exists for the hen-day comparison alone.
+    getProductionReport(previousFrom, to, flockId, controller.signal)
       .then((report) => {
         if (controller.signal.aborted) return;
-        const { earlier, later } = splitProductionReport(report, daysBefore(today, 7));
+        const { earlier, later } = splitProductionReport(report, from);
         setTrend({ current: later, previous: earlier });
         setTrendLoading(false);
         setTrendOutcome("success");
@@ -203,7 +347,7 @@ export function Dashboard() {
         setTrendOutcome("failure");
       });
     return () => controller.abort();
-  }, [today, scope, soleFlockId, canSeeSales]);
+  }, [from, to, previousFrom, scope, soleFlockId, canSeeSales]);
 
   // #918 — Codex review: yesterday's close belongs to the farm-wide Morning
   // collection panel, so it is fetched WITHOUT a flock id and depends only on
@@ -244,12 +388,26 @@ export function Dashboard() {
   }
 
   const panelError = <Alert severity="error" className="error">{t("panelLoadError")}</Alert>;
-  // The FULL capture-status list, uncapped — the attention line and the "N of
-  // M houses in" caption must count every active flock, not only the 12
-  // `visibleTiles` caps the RENDERED row list at. A farm with more than 12
-  // missing houses undercounted both on the capped list (CodeRabbit, #883).
+  // The FULL capture-status list — the attention line, the progress bar and
+  // the "N of M houses in" caption count every active flock, never only the
+  // page on screen. A farm with more missing houses than the old cap
+  // undercounted both (#883).
   const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
-  const tiles = allTiles === null ? null : visibleTiles(allTiles);
+  // Two different gaps, and conflating them made the panel disown a count it
+  // actually had. A truncated FLOCK list means the farm's size is unknown, so
+  // every figure over it is a lower bound. A truncated ENTRY list leaves that
+  // count exact and makes the STATUS side incomplete instead: houses whose
+  // entry was never read show as missing and their eggs never reach the total.
+  const housesIncomplete = flocksTruncated;
+  const entryDataIncomplete = entriesTruncated;
+  const housePage = panelPage(allTiles ?? [], housesPage, housesPerPage);
+  const housesPagerLabel = housesIncomplete
+    ? t("pagerHousesAtLeast", {
+        first: fmt.count(housePage.first), last: fmt.count(housePage.last), total: fmt.count(housePage.total),
+      })
+    : t("pagerHouses", {
+        first: fmt.count(housePage.first), last: fmt.count(housePage.last), total: fmt.count(housePage.total),
+      });
 
   const scopedFlock = soleFlock ?? (scope.kind === "flock" ? scope.flock : null);
   const scopeName = scopedFlock ? scopedFlock.name : t("allFlocksOption");
@@ -260,20 +418,51 @@ export function Dashboard() {
   // really more; the "at least" form says so instead of presenting a
   // truncated count as exact.
   const accessibleCount = flocks?.length ?? 0;
-  const accessibleCountTruncated = flocks !== null && flocks.length === MAX_PAGE;
+  const accessibleCountTruncated = flocksTruncated;
   const accessibleCountLabel = accessibleCountTruncated
     ? t("accessibleFlocksCountAtLeast", { count: accessibleCount })
     : t("accessibleFlocksCount", { count: accessibleCount });
   const contextScope = scopedFlock ? scopedFlock.name : accessibleCountLabel;
 
   const trendData = trend === null ? null : {
-    line: dayStrip({
-      days: [...trend.previous.days, ...trend.current.days],
-      recentCount: trend.current.days.length,
-    }),
+    line: dayStrip({ days: trend.current.days }),
     henDay: henDayTrend(trend.current, trend.previous),
   };
   const bar = stock === null ? null : stockBar(stock);
+  // The window's own dates, which every sentence about the card's range uses
+  // rather than a preset's wording: a custom range has no preset to name, and
+  // one string cannot be built from a stem plus a suffix (#650).
+  const rangeSpan = t("rangeSpan", { from: fmt.date(from), to: fmt.date(to) });
+  const presetLabel = (days: number) => t("rangePresetOption", { count: days, total: fmt.count(days) });
+  const rangeSelection = range.kind === "custom" || customOpen ? "custom" : String(range.days);
+  const selectRange = (value: string) => {
+    setRangeError(null);
+    const preset = RANGE_PRESETS.find((days) => String(days) === value);
+    if (preset === undefined) {
+      setDraftFrom(from);
+      setDraftTo(to);
+      setCustomOpen(true);
+      return;
+    }
+    setCustomOpen(false);
+    chooseRange({ kind: "preset", days: preset });
+  };
+  // Rejected in the form, never silently truncated: a window the card quietly
+  // shortened would leave the reader comparing a period they did not ask for.
+  const applyCustomRange = () => {
+    const error = customRangeError(draftFrom, draftTo, latestDay);
+    setRangeError(error);
+    if (error === null) chooseRange({ kind: "custom", from: draftFrom, to: draftTo });
+  };
+  const rangeErrorText = (error: CustomRangeError) => {
+    switch (error) {
+      case "order": return t("rangeErrorOrder");
+      case "future": return t("rangeErrorFuture", { date: fmt.date(latestDay) });
+      case "tooLong": return t("rangeErrorTooLong", { count: MAX_RANGE_DAYS, days: fmt.count(MAX_RANGE_DAYS) });
+      case "incomplete": return t("rangeErrorIncomplete");
+      case "beforeCalendar": return t("rangeErrorBeforeCalendar");
+    }
+  };
 
   // Every figure is farm-locale formatted before it reaches a catalog string (#650).
   const deltaText = (delta: number | null) =>
@@ -291,16 +480,16 @@ export function Dashboard() {
       // slots and announce that none had an entry. `partial` is always 0 here:
       // a partial slot requires a recorded figure, which "none" has none of.
       return line.partial === 0 && line.unrecorded === 0
-        ? t("trendStripLabelNoFlocks")
-        : t("trendStripLabelNone");
+        ? t("trendStripLabelNoFlocks", { range: rangeSpan })
+        : t("trendStripLabelNone", { range: rangeSpan });
     }
     if (line.scale === "partial") {
       // The fallback peak: no complete day exists, so there is still no
       // average (that stays complete-day-only), but Peak is real and the
       // sentence must say so, not fall back to "no peak or average".
-      return t("trendStripLabelPartialScale", { max: fmt.count(line.max!) });
+      return t("trendStripLabelPartialScale", { range: rangeSpan, max: fmt.count(line.max!) });
     }
-    const figures = { max: fmt.count(line.max!), avg: fmt.count(line.average!, 1) };
+    const figures = { range: rangeSpan, max: fmt.count(line.max!), avg: fmt.count(line.average!, 1) };
     const gaps = line.partial + line.unrecorded;
     return gaps === 0
       ? t("trendStripLabel", figures)
@@ -378,7 +567,8 @@ export function Dashboard() {
               ))}
               {attentionMore > 0 && <Typography component={Link} to="/daily-entry" sx={{ color: "inherit" }}>{t("attentionMore", { count: attentionMore })}</Typography>}
             </Box>
-          ) : <Typography>{t(allTiles.length === 0 ? "noFlocksMessage" : "allHousesRecorded")}</Typography>}
+          ) : <Typography>{t(allTiles.length === 0 ? "noFlocksMessage"
+            : entryDataIncomplete ? "entriesIncompleteBrief" : "allHousesRecorded")}</Typography>}
         </Box>
         {allTiles !== null && entries !== null && <Box sx={{ borderLeft: { md: "1px solid #62535e" }, borderTop: { xs: "1px solid #62535e", md: 0 }, pl: { md: 2.5 }, pt: { xs: 1.5, md: 0 }, minWidth: 150 }}>
           <Typography variant="caption">{t("todaySoFarLabel")}</Typography>
@@ -392,22 +582,49 @@ export function Dashboard() {
         <Card component="section" sx={sectionSx}>
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("todayPanelTitle")}><Link to="/daily-entry">{t("collectionTitle")}</Link></Typography>
-            {allTiles !== null && <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>{t("todayInCount", { in: recordedHouses, count: allTiles.length })}</Typography>}
+            {allTiles !== null && <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>
+              {housesIncomplete
+                ? t("todayInCountAtLeast", { in: recordedHouses, count: allTiles.length })
+                : t("todayInCount", { in: recordedHouses, count: allTiles.length })}
+            </Typography>}
           </Box>
-          {tiles === null || entries === null ? panelError : tiles.shown.length === 0 ? (
+          {allTiles === null || entries === null
+            ? (flocksFailed || entriesFailed ? panelError
+              : <LinearProgress aria-label={t("collectionTitle")} sx={{ height: 5, borderRadius: 2 }} />)
+            : allTiles.length === 0 ? (
             <EmptyState icon={Bird} message={t("noFlocksMessage")} />
           ) : (
             <>
-              <LinearProgress variant="determinate" value={recordedHouses / (tiles.shown.length + tiles.hidden) * 100} aria-label={t("collectionTitle")}
+              {/* A share of an unknown whole is not a share. With the list
+                  incomplete the bar carries no value at all rather than one
+                  measured against a ceiling. */}
+              <LinearProgress
+                variant={housesIncomplete ? "indeterminate" : "determinate"}
+                value={housesIncomplete ? undefined : recordedHouses / allTiles.length * 100}
+                aria-label={t("collectionTitle")}
                 sx={{ height: 5, borderRadius: 2, mb: 1, bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--success)" } }} />
-              {tiles.shown.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
+              {housePage.items.map((tile) => <TodayRow key={tile.flock.id} tile={tile} today={today} fmt={fmt} t={t} />)}
+              {housePage.pageCount > 1 && <PanelPager
+                label={housesPagerLabel}
+                previousLabel={t("pagerPrevious", { panel: t("collectionTitle") })}
+                nextLabel={t("pagerNext", { panel: t("collectionTitle") })}
+                hasPrevious={housePage.page > 0}
+                hasNext={housePage.page + 1 < housePage.pageCount}
+                onPrevious={() => setHousesPage(housePage.page - 1)}
+                onNext={() => setHousesPage(housePage.page + 1)}
+              />}
               <Box sx={{ bgcolor: "var(--surface-2)", mx: { xs: -2, md: -2.25 }, mb: { xs: -2, md: -2.25 }, mt: 1.5, px: 2.25, py: 1.5 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                   <Typography>{t("collectedToday")}</Typography>
                   <Typography className="num" sx={{ fontFamily: "Georgia, serif", fontWeight: 600, fontSize: "1.8rem" }}>{fmt.count(todaysEggs(entries))}</Typography>
                 </Box>
                 {yesterdayClose !== null && <Typography variant="caption" color="text.secondary">{t("yesterdayByClose", { total: fmt.count(yesterdayClose) })}</Typography>}
-                {tiles.hidden > 0 && <Typography component={Link} to="/daily-entry" variant="body2" sx={{ display: "block" }}>{t("moreFlocks", { count: tiles.hidden, total: fmt.count(tiles.hidden) })}</Typography>}
+                {housesIncomplete && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                  {t("housesIncompleteNotice", { count: allTiles.length, total: fmt.count(allTiles.length) })}
+                </Typography>}
+                {entryDataIncomplete && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                  {t("entriesIncompleteNotice")}
+                </Typography>}
               </Box>
             </>
           )}
@@ -417,7 +634,10 @@ export function Dashboard() {
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("stockPanelTitle")}><Link to="/stock">{t("availableStockTitle")}</Link></Typography>
           </Box>
-          {bar === null || stock === null ? panelError : stock.length === 0 ? <EmptyState icon={Egg} message={t("noStockMessage")} /> : (
+          {bar === null || stock === null
+            ? (stockFailed ? panelError
+              : <LinearProgress aria-label={t("stockPanelTitle")} sx={{ height: 5, borderRadius: 2 }} />)
+            : stock.length === 0 ? <EmptyState icon={Egg} message={t("noStockMessage")} /> : (
             <>
               <Typography className="stock-total" sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1, mb: 2,
                 "& .stock-fig": { fontFamily: "Georgia, serif", fontSize: "2.5rem" } }}>
@@ -450,25 +670,57 @@ export function Dashboard() {
 
         {canSeeSales && <Card component="section" sx={{ ...sectionSx, gridColumn: { md: 1 } }}>
           <Box sx={headingSx}><Typography variant="h3" aria-label={t("salesPanelTitle")}><Link to="/sales">{t("recentOrdersTitle")}</Link></Typography></Box>
-          {orders === null ? panelError : orders.length === 0 ? <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} /> : (
-            <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
-              {orders.map((o) => <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
-                display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 1.5, py: 1.25, borderTop: "1px solid var(--rule)",
-              }}>
-                <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
-                  <Typography component={Link} to={`/sales?customerId=${o.customerId}`} sx={{ fontWeight: 600 }}>{rowCustomerName(o)}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{o.referenceNumber}</Typography>
-                  {o.items[0] && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    {fmt.count(o.items[0].quantity)}{o.items[0].eggGradeName ? ` ${o.items[0].eggGradeName}` : ""}{o.items.length > 1 ? ` +${fmt.count(o.items.length - 1)}` : ""}
-                  </Typography>}
-                </Box>
-                <Box sx={{ textAlign: "right" }}>
-                  <Typography className="num" sx={{ fontWeight: 600 }}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
-                  <StatusDot status={o.status} label={statusLabel(o.status)} />
-                  {o.status === "Draft" && <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ width: "100%", justifyContent: "flex-end" }}>{t("salesRowConfirmAction")}</Typography>}
-                </Box>
-              </Box>)}
-            </Box>
+          {/* the panel error belongs to a read that left
+              NOTHING on screen. A next page that failed says nothing about the
+              page the reader is already looking at, so those rows stay and the
+              refusal is offered back as a retry under them. */}
+          {orderRows.length === 0 && orders.error !== null ? panelError
+            : orders.rows === null ? <LinearProgress aria-label={t("salesPanelTitle")} sx={{ height: 5, borderRadius: 2 }} />
+              : orderRows.length === 0 ? <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} /> : (
+            <>
+              <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
+                {orderSlice.map((o) => <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
+                  display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 1.5, py: 1.25, borderTop: "1px solid var(--rule)",
+                }}>
+                  <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                    <Typography component={Link} to={`/sales?customerId=${o.customerId}`} sx={{ fontWeight: 600 }}>{rowCustomerName(o)}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{o.referenceNumber}</Typography>
+                    {o.items[0] && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      {fmt.count(o.items[0].quantity)}{o.items[0].eggGradeName ? ` ${o.items[0].eggGradeName}` : ""}{o.items.length > 1 ? ` +${fmt.count(o.items.length - 1)}` : ""}
+                    </Typography>}
+                  </Box>
+                  <Box sx={{ textAlign: "right" }}>
+                    <Typography className="num" sx={{ fontWeight: 600 }}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
+                    <StatusDot status={o.status} label={statusLabel(o.status)} />
+                    {o.status === "Draft" && <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ width: "100%", justifyContent: "flex-end" }}>{t("salesRowConfirmAction")}</Typography>}
+                  </Box>
+                </Box>)}
+              </Box>
+            {/* A full first page means paging is a live concept here, so the
+                pager stays once the end is found rather than vanishing under
+                the tap that found it — with the total it just settled. */}
+            {(ordersPage > 0 || ordersHasMore || orderRows.length >= RECENT_ORDERS) && <PanelPager
+              label={ordersHasMore
+                ? t("pagerOrdersOpen", { first: fmt.count(ordersFrom + 1), last: fmt.count(ordersFrom + orderSlice.length) })
+                : t("pagerOrders", { first: fmt.count(ordersFrom + 1), last: fmt.count(ordersFrom + orderSlice.length), total: fmt.count(orderRows.length) })}
+              previousLabel={t("pagerPrevious", { panel: t("recentOrdersTitle") })}
+              nextLabel={t("pagerNext", { panel: t("recentOrdersTitle") })}
+              hasPrevious={ordersPage > 0 && !ordersExtending}
+              hasNext={!ordersExtending && (ordersFrom + RECENT_ORDERS < orderRows.length || ordersHasMore)}
+              onPrevious={() => setOrdersPage(ordersPage - 1)}
+              onNext={() => { void showNextOrders(); }}
+            />}
+            {ordersExtendFailed && <Alert severity="error" className="error" sx={{ mt: 1 }} action={
+              <Button
+                color="inherit" size="small"
+                aria-label={t("pagerRetryNext", { panel: t("recentOrdersTitle") })}
+                onClick={() => { void showNextOrders(); }}
+                sx={{ "&&": { minHeight: 44 } }}
+              >
+                {tp("retry")}
+              </Button>
+            }>{t("pagerNextFailed")}</Alert>}
+            </>
           )}
         </Card>}
 
@@ -483,10 +735,10 @@ export function Dashboard() {
           {/* #916/#918 — matches the approved mockup's DOM order exactly
               (production-flock-selector-v2.html): head, scope, context,
               scale+dock+strip+rule+legend (all inside DayStrip), hen-day KPI
-              LAST. */}
+              LAST. #914 adds the range control after the scope and drops the
+              head's fixed "Last 14 days" caption, which the control replaces. */}
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
-            <Typography variant="caption" color="text.secondary">{t("trendPanelTitle")}</Typography>
           </Box>
 
           {flocksFailed ? (
@@ -494,7 +746,7 @@ export function Dashboard() {
             // flock-list read must not read as a genuinely empty farm.
             <Box sx={{ mt: "18px", mb: "8px" }}>
               <Alert severity="error" className="error" action={
-                <Button color="inherit" size="small" disabled={flocksRetrying} onClick={fetchFlocks}>
+                <Button color="inherit" size="small" disabled={flocksRetrying} onClick={retryFlocks}>
                   {flocksRetrying ? tp("loading") : tp("retry")}
                 </Button>
               }>
@@ -532,8 +784,49 @@ export function Dashboard() {
                   </Button>
                 )}
               </Box>
+              {/* #914 — a native select and two plain date fields, the shape
+                  every other filter on the app already uses. The MUI date
+                  range picker is a paid @mui/x package and stays out of the
+                  822 plan's dependency set. */}
+              <Box sx={{ mb: "8px" }}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label={t("rangeLabel")}
+                  value={rangeSelection}
+                  slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+                  onChange={(e) => selectRange(e.target.value)}
+                  sx={RANGE_FIELD_SX}
+                >
+                  {RANGE_PRESETS.map((days) => <option key={days} value={String(days)}>{presetLabel(days)}</option>)}
+                  <option value="custom">{t("rangeCustomOption")}</option>
+                </TextField>
+                {customOpen && (
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1, alignItems: "flex-end" }}>
+                    <FilterDateField
+                      label={t("rangeFromLabel")} value={draftFrom}
+                      slotProps={{ htmlInput: { max: latestDay } }}
+                      onChange={(e) => setDraftFrom(e.target.value)}
+                      sx={{ flex: "1 1 8rem", maxWidth: "none" }}
+                    />
+                    <FilterDateField
+                      label={t("rangeToLabel")} value={draftTo}
+                      slotProps={{ htmlInput: { max: latestDay } }}
+                      onChange={(e) => setDraftTo(e.target.value)}
+                      sx={{ flex: "1 1 8rem", maxWidth: "none" }}
+                    />
+                    <Button variant="outlined" color="inherit" onClick={applyCustomRange} sx={{ "&&": { minHeight: 44 } }}>
+                      {t("rangeApply")}
+                    </Button>
+                  </Box>
+                )}
+                {rangeError !== null && (
+                  <Alert severity="error" className="error" sx={{ mt: 1 }}>{rangeErrorText(rangeError)}</Alert>
+                )}
+              </Box>
               <Typography className="trend-context" variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                {t("layRateContext", { scope: contextScope, from: fmt.date(daysBefore(today, 14)), to: fmt.date(daysBefore(today, 1)) })}
+                {t("layRateContext", { scope: contextScope, from: fmt.date(from), to: fmt.date(to) })}
               </Typography>
 
               {soleFlock === null && (
@@ -629,9 +922,11 @@ export function Dashboard() {
                 peak={t("trendPeak", { total: trendData.line.max === null ? "—" : fmt.count(trendData.line.max) })}
                 average={trendData.line.average === null ? t("trendNoCompleteAvg") : t("trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
                 legend={{ complete: t("legendComplete"), partial: t("legendPartial"), noEntry: t("legendNoEntry") }}
-                tip={trendTip} from={<FarmDate iso={daysBefore(today, 14)} />} to={<FarmDate iso={daysBefore(today, 1)} />} />
+                tip={trendTip} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
               <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
-              <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>{t("henDaySubLabel")}</Typography>
+              <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>
+                {t("henDaySubLabel", { range: rangeSpan, count: plotted.days, days: fmt.count(plotted.days) })}
+              </Typography>
           </>}
         </Card>
       </Box>

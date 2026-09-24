@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { todayIso, ageWeeks, daysBefore, isKnownTimeZone, isIsoCalendarDate } from "./dates";
+import { todayIso, ageWeeks, daysBefore, inclusiveDays, isKnownTimeZone, isIsoCalendarDate } from "./dates";
 
 describe("todayIso", () => {
   afterEach(() => vi.useRealTimers());
@@ -105,7 +105,6 @@ describe("daysBefore", () => {
 
   it("crosses a DST boundary as plain calendar days", () => {
     // US DST springs forward on 2026-03-08 and falls back on 2026-11-01.
-    //
     // Stated honestly, because the obvious framing does not hold: these cases
     // would ALSO pass a naive `getTime() - days * 86400000` on a UTC runner,
     // and nothing here pins TZ (agent review of #123). They pin the calendar
@@ -215,5 +214,44 @@ describe("isIsoCalendarDate", () => {
 
   it.each(REJECTED)("rejects %s", (v) => {
     expect(isIsoCalendarDate(v)).toBe(false);
+  });
+});
+
+describe("inclusiveDays (#914)", () => {
+  it("counts a single day as one", () => {
+    expect(inclusiveDays("2026-07-21", "2026-07-21")).toBe(1);
+  });
+
+  it("counts both ends of a span", () => {
+    expect(inclusiveDays("2026-07-01", "2026-07-14")).toBe(14);
+    expect(inclusiveDays("2026-01-01", "2026-03-01")).toBe(60);
+  });
+
+  it("counts a leap day", () => {
+    expect(inclusiveDays("2024-02-01", "2024-03-01")).toBe(30);
+    expect(inclusiveDays("2026-02-01", "2026-03-01")).toBe(29);
+  });
+
+  // Callers reject a reversed span rather than normalising it, so the count
+  // has to stay signed instead of quietly reporting a plausible length.
+  it("goes negative when the end precedes the start", () => {
+    expect(inclusiveDays("2026-07-21", "2026-07-20")).toBe(0);
+  });
+
+  // Date.UTC applies the ECMAScript
+  // two-digit-year mapping, so year 99 became 1999 and a span across the year
+  // 100 boundary came back NEGATIVE — short enough to walk past a length cap.
+  // isIsoCalendarDate already avoids this with setUTCFullYear.
+  it("measures a span in the first hundred years the calendar has", () => {
+    expect(inclusiveDays("0099-12-31", "0100-01-01")).toBe(2);
+    expect(inclusiveDays("0001-01-01", "0001-03-31")).toBe(90);
+    expect(inclusiveDays("0050-01-01", "0150-01-01")).toBe(36525);
+  });
+});
+
+describe("daysBefore across the first hundred years (#914)", () => {
+  it("steps back through year 100 without the two-digit-year mapping", () => {
+    expect(daysBefore("0100-01-01", 1)).toBe("0099-12-31");
+    expect(daysBefore("0001-01-02", 1)).toBe("0001-01-01");
   });
 });

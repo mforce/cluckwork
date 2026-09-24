@@ -633,6 +633,43 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }
   });
 
+  // #915 — Morning collection pages rather than hiding houses behind a link,
+  // so the pager is the control that has to be reachable: a fixed tab bar that
+  // covers it puts the rest of the farm out of reach from the Dashboard.
+  // `default-farm` is the case that matters — 101 houses, seventeen pages.
+  test("the Morning collection pager is tappable and never under the tab bar", async ({ page, phone, signIn }) => {
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(owner());
+    await page.goto("/");
+
+    const collection = tEn("dashboard:collectionTitle");
+    const next = page.getByRole("button", { name: tEn("dashboard:pagerNext", { panel: collection }) });
+    await expect(next).toBeVisible();
+    const rows = page.getByRole("main").getByRole("link", { name: /:/ });
+
+    // Six a page at 390 (#915, owner-confirmed 2026-09-23), and the pager
+    // moves the panel rather than scrolling inside it.
+    const firstPage = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+    await next.click();
+    await expect(page.getByRole("button", { name: tEn("dashboard:pagerPrevious", { panel: collection }) })).toBeEnabled();
+    const secondPage = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+    expect(secondPage, "the pager did not change which houses are listed").not.toEqual(firstPage);
+
+    // Maximum scroll is where a fixed bar and in-flow content are closest.
+    await page.evaluate(() => globalThis.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(200);
+    const barBox = await rectOf(phone.tabbar, "the tab bar");
+    for (const control of await page.getByRole("main").getByRole("button").filter({ visible: true }).all()) {
+      const box = await control.boundingBox();
+      if (box === null) continue;
+      expect.soft(
+        box.y,
+        "a Dashboard control sits under the tab bar at maximum scroll",
+      ).toBeLessThanOrEqual(barBox.y);
+    }
+  });
+
   test("lay rate keeps fourteen full-height days on one phone row", async ({ page, signIn }) => {
     await page.context().clearCookies();
     await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });

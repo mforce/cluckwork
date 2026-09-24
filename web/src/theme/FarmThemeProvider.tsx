@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import createCache from "@emotion/cache";
 import { CacheProvider } from "@emotion/react";
-import { ThemeProvider, createTheme, lighten } from "@mui/material/styles";
+import { ThemeProvider, alpha, createTheme, lighten } from "@mui/material/styles";
 import type { Shadows, Theme } from "@mui/material/styles";
 import {
   pixelsFrom, readThemeMode, readThemeTokens,
@@ -298,6 +298,26 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             [phone]: { minHeight: PHONE_TOUCH_TARGET_PX },
           },
         },
+        // On text and outlined, `color="primary"` — `Button`'s default, taken
+        // by fourteen call sites — is the FOREGROUND, and `palette.primary.main`
+        // is raw `--brand`, which #149's dark palette never redeclares: 1.18:1
+        // on the dark card. `--stat-accent` equals raw `--brand` in light, and
+        // `contained` is left alone because there the brand is the BACKGROUND.
+        // `variants`, not v5's `textPrimary`/`outlinedPrimary`: MUI v6 replaced
+        // those composites, so the old slot names are dropped in silence.
+        variants: [
+          {
+            props: { variant: "text" as const, color: "primary" as const },
+            style: { color: tokens["--stat-accent"] },
+          },
+          {
+            props: { variant: "outlined" as const, color: "primary" as const },
+            style: {
+              color: tokens["--stat-accent"],
+              borderColor: alpha(tokens["--stat-accent"], 0.5),
+            },
+          },
+        ],
       },
       MuiChip: { styleOverrides: { root: { borderRadius: pillRadius } } },
       // No `MuiDialogActions` override: dialog footers stay a right-aligned

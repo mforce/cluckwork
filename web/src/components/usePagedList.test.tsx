@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { useMemo } from "react";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { usePagedList } from "./usePagedList";
+import type { LoadMoreResult } from "./usePagedList";
 
 // #469 — the race rules live here, once, instead of in six screens. Every test
 // below is a concrete interleaving that shipped as a real defect on at least one
@@ -28,12 +29,14 @@ function Host({
   write,
   committedRowWrite,
   onCommittedRowError,
+  onOutcome,
   pageSize = 3,
 }: {
   fetchPage: (offset: number, limit: number) => Promise<Row[]>;
   write?: () => Promise<unknown>;
   committedRowWrite?: () => Promise<Row>;
   onCommittedRowError?: (err: unknown) => void;
+  onOutcome?: (outcome: LoadMoreResult) => void;
   pageSize?: number;
 }) {
   const list = usePagedList<Row>({ fetchPage, pageSize });
@@ -48,7 +51,7 @@ function Host({
       )}
       {/* Bypasses canLoadMore so the hook's OWN guard is what gets tested,
           not the host's rendering of it. */}
-      <button onClick={() => void list.loadMore()}>force-more</button>
+      <button onClick={() => void list.loadMore().then((o) => onOutcome?.(o))}>force-more</button>
       {write && (
         <button onClick={() => void list.runWrite(write).catch(() => {})}>write</button>
       )}
@@ -95,13 +98,18 @@ describe("usePagedList — first load and paging", () => {
     expect(fetchPage).toHaveBeenLastCalledWith(3, 3);
   });
 
-  it("advances the cursor past a page that was ENTIRELY duplicates (codex P2)", async () => {
+  it("walks past a page that was ENTIRELY duplicates within the same ask (codex P2)", async () => {
     // Dedupe keeps the rendered list honest but must not drive the cursor: if
     // a whole page of newer records lands between clicks, the next offset
     // page can be 100% rows already shown. Deriving the offset from unique
     // rows then leaves it parked forever and the older records — the ones
     // #465 exists to reach — become unreachable no matter how often the user
     // clicks.
+    // One ask used to stop on that empty-handed page and need a second click.
+    // A screen that pages by INDEX cannot do that: it would move the reader
+    // onto a page with no rows (#915). The ask now keeps going
+    // until the list gains something, and the cursor still moves by what the
+    // SERVER returned rather than by what survived dedupe.
     const fetchPage = vi.fn()
       .mockResolvedValueOnce(rows("a", "b", "c"))
       .mockResolvedValueOnce(rows("a", "b", "c"))   // a full page of duplicates
@@ -110,15 +118,8 @@ describe("usePagedList — first load and paging", () => {
     await waitFor(() => expect(shown()).toBe("a,b,c"));
 
     fireEvent.click(screen.getByRole("button", { name: "more" }));
-    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(2));
-    expect(fetchPage).toHaveBeenLastCalledWith(3, 3);
-    expect(shown()).toBe("a,b,c"); // nothing new to show, correctly
-
-    fireEvent.click(screen.getByRole("button", { name: "more" }));
     await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
-    // The cursor moved by what the SERVER returned, not by what survived
-    // dedupe — otherwise this asks for offset 3 again, forever.
-    expect(fetchPage).toHaveBeenLastCalledWith(6, 3);
+    expect(fetchPage.mock.calls.map(([offset]) => offset)).toEqual([0, 3, 6]);
   });
 
   it("drops rows the next page repeats after a concurrent insert shifted the offset", async () => {
@@ -864,5 +865,121 @@ describe("usePagedList — a write that supersedes an unsettled replacement (#64
     fireEvent.click(screen.getByRole("button", { name: "write" }));
     await waitFor(() => expect(shown()).toBe("b1,b2,b3"));
     expect(errorText()).toBe("");
+  });
+});
+
+
+// a screen that pages by INDEX has to tell
+// three answers apart. Conflating them put an unasked-for retry loop and a
+// false error in front of a reader on the Dashboard.
+describe("usePagedList — what a page request reports back", () => {
+  it("reports the rows a page delivered, and reports zero for the page past the end", async () => {
+    const outcomes: LoadMoreResult[] = [];
+    const second = deferred<Row[]>();
+    const third = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(second.promise)
+      .mockReturnValueOnce(third.promise);
+    render(<Host fetchPage={fetchPage} onOutcome={(o) => outcomes.push(o)} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByText("force-more"));
+    await act(async () => { second.resolve(rows("d", "e", "f")); });
+    expect(outcomes.at(-1)).toEqual({ status: "loaded", rows: 3 });
+
+    fireEvent.click(screen.getByText("force-more"));
+    await act(async () => { third.resolve([]); });
+    expect(outcomes.at(-1)).toEqual({ status: "loaded", rows: 0 });
+    expect(shown()).toBe("a,b,c,d,e,f");
+  });
+
+  it("calls a refused page refused, so the caller can offer it again", async () => {
+    const outcomes: LoadMoreResult[] = [];
+    const second = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(second.promise);
+    render(<Host fetchPage={fetchPage} onOutcome={(o) => outcomes.push(o)} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByText("force-more"));
+    await act(async () => { second.reject(new Error("page two is down")); });
+    expect(outcomes.at(-1)).toEqual({ status: "refused" });
+    // The rows already on screen are not a casualty of the page that failed.
+    expect(shown()).toBe("a,b,c");
+  });
+
+  // A reader who taps twice has not hit an error, and must not be shown one.
+  it("drops a page asked for while one is already in flight, rather than refusing it", async () => {
+    const outcomes: LoadMoreResult[] = [];
+    const second = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(second.promise);
+    render(<Host fetchPage={fetchPage} onOutcome={(o) => outcomes.push(o)} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByText("force-more"));
+    fireEvent.click(screen.getByText("force-more"));
+    await waitFor(() => expect(outcomes).toHaveLength(1));
+    expect(outcomes[0]).toEqual({ status: "dropped" });
+    expect(fetchPage).toHaveBeenCalledTimes(2); // the first load and ONE extension
+
+    await act(async () => { second.resolve(rows("d", "e", "f")); });
+    expect(outcomes.at(-1)).toEqual({ status: "loaded", rows: 3 });
+  });
+
+  // Superseded is not refused either: nobody is waiting for that page.
+  it("drops a page a newer intent has already outranked", async () => {
+    const outcomes: LoadMoreResult[] = [];
+    const second = deferred<Row[]>();
+    const writeCall = deferred<void>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValue(rows("a", "b", "c"));
+    render(<Host fetchPage={fetchPage} write={() => writeCall.promise} onOutcome={(o) => outcomes.push(o)} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByText("force-more"));
+    fireEvent.click(screen.getByText("write")); // claims a newer ticket
+    await act(async () => { second.resolve(rows("d", "e", "f")); });
+
+    expect(outcomes.at(-1)).toEqual({ status: "dropped" });
+    expect(errorText()).toBe("");
+    await act(async () => { writeCall.resolve(); });
+  });
+});
+
+// what `loadMore` reports is what the LIST
+// gained, which a screen paging by index acts on directly.
+describe("usePagedList — a page that adds nothing", () => {
+  it("reports the rows the list gained, not the rows the server sent", async () => {
+    const outcomes: LoadMoreResult[] = [];
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("b", "c", "d"))  // two of three already held
+      .mockResolvedValueOnce(rows("e"));
+    render(<Host fetchPage={fetchPage} onOutcome={(o) => outcomes.push(o)} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByText("force-more"));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d"));
+    expect(outcomes.at(-1)).toEqual({ status: "loaded", rows: 1 });
+  });
+
+  it("gives up rather than walking a list whose every page it already holds", async () => {
+    const outcomes: LoadMoreResult[] = [];
+    const fetchPage = vi.fn().mockResolvedValue(rows("a", "b", "c"));
+    render(<Host fetchPage={fetchPage} onOutcome={(o) => outcomes.push(o)} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByText("force-more"));
+    await waitFor(() => expect(outcomes).toHaveLength(1));
+    expect(outcomes[0]).toEqual({ status: "loaded", rows: 0 });
+    // Bounded: the first load plus the ceiling, never the whole list.
+    expect(fetchPage).toHaveBeenCalledTimes(6);
+    expect(shown()).toBe("a,b,c");
   });
 });

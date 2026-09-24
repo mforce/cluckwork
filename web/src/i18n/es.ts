@@ -660,6 +660,7 @@ export const es = {
     todayPanelTitle: "Hoy",
     todayInCount_one: "{{in}} de {{count}} caseta registrada",
     todayInCount_other: "{{in}} de {{count}} casetas registradas",
+    todayInCountAtLeast: "{{in}} de al menos {{count}} casetas registradas",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
     noEntryBadge: "Sin registro",
     todaySoFarLabel: "Hoy hasta ahora",
@@ -675,17 +676,26 @@ export const es = {
     tileLinkLabel: "{{flock}}: abrir el registro de hoy",
     tileLinkLabelMissing: "{{flock}}: sin registro todavía, abrir el registro de hoy",
     recordTodayHint: "Registrar hoy",
-    moreFlocks_one: "{{total}} lote más",
-    moreFlocks_other: "{{total}} lotes más",
+    pagerHouses: "Naves {{first}} a {{last}} de {{total}}",
+    pagerHousesAtLeast: "Naves {{first}} a {{last}} de al menos {{total}}",
+    housesIncompleteNotice: "Se muestran las primeras {{total}} naves. Puede haber más.",
+    entriesIncompleteNotice: "No se pudieron leer todos los registros, así que el estado y el total de hoy cubren parte de la granja.",
+    entriesIncompleteBrief: "Todas las naves leídas hasta ahora tienen registro de hoy, pero no se pudieron leer todos los registros.",
+    pagerOrders: "Pedidos {{first}} a {{last}} de {{total}}",
+    pagerOrdersOpen: "Pedidos {{first}} a {{last}}",
+    pagerPrevious: "Página anterior de {{panel}}",
+    pagerNext: "Página siguiente de {{panel}}",
+    pagerNextFailed: "No se pudo cargar la página siguiente.",
+    pagerRetryNext: "Reintentar la página siguiente de {{panel}}",
 
     // Últimos 14 días (#654)
-    trendPanelTitle: "Últimos 14 días",
-    trendStripLabel: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}}. Todos los lotes registraron todos los días.",
-    trendStripLabelBlanks_one: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días que registraron todos los lotes. {{blank}} día no está completo.",
-    trendStripLabelBlanks_other: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días que registraron todos los lotes. {{blank}} días no están completos.",
-    trendStripLabelNone: "Huevos por día, últimos 14 días. Ningún día de este período tiene registro.",
-    trendStripLabelPartialScale: "Huevos por día, últimos 14 días. Máximo {{max}}, solo días incompletos. Ningún día fue registrado por todos los lotes, así que no hay promedio.",
-    trendStripLabelNoFlocks: "Huevos por día, últimos 14 días. No hubo ningún lote en la granja en este período.",
+    trendPanelTitle: "Tendencia de la tasa de postura",
+    trendStripLabel: "Huevos por día, {{range}}. Máximo {{max}}, promedio {{avg}}. Todos los lotes registraron todos los días.",
+    trendStripLabelBlanks_one: "Huevos por día, {{range}}. Máximo {{max}}, promedio {{avg}} entre los períodos que registraron todos los lotes. {{blank}} período no está completo.",
+    trendStripLabelBlanks_other: "Huevos por día, {{range}}. Máximo {{max}}, promedio {{avg}} entre los períodos que registraron todos los lotes. {{blank}} períodos no están completos.",
+    trendStripLabelNone: "Huevos por día, {{range}}. Ningún día de este período tiene registro.",
+    trendStripLabelPartialScale: "Huevos por día, {{range}}. Máximo {{max}}, solo períodos incompletos. Ningún período fue registrado por todos los lotes, así que no hay promedio.",
+    trendStripLabelNoFlocks: "Huevos por día, {{range}}. No hubo ningún lote en la granja en este período.",
     trendScaleTitle: "Huevos por día · escala de días completos",
     // #916 — sin día completo en el período: la escala usa el máximo PARCIAL,
     // con una etiqueta distinta para que nadie lo lea como producción total.
@@ -700,7 +710,22 @@ export const es = {
     trendDayTipPartial_other: "{{date}} – {{total}} huevos, {{recorded}} de {{expected}} lotes",
     trendDayTipNone: "{{date}} – sin registro",
     trendDayTipNoFlocks: "{{date}} – sin lotes",
-    henDaySubLabel: "Postura, últimos 7 días frente a los 7 anteriores",
+    henDaySubLabel_one: "Postura, {{range}} frente al {{days}} día anterior",
+    henDaySubLabel_other: "Postura, {{range}} frente a los {{days}} días anteriores",
+    rangeSpan: "{{from}} – {{to}}",
+    rangeLabel: "Período",
+    rangePresetOption_one: "Último {{total}} día",
+    rangePresetOption_other: "Últimos {{total}} días",
+    rangeCustomOption: "Período personalizado…",
+    rangeFromLabel: "Desde",
+    rangeToLabel: "Hasta",
+    rangeApply: "Aplicar",
+    rangeErrorIncomplete: "Indique ambas fechas.",
+    rangeErrorBeforeCalendar: "El período debe dejar espacio para un período igual antes de él.",
+    rangeErrorOrder: "La fecha inicial no debe ser posterior a la final.",
+    rangeErrorFuture: "El período debe terminar el {{date}} o antes.",
+    rangeErrorTooLong_one: "Elija un período de {{days}} día como máximo.",
+    rangeErrorTooLong_other: "Elija un período de {{days}} días como máximo.",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
@@ -2136,24 +2161,29 @@ export const es = {
       + "muestra <strong>No disponible</strong> con Reintentar.",
 
     dashboardHeading: "Panel",
-    dashboardTiles: "<strong>Recolección de la mañana</strong> muestra el progreso y una fila por lote activo, primero los que indican <strong>Sin registro</strong>. Use <strong>Registrar</strong> para un registro pendiente o <strong>Continuar</strong> para un borrador. Se muestran hasta doce naves, con un enlace al resto. El resumen de la mañana combina las naves pendientes con el total de hoy, incluidos los borradores.",
+    dashboardTiles: "<strong>Recolección de la mañana</strong> muestra el progreso y una fila por lote activo, primero los que indican <strong>Sin registro</strong>. Use <strong>Registrar</strong> para un registro pendiente o <strong>Continuar</strong> para un borrador. La lista se pagina dentro del panel — seis naves por página en el teléfono, ocho en una pantalla más ancha — así que se llega a todas sin salir del Panel; la barra de progreso y el recuento de naves encima abarcan todas, no la página mostrada. El resumen de la mañana combina las naves pendientes con el total de hoy, incluidos los borradores.",
     dashboardTrend:
       "<strong>Tasa de postura</strong>: huevos por día del informe de producción, con el <strong>% de "
-      + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. "
-      + "Señale un día, o entre al gráfico con el tabulador y use las flechas, para leerlo por separado. "
+      + "postura</strong> del período elegido y su variación frente al período anterior de la misma "
+      + "duración. Señale una barra, o entre al gráfico con el tabulador y use las flechas, para leerla por separado. "
       + "Un día que la granja envió sin huevos conserva una marca en la base; un día que nadie envió queda "
       + "vacío y se lee como <strong>Sin registro</strong>; un día que solo enviaron algunos lotes se "
       + "dibuja rayado, porque su total es lo mínimo que produjo la granja y no lo que produjo. "
       + "<strong>Máximo</strong> y <strong>Prom.</strong> salen solo de los días que registraron todos los "
       + "lotes. El % de postura divide entre los días-gallina de los lotes que registraron, así que un lote que olvida "
-      + "reduce sobre cuánto se mide la cifra, nunca la cifra misma. La ventana es fija (desde ayer hacia "
-      + "atrás) y cuenta <strong>solo días enviados</strong> — un día aún en borrador se lee como Sin "
-      + "registro hasta que se envía, a diferencia de Informes, donde usted elige el rango. Elija "
+      + "reduce sobre cuánto se mide la cifra, nunca la cifra misma. <strong>Período</strong> elige la ventana "
+      + "— los últimos 7 o 14 días completos, o <strong>Período personalizado…</strong> con "
+      + "<strong>Desde</strong>, <strong>Hasta</strong> y <strong>Aplicar</strong> hasta 14 días; esta tarjeta "
+      + "siempre dibuja una barra por día, así que un período más largo se rechaza en el formulario en vez de "
+      + "redibujarse a otra escala, y la elección se recuerda en este "
+      + "dispositivo. La ventana siempre termina ayer o antes y cuenta <strong>solo días enviados</strong> — "
+      + "un día aún en borrador se lee como Sin registro hasta que se envía, a diferencia de Informes, donde "
+      + "el rango puede llegar a hoy. Elija "
       + "<strong>Todos los lotes</strong> o un solo lote encima del gráfico para acotar toda la tarjeta "
       + "— barras, integridad, Prom. y ambos períodos de postura — a ese lote; con un solo lote accesible "
       + "su nombre aparece sin selector. Cuando ningún día del período está completo, el Máximo se ajusta "
       + "al día parcial más alto y dice \"solo días incompletos\".",
-    dashboardOrders: "<strong>Pedidos recientes</strong> muestra el cliente, importe y estado, con la cantidad de la primera línea y el nombre actual de su grado. +N indica líneas adicionales. Renombrar un grado también cambia su nombre en pedidos antiguos; si no está disponible, solo se muestra la cantidad.",
+    dashboardOrders: "<strong>Pedidos recientes</strong> muestra el cliente, importe y estado, con la cantidad de la primera línea y el nombre actual de su grado, cinco pedidos por página. Avanzar de página pide los cinco siguientes, así que el total aparece al llegar la última. +N indica líneas adicionales. Renombrar un grado también cambia su nombre en pedidos antiguos; si no está disponible, solo se muestra la cantidad.",
     dashboardStock: "<strong>Existencias disponibles</strong> muestra el total y una <strong>barra apilada</strong> de su composición por grado, seguida de una tabla de <strong>Grado</strong>, <strong>Cantidad</strong> y <strong>Proporción</strong>. Pase el puntero o enfoque una fila para resaltarla. Los huevos restringidos se indican aparte. Las cantidades coinciden con Existencias.",
 
     signingInHeading: "Iniciar sesión",
@@ -3024,10 +3054,13 @@ export const es = {
     glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Clasificar por encima del total lo eleva para igualarlo. Borrador hasta que se envía.",
 
     glossaryCaptureStatusTerm: "Estado de captura",
-    glossaryCaptureStatusDef: "Si cada lote activo tiene un registro diario de hoy. Recolección de la mañana muestra una fila por lote, primero los que faltan, y cuenta los borradores como registrados. Sin registro enlaza al Registro diario de ese lote y ese día.",
+    glossaryCaptureStatusDef: "Si cada lote activo tiene un registro diario de hoy. Recolección de la mañana muestra una fila por lote, primero los que faltan, y cuenta los borradores como registrados. La lista se pagina dentro del panel — seis naves por página en el teléfono, ocho en una pantalla más ancha — así que se puede llegar a todas; la barra de progreso y el recuento de naves abarcan todas, no la página mostrada. Sin registro enlaza al Registro diario de ese lote y ese día.",
 
-    glossaryLayRateStripScaleTerm: "Escala de la franja de 14 días",
+    glossaryLayRateStripScaleTerm: "Escala de la franja de tasa de postura",
     glossaryLayRateStripScaleDef: "La franja de Tasa de postura ajusta sus barras al día completo más alto. Cuando ningún día del período está completo, se ajusta al día parcial más alto y dice \"solo días incompletos\" para que las barras nunca se lean como producción total de la granja.",
+
+    glossaryLayRateRangeTerm: "Período de la tasa de postura",
+    glossaryLayRateRangeDef: "El período que dibuja la tarjeta Tasa de postura: los últimos 7 o 14 días completos, o un período personalizado de dos fechas de hasta 14 días. La tarjeta dibuja una barra por día y nada más grueso, así que un período más largo se rechaza en el formulario en vez de redibujarse a otra escala. El período siempre termina ayer o antes, la elección se recuerda en este dispositivo, y el % de postura compara el período elegido con el período anterior de la misma duración.",
 
     glossaryLayRateFlockScopeTerm: "Ámbito de lote de la tasa de postura",
     glossaryLayRateFlockScopeDef: "La tarjeta de Tasa de postura del panel puede mostrar Todos los lotes o un lote elegido. Toda la tarjeta sigue esa elección — la franja, la completitud, el promedio y ambos períodos de comparación de postura — y las cifras vienen del servidor, no de filtrar la vista de Todos los lotes. Los demás paneles del panel no cambian.",

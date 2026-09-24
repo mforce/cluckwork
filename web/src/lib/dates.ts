@@ -1,11 +1,9 @@
 // Farm-local calendar date (YYYY-MM-DD).
-//
 // `timeZone` is the farm's IANA zone from §4.5 settings, supplied by
 // useFarmToday(). Since #35 the API decides "is this date in the future?"
 // against the FARM's today, so a browser ahead of the farm would otherwise
 // offer a date the server refuses, and one behind it would hide a legitimate
 // one (#123).
-//
 // Omitted means browser-local — not a shortcut but the only answer available
 // when the farm's zone is not known: before /account resolves, and after a
 // load that failed. It is also what every date input did before this.
@@ -53,8 +51,25 @@ export function isKnownTimeZone(timeZone: string): boolean {
   }
 }
 
+// One UTC midnight from calendar parts, built the way `isIsoCalendarDate`
+// builds its probe. NOT `Date.UTC(year, …)`, which applies the ECMAScript
+// two-digit-year mapping: `Date.UTC(99, 11, 31)` is 1999, so every date in
+// years 1-99 landed nineteen centuries out and any span crossing year 100 came
+// back negative (#914).
+function utcMidnight(year: number, month: number, day: number): Date {
+  const probe = new Date(0);
+  probe.setUTCFullYear(year, month - 1, day);
+  return probe;
+}
+
+// Zero-padded to four digits: an unpadded year 99 gives "99-12-31", which no
+// other function here accepts as a date.
+function toIsoDate(instant: Date): string {
+  const pad = (n: number, width = 2) => String(n).padStart(width, "0");
+  return `${pad(instant.getUTCFullYear(), 4)}-${pad(instant.getUTCMonth() + 1)}-${pad(instant.getUTCDate())}`;
+}
+
 // N days before a farm-local calendar date (YYYY-MM-DD in, YYYY-MM-DD out).
-//
 // Arithmetic on the DATE PARTS through UTC, never on a local Date: a farm-local
 // day is a calendar square, not an instant. `new Date(y, m, d - n)` would work
 // too — it normalizes, and it is what ReportsPage used before this — but it
@@ -63,9 +78,7 @@ export function isKnownTimeZone(timeZone: string): boolean {
 // and any DST rule it carries, out of the arithmetic entirely.
 export function daysBefore(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split("-").map(Number);
-  const shifted = new Date(Date.UTC(year, month - 1, day - days));
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+  return toIsoDate(utcMidnight(year, month, day - days));
 }
 
 // #666 — is this string a date the control can display AND the server can bind?
@@ -73,7 +86,6 @@ export function daysBefore(isoDate: string, days: number): string {
 // string production requires year >= 1, and the audit endpoint binds DateOnly,
 // whose MinValue is 0001-01-01. The boundary table in dates.test.ts is the
 // specification — every case this has been got wrong is a row in it.
-//
 // setUTCFullYear, NOT Date.UTC: Date.UTC applies the ECMAScript two-digit-year
 // mapping, so Date.UTC(50, 0, 1) is 1950 and a round-trip built on it rejects
 // every year 1-99. new Date(0) is exactly 1970-01-01T00:00:00.000Z and every
@@ -96,4 +108,17 @@ export function ageWeeks(placementDate: string, nowMs: number = Date.now()): num
   const placed = new Date(placementDate + "T00:00:00");
   const days = (nowMs - placed.getTime()) / 86_400_000;
   return Math.max(0, Math.floor(days / 7));
+}
+
+// How many calendar days `from`..`to` covers, both ends included (#914). Same
+// UTC-parts arithmetic as daysBefore, and for the same reason: the inputs are
+// the FARM's calendar squares, so the runner's own zone and DST rules must stay
+// out of it. Negative when `to` precedes `from`, which callers reject rather
+// than normalise.
+export function inclusiveDays(from: string, to: string): number {
+  const ms = (iso: string) => {
+    const [year, month, day] = iso.split("-").map(Number);
+    return utcMidnight(year, month, day).getTime();
+  };
+  return Math.round((ms(to) - ms(from)) / 86_400_000) + 1;
 }

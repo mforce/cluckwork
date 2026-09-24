@@ -1,6 +1,6 @@
 // web/src/routes/Dashboard.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
@@ -13,9 +13,12 @@ import {
 } from "../api/cluckwork";
 import type { DailyEntry, Flock, ProductionDay, ProductionReport, SalesOrder, StockRow } from "../api/cluckwork";
 import { daysBefore, todayIso } from "../lib/dates";
+import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
+import { DEFAULT_LOCALE, formatDate } from "../lib/format";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, account } from "../test/fixtures";
 import { stubMatchMedia } from "../test/matchMedia";
+import { getRowByCellText } from "../test/rows";
 
 // The rollover test (#918 round 3, finding 2) needs a role change the SAME
 // mounted Dashboard sees, so a hand-built AuthContext stands in for
@@ -100,20 +103,24 @@ const order = (id: string, ref: string, customerName: string | null): SalesOrder
   outstandingMinorUnits: null, items: [],
 });
 
-// #918 — Codex review: the two adjacent trend windows are now ONE
-// `daysBefore(today,14)..daysBefore(today,1)` request, split client-side by
-// `splitProductionReport`. Values: previous week 307..301, current week
-// 327..321, unchanged from before. Each week's `ratedEggs` total sits on its
-// first day (nothing checks a day's own `ratedEggs`) so the recomputed
-// periodHenDayPct reproduces the old two-call fixture's 85.1/87.4 exactly:
-// round(596*100/700, 1) = 85.1, round(612*100/700, 1) = 87.4.
-const previousDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
-  day(daysBefore(today, n + 7), 300 + n, 1, 1, i === 0 ? 596 : 0));
-const currentDays = (today: string) => [7, 6, 5, 4, 3, 2, 1].map((n, i) =>
-  day(daysBefore(today, n), 320 + n, 1, 1, i === 0 ? 612 : 0));
+// #918 — the trend window and its comparison window are ONE request, split
+// client-side by `splitProductionReport`. #914 — the card's default range is
+// 14 days, so that request now covers 28: `daysBefore(today,28)..
+// daysBefore(today,1)`, split at `daysBefore(today,14)`.
+// The DRAWN fortnight keeps the values it had (307..301 then 327..321), so
+// every bar assertion below is unchanged. Each half's `ratedEggs` total sits
+// on its own first day (nothing checks a day's own `ratedEggs`), reproducing
+// the same periodHenDayPct pair over 14 days of 100 recorded hen-days each:
+// round(1192*100/1400, 1) = 85.1, round(1224*100/1400, 1) = 87.4.
+const previousDays = (today: string) => Array.from({ length: 14 }, (_, i) =>
+  day(daysBefore(today, 28 - i), 300, 1, 1, i === 0 ? 1192 : 0));
+const currentDays = (today: string) => [
+  ...[7, 6, 5, 4, 3, 2, 1].map((n, i) => day(daysBefore(today, n + 7), 300 + n, 1, 1, i === 0 ? 1224 : 0)),
+  ...[7, 6, 5, 4, 3, 2, 1].map((n) => day(daysBefore(today, n), 320 + n, 1, 1, 0)),
+];
 const fortnightFor = (today: string) => report(null, [...previousDays(today), ...currentDays(today)]);
 const reportByWindow = (today: string) => (from: string, to: string) => {
-  if (from === daysBefore(today, 14) && to === daysBefore(today, 1)) return Promise.resolve(fortnightFor(today));
+  if (from === daysBefore(today, 28) && to === daysBefore(today, 1)) return Promise.resolve(fortnightFor(today));
   // #918 — Codex review: the Morning collection panel's own yesterday-close
   // caption is its OWN farm-wide, single-day fetch (never `flockId`-scoped),
   // so a from===to request answers with just that one day. 321 matches the
@@ -126,6 +133,10 @@ const reportByWindow = (today: string) => (from: string, to: string) => {
 // same value the screen uses, so the report-call oracle below is exact. The
 // farm-scoped test at the bottom is the one that proves the FARM's day wins.
 const today = todayIso();
+// #914 — every sentence about the card's window names its own dates, in the
+// same formatter the screen uses. The default range is fourteen finished days.
+const rangeSpan = (days = 14) =>
+  `${formatDate(daysBefore(today, days), DEFAULT_LOCALE, null)} – ${formatDate(daysBefore(today, 1), DEFAULT_LOCALE, null)}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -275,18 +286,356 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(screen.queryByText(/1,177/)).not.toBeInTheDocument();
   });
 
-  it("caps the list at 12 rows, the missing ones first, and links the rest (INV-9)", async () => {
+  // #915 — the twelve-row cap and its "N more flocks" link are gone: every
+  // house is reachable from the panel itself, missing ones still first.
+  it("pages the list, missing houses first, and states where the reader is", async () => {
+    const user = userEvent.setup();
+    stubMatchMedia(true); // desktop: eight houses a page
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
     mockEntries.mockResolvedValue(Array.from({ length: 12 }, (_, i) => entry(`f${i}`, "Submitted", 1))); // f12..f14 missing
     renderWithProviders(<Dashboard />);
-    const more = await screen.findByRole("link", { name: "3 more flocks" });
-    expect(more).toHaveAttribute("href", "/daily-entry");
-    const rowLinks = screen.getAllByRole("link", { name: /open today's entry/ });
-    expect(rowLinks).toHaveLength(12);
-    const missingNames = rowLinks.slice(0, 3).map((t) => t.getAttribute("aria-label"));
-    expect(missingNames).toEqual(["Flock f12: no entry yet, open today's entry", "Flock f13: no entry yet, open today's entry", "Flock f14: no entry yet, open today's entry"]);
-    expect(["f12", "f13", "f14"].every((id) =>
-      within(todayRow(`Flock ${id}`)).queryByRole("link", { name: `Record Flock ${id}` }) !== null)).toBe(true);
+
+    await screen.findByText("Houses 1 to 8 of 15");
+    const firstPage = screen.getAllByRole("link", { name: /open today's entry/ });
+    expect(firstPage).toHaveLength(8);
+    expect(firstPage.slice(0, 3).map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Flock f12: no entry yet, open today's entry",
+      "Flock f13: no entry yet, open today's entry",
+      "Flock f14: no entry yet, open today's entry",
+    ]);
+    expect(screen.queryByRole("link", { name: /more flocks/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next page of Morning collection" }));
+    expect(await screen.findByText("Houses 9 to 15 of 15")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /open today's entry/ })).toHaveLength(7);
+    // The last house on the farm is reachable without leaving the Dashboard.
+    expect(todayRow("Flock f11")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Previous page of Morning collection" }));
+    expect(await screen.findByText("Houses 1 to 8 of 15")).toBeInTheDocument();
+  });
+
+  // Cleanup only guarded the final state
+  // update, so an abandoned drain kept walking the farm — up to 38 more list
+  // requests after the reader had left the screen.
+  it("stops asking for later pages once the reader has left", async () => {
+    stubMatchMedia(true);
+    const many = Array.from({ length: 2600 }, (_, i) => flock(`f${i}`, "Active"));
+    const hold: Array<() => void> = [];
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return new Promise((resolve) => {
+        hold.push(() => resolve(many.slice(offset, offset + 500)));
+      });
+    });
+    mockEntries.mockResolvedValue([]);
+    const view = renderWithProviders(<Dashboard />);
+    await waitFor(() => expect(hold).toHaveLength(1));
+
+    view.unmount();
+    hold[0]!(); // the first page lands after the screen is gone
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0]);
+  });
+
+  // Retry minted its own controller and never aborted it, nor checked whether
+  // its answer still belonged to the current role.
+  it("lets a role change outrank a Retry that is still running", async () => {
+    const user = userEvent.setup();
+    const older = [flock("old1", "Active"), flock("old2", "Active")];
+    const newer = [flock("new1", "Active")];
+    let releaseRetry: (() => void) | null = null;
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseRetry = () => resolve(older); }))
+      .mockResolvedValue(newer);
+    mockEntries.mockResolvedValue([]);
+
+    const { rerender } = render(
+      <MemoryRouter><AuthOverride role="Admin"><Dashboard /></AuthOverride></MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(releaseRetry).not.toBeNull());
+
+    // ReadOnly, because that is a role change the panels batch actually
+    // re-runs for (#918): it changes what the screen may read.
+    rerender(<MemoryRouter><AuthOverride role="ReadOnly"><Dashboard /></AuthOverride></MemoryRouter>);
+    await screen.findByRole("group", { name: "Flock new1" });
+    releaseRetry!(); // the abandoned retry answers late
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(screen.getByRole("group", { name: "Flock new1" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Flock old1" })).not.toBeInTheDocument();
+  });
+
+  it("stops a Retry's drain once the reader has left", async () => {
+    const user = userEvent.setup();
+    const hold: Array<() => void> = [];
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockImplementation((params) => {
+        const offset = params?.offset ?? 0;
+        return new Promise((resolve) => {
+          hold.push(() => resolve(Array.from({ length: 500 }, (_, i) => flock(`f${offset + i}`, "Active"))));
+        });
+      });
+    mockEntries.mockResolvedValue([]);
+    const view = renderWithProviders(<Dashboard />);
+    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(hold).toHaveLength(1));
+
+    view.unmount();
+    hold[0]!();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // The failed first load, the retry's first page, and nothing after it.
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 0]);
+  });
+
+  // `fetch` has no timeout, so a stalled stock read can hang for the life of
+  // the page. Holding the flock result behind it left Retry disabled forever
+  // on a flock list that had already come back.
+  it("recovers the flock panel on Retry even while another panel hangs", async () => {
+    const user = userEvent.setup();
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockResolvedValue([flock("back1", "Active")]);
+    mockEntries.mockResolvedValue([]);
+    mockStock.mockResolvedValueOnce(STOCK).mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(<Dashboard />);
+
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    await user.click(retry);
+
+    // The flock list is on screen and the panel error is gone, with the stock
+    // request still outstanding.
+    expect(await screen.findByRole("group", { name: "Flock back1" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("Could not load the flock list.")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  // `getStock()` carries no timeout, so one stalled read used to hold the
+  // WHOLE screen on its full-page loading view — hiding panels that had
+  // already answered, and their errors and Retry with them.
+  it("shows the panels that answered while another read is still outstanding", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 12)]);
+    mockStock.mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(<Dashboard />);
+
+    // The collection panel is on screen with its row, and the full-page
+    // loading view is gone.
+    expect(await screen.findByRole("group", { name: "Flock f1" })).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    expect(screen.getByText("1 of 1 house in")).toBeInTheDocument();
+    // Stock has not answered, so it says so rather than claiming a failure.
+    expect(screen.getByRole("progressbar", { name: "Stock" })).toBeInTheDocument();
+    expect(within(await panel("Stock")).queryByText("Could not load.")).not.toBeInTheDocument();
+  });
+
+  it("shows panel errors and Retry while another read is still outstanding", async () => {
+    mockFlocks.mockRejectedValue(new Error("flocks down"));
+    mockEntries.mockRejectedValue(new Error("entries down"));
+    mockStock.mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(<Dashboard />);
+
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    // The flock-list failure offers its own recovery, not a dead screen.
+    expect(screen.getByText("Could not load the flock list.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+    // Two reads failed and one is outstanding, so "everything failed" is not
+    // yet a verdict anyone can reach.
+    expect(screen.queryByText("Could not load dashboard. Is the API up?")).not.toBeInTheDocument();
+  });
+
+  // A read that has not answered YET is not a read that failed, and a
+  // generation that follows a failed one must start from a clean slate: the
+  // previous failure would otherwise be painted over a request in flight.
+  it("shows the collection panel loading, not failed, once a new generation is in flight", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockRejectedValueOnce(new Error("entries down"))
+      .mockImplementation(() => new Promise(() => {}));
+    mockStock.mockResolvedValue(STOCK);
+    const { rerender } = render(
+      <MemoryRouter><AuthOverride role="Admin"><Dashboard /></AuthOverride></MemoryRouter>,
+    );
+    expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
+
+    // A role change starts a fresh generation whose entry read never answers.
+    rerender(<MemoryRouter><AuthOverride role="ReadOnly"><Dashboard /></AuthOverride></MemoryRouter>);
+
+    const today = await panel("Today");
+    await waitFor(() =>
+      expect(within(today).queryByText("Could not load.")).not.toBeInTheDocument());
+    expect(within(today).getByRole("progressbar", { name: "Morning collection" })).toBeInTheDocument();
+  });
+
+  it("gives a phone six houses a page, not the desktop eight", async () => {
+    stubMatchMedia(false); // < 900px
+    mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Houses 1 to 6 of 15")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /open today's entry/ })).toHaveLength(6);
+  });
+
+  // The progress bar and the "N of M houses in" caption answer for the FARM,
+  // never for the page on screen.
+  it("counts and measures every house, not only the page shown", async () => {
+    stubMatchMedia(true);
+    mockFlocks.mockResolvedValue(Array.from({ length: 20 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue(Array.from({ length: 5 }, (_, i) => entry(`f${i}`, "Submitted", 1)));
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("5 of 20 houses in")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .toHaveAttribute("aria-valuenow", "25");
+  });
+
+  // The panel read one 500-flock page
+  // and the "N more flocks" link that used to carry the rest is gone, so a farm
+  // past that cap had houses nothing on the Dashboard could reach or count.
+  it("reaches every house on a farm larger than one server page", async () => {
+    stubMatchMedia(true);
+    const many = Array.from({ length: 1201 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(many.slice(offset, offset + (params?.limit ?? 500)));
+    });
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+
+    // `todayInCount` interpolates {{count}} raw, so the caption has no
+    // thousands separator here while the pager's own figure does.
+    expect(await screen.findByText("0 of 1201 houses in")).toBeInTheDocument();
+    expect(screen.getByText("Houses 1 to 8 of 1,201")).toBeInTheDocument();
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500, 1000]);
+  });
+
+  // With no entries in that fixture, putting
+  // the daily-entry read back to a single 500-row request left the whole suite
+  // green — and a farm whose 501st house HAS filed would read as missing, with
+  // its eggs left out of the day's total.
+  it("reads every house's entry past the first server page", async () => {
+    stubMatchMedia(true);
+    // 501 flocks and 501 entry rows, so BOTH drains need a second page, while
+    // only the 501st house is a TILE: the first 500 are depleted and their one
+    // entry each is Voided, which `captureTiles` drops (#82) though the server
+    // still serves those rows. Paging 62 rows deep to reach it instead cost
+    // 3.6s and timed out under CI's coverage gate.
+    const many = Array.from({ length: 501 }, (_, i) =>
+      flock(`f${i}`, i === 500 ? "Active" : "Depleted"));
+    const filed = many.map((f, i) =>
+      (i === 500 ? entry(f.id, "Submitted", 77) : entry(f.id, "Voided", 9)));
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(many.slice(offset, offset + (params?.limit ?? 500)));
+    });
+    mockEntries.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(filed.slice(offset, offset + (params?.limit ?? 500)));
+    });
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByText("1 of 1 house in")).toBeInTheDocument();
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500]);
+    expect(mockEntries.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500]);
+    expect(await todayTotal()).toBe("77");
+
+    // The house whose entry only the SECOND page carries is recorded, not
+    // missing, and carries that page's figure.
+    const row = todayRow("Flock f500");
+    expect(within(row).getByText("77")).toBeInTheDocument();
+    expect(within(row).queryByText("Not recorded")).not.toBeInTheDocument();
+  });
+
+  // The drain stops after 20 full pages, and
+  // the panel then presented 10,000 as the farm's exact size: the caption, the
+  // progress bar and the pager all read the drained array's length. Verified
+  // against the render — only the Lay rate card's own caption said "at least".
+  it("says the house list is incomplete when the drain hits its ceiling", async () => {
+    stubMatchMedia(true);
+    const page = Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve(page.map((f) => ({ ...f, id: `${f.id}-${params?.offset ?? 0}` }))));
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+
+    // "At least", never "there are more": twenty full pages do not prove a
+    // 10,001st house exists, and a farm of exactly 10,000 is fully counted.
+    expect(await screen.findByText("0 of at least 10000 houses in")).toBeInTheDocument();
+    expect(screen.getByText("Houses 1 to 8 of at least 10,000")).toBeInTheDocument();
+    expect(screen.getByText("Showing the first 10,000 houses. There may be more."))
+      .toBeInTheDocument();
+    // The bar cannot state a share of an unknown whole.
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .not.toHaveAttribute("aria-valuenow");
+  });
+
+  // The reviewer's second half: a truncated ENTRY list is just as incomplete.
+  // Houses past its ceiling read as missing and their eggs never reach the
+  // day's total, so the panel must not present its figures as the whole farm's
+  // even when the FLOCK list finished.
+  it("says the list is incomplete when the entries hit the ceiling, not just the flocks", async () => {
+    stubMatchMedia(true);
+    const houses = Array.from({ length: 40 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve((params?.offset ?? 0) === 0 ? houses : []));
+    // Every entry page comes back full, so the entry drain never finds an end.
+    const page = Array.from({ length: 500 }, (_, i) => entry(`ghost${i}`, "Submitted", 1));
+    mockEntries.mockImplementation((params) =>
+      Promise.resolve(page.map((e) => ({ ...e, id: `${e.id}-${params?.offset ?? 0}` }))));
+    renderWithProviders(<Dashboard />);
+
+    // The flock drain finished, so the house count is exact. Only the entry
+    // side is incomplete, and the panel says which.
+    expect(await screen.findByText("0 of 40 houses in")).toBeInTheDocument();
+    expect(screen.queryByText(/There may be more/)).not.toBeInTheDocument();
+    expect(screen.getByText("Some entries could not be read, so today's status and total cover part of the farm."))
+      .toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .toHaveAttribute("aria-valuenow", "0");
+  });
+
+  // With entries incomplete, "every house has an entry today" is a claim the
+  // data cannot support even when every house the panel read has one.
+  it("never claims the whole farm is recorded while entries are incomplete", async () => {
+    stubMatchMedia(true);
+    const houses = Array.from({ length: 3 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve((params?.offset ?? 0) === 0 ? houses : []));
+    const page = Array.from({ length: 500 }, (_, i) => entry(`f${i % 3}`, "Submitted", 1));
+    mockEntries.mockImplementation((params) =>
+      Promise.resolve(page.map((e) => ({ ...e, id: `${e.id}-${params?.offset ?? 0}` }))));
+    renderWithProviders(<Dashboard />);
+
+    await screen.findByText("3 of 3 houses in");
+    expect(screen.queryByText("Every house has an entry today.")).not.toBeInTheDocument();
+  });
+
+  it("states an exact total when the drain reached the end", async () => {
+    stubMatchMedia(true);
+    mockFlocks.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(offset === 0
+        ? Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active"))
+        : []);
+    });
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("0 of 500 houses in")).toBeInTheDocument();
+    expect(screen.queryByText(/This farm has more/)).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Morning collection" }))
+      .toHaveAttribute("aria-valuenow", "0");
+  });
+
+  it("offers no pager when every house fits on one page", async () => {
+    stubMatchMedia(true);
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Today so far");
+    expect(screen.queryByRole("button", { name: /page of Morning collection/ })).not.toBeInTheDocument();
   });
 });
 
@@ -371,12 +720,12 @@ describe("Dashboard attention line (#829, #864)", () => {
   });
 
   // CodeRabbit, PR #883 round 1: missingHouses and the "N of M houses in"
-  // caption were both derived from `tiles.shown`, the list `visibleTiles`
-  // caps at 12 — so a farm with more than 12 missing houses undercounted
-  // both, since every one of the 12 shown was itself missing (missing-first
-  // ordering) and nothing past the cap was ever counted. They now come from
-  // the FULL, uncapped capture-status list.
-  it("counts every missing house, not only the 12 visibleTiles caps the row list at", async () => {
+  // caption were both derived from the RENDERED row list, which was capped —
+  // so a farm with more missing houses than the cap undercounted both, since
+  // every row shown was itself missing (missing-first ordering) and nothing
+  // past the cap was ever counted. They come from the FULL capture-status
+  // list, which #915's paging leaves untouched.
+  it("counts every missing house, not only the ones on the page", async () => {
     stubMatchMedia(true); // desktop cap (2 shown) — this test is about the COUNT, not the width
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
     mockEntries.mockResolvedValue([]); // all 15 missing
@@ -432,14 +781,16 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   // trend windows are one request now, split client-side; this pins the
   // total at two (that request plus the yesterday-close fetch) so the
   // ceiling cannot creep back to three.
-  it("asks the production report for exactly one 14-day window plus one single-day yesterday fetch — never more", async () => {
+  it("asks the production report for exactly one 28-day window plus one single-day yesterday fetch — never more", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
     expect(mockReport).toHaveBeenCalledTimes(2);
     // #916 — the third argument is the flock scope; All flocks (the default)
     // passes undefined, so the report stays farm-wide exactly as before.
     // #918 — Codex review: the fourth argument aborts a superseded request.
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    // #914 — one request covers the plotted window AND the equal window before
+    // it, which the card splits; the default range makes that 28 days.
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 1), daysBefore(today, 1));
   });
 
@@ -448,7 +799,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     // 4,396 eggs over 14 recorded days is 314.0 — the average is over the days
     // with an entry, which is a figure that only exists since #780.
     const strip = await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. Peak 327, average 314.0. Every flock recorded every day.",
+      name: `Eggs per day, ${rangeSpan()}. Peak 327, average 314.0. Every flock recorded every day.`,
     });
     // 301..307 then 321..327, so the peak (327) is the 8th day and every other
     // bar is its exact share of it.
@@ -463,7 +814,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(slots.map((d) => d.classList.contains("day-week")).indexOf(true)).toBe(7);
     expect(screen.getByText("87.4%")).toBeInTheDocument();
     expect(screen.getByText("+2.3 pts")).toBeInTheDocument();
-    expect(screen.getByText("Hen-day, last 7 days against the 7 before")).toBeInTheDocument();
+    expect(screen.getByText(`Hen-day, ${rangeSpan()} against the 14 days before`)).toBeInTheDocument();
   });
 
   it("keeps fourteen days in one flex row at 390px", async () => {
@@ -471,7 +822,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     stubMatchMedia(false);
     try {
       renderWithProviders(<Dashboard />);
-      const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+      const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
       expect(within(strip).getAllByRole("button")).toHaveLength(14);
       const styles = Array.from(document.styleSheets)
         .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("");
@@ -497,7 +848,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("names the days that are not fully recorded, and averages over the rest", async () => {
     withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByRole("group", { name: /6 days are not fully recorded\.$/ })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: /6 periods are not fully recorded\.$/ })).toBeInTheDocument();
   });
 
   // #780 — the branch that exists so the panel never announces a peak it has no
@@ -511,7 +862,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. No day in this window has an entry.",
+      name: `Eggs per day, ${rangeSpan()}. No day in this window has an entry.`,
     });
     // No bars at all, and the scale shows a dash rather than a fabricated 0.
     expect(strip.querySelectorAll(".day > i")).toHaveLength(0);
@@ -534,7 +885,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. Peak 327, partial days only. No day was recorded by every flock, so there is no average.",
+      name: `Eggs per day, ${rangeSpan()}. Peak 327, partial periods only. No period was recorded by every flock, so there is no average.`,
     })).toBeInTheDocument();
   });
 
@@ -547,7 +898,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
         ...r, days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
     expect(strip.querySelectorAll(".day-partial")).toHaveLength(2); // day 6 of each window
     const names = screen.getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
@@ -559,7 +910,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("draws an empty slot for a day nobody recorded, and a stub for one that produced nothing", async () => {
     withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
     expect(strip.querySelectorAll(".day")).toHaveLength(14);
     // 8 recorded days draw a bar; the 6 with no entry draw nothing.
     expect(strip.querySelectorAll(".day > i")).toHaveLength(8);
@@ -574,7 +925,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
         ...r, days: r.days.map((d, i) => (i % 7 > 3 ? { ...d, totalEggs: 0, recordedFlocks: i % 7 > 5 ? 0 : 1, missingFlocks: i % 7 > 5 ? d.expectedFlocks : 0 } : d)),
       })));
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const strip = await screen.findByRole("group", { name: /^Eggs per day, / });
     const heights = Array.from(strip.querySelectorAll(".day > i")).map((b) => (b as HTMLElement).style.height);
     // 8 days with real figures, plus days 4 and 5 of each window at the stub.
     expect(heights).toHaveLength(12);
@@ -593,7 +944,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
         days: r.days.map((d, i) => (i % 7 === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
-    await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    await screen.findByRole("group", { name: /^Eggs per day, / });
     const names = screen.getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
       .filter((n): n is string => n !== null && n.includes("of 3 flocks"));
@@ -604,7 +955,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("says 'no entry' for an unrecorded day rather than a count of zero", async () => {
     withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    await screen.findByRole("group", { name: /^Eggs per day, / });
     const names = screen.getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
       .filter((n): n is string => n !== null && n.includes("–"));
@@ -613,12 +964,12 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 
   it("shows a negative delta with the minus form, one decimal on both figures", async () => {
-    // Index 7 is the current week's first day, carrying that week's whole
-    // `ratedEggs` total (#918 — see `currentDays`). 560/700 = round(80.0,1);
-    // the previous week's 85.1 stays untouched, so the delta is 80.0-85.1.
+    // Index 14 is the plotted window's first day, carrying that window's whole
+    // `ratedEggs` total (see `currentDays`). 1120/1400 = round(80.0,1); the
+    // comparison window's 85.1 stays untouched, so the delta is 80.0-85.1.
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i === 7 ? { ...d, ratedEggs: 560 } : d)),
+        ...r, days: r.days.map((d, i) => (i === 14 ? { ...d, ratedEggs: 1120 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByText("80.0%")).toBeInTheDocument();
@@ -673,7 +1024,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   it("defaults to All flocks; the selector's accessible name and the context caption both say so", async () => {
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
     // The context caption: "{count} accessible flocks · {range}" — the count
     // is the same 3 the other panels' fixture already assumes.
@@ -796,7 +1147,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
 
   it("renders the strip's three-item legend, Complete/Partial/No entry", async () => {
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
     const items = within(trendPanel).getAllByRole("listitem");
     expect(items.map((li) => li.textContent)).toEqual(["Complete", "Partial", "No entry"]);
@@ -806,7 +1157,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // hen-day KPI — moved from the top of the card to the bottom.
   it("renders the hen-day KPI after the strip, not before it", async () => {
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     const strip = await within(trendPanel).findByRole("group", { name: /^Eggs per day/ });
     const kpi = trendPanel.querySelector(".trend-kpi");
     expect(kpi).not.toBeNull();
@@ -827,7 +1178,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await waitForPickerToClose();
 
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 14), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
+      daysBefore(today, 28), daysBefore(today, 1), "f2", expect.any(AbortSignal)));
     expect(selectorButton()).toHaveAccessibleName("Flock Flock f2");
     // Today's collection panel does not refetch on a Lay rate scope change.
     expect(mockEntries).not.toHaveBeenCalled();
@@ -837,7 +1188,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     await user.click(screen.getByRole("button", { name: /^All flocks/ }));
     await waitForPickerToClose();
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
+      daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal)));
     expect(selectorButton()).toHaveAccessibleName("Flock All flocks");
   });
 
@@ -878,16 +1229,31 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   // with 501 accessible flocks reads as exactly 500 both in the context
   // caption and the picker's own pinned "All flocks" choice, presenting a
   // truncated count as if it were exact.
-  it("presents the accessible count as a lower bound, not exact, once the flock list is truncated at MAX_PAGE", async () => {
-    const user = userEvent.setup();
-    mockFlocks.mockResolvedValue(Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active")));
+  // a full first page is no longer truncation: the
+  // panel asks for the next one. Truncation is now the drain's own ceiling,
+  // and only there does the count become a lower bound.
+  it("counts a farm of exactly one server page exactly, having asked for the page after it", async () => {
+    mockFlocks.mockImplementation((params) => Promise.resolve(
+      (params?.offset ?? 0) === 0 ? Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active")) : [],
+    ));
     renderWithProviders(<Dashboard />);
     await todayTotal();
-    expect(await screen.findByText(/^500\+ accessible flocks · /)).toBeInTheDocument();
-    expect(screen.queryByText(/^500 accessible flocks · /)).not.toBeInTheDocument();
+    expect(await screen.findByText(/^500 accessible flocks · /)).toBeInTheDocument();
+    expect(screen.queryByText(/^500\+ accessible flocks · /)).not.toBeInTheDocument();
+    expect(mockFlocks.mock.calls.map(([p]) => p?.offset ?? 0)).toEqual([0, 500]);
+  });
+
+  it("presents the accessible count as a lower bound once the drain hits its ceiling", async () => {
+    const user = userEvent.setup();
+    const page = Array.from({ length: 500 }, (_, i) => flock(`f${i}`, "Active"));
+    mockFlocks.mockImplementation((params) =>
+      Promise.resolve(page.map((f) => ({ ...f, id: `${f.id}-${params?.offset ?? 0}` }))));
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(await screen.findByText(/^10000\+ accessible flocks · /)).toBeInTheDocument();
 
     await openPicker(user);
-    expect(screen.getByText("500+ accessible flocks")).toBeInTheDocument();
+    expect(screen.getByText("10000+ accessible flocks")).toBeInTheDocument();
   });
 
   // #916 SELECTION.md — the only-one-flock view must report the SAME figures
@@ -898,12 +1264,12 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
   it("shows the sole accessible flock as plain text, with no picker, and scopes to it exactly as a manual pick would", async () => {
     mockFlocks.mockResolvedValue([flock("f1", "Active")]);
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     expect(within(trendPanel).getByText("Flock f1")).toBeInTheDocument();
     expect(within(trendPanel).queryByRole("button", { name: /All flocks/ })).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button").some((b) => b.getAttribute("aria-haspopup") === "dialog")).toBe(false);
     await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 14), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
+      daysBefore(today, 28), daysBefore(today, 1), "f1", expect.any(AbortSignal)));
   });
 
   // #918 — Codex review, finding 3. `cancelled` is what stops a stale scope's
@@ -1058,7 +1424,7 @@ describe("Dashboard Lay rate flock scope (#916/#918 fidelity round)", () => {
     const user = userEvent.setup();
     mockFlocks.mockRejectedValueOnce(new Error("down"));
     renderWithProviders(<Dashboard />);
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     expect(await within(trendPanel).findByText("Could not load the flock list.")).toBeInTheDocument();
     expect(within(trendPanel).queryByText(/accessible flocks ·/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Flock /i })).not.toBeInTheDocument();
@@ -1120,7 +1486,7 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(within(stock).queryByRole("row", { name: /Grade A/ })).not.toBeInTheDocument();
+    expect(within(stock).queryByText("Grade A")).not.toBeInTheDocument();
     expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
@@ -1161,7 +1527,7 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
   it("the production report failed → trend panel errors, others intact", async () => {
     mockReport.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
-    expect(within(await panel("Last 14 days")).getByText("Could not load.")).toBeInTheDocument();
+    expect(within(await panel("Lay rate trend")).getByText("Could not load.")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(screen.queryByText(/Hen-day/)).not.toBeInTheDocument();
     await expectOthersIntact("trend");
@@ -1206,22 +1572,17 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     expect(within(await panel("Stock")).getByText("Could not load.")).toBeInTheDocument();
   });
 
-  // #918 — Codex review, P2-2. `fetchFlocks` (Retry) updated `flocks`/
-  // `flocksFailed` but never the panels outcome, so the ORIGINAL "all four
-  // panels failed" record survived a successful retry. Sequence: all four
-  // panel reads fail while both production reads succeed (the setup above)
-  // → Retry succeeds with a single flock → the auto-triggered sole-flock
-  // production read then fails → the stale record used to make the
-  // page-level gate hide the entire dashboard, including the selector that
-  // had just recovered. Mutation-verified: dropping `fetchFlocks`'s
-  // `setPanelsOutcome({state:"someOk"})` turns this red (the full-page
-  // message reappears), confirmed locally then reverted.
+  // #918 — Retry used to update `flocks`/`flocksFailed` but never the panels
+  // outcome, so the ORIGINAL "all four panels failed" record survived a
+  // successful retry and the page-level gate hid a dashboard that had just
+  // recovered. Retry now re-runs the panels batch, which decides that verdict
+  // freshly.
   it("keeps the recovered dashboard up after Retry, even when the auto-triggered sole-flock production read then fails", async () => {
     const user = userEvent.setup();
     for (const m of [mockFlocks, mockEntries, mockStock, mockOrders]) m.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(await screen.findByText("87.4%")).toBeInTheDocument(); // the setup above's own healthy state
-    const trendPanel = await panel("Last 14 days");
+    const trendPanel = await panel("Lay rate trend");
     await within(trendPanel).findByText("Could not load the flock list.");
 
     mockFlocks.mockResolvedValueOnce([flock("f1", "Active")]); // Retry recovers exactly one flock
@@ -1303,7 +1664,6 @@ describe("Dashboard recent sales rows (#512)", () => {
 
 // #883 round 2, finding 5 — DIRECTION.md line 9's row action: a draft order
 // gets a row action; a non-draft row has none.
-//
 // Codex CLI review round 2 (finding 3): the label read "Confirm order" —
 // the Sales page's OWN control for the real, in-place confirm — while this
 // row's link only opens the customer's WHOLE filtered order list (there is
@@ -1353,8 +1713,8 @@ describe("Dashboard follows the farm's day and locale", () => {
     // the report windows: with the clock frozen at 23:30Z a +14 farm is already
     // on the 22nd while the browser is on the 21st, so a regression to
     // browser-local todayIso() shows yesterday's entries under today's date.
-    expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
-    expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-21", undefined, expect.any(AbortSignal));
+    expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500, offset: 0 }, expect.any(AbortSignal));
+    expect(mockReport).toHaveBeenCalledWith("2026-06-24", "2026-07-21", undefined, expect.any(AbortSignal));
     expect(screen.getByText("1.560")).toBeInTheDocument();
     expect(screen.getByText("87,4%")).toBeInTheDocument();
     expect(screen.getByText("+2,3 pts")).toBeInTheDocument();
@@ -1372,7 +1732,7 @@ describe("Dashboard i18n wiring (#654)", () => {
     });
     await withOverride("dashboard", "trendPanelTitle", "TREND-MARKER", async () => {
       renderWithProviders(<Dashboard />);
-      expect(await screen.findByText("TREND-MARKER")).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "TREND-MARKER", level: 3 })).toBeInTheDocument();
     });
     await withOverride("dashboard", "todaySoFarLabel", "TOTAL-MARKER", async () => {
       renderWithProviders(<Dashboard />);
@@ -1418,11 +1778,15 @@ describe("Operations desk", () => {
     const user = userEvent.setup();
     renderWithProviders(<Dashboard />);
     const table = await screen.findByRole("table", { name: "Stock by grade" });
-    const row = within(table).getByRole("row", { name: "Grade A 1,240 79.5%" });
+    // #557's lint counts the Dashboard as a paged screen now, so rows are
+    // resolved from one cell rather than by accessible name.
+    const row = getRowByCellText("1,240");
+    expect(row).toHaveTextContent("Grade A1,24079.5%");
     row.focus();
     expect(row).toHaveFocus();
     await user.tab();
-    expect(within(table).getByRole("row", { name: "Grade B 320 20.5%" })).toHaveFocus();
+    expect(getRowByCellText("320")).toHaveFocus();
+    expect(table).toContainElement(row);
   });
 
   it.each([
@@ -1445,15 +1809,357 @@ describe("Operations desk", () => {
 
   it("labels missing, partial and complete production days and navigates them with arrows", async () => {
     const user = userEvent.setup();
-    mockReport.mockImplementation((from) => Promise.resolve(from === daysBefore(today, 14)
-      ? report(80, [day("2026-07-01", 0, 0, 2), day("2026-07-02", 40, 1, 2), day("2026-07-03", 80, 2, 2)])
+    // Inside the plotted window, so the card's own split keeps all three (the
+    // days before it belong to the hen-day comparison and are never drawn).
+    const [d3, d2, d1] = [3, 2, 1].map((n) => daysBefore(today, n));
+    const label = (iso: string) => formatDate(iso, DEFAULT_LOCALE, null);
+    mockReport.mockImplementation((from) => Promise.resolve(from === daysBefore(today, 28)
+      ? report(80, [day(d3, 0, 0, 2), day(d2, 40, 1, 2), day(d1, 80, 2, 2)])
       : report(85, [])));
     renderWithProviders(<Dashboard />);
-    const missing = await screen.findByRole("button", { name: "07/01/2026 – no entry" });
+    const missing = await screen.findByRole("button", { name: `${label(d3)} – no entry` });
     missing.focus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("button", { name: "07/02/2026 – 40 eggs, 1 of 2 flocks" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: `${label(d2)} – 40 eggs, 1 of 2 flocks` })).toHaveFocus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("button", { name: "07/03/2026 – 80 eggs" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: `${label(d1)} – 80 eggs` })).toHaveFocus();
+  });
+});
+
+// #914 — the card's window is chosen, remembered, and collapses to one bar a
+// week once a day a bar cannot be read.
+describe("Dashboard Lay rate range (#914)", () => {
+  const nextDay = (iso: string) => daysBefore(iso, -1);
+  // Every day complete and identical, so a bar's height says only which
+  // period it belongs to.
+  const spanReport = (from: string, to: string) => {
+    const days = [];
+    for (let d = from; d <= to; d = nextDay(d)) days.push(day(d, 100));
+    return report(null, days);
+  };
+  const anyWindow = (from: string, to: string) => Promise.resolve(
+    from === to ? report(null, [day(from, 321)]) : spanReport(from, to),
+  );
+  const label = (iso: string) => formatDate(iso, DEFAULT_LOCALE, null);
+  const bars = () => within(screen.getByRole("group", { name: /^Eggs per day, / })).getAllByRole("button");
+
+  beforeEach(() => { mockReport.mockImplementation(anyWindow); });
+  afterEach(() => clearBoundAccount());
+
+  it("starts on fourteen days, one bar a day, and asks for the fourteen before them too", async () => {
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    expect(bars()).toHaveLength(14);
+    expect(screen.getByLabelText("Range")).toHaveValue("14");
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 28), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+  });
+
+  it("switches to seven days and refetches that window and the seven before it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "7");
+    await waitFor(() => expect(bars()).toHaveLength(7));
+    expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(screen.getByText(`Hen-day, ${rangeSpan(7)} against the 7 days before`)).toBeInTheDocument();
+  });
+
+  it("remembers the chosen range on this device for the next visit", async () => {
+    const user = userEvent.setup();
+    bindAccount("11111111-1111-4111-8111-111111111111");
+    const first = renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "7");
+    await waitFor(() => expect(bars()).toHaveLength(7));
+    first.unmount();
+
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await waitFor(() => expect(bars()).toHaveLength(7));
+    expect(screen.getByLabelText("Range")).toHaveValue("7");
+  });
+
+  it("plots a custom range the form accepts", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    const from = daysBefore(today, 10);
+    const to = daysBefore(today, 1);
+    await user.clear(screen.getByLabelText("From"));
+    await user.type(screen.getByLabelText("From"), from);
+    await user.clear(screen.getByLabelText("To"));
+    await user.type(screen.getByLabelText("To"), to);
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(from, 10), to, undefined, expect.any(AbortSignal)));
+    await waitFor(() => expect(bars()).toHaveLength(10)); // one bar a day, always
+  });
+
+  // Rejected in the form, never silently shortened: the plotted window is
+  // still the fourteen days the reader was looking at.
+  it("refuses a custom range past the fourteen days it can draw, and stays put", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    const callsBefore = mockReport.mock.calls.length;
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    await user.clear(screen.getByLabelText("From"));
+    await user.type(screen.getByLabelText("From"), daysBefore(today, 20));
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(await screen.findByText("Choose a range of at most 14 days.")).toBeInTheDocument();
+    expect(mockReport.mock.calls).toHaveLength(callsBefore);
+    expect(bars()).toHaveLength(14);
+  });
+
+  it("refuses a range that ends after the newest day it plots", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.selectOptions(screen.getByLabelText("Range"), "custom");
+    await user.clear(screen.getByLabelText("To"));
+    await user.type(screen.getByLabelText("To"), today);
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+    expect(await screen.findByText(`The range must end on or before ${label(daysBefore(today, 1))}.`))
+      .toBeInTheDocument();
+  });
+});
+
+// #915 — Recent orders pages through the list the Sales screen already pages,
+// one server page at a time.
+describe("Dashboard Recent orders paging (#915)", () => {
+  const catalogue = Array.from({ length: 12 }, (_, i) => order(`o${i}`, `SO-${i}`, "Ramos Grocery"));
+
+  beforeEach(() => {
+    mockOrders.mockImplementation((params) =>
+      Promise.resolve(catalogue.slice(params?.offset ?? 0, (params?.offset ?? 0) + (params?.limit ?? 5))));
+  });
+
+  it("shows five orders, then fetches the next five on demand", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Orders 1 to 5")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "SO-0" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(mockOrders).toHaveBeenCalledWith({ limit: 5, offset: 5 });
+    expect(screen.getByRole("listitem", { name: "SO-5" })).toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: "SO-0" })).not.toBeInTheDocument();
+  });
+
+  // The total is unknown until the server hands over a short page, so the
+  // label claims one only once that page has arrived — and from then on it
+  // states it on every page, including the ones already visited.
+  it("names the total once the last page arrives, and stops offering a next page", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    await screen.findByText("Orders 6 to 10");
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+
+    expect(await screen.findByText("Orders 11 to 12 of 12")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Previous page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10 of 12")).toBeInTheDocument();
+  });
+
+  // `loadMore` reported the rows the SERVER
+  // sent, not the rows the list gained: newer orders arriving after page 1
+  // shift every offset, so an offset-5 request can return the same five rows
+  // the reader already has. Advancing on that put the label on "Orders 6 to 5"
+  // over an empty panel.
+  it("keeps paging through a page of rows it already has, and never lands on an empty one", async () => {
+    const user = userEvent.setup();
+    const asked: number[] = [];
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      asked.push(offset);
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      // Five newer orders landed, so this offset serves page one again.
+      if (offset === 5) return Promise.resolve(catalogue.slice(0, 5));
+      return Promise.resolve(catalogue.slice(5, 10));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+
+    // The duplicate page is consumed inside the same request, so the reader
+    // reaches real rows rather than an empty page six.
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "SO-5" })).toBeInTheDocument();
+    expect(screen.queryByText("Orders 6 to 5")).not.toBeInTheDocument();
+    expect(asked).toEqual([0, 5, 10]);
+  });
+
+  // A page that arrives PARTLY new leaves the page in view short. Advancing
+  // from it skipped the rows that the next fetch put on it: page 2 held only
+  // order 6, the following tap filled it with 7-10 and moved to page 3, and
+  // nobody ever saw them.
+  it("shows a page that filled up rather than stepping over it", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      // Four the reader already has, and one new one.
+      if (offset === 5) return Promise.resolve([...catalogue.slice(1, 5), catalogue[5]!]);
+      return Promise.resolve(catalogue.slice(6, 11));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 6")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "SO-5" })).toBeInTheDocument();
+
+    // The second tap fills the page in view. The reader stays on it and sees
+    // orders 7 to 10 instead of them scrolling past behind page 3.
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    for (const ref of ["SO-5", "SO-6", "SO-7", "SO-8", "SO-9"]) {
+      expect(screen.getByRole("listitem", { name: ref })).toBeInTheDocument();
+    }
+  });
+
+  // Rows appearing ABOVE the pager is invisible to a screen reader standing on
+  // the pager: the page number does not change, the button keeps its name, and
+  // the only thing that moves is a range nobody is told about. The range is a
+  // live region so the fill is announced, and it is mounted with the OLD text
+  // first — a region that appears together with its text is unreliably
+  // announced.
+  it("announces the new range when rows fill the page in view", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      if (offset === 5) return Promise.resolve([...catalogue.slice(1, 5), catalogue[5]!]);
+      return Promise.resolve(catalogue.slice(6, 11));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    const announced = await screen.findByText("Orders 6 to 6");
+    expect(announced).toHaveAttribute("aria-live", "polite");
+    expect(announced).toHaveAttribute("aria-atomic", "true");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    // The SAME node carries the new range, so the change is what is announced.
+    await waitFor(() => expect(announced).toHaveTextContent("Orders 6 to 10"));
+  });
+
+  it("offers no pager when the first page is the whole list", async () => {
+    mockOrders.mockResolvedValue(catalogue.slice(0, 2));
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("listitem", { name: "SO-0" });
+    expect(screen.queryByRole("button", { name: /page of Recent orders/ })).not.toBeInTheDocument();
+  });
+
+  // A failed next-page request left
+  // `hasMore` true, so the reconciling effect re-issued it every time `loading`
+  // settled — an unasked-for retry loop — and the panel showed an error over a
+  // page of rows that had loaded perfectly well.
+  it("asks once when a next page fails, keeps the loaded page, and retries only when asked", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      return Promise.reject(new Error("page two is down"));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    await screen.findByRole("button", { name: "Retry the next page of Recent orders" });
+
+    // One request for the page that failed, and it stays one.
+    const asked = () => mockOrders.mock.calls.filter(([p]) => (p?.offset ?? 0) === 5).length;
+    expect(asked()).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(asked()).toBe(1);
+
+    // The page the reader is on is still on screen, not replaced by an error.
+    expect(screen.getByRole("listitem", { name: "SO-0" })).toBeInTheDocument();
+    expect(screen.getByText("Orders 1 to 5")).toBeInTheDocument();
+
+    mockOrders.mockImplementation((params) =>
+      Promise.resolve(catalogue.slice(params?.offset ?? 0, (params?.offset ?? 0) + (params?.limit ?? 5))));
+    await user.click(screen.getByRole("button", { name: "Retry the next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(asked()).toBe(2);
+  });
+
+  // The page number moved before the
+  // rows existed, so a full last page followed by an empty one read
+  // "Orders 6 to 5".
+  it("stays on the last page with rows when the next one comes back empty", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(catalogue.slice(0, 5).slice(offset, offset + 5));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    // The total settles at what the server actually has; no page beyond it.
+    expect(await screen.findByText("Orders 1 to 5 of 5")).toBeInTheDocument();
+    expect(screen.queryByText("Orders 6 to 5")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled();
+    expect(screen.getByRole("listitem", { name: "SO-0" })).toBeInTheDocument();
+  });
+
+  it("settles the total on the last full page when the one after it is empty", async () => {
+    const user = userEvent.setup();
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      return Promise.resolve(catalogue.slice(0, 10).slice(offset, offset + 5));
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next page of Recent orders" }));
+    expect(await screen.findByText("Orders 6 to 10 of 10")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled();
+  });
+
+  it("answers one tap while a page is in flight, never two", async () => {
+    let release: () => void = () => {};
+    mockOrders.mockImplementation((params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return Promise.resolve(catalogue.slice(0, 5));
+      return new Promise<SalesOrder[]>((resolve) => {
+        release = () => resolve(catalogue.slice(offset, offset + 5));
+      });
+    });
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Orders 1 to 5");
+
+    // Two taps before React can re-render the disabled state — the race a
+    // state flag alone does not win.
+    const next = screen.getByRole("button", { name: "Next page of Recent orders" });
+    fireEvent.click(next);
+    fireEvent.click(next);
+
+    // The tap is answered by disabling the control, not by moving the label
+    // onto a page whose rows have not arrived.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next page of Recent orders" })).toBeDisabled());
+    expect(screen.getByText("Orders 1 to 5")).toBeInTheDocument();
+    // The second tap is DROPPED, never reported as a failure. `usePagedList`
+    // refuses a concurrent page with the same `null` it uses for a refused
+    // one, so a caller that cannot tell those apart shows the reader an error
+    // for having tapped twice.
+    expect(screen.queryByText("Could not load the next page.")).not.toBeInTheDocument();
+
+    release?.();
+    expect(await screen.findByText("Orders 6 to 10")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load the next page.")).not.toBeInTheDocument();
+    expect(mockOrders.mock.calls.filter(([p]) => (p?.offset ?? 0) === 5)).toHaveLength(1);
   });
 });

@@ -4,14 +4,12 @@ import { errText } from "../lib/errText";
 // #469 — one implementation of the async discipline PR #467 arrived at over 11
 // review rounds, instead of the four homegrown variants (StockPage, AuditPage,
 // FeedPage, ReportsPage) and the four screens that had none.
-//
 // The rule everything below serves: THE VIEW BELONGS TO THE NEWEST USER
 // INTENT. Every load claims a monotonic ticket at the moment the user asks for
 // it, and touches state only while it still holds the current one — checked
 // after EVERY await, in the failure path as much as the success path, because
 // a superseded request's rejection is exactly as stale as its response and
 // painting it over a healthy view is the bug users actually reported.
-//
 // Consequences that are easy to get wrong and are pinned by tests:
 //   * `loading` belongs to the ticket holder, so a superseded settle cannot
 //     clear a flag it no longer owns (a stuck spinner is the failure mode).
@@ -24,7 +22,6 @@ import { errText } from "../lib/errText";
 //     made while the write is in flight is newer intent and wins; the write's
 //     own refresh stands down (FeedPage had this backwards and repainted the
 //     old filter's rows over the new ones).
-//
 // Filter changes are expressed as a new `fetchPage` identity: screens build it
 // with useCallback over their filter state, exactly as AuditPage and FeedPage
 // already did, so "the filter changed" and "reload from the top" are the same
@@ -34,6 +31,16 @@ import { errText } from "../lib/errText";
 // the SAME ticket protection as the rows: a stale total under the new month's
 // picker reads as a legitimate number for the wrong period.
 export type PageResult<T, M> = T[] | { items: T[]; meta: M };
+
+// A list whose every page is rows already held would otherwise walk it end to
+// end in one tap. The ceiling bounds that; reaching it reports no new rows,
+// which the caller reads as "stay where you are".
+const MAX_DUPLICATE_PAGES = 5;
+
+export type LoadMoreResult =
+  | { status: "loaded"; rows: number }
+  | { status: "refused" }
+  | { status: "dropped" };
 
 type WindowRefreshOutcome =
   | { status: "applied" }
@@ -58,7 +65,7 @@ export function usePagedList<T extends { id: string }, M = never>({
   loading: boolean;
   reloading: boolean;
   error: string | null;
-  loadMore: () => Promise<void>;
+  loadMore: () => Promise<LoadMoreResult>;
   runWrite: <R>(write: () => Promise<R>) => Promise<R>;
   runWriteWithCommittedRow: (write: () => Promise<T>) => Promise<T>;
   reload: () => Promise<void>;
@@ -95,6 +102,8 @@ export function usePagedList<T extends { id: string }, M = never>({
   // fetch permanent.
   const requestedCursorRef = useRef(0);
   const loadingRef = useRef(false);
+  // Rows the last completed load actually ADDED, for `loadMore` to report.
+  const addedRef = useRef(0);
   // Held in a ref, deliberately NOT a dep of `load`: screens pass an inline
   // arrow (`errorText: () => t("…")`) whose identity changes every render, and
   // a dep would rebuild `load`, which the effect below reads as a filter
@@ -140,12 +149,18 @@ export function usePagedList<T extends { id: string }, M = never>({
       if (seq !== req.current) return false;
       const page = Array.isArray(result) ? result : result.items;
       if (!Array.isArray(result)) setMeta(result.meta);
+      // How many rows the LIST gained, which is not how many the server sent:
+      // a row inserted between pages shifts every later offset, so a page can
+      // be entirely rows already on screen. `rowsRef` is the same array the
+      // updater below sees, kept in step on every write.
+      const held = rowsRef.current;
+      addedRef.current = offset === 0 || held === null
+        ? page.length
+        : page.filter((p) => !held.some((x) => x.id === p.id)).length;
       setRows((prev) => {
         const next = offset === 0 || prev === null
           ? page
-          // A row inserted between pages shifts every later offset, so the
-          // next page can re-serve one already on screen — appending it blind
-          // duplicates a React key.
+          // Appending a re-served row blind duplicates a React key.
           : [...prev, ...page.filter((p) => !prev.some((x) => x.id === p.id))];
         rowsRef.current = next;
         return next;
@@ -192,7 +207,6 @@ export function usePagedList<T extends { id: string }, M = never>({
     // FeedPage must not, because its whole page — filter controls included —
     // is gated on having rows. Screens read `loading` and decide; blanking
     // here took Feed's own filters off the screen mid-change.
-    //
     // No setHasMore(false) either: `canLoadMore` already folds in `loading`,
     // so the pager is withdrawn for the whole reload. A mutation check proved
     // an explicit reset changed no observable behaviour, and an unpinned line
@@ -208,11 +222,29 @@ export function usePagedList<T extends { id: string }, M = never>({
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
 
-  const loadMore = useCallback(async () => {
-    if (loadingRef.current) return;
+  // What became of this page request; a screen paging by INDEX needs all three
+  // apart (#915). `rows: 0` is how the LAST page announces itself, and that
+  // count cannot come from `rows`, which React may not have rendered yet. A
+  // `dropped` page is one nobody waits for, not a failure to show the reader.
+  const loadMore = useCallback(async (): Promise<LoadMoreResult> => {
+    if (loadingRef.current) return { status: "dropped" };
     const seq = ++req.current;
-    requestedCursorRef.current = cursorRef.current + pageSize;
-    await load(cursorRef.current, seq);
+    // A full page that adds nothing is not the end of the list — it is the
+    // offset having shifted under newer rows — so keep walking until the list
+    // gains something or the server runs short. Reporting the server's own
+    // count instead would move a reader onto a page with no rows on it.
+    for (let page = 0; page < MAX_DUPLICATE_PAGES; page += 1) {
+      requestedCursorRef.current = cursorRef.current + pageSize;
+      const before = cursorRef.current;
+      addedRef.current = 0;
+      const landed = await load(cursorRef.current, seq);
+      if (!landed) return seq === req.current ? { status: "refused" } : { status: "dropped" };
+      const served = cursorRef.current - before;
+      if (addedRef.current > 0 || served < pageSize) {
+        return { status: "loaded", rows: addedRef.current };
+      }
+    }
+    return { status: "loaded", rows: 0 };
   }, [load, pageSize]);
 
   // Re-fetch every page the user currently has, not just the newest one. A
