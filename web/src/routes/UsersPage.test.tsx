@@ -260,7 +260,7 @@ describe("UsersPage selected-record inspector (#908)", () => {
     fireEvent.click(row);
     const inspector = screen.getByRole("region", { name: "User details" });
     expect(within(inspector).getAllByRole("button").map((button) => button.textContent?.trim()))
-      .toEqual(["edit", "role", "password", "change email", "flocks", "disable"]);
+      .toEqual(["password", "change email", "flocks", "disable", "edit", "role"]);
   });
 
   it("shows a prompt before any row is selected, then fills in on click", async () => {

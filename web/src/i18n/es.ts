@@ -2289,7 +2289,7 @@ export const es = {
       + "Un cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
       + "restablecimiento de contraseña. Los controles que no puede usar "
       + "están ocultos, y el servidor los rechaza de todos modos. "
-      + "Seleccione una fila de usuario para encontrar <strong>contraseña</strong>, <strong>cambiar "
+      + "Seleccione la fila de otro usuario para encontrar <strong>contraseña</strong>, <strong>cambiar "
       + "correo</strong>, <strong>lotes</strong> y <strong>deshabilitar</strong> o <strong>habilitar</strong> "
       + "en el panel debajo de la tabla.",
     // #356 (machine-drafted, pending native review)
@@ -2944,7 +2944,7 @@ export const es = {
       + "muestran sus detalles completos en un panel anclado en la parte inferior de la lista, en lugar de una "
       + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
       + "marcada visiblemente. "
-      + "En Usuarios, editar y rol siguen en la fila. Seleccione una fila para acceder a contraseña, cambiar correo, lotes y deshabilitar o habilitar en este panel.",
+      + "En Usuarios, editar y rol siguen en la fila. Seleccione la fila de otro usuario para acceder a contraseña, cambiar correo, lotes y deshabilitar o habilitar en este panel.",
 
     glossarySearchablePickerTerm: "Selector de búsqueda",
     glossarySearchablePickerDef:

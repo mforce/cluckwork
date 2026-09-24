@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Box, TableContainer, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -203,7 +203,10 @@ export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, a
             display: "block", fontSize: ".625rem", textTransform: "uppercase", letterSpacing: ".1em", opacity: .75,
           }}>{eyebrow}</Typography>
         )}
-        <Typography component="h3" variant="h3" sx={{ m: "6px 0 3px", color: "inherit" }}>{title}</Typography>
+        <Typography component="h3" variant="h3" tabIndex={-1} sx={{
+          m: "6px 0 3px", color: "inherit",
+          "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: 3 },
+        }}>{title}</Typography>
         {subtitle && <Typography component="p" variant="body2" sx={{ m: 0, opacity: .8 }}>{subtitle}</Typography>}
       </Box>
       {fields && fields.length > 0 && (
@@ -233,14 +236,31 @@ export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, a
 // #908 — a flex column so the table owns its own scroll above a bottom-docked
 // inspector, in the same region, never overlapping it (Concept B).
 export function ListInspectorPane({ table, inspector }: { table: ReactNode; inspector: ReactNode }) {
+  const paneRef = useRef<HTMLDivElement>(null);
+  const inspectorRef = useRef<HTMLDivElement>(null);
+  const [keyboardSelection, setKeyboardSelection] = useState(0);
+  useLayoutEffect(() => {
+    if (keyboardSelection > 0) inspectorRef.current?.querySelector<HTMLElement>("h3")?.focus();
+  }, [keyboardSelection]);
   return (
-    <Box sx={{
+    <Box ref={paneRef} onKeyDown={(event) => {
+      if (event.target instanceof HTMLTableRowElement && event.target.tabIndex === 0
+          && (event.key === "Enter" || event.key === " ")) {
+        setKeyboardSelection((selection) => selection + 1);
+      }
+    }} sx={{
       display: "flex", flexDirection: "column", minWidth: 0,
       border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", overflow: "hidden",
       height: { xs: 460, md: "clamp(280px, calc(100dvh - 380px), 520px)" },
     }}>
       <Box sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>{table}</Box>
-      <Box sx={{
+      <Box ref={inspectorRef} onKeyDown={(event) => {
+        if (event.key !== "Escape" || !(event.target instanceof Node)
+            || !event.currentTarget.contains(event.target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        paneRef.current?.querySelector<HTMLElement>('tr[aria-selected="true"]')?.focus();
+      }} sx={{
         flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "auto",
         borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
       }}>

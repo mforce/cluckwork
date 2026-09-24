@@ -3010,7 +3010,7 @@ export const en = {
       + "change signs the affected sign-in out everywhere on its next request, the same "
       + "way a password reset does. Controls you can't use are hidden, "
       + "and the server refuses them regardless. "
-      + "Select a user row to find <strong>password</strong>, <strong>change email</strong>, "
+      + "Select another user’s row to find <strong>password</strong>, <strong>change email</strong>, "
       + "<strong>flocks</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below "
       + "the table.",
     // #356 — disable/re-enable a colleague's sign-in.
@@ -3651,7 +3651,7 @@ export const en = {
       "On the Customers, Products, Grades, Flocks and Users screens, clicking or activating a row shows its "
       + "full details in a panel docked to the bottom of the list, instead of a popup. The table above it keeps "
       + "scrolling on its own, and the selected row stays visibly marked. "
-      + "On Users, edit and role stay in the row. Select a row for password, change email, flocks, and disable or enable in this panel.",
+      + "On Users, edit and role stay in the row. Select another user’s row for password, change email, flocks, and disable or enable in this panel.",
 
     // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),
     // not a paraphrase, for the same reason as gettingAroundSearchablePicker.

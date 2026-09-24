@@ -733,12 +733,6 @@ export function UsersPage() {
   function renderActions(u: User, location: "row" | "inspector") {
     return (
       <>
-        <button className="link" onClick={() => openEdit(u)}>
-          <Pencil size={14} aria-hidden /> {t("editButton")}
-        </button>
-        <button className="link" onClick={() => openRole(u)}>
-          <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
-        </button>
         {location === "inspector" && (
           <>
             <button className="link" onClick={() => openPassword(u)}>
@@ -766,6 +760,12 @@ export function UsersPage() {
             )}
           </>
         )}
+        <button className="link" onClick={() => openEdit(u)}>
+          <Pencil size={14} aria-hidden /> {t("editButton")}
+        </button>
+        <button className="link" onClick={() => openRole(u)}>
+          <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
+        </button>
       </>
     );
   }
