@@ -123,7 +123,25 @@ export default defineConfig(({ mode }) => {
           // request from cache. Auth state and tenant data are per-request; a
           // stale shared response here would be a correctness bug, not a
           // performance win. #50 adds an explicit, deliberate offline path.
-          runtimeCaching: [],
+          //
+          // #948 review — the five subsets `globIgnores` drops still need to
+          // work offline after a first successful fetch (a Cyrillic/Greek/
+          // Vietnamese farm or customer name, `unicode-range` fetches them on
+          // demand). This route is scoped to exactly those five woff2 files
+          // by filename — it can never match `/api` or `/health`, which have
+          // no `.woff2` extension, so the denylist above stays the only line
+          // of defense those need.
+          runtimeCaching: [
+            {
+              urlPattern: /\/inter-(cyrillic-ext|cyrillic|greek-ext|greek|vietnamese)-opsz-normal-[^/]+\.woff2$/,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "inter-extended-subsets",
+                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+          ],
           navigationPreload: false,
           // #217 — the app's own maps are emitted hidden (see build below);
           // workbox would otherwise ship sw.js.map + its own map WITH

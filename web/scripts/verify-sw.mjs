@@ -78,6 +78,28 @@ function extractDenylist(source) {
   return { patterns, raw: source.slice(at) };
 }
 
+/**
+ * Pulls every runtime-caching route out of the generated worker — a
+ * `registerRoute(<regex>, new $wb.<Strategy>(...), "GET")` call, as opposed to
+ * the navigation route's `registerRoute(new $wb.NavigationRoute(...))`.
+ */
+function extractRuntimeCacheRoutes(source) {
+  const routes = [];
+  const marker = "registerRoute(";
+  let i = 0;
+  while (true) {
+    const at = source.indexOf(marker, i);
+    if (at < 0) break;
+    i = at + marker.length;
+    if (source[i] !== "/") continue; // navigation route, or something unrecognized
+    const read = readRegexAt(source, i);
+    if (!read) continue;
+    const strategy = /^\s*,\s*new\s+[$\w]+\.(\w+)\(/.exec(source.slice(read.next, read.next + 200));
+    routes.push({ regex: read.regex, strategy: strategy ? strategy[1] : null });
+  }
+  return routes;
+}
+
 function extractPrecacheUrls(source) {
   const marker = "precacheAndRoute(";
   const callAt = source.indexOf(marker);
@@ -134,15 +156,35 @@ if (denylist) {
     check(!regexes.some((r) => r.test(path)), `app route ${path} is wrongly excluded from the fallback`);
 }
 
-// 2. No runtime caching route may exist at all. `runtimeCaching: []` means
-//    workbox registers no fetch handler beyond the precache + navigation route,
-//    so every API call goes straight to the network.
+// 2. Exactly one runtime caching route may exist beyond the navigation route:
+//    #948's CacheFirst cache for the five Inter subsets `globIgnores` drops
+//    from the precache (check 5). It must be narrowly scoped — provably
+//    unable to answer an /api or /health request — and use CacheFirst, so a
+//    future widening of runtimeCaching cannot silently start serving stale
+//    per-tenant data from cache the way an empty array once guaranteed it
+//    couldn't.
 const routeRegistrations = [...sw.matchAll(/\bregisterRoute\(/g)].length;
 const navigationRegistrations = [
   ...sw.matchAll(/\bregisterRoute\(\s*new\s+[$\w]+\.NavigationRoute\(/g),
 ].length;
-check(routeRegistrations === 1 && navigationRegistrations === 1,
-  "unexpected Workbox route registration — API responses could be served from cache");
+check(navigationRegistrations === 1, "expected exactly one navigation route registration");
+const runtimeRoutes = extractRuntimeCacheRoutes(sw);
+check(routeRegistrations === navigationRegistrations + runtimeRoutes.length,
+  "found a registerRoute() call this script could not classify as navigation or runtime caching");
+check(runtimeRoutes.length === 1,
+  `expected exactly one runtime caching route (the Inter extended-subset font cache), found ${runtimeRoutes.length}`);
+for (const route of runtimeRoutes) {
+  check(route.strategy === "CacheFirst",
+    `runtime caching route ${route.regex} uses ${route.strategy ?? "an unrecognized"} strategy, not CacheFirst`);
+  for (const path of ["/api", "/api/v1/flocks", "/api?x=1", "/API/v1/flocks", "/health/live", "/health"])
+    check(!route.regex.test(path), `runtime caching route ${route.regex} would answer ${path} from cache`);
+  for (const subset of ["cyrillic", "cyrillic-ext", "greek", "greek-ext", "vietnamese"])
+    check(route.regex.test(`/assets/inter-${subset}-opsz-normal-deadbeef.woff2`),
+      `runtime caching route ${route.regex} does not cover the dropped Inter ${subset} subset`);
+  for (const subset of ["latin", "latin-ext"])
+    check(!route.regex.test(`/assets/inter-${subset}-opsz-normal-deadbeef.woff2`),
+      `runtime caching route ${route.regex} also matches the already-precached Inter ${subset} subset`);
+}
 
 // 3. Nothing resembling an API URL may be in the precache manifest, and every
 // emitted JavaScript asset must be listed by Workbox's actual precache call.
@@ -226,8 +268,9 @@ if (failures.length) {
 
 console.log(
   `[service worker] ${swPath}: /api and /health excluded from the navigation fallback, ` +
-  `no runtime caching strategy, ${precached.length} shell entries precached, ` +
-  `${emittedJs.length} JavaScript assets verified and no API path among them.`,
+  `${runtimeRoutes.length} narrowly-scoped runtime caching route(s) (none able to answer /api or ` +
+  `/health), ${precached.length} shell entries precached, ${emittedJs.length} JavaScript assets ` +
+  "verified and no API path among them.",
 );
 console.log(
   `[precache budget] ${precacheKiB.toFixed(2)} KiB / ${PRECACHE_CEILING_KIB} KiB ceiling ` +
