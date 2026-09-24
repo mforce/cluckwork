@@ -2364,8 +2364,7 @@ export const tl = {
       + "— pero walang production capture at walang gastos. Nakikita ng mga sign-in na <strong>Read-"
       + "only</strong> ang stock, history, at report, at hindi puwedeng magbago ng anuman.",
     rolesAdmin:
-      "Pumili ng row ng user para makita ang <strong>password</strong>, <strong>palitan ang email</strong>, <strong>mga kawan</strong>, at <strong>i-disable</strong> o <strong>i-enable</strong> sa panel sa ilalim ng table. "
-      + "Ginagawa ng <strong>Admin (may-ari)</strong> ang lahat ng ginagawa ng manager at siya lang ang "
+      "Ginagawa ng <strong>Admin (may-ari)</strong> ang lahat ng ginagawa ng manager at siya lang ang "
       + "tungkuling namamahala sa Mga Setting ng Bukid, pagkakakilanlan ng bukid, at mga user: gumagawa "
       + "ng sign-in sa screen na <strong>Mga User</strong> "
       + "(email, password, opsyonal na pangalan, at tungkulin) at nag-a-assign ng manggagawa sa mga kawan. "
@@ -2379,7 +2378,10 @@ export const tl = {
       + "humihiling sa naka-sign-in na Admin (may-ari) na muling ilagay ang kasalukuyan niyang password. Ang "
       + "pagbabago ng tungkulin ay nag-si-sign out sa apektadong sign-in kahit saan sa susunod nitong "
       + "request, gaya ng pag-reset ng password. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
-      + "tinatanggihan pa rin ito ng server.",
+      + "tinatanggihan pa rin ito ng server. "
+      + "Pumili ng row ng user para makita ang <strong>password</strong>, <strong>palitan ang email</strong>, "
+      + "<strong>mga kawan</strong>, at <strong>i-disable</strong> o <strong>i-enable</strong> sa panel sa "
+      + "ilalim ng table.",
     // #356 (machine-drafted, pending native review)
     rolesDisableUser:
       "Ang <strong>pag-disable ng sign-in</strong> (Users screen, Admin/owner lang) ay agad na pumuputol ng "

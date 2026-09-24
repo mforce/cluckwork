@@ -287,9 +287,6 @@ describe("UsersPage selected-record inspector (#908)", () => {
     expect(within(inspector).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
   });
 
-  // #908 acceptance: status is never blank in the inspector either, and the
-  // shared renderActions carries the same destructive marker there as in the
-  // row — assert the actual StatusBadge/icon, not just text/colour.
   it("shows an explicit status in the inspector for both an active and a disabled user", async () => {
     mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
     await renderReady(ADMIN);

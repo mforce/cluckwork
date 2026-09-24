@@ -730,8 +730,6 @@ export function UsersPage() {
   // #908 — the bottom inspector's selection.
   const selectedUser = users.find((u) => u.id === selectedId) ?? null;
 
-  // #908 — shared between the row's own Actions cell and the inspector's
-  // actions, so both call sites stay one implementation.
   function renderActions(u: User, location: "row" | "inspector") {
     return (
       <>
@@ -755,8 +753,6 @@ export function UsersPage() {
             <button className="link" onClick={() => void openAssignments(u.id)}>
               {t("flocksButton")}
             </button>
-            {/* The server 400s a self-target (Users.CannotDisableSelf/
-                CannotEnableSelf), so this stays off the caller's own row. */}
             {myId !== u.id && (
               u.disabledAt ? (
                 <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>

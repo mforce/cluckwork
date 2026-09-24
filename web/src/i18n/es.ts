@@ -2275,8 +2275,7 @@ export const es = {
       + "— pero no captura de producción ni gastos. Los inicios de sesión de <strong>Solo lectura</strong> "
       + "ven existencias, historial e informes, y no pueden cambiar nada.",
     rolesAdmin:
-      "Seleccione una fila de usuario para encontrar <strong>contraseña</strong>, <strong>cambiar correo</strong>, <strong>lotes</strong> y <strong>deshabilitar</strong> o <strong>habilitar</strong> en el panel debajo de la tabla. "
-      + "<strong>Administrador (propietario)</strong> hace todo lo que hace un gerente y es el único rol que "
+      "<strong>Administrador (propietario)</strong> hace todo lo que hace un gerente y es el único rol que "
       + "administra la Configuración de la granja, la identidad visual y los usuarios: crea inicios de "
       + "sesión en la pantalla <strong>Usuarios</strong> (correo "
       + "electrónico, contraseña, un nombre opcional y rol) y asigna trabajadores a lotes. El nombre de un "
@@ -2289,7 +2288,10 @@ export const es = {
       + "pide al Administrador (propietario) que ha iniciado sesión que vuelva a ingresar su contraseña actual. "
       + "Un cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
       + "restablecimiento de contraseña. Los controles que no puede usar "
-      + "están ocultos, y el servidor los rechaza de todos modos.",
+      + "están ocultos, y el servidor los rechaza de todos modos. "
+      + "Seleccione una fila de usuario para encontrar <strong>contraseña</strong>, <strong>cambiar "
+      + "correo</strong>, <strong>lotes</strong> y <strong>deshabilitar</strong> o <strong>habilitar</strong> "
+      + "en el panel debajo de la tabla.",
     // #356 (machine-drafted, pending native review)
     rolesDisableUser:
       "<strong>Deshabilitar un inicio de sesión</strong> (pantalla Usuarios, solo Admin/propietario) corta el "

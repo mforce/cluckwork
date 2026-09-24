@@ -2998,8 +2998,7 @@ export const en = {
       + "production capture and no expenses. <strong>Read-only</strong> sign-ins see stock, history, and "
       + "reports, and can change nothing.",
     rolesAdmin:
-      "Select a user row to find <strong>password</strong>, <strong>change email</strong>, <strong>flocks</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below the table. "
-      + "<strong>Admin (owner)</strong> does everything a manager does and is the only role that manages Farm "
+      "<strong>Admin (owner)</strong> does everything a manager does and is the only role that manages Farm "
       + "settings, branding, and users: "
       + "creating sign-ins on the <strong>Users</strong> screen (email, password, an optional name, and role) "
       + "and assigning workers to flocks. A user's name can be changed later from the row's <strong>edit</strong> "
@@ -3010,7 +3009,10 @@ export const en = {
       + "and changing any user's role asks the signed-in Admin (owner) to re-enter their current password. A role "
       + "change signs the affected sign-in out everywhere on its next request, the same "
       + "way a password reset does. Controls you can't use are hidden, "
-      + "and the server refuses them regardless.",
+      + "and the server refuses them regardless. "
+      + "Select a user row to find <strong>password</strong>, <strong>change email</strong>, "
+      + "<strong>flocks</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below "
+      + "the table.",
     // #356 — disable/re-enable a colleague's sign-in.
     rolesDisableUser:
       "<strong>Disabling a sign-in</strong> (Users screen, Admin/owner only) cuts off access immediately — "
