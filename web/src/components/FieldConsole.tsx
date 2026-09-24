@@ -220,10 +220,10 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
           ))}
         </Box>
       )}
-      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, px: "18px", pb: 1 }}>
+      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: .75, px: 1.5, pb: 1 }}>
         {actions.primary}
         {actions.secondary}
-        {actions.destructive && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, borderLeft: "1px solid var(--rule)", pl: 1 }}>
+        {actions.destructive && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: .75, borderLeft: "1px solid var(--rule)", pl: .75 }}>
           {actions.destructive}
         </Box>}
       </Box>}
@@ -264,7 +264,7 @@ export function ListInspectorPane({ table, inspector }: { table: ReactNode; insp
       display: "flex", flexDirection: "column", minWidth: 0,
       border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", overflow: "hidden",
       height: {
-        xs: `max(280px, calc(100dvh - ${paneTop}px - var(--tabbar-h) - 16px))`,
+        xs: `max(280px, calc(100dvh - ${paneTop}px - var(--tabbar-h) - 8px))`,
         md: "clamp(280px, calc(100dvh - 380px), 520px)",
       },
     }}>
