@@ -79,7 +79,9 @@ details in a panel docked to the bottom of the list, instead of a popup. The
 table above it keeps its own scrolling and comparison columns; the inspector
 never covers a row, and the row it is showing stays visibly marked. On a
 phone, the table scrolls in both directions within its own bounded area, so it
-carries a **Swipe columns ↔ · Scroll rows ↕** hint.
+carries a **Swipe columns ↔ · Scroll rows ↕** hint. On Users, **edit** and **role**
+stay in the row. Select a row to reach **password**, **change email**, **flocks**,
+and **disable** or **enable** in the inspector.
 
 **Searchable picker (#512)** — the type-to-search control used for flock and
 customer name fields app-wide. Typing explores the results without changing

@@ -2998,7 +2998,8 @@ export const en = {
       + "production capture and no expenses. <strong>Read-only</strong> sign-ins see stock, history, and "
       + "reports, and can change nothing.",
     rolesAdmin:
-      "<strong>Admin (owner)</strong> does everything a manager does and is the only role that manages Farm "
+      "Select a user row to find <strong>password</strong>, <strong>change email</strong>, <strong>flocks</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below the table. "
+      + "<strong>Admin (owner)</strong> does everything a manager does and is the only role that manages Farm "
       + "settings, branding, and users: "
       + "creating sign-ins on the <strong>Users</strong> screen (email, password, an optional name, and role) "
       + "and assigning workers to flocks. A user's name can be changed later from the row's <strong>edit</strong> "
@@ -3647,7 +3648,8 @@ export const en = {
     glossarySelectedRecordInspectorDef:
       "On the Customers, Products, Grades, Flocks and Users screens, clicking or activating a row shows its "
       + "full details in a panel docked to the bottom of the list, instead of a popup. The table above it keeps "
-      + "scrolling on its own, and the selected row stays visibly marked.",
+      + "scrolling on its own, and the selected row stays visibly marked. "
+      + "On Users, edit and role stay in the row. Select a row for password, change email, flocks, and disable or enable in this panel.",
 
     // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),
     // not a paraphrase, for the same reason as gettingAroundSearchablePicker.

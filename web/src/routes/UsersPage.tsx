@@ -732,39 +732,43 @@ export function UsersPage() {
 
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
-  function renderActions(u: User) {
+  function renderActions(u: User, location: "row" | "inspector") {
     return (
       <>
         <button className="link" onClick={() => openEdit(u)}>
           <Pencil size={14} aria-hidden /> {t("editButton")}
         </button>
-        <button className="link" onClick={() => openPassword(u)}>
-          <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
-        </button>
         <button className="link" onClick={() => openRole(u)}>
           <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
         </button>
-        <button className="link" onClick={() => openEmail(u)}>
-          <Mail size={14} aria-hidden /> {t("changeEmailButton")}
-        </button>
-        {/* #612 — shown for every role, not just Worker: a promoted user keeps
-            their retained rows (inert, but still visible and removable) even
-            though a NEW assignment is Worker-only. */}
-        <button className="link" onClick={() => void openAssignments(u.id)}>
-          {t("flocksButton")}
-        </button>
-        {/* The server 400s a self-target (Users.CannotDisableSelf/
-            CannotEnableSelf), so this stays off the caller's own row. */}
-        {myId !== u.id && (
-          u.disabledAt ? (
-            <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
-              <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+        {location === "inspector" && (
+          <>
+            <button className="link" onClick={() => openPassword(u)}>
+              <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
             </button>
-          ) : (
-            <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
-              <Ban size={14} aria-hidden /> {t("disableButton")}
-            </BusyButton>
-          )
+            <button className="link" onClick={() => openEmail(u)}>
+              <Mail size={14} aria-hidden /> {t("changeEmailButton")}
+            </button>
+            {/* #612 — shown for every role, not just Worker: a promoted user keeps
+                their retained rows (inert, but still visible and removable) even
+                though a NEW assignment is Worker-only. */}
+            <button className="link" onClick={() => void openAssignments(u.id)}>
+              {t("flocksButton")}
+            </button>
+            {/* The server 400s a self-target (Users.CannotDisableSelf/
+                CannotEnableSelf), so this stays off the caller's own row. */}
+            {myId !== u.id && (
+              u.disabledAt ? (
+                <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+                  <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+                </button>
+              ) : (
+                <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
+                  <Ban size={14} aria-hidden /> {t("disableButton")}
+                </BusyButton>
+              )
+            )}
+          </>
         )}
       </>
     );
@@ -877,7 +881,7 @@ export function UsersPage() {
                     </TableCell>
                     <TableCell sx={NOWRAP}>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                        {renderActions(u)}
+                        {renderActions(u, "row")}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -904,7 +908,7 @@ export function UsersPage() {
             ] : undefined}
             actions={selectedUser && (
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                {renderActions(selectedUser)}
+                {renderActions(selectedUser, "inspector")}
               </Stack>
             )}
           />

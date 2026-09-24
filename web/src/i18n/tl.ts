@@ -2364,7 +2364,8 @@ export const tl = {
       + "— pero walang production capture at walang gastos. Nakikita ng mga sign-in na <strong>Read-"
       + "only</strong> ang stock, history, at report, at hindi puwedeng magbago ng anuman.",
     rolesAdmin:
-      "Ginagawa ng <strong>Admin (may-ari)</strong> ang lahat ng ginagawa ng manager at siya lang ang "
+      "Pumili ng row ng user para makita ang <strong>password</strong>, <strong>palitan ang email</strong>, <strong>mga kawan</strong>, at <strong>i-disable</strong> o <strong>i-enable</strong> sa panel sa ilalim ng table. "
+      + "Ginagawa ng <strong>Admin (may-ari)</strong> ang lahat ng ginagawa ng manager at siya lang ang "
       + "tungkuling namamahala sa Mga Setting ng Bukid, pagkakakilanlan ng bukid, at mga user: gumagawa "
       + "ng sign-in sa screen na <strong>Mga User</strong> "
       + "(email, password, opsyonal na pangalan, at tungkulin) at nag-a-assign ng manggagawa sa mga kawan. "
@@ -3054,7 +3055,8 @@ export const tl = {
       "Sa mga screen na Mga Customer, Mga Produkto, Mga Grado, Mga Kawan, at Mga User, ang pag-click o pag-activate sa isang "
       + "row ay nagpapakita ng buong detalye nito sa isang panel na nakadikit sa ilalim ng listahan, sa halip "
       + "na isang popup. Patuloy na nag-iisa mag-scroll ang table sa itaas, at nananatiling malinaw na markado "
-      + "ang napiling row.",
+      + "ang napiling row. "
+      + "Sa Mga User, nananatili sa row ang i-edit at tungkulin. Pumili ng row para gamitin ang password, palitan ang email, mga kawan, at i-disable o i-enable sa panel na ito.",
 
     glossarySearchablePickerTerm: "Picker na may search",
     glossarySearchablePickerDef:

@@ -2275,7 +2275,8 @@ export const es = {
       + "— pero no captura de producción ni gastos. Los inicios de sesión de <strong>Solo lectura</strong> "
       + "ven existencias, historial e informes, y no pueden cambiar nada.",
     rolesAdmin:
-      "<strong>Administrador (propietario)</strong> hace todo lo que hace un gerente y es el único rol que "
+      "Seleccione una fila de usuario para encontrar <strong>contraseña</strong>, <strong>cambiar correo</strong>, <strong>lotes</strong> y <strong>deshabilitar</strong> o <strong>habilitar</strong> en el panel debajo de la tabla. "
+      + "<strong>Administrador (propietario)</strong> hace todo lo que hace un gerente y es el único rol que "
       + "administra la Configuración de la granja, la identidad visual y los usuarios: crea inicios de "
       + "sesión en la pantalla <strong>Usuarios</strong> (correo "
       + "electrónico, contraseña, un nombre opcional y rol) y asigna trabajadores a lotes. El nombre de un "
@@ -2940,7 +2941,8 @@ export const es = {
       "En las pantallas Clientes, Productos, Grados, Lotes y Usuarios, al hacer clic o activar una fila se "
       + "muestran sus detalles completos en un panel anclado en la parte inferior de la lista, en lugar de una "
       + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
-      + "marcada visiblemente.",
+      + "marcada visiblemente. "
+      + "En Usuarios, editar y rol siguen en la fila. Seleccione una fila para acceder a contraseña, cambiar correo, lotes y deshabilitar o habilitar en este panel.",
 
     glossarySearchablePickerTerm: "Selector de búsqueda",
     glossarySearchablePickerDef:
