@@ -101,14 +101,11 @@ export default defineConfig(({ mode }) => {
         workbox: {
           // The built shell: hashed JS/CSS plus the root entry and icons.
           globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
-          // #835 — Inter ships seven unicode-range subsets and the opsz faces
-          // are ~56% heavier than the wght ones the app loaded before. The UI
-          // is en/es/tl, all covered by latin and latin-ext, so precaching the
-          // other five costs 131 KiB of a 1,900 KiB budget for glyphs no
-          // screen renders. They stay in `dist` and are still FETCHED on demand
-          // by unicode-range when a farm or customer name needs them; only the
-          // offline precopy is dropped. Measured: 1,979.79 KiB precached
-          // without this, 1,848.93 KiB with it, against 1,860.89 KiB on main.
+          // #835 — the app is en/es/tl, so precaching Inter's other five
+          // subsets spends 131 KiB of the 1,900 KiB budget on glyphs no screen
+          // renders. They stay in `dist` and unicode-range still fetches them
+          // on demand for a farm or customer name; only the offline precopy
+          // goes. Measured 1,979.79 KiB without this, 1,848.93 KiB with.
           globIgnores: ["**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2"],
           // An unknown route serves index.html from the cache, EXCEPT the
           // server's own namespaces, which must always reach the network.

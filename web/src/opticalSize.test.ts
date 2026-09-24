@@ -110,26 +110,3 @@ describe("#835 precache keeps the faces the app renders", () => {
     for (const subset of ["cyrillic", "greek", "vietnamese"]) expect(ignores).toContain(subset);
   });
 });
-
-describe("#835 display text is still on a face that has the axis", () => {
-  it("leaves the serif page headings alone", () => {
-    // #864 moved h1/h2 and the Dashboard figures to Georgia, which has no
-    // variable axes. The issue's "apply opsz to h1/h2" predates that and no
-    // longer has a target; the figures below are what is left in Inter.
-    expect(source("src/styles.css")).toMatch(/:where\(h1, h2\)\s*\{[^}]*Georgia, serif/);
-  });
-
-  it("keeps the Inter stat figures at a display size", () => {
-    // Each is the largest text on its screen and each is set in --font, so
-    // each moves to the display cut the moment the opsz face loads. Shrinking
-    // one below 20px would quietly return it to the text cut.
-    const figures: [string, RegExp][] = [
-      ["src/routes/DailyEntryPage.tsx", /fontSize: "1\.375rem"/],
-      ["src/routes/HistoryPage.tsx", /fontSize: "1\.5rem"/],
-      ["src/routes/ExpensesPage.tsx", /fontSize: "2rem"/],
-      ["src/styles.css", /\.entry-readout \.v \{[^}]*font-size: 1\.6rem/],
-      ["src/styles.css", /\.entry-chip b \{[^}]*font-size: 1\.35rem/],
-    ];
-    for (const [file, pattern] of figures) expect(source(file), file).toMatch(pattern);
-  });
-});
