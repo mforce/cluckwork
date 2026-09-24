@@ -195,7 +195,10 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   }
   return (
     <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
-      <Box sx={{ ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "4px 18px" }}>
+      <Box sx={(theme) => ({
+        ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "4px 18px",
+        borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : 0,
+      })}>
         <Typography component="h3" variant="h3" noWrap tabIndex={-1} sx={{
           m: 0, color: "inherit",
           "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: 2 },
@@ -346,7 +349,7 @@ export function selectableRowProps(selected: boolean, onSelect: () => void) {
     "aria-selected": selected,
     sx: {
       cursor: "pointer",
-      ...(selected && { bgcolor: "var(--tint-accent)", boxShadow: "inset 3px 0 var(--brand)" }),
+      ...(selected && { bgcolor: "var(--tint-accent)", boxShadow: "inset 3px 0 var(--stat-accent)" }),
     },
   };
 }
