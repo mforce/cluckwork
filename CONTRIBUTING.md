@@ -39,6 +39,24 @@ dotnet run --project src/Cluckwork.Api
 `ASPNETCORE_ENVIRONMENT` matters: unset means Production, which fails the boot
 against a plaintext local Postgres (the #261/#262 TLS floor).
 
+**First run on a fresh clone** also needs a local JWT signing keypair — the API
+refuses to boot without one (the #510 key-boot-check guard) rather than serve
+traffic it can't sign or validate tokens for. Generate one and store it in the
+API's user-secrets, once per clone:
+
+```bash
+openssl genrsa -out /tmp/jwt-private.pem 2048
+openssl rsa -in /tmp/jwt-private.pem -pubout -out /tmp/jwt-public.pem
+dotnet user-secrets --project src/Cluckwork.Api set "Jwt:PrivateKeyPem" "$(cat /tmp/jwt-private.pem)"
+dotnet user-secrets --project src/Cluckwork.Api set "Jwt:PublicKeyPem" "$(cat /tmp/jwt-public.pem)"
+rm /tmp/jwt-private.pem /tmp/jwt-public.pem
+```
+
+This key is dev-only and never committed; a missing or empty
+`Jwt:PublicKeyPem`/`Jwt:PrivateKeyPem` fails the boot with `InvalidOperationException:
+Jwt:PublicKeyPem is not configured` (or `PrivateKeyPem`) rather than a vaguer
+failure later.
+
 A fresh database has no admin user — base data is migration-baked, credentials
 never are. Provision one: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 
