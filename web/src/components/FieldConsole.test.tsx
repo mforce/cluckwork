@@ -84,3 +84,11 @@ it("orders inspector actions by purpose, independent of property order", () => {
     actions={{ destructive: <button>Archive</button>, secondary: <button>History</button>, primary: <button>Edit</button> }} />);
   expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Edit", "History", "Archive"]);
 });
+
+it("keeps long inspector names on one line without shortening their accessible name", () => {
+  const name = "A customer with a long name that exceeds the phone inspector width";
+  render(<RecordInspector ariaLabel="Record details" title={name} emptyMessage="Select a record" />);
+  expect(screen.getByRole("heading", { name })).toHaveStyle({
+    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  });
+});
