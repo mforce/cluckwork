@@ -683,7 +683,11 @@ export function HistoryPage() {
                 ) : (
                   <Typography component="p" role="status" sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, mt: 2, pt: 1.5, borderTop: "1px dashed var(--hairline)" }}>
                     <span className="muted">{te("sellableLabel")}<br />{te("sellableFormula", { total, cracked, dirty, discarded })}</span>
-                    <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{sellable}</Box>
+                    <Box component="span" sx={{
+                      fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                      // #835/#948 — one of the stat figures; clears the root's text-cut pin.
+                      fontVariationSettings: "normal",
+                    }}>{sellable}</Box>
                   </Typography>
                 )}
               </Box>

@@ -4,6 +4,7 @@ import { loadEnv } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { matchesInterExtendedSubsetFont } from "./scripts/font-cache-match.mjs";
 
 // #936 — the "available version" side channel (pwa/appVersion.ts). Emitted
 // as a build-only asset, deliberately not part of the Workbox precache glob
@@ -101,6 +102,12 @@ export default defineConfig(({ mode }) => {
         workbox: {
           // The built shell: hashed JS/CSS plus the root entry and icons.
           globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+          // #835 — the app is en/es/tl, so precaching Inter's other five
+          // subsets spends 131 KiB of the 1,900 KiB budget on glyphs no screen
+          // renders. They stay in `dist` and unicode-range still fetches them
+          // on demand for a farm or customer name; only the offline precopy
+          // goes. Measured 1,979.79 KiB without this, 1,848.93 KiB with.
+          globIgnores: ["**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2"],
           // An unknown route serves index.html from the cache, EXCEPT the
           // server's own namespaces, which must always reach the network.
           //
@@ -117,7 +124,32 @@ export default defineConfig(({ mode }) => {
           // request from cache. Auth state and tenant data are per-request; a
           // stale shared response here would be a correctness bug, not a
           // performance win. #50 adds an explicit, deliberate offline path.
-          runtimeCaching: [],
+          //
+          // #948 review — the five subsets `globIgnores` drops still need to
+          // work offline after a first successful fetch (a Cyrillic/Greek/
+          // Vietnamese farm or customer name, `unicode-range` fetches them on
+          // demand). Round 1 shipped a bare RegExp `urlPattern`: Workbox
+          // tests a RegExp against the request's FULL href, unanchored, so
+          // an unrelated same-origin path ending in the right suffix — e.g.
+          // an /api/ route that happened to echo a filename like this one —
+          // would also match, and a regex has no way to see
+          // `request.destination` at all. `matchesInterExtendedSubsetFont`
+          // (a real, independently-tested function, not a pattern re-derived
+          // from this file) requires same-origin, a `/assets/` pathname
+          // prefix, a `.woff2` suffix AND a font `request.destination`, so
+          // the denylist above stays belt-and-braces rather than the only
+          // line of defense.
+          runtimeCaching: [
+            {
+              urlPattern: matchesInterExtendedSubsetFont,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "inter-extended-subsets",
+                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+          ],
           navigationPreload: false,
           // #217 — the app's own maps are emitted hidden (see build below);
           // workbox would otherwise ship sw.js.map + its own map WITH
