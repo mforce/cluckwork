@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Box, TableContainer, Typography } from "@mui/material";
+import type { Theme } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 export const CONSOLE_PANEL_SX = {
@@ -197,7 +198,9 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
     <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
       <Box sx={(theme) => ({
         ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "4px 18px",
-        borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : 0,
+        ...(theme.palette.mode === "dark" && {
+          bgcolor: "var(--stat-accent)", color: "var(--surface)", borderBottom: "2px solid var(--surface)",
+        }),
       })}>
         <Typography component="h3" variant="h3" noWrap tabIndex={-1} sx={{
           m: 0, color: "inherit",
@@ -211,10 +214,11 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
           columnGap: "16px",
         }}>
           {fields.map((field, i) => (
-            <Box key={i} sx={{
+            <Box key={i} sx={(theme) => ({
               display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
-              borderBottom: "1px solid var(--rule)", fontSize: ".75rem",
-            }}>
+              borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
+              fontSize: ".75rem",
+            })}>
               <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>
               <Typography component="dd" sx={{ m: 0, fontWeight: 650, fontSize: "inherit", overflowWrap: "anywhere" }}>
                 {field.value}
@@ -317,10 +321,13 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
         event.preventDefault();
         event.stopPropagation();
         paneRef.current?.querySelector<HTMLElement>('tr[aria-selected="true"]')?.focus();
-      }} sx={{
+      }} sx={(theme) => ({
         flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "auto",
         borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
-      }}>
+        ...(theme.palette.mode === "dark" && {
+          "&:has(h3)": { borderTop: "4px solid var(--surface)", bgcolor: "var(--surface-2)" },
+        }),
+      })}>
         {inspector}
       </Box>
     </Box>
@@ -347,10 +354,14 @@ export function selectableRowProps(selected: boolean, onSelect: () => void) {
     },
     tabIndex: 0,
     "aria-selected": selected,
-    sx: {
+    sx: (theme: Theme) => ({
       cursor: "pointer",
-      ...(selected && { bgcolor: "var(--tint-accent)", boxShadow: "inset 3px 0 var(--stat-accent)" }),
-    },
+      ...(selected && {
+        bgcolor: theme.palette.mode === "dark"
+          ? "color-mix(in srgb, var(--stat-accent) 35%, var(--surface))" : "var(--tint-accent)",
+        boxShadow: `inset ${theme.palette.mode === "dark" ? 8 : 3}px 0 var(--stat-accent)`,
+      }),
+    }),
   };
 }
 

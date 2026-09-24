@@ -1,6 +1,13 @@
 import { test, expect } from "../src/fixtures";
 import { owner, castMember } from "../src/cast";
 
+const darkPalettes = {
+  aubergine: { accent: [226, 180, 230], row: [102, 82, 105] },
+  forest: { accent: [168, 220, 187], row: [82, 96, 89] },
+  slate: { accent: [174, 207, 235], row: [84, 91, 106] },
+  terracotta: { accent: [242, 183, 156], row: [107, 83, 79] },
+};
+
 const screens = [
   { route: "users", actions: ["edit", "role", "password", "change email", "flocks", "disable"] },
   { route: "customers", actions: ["edit"] },
@@ -10,7 +17,7 @@ const screens = [
 ];
 
 for (const { route, actions } of screens) {
-  test(`${route} inspector keeps a thin dark header, readable text, ordered actions and available phone height in both themes @phone`, async ({ page, signIn }) => {
+  test(`${route} inspector keeps the chosen header, readable selection, ordered actions and available phone height in both themes @phone`, async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto(`/${route}`);
     const table = page.getByRole("table").first();
@@ -30,14 +37,22 @@ for (const { route, actions } of screens) {
           window.scrollTo(0, 0);
         }, theme);
         await expect(inspector.getByRole("heading")).toBeFocused();
-        for (const brand of ["aubergine", "forest", "slate", "terracotta"]) {
+        for (const [brand, palette] of Object.entries(darkPalettes)) {
           await page.evaluate((value) => { document.documentElement.dataset.brand = value; }, brand);
           const styles = await inspector.getByRole("heading").evaluate((heading) => {
             const text = getComputedStyle(heading);
             const header = getComputedStyle(heading.parentElement!);
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = 1;
+            const context = canvas.getContext("2d")!;
+            const rgb = (color: string) => {
+              context.fillStyle = color;
+              context.fillRect(0, 0, 1, 1);
+              return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+            };
             const luminance = (color: string) => {
-              const channels = color.match(/[\d.]+/g)!.slice(0, 3).map((value) => {
-                const channel = Number(value) / 255;
+              const channels = rgb(color).map((value) => {
+                const channel = value / 255;
                 return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
               });
               return .2126 * channels[0]! + .7152 * channels[1]! + .0722 * channels[2]!;
@@ -54,15 +69,22 @@ for (const { route, actions } of screens) {
             const selected = getComputedStyle(selectedRow);
             const accent = selected.boxShadow.match(/rgba?\([^)]+\)/)![0];
             const panel = surface(heading.parentElement!.parentElement!);
-            const edge = header.borderBottomWidth === "0px" ? header.backgroundColor : header.borderBottomColor;
+            const inspector = heading.closest("aside")!;
+            const dock = getComputedStyle(inspector.parentElement!);
+            const field = getComputedStyle(inspector.querySelector("dl > div")!);
             return {
-              color: text.color, background: header.backgroundColor,
+              color: rgb(text.color), background: rgb(header.backgroundColor),
+              row: rgb(selected.backgroundColor), accent: rgb(accent),
+              accentWidth: selected.boxShadow.replace(/rgba?\([^)]+\)/, "").trim(),
+              panel: rgb(panel), separatorWidth: dock.borderTopWidth,
+              separatorColor: rgb(dock.borderTopColor), fieldRule: rgb(field.borderBottomColor),
               textOpacity: text.opacity, headerOpacity: header.opacity,
               contrast: contrast(text.color, header.backgroundColor),
               accentRowContrast: contrast(accent, selected.backgroundColor),
               accentSurfaceContrast: contrast(accent, surface(selectedRow.closest("table")!)),
-              edgePanelContrast: contrast(edge, panel),
-              edgeHeaderContrast: contrast(edge, header.backgroundColor),
+              bandPanelContrast: contrast(header.backgroundColor, panel),
+              edgeHeaderContrast: contrast(header.borderBottomColor, header.backgroundColor),
+              fieldRuleContrast: contrast(field.borderBottomColor, panel),
               edgeWidth: header.borderBottomWidth,
               height: heading.parentElement!.getBoundingClientRect().height,
               children: heading.parentElement!.children.length,
@@ -72,13 +94,21 @@ for (const { route, actions } of screens) {
           console.log(JSON.stringify({ route, theme, brand, ...styles }));
           expect.soft(styles.accentRowContrast, `${brand} selection against row`).toBeGreaterThanOrEqual(3);
           expect.soft(styles.accentSurfaceContrast, `${brand} selection against surface`).toBeGreaterThanOrEqual(3);
-          expect.soft(styles.edgeWidth, brand).toBe(theme === "dark" ? "1px" : "0px");
+          expect.soft(styles.edgeWidth, brand).toBe(theme === "dark" ? "2px" : "0px");
+          expect.soft(styles.accentWidth, brand).toBe(`${theme === "dark" ? 8 : 3}px 0px 0px 0px inset`);
+          expect.soft(styles.separatorWidth, brand).toBe(theme === "dark" ? "4px" : "1px");
+          expect.soft(styles.panel, brand).toEqual(theme === "dark" ? [48, 39, 51] : [255, 253, 249]);
           if (theme === "dark") {
-            expect.soft(styles.edgePanelContrast, `${brand} header edge against panel`).toBeGreaterThanOrEqual(3);
+            expect.soft(styles.row, brand).toEqual(palette.row);
+            expect.soft(styles.accent, brand).toEqual(palette.accent);
+            expect.soft(styles.separatorColor, brand).toEqual([35, 29, 37]);
+            expect.soft(styles.fieldRule, brand).toEqual([179, 168, 184]);
+            expect.soft(styles.bandPanelContrast, `${brand} header band against panel`).toBeGreaterThanOrEqual(3);
             expect.soft(styles.edgeHeaderContrast, `${brand} header edge against band`).toBeGreaterThanOrEqual(3);
+            expect.soft(styles.fieldRuleContrast, `${brand} field rules against panel`).toBeGreaterThanOrEqual(3);
           }
-          expect.soft(styles.color, brand).toBe("rgb(255, 255, 255)");
-          expect.soft(styles.background, brand).toBe("rgb(44, 36, 41)");
+          expect.soft(styles.color, brand).toEqual(theme === "dark" ? [35, 29, 37] : [255, 255, 255]);
+          expect.soft(styles.background, brand).toEqual(theme === "dark" ? palette.accent : [44, 36, 41]);
           expect.soft(styles.contrast, brand).toBeGreaterThanOrEqual(4.5);
           expect.soft(styles.textOpacity, brand).toBe("1");
           expect.soft(styles.headerOpacity, brand).toBe("1");
