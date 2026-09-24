@@ -848,7 +848,7 @@ export function UsersPage() {
       <ListInspectorPane
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
-            <Table size="small" sx={{ "& .MuiTableCell-root": { px: { md: 1.5, lg: 2 } } }}>
+            <Table size="small" sx={{ "& .MuiTableCell-root": { pr: { md: 1.5, lg: 2 } } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("emailColumnHeader")}</TableCell>
