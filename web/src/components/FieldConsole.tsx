@@ -187,6 +187,29 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   actions?: { primary: ReactNode; secondary?: ReactNode; destructive?: ReactNode };
   emptyMessage: string;
 }) {
+  const { t } = useTranslation("audit");
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const fieldsRef = useRef<HTMLDListElement>(null);
+  const [hiddenEdges, setHiddenEdges] = useState({ top: false, bottom: false });
+  useEffect(() => {
+    const details = detailsRef.current;
+    const content = fieldsRef.current;
+    if (!details || !content) return;
+    const measure = () => {
+      const top = details.scrollTop > 1;
+      const bottom = details.scrollHeight - details.clientHeight - details.scrollTop > 1;
+      setHiddenEdges(previous => previous.top === top && previous.bottom === bottom ? previous : { top, bottom });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(details);
+    observer.observe(content);
+    details.addEventListener("scroll", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      details.removeEventListener("scroll", measure);
+    };
+  }, [title, fields]);
   if (title === undefined) {
     return (
       <Box component="aside" role="region" aria-label={ariaLabel} sx={{ p: 2, color: "text.secondary", fontSize: ".8125rem" }}>
@@ -195,9 +218,9 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
     );
   }
   return (
-    <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
+    <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0, display: "flex", flexDirection: "column", maxHeight: "inherit" }}>
       <Box sx={(theme) => ({
-        ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, mx: "-1px", p: "7.5px 19px",
+        ...CONSOLE_RAIL_SX, flexShrink: 0, borderRadius: 0, border: 0, mx: "-1px", p: "7.5px 19px",
         ...(theme.palette.mode === "dark" && {
           bgcolor: "var(--stat-accent)", color: "var(--surface)",
         }),
@@ -208,26 +231,41 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
         }}>{title}</Typography>
       </Box>
       {fields && fields.length > 0 && (
-        <Box component="dl" sx={{
-          m: 0, p: "13px 18px", display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-          columnGap: "16px",
-        }}>
-          {fields.map((field, i) => (
-            <Box key={i} sx={(theme) => ({
-              display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
-              py: ".4rem", borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
-              fontSize: ".75rem",
-            })}>
-              <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>
-              <Typography component="dd" sx={{ m: 0, fontWeight: 650, fontSize: "inherit", overflowWrap: "anywhere" }}>
-                {field.value}
-              </Typography>
-            </Box>
-          ))}
+        <Box ref={detailsRef} role="region" aria-label={t("detailsHeader")}
+          tabIndex={hiddenEdges.top || hiddenEdges.bottom ? 0 : -1} sx={{
+            flex: "1 1 auto", minHeight: 0, overflowY: "auto",
+            backgroundImage: [
+              hiddenEdges.top ? "linear-gradient(var(--rule), transparent)" : "none",
+              hiddenEdges.bottom ? "linear-gradient(transparent, var(--rule))" : "none",
+            ].join(", "),
+            backgroundSize: "100% 8px", backgroundPosition: "center top, center bottom", backgroundRepeat: "no-repeat",
+            "&:focus-visible": { outline: "2px solid var(--stat-accent)", outlineOffset: -2 },
+          }}>
+          <Box component="dl" ref={fieldsRef} sx={{
+            m: 0, p: "13px 18px", display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+            columnGap: "16px",
+          }}>
+            {fields.map((field, i) => (
+              <Box key={i} sx={(theme) => ({
+                display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
+                py: ".4rem", borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
+                fontSize: ".75rem",
+              })}>
+                <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>
+                <Typography component="dd" sx={{ m: 0, fontWeight: 650, fontSize: "inherit", overflowWrap: "anywhere" }}>
+                  {field.value}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
         </Box>
       )}
-      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: .75, px: 1.5, pb: 1 }}>
+      {actions && <Box sx={(theme) => ({
+        display: "flex", flexShrink: 0, flexWrap: "wrap", alignItems: "center", columnGap: .75, px: 1.5, pb: 1,
+        bgcolor: theme.palette.mode === "dark" ? "var(--surface-2)" : "var(--surface)",
+        borderTop: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
+      })}>
         {actions.primary}
         {actions.secondary}
         {actions.destructive && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: .75, borderLeft: "1px solid var(--rule)", pl: .75 }}>
@@ -323,7 +361,7 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
         event.stopPropagation();
         paneRef.current?.querySelector<HTMLElement>('tr[aria-selected="true"]')?.focus();
       }} sx={(theme) => ({
-        flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "auto",
+        flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "hidden",
         borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
         "&:has(h3)": {
           borderTop: 0, mx: "-1px", px: "1px",

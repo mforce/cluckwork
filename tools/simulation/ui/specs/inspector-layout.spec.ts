@@ -1,5 +1,6 @@
 import { test, expect } from "../src/fixtures";
 import { owner, castMember } from "../src/cast";
+import { t } from "../src/i18n";
 
 const darkPalettes = {
   aubergine: { accent: [226, 180, 230], row: [102, 82, 105] },
@@ -129,6 +130,10 @@ for (const { route, actions } of screens) {
           expect.soft(styles.height, brand).toBeGreaterThanOrEqual(36);
           expect.soft(styles.height, brand).toBeLessThanOrEqual(37);
         }
+        const footer = inspector.locator(":scope > div").last();
+        await expect(footer).toHaveCSS("border-top-width", "1px");
+        await expect(footer).toHaveCSS("background-color", theme === "dark" ? "rgb(48, 39, 51)" : "rgb(255, 253, 249)");
+        await expect(footer).toHaveCSS("border-top-color", theme === "dark" ? "rgb(179, 168, 184)" : "rgb(222, 211, 202)");
         const actionLabels = await inspector.locator("button, a").allTextContents();
         expect.soft(actionLabels.map((label) => label.trim())).toEqual(actions);
         if (route !== "customers") {
@@ -148,3 +153,106 @@ for (const { route, actions } of screens) {
     }
   });
 }
+
+
+test("inspector fields scroll independently with edge fades and main typography @phone", async ({ page, signIn }) => {
+  await signIn(owner());
+  for (const language of ["en", "tl"] as const) {
+    await page.goto("/account");
+    const languageSelect = page.locator('select:has(option[value="en"]):has(option[value="es"])');
+    await languageSelect.selectOption(language);
+    await expect(languageSelect).toBeEnabled();
+    for (const { route } of screens) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/${route}`);
+      const table = page.getByRole("table").first();
+      const row = route === "users"
+        ? table.getByRole("row").filter({ hasText: castMember("Manager").email })
+        : table.locator("tbody tr").first();
+      await row.focus();
+      await page.keyboard.press("Enter");
+      const inspector = page.locator("aside").filter({ has: page.getByRole("heading", { level: 3 }) });
+      await page.evaluate(() => document.fonts.ready);
+      const dock = inspector.locator("..");
+      const header = inspector.getByRole("heading").locator("..");
+      const lastAction = inspector.locator("button, a").last();
+      const bounds = await dock.boundingBox();
+      const actionBounds = await lastAction.boundingBox();
+      expect.soft(actionBounds!.y + actionBounds!.height, `${language} ${route} fixed actions`).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+      expect.soft(await dock.evaluate(e => e.scrollTop), "panel never scrolls").toBe(0);
+      const typography = await inspector.locator("dt, dd").evaluateAll(elements => elements.map(e => {
+        const style = getComputedStyle(e);
+        return { tag: e.tagName, size: style.fontSize, weight: style.fontWeight, lineHeight: style.lineHeight };
+      }));
+      for (const style of typography) {
+        expect.soft(style).toEqual({ tag: style.tag, size: "16px", weight: style.tag === "DT" ? "400" : "650", lineHeight: "24px" });
+      }
+      const rows = await table.evaluate(element => {
+        const container = element.parentElement!;
+        container.scrollTop = 0;
+        const box = container.getBoundingClientRect();
+        const top = Math.max(box.top, element.querySelector("thead")!.getBoundingClientRect().bottom);
+        const rows = [...element.querySelectorAll("tbody tr")].map(e => e.getBoundingClientRect());
+        return { full: rows.filter(r => r.top >= top - 1 && r.bottom <= box.bottom + 1).length,
+          includingPartial: rows.filter(r => r.bottom > top + 1 && r.top < box.bottom - 1).length };
+      });
+      console.log(JSON.stringify({ language, route, ...rows }));
+      const details = inspector.getByRole("region", { name: t(language, "audit:detailsHeader"), exact: true });
+      expect.soft(await details.count(), `${language} ${route} named scrolling details`).toBe(1);
+      if (await details.count() === 0) continue;
+      await expect(details).toBeVisible();
+      const overflowing = await details.evaluate(e => e.scrollHeight > e.clientHeight);
+      await expect(details).toHaveAttribute("tabindex", overflowing ? "0" : "-1");
+      if (route === "products") expect(overflowing).toBe(true);
+      if (overflowing) {
+        await expect(details).toHaveCSS("background-image", /linear-gradient/);
+        const topFade = await details.evaluate(e => getComputedStyle(e).backgroundImage);
+        expect(topFade.startsWith("none,")).toBe(true);
+        const headerBefore = await header.boundingBox();
+        const actionBefore = await lastAction.boundingBox();
+        await details.focus();
+        await expect(details).toHaveCSS("outline-style", "solid");
+        await page.keyboard.press("End");
+        await expect.poll(() => details.evaluate(e => e.scrollHeight - e.clientHeight - e.scrollTop)).toBeLessThanOrEqual(1);
+        await expect.poll(() => details.evaluate(e => getComputedStyle(e).backgroundImage.endsWith(", none"))).toBe(true);
+        expect(await header.boundingBox()).toEqual(headerBefore);
+        expect(await lastAction.boundingBox()).toEqual(actionBefore);
+        expect(await dock.evaluate(e => e.scrollTop)).toBe(0);
+        await page.keyboard.press("Home");
+        await expect.poll(() => details.evaluate(e => e.scrollTop)).toBe(0);
+        await expect.poll(() => details.evaluate(e => getComputedStyle(e).backgroundImage)).toBe(topFade);
+      } else {
+        await expect(details).toHaveCSS("background-image", "none, none");
+      }
+      const footer = inspector.locator(":scope > div").last();
+      await expect(footer).toHaveCSS("border-top-width", "1px");
+      await expect(footer).toHaveCSS("background-color", "rgb(255, 253, 249)");
+      if (route === "products") {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        if (language === "en") {
+          await expect.poll(() => details.evaluate(e => e.scrollHeight - e.clientHeight)).toBe(0);
+          await expect(details).toHaveAttribute("tabindex", "-1");
+          await expect(details).toHaveCSS("background-image", "none, none");
+        }
+        const text = await inspector.locator("dt, dd").evaluateAll(elements => elements.map(e => {
+          const style = getComputedStyle(e);
+          return { tag: e.tagName, size: style.fontSize, weight: style.fontWeight, lineHeight: style.lineHeight };
+        }));
+        for (const style of text) expect(style).toEqual({ tag: style.tag, size: "12px", weight: style.tag === "DT" ? "400" : "650", lineHeight: "17.1429px" });
+        await expect(inspector.locator("dl > div").first()).toHaveCSS("padding-top", "6.4px");
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ colorScheme: "dark" });
+        await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+        await expect.poll(() => details.evaluate(e => getComputedStyle(e).backgroundImage.startsWith("none,"))).toBe(true);
+        await expect(details).toHaveCSS("background-image", /linear-gradient/);
+        await details.evaluate(e => { e.scrollTop = e.scrollHeight; });
+        await expect.poll(() => details.evaluate(e => getComputedStyle(e).backgroundImage.endsWith(", none"))).toBe(true);
+        await expect(details).toHaveCSS("background-image", /linear-gradient/);
+        await page.emulateMedia({ colorScheme: "light" });
+        await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });
+      }
+    }
+  }
+  await page.goto("/account");
+  await page.locator('select:has(option[value="en"]):has(option[value="es"])').selectOption("en");
+});
