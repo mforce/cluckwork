@@ -176,14 +176,17 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // (retires the isolated `NumberField`, ~-18 KiB projected in the issue's
 // 2026-09-16 "Numbers for the ceiling choice" comment — that figure covers
 // NumberField alone, not the hand-rolled tooltip positioning #828 also
-// retires) and #835 (adopts Inter's `opsz` axis, +118.9 KiB measured in
-// docs/designs/822-mui-revamp.md). Net projected after both land is ~1,907
-// KiB — OVER this ceiling by ~7 KiB, not absorbed by it. That is not an
-// oversight: docs/designs/822-mui-revamp.md's D7.2 already prices this in
-// and names the fallback (one display-size cut for `h1`/`h2` only, worth
-// 24.1 KiB) for exactly the case where #835 does not fit. A slice that adds
-// weight without retiring hand-built code names the reason in its PR body,
-// as a convention; it does not change this check's verdict.
+// retires).
+//
+// #835 has now landed and did NOT cost the ~119 KiB this comment projected.
+// Adopting Inter's `opsz` axis wholesale measured 1,979.79 KiB, 79.79 over;
+// the five subsets no locale renders were dropped from the precache instead
+// (check 5 below, and `globIgnores` in vite.config.ts), landing at 1,848.93
+// KiB, which is 11.96 BELOW the 1,860.89 KiB the branch carried before it.
+// The fallback D7.2 named for this case, one display cut for `h1`/`h2` only,
+// was unbuildable: #864 had already moved both variants to `Georgia, serif`.
+// A slice that adds weight without retiring hand-built code names the reason
+// in its PR body, as a convention; it does not change this check's verdict.
 const PRECACHE_CEILING_KIB = 1900;
 let precacheBytes = 0;
 const missingOnDisk = [];
@@ -200,6 +203,20 @@ check(precacheKiB <= PRECACHE_CEILING_KIB,
   `(#825) by ${(precacheKiB - PRECACHE_CEILING_KIB).toFixed(2)} KiB. Retire hand-built code, ` +
   "or find equivalent savings elsewhere, to pass this check. Naming the reason in the PR body " +
   "is the separate documentation convention #825 records; it does not make this check pass.");
+
+// 5. The app's own typeface must still be in the precache, on the face that
+// carries the optical-size axis (#835). `globIgnores` in vite.config.ts drops
+// the five Inter subsets no locale renders; widening it to the Latin ones, or
+// reverting to the wght-only entry, would both pass check 4 by getting SMALLER
+// — a saving that costs the app its typeface offline, or its display cut.
+const interFaces = precached.filter((url) => /inter-[a-z-]+-(opsz|wght|standard)-normal/.test(url));
+for (const subset of ["latin", "latin-ext"])
+  check(interFaces.some((url) => new RegExp(`inter-${subset}-opsz-normal`).test(url)),
+    `the Inter ${subset} opsz face is not precached — the app ships en/es/tl and renders both subsets`);
+const nonVariable = interFaces.filter((url) => !/-opsz-normal/.test(url));
+check(nonVariable.length === 0,
+  `precached Inter faces without the opsz axis: ${nonVariable.join(", ")} — ` +
+  "display text would render at the opsz 14 text cut (#835)");
 
 if (failures.length) {
   for (const f of failures) console.error(`::error::[service worker] ${f}`);
