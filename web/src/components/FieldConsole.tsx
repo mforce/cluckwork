@@ -209,14 +209,14 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
       </Box>
       {fields && fields.length > 0 && (
         <Box component="dl" sx={{
-          m: 0, p: "2px 18px 4px", display: "grid",
+          m: 0, p: "13px 18px", display: "grid",
           gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
           columnGap: "16px",
         }}>
           {fields.map((field, i) => (
             <Box key={i} sx={(theme) => ({
               display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
-              borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
+              py: ".4rem", borderBottom: theme.palette.mode === "dark" ? "1px solid var(--muted)" : "1px solid var(--rule)",
               fontSize: ".75rem",
             })}>
               <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>

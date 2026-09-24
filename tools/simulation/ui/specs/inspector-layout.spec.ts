@@ -81,11 +81,12 @@ for (const { route, actions } of screens) {
               row: rgb(selected.backgroundColor), accent: rgb(accent),
               accentWidth: selected.boxShadow.replace(/rgba?\([^)]+\)/, "").trim(),
               panel: rgb(panel), fieldRule: rgb(field.borderBottomColor),
+              fieldRowHeight: inspector.querySelector("dl > div")!.getBoundingClientRect().height,
               frame: {
                 borders: [header.borderTopWidth, header.borderRightWidth, header.borderBottomWidth, header.borderLeftWidth],
                 outline: header.outlineStyle, nameOutline: text.outlineStyle, shadow: header.boxShadow,
                 left: bandBounds.left - paneBounds.left, right: paneBounds.right - bandBounds.right,
-                top: bandBounds.top - dockBounds.top,
+                top: bandBounds.top - dockBounds.top + dock.scrollTop,
               },
               textCenterOffset: (textBounds.top + textBounds.bottom - bandBounds.top - bandBounds.bottom) / 2,
               textOpacity: text.opacity, headerOpacity: header.opacity,
@@ -100,6 +101,7 @@ for (const { route, actions } of screens) {
             };
           });
           console.log(JSON.stringify({ route, theme, brand, ...styles }));
+          expect.soft(styles.fieldRowHeight, `${brand} main field row height`).toBeCloseTo(37.78125, 4);
           expect.soft(styles.accentRowContrast, `${brand} selection against row`).toBeGreaterThanOrEqual(3);
           expect.soft(styles.accentSurfaceContrast, `${brand} selection against surface`).toBeGreaterThanOrEqual(3);
           expect.soft(styles.frame, `${brand} uninterrupted edge-to-edge band`).toEqual({
