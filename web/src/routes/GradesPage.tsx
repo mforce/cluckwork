@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -176,23 +176,13 @@ export function GradesPage() {
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
   function renderActions(g: EggGrade) {
-    return (
-      <>
-        {/* #493 — full audit trail for this record, distinct from the
-            created/last-changed summary in ProvenanceCell. Admin-gated:
-            /api/v1/audit is AdminOnly (codex review of #516). */}
-        {isAdmin && (
-          <Link className="link" to={`/audit?entityId=${g.id}`}>
+    return {
+      primary: isAdmin && (<button className="link" disabled={busy}
+              onClick={() => startEdit(g)}>{t("editButton")}</button>),
+      secondary: isAdmin && (<Link className="link" to={`/audit?entityId=${g.id}`}>
             {tc("recordHistory.viewHistoryLink")}
-          </Link>
-        )}
-        {isAdmin && (
-          <>
-            {/* Opens the edit dialog — non-mutating, so the spinner belongs
-                to the dialog's Save, not here (#242). */}
-            <button className="link" disabled={busy}
-              onClick={() => startEdit(g)}>{t("editButton")}</button>
-            {g.active ? (
+          </Link>),
+      destructive: isAdmin && (g.active ? (
               <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
                 onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
                 <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
@@ -202,11 +192,8 @@ export function GradesPage() {
                 onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
                 {t("activateButton")}
               </BusyButton>
-            )}
-          </>
-        )}
-      </>
-    );
+            )),
+    };
   }
 
   if (errors.page && grades === null) {
@@ -337,7 +324,7 @@ export function GradesPage() {
                     <ProvenanceCell history={g} />
                     <TableCell sx={NOWRAP}>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                        {renderActions(g)}
+                        {Object.entries(renderActions(g)).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -357,11 +344,7 @@ export function GradesPage() {
               { label: t("saleableHeader"), value: selectedGrade.isSaleable ? t("saleableYesBadge") : "—" },
               { label: t("statusHeader"), value: <StatusBadge status={selectedGrade.active ? "Active" : "Inactive"} label={statusLabel(selectedGrade.active ? "Active" : "Inactive")} /> },
             ] : undefined}
-            actions={selectedGrade && (
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                {renderActions(selectedGrade)}
-              </Stack>
-            )}
+            actions={selectedGrade ? renderActions(selectedGrade) : undefined}
           />
         )}
       />

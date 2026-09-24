@@ -43,7 +43,7 @@ function SelectableList() {
       <TableCell>First record</TableCell><TableCell><button>Edit record</button></TableCell>
     </TableRow></TableBody></Table>}
     inspector={<RecordInspector ariaLabel="Record details" emptyMessage="Select a record"
-      {...(selected ? { title: "First record", actions: <button>Inspect action</button> } : {})} />}
+      {...(selected ? { title: "First record", actions: { primary: <button>Inspect action</button> } } : {})} />}
   />;
 }
 
@@ -77,4 +77,10 @@ it("leaves row button clicks and keyboard activation with the button", async () 
   await user.keyboard("{Enter} ");
   expect(button).toHaveFocus();
   expect(screen.queryByRole("heading", { name: "First record" })).not.toBeInTheDocument();
+});
+
+it("orders inspector actions by purpose, independent of property order", () => {
+  render(<RecordInspector ariaLabel="Record details" title="First record" emptyMessage="Select a record"
+    actions={{ destructive: <button>Archive</button>, secondary: <button>History</button>, primary: <button>Edit</button> }} />);
+  expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Edit", "History", "Archive"]);
 });

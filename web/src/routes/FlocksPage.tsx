@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -280,20 +280,19 @@ export function FlocksPage() {
 
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
-  function renderActions(f: Flock) {
-    return (
-      <>
-        <button className="link" style={NOWRAP} disabled={busy}
+  function renderActions(f: Flock, location: "row" | "inspector") {
+    return {
+      primary: isAdmin && (<button className="link" style={NOWRAP} disabled={busy}
+            onClick={() => startEdit(f)}>{t("editButton")}</button>),
+      secondary: <><button className="link" style={NOWRAP} disabled={busy}
           onClick={() => void openLedger(f.id)}>
           {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
         </button>
-        {isAdmin && (
-          // Opens the edit dialog — non-mutating, so the spinner belongs to
-          // the dialog's Save, not here (#242).
-          <button className="link" style={NOWRAP} disabled={busy}
-            onClick={() => startEdit(f)}>{t("editButton")}</button>
-        )}
-        {isAdmin && f.status === "Active" && (
+        {location === "inspector" && isAdmin && <Link className="link" to={`/audit?entityId=${f.id}`}>
+          {tc("recordHistory.viewHistoryLink")}
+        </Link>}
+      </>,
+      destructive: <>        {isAdmin && f.status === "Active" && (
           <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
             onClick={() => void onDeplete(f)}>
             <TriangleAlert size={14} aria-hidden /> {t("depleteButton")}
@@ -313,9 +312,8 @@ export function FlocksPage() {
             onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
             {t("reactivateButton")}
           </BusyButton>
-        )}
-      </>
-    );
+        )}</>,
+    };
   }
 
   return (
@@ -485,7 +483,7 @@ export function FlocksPage() {
                           allowed; each verb stays whole. */}
                       <TableCell>
                         <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 0.5, alignItems: "center" }}>
-                          {renderActions(f)}
+                          {Object.entries(renderActions(f, "row")).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -511,16 +509,7 @@ export function FlocksPage() {
                 },
                 { label: t("statusHeader"), value: <StatusBadge status={selectedFlock.status} label={statusLabel(selectedFlock.status)} /> },
               ] : undefined}
-              actions={selectedFlock && (
-                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                  {renderActions(selectedFlock)}
-                  {isAdmin && (
-                    <Link className="link" to={`/audit?entityId=${selectedFlock.id}`}>
-                      {tc("recordHistory.viewHistoryLink")}
-                    </Link>
-                  )}
-                </Stack>
-              )}
+              actions={selectedFlock ? renderActions(selectedFlock, "inspector") : undefined}
             />
           )}
         />

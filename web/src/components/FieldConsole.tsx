@@ -183,7 +183,7 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   ariaLabel: string;
   title?: ReactNode;
   fields?: InspectorField[];
-  actions?: ReactNode;
+  actions?: { primary: ReactNode; secondary?: ReactNode; destructive?: ReactNode };
   emptyMessage: string;
 }) {
   if (title === undefined) {
@@ -195,7 +195,7 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   }
   return (
     <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
-      <Box sx={{ ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "4px 18px" }}>
+      <Box sx={{ p: "4px 18px", color: "text.primary", borderBottom: "1px solid var(--rule)" }}>
         <Typography component="h3" variant="h3" tabIndex={-1} sx={{
           m: 0, color: "inherit",
           "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: 2 },
@@ -220,7 +220,13 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
           ))}
         </Box>
       )}
-      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, px: "18px", pb: 1 }}>{actions}</Box>}
+      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, px: "18px", pb: 1 }}>
+        {actions.primary}
+        {actions.secondary}
+        {actions.destructive && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, borderLeft: "1px solid var(--rule)", pl: 1 }}>
+          {actions.destructive}
+        </Box>}
+      </Box>}
     </Box>
   );
 }
@@ -231,6 +237,20 @@ export function ListInspectorPane({ table, inspector }: { table: ReactNode; insp
   const paneRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLDivElement>(null);
   const [keyboardSelection, setKeyboardSelection] = useState(0);
+  const [paneTop, setPaneTop] = useState(0);
+  useLayoutEffect(() => {
+    const pane = paneRef.current;
+    if (!pane) return;
+    const measure = () => setPaneTop(pane.getBoundingClientRect().top + window.scrollY);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
   useLayoutEffect(() => {
     if (keyboardSelection > 0) inspectorRef.current?.querySelector<HTMLElement>("h3")?.focus();
   }, [keyboardSelection]);
@@ -243,7 +263,10 @@ export function ListInspectorPane({ table, inspector }: { table: ReactNode; insp
     }} sx={{
       display: "flex", flexDirection: "column", minWidth: 0,
       border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", overflow: "hidden",
-      height: { xs: 460, md: "clamp(280px, calc(100dvh - 380px), 520px)" },
+      height: {
+        xs: `max(280px, calc(100dvh - ${paneTop}px - var(--tabbar-h) - 16px))`,
+        md: "clamp(280px, calc(100dvh - 380px), 520px)",
+      },
     }}>
       <Box sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>{table}</Box>
       <Box ref={inspectorRef} onKeyDown={(event) => {

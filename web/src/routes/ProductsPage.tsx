@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Package, Plus, TriangleAlert } from "lucide-react";
@@ -310,10 +310,9 @@ export function ProductsPage() {
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
   function renderProductActions(p: Product) {
-    return (
-      <>
-        <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>
-        {p.active ? (
+    return {
+      primary: (<button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>),
+      destructive: (p.active ? (
           <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
             onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
             <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
@@ -323,9 +322,8 @@ export function ProductsPage() {
             onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
             {t("activateButton")}
           </BusyButton>
-        )}
-      </>
-    );
+        )),
+    };
   }
 
   function renderConversionActions(c: EggUnitConversion) {
@@ -553,7 +551,7 @@ export function ProductsPage() {
                         {isAdmin && (
                           <TableCell sx={NOWRAP}>
                             <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                              {renderProductActions(p)}
+                              {Object.entries(renderProductActions(p)).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
                             </Stack>
                           </TableCell>
                         )}
@@ -580,11 +578,7 @@ export function ProductsPage() {
                   { label: t("statusHeader"), value: <StatusBadge status={selectedProduct.active ? "Active" : "Inactive"} label={statusLabel(selectedProduct.active ? "Active" : "Inactive")} /> },
                   ...(selectedProduct.notes ? [{ label: t("notesLabel"), value: selectedProduct.notes }] : []),
                 ] : undefined}
-                actions={isAdmin && selectedProduct && (
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                    {renderProductActions(selectedProduct)}
-                  </Stack>
-                )}
+                actions={isAdmin && selectedProduct ? renderProductActions(selectedProduct) : undefined}
               />
             )}
           />
@@ -627,7 +621,7 @@ export function ProductsPage() {
                 { label: t("eggsPerUnitHeader"), value: fmt.count(selectedConv.eggsPerUnit) },
                 { label: t("statusHeader"), value: statusLabel(selectedConv.active ? "Active" : "Inactive") },
               ] : undefined}
-              actions={isAdmin && selectedConv && renderConversionActions(selectedConv)}
+              actions={isAdmin && selectedConv ? { primary: renderConversionActions(selectedConv) } : undefined}
             />
           )}
         />

@@ -236,7 +236,7 @@ describe("UsersPage load", () => {
 
 // #908 — the table-plus-bottom-inspector redesign (Concept B).
 describe("UsersPage selected-record inspector (#908)", () => {
-  it.each(["{Enter}", " "])("focuses the inspector on %s with password one Tab away", async (key) => {
+  it.each(["{Enter}", " "])("focuses the inspector on %s with edit one Tab away", async (key) => {
     const user = userEvent.setup();
     await renderReady(ADMIN);
     const row = screen.getByRole("row", { name: /worker@farm.test/ });
@@ -244,6 +244,10 @@ describe("UsersPage selected-record inspector (#908)", () => {
     await user.keyboard(key);
     const inspector = screen.getByRole("region", { name: "User details" });
     expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toHaveFocus();
+    await user.tab();
+    expect(within(inspector).getByRole("button", { name: "edit" })).toHaveFocus();
+    await user.tab();
+    expect(within(inspector).getByRole("button", { name: "role" })).toHaveFocus();
     await user.tab();
     expect(within(inspector).getByRole("button", { name: "password" })).toHaveFocus();
     await user.keyboard("{Escape}");
@@ -260,7 +264,7 @@ describe("UsersPage selected-record inspector (#908)", () => {
     fireEvent.click(row);
     const inspector = screen.getByRole("region", { name: "User details" });
     expect(within(inspector).getAllByRole("button").map((button) => button.textContent?.trim()))
-      .toEqual(["password", "change email", "flocks", "disable", "edit", "role"]);
+      .toEqual(["edit", "role", "password", "change email", "flocks", "disable"]);
   });
 
   it("shows a prompt before any row is selected, then fills in on click", async () => {

@@ -441,11 +441,11 @@ export function CustomersPage() {
                     : fmt.money(outstandingFor(selectedCustomer.id)!, balances.currencyCode, balances.currencyMinorUnit),
                 }] : []),
               ] : undefined}
-              actions={selectedCustomer && (
+              actions={selectedCustomer ? { primary: (
                 <button type="button" className="link" onClick={() => openEdit(selectedCustomer)}>
                   <Pencil size={14} aria-hidden /> {t("editButton")}
                 </button>
-              )}
+              ) } : undefined}
             />
           )}
         />

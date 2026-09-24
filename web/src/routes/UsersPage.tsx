@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
@@ -731,43 +731,39 @@ export function UsersPage() {
   const selectedUser = users.find((u) => u.id === selectedId) ?? null;
 
   function renderActions(u: User, location: "row" | "inspector") {
-    return (
-      <>
-        {location === "inspector" && (
-          <>
-            <button className="link" onClick={() => openPassword(u)}>
-              <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
-            </button>
-            <button className="link" onClick={() => openEmail(u)}>
-              <Mail size={14} aria-hidden /> {t("changeEmailButton")}
-            </button>
-            {/* #612 — shown for every role, not just Worker: a promoted user keeps
-                their retained rows (inert, but still visible and removable) even
-                though a NEW assignment is Worker-only. */}
-            <button className="link" onClick={() => void openAssignments(u.id)}>
-              {t("flocksButton")}
-            </button>
-            {myId !== u.id && (
-              u.disabledAt ? (
-                <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
-                  <RotateCcw size={14} aria-hidden /> {t("enableButton")}
-                </button>
-              ) : (
-                <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
-                  <Ban size={14} aria-hidden /> {t("disableButton")}
-                </BusyButton>
-              )
-            )}
-          </>
-        )}
-        <button className="link" onClick={() => openEdit(u)}>
-          <Pencil size={14} aria-hidden /> {t("editButton")}
-        </button>
+    return {
+      primary: <button className="link" onClick={() => openEdit(u)}>
+        <Pencil size={14} aria-hidden /> {t("editButton")}
+      </button>,
+      secondary: <>
         <button className="link" onClick={() => openRole(u)}>
           <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
         </button>
-      </>
-    );
+        {location === "inspector" && <>
+          <button className="link" onClick={() => openPassword(u)}>
+            <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
+          </button>
+          <button className="link" onClick={() => openEmail(u)}>
+            <Mail size={14} aria-hidden /> {t("changeEmailButton")}
+          </button>
+          {/* #612 — promoted users retain assignments that can still be removed. */}
+          <button className="link" onClick={() => void openAssignments(u.id)}>
+            {t("flocksButton")}
+          </button>
+        </>}
+      </>,
+      destructive: location === "inspector" && myId !== u.id && (
+        u.disabledAt ? (
+          <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+            <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+          </button>
+        ) : (
+          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
+            <Ban size={14} aria-hidden /> {t("disableButton")}
+          </BusyButton>
+        )
+      ),
+    };
   }
 
   return (
@@ -877,7 +873,7 @@ export function UsersPage() {
                     </TableCell>
                     <TableCell sx={NOWRAP}>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                        {renderActions(u, "row")}
+                        {Object.entries(renderActions(u, "row")).map(([key, action]) => <Fragment key={key}>{action}</Fragment>)}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -901,11 +897,7 @@ export function UsersPage() {
                   : <StatusBadge status="Active" label={statusLabel("Active")} />,
               },
             ] : undefined}
-            actions={selectedUser && (
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                {renderActions(selectedUser, "inspector")}
-              </Stack>
-            )}
+            actions={selectedUser ? renderActions(selectedUser, "inspector") : undefined}
           />
         )}
       />
