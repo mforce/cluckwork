@@ -4,8 +4,9 @@ import { LANGUAGES, t } from "../src/i18n";
 
 for (const language of LANGUAGES) {
   for (const theme of ["light", "dark"] as const) {
-    test(`Users table fits at 1280 in ${language}, ${theme}`, async ({ page, signIn }) => {
-      await page.setViewportSize({ width: 1280, height: 800 });
+    for (const width of [390, 1024, 1280, 1366, 1440]) {
+    test(`Users table fits at ${width} in ${language}, ${theme}${width === 390 ? " @phone" : ""}`, async ({ page, signIn }) => {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
       await page.emulateMedia({ colorScheme: theme });
       await signIn(owner());
       await page.goto("/account");
@@ -27,14 +28,15 @@ for (const language of LANGUAGES) {
             documentWidth: document.documentElement.scrollWidth,
           };
         });
-        console.log(JSON.stringify({ language, theme, ...geometry }));
-        expect(geometry.scrollWidth - geometry.clientWidth).toBeLessThanOrEqual(1);
-        expect(geometry.documentWidth).toBe(1280);
+        console.log(JSON.stringify({ width, language, theme, ...geometry }));
+        if (width !== 390) expect(geometry.scrollWidth - geometry.clientWidth).toBeLessThanOrEqual(1);
+        expect(geometry.documentWidth).toBe(width);
       } finally {
         await page.goto("/account");
         await languageSelect.selectOption("en");
         await expect(languageSelect).toBeEnabled();
       }
     });
+    }
   }
 }

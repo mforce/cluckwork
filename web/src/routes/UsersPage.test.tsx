@@ -236,6 +236,22 @@ describe("UsersPage load", () => {
 
 // #908 — the table-plus-bottom-inspector redesign (Concept B).
 describe("UsersPage selected-record inspector (#908)", () => {
+  it.each(["{Enter}", " "])("focuses the inspector on %s with password one Tab away", async (key) => {
+    const user = userEvent.setup();
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    row.focus();
+    await user.keyboard(key);
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toHaveFocus();
+    await user.tab();
+    expect(within(inspector).getByRole("button", { name: "password" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(row).toHaveFocus();
+    await user.keyboard(key);
+    expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toHaveFocus();
+  });
+
   it("keeps edit and role in the row and every action in the selected user's inspector", async () => {
     await renderReady(ADMIN);
     const row = screen.getByRole("row", { name: /worker@farm.test/ });
