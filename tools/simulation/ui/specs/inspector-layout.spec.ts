@@ -70,22 +70,30 @@ for (const { route, actions } of screens) {
             const accent = selected.boxShadow.match(/rgba?\([^)]+\)/)![0];
             const panel = surface(heading.parentElement!.parentElement!);
             const inspector = heading.closest("aside")!;
-            const dock = getComputedStyle(inspector.parentElement!);
+            const dock = inspector.parentElement!;
+            const paneBounds = dock.parentElement!.getBoundingClientRect();
+            const dockBounds = dock.getBoundingClientRect();
+            const bandBounds = heading.parentElement!.getBoundingClientRect();
+            const textBounds = heading.getBoundingClientRect();
             const field = getComputedStyle(inspector.querySelector("dl > div")!);
             return {
               color: rgb(text.color), background: rgb(header.backgroundColor),
               row: rgb(selected.backgroundColor), accent: rgb(accent),
               accentWidth: selected.boxShadow.replace(/rgba?\([^)]+\)/, "").trim(),
-              panel: rgb(panel), separatorWidth: dock.borderTopWidth,
-              separatorColor: rgb(dock.borderTopColor), fieldRule: rgb(field.borderBottomColor),
+              panel: rgb(panel), fieldRule: rgb(field.borderBottomColor),
+              frame: {
+                borders: [header.borderTopWidth, header.borderRightWidth, header.borderBottomWidth, header.borderLeftWidth],
+                outline: header.outlineStyle, nameOutline: text.outlineStyle, shadow: header.boxShadow,
+                left: bandBounds.left - paneBounds.left, right: paneBounds.right - bandBounds.right,
+                top: bandBounds.top - dockBounds.top,
+              },
+              textCenterOffset: (textBounds.top + textBounds.bottom - bandBounds.top - bandBounds.bottom) / 2,
               textOpacity: text.opacity, headerOpacity: header.opacity,
               contrast: contrast(text.color, header.backgroundColor),
               accentRowContrast: contrast(accent, selected.backgroundColor),
               accentSurfaceContrast: contrast(accent, surface(selectedRow.closest("table")!)),
               bandPanelContrast: contrast(header.backgroundColor, panel),
-              edgeHeaderContrast: contrast(header.borderBottomColor, header.backgroundColor),
               fieldRuleContrast: contrast(field.borderBottomColor, panel),
-              edgeWidth: header.borderBottomWidth,
               height: heading.parentElement!.getBoundingClientRect().height,
               children: heading.parentElement!.children.length,
               paddingTop: header.paddingTop, paddingBottom: header.paddingBottom,
@@ -94,17 +102,18 @@ for (const { route, actions } of screens) {
           console.log(JSON.stringify({ route, theme, brand, ...styles }));
           expect.soft(styles.accentRowContrast, `${brand} selection against row`).toBeGreaterThanOrEqual(3);
           expect.soft(styles.accentSurfaceContrast, `${brand} selection against surface`).toBeGreaterThanOrEqual(3);
-          expect.soft(styles.edgeWidth, brand).toBe(theme === "dark" ? "2px" : "0px");
+          expect.soft(styles.frame, `${brand} uninterrupted edge-to-edge band`).toEqual({
+            borders: ["0px", "0px", "0px", "0px"], outline: "none", nameOutline: "none", shadow: "none",
+            left: 0, right: 0, top: 0,
+          });
+          expect.soft(styles.textCenterOffset, `${brand} vertically centered name`).toBe(0);
           expect.soft(styles.accentWidth, brand).toBe(`${theme === "dark" ? 8 : 3}px 0px 0px 0px inset`);
-          expect.soft(styles.separatorWidth, brand).toBe(theme === "dark" ? "4px" : "1px");
           expect.soft(styles.panel, brand).toEqual(theme === "dark" ? [48, 39, 51] : [255, 253, 249]);
           if (theme === "dark") {
             expect.soft(styles.row, brand).toEqual(palette.row);
             expect.soft(styles.accent, brand).toEqual(palette.accent);
-            expect.soft(styles.separatorColor, brand).toEqual([35, 29, 37]);
             expect.soft(styles.fieldRule, brand).toEqual([179, 168, 184]);
             expect.soft(styles.bandPanelContrast, `${brand} header band against panel`).toBeGreaterThanOrEqual(3);
-            expect.soft(styles.edgeHeaderContrast, `${brand} header edge against band`).toBeGreaterThanOrEqual(3);
             expect.soft(styles.fieldRuleContrast, `${brand} field rules against panel`).toBeGreaterThanOrEqual(3);
           }
           expect.soft(styles.color, brand).toEqual(theme === "dark" ? [35, 29, 37] : [255, 255, 255]);
@@ -113,9 +122,10 @@ for (const { route, actions } of screens) {
           expect.soft(styles.textOpacity, brand).toBe("1");
           expect.soft(styles.headerOpacity, brand).toBe("1");
           expect.soft(styles.children, brand).toBe(1);
-          expect.soft(styles.paddingTop, brand).toBe("4px");
-          expect.soft(styles.paddingBottom, brand).toBe("4px");
-          expect.soft(styles.height, brand).toBeLessThanOrEqual(40);
+          expect.soft(styles.paddingTop, brand).toBe("7.5px");
+          expect.soft(styles.paddingBottom, brand).toBe("7.5px");
+          expect.soft(styles.height, brand).toBeGreaterThanOrEqual(36);
+          expect.soft(styles.height, brand).toBeLessThanOrEqual(37);
         }
         const actionLabels = await inspector.locator("button, a").allTextContents();
         expect.soft(actionLabels.map((label) => label.trim())).toEqual(actions);

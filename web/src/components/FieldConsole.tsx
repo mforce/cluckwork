@@ -197,14 +197,14 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   return (
     <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
       <Box sx={(theme) => ({
-        ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "4px 18px",
+        ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, mx: "-1px", p: "7.5px 19px",
         ...(theme.palette.mode === "dark" && {
-          bgcolor: "var(--stat-accent)", color: "var(--surface)", borderBottom: "2px solid var(--surface)",
+          bgcolor: "var(--stat-accent)", color: "var(--surface)",
         }),
       })}>
         <Typography component="h3" variant="h3" noWrap tabIndex={-1} sx={{
           m: 0, color: "inherit",
-          "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: 2 },
+          "&:focus-visible": { outline: "none" },
         }}>{title}</Typography>
       </Box>
       {fields && fields.length > 0 && (
@@ -306,6 +306,7 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
     }} sx={{
       display: "flex", flexDirection: "column", minWidth: 0,
       border: "1px solid var(--rule)", borderRadius: "var(--r-panel)", overflow: "hidden",
+      "&:has(aside h3)": { border: 0, p: "1px", boxShadow: "inset 0 0 0 1px var(--rule)" },
       height: {
         xs: `max(280px, calc(100dvh - ${paneTop}px - var(--tabbar-h) - 8px))`,
         md: "clamp(280px, calc(100dvh - 380px), 520px)",
@@ -324,9 +325,11 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
       }} sx={(theme) => ({
         flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "auto",
         borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
-        ...(theme.palette.mode === "dark" && {
-          "&:has(h3)": { borderTop: "4px solid var(--surface)", bgcolor: "var(--surface-2)" },
-        }),
+        "&:has(h3)": {
+          borderTop: 0, mx: "-1px", px: "1px",
+          boxShadow: "inset 1px 0 var(--rule), inset -1px 0 var(--rule)",
+          ...(theme.palette.mode === "dark" && { bgcolor: "var(--surface-2)" }),
+        },
       })}>
         {inspector}
       </Box>
