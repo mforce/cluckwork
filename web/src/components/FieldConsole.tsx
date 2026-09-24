@@ -195,7 +195,7 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   }
   return (
     <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
-      <Box sx={{ p: "4px 18px", color: "text.primary", borderBottom: "1px solid var(--rule)" }}>
+      <Box sx={{ ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "4px 18px" }}>
         <Typography component="h3" variant="h3" tabIndex={-1} sx={{
           m: 0, color: "inherit",
           "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: 2 },

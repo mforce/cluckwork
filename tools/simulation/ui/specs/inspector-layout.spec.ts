@@ -11,7 +11,7 @@ const screens = [
 
 for (const { route, actions } of screens) {
   for (const theme of ["light", "dark"] as const) {
-    test(`${route} inspector uses its surface, ordered actions and available phone height in ${theme} @phone`, async ({ page, signIn }) => {
+    test(`${route} inspector keeps a thin dark header, readable text, ordered actions and available phone height in ${theme} @phone`, async ({ page, signIn }) => {
       await page.emulateMedia({ colorScheme: theme });
       await signIn(owner());
       await page.goto(`/${route}`);
@@ -24,13 +24,39 @@ for (const { route, actions } of screens) {
       const inspector = page.getByRole("region", { name: / details$/ }).filter({ has: page.getByRole("heading") });
       await expect(inspector.getByRole("heading")).toBeFocused();
       await page.evaluate(() => document.fonts.ready);
-      const styles = await inspector.getByRole("heading").evaluate((heading) => ({
-        color: getComputedStyle(heading).color,
-        panelColor: getComputedStyle(heading.closest("aside")!).color,
-        background: getComputedStyle(heading.parentElement!).backgroundColor,
-      }));
-      expect.soft(styles.color).toBe(styles.panelColor);
-      expect.soft(styles.background).toBe("rgba(0, 0, 0, 0)");
+      for (const brand of ["aubergine", "forest", "slate", "terracotta"]) {
+        await page.evaluate((value) => { document.documentElement.dataset.brand = value; }, brand);
+        const styles = await inspector.getByRole("heading").evaluate((heading) => {
+          const text = getComputedStyle(heading);
+          const header = getComputedStyle(heading.parentElement!);
+          const luminance = (color: string) => {
+            const channels = color.match(/[\d.]+/g)!.slice(0, 3).map((value) => {
+              const channel = Number(value) / 255;
+              return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+            });
+            return .2126 * channels[0]! + .7152 * channels[1]! + .0722 * channels[2]!;
+          };
+          const foreground = luminance(text.color);
+          const background = luminance(header.backgroundColor);
+          return {
+            color: text.color, background: header.backgroundColor,
+            textOpacity: text.opacity, headerOpacity: header.opacity,
+            contrast: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05),
+            height: heading.parentElement!.getBoundingClientRect().height,
+            children: heading.parentElement!.children.length,
+            paddingTop: header.paddingTop, paddingBottom: header.paddingBottom,
+          };
+        });
+        expect.soft(styles.color, brand).toBe("rgb(255, 255, 255)");
+        expect.soft(styles.background, brand).toBe("rgb(44, 36, 41)");
+        expect.soft(styles.contrast, brand).toBeGreaterThanOrEqual(4.5);
+        expect.soft(styles.textOpacity, brand).toBe("1");
+        expect.soft(styles.headerOpacity, brand).toBe("1");
+        expect.soft(styles.children, brand).toBe(1);
+        expect.soft(styles.paddingTop, brand).toBe("4px");
+        expect.soft(styles.paddingBottom, brand).toBe("4px");
+        expect.soft(styles.height, brand).toBeLessThanOrEqual(40);
+      }
       const actionLabels = await inspector.locator("button, a").allTextContents();
       expect.soft(actionLabels.map((label) => label.trim())).toEqual(actions);
       if (route !== "customers") {
