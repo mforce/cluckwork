@@ -4,6 +4,7 @@ import { loadEnv } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { matchesInterExtendedSubsetFont } from "./scripts/font-cache-match.mjs";
 
 // #936 — the "available version" side channel (pwa/appVersion.ts). Emitted
 // as a build-only asset, deliberately not part of the Workbox precache glob
@@ -127,13 +128,20 @@ export default defineConfig(({ mode }) => {
           // #948 review — the five subsets `globIgnores` drops still need to
           // work offline after a first successful fetch (a Cyrillic/Greek/
           // Vietnamese farm or customer name, `unicode-range` fetches them on
-          // demand). This route is scoped to exactly those five woff2 files
-          // by filename — it can never match `/api` or `/health`, which have
-          // no `.woff2` extension, so the denylist above stays the only line
-          // of defense those need.
+          // demand). Round 1 shipped a bare RegExp `urlPattern`: Workbox
+          // tests a RegExp against the request's FULL href, unanchored, so
+          // an unrelated same-origin path ending in the right suffix — e.g.
+          // an /api/ route that happened to echo a filename like this one —
+          // would also match, and a regex has no way to see
+          // `request.destination` at all. `matchesInterExtendedSubsetFont`
+          // (a real, independently-tested function, not a pattern re-derived
+          // from this file) requires same-origin, a `/assets/` pathname
+          // prefix, a `.woff2` suffix AND a font `request.destination`, so
+          // the denylist above stays belt-and-braces rather than the only
+          // line of defense.
           runtimeCaching: [
             {
-              urlPattern: /\/inter-(cyrillic-ext|cyrillic|greek-ext|greek|vietnamese)-opsz-normal-[^/]+\.woff2$/,
+              urlPattern: matchesInterExtendedSubsetFont,
               handler: "CacheFirst",
               options: {
                 cacheName: "inter-extended-subsets",

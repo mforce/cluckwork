@@ -79,9 +79,38 @@ function extractDenylist(source) {
 }
 
 /**
- * Pulls every runtime-caching route out of the generated worker — a
- * `registerRoute(<regex>, new $wb.<Strategy>(...), "GET")` call, as opposed to
- * the navigation route's `registerRoute(new $wb.NavigationRoute(...))`.
+ * Reads a balanced `open`/`close` span starting at `source[i] === open`,
+ * tracking string literals so a stray `)` or `}` inside one does not end it
+ * early. Returns the index just past the matching close, or null.
+ */
+function readBalancedAt(source, i, open, close) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  for (let j = i; j < source.length; j++) {
+    const c = source[j];
+    if (quote !== null) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "\"" || c === "'" || c === "`") { quote = c; continue; }
+    if (c === open) depth++;
+    else if (c === close && --depth === 0) return j + 1;
+  }
+  return null;
+}
+
+/**
+ * Pulls every runtime-caching route out of the generated worker: a
+ * `registerRoute(<matcher>, new $wb.<Strategy>(...), "GET")` call, as opposed
+ * to the navigation route's `registerRoute(new $wb.NavigationRoute(...))`.
+ * `<matcher>` is either a RegExp literal (#948 round 1's shape — a route this
+ * repo no longer allows, see check 2 below) or a match-callback `function`
+ * expression (workbox-build serializes a function `urlPattern` via its own
+ * source, minified variable names and all — see check 2 for what still
+ * survives that).
  */
 function extractRuntimeCacheRoutes(source) {
   const routes = [];
@@ -90,12 +119,31 @@ function extractRuntimeCacheRoutes(source) {
   while (true) {
     const at = source.indexOf(marker, i);
     if (at < 0) break;
-    i = at + marker.length;
-    if (source[i] !== "/") continue; // navigation route, or something unrecognized
-    const read = readRegexAt(source, i);
-    if (!read) continue;
-    const strategy = /^\s*,\s*new\s+[$\w]+\.(\w+)\(/.exec(source.slice(read.next, read.next + 200));
-    routes.push({ regex: read.regex, strategy: strategy ? strategy[1] : null });
+    const j = at + marker.length;
+    i = j;
+    if (source[j] === "/") {
+      const read = readRegexAt(source, j);
+      if (!read) continue;
+      const strategy = /^\s*,\s*new\s+[$\w]+\.(\w+)\(/.exec(source.slice(read.next, read.next + 200));
+      routes.push({ kind: "regex", regex: read.regex, strategy: strategy ? strategy[1] : null });
+      continue;
+    }
+    if (source.startsWith("function", j)) {
+      let k = j + "function".length;
+      while (/\s/.test(source[k] ?? "")) k++;
+      if (source[k] !== "(") continue;
+      const afterParams = readBalancedAt(source, k, "(", ")");
+      if (afterParams === null) continue;
+      let m = afterParams;
+      while (/\s/.test(source[m] ?? "")) m++;
+      if (source[m] !== "{") continue;
+      const afterBody = readBalancedAt(source, m, "{", "}");
+      if (afterBody === null) continue;
+      const strategy = /^\s*,\s*new\s+[$\w]+\.(\w+)\(/.exec(source.slice(afterBody, afterBody + 200));
+      routes.push({ kind: "function", source: source.slice(j, afterBody), strategy: strategy ? strategy[1] : null });
+      continue;
+    }
+    // navigation route (`new $wb.NavigationRoute(...)`), or something unrecognized.
   }
   return routes;
 }
@@ -158,11 +206,25 @@ if (denylist) {
 
 // 2. Exactly one runtime caching route may exist beyond the navigation route:
 //    #948's CacheFirst cache for the five Inter subsets `globIgnores` drops
-//    from the precache (check 5). It must be narrowly scoped — provably
-//    unable to answer an /api or /health request — and use CacheFirst, so a
-//    future widening of runtimeCaching cannot silently start serving stale
-//    per-tenant data from cache the way an empty array once guaranteed it
-//    couldn't.
+//    from the precache (check 5). #948 review round 2: a RegExp `urlPattern`
+//    is tested against the request's full href, UNANCHORED, so round 1's
+//    route also matched an unrelated same-origin path that merely ended in
+//    the right suffix (e.g. an /api/ route echoing a font-like filename) —
+//    and a regex has no way to see `request.destination` at all. The route
+//    must now be a match-callback FUNCTION (`font-cache-match.mjs`,
+//    independently unit-tested elsewhere in this file), so a regex-typed
+//    route — however narrow — fails this check outright, and the function's
+//    own source is checked for the specific guards that close the gap.
+//
+//    Never eval the extracted source (`extractRuntimeCacheRoutes` above only
+//    scans it, same discipline as the denylist extraction) — so this reads
+//    the function as TEXT. That text is minified: local parameter names
+//    (`url`, `request`, `sameOrigin`) are freely renamed, but a destructured
+//    parameter's PROPERTY NAME (`sameOrigin:` in `{sameOrigin:l}`) is not,
+//    because it must still match the real key on Workbox's own
+//    `{url, request, sameOrigin}` argument — nor are property/method names
+//    reached through a local variable (`.pathname`, `.startsWith`, a string
+//    literal like `"/assets/"`). Those are what the checks below key on.
 const routeRegistrations = [...sw.matchAll(/\bregisterRoute\(/g)].length;
 const navigationRegistrations = [
   ...sw.matchAll(/\bregisterRoute\(\s*new\s+[$\w]+\.NavigationRoute\(/g),
@@ -175,15 +237,25 @@ check(runtimeRoutes.length === 1,
   `expected exactly one runtime caching route (the Inter extended-subset font cache), found ${runtimeRoutes.length}`);
 for (const route of runtimeRoutes) {
   check(route.strategy === "CacheFirst",
-    `runtime caching route ${route.regex} uses ${route.strategy ?? "an unrecognized"} strategy, not CacheFirst`);
-  for (const path of ["/api", "/api/v1/flocks", "/api?x=1", "/API/v1/flocks", "/health/live", "/health"])
-    check(!route.regex.test(path), `runtime caching route ${route.regex} would answer ${path} from cache`);
-  for (const subset of ["cyrillic", "cyrillic-ext", "greek", "greek-ext", "vietnamese"])
-    check(route.regex.test(`/assets/inter-${subset}-opsz-normal-deadbeef.woff2`),
-      `runtime caching route ${route.regex} does not cover the dropped Inter ${subset} subset`);
-  for (const subset of ["latin", "latin-ext"])
-    check(!route.regex.test(`/assets/inter-${subset}-opsz-normal-deadbeef.woff2`),
-      `runtime caching route ${route.regex} also matches the already-precached Inter ${subset} subset`);
+    `runtime caching route uses ${route.strategy ?? "an unrecognized"} strategy, not CacheFirst`);
+  check(route.kind === "function",
+    "runtime caching route is a RegExp, not a match-callback function — a RegExp urlPattern is tested against " +
+    "the request's full href, unanchored, so it can match an unrelated same-origin path (e.g. an /api/ route " +
+    "with a font-like suffix) and cannot see request.destination (#948 round 2)");
+  if (route.kind !== "function") continue;
+  const fn = route.source;
+  check(fn.includes("url:"), "match-callback does not destructure `url` from its argument");
+  check(fn.includes("request:"), "match-callback does not destructure `request` from its argument");
+  check(fn.includes("sameOrigin:"),
+    "match-callback does not destructure `sameOrigin` — it could match a cross-origin request");
+  check(/\.pathname\.startsWith\(\s*["']\/assets\/["']\s*\)/.test(fn),
+    "match-callback does not require the /assets/ pathname prefix — it could match an /api/ path with a font-like suffix");
+  check(/\.pathname\.endsWith\(\s*["']\.woff2["']\s*\)/.test(fn),
+    "match-callback does not require a .woff2 suffix");
+  check(/\.destination\b/.test(fn) && /["']font["']/.test(fn),
+    "match-callback does not check request.destination === \"font\"");
+  check(!fn.includes("||"),
+    "match-callback combines a check with || — every guard must be required (&&), none may be optional");
 }
 
 // 3. Nothing resembling an API URL may be in the precache manifest, and every

@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { matchesInterExtendedSubsetFont } from "./font-cache-match.mjs";
 
 const scriptPath = fileURLToPath(new URL("./verify-sw.mjs", import.meta.url));
 
@@ -22,8 +23,18 @@ const scriptPath = fileURLToPath(new URL("./verify-sw.mjs", import.meta.url));
 // so this fixture exercises the same regex logic as the guards above it, not
 // a simplified stand-in.
 const DENYLIST = "[/^\\/api(?:[/?]|$)/i,/^\\/health(?:[/?]|$)/i]";
-// #948 added check 2's narrow font-cache route.
-const RUNTIME_ROUTE = "/\\/inter-(cyrillic-ext|cyrillic|greek-ext|greek|vietnamese)-opsz-normal-[^/]+\\.woff2$/";
+// #948 round 2 — copied from an actual `vite build` output (esbuild expands
+// shorthand destructuring into `key:renamedLocal` while minifying, so the
+// PROPERTY names `url:`/`request:`/`sameOrigin:` survive verbatim even
+// though the local bindings `s`/`e`/`l` do not; check 2 keys on exactly that).
+const RUNTIME_ROUTE_FN =
+  'function({url:s,request:e,sameOrigin:l}){return l&&s.pathname.startsWith("/assets/")' +
+  '&&s.pathname.endsWith(".woff2")&&"font"===e.destination}';
+// #948 round 1's shape, kept only as the negative fixture below: a RegExp is
+// tested against the request's full href, unanchored, so this one also
+// matched `/api/v1/x/inter-greek-opsz-normal-deadbeef.woff2`.
+const RUNTIME_ROUTE_REGEX_ROUND_1 =
+  "/\\/inter-(cyrillic-ext|cyrillic|greek-ext|greek|vietnamese)-opsz-normal-[^/]+\\.woff2$/";
 
 // #835 added check 5: the Inter latin/latin-ext opsz faces must be precached.
 // Zero-byte stubs so they satisfy that check without moving the byte totals
@@ -31,7 +42,7 @@ const RUNTIME_ROUTE = "/\\/inter-(cyrillic-ext|cyrillic|greek-ext|greek|vietname
 const OPSZ_FONTS = ["inter-latin-opsz-normal.woff2", "inter-latin-ext-opsz-normal.woff2"];
 
 /** Builds a minimal dist/ that satisfies every OTHER verify-sw.mjs check, so a test only exercises the precache-size guard. */
-function buildFixture(assetByteSize) {
+function buildFixture(assetByteSize, runtimeRoute = RUNTIME_ROUTE_FN) {
   const dist = mkdtempSync(join(tmpdir(), "verify-sw-fixture-"));
   mkdirSync(join(dist, "assets", "fonts"), { recursive: true });
   writeFileSync(join(dist, "assets", "app.js"), "a".repeat(assetByteSize));
@@ -42,7 +53,7 @@ function buildFixture(assetByteSize) {
   ].map(({ url, revision }) => `{url:"${url}",revision:"${revision}"}`).join(",");
   const sw = `precacheAndRoute([${entries}]);` +
     `registerRoute(new wb.NavigationRoute(wb.createHandlerBoundToURL("/index.html"),{denylist:${DENYLIST}}));` +
-    `registerRoute(${RUNTIME_ROUTE},new wb.CacheFirst({cacheName:"inter-extended-subsets"}),"GET");`;
+    `registerRoute(${runtimeRoute},new wb.CacheFirst({cacheName:"inter-extended-subsets"}),"GET");`;
   writeFileSync(join(dist, "sw.js"), sw);
   return dist;
 }
@@ -79,4 +90,56 @@ test("fails closed with an actionable message when precache exceeds the ceiling"
   } finally {
     rmSync(dist, { recursive: true, force: true });
   }
+});
+
+// #948 review round 2, P2 — fixture cases proving check 2's new function-vs-
+// RegExp rule, against the REAL script (not a reimplementation of it).
+test("rejects a RegExp runtime-caching route (#948 round 1 regression)", () => {
+  const dist = buildFixture(1024, RUNTIME_ROUTE_REGEX_ROUND_1);
+  try {
+    const { status, stderr } = runVerifySw(dist);
+    assert.equal(status, 1);
+    assert.match(stderr, /runtime caching route is a RegExp, not a match-callback function/);
+  } finally {
+    rmSync(dist, { recursive: true, force: true });
+  }
+});
+
+test("accepts the real match-callback function route", () => {
+  const dist = buildFixture(1024, RUNTIME_ROUTE_FN);
+  try {
+    const { status } = runVerifySw(dist);
+    assert.equal(status, 0);
+  } finally {
+    rmSync(dist, { recursive: true, force: true });
+  }
+});
+
+// #948 review round 2, P2 — the match-callback itself, called directly (a
+// real function import, never eval'd text), against the exact case the
+// review named: a font-suffixed API path must be REJECTED, and the real
+// asset path accepted.
+test("matchesInterExtendedSubsetFont", async (t) => {
+  const font = { destination: "font" };
+  const notFont = { destination: "" };
+
+  await t.test("rejects a font-suffixed API path (#948 round 1's gap)", () => {
+    const url = new URL("https://cluckwork.example/api/v1/x/inter-greek-opsz-normal-deadbeef.woff2");
+    assert.equal(matchesInterExtendedSubsetFont({ url, request: font, sameOrigin: true }), false);
+  });
+
+  await t.test("accepts the real asset path", () => {
+    const url = new URL("https://cluckwork.example/assets/inter-greek-opsz-normal-deadbeef.woff2");
+    assert.equal(matchesInterExtendedSubsetFont({ url, request: font, sameOrigin: true }), true);
+  });
+
+  await t.test("rejects a cross-origin request", () => {
+    const url = new URL("https://evil.example/assets/inter-greek-opsz-normal-deadbeef.woff2");
+    assert.equal(matchesInterExtendedSubsetFont({ url, request: font, sameOrigin: false }), false);
+  });
+
+  await t.test("rejects a non-font destination", () => {
+    const url = new URL("https://cluckwork.example/assets/inter-greek-opsz-normal-deadbeef.woff2");
+    assert.equal(matchesInterExtendedSubsetFont({ url, request: notFont, sameOrigin: true }), false);
+  });
 });
