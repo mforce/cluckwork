@@ -22,14 +22,27 @@ const scriptPath = fileURLToPath(new URL("./verify-sw.mjs", import.meta.url));
 // so this fixture exercises the same regex logic as the guards above it, not
 // a simplified stand-in.
 const DENYLIST = "[/^\\/api(?:[/?]|$)/i,/^\\/health(?:[/?]|$)/i]";
+// #948 added check 2's narrow font-cache route.
+const RUNTIME_ROUTE = "/\\/inter-(cyrillic-ext|cyrillic|greek-ext|greek|vietnamese)-opsz-normal-[^/]+\\.woff2$/";
+
+// #835 added check 5: the Inter latin/latin-ext opsz faces must be precached.
+// Zero-byte stubs so they satisfy that check without moving the byte totals
+// this suite asserts on — `assetByteSize` stays the only KiB in play.
+const OPSZ_FONTS = ["inter-latin-opsz-normal.woff2", "inter-latin-ext-opsz-normal.woff2"];
 
 /** Builds a minimal dist/ that satisfies every OTHER verify-sw.mjs check, so a test only exercises the precache-size guard. */
 function buildFixture(assetByteSize) {
   const dist = mkdtempSync(join(tmpdir(), "verify-sw-fixture-"));
-  mkdirSync(join(dist, "assets"));
+  mkdirSync(join(dist, "assets", "fonts"), { recursive: true });
   writeFileSync(join(dist, "assets", "app.js"), "a".repeat(assetByteSize));
-  const sw = `precacheAndRoute([{url:"assets/app.js",revision:"deadbeef"}]);` +
-    `registerRoute(new wb.NavigationRoute(wb.createHandlerBoundToURL("/index.html"),{denylist:${DENYLIST}}));`;
+  for (const font of OPSZ_FONTS) writeFileSync(join(dist, "assets", "fonts", font), "");
+  const entries = [
+    { url: "assets/app.js", revision: "deadbeef" },
+    ...OPSZ_FONTS.map((font) => ({ url: `assets/fonts/${font}`, revision: "deadbeef" })),
+  ].map(({ url, revision }) => `{url:"${url}",revision:"${revision}"}`).join(",");
+  const sw = `precacheAndRoute([${entries}]);` +
+    `registerRoute(new wb.NavigationRoute(wb.createHandlerBoundToURL("/index.html"),{denylist:${DENYLIST}}));` +
+    `registerRoute(${RUNTIME_ROUTE},new wb.CacheFirst({cacheName:"inter-extended-subsets"}),"GET");`;
   writeFileSync(join(dist, "sw.js"), sw);
   return dist;
 }
