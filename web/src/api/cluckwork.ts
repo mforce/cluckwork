@@ -41,6 +41,11 @@ export interface EggGrade extends RecordHistory {
    */
   dailyEntryKind: string;
   active: boolean;
+  /**
+   * #911 — the point at which Stock and the Dashboard warn, in eggs. `null`
+   * means this grade raises no low-stock warning. Owner-only to change.
+   */
+  lowStockFloor: number | null;
 }
 
 export interface Flock extends RecordHistory {
@@ -119,6 +124,10 @@ export interface StockRow {
   gradeName: string;
   available: number;
   restricted: number;
+  /** #911 — the grade's floor in eggs, `null` when it has none. */
+  lowStockFloor: number | null;
+  /** #911 — server-computed from `available` alone; restricted eggs cannot be sold. */
+  belowFloor: boolean;
 }
 
 export interface Created {
@@ -128,17 +137,23 @@ export interface Created {
 export const listEggGrades = (params?: { includeInactive?: boolean }) =>
   apiGet<EggGrade[]>(`/egg-grades${params?.includeInactive ? "?includeInactive=true" : ""}`);
 
+// #911 — `lowStockFloor` is a full replacement, not a patch: the value sent is
+// the floor the grade ends up with, and null clears it. A caller that is not an
+// Owner must send the grade's CURRENT floor, which is what the Grades dialog
+// does for a Manager; the API refuses a floor that moves.
 export const createEggGrade = (body: {
   name: string;
   gradeType: string;
   sortOrder: number;
   isSaleable: boolean;
+  lowStockFloor: number | null;
 }, key?: string) => apiPost<Created>("/egg-grades", body, key);
 
 export const updateEggGrade = (id: string, body: {
   name: string;
   sortOrder: number;
   isSaleable: boolean;
+  lowStockFloor: number | null;
 }, key?: string) => apiPut<void>(`/egg-grades/${id}`, body, key);
 
 export const deactivateEggGrade = (id: string, key?: string) =>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Egg, FilterX } from "lucide-react";
+import { Egg, FilterX, TriangleAlert } from "lucide-react";
 import {
   Box, Button, List, ListItem, LinearProgress, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
@@ -483,6 +483,11 @@ export function StockPage() {
   if (rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
 
   const totalAvailable = rows.reduce((a, r) => a + r.available, 0);
+  // #911 — the rows the board-level band summarises. `belowFloor` is the
+  // server's own comparison against available stock; the shortfall is derived
+  // from the same two numbers the row already shows.
+  const belowFloor = rows.filter((r) => r.belowFloor);
+  const shortfall = (row: StockRow) => (row.lowStockFloor ?? 0) - row.available;
   // Largest available across the loaded rows scales every meter fill so the bars
   // read as relative stock. Guard the divide-by-zero when all rows are empty.
   const maxAvailable = rows.reduce((m, r) => Math.max(m, r.available), 0);
@@ -498,6 +503,32 @@ export function StockPage() {
         <EmptyState icon={Egg} message={t("noStockMessage")} />
       ) : (
         <>
+          {belowFloor.length > 0 && (
+            <Box role="status" sx={{
+              display: "flex", gap: 1.25, alignItems: "flex-start", mb: 2, p: 1.5,
+              bgcolor: "var(--tint-warn)", color: "var(--warn)",
+              border: "1px solid currentColor", borderRadius: "var(--r-panel)",
+              fontSize: ".85rem", fontWeight: 650, lineHeight: 1.4,
+            }}>
+              <TriangleAlert size={18} aria-hidden style={{ flexShrink: 0, marginTop: 2 }} />
+              <Box>
+                <Box component="span" sx={{ display: "block" }}>
+                  {t("floorBandTitle", { count: belowFloor.length })}
+                </Box>
+                {/* Below 600px the band is its count line alone: the per-grade
+                    detail is on every flagged row a thumb-scroll away. */}
+                <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontWeight: 400 }}>
+                  {belowFloor
+                    .map((r) => t("floorBandItem", {
+                      grade: r.gradeName,
+                      short: fmt.count(shortfall(r)),
+                      floor: fmt.count(r.lowStockFloor ?? 0),
+                    }))
+                    .join(" · ")}
+                </Box>
+              </Box>
+            </Box>
+          )}
           <ConsoleSummary label={t("totalAvailableMessage", { available: fmt.count(totalAvailable), grades: rows.length })} items={[
             { label: t("availableHeader"), value: fmt.count(totalAvailable) },
             { label: t("gradesLabel"), value: fmt.count(rows.length) },
@@ -505,16 +536,62 @@ export function StockPage() {
           ]} />
           <List aria-label={t("title")} disablePadding sx={{ borderTop: "2px solid var(--ink)" }}>
             {rows.map((r) => (
-              <ListItem key={r.eggGradeId} disablePadding sx={{ borderBottom: "1px solid var(--rule)" }}>
+              <ListItem key={r.eggGradeId} disablePadding sx={{
+                borderBottom: "1px solid var(--rule)",
+                ...(r.belowFloor && {
+                  bgcolor: "var(--tint-warn)",
+                  boxShadow: "inset 4px 0 var(--warn)",
+                }),
+              }}>
                 <Box role="region" aria-label={r.gradeName} sx={{ width: "100%", display: "grid", gridTemplateColumns: { xs: "80px 75px minmax(0, 1fr)", md: "110px 100px minmax(80px, 1fr) 120px 120px" }, gap: { xs: 1, md: 1.5 }, alignItems: "center", py: { xs: 1, md: 2 }, px: 1 }}>
                   <Typography component="strong" sx={{ fontFamily: "Georgia, serif", fontSize: "1.1rem", fontWeight: 700 }}>{r.gradeName}</Typography>
                   <Box>
                     <Typography sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.count(r.available)}</Typography>
                     <Typography variant="body2" sx={{ fontSize: ".65rem", color: "text.secondary" }}>{t("availableHeader")}</Typography>
                   </Box>
-                  <LinearProgress variant="determinate" value={maxAvailable > 0 ? r.available / maxAvailable * 100 : 0} aria-label={r.gradeName} sx={{ height: 8, borderRadius: "var(--r-pill)", bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--stat-accent)" } }} />
-                  <Box sx={{ gridColumn: { xs: "2 / 4", md: "auto" }, fontSize: ".75rem", color: r.restricted > 0 ? "var(--warn)" : "text.secondary" }}>
-                    {r.restricted > 0 ? <><span>{fmt.count(r.restricted)}</span>{" "}{t("restrictedHeader")}</> : t("noRestrictions")}
+                  <Box sx={{ position: "relative" }}>
+                    <LinearProgress variant="determinate" value={maxAvailable > 0 ? r.available / maxAvailable * 100 : 0} aria-label={r.gradeName} sx={{ height: 8, borderRadius: "var(--r-pill)", bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: r.belowFloor ? "var(--warn)" : "var(--stat-accent)" } }} />
+                    {/* Where the floor sits on the same scale. Decorative: the
+                        floor and the shortfall are both stated in words beside it. */}
+                    {r.lowStockFloor !== null && maxAvailable > 0 && r.lowStockFloor <= maxAvailable && (
+                      <Box aria-hidden sx={{
+                        position: "absolute", top: -3, bottom: -3, width: "2px",
+                        left: `${r.lowStockFloor / maxAvailable * 100}%`, bgcolor: "var(--ink)", opacity: 0.55,
+                      }} />
+                    )}
+                  </Box>
+                  <Box sx={{ gridColumn: { xs: "2 / 4", md: "auto" }, fontSize: ".75rem" }}>
+                    {r.belowFloor ? (
+                      <>
+                        {/* Icon AND word, with the whole fact as the accessible
+                            name — the tint alone never carries the warning. */}
+                        <span className="badge badge-warn" role="img" aria-label={t("belowFloorTagLabel", {
+                          available: fmt.count(r.available),
+                          short: fmt.count(shortfall(r)),
+                          floor: fmt.count(r.lowStockFloor ?? 0),
+                        })}>
+                          <TriangleAlert size={12} aria-hidden /> {t("belowFloorTag")}
+                        </span>
+                        <Box sx={{ mt: 0.5, color: "var(--warn)", fontWeight: 650 }}>
+                          {t("shortfallLine", {
+                            short: fmt.count(shortfall(r)),
+                            floor: fmt.count(r.lowStockFloor ?? 0),
+                          })}
+                        </Box>
+                      </>
+                    ) : (
+                      <Box sx={{ color: "text.secondary", fontStyle: r.lowStockFloor === null ? "italic" : "normal" }}>
+                        {r.lowStockFloor === null
+                          ? t("floorNotSet")
+                          : t("floorAbove", {
+                            floor: fmt.count(r.lowStockFloor),
+                            over: fmt.count(r.available - r.lowStockFloor),
+                          })}
+                      </Box>
+                    )}
+                    <Box sx={{ mt: 0.5, color: r.restricted > 0 ? "var(--warn)" : "text.secondary" }}>
+                      {r.restricted > 0 ? <><span>{fmt.count(r.restricted)}</span>{" "}{t("restrictedHeader")}</> : t("noRestrictions")}
+                    </Box>
                   </Box>
                   <Button variant="outlined" color="inherit" aria-expanded={openGrade === r.eggGradeId} sx={{ gridColumn: { xs: "2 / 4", md: "auto" }, height: { xs: 44, md: "auto" } }} onClick={() => void toggleGrade(r.eggGradeId)}>
                     {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
@@ -523,7 +600,7 @@ export function StockPage() {
               </ListItem>
             ))}
           </List>
-          <Typography component="p" sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>{t("restrictionPolicy")}<GlossaryLink term="WithdrawalRestriction" /></Typography>
+          <Typography component="p" sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>{t("restrictionPolicy")}<GlossaryLink term="WithdrawalRestriction" />{" "}{t("floorPolicy")}<GlossaryLink term="LowStockFloor" /></Typography>
 
           {openGrade !== null && (
             <>

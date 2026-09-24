@@ -119,6 +119,7 @@ erDiagram
   uuid AccountId
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer LowStockFloor
 }
 ```
 

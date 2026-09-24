@@ -27,8 +27,8 @@ const mockUpdate = vi.mocked(updateEggGrade);
 const mockDeactivate = vi.mocked(deactivateEggGrade);
 const mockActivate = vi.mocked(activateEggGrade);
 
-const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
-const GRADE_OLD: EggGrade = { ...NO_RECORD_HISTORY, id: "g2", farmId: "f", name: "Legacy", gradeType: "Quality", sortOrder: 2, isSaleable: false, dailyEntryKind: "Manual", active: false };
+const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null };
+const GRADE_OLD: EggGrade = { ...NO_RECORD_HISTORY, id: "g2", farmId: "f", name: "Legacy", gradeType: "Quality", sortOrder: 2, isSaleable: false, dailyEntryKind: "Manual", active: false, lowStockFloor: null };
 
 const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };
@@ -69,7 +69,7 @@ describe("GradesPage display", () => {
     const rowOld = screen.getByRole("row", { name: /Legacy/ });
     // By cell, not by text: the record-history column (#494) also renders "—"
     // for a fixture with no history, so a row-wide text query is ambiguous.
-    // Columns: name, type, sort, saleable, status, history, actions.
+    // Columns: name, type, sort, saleable, floor, status, history, actions.
     expect(within(rowOld).getAllByRole("cell")[3]).toHaveTextContent("—"); // not saleable
     expect(within(rowOld).getByText("Inactive")).toBeInTheDocument();
   });
@@ -119,7 +119,7 @@ describe("GradesPage record history column (#494)", () => {
     const GRADE_HISTORY: EggGrade = {
       ...RECORD_HISTORY,
       id: "g9", farmId: "f", name: "Provenance Grade", gradeType: "Size",
-      sortOrder: 3, isSaleable: true, dailyEntryKind: "Manual", active: true,
+      sortOrder: 3, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null,
     };
     mockList.mockResolvedValue([GRADE_A, GRADE_HISTORY]);
     await renderReady(ADMIN);
@@ -179,6 +179,7 @@ describe("GradesPage admin actions", () => {
 
     expect(mockCreate.mock.calls[0][0]).toEqual({
       name: "Jumbo", gradeType: "Quality", sortOrder: 3, isSaleable: false,
+      lowStockFloor: null,
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
     // success dismisses it; MUI defers the actual removal to its exit transition
@@ -205,7 +206,9 @@ describe("GradesPage admin actions", () => {
     });
 
     expect(mockUpdate.mock.calls[0][0]).toBe("g1");
-    expect(mockUpdate.mock.calls[0][1]).toEqual({ name: "Large", sortOrder: 5, isSaleable: false });
+    expect(mockUpdate.mock.calls[0][1]).toEqual({
+      name: "Large", sortOrder: 5, isSaleable: false, lowStockFloor: null,
+    });
     expect(mockUpdate.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
@@ -442,6 +445,95 @@ describe("GradesPage error placement (#479)", () => {
 
     expect(within(dialog()).getByText("Name already exists.")).toBeInTheDocument();
     expect(screen.getByText(/Server error|boom/)).toBeInTheDocument(); // still there
+  });
+});
+
+// #911 — the per-grade low-stock floor: a column, a read-only inspector field,
+// and one Owner-only input in the dialog that already edits the grade.
+describe("GradesPage low-stock floor (#911)", () => {
+  const MANAGER = { sub: "u2", role: "Manager" };
+  const FLOORED: EggGrade = { ...GRADE_A, id: "g9", name: "Small", lowStockFloor: 5000 };
+
+  async function renderFloored(token: Record<string, unknown>) {
+    mockList.mockResolvedValue([FLOORED]);
+    renderWithProviders(<GradesPage />, { token });
+    await screen.findByText("Small");
+  }
+
+  it("shows the floor in its own column, and an em dash when a grade has none", async () => {
+    mockList.mockResolvedValue([FLOORED, GRADE_A]);
+    await renderReady(ADMIN);
+
+    // Columns: name, type, sort, saleable, floor, status, history, actions.
+    const floored = screen.getByRole("row", { name: /Small/ });
+    expect(within(floored).getAllByRole("cell")[4]).toHaveTextContent("5,000");
+    const unset = screen.getByRole("row", { name: /Grade A/ });
+    expect(within(unset).getAllByRole("cell")[4]).toHaveTextContent("—");
+  });
+
+  it("reads the floor out in the inspector, as 'Not set' when there is none", async () => {
+    mockList.mockResolvedValue([FLOORED, GRADE_A]);
+    await renderReady(ADMIN);
+    const inspector = screen.getByRole("region", { name: "Grade details" });
+
+    fireEvent.click(screen.getByRole("row", { name: /Small/ }));
+    const field = () => within(inspector).getByText("Low-stock floor", { selector: "dt" }).parentElement!;
+    expect(within(field()).getByText("5,000", { selector: "dd" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("row", { name: /Grade A/ }));
+    expect(within(field()).getByText("Not set")).toBeInTheDocument();
+  });
+
+  it("lets an Owner set a floor on a new grade", async () => {
+    mockCreate.mockResolvedValue({ id: "g3" });
+    await renderReady(ADMIN);
+    openCreate();
+
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Cracked" } });
+    fireEvent.change(within(dialog()).getByLabelText("Low-stock floor (eggs)"), { target: { value: "2000" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add grade" }));
+    });
+
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ name: "Cracked", lowStockFloor: 2000 });
+  });
+
+  it("lets an Owner raise and then clear an existing floor", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderFloored(ADMIN);
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Small/ })).getByRole("button", { name: "edit" }));
+    const floorField = () => within(dialog()).getByLabelText("Low-stock floor (eggs)");
+    expect(floorField()).toHaveValue(5000);
+    fireEvent.change(floorField(), { target: { value: "6000" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+    expect(mockUpdate.mock.calls[0][1]).toMatchObject({ lowStockFloor: 6000 });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Small/ })).getByRole("button", { name: "edit" }));
+    // Blank is how a floor is cleared: 0 is a real floor, so it cannot be the
+    // stand-in for "no warning".
+    fireEvent.change(floorField(), { target: { value: "" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ lowStockFloor: null });
+  });
+
+  it("gives a Manager no floor field, and keeps the grade's floor when they save", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderFloored(MANAGER);
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Small/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).queryByLabelText("Low-stock floor (eggs)")).not.toBeInTheDocument();
+    expect(within(dialog()).getByText("Only an Owner can change a grade's low-stock floor.")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Renamed" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+
+    // The update replaces the whole grade, so a Manager's save must carry the
+    // floor back unchanged rather than clearing it.
+    expect(mockUpdate.mock.calls[0][1]).toEqual({
+      name: "Renamed", sortOrder: 1, isSaleable: true, lowStockFloor: 5000,
+    });
   });
 });
 

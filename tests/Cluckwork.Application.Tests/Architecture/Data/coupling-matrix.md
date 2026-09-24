@@ -7,7 +7,7 @@
 | Access | — | W (19) fk:1 | R (2) | W (2) | W (6) | — | — | — | P |
 | Farm | — | — | — | — | R (3) | — | — | — | P |
 | FlockManagement | — | R (1) | — | — | — | — | — | — | P |
-| EggOperations | — | R (1) | W (7) | — | — | — | — | — | P |
+| EggOperations | — | R (2) | W (7) | — | — | — | — | — | P |
 | Commerce | R (1) | R (4) | — | W (8) fk:3 | — | — | — | — | P |
 | GeneralInventory | — | R (3) | R (3) fk:3 | R (2) fk:2 | — | — | — | — | P |
 | Finance | — | R (2) | R (2) fk:1 | — | — | — | — | — | P |

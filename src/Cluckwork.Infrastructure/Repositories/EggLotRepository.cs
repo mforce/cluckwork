@@ -139,7 +139,8 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
                     s.EggGradeId,
                     grade?.Name ?? s.EggGradeId.ToString(),
                     grade?.SortOrder ?? int.MaxValue,
-                    s.Available, s.Restricted);
+                    s.Available, s.Restricted,
+                    grade?.LowStockFloor);
             })
             .OrderBy(r => r.SortOrder).ThenBy(r => r.GradeName)
             .ToList();

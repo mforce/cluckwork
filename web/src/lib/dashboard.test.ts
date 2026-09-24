@@ -324,9 +324,9 @@ describe("henDayTrend (#654, INV-5 — the server's figure, never a re-sum)", ()
 
 describe("stockBar (#654, INV-4, #777)", () => {
   const rows: StockRow[] = [
-    { eggGradeId: "g1", gradeName: "Large", available: 1240, restricted: 0 },
-    { eggGradeId: "g2", gradeName: "Medium", available: 320, restricted: 12 },
-    { eggGradeId: "g3", gradeName: "Pee-wee", available: 0, restricted: 3 },
+    { eggGradeId: "g1", gradeName: "Large", available: 1240, restricted: 0, lowStockFloor: null, belowFloor: false },
+    { eggGradeId: "g2", gradeName: "Medium", available: 320, restricted: 12, lowStockFloor: null, belowFloor: false },
+    { eggGradeId: "g3", gradeName: "Pee-wee", available: 0, restricted: 3, lowStockFloor: null, belowFloor: false },
   ];
   it("gives each non-empty grade its exact share of the plain available total", () => {
     const bar = stockBar(rows);
@@ -340,7 +340,7 @@ describe("stockBar (#654, INV-4, #777)", () => {
     // The opacity ramp this replaced hit its 0.35 floor at the sixth grade, so
     // a seventh and an eighth were literally the same fill.
     const many = Array.from({ length: GRADE_COLOURS + 2 }, (_, i) => (
-      { eggGradeId: `g${i}`, gradeName: `G${i}`, available: 10, restricted: 0 }
+      { eggGradeId: `g${i}`, gradeName: `G${i}`, available: 10, restricted: 0, lowStockFloor: null, belowFloor: false }
     ));
     const indexes = stockBar(many).segments.map((s) => s.colorIndex);
     expect(indexes.slice(0, GRADE_COLOURS)).toEqual(Array.from({ length: GRADE_COLOURS }, (_, i) => i + 1));
@@ -351,9 +351,9 @@ describe("stockBar (#654, INV-4, #777)", () => {
     // The defect this pins: off the filtered index the hue is positional, so
     // one sale renames every colour after it. Same three grades, two days.
     const grades = [
-      { eggGradeId: "g1", gradeName: "Large", restricted: 0 },
-      { eggGradeId: "g2", gradeName: "Medium", restricted: 0 },
-      { eggGradeId: "g3", gradeName: "Small", restricted: 0 },
+      { eggGradeId: "g1", gradeName: "Large", restricted: 0, lowStockFloor: null, belowFloor: false },
+      { eggGradeId: "g2", gradeName: "Medium", restricted: 0, lowStockFloor: null, belowFloor: false },
+      { eggGradeId: "g3", gradeName: "Small", restricted: 0, lowStockFloor: null, belowFloor: false },
     ];
     const hues = (available: number[]) => Object.fromEntries(
       stockBar(grades.map((g, i) => ({ ...g, available: available[i] })))
@@ -366,11 +366,11 @@ describe("stockBar (#654, INV-4, #777)", () => {
 
   it("indexes the hue by the grade's place in the FULL row set, gaps included", () => {
     const bar = stockBar([
-      { eggGradeId: "z0", gradeName: "Empty first", available: 0, restricted: 0 },
-      { eggGradeId: "g1", gradeName: "Large", available: 100, restricted: 0 },
-      { eggGradeId: "z1", gradeName: "Empty middle", available: 0, restricted: 0 },
-      { eggGradeId: "g2", gradeName: "Medium", available: 60, restricted: 0 },
-      { eggGradeId: "g3", gradeName: "Small", available: 40, restricted: 0 },
+      { eggGradeId: "z0", gradeName: "Empty first", available: 0, restricted: 0, lowStockFloor: null, belowFloor: false },
+      { eggGradeId: "g1", gradeName: "Large", available: 100, restricted: 0, lowStockFloor: null, belowFloor: false },
+      { eggGradeId: "z1", gradeName: "Empty middle", available: 0, restricted: 0, lowStockFloor: null, belowFloor: false },
+      { eggGradeId: "g2", gradeName: "Medium", available: 60, restricted: 0, lowStockFloor: null, belowFloor: false },
+      { eggGradeId: "g3", gradeName: "Small", available: 40, restricted: 0, lowStockFloor: null, belowFloor: false },
     ]);
     expect(bar.segments.map((s) => [s.gradeName, s.colorIndex])).toEqual([
       ["Large", 2], ["Medium", 4], ["Small", 5],
@@ -379,7 +379,7 @@ describe("stockBar (#654, INV-4, #777)", () => {
   });
   it("has no segments and zero available when nothing is available, but keeps the restricted total", () => {
     expect(stockBar([])).toEqual({ segments: [], totalAvailable: 0, totalRestricted: 0 });
-    expect(stockBar([{ eggGradeId: "g", gradeName: "G", available: 0, restricted: 4 }]))
+    expect(stockBar([{ eggGradeId: "g", gradeName: "G", available: 0, restricted: 4, lowStockFloor: null, belowFloor: false }]))
       .toEqual({ segments: [], totalAvailable: 0, totalRestricted: 4 });
   });
 });

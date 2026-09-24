@@ -45,8 +45,8 @@ const mockDeactivate = vi.mocked(deactivateProduct);
 const mockActivate = vi.mocked(activateProduct);
 const mockUpdateConversion = vi.mocked(updateEggUnitConversion);
 
-const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
-const GRADE_B: EggGrade = { ...NO_RECORD_HISTORY, id: "g2", farmId: "f", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null };
+const GRADE_B: EggGrade = { ...NO_RECORD_HISTORY, id: "g2", farmId: "f", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null };
 
 // KWD (3 decimals) throughout so a hard-coded 2-decimal money path fails: 500
 // minor units renders "KWD 0.500" and typed "0.5" parses to 500 (not 50).

@@ -24,5 +24,14 @@ public sealed class CreateEggGradeValidator : AbstractValidator<CreateEggGradeCo
                        && Enum.IsDefined(parsed))
             .WithMessage("Grade type must be one of: Size, Quality, Custom.")
             .WithErrorCode("EggGrade.GradeType.Allowed");
+
+        // #911 — a floor is a count of eggs. Absent (null) is the ordinary
+        // state and means no warning; present and negative is nonsense the
+        // aggregate would throw on.
+        RuleFor(c => c.LowStockFloor)
+            .GreaterThanOrEqualTo(0)
+            .When(c => c.LowStockFloor.HasValue)
+            .WithMessage("Low-stock floor cannot be negative.")
+            .WithErrorCode("EggGrade.LowStockFloor.Range");
     }
 }

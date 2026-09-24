@@ -97,9 +97,10 @@
     },
     {
       "from": "EggOperations", "to": "Farm", "kind": "R",
-      "reason": "CreateEggGradeHandler attaches a new grade to Domain.Accounts.SeedDefaults.FarmId, the single-farm stand-in for the farm the grade belongs to. Design 3.4 row Egg Ops -> Farm = R.",
+      "reason": "CreateEggGradeHandler attaches a new grade to Domain.Accounts.SeedDefaults.FarmId, the single-farm stand-in for the farm the grade belongs to; EggGradeFloorPolicy resolves the caller's effective role through Domain.Accounts.Roles to decide whether a grade's low-stock floor may move (#911, Owner-only per #729). Design 3.4 row Egg Ops -> Farm = R.",
       "symbols": [
-        "Cluckwork.Application.Features.EggGrades.CreateEggGrade.CreateEggGradeHandler"
+        "Cluckwork.Application.Features.EggGrades.CreateEggGrade.CreateEggGradeHandler",
+      "Cluckwork.Application.Features.EggGrades.EggGradeFloorPolicy"
       ]
     },
     {

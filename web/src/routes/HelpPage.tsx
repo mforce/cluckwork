@@ -537,6 +537,9 @@ export function HelpPage() {
         </li>
         <li>{t("stockFifo")}</li>
         <li>
+          <Trans ns="help" i18nKey="stockLowStockFloor" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="stockWriteOff" components={{ strong: <strong />, em: <em /> }} />
         </li>
       </ul>
@@ -608,6 +611,9 @@ export function HelpPage() {
         </li>
         <li>
           <Trans ns="help" i18nKey="gradesDeactivating" components={{ strong: <strong />, em: <em /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="gradesLowStockFloor" components={{ strong: <strong /> }} />
         </li>
         <li>{t("gradesAdminOnly")}</li>
       </ul>

@@ -671,6 +671,8 @@ export const es = {
     entryStateRecordedTime: "Registrado {{time}}",
     entryStateDraftTime: "Borrador, guardado {{time}}",
     attentionHouseNotRecorded: "{{flock}} sin registrar",
+    attentionGradeBelowFloor: "Las existencias de {{grade}} están {{short}} por debajo del mínimo",
+    attentionGradesBelowFloor: "{{grades}} grados por debajo del mínimo",
     attentionMore_one: "+{{count}} más",
     attentionMore_other: "+{{count}} más",
     tileLinkLabel: "{{flock}}: abrir el registro de hoy",
@@ -736,6 +738,10 @@ export const es = {
     eggsAvailableLabel_other: "huevos disponibles",
     stockLedgerLabel: "Existencias por grado",
     stockCaptionRestricted: "{{restricted}} restringidos",
+    stockBelowFloorRowLabel: "{{grade}} está por debajo de su mínimo de existencias",
+    stockCaptionBelowFloor:
+      "Las existencias de {{grade}} están {{short}} por debajo de su mínimo de {{floor}}",
+    stockCaptionBelowFloorMany: "{{grades}} grados están por debajo de su mínimo de existencias",
 
     // Ventas recientes (oculto para Solo lectura/Denegado, #127)
     salesPanelTitle: "Ventas recientes",
@@ -890,7 +896,9 @@ export const es = {
     intro:
       "Los grados vendibles aparecen en los selectores de registro diario y "
       + "de pedidos. Desactivar un grado lo elimina de los selectores; las "
-      + "existencias y el historial existentes no se ven afectados.",
+      + "existencias y el historial existentes no se ven afectados. Cada "
+      + "grado puede llevar un mínimo de existencias: el punto en el que "
+      + "Existencias y el Panel empiezan a avisar.",
 
     // Buttons
     newGradeButton: "Nuevo grado",
@@ -917,6 +925,15 @@ export const es = {
 
     // Saleable column's "yes" badge
     saleableYesBadge: "Sí",
+
+    floorHeader: "Mínimo de existencias",
+    floorLabel: "Mínimo de existencias (huevos)",
+    floorNotSet: "Sin definir",
+    floorHelp:
+      "Avisa en Existencias y en el Panel cuando los huevos disponibles bajen "
+      + "de esta cifra. Déjelo en blanco para no avisar.",
+    floorOwnerOnlyMessage:
+      "Solo un propietario puede cambiar el mínimo de existencias de un grado.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -1103,6 +1120,18 @@ export const es = {
     restrictionPolicy: "Las existencias restringidas están presentes, pero no se pueden asignar a ventas.",
     gradesLabel: "Clasificaciones",
     noRestrictions: "Sin restricciones",
+
+    floorBandTitle_one: "{{count}} grado está por debajo de su mínimo de existencias",
+    floorBandTitle_other: "{{count}} grados están por debajo de su mínimo de existencias",
+    floorBandItem: "{{grade}} está {{short}} por debajo de su mínimo de {{floor}}",
+    belowFloorTag: "Bajo el mínimo",
+    belowFloorTagLabel:
+      "Por debajo del mínimo de existencias: {{available}} disponibles, "
+      + "{{short}} por debajo del mínimo de {{floor}} huevos",
+    shortfallLine: "{{short}} por debajo del mínimo de {{floor}}",
+    floorAbove: "Mínimo {{floor}} · {{over}} por encima",
+    floorNotSet: "Sin mínimo definido",
+    floorPolicy: "El mínimo de existencias se define por grado en Grados.",
     title: "Existencias",
 
     // Imperative messages
@@ -2447,6 +2476,11 @@ export const es = {
       + "selectores de pedidos: sus existencias siguen contándose y las líneas de pedido agregadas antes "
       + "aún pueden confirmarse, pero no se puede colocar en líneas de pedido <em>nuevas</em> — reactive el "
       + "grado para vender las existencias restantes. El historial sigue mostrando su nombre.",
+    gradesLowStockFloor:
+      "Un grado puede llevar un <strong>Mínimo de existencias (huevos)</strong>: el punto en el que "
+      + "Existencias y el Panel empiezan a avisar de que el grado se está agotando. Déjelo en blanco para "
+      + "no avisar. Solo un propietario define o borra un mínimo; los demás lo ven en la tabla y en el "
+      + "inspector del registro.",
     gradesAdminOnly: "El catálogo de grados es configuración — administrarlo es solo para administradores.",
 
     productsHeading: "Productos (admin)",
@@ -2472,6 +2506,11 @@ export const es = {
       + "está reservada para períodos de retiro por medicación — esa función llega con el seguimiento de "
       + "medicación. <strong>Nada marca huevos como restringidos todavía, así que el sistema no impone "
       + "tiempos de retiro hoy</strong> — gestione los períodos de retiro fuera de Cluckwork por ahora.",
+    stockLowStockFloor:
+      "Un grado cuyos huevos disponibles han bajado de su <strong>Mínimo de existencias</strong> se "
+      + "señala aquí y en el Panel: una banda en la parte superior del tablero los cuenta y cada grado "
+      + "lleva una etiqueta <strong>Bajo el mínimo</strong> con cuánto le falta. Los huevos restringidos "
+      + "no cuentan para el mínimo, porque no se pueden vender. Los mínimos se definen por grado en Grados.",
     stockFifo: "Vender siempre toma primero los lotes más antiguos, para que las existencias roten naturalmente.",
     stockWriteOff:
       "Las existencias perdidas — roturas, deterioro, huevos consumidos en casa — se registran con "
@@ -3079,6 +3118,13 @@ export const es = {
     glossaryGradeDef:
       "Una categoría de clasificación (tamaño, calidad o personalizada). Los grados vendibles se pueden "
       + "vender.",
+
+    glossaryLowStockFloorTerm: "Mínimo de existencias",
+    glossaryLowStockFloorDef:
+      "Un punto de aviso opcional por grado, en huevos, que el propietario define en Grados. Cuando las "
+      + "existencias disponibles de un grado bajan de su mínimo, Existencias y el Panel lo señalan. Los "
+      + "huevos restringidos no cuentan para el mínimo, porque no se pueden vender. Un grado sin mínimo "
+      + "nunca avisa.",
 
     glossaryEggMovementLedgerTerm: "Libro mayor de movimientos de huevos",
     glossaryEggMovementLedgerDef:

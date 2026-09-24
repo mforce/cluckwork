@@ -26,12 +26,12 @@ public static class EggGradeEndpoints
         // so capture screens can render names for any user.
         group.MapPost("/", CreateEggGrade)
             .WithName("CreateEggGrade")
-            .WithSummary("Create an egg grade (name unique per farm, case-insensitive).")
+            .WithSummary("Create an egg grade (name unique per farm, case-insensitive). A low-stock floor is Owner-only.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPut("/{id:guid}", UpdateEggGrade)
             .WithName("UpdateEggGrade")
-            .WithSummary("Rename a grade or change its sort order / saleability. Grade type is immutable.")
+            .WithSummary("Rename a grade or change its sort order / saleability / low-stock floor. Grade type is immutable; the floor is Owner-only.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/deactivate", (Guid id, SetEggGradeActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, false, h, t, ct))
@@ -84,7 +84,8 @@ public static class EggGradeEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         var command = new CreateEggGradeCommand(
-            request.Name, request.GradeType, request.SortOrder, request.IsSaleable);
+            request.Name, request.GradeType, request.SortOrder, request.IsSaleable,
+            request.LowStockFloor);
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -106,7 +107,8 @@ public static class EggGradeEndpoints
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var command = new UpdateEggGradeCommand(id, request.Name, request.SortOrder, request.IsSaleable);
+        var command = new UpdateEggGradeCommand(
+            id, request.Name, request.SortOrder, request.IsSaleable, request.LowStockFloor);
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -128,6 +130,12 @@ public static class EggGradeEndpoints
     {
         if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
+        // #911 — the route admits Managers; only moving a grade's low-stock
+        // floor is Owner-only, so that refusal arrives here rather than from
+        // the route policy.
+        if (error.Code == "Auth.Forbidden")
+            return Results.Problem(error.Description,
+                statusCode: StatusCodes.Status403Forbidden, title: error.Code);
         // Duplicate names and activate/deactivate state mismatches are conflicts
         // with current state, not validation problems.
         return error.Code is "EggGrade.DuplicateName" or "EggGrade.NotActive" or "EggGrade.AlreadyActive"
@@ -137,7 +145,7 @@ public static class EggGradeEndpoints
 
     private static EggGradeResponse ToResponse(EggGrade g, EntityProvenance? p) =>
         new(g.Id, g.FarmId, g.Name, g.GradeType.ToString(), g.SortOrder, g.IsSaleable,
-            g.DailyEntryKind.ToString(), g.Active,
+            g.DailyEntryKind.ToString(), g.Active, g.LowStockFloor,
             p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
 }
 
@@ -152,13 +160,17 @@ public sealed record EggGradeResponse(
     // refuses them regardless, so this is the affordance, not the enforcement.
     string DailyEntryKind,
     bool Active,
+    // #911 — eggs; null means this grade raises no low-stock warning.
+    int? LowStockFloor,
     // #494 provenance, derived from the audit trail: null together for a
     // record created before that shipped (no backfill).
     string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
     string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
 
+// LowStockFloor is optional on the wire (#911): an absent property means no
+// floor, which is also what an existing caller that never sends it wants.
 public sealed record CreateEggGradeRequest(
-    string Name, string GradeType, int SortOrder, bool IsSaleable);
+    string Name, string GradeType, int SortOrder, bool IsSaleable, int? LowStockFloor = null);
 
 public sealed record UpdateEggGradeRequest(
-    string Name, int SortOrder, bool IsSaleable);
+    string Name, int SortOrder, bool IsSaleable, int? LowStockFloor = null);

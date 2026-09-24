@@ -38,7 +38,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.Customers](public.Customers.md) | 10 |  | BASE TABLE |
 | [public.DailyEntries](public.DailyEntries.md) | 22 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
-| [public.EggGrades](public.EggGrades.md) | 12 |  | BASE TABLE |
+| [public.EggGrades](public.EggGrades.md) | 13 |  | BASE TABLE |
 | [public.EggUnitConversions](public.EggUnitConversions.md) | 8 |  | BASE TABLE |
 | [public.ExpenseCategories](public.ExpenseCategories.md) | 8 |  | BASE TABLE |
 | [public.FarmLogos](public.FarmLogos.md) | 20 |  | BASE TABLE |
@@ -252,6 +252,7 @@ erDiagram
   uuid AccountId
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer LowStockFloor
 }
 "public.EggUnitConversions" {
   uuid Id

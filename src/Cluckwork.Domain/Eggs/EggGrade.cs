@@ -24,6 +24,12 @@ public sealed class EggGrade : AggregateRoot<Guid>, IMutableRecord
     // enforced by a partial unique index (see InitialCreate).
     public DailyEntryKind DailyEntryKind { get; private set; }
 
+    // #911 — the point at which Stock and the Dashboard warn, in eggs. Null is
+    // the ordinary state: the grade raises no low-stock warning at all. It sits
+    // on the grade rather than on the account so a deactivated grade takes its
+    // floor out of service with it, and a renamed grade keeps it.
+    public int? LowStockFloor { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
@@ -33,12 +39,15 @@ public sealed class EggGrade : AggregateRoot<Guid>, IMutableRecord
     public static EggGrade Create(
         Guid id, Guid accountId, Guid farmId, string name,
         EggGradeType gradeType, int sortOrder, bool isSaleable,
-        DailyEntryKind dailyEntryKind = DailyEntryKind.Manual)
+        DailyEntryKind dailyEntryKind = DailyEntryKind.Manual,
+        int? lowStockFloor = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Grade name is required.", nameof(name));
         if (name.Trim().Length > MaxNameLength)
             throw new ArgumentException($"Grade name cannot exceed {MaxNameLength} characters.", nameof(name));
+        if (lowStockFloor < 0)
+            throw new ArgumentException("Low-stock floor cannot be negative.", nameof(lowStockFloor));
 
         return new EggGrade
         {
@@ -48,6 +57,7 @@ public sealed class EggGrade : AggregateRoot<Guid>, IMutableRecord
             SortOrder = sortOrder,
             IsSaleable = isSaleable,
             DailyEntryKind = dailyEntryKind,
+            LowStockFloor = lowStockFloor,
             Active = true
         };
     }
@@ -73,17 +83,21 @@ public sealed class EggGrade : AggregateRoot<Guid>, IMutableRecord
     // Dirty counter resolved to, so re-pointing a kind afterwards would change
     // what a past day's counter is understood to have produced. Neither is a
     // parameter here, which is the enforcement — there is no path to change one.
-    public Result Update(string name, int sortOrder, bool isSaleable)
+    public Result Update(string name, int sortOrder, bool isSaleable, int? lowStockFloor)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure(Error.Validation("EggGrade.NameRequired", "Grade name is required."));
         if (name.Trim().Length > MaxNameLength)
             return Result.Failure(Error.Validation(
                 "EggGrade.NameTooLong", $"Grade name cannot exceed {MaxNameLength} characters."));
+        if (lowStockFloor < 0)
+            return Result.Failure(Error.Validation(
+                "EggGrade.LowStockFloorNegative", "Low-stock floor cannot be negative."));
 
         Name = name.Trim();
         SortOrder = sortOrder;
         IsSaleable = isSaleable;
+        LowStockFloor = lowStockFloor;
         Version++;
         return Result.Success();
     }

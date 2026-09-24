@@ -13,7 +13,7 @@ public static class StockEndpoints
     {
         group.MapGet("/", GetStock)
             .WithName("GetStock")
-            .WithSummary("Current egg stock by grade. Available excludes withdrawal-restricted lots, which sum separately.");
+            .WithSummary("Current egg stock by grade. Available excludes withdrawal-restricted lots, which sum separately; belowFloor compares Available with the grade's low-stock floor.");
 
         // #101 — the ledger behind the cached balances. Production data:
         // open to any signed-in user, like the stock summary.
@@ -104,11 +104,18 @@ public static class StockEndpoints
         // can never read available here and restricted there.
         var rows = await eggLots.GetStockByGradeAsync(await farmClock.TodayAsync(ct), ct);
         return Results.Ok(rows.Select(r => new StockResponse(
-            r.EggGradeId, r.GradeName, r.Available, r.Restricted)));
+            r.EggGradeId, r.GradeName, r.Available, r.Restricted,
+            r.LowStockFloor, r.BelowFloor)));
     }
 }
 
-public sealed record StockResponse(Guid EggGradeId, string GradeName, int Available, int Restricted);
+// #911 — LowStockFloor is the grade's own setting (null: no warning), and
+// BelowFloor is derived from Available ALONE. Restricted eggs cannot be sold,
+// so a grade whose sellable stock has run out reads below its floor even when
+// a restricted lot is waiting out a withdrawal period.
+public sealed record StockResponse(
+    Guid EggGradeId, string GradeName, int Available, int Restricted,
+    int? LowStockFloor, bool BelowFloor);
 
 public sealed record EggLotResponse(
     Guid Id, Guid EggGradeId, DateOnly ProductionDate, int QuantityProduced,

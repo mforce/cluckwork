@@ -9,7 +9,7 @@ Customers, orders, FIFO allocations, payments, expenses, products.
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
 | [public.Customers](public.Customers.md) | 10 |  | BASE TABLE |
-| [public.EggGrades](public.EggGrades.md) | 12 |  | BASE TABLE |
+| [public.EggGrades](public.EggGrades.md) | 13 |  | BASE TABLE |
 | [public.ExpenseCategories](public.ExpenseCategories.md) | 8 |  | BASE TABLE |
 | [public.Products](public.Products.md) | 14 |  | BASE TABLE |
 | [public.SalesOrders](public.SalesOrders.md) | 16 |  | BASE TABLE |
@@ -64,6 +64,7 @@ erDiagram
   uuid AccountId
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer LowStockFloor
 }
 "public.ExpenseCategories" {
   uuid Id
