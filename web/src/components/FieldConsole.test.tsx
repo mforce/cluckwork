@@ -36,7 +36,6 @@ it("walks arbitrary rows and footer variants, rejecting emphasis masked by MUI c
   ]);
 });
 
-
 function SelectableList() {
   const [selected, setSelected] = useState(false);
   return <ListInspectorPane

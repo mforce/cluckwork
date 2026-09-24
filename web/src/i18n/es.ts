@@ -2944,7 +2944,8 @@ export const es = {
       + "muestran sus detalles completos en un panel anclado en la parte inferior de la lista, en lugar de una "
       + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
       + "marcada visiblemente. "
-      + "En Usuarios, editar y rol siguen en la fila. Seleccione la fila de otro usuario para acceder a contraseña, cambiar correo, lotes y deshabilitar o habilitar en este panel.",
+      + "En Usuarios, editar y rol siguen en la fila. Seleccione la fila de otro usuario para acceder a contraseña, "
+      + "cambiar correo, lotes y deshabilitar o habilitar en este panel.",
 
     glossarySearchablePickerTerm: "Selector de búsqueda",
     glossarySearchablePickerDef:

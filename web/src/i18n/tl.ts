@@ -3058,7 +3058,8 @@ export const tl = {
       + "row ay nagpapakita ng buong detalye nito sa isang panel na nakadikit sa ilalim ng listahan, sa halip "
       + "na isang popup. Patuloy na nag-iisa mag-scroll ang table sa itaas, at nananatiling malinaw na markado "
       + "ang napiling row. "
-      + "Sa Mga User, nananatili sa row ang i-edit at tungkulin. Pumili ng row ng ibang user para gamitin ang password, palitan ang email, mga kawan, at i-disable o i-enable sa panel na ito.",
+      + "Sa Mga User, nananatili sa row ang i-edit at tungkulin. Pumili ng row ng ibang user para gamitin ang password, "
+      + "palitan ang email, mga kawan, at i-disable o i-enable sa panel na ito.",
 
     glossarySearchablePickerTerm: "Picker na may search",
     glossarySearchablePickerDef:
