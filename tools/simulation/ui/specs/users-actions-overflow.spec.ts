@@ -1,0 +1,40 @@
+import { test, expect } from "../src/fixtures";
+import { owner } from "../src/cast";
+import { LANGUAGES, t } from "../src/i18n";
+
+for (const language of LANGUAGES) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`Users table fits at 1280 in ${language}, ${theme}`, async ({ page, signIn }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.emulateMedia({ colorScheme: theme });
+      await signIn(owner());
+      await page.goto("/account");
+      const languageSelect = page.locator('select:has(option[value="en"]):has(option[value="es"])');
+      await languageSelect.selectOption(language);
+      await expect(languageSelect).toBeEnabled();
+      try {
+        await page.goto("/users");
+        await expect(page.getByRole("heading", { name: t(language, "users:heading"), exact: true })).toBeVisible();
+        const table = page.getByRole("table");
+        await expect(table.getByRole("button", { name: t(language, "users:editButton"), exact: true }).first()).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+        const geometry = await table.evaluate((element) => {
+          const container = element.parentElement;
+          if (!container) throw new Error("Users table has no container");
+          return {
+            clientWidth: container.clientWidth,
+            scrollWidth: container.scrollWidth,
+            documentWidth: document.documentElement.scrollWidth,
+          };
+        });
+        console.log(JSON.stringify({ language, theme, ...geometry }));
+        expect(geometry.scrollWidth - geometry.clientWidth).toBeLessThanOrEqual(1);
+        expect(geometry.documentWidth).toBe(1280);
+      } finally {
+        await page.goto("/account");
+        await languageSelect.selectOption("en");
+        await expect(languageSelect).toBeEnabled();
+      }
+    });
+  }
+}

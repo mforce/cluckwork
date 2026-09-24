@@ -230,6 +230,17 @@ describe("UsersPage load", () => {
 
 // #908 — the table-plus-bottom-inspector redesign (Concept B).
 describe("UsersPage selected-record inspector (#908)", () => {
+  it("keeps edit and role in the row and every action in the selected user's inspector", async () => {
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /worker@farm.test/ });
+    expect(within(row).getAllByRole("button").map((button) => button.textContent?.trim()))
+      .toEqual(["edit", "role"]);
+    fireEvent.click(row);
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect(within(inspector).getAllByRole("button").map((button) => button.textContent?.trim()))
+      .toEqual(["edit", "role", "password", "change email", "flocks", "disable"]);
+  });
+
   it("shows a prompt before any row is selected, then fills in on click", async () => {
     await renderReady(ADMIN);
     const inspector = screen.getByRole("region", { name: "User details" });
