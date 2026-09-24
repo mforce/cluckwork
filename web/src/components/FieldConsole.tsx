@@ -233,9 +233,45 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
 
 // #908 — a flex column so the table owns its own scroll above a bottom-docked
 // inspector, in the same region, never overlapping it (Concept B).
-export function ListInspectorPane({ table, inspector }: { table: ReactNode; inspector: ReactNode }) {
+export function ListInspectorPane({ table, inspector, tableLabel }: { table: ReactNode; inspector: ReactNode; tableLabel: string }) {
   const paneRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const tableRegion = tableRef.current;
+    const inspectorRegion = inspectorRef.current;
+    if (!tableRegion || !inspectorRegion) return;
+    let origin: { element: HTMLElement; rowIndex: number } | null = null;
+    const rememberFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (inspectorRegion.contains(target)) {
+        const rows = [...tableRegion.querySelectorAll('tr[aria-selected]')];
+        origin = { element: target, rowIndex: rows.findIndex((row) => row.getAttribute("aria-selected") === "true") };
+      } else if (!target.closest('[role="dialog"]')) {
+        origin = null;
+      }
+    };
+    // A closing dialog can outlive the row refresh. Recover once its focus is released.
+    const observer = new MutationObserver(() => {
+      if (!origin || origin.element.isConnected) return;
+      if (inspectorRegion.querySelector("h3")) {
+        origin = null;
+        return;
+      }
+      if (document.activeElement !== document.body) return;
+      const rows = tableRegion.querySelectorAll<HTMLElement>('tr[aria-selected]');
+      const target = rows[Math.min(origin.rowIndex, rows.length - 1)] ?? tableRegion;
+      origin = null;
+      target.focus();
+    });
+    document.addEventListener("focusin", rememberFocus);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      document.removeEventListener("focusin", rememberFocus);
+      observer.disconnect();
+    };
+  }, []);
   const [keyboardSelection, setKeyboardSelection] = useState(0);
   const [paneTop, setPaneTop] = useState(0);
   useLayoutEffect(() => {
@@ -268,7 +304,7 @@ export function ListInspectorPane({ table, inspector }: { table: ReactNode; insp
         md: "clamp(280px, calc(100dvh - 380px), 520px)",
       },
     }}>
-      <Box sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>{table}</Box>
+      <Box ref={tableRef} role="region" aria-label={tableLabel} tabIndex={-1} sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", "&:focus-visible": { outline: "2px solid var(--ink)", outlineOffset: -2 } }}>{table}</Box>
       <Box ref={inspectorRef} onKeyDown={(event) => {
         if (event.key !== "Escape" || !(event.target instanceof Node)
             || !event.currentTarget.contains(event.target)) return;

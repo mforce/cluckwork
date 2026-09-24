@@ -750,18 +750,17 @@ export function UsersPage() {
           <button className="link" onClick={() => void openAssignments(u.id)}>
             {t("flocksButton")}
           </button>
+          {myId !== u.id && u.disabledAt && (
+            <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+              <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+            </button>
+          )}
         </>}
       </>,
-      destructive: location === "inspector" && myId !== u.id && (
-        u.disabledAt ? (
-          <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
-            <RotateCcw size={14} aria-hidden /> {t("enableButton")}
-          </button>
-        ) : (
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
-            <Ban size={14} aria-hidden /> {t("disableButton")}
-          </BusyButton>
-        )
+      destructive: location === "inspector" && myId !== u.id && !u.disabledAt && (
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
+          <Ban size={14} aria-hidden /> {t("disableButton")}
+        </BusyButton>
       ),
     };
   }
@@ -842,6 +841,7 @@ export function UsersPage() {
       {message && <p className="success">{message}</p>}
 
       <ListInspectorPane
+          tableLabel={t("heading")}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
             <Table size="small" sx={{ "& .MuiTableCell-root": { pr: { md: 1.5, lg: 2 } } }}>

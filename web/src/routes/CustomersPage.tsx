@@ -378,6 +378,7 @@ export function CustomersPage() {
           action={{ label: t("newCustomerButton"), onClick: () => { openDialog("create"); setCreating(true); } }} />
       ) : (
         <ListInspectorPane
+          tableLabel={t("title")}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
               <Table size="small">

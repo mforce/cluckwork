@@ -38,7 +38,7 @@ it("walks arbitrary rows and footer variants, rejecting emphasis masked by MUI c
 
 function SelectableList() {
   const [selected, setSelected] = useState(false);
-  return <ListInspectorPane
+  return <ListInspectorPane tableLabel="Records"
     table={<Table><TableBody><TableRow {...selectableRowProps(selected, () => setSelected(true))}>
       <TableCell>First record</TableCell><TableCell><button>Edit record</button></TableCell>
     </TableRow></TableBody></Table>}

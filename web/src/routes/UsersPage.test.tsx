@@ -3996,3 +3996,15 @@ describe("UsersPage dismissed disable continuation (#703 PR 4)", () => {
     expect(screen.queryByText(/worker@farm\.test has been disabled/)).not.toBeInTheDocument();
   });
 });
+
+it("keeps corrective actions outside the destructive group for an inactive record", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("row", { name: /disabled@farm.test/ }));
+    const inspector = screen.getByRole("region", { name: "User details" });
+    expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "role", "password", "change email", "flocks", "enable"]);
+    const corrective = within(inspector).getByRole("button", { name: "enable" });
+    expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
+    expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+    expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
+});

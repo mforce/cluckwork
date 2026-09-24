@@ -293,29 +293,26 @@ export function FlocksPage() {
         {location === "inspector" && isAdmin && <Link className="link" to={`/audit?entityId=${f.id}`}>
           {tc("recordHistory.viewHistoryLink")}
         </Link>}
-      </>,
-      destructive: isAdmin && <>
-        {f.status === "Active" && (
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
-            onClick={() => void onDeplete(f)}>
-            <TriangleAlert size={14} aria-hidden /> {t("depleteButton")}
-          </BusyButton>
-        )}
-        {f.status !== "Archived" && (
-          // After the confirm dialog settles, THIS button is the pending
-          // indicator for the in-flight archive (#236).
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
-            onClick={() => void onArchive(f)}>
-            <TriangleAlert size={14} aria-hidden /> {t("archiveButton")}
-          </BusyButton>
-        )}
-        {f.status !== "Active" && (
+        {isAdmin && f.status !== "Active" && (
           // The undo (#57): back to Active, full capture restored.
           <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
             onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
             {t("reactivateButton")}
           </BusyButton>
         )}
+      </>,
+      destructive: isAdmin && f.status !== "Archived" && <>
+        {f.status === "Active" && (
+          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
+            onClick={() => void onDeplete(f)}>
+            <TriangleAlert size={14} aria-hidden /> {t("depleteButton")}
+          </BusyButton>
+        )}
+        {/* #236 — the trigger indicates progress after the confirm dialog closes. */}
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
+          onClick={() => void onArchive(f)}>
+          <TriangleAlert size={14} aria-hidden /> {t("archiveButton")}
+        </BusyButton>
       </>,
     };
   }
@@ -436,7 +433,10 @@ export function FlocksPage() {
         </label>
       )}
 
-      {visible.length === 0 ? (
+        <ListInspectorPane
+          tableLabel={t("title")}
+          table={visible.length === 0 ? (
+
         // #655 — `visible` is already filtered by `showArchived`; when
         // everything is archived and the toggle is off, this is "filtered to
         // nothing" (offer to reveal them), never "nothing exists yet" (which
@@ -447,9 +447,8 @@ export function FlocksPage() {
               action={{ label: tc("clearFiltersButton"), onClick: () => setShowArchived(true) }} />
           : <EmptyState icon={Bird} message={t("noFlocksMessage")}
               action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); openDialog("create"); setCreating(true); } } : undefined} />
-      ) : (
-        <ListInspectorPane
-          table={(
+          ) : (
+
             <LedgerTableContainer scrollHint="columnsAndRows">
               <Table size="small">
                 <TableHead>
@@ -517,7 +516,6 @@ export function FlocksPage() {
             />
           )}
         />
-      )}
 
       {ledgerFlockId && (
         // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —

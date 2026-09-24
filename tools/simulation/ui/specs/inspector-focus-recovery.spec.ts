@@ -1,0 +1,32 @@
+import { test, expect } from "../src/fixtures";
+import { owner } from "../src/cast";
+import { farmToday } from "../src/farm";
+import { tEn } from "../src/i18n";
+
+test("archiving from the inspector returns keyboard focus to the nearest surviving flock", async ({ page, signIn, farm }) => {
+  await signIn(owner());
+  await page.goto("/flocks");
+  await page.getByRole("button", { name: tEn("flocks:newFlockButton") }).click();
+  const create = page.getByRole("dialog", { name: tEn("flocks:newFlockDialogTitle") });
+  const name = `Inspector focus ${Date.now()}`;
+  await create.getByLabel(tEn("flocks:nameLabel")).fill(name);
+  await create.getByLabel(tEn("flocks:breedLabel")).fill("Leghorn");
+  await create.getByLabel(tEn("flocks:placedLabel")).fill(farmToday(farm.timeZoneId));
+  await create.getByLabel(tEn("flocks:birdsLabel"), { exact: true }).fill("10");
+  await create.getByRole("button", { name: tEn("flocks:addFlockButton") }).click();
+  await expect(create).toBeHidden();
+  const rows = page.getByRole("table").locator("tbody tr");
+  const names = await rows.locator("td:first-child").allTextContents();
+  const index = names.indexOf(name);
+  expect(index).toBeGreaterThanOrEqual(0);
+  const neighbour = names[index + 1] ?? names[index - 1];
+  const selected = rows.filter({ has: page.getByRole("cell", { name, exact: true }) });
+  await selected.focus();
+  await page.keyboard.press("Enter");
+  const inspector = page.getByRole("region", { name: "Flock details" });
+  await expect(inspector.getByRole("heading", { name })).toBeFocused();
+  await inspector.getByRole("button", { name: tEn("flocks:archiveButton"), exact: true }).click();
+  await page.getByRole("button", { name: tEn("flocks:archiveConfirmLabel"), exact: true }).click();
+  await expect(selected).toHaveCount(0);
+  await expect(rows.filter({ has: page.getByRole("cell", { name: neighbour, exact: true }) })).toBeFocused();
+});

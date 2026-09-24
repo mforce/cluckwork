@@ -312,16 +312,18 @@ export function ProductsPage() {
   function renderProductActions(p: Product) {
     return {
       primary: <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>,
-      destructive: p.active ? (
-        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
-          onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
-          <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
-        </BusyButton>
-      ) : (
+      secondary: !p.active && (
         <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy} busy={isPending(`act:${p.id}`)}
           onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
           {t("activateButton")}
         </BusyButton>
+      ),
+      destructive: p.active && (
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} busy={isPending(`deact:${p.id}`)}
+          onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
+          <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
+        </BusyButton>
+
       ),
     };
   }
@@ -518,6 +520,7 @@ export function ProductsPage() {
             action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); } } : undefined} />
         ) : (
           <ListInspectorPane
+          tableLabel={t("title")}
             table={(
               <LedgerTableContainer scrollHint="columnsAndRows">
                 <Table size="small">
@@ -587,6 +590,7 @@ export function ProductsPage() {
 
       <Box role="tabpanel" id="packed-units-tabpanel" aria-labelledby="packed-units-tab" hidden={tab !== "packedUnits"}>
         <ListInspectorPane
+          tableLabel={t("title")}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
               <Table size="small">
