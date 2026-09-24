@@ -31,7 +31,8 @@ for (const { route, actions } of screens) {
       }));
       expect.soft(styles.color).toBe(styles.panelColor);
       expect.soft(styles.background).toBe("rgba(0, 0, 0, 0)");
-      expect.soft(await inspector.locator("button, a").allTextContents()).toEqual(actions.map((action) => expect.stringMatching(new RegExp(`^\\s*${action}\\s*$`, "i"))));
+      const actionLabels = await inspector.locator("button, a").allTextContents();
+      expect.soft(actionLabels.map((label) => label.trim())).toEqual(actions);
       if (route !== "customers") {
         await expect(inspector.locator("button, a").last().locator("..")).toHaveCSS("border-left-width", "1px");
       }
@@ -39,8 +40,8 @@ for (const { route, actions } of screens) {
       const nav = page.locator('nav').filter({ has: page.locator('.MuiBottomNavigation-root') });
       const paneBounds = await pane.boundingBox();
       const navBounds = await nav.boundingBox();
-      expect.soft(navBounds!.y - (paneBounds!.y + paneBounds!.height)).toBeGreaterThanOrEqual(12);
-      expect.soft(navBounds!.y - (paneBounds!.y + paneBounds!.height)).toBeLessThanOrEqual(20);
+      expect.soft(navBounds!.y - (paneBounds!.y + paneBounds!.height)).toBeGreaterThanOrEqual(6);
+      expect.soft(navBounds!.y - (paneBounds!.y + paneBounds!.height)).toBeLessThanOrEqual(10);
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await inspector.locator("button, a").last().scrollIntoViewIfNeeded();
       const actionBounds = await inspector.locator("button, a").last().boundingBox();

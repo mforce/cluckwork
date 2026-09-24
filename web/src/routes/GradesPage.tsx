@@ -177,22 +177,23 @@ export function GradesPage() {
   // actions, so both call sites stay one implementation.
   function renderActions(g: EggGrade) {
     return {
-      primary: isAdmin && (<button className="link" disabled={busy}
-              onClick={() => startEdit(g)}>{t("editButton")}</button>),
-      secondary: isAdmin && (<Link className="link" to={`/audit?entityId=${g.id}`}>
-            {tc("recordHistory.viewHistoryLink")}
-          </Link>),
+      primary: isAdmin && (
+        <button className="link" disabled={busy} onClick={() => startEdit(g)}>{t("editButton")}</button>
+      ),
+      secondary: isAdmin && (
+        <Link className="link" to={`/audit?entityId=${g.id}`}>{tc("recordHistory.viewHistoryLink")}</Link>
+      ),
       destructive: isAdmin && (g.active ? (
-              <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
-                onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
-                <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
-              </BusyButton>
-            ) : (
-              <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}
-                onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
-                {t("activateButton")}
-              </BusyButton>
-            )),
+        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} busy={isPending(`deactivate:${g.id}`)} disabled={busy}
+          onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
+          <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
+        </BusyButton>
+      ) : (
+        <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${g.id}`)} disabled={busy}
+          onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
+          {t("activateButton")}
+        </BusyButton>
+      )),
     };
   }
 

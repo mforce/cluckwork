@@ -282,9 +282,11 @@ export function FlocksPage() {
   // actions, so both call sites stay one implementation.
   function renderActions(f: Flock, location: "row" | "inspector") {
     return {
-      primary: isAdmin && (<button className="link" style={NOWRAP} disabled={busy}
-            onClick={() => startEdit(f)}>{t("editButton")}</button>),
-      secondary: <><button className="link" style={NOWRAP} disabled={busy}
+      primary: isAdmin && (
+        <button className="link" style={NOWRAP} disabled={busy} onClick={() => startEdit(f)}>{t("editButton")}</button>
+      ),
+      secondary: <>
+        <button className="link" style={NOWRAP} disabled={busy}
           onClick={() => void openLedger(f.id)}>
           {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
         </button>
@@ -292,13 +294,14 @@ export function FlocksPage() {
           {tc("recordHistory.viewHistoryLink")}
         </Link>}
       </>,
-      destructive: <>        {isAdmin && f.status === "Active" && (
+      destructive: isAdmin && <>
+        {f.status === "Active" && (
           <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
             onClick={() => void onDeplete(f)}>
             <TriangleAlert size={14} aria-hidden /> {t("depleteButton")}
           </BusyButton>
         )}
-        {isAdmin && f.status !== "Archived" && (
+        {f.status !== "Archived" && (
           // After the confirm dialog settles, THIS button is the pending
           // indicator for the in-flight archive (#236).
           <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
@@ -306,13 +309,14 @@ export function FlocksPage() {
             <TriangleAlert size={14} aria-hidden /> {t("archiveButton")}
           </BusyButton>
         )}
-        {isAdmin && f.status !== "Active" && (
+        {f.status !== "Active" && (
           // The undo (#57): back to Active, full capture restored.
           <BusyButton variant="text" sx={CONSOLE_LINK_SX} style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
             onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
             {t("reactivateButton")}
           </BusyButton>
-        )}</>,
+        )}
+      </>,
     };
   }
 
