@@ -237,6 +237,8 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
   const paneRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const [keyboardSelection, setKeyboardSelection] = useState(0);
+  const [paneTop, setPaneTop] = useState(0);
   useLayoutEffect(() => {
     const tableRegion = tableRef.current;
     const inspectorRegion = inspectorRef.current;
@@ -272,8 +274,6 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
       observer.disconnect();
     };
   }, []);
-  const [keyboardSelection, setKeyboardSelection] = useState(0);
-  const [paneTop, setPaneTop] = useState(0);
   useLayoutEffect(() => {
     const pane = paneRef.current;
     if (!pane) return;
@@ -304,7 +304,10 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
         md: "clamp(280px, calc(100dvh - 380px), 520px)",
       },
     }}>
-      <Box ref={tableRef} role="region" aria-label={tableLabel} tabIndex={-1} sx={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", "&:focus-visible": { outline: "2px solid var(--ink)", outlineOffset: -2 } }}>{table}</Box>
+      <Box ref={tableRef} role="region" aria-label={tableLabel} tabIndex={-1} sx={{
+        flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column",
+        "&:focus-visible": { outline: "2px solid var(--ink)", outlineOffset: -2 },
+      }}>{table}</Box>
       <Box ref={inspectorRef} onKeyDown={(event) => {
         if (event.key !== "Escape" || !(event.target instanceof Node)
             || !event.currentTarget.contains(event.target)) return;

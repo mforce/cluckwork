@@ -323,7 +323,6 @@ export function ProductsPage() {
           onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
           <TriangleAlert size={14} aria-hidden /> {t("deactivateButton")}
         </BusyButton>
-
       ),
     };
   }
@@ -520,7 +519,7 @@ export function ProductsPage() {
             action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); } } : undefined} />
         ) : (
           <ListInspectorPane
-          tableLabel={t("title")}
+            tableLabel={t("title")}
             table={(
               <LedgerTableContainer scrollHint="columnsAndRows">
                 <Table size="small">
@@ -590,7 +589,7 @@ export function ProductsPage() {
 
       <Box role="tabpanel" id="packed-units-tabpanel" aria-labelledby="packed-units-tab" hidden={tab !== "packedUnits"}>
         <ListInspectorPane
-          tableLabel={t("title")}
+          tableLabel={t("packedUnitsHeading")}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
               <Table size="small">

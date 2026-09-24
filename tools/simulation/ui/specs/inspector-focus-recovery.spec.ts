@@ -20,6 +20,7 @@ test("archiving from the inspector returns keyboard focus to the nearest survivi
   const index = names.indexOf(name);
   expect(index).toBeGreaterThanOrEqual(0);
   const neighbour = names[index + 1] ?? names[index - 1];
+  if (neighbour === undefined) throw new Error("The archive fixture needs a surviving flock");
   const selected = rows.filter({ has: page.getByRole("cell", { name, exact: true }) });
   await selected.focus();
   await page.keyboard.press("Enter");

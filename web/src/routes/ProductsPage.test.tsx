@@ -946,12 +946,12 @@ describe("ProductsPage codex-f2 repro (#703 review r2)", () => {
 });
 
 it("keeps corrective actions outside the destructive group for an inactive record", async () => {
-    await renderReady(ADMIN);
-    fireEvent.click(screen.getByRole("row", { name: /Legacy Tray/ }));
-    const inspector = screen.getByRole("region", { name: "Product details" });
-    expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "activate"]);
-    const corrective = within(inspector).getByRole("button", { name: "activate" });
-    expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
-    expect(corrective).not.toHaveStyle({ color: "var(--error)" });
-    expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
+  await renderReady(ADMIN);
+  fireEvent.click(screen.getByRole("row", { name: /Legacy Tray/ }));
+  const inspector = screen.getByRole("region", { name: "Product details" });
+  expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "activate"]);
+  const corrective = within(inspector).getByRole("button", { name: "activate" });
+  expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
+  expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+  expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
 });

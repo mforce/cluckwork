@@ -841,7 +841,7 @@ export function UsersPage() {
       {message && <p className="success">{message}</p>}
 
       <ListInspectorPane
-          tableLabel={t("heading")}
+        tableLabel={t("heading")}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
             <Table size="small" sx={{ "& .MuiTableCell-root": { pr: { md: 1.5, lg: 2 } } }}>
