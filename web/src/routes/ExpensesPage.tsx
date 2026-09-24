@@ -726,7 +726,11 @@ export function ExpensesPage() {
         {!expenses.reloading && expenses.meta !== null && (
           <>
             <Typography component="p" variant="body2">{t("periodHeading")}</Typography>
-            <Typography component="p" variant="body2" sx={{ fontSize: "2rem", fontWeight: 700, fontVariantNumeric: "tabular-nums", my: 1 }}>
+            <Typography component="p" variant="body2" sx={{
+              fontSize: "2rem", fontWeight: 700, fontVariantNumeric: "tabular-nums", my: 1,
+              // #835/#948 — one of the stat figures; clears the root's text-cut pin.
+              fontVariationSettings: "normal",
+            }}>
               {fmt.money(expenses.meta.total, currencyCode, currencyMinor)}
             </Typography>
             <Typography sx={{ fontSize: ".8rem" }}>{t("wholePeriod")}</Typography>

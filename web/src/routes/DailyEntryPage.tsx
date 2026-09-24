@@ -190,6 +190,8 @@ function SummaryStat({ label, value, live = false }: { label: string; value: str
       <Typography component="strong" sx={{
         display: "block", fontSize: "1.375rem", lineHeight: 1.3,
         fontWeight: 700, fontVariantNumeric: "tabular-nums",
+        // #835/#948 — one of the stat figures; clears the root's text-cut pin.
+        fontVariationSettings: "normal",
       }}>
         {value}
       </Typography>

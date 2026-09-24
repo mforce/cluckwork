@@ -122,6 +122,13 @@
   font-family: var(--font);
   color: var(--ink);
   color-scheme: light; /* native controls follow the app's theme, not the OS, once toggled */
+  /* #948 review — `font-optical-sizing: auto` (the CSS default, set by #835's
+     opsz.css import) varies the axis continuously with the RENDERED size, so
+     body text, inputs and table cells at 16px on phones would drift off the
+     14px text cut they render at on main. Pin the whole app to the text cut
+     here; the handful of stat figures #835 targets clear this pin with their
+     own `font-variation-settings: normal`, which hands them back to auto. */
+  font-variation-settings: "opsz" 14;
 }
 
 /* ---- Farm accent palettes (#149) ----
@@ -913,6 +920,9 @@ input.cell {
   font-weight: 800;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  /* #835/#948 — one of the stat figures; clears the root's text-cut pin so
+     the display cut applies at this size. */
+  font-variation-settings: normal;
 }
 
 /* How many eggs are still unaccounted for — the number the grading pane is
@@ -940,6 +950,8 @@ input.cell {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--stat-accent);
+  /* #835/#948 — one of the stat figures; clears the root's text-cut pin. */
+  font-variation-settings: normal;
 }
 
 .entry-chip-text > span {
