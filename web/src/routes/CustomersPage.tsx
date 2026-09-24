@@ -427,11 +427,10 @@ export function CustomersPage() {
           inspector={(
             <RecordInspector
               ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-              eyebrow={selectedCustomer ? t("entitySingular") : undefined}
               title={selectedCustomer?.name}
-              subtitle={selectedCustomer?.phone}
               emptyMessage={tc("inspectorEmptyPrompt")}
               fields={selectedCustomer ? [
+                { label: t("phoneHeader"), value: selectedCustomer.phone ?? "—" },
                 { label: t("emailFieldLabel"), value: selectedCustomer.email ?? "—" },
                 { label: t("addressFieldLabel"), value: selectedCustomer.address ?? "—" },
                 { label: t("noteFieldLabel"), value: selectedCustomer.note ?? "—" },

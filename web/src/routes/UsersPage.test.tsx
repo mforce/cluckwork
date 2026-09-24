@@ -274,6 +274,8 @@ describe("UsersPage selected-record inspector (#908)", () => {
     expect(row).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toBeInTheDocument();
     expect(within(inspector).getByText("Wendy")).toBeInTheDocument();
+    const roleField = within(inspector).getByText("Role", { selector: "dt" }).parentElement!;
+    expect(within(roleField).getByText("Worker", { selector: "dd" })).toBeInTheDocument();
   });
 
   it("opens the same edit dialog from the inspector's own edit action", async () => {

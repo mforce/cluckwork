@@ -566,11 +566,10 @@ export function ProductsPage() {
             inspector={(
               <RecordInspector
                 ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-                eyebrow={selectedProduct ? t("entitySingular") : undefined}
                 title={selectedProduct?.name}
-                subtitle={selectedProduct ? gradeName(selectedProduct.eggGradeId) : undefined}
                 emptyMessage={tc("inspectorEmptyPrompt")}
                 fields={selectedProduct ? [
+                  { label: t("gradeHeader"), value: gradeName(selectedProduct.eggGradeId) },
                   { label: t("soldPerHeader"), value: selectedProduct.defaultUnit },
                   {
                     label: t("defaultPriceHeader"),
@@ -622,7 +621,6 @@ export function ProductsPage() {
           inspector={(
             <RecordInspector
               ariaLabel={tc("inspectorLabel", { entity: t("packedUnitEntitySingular") })}
-              eyebrow={selectedConv ? t("packedUnitEntitySingular") : undefined}
               title={selectedConv?.unitCode}
               emptyMessage={tc("inspectorEmptyPrompt")}
               fields={selectedConv ? [

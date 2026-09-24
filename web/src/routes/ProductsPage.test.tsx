@@ -176,7 +176,8 @@ describe("ProductsPage tabs + selected-record inspector (#908)", () => {
 
     expect(row).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "Grade A Dozen" })).toBeInTheDocument();
-    expect(within(inspector).getByText("Grade A")).toBeInTheDocument();
+    const gradeField = within(inspector).getByText("Grade", { selector: "dt" }).parentElement!;
+    expect(within(gradeField).getByText("Grade A", { selector: "dd" })).toBeInTheDocument();
     expect(within(inspector).getByText("KWD 0.500")).toBeInTheDocument();
   });
 

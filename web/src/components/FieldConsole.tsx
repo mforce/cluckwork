@@ -179,11 +179,9 @@ export interface InspectorField {
 // #908 — the setup lists' selected-record panel, docked below the table
 // (Concept B, issue #908's owner-approved direction). Renders nothing but the
 // empty prompt until a row is selected.
-export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, actions, emptyMessage }: {
+export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessage }: {
   ariaLabel: string;
-  eyebrow?: string;
   title?: ReactNode;
-  subtitle?: ReactNode;
   fields?: InspectorField[];
   actions?: ReactNode;
   emptyMessage: string;
@@ -197,28 +195,22 @@ export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, a
   }
   return (
     <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
-      <Box sx={{ ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "14px 18px" }}>
-        {eyebrow && (
-          <Typography component="span" sx={{
-            display: "block", fontSize: ".625rem", textTransform: "uppercase", letterSpacing: ".1em", opacity: .75,
-          }}>{eyebrow}</Typography>
-        )}
+      <Box sx={{ ...CONSOLE_RAIL_SX, borderRadius: 0, border: 0, p: "4px 18px" }}>
         <Typography component="h3" variant="h3" tabIndex={-1} sx={{
-          m: "6px 0 3px", color: "inherit",
+          m: 0, color: "inherit",
           "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: 3 },
         }}>{title}</Typography>
-        {subtitle && <Typography component="p" variant="body2" sx={{ m: 0, opacity: .8 }}>{subtitle}</Typography>}
       </Box>
       {fields && fields.length > 0 && (
         <Box component="dl" sx={{
-          m: 0, p: "13px 18px", display: "grid",
+          m: 0, p: "2px 18px 4px", display: "grid",
           gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
           columnGap: "16px",
         }}>
           {fields.map((field, i) => (
             <Box key={i} sx={{
               display: "grid", gridTemplateColumns: "86px 1fr", gap: "7px",
-              py: ".4rem", borderBottom: "1px solid var(--rule)", fontSize: ".75rem",
+              borderBottom: "1px solid var(--rule)", fontSize: ".75rem",
             }}>
               <Typography component="dt" sx={{ color: "text.secondary", fontSize: "inherit" }}>{field.label}</Typography>
               <Typography component="dd" sx={{ m: 0, fontWeight: 650, fontSize: "inherit", overflowWrap: "anywhere" }}>
@@ -228,7 +220,7 @@ export function RecordInspector({ ariaLabel, eyebrow, title, subtitle, fields, a
           ))}
         </Box>
       )}
-      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, px: "18px", pb: "14px" }}>{actions}</Box>}
+      {actions && <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, px: "18px", pb: 1 }}>{actions}</Box>}
     </Box>
   );
 }

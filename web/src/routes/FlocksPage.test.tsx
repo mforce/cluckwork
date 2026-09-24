@@ -199,7 +199,8 @@ describe("FlocksPage selected-record inspector (#908)", () => {
 
     expect(row).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "Hen House 1" })).toBeInTheDocument();
-    expect(within(inspector).getByText("ISA Brown")).toBeInTheDocument();
+    const breedField = within(inspector).getByText("Breed", { selector: "dt" }).parentElement!;
+    expect(within(breedField).getByText("ISA Brown", { selector: "dd" })).toBeInTheDocument();
     expect(within(inspector).getByText("98 / 100")).toBeInTheDocument();
   });
 

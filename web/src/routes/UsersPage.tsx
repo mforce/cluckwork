@@ -848,7 +848,7 @@ export function UsersPage() {
       <ListInspectorPane
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
-            <Table size="small">
+            <Table size="small" sx={{ "& .MuiTableCell-root": { px: { md: 1.5, lg: 2 } } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("emailColumnHeader")}</TableCell>
@@ -889,11 +889,10 @@ export function UsersPage() {
         inspector={(
           <RecordInspector
             ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-            eyebrow={selectedUser ? t("entitySingular") : undefined}
             title={selectedUser?.email}
-            subtitle={selectedUser ? roleLabel(selectedUser.role) : undefined}
             emptyMessage={tc("inspectorEmptyPrompt")}
             fields={selectedUser ? [
+              { label: t("roleColumnHeader"), value: roleLabel(selectedUser.role) },
               { label: t("nameColumnHeader"), value: selectedUser.displayName ?? "—" },
               {
                 label: t("statusColumnHeader"),

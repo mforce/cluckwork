@@ -87,7 +87,8 @@ describe("GradesPage selected-record inspector (#908)", () => {
 
     expect(rowA).toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByRole("heading", { name: "Grade A" })).toBeInTheDocument();
-    expect(within(inspector).getByText("Size")).toBeInTheDocument();
+    const typeField = within(inspector).getByText("Type", { selector: "dt" }).parentElement!;
+    expect(within(typeField).getByText("Size", { selector: "dd" })).toBeInTheDocument();
   });
 
   it("shows an inactive grade's own activate action in the inspector", async () => {

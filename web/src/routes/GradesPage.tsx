@@ -349,11 +349,10 @@ export function GradesPage() {
         inspector={(
           <RecordInspector
             ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-            eyebrow={selectedGrade ? t("entitySingular") : undefined}
             title={selectedGrade?.name}
-            subtitle={selectedGrade ? gradeTypeLabel(selectedGrade.gradeType) : undefined}
             emptyMessage={tc("inspectorEmptyPrompt")}
             fields={selectedGrade ? [
+              { label: t("typeHeader"), value: gradeTypeLabel(selectedGrade.gradeType) },
               { label: t("sortHeader"), value: fmt.count(selectedGrade.sortOrder) },
               { label: t("saleableHeader"), value: selectedGrade.isSaleable ? t("saleableYesBadge") : "—" },
               { label: t("statusHeader"), value: <StatusBadge status={selectedGrade.active ? "Active" : "Inactive"} label={statusLabel(selectedGrade.active ? "Active" : "Inactive")} /> },

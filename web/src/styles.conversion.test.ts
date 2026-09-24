@@ -301,7 +301,6 @@ describe("MUI source policy (#824)", () => {
       // "& .MuiTableCell-head" to a sibling key like "&& h2" changes its
       // identity instead of keeping the same collected count.
       "components/FieldConsole.tsx#FieldConsole > & .MuiTableCell-head > textTransform:\"uppercase\"",
-      "components/FieldConsole.tsx#RecordInspector > textTransform:\"uppercase\"",
       "routes/Dashboard.tsx#Dashboard > textTransform:\"uppercase\"",
       "routes/SalesPage.tsx#SalesPage > textTransform:\"uppercase\"",
     ]);

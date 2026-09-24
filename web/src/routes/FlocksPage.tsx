@@ -497,11 +497,10 @@ export function FlocksPage() {
           inspector={(
             <RecordInspector
               ariaLabel={tc("inspectorLabel", { entity: t("entitySingular") })}
-              eyebrow={selectedFlock ? t("entitySingular") : undefined}
               title={selectedFlock?.name}
-              subtitle={selectedFlock?.breed}
               emptyMessage={tc("inspectorEmptyPrompt")}
               fields={selectedFlock ? [
+                { label: t("breedHeader"), value: selectedFlock.breed },
                 { label: t("placedHeader"), value: <FarmDate iso={selectedFlock.placementDate} /> },
                 { label: t("ageHeader"), value: t("ageWeeksSuffix", { weeks: ageWeeks(selectedFlock.placementDate) }) },
                 {
