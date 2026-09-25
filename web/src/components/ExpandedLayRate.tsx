@@ -113,7 +113,7 @@ export function ExpandedLayRate({
 
   useEffect(() => {
     const region = scrollerRef.current;
-    if (region === null || typeof ResizeObserver === "undefined") return;
+    if (region === null) return;
     const observer = new ResizeObserver(() => sync());
     observer.observe(region);
     return () => observer.disconnect();
