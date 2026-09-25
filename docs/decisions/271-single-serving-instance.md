@@ -166,20 +166,30 @@ This is the general lesson recorded in
 mean the **method** is wrong, so prefer "walk everything, exclude deliberately"
 over "list what I thought of".
 
-Also excluded, and specifically **not** new blockers: the four #543 shared-state
-registrations in `SharedStateRegistration` — `IConnectionMultiplexer` plus the
-three ports `IClaimOnceStore` / `IFixedWindowCounter` / `ILease`. These are the
-**shared store** that will *close* the in-process limiter blockers above, not
-extend them: the auth limiters (#544) move onto `IFixedWindowCounter`, the report
-cap (#545) onto `ILease`, and step-up grant replay (#338) onto `IClaimOnceStore`.
+Also excluded, and specifically **not** new blockers, are the #543 shared-state
+registrations in `SharedStateRegistration`. They are `IConnectionMultiplexer` plus
+the two capability ports `IClaimOnceStore` and `IFixedWindowCounter`, each
+registered on both the Redis branch and the fallback branch. **There is no
+`ILease` registration.** The epic's design named a third port and the report cap
+did not take it, because #545 wired that cap to the lease backends directly, for
+the reason given below. These registrations are the **shared store** that *closes*
+the in-process limiter blockers above rather than extending them. The auth
+limiters (#544) moved onto `IFixedWindowCounter`, and step-up grant replay (#338)
+moved onto `IClaimOnceStore`.
 Redis-backed, they hold their state in the one shared Redis, so they are
 multi-replica-safe by construction; `IConnectionMultiplexer` is a shared client.
 Their in-process fallbacks (`InProcess*`) are per-process state, but a
 **deliberate, alarmed** degradation (`SecurityEvents.SharedStateRedisUnavailable`;
 claim-once fails *closed*), reached only when Redis is blank or unreachable — not
-a silent single-instance trap. Caveat: #543 only lands the ports; #544/#545 and
-the #338 grant-replay move stay open until a caller is actually wired to them, at
-which point that wiring PR removes the corresponding blocker above.
+a silent single-instance trap. Caveat: #543 only lands the ports, and a port with no caller removes no
+blocker. All three callers are now wired. #338 moved step-up grant replay onto
+`IClaimOnceStore`, and #544 moved the IP-keyed auth limiters onto
+`IFixedWindowCounter`. Both resolve their port from DI. #545 did **not** resolve a
+shared `ILease`. `ReportConcurrencyCapRegistration` constructs `RedisLease` and
+`InProcessLease` itself and registers the cap, because pinning a permit to the
+backend that granted it needs both backends in hand, and a per-call `ILease`
+decorator could not express that. So `ILease` is a type the report cap uses, not
+a registered port, and a walk of `AddSingleton` under `src/` will not find one.
 
 ## What does NOT license scaling
 
