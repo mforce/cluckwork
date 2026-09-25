@@ -2211,7 +2211,7 @@ export const es = {
       + "todos los lotes. Cuando ningún día del período está completo, el Máximo se ajusta al día parcial "
       + "más alto y dice \"solo días incompletos\". El % de postura divide entre los días-gallina de los "
       + "lotes que registraron, así que un lote que olvida reduce sobre cuánto se mide la cifra, nunca la "
-      + "cifra misma. <strong>Período</strong> elige la ventana. Tome los últimos 7 o 14 días completos, o "
+      + "cifra misma. <strong>Período</strong> elige la ventana. Elija los últimos 7 o 14 días completos, o "
       + "<strong>Período personalizado…</strong> con <strong>Desde</strong>, <strong>Hasta</strong> y "
       + "<strong>Aplicar</strong> hasta 14 días. Esta tarjeta siempre dibuja una barra por día, así que "
       + "rechaza un período más largo en el formulario en vez de redibujarlo a otra escala, y recuerda su "
@@ -2231,7 +2231,7 @@ export const es = {
       + "indica <strong>Correo electrónico o contraseña inválidos</strong> — inténtelo de nuevo.",
     signingInRateLimit:
       "Cluckwork <strong>limita</strong> los intentos de inicio de sesión desde el mismo lugar, para "
-      + "frenar el intento de adivinar contraseñas. Después de demasiados intentos en pocos minutos verá "
+      + "frenar los intentos de adivinar contraseñas. Después de demasiados intentos en pocos minutos verá "
       + "<strong>\"Demasiados intentos de inicio de sesión\"</strong>. No es una falla. Espere unos minutos "
       + "e inténtelo de nuevo. Estar <em>ya conectado</em> nunca se ve afectado.",
     signingInAccountLock:
@@ -2278,8 +2278,8 @@ export const es = {
     interfaceLanguage:
       "<strong>Idioma de la interfaz.</strong> Cualquiera puede elegir el idioma en que se muestra la "
       + "interfaz desde <strong>Cuenta → Preferencias</strong>. Las opciones son inglés, español y tagalo. "
-      + "La traducción es un trabajo en progreso. Las pantallas de inicio de sesión y ventas, los mensajes "
-      + "de error, y <strong>Cuenta → Preferencias</strong> mismo están traducidos hoy. El resto de la "
+      + "La traducción es un trabajo en progreso. Ya están traducidas las pantallas de inicio de sesión y "
+      + "ventas, los mensajes de error, y la propia <strong>Cuenta → Preferencias</strong>. El resto de la "
       + "pantalla de Cuenta, incluida la sección de contraseña, y el resto de la aplicación se están "
       + "traduciendo pantalla por pantalla. Hasta que una pantalla esté traducida, se muestra en inglés, "
       + "sea cual sea el idioma que eligió.",
@@ -2411,8 +2411,9 @@ export const es = {
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
       + "vendibles le quedan por ubicar. Se pone verde en cuanto el día cuadra, y rojo si se excede. "
-      + "Excederse bloquea guardar el borrador además de Enviar. Enviar necesita exactamente cero, tanto si "
-      + "falta como si sobra. Un borrador puede quedar clasificado a medias o sin clasificar.",
+      + "Excederse bloquea guardar el borrador además de Enviar. Enviar se bloquea siempre que ese número "
+      + "esté por encima o por debajo de cero. Un borrador puede quedar clasificado a medias, o sin "
+      + "clasificar.",
     dailyEntryButtons:
       "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o "
       + "<strong>mantenga presionado</strong>. Se acelera a medida que avanza, así que unos cientos de "
@@ -2635,10 +2636,10 @@ export const es = {
       + "pedidos confirmados antes de que existiera el seguimiento de asignación a nivel de lote no pueden "
       + "anularse por su cuenta — consulte a su administrador.)",
     salesPayments:
-      "<strong>Pagos</strong> está abierto a Ventas, Gerente y administrador, y solo un administrador o "
-      + "gerente puede anular uno. El panel de un pedido confirmado muestra su historial de liquidación. "
-      + "Registre allí pagos parciales, cada uno con fecha, monto, método y una referencia opcional, hasta "
-      + "que el saldo pendiente llegue a cero. El sobrepago se rechaza. Un pago erróneo se "
+      "La sección <strong>Pagos</strong> está abierta a Ventas, Gerente y administrador, y solo un "
+      + "administrador o gerente puede anular uno. El panel de un pedido confirmado muestra su historial de "
+      + "liquidación. Registre allí pagos parciales, cada uno con fecha, monto, método y una referencia "
+      + "opcional, hasta que el saldo pendiente llegue a cero. El sobrepago se rechaza. Un pago erróneo se "
       + "<strong>anula</strong>, con un motivo requerido, y el saldo pendiente vuelve a crecer. Un pedido "
       + "con pagos no se puede anular hasta que sus pagos se anulen. La pantalla de Clientes muestra el "
       + "saldo pendiente de cada cliente. La lista de pedidos lleva una columna <strong>Pendiente</strong> "
@@ -2647,14 +2648,15 @@ export const es = {
 
     reportsHeading: "Informes",
     reportsProduction:
-      "<strong>Producción</strong> está abierto a todos. Elija un rango de fechas para ver huevos por "
-      + "día, pérdidas, vendibles, con defecto, muertes, y <strong>% de puesta diaria</strong>, con totales "
-      + "del período y un desglose por grado. Las entradas en borrador y anuladas no cuentan. El % de "
-      + "puesta diaria es huevos recolectados ÷ días-gallina × 100, y divide entre los días-gallina de los "
-      + "<strong>lotes que registraron ese día</strong>. Un lote que no envió nada no produjo huevos que "
-      + "este informe pueda ver, así que contar sus aves informaría una tasa que nada respalda. La columna "
-      + "<strong>Días-gallina</strong> son todas las aves vivas, registradas o no, así que la diferencia "
-      + "entre ambas es lo que falta. Un día que nadie registró muestra un guion en vez de 0 %.",
+      "El informe <strong>Producción</strong> está disponible para todos. Elija un rango de fechas para "
+      + "ver huevos por día, pérdidas, vendibles, con defecto, muertes, y <strong>% de puesta "
+      + "diaria</strong>, con totales del período y un desglose por grado. Las entradas en borrador y "
+      + "anuladas no cuentan. El % de puesta diaria es huevos recolectados ÷ días-gallina × 100, y divide "
+      + "entre los días-gallina de los <strong>lotes que registraron ese día</strong>. Un lote que no envió "
+      + "nada no produjo huevos que este informe pueda ver, así que contar sus aves informaría una tasa que "
+      + "nada respalda. La columna <strong>Días-gallina</strong> cuenta todas las aves vivas, registradas o "
+      + "no, así que la diferencia entre ambas es lo que falta. Un día que nadie registró muestra un guion "
+      + "en vez de 0 %.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "
@@ -3230,7 +3232,8 @@ export const es = {
       + "ese registro, y basta una línea que simplemente no tenía precio de lista para descartarlo. Un "
       + "pedido sin líneas no tiene nada que medir, así que se lee como una raya en la lista de pedidos, "
       + "sin línea de descuento en el pedido mismo. Esto es distinto del descuento a nivel de pedido que un "
-      + "vendedor puede ingresar. Cluckwork calcula este solo, y nadie lo ingresa nunca.",
+      + "vendedor puede ingresar. Cluckwork calcula este descuento por usted, y nadie lo ingresa nunca a "
+      + "mano.",
 
     glossaryDiscountReasonTerm: "Motivo del descuento",
     glossaryDiscountReasonDef:

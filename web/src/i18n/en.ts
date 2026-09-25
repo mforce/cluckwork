@@ -3126,8 +3126,8 @@ export const en = {
     dailyEntryGradingDown:
       "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have "
       + "to place. It turns green the moment the day adds up, and red if you go over. Going over blocks "
-      + "saving the draft as well as Submit. Submit needs it at exactly zero, short as well as over. A "
-      + "draft may be graded partway or not at all.",
+      + "saving the draft as well as Submit. Submit is blocked whenever that count is above or below zero. "
+      + "A draft may be partly graded, or not graded at all.",
     dailyEntryButtons:
       "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or "
       + "<strong>hold</strong>. It speeds up as you go, so a few hundred eggs takes about a second. A "

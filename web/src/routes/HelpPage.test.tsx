@@ -287,9 +287,10 @@ describe("HelpPage", () => {
     // dailyEntryGradingDown: the old copy only warned about overshooting
     // ("You cannot submit while it is over") — a worker must see that being
     // short is refused exactly the same way, down to reading zero.
-    expect(screen.getByText(/Submit needs it at exactly zero/)).toBeInTheDocument();
+    expect(screen.getByText(/Submit is blocked whenever that count is above or below zero/))
+      .toBeInTheDocument();
     expect(
-      screen.getByText(/draft may be graded partway or not at all/),
+      screen.getByText(/draft may be partly graded, or not graded at all/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/You cannot submit while it is over/)).not.toBeInTheDocument();
 
