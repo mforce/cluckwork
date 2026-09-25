@@ -537,16 +537,15 @@ export function Dashboard() {
   // `stock === null` (unread or failed) simply means no fact.
   const belowFloorRows = stock === null ? [] : stock.filter((r) => r.belowFloor);
   const belowFloorIds = new Set(belowFloorRows.map((r) => r.eggGradeId));
-  const belowFloorFact = (key: "attentionGradeBelowFloor" | "stockCaptionBelowFloor") =>
-    belowFloorRows.length === 0 ? null
-      : belowFloorRows.length === 1
-        ? t(key, {
-          grade: belowFloorRows[0].gradeName,
-          short: fmt.count((belowFloorRows[0].lowStockFloor ?? 0) - belowFloorRows[0].available),
-          floor: fmt.count(belowFloorRows[0].lowStockFloor ?? 0),
-        })
-        : t(key === "attentionGradeBelowFloor" ? "attentionGradesBelowFloor" : "stockCaptionBelowFloorMany",
-          { grades: fmt.count(belowFloorRows.length) });
+  const belowFloorFact = (key: "attentionGradeBelowFloor" | "stockCaptionBelowFloor") => {
+    if (belowFloorRows.length !== 1) {
+      return t(key === "attentionGradeBelowFloor" ? "attentionGradesBelowFloor" : "stockCaptionBelowFloorMany",
+        { grades: fmt.count(belowFloorRows.length) });
+    }
+    const [row] = belowFloorRows;
+    const floor = row.lowStockFloor ?? 0;
+    return t(key, { grade: row.gradeName, short: fmt.count(floor - row.available), floor: fmt.count(floor) });
+  };
   const sectionSx = { p: { xs: 2, md: 2.25 }, minWidth: 0, borderColor: "var(--rule)", borderRadius: "var(--r-panel)" };
   const headingSx = { "& h3": { fontSize: "0.9rem", fontWeight: 700 }, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1.5 };
 

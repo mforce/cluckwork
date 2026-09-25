@@ -487,7 +487,11 @@ export function StockPage() {
   // server's own comparison against available stock; the shortfall is derived
   // from the same two numbers the row already shows.
   const belowFloor = rows.filter((r) => r.belowFloor);
-  const shortfall = (row: StockRow) => (row.lowStockFloor ?? 0) - row.available;
+  // The two numbers every below-floor sentence carries, formatted once.
+  const shortfall = (row: StockRow) => {
+    const floor = row.lowStockFloor ?? 0;
+    return { short: fmt.count(floor - row.available), floor: fmt.count(floor) };
+  };
   // Largest available across the loaded rows scales every meter fill so the bars
   // read as relative stock. Guard the divide-by-zero when all rows are empty.
   const maxAvailable = rows.reduce((m, r) => Math.max(m, r.available), 0);
@@ -519,11 +523,7 @@ export function StockPage() {
                     detail is on every flagged row a thumb-scroll away. */}
                 <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontWeight: 400 }}>
                   {belowFloor
-                    .map((r) => t("floorBandItem", {
-                      grade: r.gradeName,
-                      short: fmt.count(shortfall(r)),
-                      floor: fmt.count(r.lowStockFloor ?? 0),
-                    }))
+                    .map((r) => t("floorBandItem", { grade: r.gradeName, ...shortfall(r) }))
                     .join(" · ")}
                 </Box>
               </Box>
@@ -565,18 +565,11 @@ export function StockPage() {
                       <>
                         {/* Icon AND word, with the whole fact as the accessible
                             name — the tint alone never carries the warning. */}
-                        <Box component="span" className="badge badge-warn" sx={{ border: "1px solid currentColor" }} role="img" aria-label={t("belowFloorTagLabel", {
-                          available: fmt.count(r.available),
-                          short: fmt.count(shortfall(r)),
-                          floor: fmt.count(r.lowStockFloor ?? 0),
-                        })}>
+                        <Box component="span" className="badge badge-warn" sx={{ border: "1px solid currentColor" }} role="img" aria-label={t("belowFloorTagLabel", { available: fmt.count(r.available), ...shortfall(r) })}>
                           <TriangleAlert size={12} aria-hidden /> {t("belowFloorTag")}
                         </Box>
                         <Box sx={{ mt: 0.5, color: "var(--warn)", fontWeight: 650 }}>
-                          {t("shortfallLine", {
-                            short: fmt.count(shortfall(r)),
-                            floor: fmt.count(r.lowStockFloor ?? 0),
-                          })}
+                          {t("shortfallLine", shortfall(r))}
                         </Box>
                       </>
                     ) : (
