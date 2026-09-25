@@ -16,5 +16,13 @@ public sealed class UpdateEggGradeValidator : AbstractValidator<UpdateEggGradeCo
             .Must(n => n is null || n.Trim().Length <= EggGrade.MaxNameLength)
             .WithMessage($"Grade name cannot exceed {EggGrade.MaxNameLength} characters.")
             .WithErrorCode("EggGrade.Name.MaxLength");
+
+        // #911 — absent means no warning; negative is nonsense (see the create
+        // validator).
+        RuleFor(c => c.LowStockFloor)
+            .GreaterThanOrEqualTo(0)
+            .When(c => c.LowStockFloor.HasValue)
+            .WithMessage("Low-stock floor cannot be negative.")
+            .WithErrorCode("EggGrade.LowStockFloor.Range");
     }
 }

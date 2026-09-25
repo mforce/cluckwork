@@ -226,7 +226,16 @@ export function henDayTrend(current: ProductionReport, previous: ProductionRepor
 export const GRADE_COLOURS = 8;
 
 export interface StockSegment { eggGradeId: string; gradeName: string; available: number; pct: number; colorIndex: number }
-export interface StockBarData { segments: StockSegment[]; totalAvailable: number; totalRestricted: number }
+// `ledger` is every grade the stock read returned, in its own order; `segments`
+// is the subset the BAR can draw. A grade at zero has no
+// width, but it is exactly the grade a low-stock floor is about, so the text of
+// record keeps naming it.
+export interface StockBarData {
+  segments: StockSegment[];
+  ledger: StockSegment[];
+  totalAvailable: number;
+  totalRestricted: number;
+}
 
 // The same reduce StockPage uses for its total, so the bar and the Stock
 // screen never disagree.
@@ -242,14 +251,18 @@ export function stockBar(rows: StockRow[]): StockBarData {
   // and it bites harder here because it needs only one sale, not two
   // deployments. The opacity ramp did want the filtered index (a compressed
   // ramp beats one with holes); a categorical encoding wants the stable one.
-  const segments = rows
-    .map((r, i) => ({
-      eggGradeId: r.eggGradeId,
-      gradeName: r.gradeName,
-      available: r.available,
-      pct: r1((r.available / totalAvailable) * 100),
-      colorIndex: (i % GRADE_COLOURS) + 1,
-    }))
-    .filter((seg) => seg.available > 0);
-  return { segments, totalAvailable, totalRestricted };
+  const ledger = rows.map((r, i) => ({
+    eggGradeId: r.eggGradeId,
+    gradeName: r.gradeName,
+    available: r.available,
+    // An empty farm has no whole to take a share of.
+    pct: totalAvailable > 0 ? r1((r.available / totalAvailable) * 100) : 0,
+    colorIndex: (i % GRADE_COLOURS) + 1,
+  }));
+  return {
+    segments: ledger.filter((seg) => seg.available > 0),
+    ledger,
+    totalAvailable,
+    totalRestricted,
+  };
 }

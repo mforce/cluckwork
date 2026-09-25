@@ -86,7 +86,7 @@ function probeSearch(): string {
 }
 // Only gr1 is saleable → the picker offers PRODUCT_A only; gr2/PRODUCT_B exists
 // solely to resolve the second line's display name (allProducts).
-const GRADE: EggGrade = { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE: EggGrade = { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null };
 const PRODUCT_A: Product = {
   id: "p1", name: "Grade A Dozen", productType: "Egg", defaultUnit: "Dozen",
   defaultPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,

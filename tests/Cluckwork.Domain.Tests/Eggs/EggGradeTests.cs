@@ -42,7 +42,7 @@ public sealed class EggGradeTests
         // at all — this pins that the signature cannot quietly grow one.
         var grade = Make("Cracked", EggGradeType.Quality, kind: DailyEntryKind.Cracked);
 
-        var result = grade.Update("Segunda", sortOrder: 3, isSaleable: false);
+        var result = grade.Update("Segunda", sortOrder: 3, isSaleable: false, lowStockFloor: null);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Segunda", grade.Name);
@@ -63,5 +63,60 @@ public sealed class EggGradeTests
 
         Assert.False(grade.Active);
         Assert.True(grade.IsSaleable);
+    }
+
+    // #911 — the low-stock floor.
+    [Fact]
+    public void Create_leaves_the_floor_unset()
+    {
+        // The ordinary grade warns about nothing. `null` is that state, and it
+        // is distinct from a floor of 0, which is stored and never warns
+        // (BelowFloor is Available < floor, and nothing is below zero).
+        Assert.Null(Make().LowStockFloor);
+    }
+
+    [Fact]
+    public void Update_sets_clears_and_keeps_a_floor_and_bumps_version()
+    {
+        var grade = Make();
+        var startingVersion = grade.Version;
+
+        Assert.True(grade.Update("Large", sortOrder: 0, isSaleable: true, lowStockFloor: 5000).IsSuccess);
+        Assert.Equal(5000, grade.LowStockFloor);
+        Assert.Equal(startingVersion + 1, grade.Version);
+
+        Assert.True(grade.Update("Large", sortOrder: 0, isSaleable: true, lowStockFloor: 0).IsSuccess);
+        Assert.Equal(0, grade.LowStockFloor);
+
+        Assert.True(grade.Update("Large", sortOrder: 0, isSaleable: true, lowStockFloor: null).IsSuccess);
+        Assert.Null(grade.LowStockFloor);
+        Assert.Equal(startingVersion + 3, grade.Version);
+    }
+
+    [Fact]
+    public void Update_refuses_a_negative_floor_and_changes_nothing()
+    {
+        var grade = Make();
+        grade.Update("Large", sortOrder: 0, isSaleable: true, lowStockFloor: 900);
+        var versionBefore = grade.Version;
+
+        var result = grade.Update("Renamed", sortOrder: 4, isSaleable: false, lowStockFloor: -1);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggGrade.LowStockFloorNegative", result.Error.Code);
+        // The whole update is refused, not just the floor: a rejected write
+        // must not leave the name and the floor from different requests.
+        Assert.Equal("Large", grade.Name);
+        Assert.Equal(900, grade.LowStockFloor);
+        Assert.Equal(versionBefore, grade.Version);
+    }
+
+    [Fact]
+    public void Create_throws_on_a_negative_floor()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => EggGrade.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Large",
+            EggGradeType.Size, sortOrder: 0, isSaleable: true, lowStockFloor: -1));
+        Assert.Equal("lowStockFloor", ex.ParamName);
     }
 }

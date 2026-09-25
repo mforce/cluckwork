@@ -37,8 +37,8 @@ const render = (ui: ReactNode, token: Record<string, unknown> = OWNER) =>
   renderWithProviders(ui, { token });
 
 const ROWS: StockRow[] = [
-  { eggGradeId: "g1", gradeName: "Grade A", available: 100, restricted: 0 },
-  { eggGradeId: "g2", gradeName: "Grade B", available: 50, restricted: 5 },
+  { eggGradeId: "g1", gradeName: "Grade A", available: 100, restricted: 0, lowStockFloor: null, belowFloor: false },
+  { eggGradeId: "g2", gradeName: "Grade B", available: 50, restricted: 5, lowStockFloor: null, belowFloor: false },
 ];
 
 const LOTS: EggLotRow[] = [
@@ -1635,7 +1635,10 @@ it("keeps the restriction policy and lot filter reset visible", async () => {
   mockListEggLots.mockResolvedValue(LOTS);
   render(<StockPage />);
   await screen.findByRole("list", { name: "Stock" });
-  expect(screen.getByText("Restricted stock is present but cannot be allocated to sales.")).toBeInTheDocument();
+  // The policy paragraph carries the floor sentence beside it since #911, so
+  // the restriction sentence is now one text node among several.
+  expect(screen.getByText(/Restricted stock is present but cannot be allocated to sales\./))
+    .toBeInTheDocument();
   fireEvent.click(within(screen.getByRole("region", { name: "Grade A" })).getByRole("button", { name: "lots" }));
   expect(await screen.findByRole("button", { name: "Clear filters" })).toBeInTheDocument();
 });
@@ -1646,4 +1649,106 @@ it("offers one withdrawal glossary link for the whole grade board", async () => 
   render(<StockPage />);
   await screen.findByRole("region", { name: "Grade B" });
   expect(screen.getAllByRole("link", { name: /What does .Withdrawal restriction. mean/ })).toHaveLength(1);
+});
+
+// #911 — the board-level band and the per-row treatment (Stock-B). The warning
+// must be readable without colour, so every assertion here is on text or on an
+// accessible name, never on the tint.
+describe("StockPage low-stock floors (#911)", () => {
+  const FLOOR_ROWS: StockRow[] = [
+    { eggGradeId: "g1", gradeName: "Large", available: 28410, restricted: 0, lowStockFloor: 6000, belowFloor: false },
+    { eggGradeId: "g2", gradeName: "Medium", available: 19880, restricted: 1200, lowStockFloor: null, belowFloor: false },
+    { eggGradeId: "g3", gradeName: "Small", available: 4320, restricted: 0, lowStockFloor: 5000, belowFloor: true },
+    { eggGradeId: "g4", gradeName: "Cracked", available: 1500, restricted: 0, lowStockFloor: 2000, belowFloor: true },
+  ];
+
+  async function renderFloors(rows: StockRow[] = FLOOR_ROWS) {
+    mockGetStock.mockResolvedValue(rows);
+    mockListEggLots.mockResolvedValue(LOTS);
+    render(<StockPage />);
+    await screen.findByRole("list", { name: "Stock" });
+  }
+
+  it("counts the below-floor grades in a band and names each one's shortfall", async () => {
+    await renderFloors();
+    const band = screen.getByRole("status");
+
+    expect(within(band).getByText("2 grades are below their low-stock floor")).toBeInTheDocument();
+    expect(within(band).getByText(
+      "Small is 680 below its 5,000 floor · Cracked is 500 below its 2,000 floor")).toBeInTheDocument();
+  });
+
+  it("keeps only the count line on a phone", async () => {
+    // The owner's rule for Stock-B: below 600px the band shrinks to its count
+    // line, because every flagged row carries the same detail a scroll away.
+    await renderFloors();
+    const detail = screen.getByText(
+      "Small is 680 below its 5,000 floor · Cracked is 500 below its 2,000 floor");
+
+    expect(responsiveStyle(detail, "(min-width:0px)", "display")).toBe("none");
+    expect(responsiveStyle(detail, "(min-width:600px)", "display")).toBe("block");
+  });
+
+  it("warns on a grade that has run out entirely", async () => {
+    // The zero-stock case is the one the floor exists for, and it must
+    // survive the meter's divide-by-the-largest scaling.
+    await renderFloors([
+      { eggGradeId: "g1", gradeName: "Large", available: 28410, restricted: 0, lowStockFloor: 6000, belowFloor: false },
+      { eggGradeId: "g2", gradeName: "Cracked", available: 0, restricted: 0, lowStockFloor: 2000, belowFloor: true },
+    ]);
+    const row = screen.getByRole("region", { name: "Cracked" });
+
+    expect(within(row).getByRole("img", {
+      name: "Below low-stock floor: 0 available, 2,000 below the 2,000 egg floor",
+    })).toBeInTheDocument();
+    expect(within(row).getByText("2,000 below the 2,000 floor")).toBeInTheDocument();
+  });
+
+  it("still draws the board when every grade is empty", async () => {
+    await renderFloors([
+      { eggGradeId: "g1", gradeName: "Large", available: 0, restricted: 0, lowStockFloor: 6000, belowFloor: true },
+      { eggGradeId: "g2", gradeName: "Cracked", available: 0, restricted: 0, lowStockFloor: 2000, belowFloor: true },
+    ]);
+
+    expect(within(screen.getByRole("status")).getByText("2 grades are below their low-stock floor"))
+      .toBeInTheDocument();
+    // Every meter reads zero rather than dividing by an empty farm's total.
+    expect(screen.getAllByRole("region", { name: /Large|Cracked/ })).toHaveLength(2);
+    for (const name of ["Large", "Cracked"]) {
+      expect(screen.getByRole("progressbar", { name })).toHaveAttribute("aria-valuenow", "0");
+    }
+  });
+
+  it("puts no band on the board when every grade is above its floor", async () => {
+    await renderFloors(FLOOR_ROWS.slice(0, 2));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("uses the singular when one grade is short", async () => {
+    await renderFloors(FLOOR_ROWS.slice(0, 3));
+    expect(within(screen.getByRole("status")).getByText("1 grade is below its low-stock floor"))
+      .toBeInTheDocument();
+  });
+
+  it("tags a below-floor row with a word, an icon and the whole fact as its name", async () => {
+    await renderFloors();
+    const row = screen.getByRole("region", { name: "Small" });
+
+    const tag = within(row).getByRole("img", {
+      name: "Below low-stock floor: 4,320 available, 680 below the 5,000 egg floor",
+    });
+    expect(tag).toHaveTextContent("Below floor");
+    expect(within(row).getByText("680 below the 5,000 floor")).toBeInTheDocument();
+  });
+
+  it("states the floor on a grade that is above it, and says so when there is none", async () => {
+    await renderFloors();
+
+    expect(within(screen.getByRole("region", { name: "Large" }))
+      .getByText("Floor 6,000 · 22,410 above")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Medium" }))
+      .getByText("No floor set")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Medium" })).queryByRole("img"))
+      .not.toBeInTheDocument();
+  });
 });

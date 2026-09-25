@@ -93,8 +93,8 @@ const report = (periodHenDayPct: number | null, days: ProductionDay[]): Producti
   periodHenDayPct, gradeTotals: [],
 });
 const STOCK: StockRow[] = [
-  { eggGradeId: "g1", gradeName: "Grade A", available: 1240, restricted: 0 },
-  { eggGradeId: "g2", gradeName: "Grade B", available: 320, restricted: 0 },
+  { eggGradeId: "g1", gradeName: "Grade A", available: 1240, restricted: 0, lowStockFloor: null, belowFloor: false },
+  { eggGradeId: "g2", gradeName: "Grade B", available: 320, restricted: 0, lowStockFloor: null, belowFloor: false },
 ];
 const order = (id: string, ref: string, customerName: string | null): SalesOrder => ({
   ...NO_RECORD_HISTORY, id, customerId: "c1", customerName, referenceNumber: ref,
@@ -1473,22 +1473,134 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
   });
 
   it("says 'egg available' — singular — when exactly one egg is in stock", async () => {
-    mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 1, restricted: 0 }]);
+    mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 1, restricted: 0, lowStockFloor: null, belowFloor: false }]);
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");
     expect(stock.querySelector(".stock-total")?.textContent).toBe("1 egg available");
   });
 
   it("still renders a restricted-only stock (0 available, 4 restricted) — that is not the empty state", async () => {
-    mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 0, restricted: 4 }]);
+    mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 0, restricted: 4, lowStockFloor: null, belowFloor: false }]);
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(within(stock).queryByText("Grade A")).not.toBeInTheDocument();
-    expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
+    // The ledger names the grade even at zero. Only the bar drops it — a
+    // zero-width span draws nothing.
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((c) => c.textContent)))
+      .toEqual([["Grade A", "0", "0.0%"]]);
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
+  });
+});
+
+// #911 — the low-stock fact in the morning brief and the mark on the stock
+// ledger. The fact comes from the stock read, beside the house facts rather
+// than inside them, so each survives the other's failure.
+describe("Dashboard low-stock floors (#911)", () => {
+  const below = (name: string, available: number, floor: number): StockRow =>
+    ({ eggGradeId: name, gradeName: name, available, restricted: 0, lowStockFloor: floor, belowFloor: true });
+
+  it("names the one short grade in the brief and links it to Stock", async () => {
+    mockStock.mockResolvedValue([STOCK[0], below("Cracked", 1500, 2000)]);
+    renderWithProviders(<Dashboard />);
+    const brief = await screen.findByRole("region", { name: "Morning brief" });
+
+    const fact = within(brief).getByRole("link", { name: "Cracked stock is 500 below floor" });
+    expect(fact).toHaveAttribute("href", "/stock");
+  });
+
+  it("counts them instead once more than one grade is short", async () => {
+    mockStock.mockResolvedValue([below("Cracked", 1500, 2000), below("Small", 4320, 5000)]);
+    renderWithProviders(<Dashboard />);
+    const brief = await screen.findByRole("region", { name: "Morning brief" });
+
+    expect(within(brief).getByText("2 grades below floor")).toBeInTheDocument();
+    expect(within(brief).queryByText(/Cracked stock is/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the house facts beside the low-stock fact", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active"), flock("f2", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 178)]); // f2 missing
+    mockStock.mockResolvedValue([below("Cracked", 1500, 2000)]);
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByText("Flock f2 not recorded")).toBeInTheDocument();
+    expect(screen.getByText("Cracked stock is 500 below floor")).toBeInTheDocument();
+  });
+
+  it("drops the fact when the stock read fails, and keeps the house facts", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active"), flock("f2", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 178)]);
+    mockStock.mockRejectedValue(new Error("down"));
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByText("Flock f2 not recorded")).toBeInTheDocument();
+    expect(screen.queryByText(/below floor/)).not.toBeInTheDocument();
+  });
+
+  it("marks the ledger row of a grade that has run out", async () => {
+    // The case the floor exists for: nothing left to sell. Built off the bar's
+    // segments, the row vanished from the ledger and left the brief's fact
+    // with nothing to point at.
+    mockStock.mockResolvedValue([STOCK[0], below("Cracked", 0, 2000)]);
+    renderWithProviders(<Dashboard />);
+    const stock = await panel("Stock");
+
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getByRole("img", { name: "Cracked is below its low-stock floor" }))
+      .toBeInTheDocument();
+    expect(within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((c) => c.textContent)))
+      .toEqual([["Grade A", "1,240", "100.0%"], ["Cracked", "0", "0.0%"]]);
+  });
+
+  it("keeps the ledger when every grade is empty", async () => {
+    mockStock.mockResolvedValue([below("Cracked", 0, 2000), below("Small", 0, 5000)]);
+    renderWithProviders(<Dashboard />);
+    const stock = await panel("Stock");
+
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getAllByRole("row")).toHaveLength(3); // header + two grades
+    expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
+    expect(within(stock).getByText("2 grades are below their low-stock floor")).toBeInTheDocument();
+  });
+
+  it("drops a stale warning when a later stock read fails", async () => {
+    // A warning is a claim about the farm right now, so a stock read that
+    // failed must not leave the previous one's claim on screen. The house
+    // facts come from their own read and stay.
+    const user = userEvent.setup();
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockResolvedValue([flock("f1", "Active"), flock("f2", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 178)]); // f2 missing
+    mockStock
+      .mockResolvedValueOnce([STOCK[0], below("Cracked", 1500, 2000)])
+      .mockRejectedValue(new Error("stock down"));
+
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Cracked stock is 500 below floor")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Flock f2 not recorded")).toBeInTheDocument();
+    expect(screen.queryByText(/below floor/)).not.toBeInTheDocument();
+    const stock = await panel("Stock");
+    expect(within(stock).getByText("Could not load.")).toBeInTheDocument();
+    expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
+  });
+
+  it("marks the ledger row and captions the panel without relying on colour", async () => {
+    mockStock.mockResolvedValue([STOCK[0], below("Cracked", 1500, 2000)]);
+    renderWithProviders(<Dashboard />);
+    const stock = await panel("Stock");
+
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getByRole("img", { name: "Cracked is below its low-stock floor" }))
+      .toBeInTheDocument();
+    expect(within(table).queryByRole("img", { name: /Grade A/ })).not.toBeInTheDocument();
+    expect(within(stock).getByText("Cracked stock is 500 below its 2,000 floor")).toBeInTheDocument();
   });
 });
 

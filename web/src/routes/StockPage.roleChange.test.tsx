@@ -30,7 +30,7 @@ const mockListEggLots = vi.mocked(listEggLots);
 const mockRecordEggLotMovement = vi.mocked(recordEggLotMovement);
 
 const ROWS: StockRow[] = [
-  { eggGradeId: "g1", gradeName: "Grade A", available: 100, restricted: 0 },
+  { eggGradeId: "g1", gradeName: "Grade A", available: 100, restricted: 0, lowStockFloor: null, belowFloor: false },
 ];
 const LOTS: EggLotRow[] = [
   { id: "lot1", eggGradeId: "g1", productionDate: "2026-07-01", quantityProduced: 120, quantityAvailable: 99, restrictedUntil: null, dailyEntryId: "de1" },

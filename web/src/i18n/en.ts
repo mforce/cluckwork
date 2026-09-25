@@ -915,6 +915,11 @@ export const en = {
     // into a count past the attention cap (two at 1280, one at 390 — #883
     // round 2 finding 1). {{flock}} is the house's own name.
     attentionHouseNotRecorded: "{{flock}} not recorded",
+    // #911 — the brief's second, separately sourced fact: the stock read that
+    // feeds it can fail while the house facts still render, and the reverse.
+    // Named when one grade is short, counted when several are.
+    attentionGradeBelowFloor: "{{grade}} stock is {{short}} below floor",
+    attentionGradesBelowFloor: "{{grades}} grades below floor",
     attentionMore_one: "+{{count}} more",
     attentionMore_other: "+{{count}} more",
     // aria-label of a tile link; the visible tile shows name, eggs and status.
@@ -1045,6 +1050,11 @@ export const en = {
     eggsAvailableLabel_other: "eggs available",
     stockLedgerLabel: "Stock by grade",
     stockCaptionRestricted: "{{restricted}} restricted",
+    // #911 — the ledger's below-floor mark. The icon carries the row's own
+    // sentence as its accessible name, so the warning never rests on colour.
+    stockBelowFloorRowLabel: "{{grade}} is below its low-stock floor",
+    stockCaptionBelowFloor: "{{grade}} stock is {{short}} below its {{floor}} floor",
+    stockCaptionBelowFloorMany: "{{grades}} grades are below their low-stock floor",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
     salesPanelTitle: "Recent sales",
@@ -1256,7 +1266,8 @@ export const en = {
     intro:
       "Saleable grades appear in daily-entry and order pickers. Deactivating "
       + "a grade removes it from pickers; existing stock and history are "
-      + "unaffected.",
+      + "unaffected. Each grade may carry a low-stock floor — the point at "
+      + "which Stock and the Dashboard start warning.",
 
     // Buttons. `newGradeButton` (the page's action button) and
     // `newGradeDialogTitle` happen to share English text today but are
@@ -1292,6 +1303,16 @@ export const en = {
     // Saleable column's "yes" badge — lowercase, distinct from common.yes
     // ("Yes"); same case-sensitive-variant treatment as sales:close.
     saleableYesBadge: "Yes",
+
+    // #911 — the per-grade low-stock floor. Owner-only to change (#729); the
+    // column and the inspector show it to everyone.
+    floorHeader: "Low-stock floor",
+    floorLabel: "Low-stock floor (eggs)",
+    floorNotSet: "Not set",
+    floorHelp:
+      "Warn on Stock and the Dashboard when available eggs fall below this. "
+      + "Leave it blank for no warning.",
+    floorOwnerOnlyMessage: "Only an Owner can change a grade's low-stock floor.",
   },
   // Feed & inventory catalog + receiving/usage/correction screen (Task 16,
   // #182, batch B3 — the biggest B3 screen). `inventory` is in
@@ -1527,6 +1548,20 @@ export const en = {
     restrictionPolicy: "Restricted stock is present but cannot be allocated to sales.",
     gradesLabel: "Grades",
     noRestrictions: "No restrictions",
+
+    // #911 — the board-level band and the per-row treatment. The tag is an
+    // icon AND a word, and `belowFloorTagLabel` is the accessible name that
+    // states the whole fact, so nothing here depends on the warm tint.
+    floorBandTitle_one: "{{count}} grade is below its low-stock floor",
+    floorBandTitle_other: "{{count}} grades are below their low-stock floor",
+    floorBandItem: "{{grade}} is {{short}} below its {{floor}} floor",
+    belowFloorTag: "Below floor",
+    belowFloorTagLabel:
+      "Below low-stock floor: {{available}} available, {{short}} below the {{floor}} egg floor",
+    shortfallLine: "{{short}} below the {{floor}} floor",
+    floorAbove: "Floor {{floor}} · {{over}} above",
+    floorNotSet: "No floor set",
+    floorPolicy: "Low-stock floors are set per grade on Egg grades.",
     title: "Stock",
 
     // Imperative messages (mount-effect / drill-down catch handlers — see
@@ -3156,6 +3191,10 @@ export const en = {
       + "pickers: its stock stays counted and order lines added earlier can still confirm, but it can't be "
       + "put on <em>new</em> order lines — reactivate the grade to sell remaining stock. History keeps "
       + "showing its name.",
+    gradesLowStockFloor:
+      "A grade can carry a <strong>Low-stock floor (eggs)</strong> — the point at which Stock and the "
+      + "Dashboard start warning that the grade is running out. Leave it blank for no warning. Only an "
+      + "Owner sets or clears a floor; everyone else sees it in the table and the record inspector.",
     gradesAdminOnly: "The grade catalog is configuration — managing it is admin-only.",
 
     // Products
@@ -3182,6 +3221,11 @@ export const en = {
       + "marks eggs restricted yet, so the system does not enforce withdrawal times today</strong> — manage "
       + "withholding periods outside Cluckwork for now.",
     stockFifo: "Selling always takes the oldest lots first, so stock naturally rotates.",
+    stockLowStockFloor:
+      "A grade whose available eggs have fallen below its <strong>Low-stock floor</strong> is flagged "
+      + "here and on the Dashboard: a band at the top of the board counts them, and each grade carries a "
+      + "<strong>Below floor</strong> tag with how far short it is. Restricted eggs do not count towards "
+      + "the floor — they cannot be sold. Floors are set per grade on Egg grades.",
     stockWriteOff:
       "Lost stock — breakage, spoilage, eggs used by the household — is recorded with <strong>write off</strong> "
       + "on the lot (Owner/Manager, reason required). It lowers the lot's available count without touching the "
@@ -3771,6 +3815,13 @@ export const en = {
 
     glossaryGradeTerm: "Grade",
     glossaryGradeDef: "A grading bucket (size, quality, or custom). Saleable grades can be sold.",
+
+    glossaryLowStockFloorTerm: "Low-stock floor",
+    glossaryLowStockFloorDef:
+      "An optional per-grade warning point, in eggs, set by the Owner on Egg grades. When a grade's "
+      + "available stock falls below its floor, Stock and the Dashboard flag it, including a grade that "
+      + "has run out entirely. Restricted eggs do not count towards it — they cannot be sold. A grade with "
+      + "no floor never warns, and a deactivated grade's floor is out of service until it is active again.",
 
     glossaryEggMovementLedgerTerm: "Egg movement ledger",
     glossaryEggMovementLedgerDef:

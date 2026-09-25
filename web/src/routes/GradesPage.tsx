@@ -29,6 +29,11 @@ import { gradeTypeLabel, statusLabel } from "../i18n/enums";
 
 const GRADE_TYPES = ["Size", "Quality", "Custom"];
 
+// Blank means no floor (#911). `Number("")` is 0, which is a legitimate floor,
+// so the empty case is decided before any conversion.
+const parseFloor = (value: string): number | null =>
+  value.trim() === "" ? null : Number(value);
+
 // The scopes that own a dialog (#703). A scope outside the list — the row
 // activate/deactivate writes — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit"] as const;
@@ -46,7 +51,11 @@ export function GradesPage() {
   const { t: tc } = useTranslation("common");
   // The grade catalog is configuration — management is admin-only (#73). The
   // nav link hides for workers; a direct URL just renders the list read-only.
-  const { isAdmin } = useAuth();
+  const { isAdmin, role } = useAuth();
+  // #911/#729 — the floor is farm configuration, so only an Owner may move it.
+  // Everyone else still reads it in the table and the inspector; the API
+  // refuses a floor that moves under any other role.
+  const isOwner = role === "Admin";
   const [grades, setGrades] = useState<EggGrade[] | null>(null);
   // #908 — the bottom inspector's selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -68,12 +77,18 @@ export function GradesPage() {
   const [gradeType, setGradeType] = useState("Size");
   const [sortOrder, setSortOrder] = useState(0);
   const [isSaleable, setIsSaleable] = useState(true);
+  // Held as the raw field text: blank is "no floor", which a number cannot say.
+  const [floor, setFloor] = useState("");
 
   // edit form — same dialog treatment, opened from the row's edit button
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editSort, setEditSort] = useState(0);
   const [editSaleable, setEditSaleable] = useState(true);
+  // Seeded from the grade for every role, not only the Owner who can edit it:
+  // the update sends the floor back whole, so a Manager's save must carry the
+  // floor the grade already has rather than clearing it.
+  const [editFloor, setEditFloor] = useState("");
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -135,13 +150,14 @@ export function GradesPage() {
     e.preventDefault();
     await run("create", async (current) => {
       await commit("create-grade", (key) =>
-        createEggGrade({ name, gradeType, sortOrder, isSaleable }, key));
+        createEggGrade({ name, gradeType, sortOrder, isSaleable, lowStockFloor: parseFloor(floor) }, key));
       // Superseded: the grade exists and the list shows it, but the form and its
       // dialog belong to whatever session is on screen now (#703).
       if (!current()) return;
       setName("");
       setSortOrder(0);
       setIsSaleable(true);
+      setFloor("");
       setCreating(false);
     });
   }
@@ -158,6 +174,7 @@ export function GradesPage() {
     setEditName(g.name);
     setEditSort(g.sortOrder);
     setEditSaleable(g.isSaleable);
+    setEditFloor(g.lowStockFloor === null ? "" : String(g.lowStockFloor));
   }
 
   async function onSaveEdit(e: FormEvent) {
@@ -167,7 +184,10 @@ export function GradesPage() {
     // The run scope is the dialog's; the idempotency key stays per grade.
     await run("edit", async (current) => {
       await commit(`update:${id}`, (key) =>
-        updateEggGrade(id, { name: editName, sortOrder: editSort, isSaleable: editSaleable }, key));
+        updateEggGrade(id, {
+          name: editName, sortOrder: editSort, isSaleable: editSaleable,
+          lowStockFloor: parseFloor(editFloor),
+        }, key));
       if (!current()) return;
       setEditingId(null);
     });
@@ -252,6 +272,17 @@ export function GradesPage() {
             onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
             sx={{ maxWidth: "10rem" }}
           />
+          {isOwner ? (
+            <TextField
+              label={t("floorLabel")}
+              type="number"
+              value={floor}
+              placeholder={t("floorNotSet")}
+              helperText={t("floorHelp")}
+              slotProps={{ htmlInput: { min: 0 }, inputLabel: { shrink: true } }}
+              onChange={(e) => setFloor(e.target.value)}
+            />
+          ) : <p className="muted">{t("floorOwnerOnlyMessage")}</p>}
           <FormControlLabel
             label={t("saleableLabel")}
             control={<Checkbox checked={isSaleable} onChange={(e) => setIsSaleable(e.target.checked)} />}
@@ -287,6 +318,17 @@ export function GradesPage() {
             onChange={(e) => setEditSort(Number(e.target.value) || 0)}
             sx={{ maxWidth: "10rem" }}
           />
+          {isOwner ? (
+            <TextField
+              label={t("floorLabel")}
+              type="number"
+              value={editFloor}
+              placeholder={t("floorNotSet")}
+              helperText={t("floorHelp")}
+              slotProps={{ htmlInput: { min: 0 }, inputLabel: { shrink: true } }}
+              onChange={(e) => setEditFloor(e.target.value)}
+            />
+          ) : <p className="muted">{t("floorOwnerOnlyMessage")}</p>}
           <FormControlLabel
             label={t("saleableLabel")}
             control={<Checkbox checked={editSaleable} onChange={(e) => setEditSaleable(e.target.checked)} />}
@@ -310,6 +352,7 @@ export function GradesPage() {
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("typeHeader")}</TableCell>
                   <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("sortHeader")}</TableCell>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("saleableHeader")}</TableCell>
+                  <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("floorHeader")}</TableCell>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("recordHistoryHeader")}</TableCell>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}></TableCell>
@@ -323,6 +366,7 @@ export function GradesPage() {
                     <TableCell sx={NOWRAP}>{gradeTypeLabel(g.gradeType)}</TableCell>
                     <TableCell align="right" sx={NOWRAP}>{fmt.count(g.sortOrder)}</TableCell>
                     <TableCell sx={NOWRAP}>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</TableCell>
+                    <TableCell align="right" sx={NOWRAP}>{g.lowStockFloor === null ? "—" : fmt.count(g.lowStockFloor)}</TableCell>
                     <TableCell sx={NOWRAP}><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></TableCell>
                     <ProvenanceCell history={g} />
                     <TableCell sx={NOWRAP}>
@@ -343,6 +387,9 @@ export function GradesPage() {
             emptyMessage={tc("inspectorEmptyPrompt")}
             fields={selectedGrade ? [
               { label: t("typeHeader"), value: gradeTypeLabel(selectedGrade.gradeType) },
+              { label: t("floorHeader"), value: selectedGrade.lowStockFloor === null
+                ? <em className="muted">{t("floorNotSet")}</em>
+                : fmt.count(selectedGrade.lowStockFloor) },
               { label: t("sortHeader"), value: fmt.count(selectedGrade.sortOrder) },
               { label: t("saleableHeader"), value: selectedGrade.isSaleable ? t("saleableYesBadge") : "—" },
               { label: t("statusHeader"), value: <StatusBadge status={selectedGrade.active ? "Active" : "Inactive"} label={statusLabel(selectedGrade.active ? "Active" : "Inactive")} /> },

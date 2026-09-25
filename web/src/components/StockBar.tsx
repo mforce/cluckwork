@@ -8,7 +8,9 @@ import type { StockBarData } from "../lib/dashboard";
 //
 // #777 — grade is carried by a categorical hue (`grade-N`, see GRADE_COLOURS),
 // not by an opacity ramp that ran out at the sixth grade.
-export function StockBar({ data }: { data: StockBarData }) {
+// Only the width-bearing segments: the ledger beside the bar is the text of
+// record and names the empty grades this track cannot draw.
+export function StockBar({ data }: { data: Pick<StockBarData, "segments"> }) {
   return (
     <div className="meter-stack" aria-hidden="true">
       {data.segments.map((s) => (

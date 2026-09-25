@@ -285,7 +285,11 @@ export function Dashboard() {
       setEntries(rows); setEntriesTruncated(truncated);
     }).catch(() => { if (!cancelled) setEntriesFailed(true); }).finally(settle);
     stockRead.then((rows) => { if (!cancelled) setStock(rows); })
-      .catch(() => { if (!cancelled) setStockFailed(true); }).finally(settle);
+      // Unlike the other two panels, a failed stock read DROPS what it had: a
+      // stale count reads as old, but a stale below-floor warning reads as
+      // true. The panel shows its error, the brief's fact goes with it, and
+      // the house facts stand on their own read.
+      .catch(() => { if (!cancelled) { setStock(null); setStockFailed(true); } }).finally(settle);
 
     // The page-level verdict still needs every answer, because "everything
     // failed" is only true once nothing is outstanding.
@@ -522,15 +526,30 @@ export function Dashboard() {
   const deltaClass = (delta: number | null): (typeof DASHBOARD_DELTA_CLASSES)[number] =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 
-  // The attention line (D3.3, #829): missing houses only — the desktop-only
-  // "Needs attention" list combining a second data source (stock floors) was
-  // proposed on #864 and the owner did not take it, so this line has exactly
-  // one source. Nothing renders when every house is in.
+  // The attention line (D3.3, #829): missing houses only. #911 adds the
+  // low-stock fact BESIDE it, from its own read, rather than into it: the
+  // stock request can fail while the flock read succeeds, and each fact then
+  // stands or vanishes on its own.
   const missingHouses = allTiles === null ? [] : allTiles.filter((c) => c.entry === null).map((c) => c.flock);
   const attentionShown = missingHouses.slice(0, attentionCap);
   const attentionMore = missingHouses.length - attentionShown.length;
 
   const recordedHouses = allTiles === null ? 0 : allTiles.length - missingHouses.length;
+
+  // #911 — the brief's low-stock fact, and the ledger's mark. Named when one
+  // grade is short (the farm can act on it directly), counted when several are.
+  // `stock === null` (unread or failed) simply means no fact.
+  const belowFloorRows = stock === null ? [] : stock.filter((r) => r.belowFloor);
+  const belowFloorIds = new Set(belowFloorRows.map((r) => r.eggGradeId));
+  const belowFloorFact = (key: "attentionGradeBelowFloor" | "stockCaptionBelowFloor") => {
+    if (belowFloorRows.length !== 1) {
+      return t(key === "attentionGradeBelowFloor" ? "attentionGradesBelowFloor" : "stockCaptionBelowFloorMany",
+        { grades: fmt.count(belowFloorRows.length) });
+    }
+    const [row] = belowFloorRows;
+    const floor = row.lowStockFloor ?? 0;
+    return t(key, { grade: row.gradeName, short: fmt.count(floor - row.available), floor: fmt.count(floor) });
+  };
   const sectionSx = { p: { xs: 2, md: 2.25 }, minWidth: 0, borderColor: "var(--rule)", borderRadius: "var(--r-panel)" };
   const headingSx = { "& h3": { fontSize: "0.9rem", fontWeight: 700 }, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1.5 };
 
@@ -558,17 +577,24 @@ export function Dashboard() {
       }}>
         <Box>
           <Typography variant="h3" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", mb: 1 }}>{t("morningBrief")}</Typography>
-          {allTiles === null ? <Typography>{t("panelLoadError")}</Typography> : missingHouses.length > 0 ? (
-            <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
-              {attentionShown.map((flock) => (
-                <Typography key={flock.id} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <TriangleAlert size={15} aria-hidden />{t("attentionHouseNotRecorded", { flock: flock.name })}
-                </Typography>
-              ))}
-              {attentionMore > 0 && <Typography component={Link} to="/daily-entry" sx={{ color: "inherit" }}>{t("attentionMore", { count: attentionMore })}</Typography>}
-            </Box>
-          ) : <Typography>{t(allTiles.length === 0 ? "noFlocksMessage"
-            : entryDataIncomplete ? "entriesIncompleteBrief" : "allHousesRecorded")}</Typography>}
+          <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
+            {allTiles === null ? <Typography>{t("panelLoadError")}</Typography> : missingHouses.length > 0 ? (
+              <>
+                {attentionShown.map((flock) => (
+                  <Typography key={flock.id} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <TriangleAlert size={15} aria-hidden />{t("attentionHouseNotRecorded", { flock: flock.name })}
+                  </Typography>
+                ))}
+                {attentionMore > 0 && <Typography component={Link} to="/daily-entry" sx={{ color: "inherit" }}>{t("attentionMore", { count: attentionMore })}</Typography>}
+              </>
+            ) : <Typography>{t(allTiles.length === 0 ? "noFlocksMessage"
+              : entryDataIncomplete ? "entriesIncompleteBrief" : "allHousesRecorded")}</Typography>}
+            {belowFloorRows.length > 0 && (
+              <Typography component={Link} to="/stock" sx={{ color: "inherit", display: "flex", alignItems: "center", gap: 1 }}>
+                <TriangleAlert size={15} aria-hidden />{belowFloorFact("attentionGradeBelowFloor")}
+              </Typography>
+            )}
+          </Box>
         </Box>
         {allTiles !== null && entries !== null && <Box sx={{ borderLeft: { md: "1px solid #62535e" }, borderTop: { xs: "1px solid #62535e", md: 0 }, pl: { md: 2.5 }, pt: { xs: 1.5, md: 0 }, minWidth: 150 }}>
           <Typography variant="caption">{t("todaySoFarLabel")}</Typography>
@@ -644,19 +670,25 @@ export function Dashboard() {
                 <span className="stock-fig">{fmt.count(bar.totalAvailable)}</span>{" "}{t("eggsAvailableLabel", { count: bar.totalAvailable })}
               </Typography>
               <StockBar data={bar} />
-              {bar.segments.length > 0 && (
+              {bar.ledger.length > 0 && (
                 <Table aria-label={t("stockLedgerLabel")} size="small" sx={{ mt: 1.5, tableLayout: "fixed", "& th, & td": { px: 0.75, py: 1, overflowWrap: "anywhere" } }}>
                   <TableHead><TableRow>
                     <TableCell sx={{ width: "46%" }}>{t("gradeColumn")}</TableCell>
                     <TableCell align="right">{t("countColumn")}</TableCell>
                     <TableCell align="right">{t("shareColumn")}</TableCell>
                   </TableRow></TableHead>
-                  <TableBody>{bar.segments.map((s) => (
+                  <TableBody>{bar.ledger.map((s) => (
                     <TableRow key={s.eggGradeId} tabIndex={0} sx={{
                       "&:hover, &:focus": { bgcolor: "var(--surface-2)", outline: "2px solid var(--focus)", outlineOffset: -2 },
                       "&:hover th, &:focus th": { textDecoration: "underline", textUnderlineOffset: "3px" },
                     }}>
-                      <TableCell component="th" scope="row"><Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}><span className={`swatch grade-${s.colorIndex}`} aria-hidden="true" />{s.gradeName}</Box></TableCell>
+                      <TableCell component="th" scope="row"><Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}><span className={`swatch grade-${s.colorIndex}`} aria-hidden="true" />{s.gradeName}{belowFloorIds.has(s.eggGradeId) && (
+                      /* #911 — a mark, not a tint: the icon carries the row's
+                         own sentence as its accessible name. */
+                      <Box component="span" role="img" aria-label={t("stockBelowFloorRowLabel", { grade: s.gradeName })} sx={{ display: "inline-flex", color: "var(--warn)" }}>
+                        <TriangleAlert size={13} aria-hidden />
+                      </Box>
+                    )}</Box></TableCell>
                       <TableCell align="right">{fmt.count(s.available)}</TableCell>
                       <TableCell align="right">{`${fmt.count(s.pct, 1)}%`}</TableCell>
                     </TableRow>
@@ -664,6 +696,10 @@ export function Dashboard() {
                 </Table>
               )}
               {bar.totalRestricted > 0 && <Typography color="text.secondary" variant="caption" sx={{ display: "block", mt: 1 }}>{t("stockCaptionRestricted", { restricted: fmt.count(bar.totalRestricted) })}</Typography>}
+              {belowFloorRows.length > 0 && <Typography variant="caption" sx={{
+                display: "block", mt: 1, px: 1, py: 0.75, borderRadius: "var(--r-input)",
+                bgcolor: "var(--tint-warn)", color: "var(--warn)", fontWeight: 650,
+              }}>{belowFloorFact("stockCaptionBelowFloor")}</Typography>}
             </>
           )}
         </Card>

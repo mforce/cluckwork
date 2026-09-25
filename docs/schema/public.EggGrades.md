@@ -16,6 +16,7 @@
 | AccountId | uuid |  | false |  |  |  |
 | CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| LowStockFloor | integer |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -28,6 +29,7 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| CK_EggGrades_LowStockFloor | CHECK | CHECK ((("LowStockFloor" IS NULL) OR ("LowStockFloor" >= 0))) |
 | EggGrades_AccountId_not_null | n | NOT NULL "AccountId" |
 | EggGrades_Active_not_null | n | NOT NULL "Active" |
 | EggGrades_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
@@ -79,6 +81,7 @@ erDiagram
   uuid AccountId
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer LowStockFloor
 }
 "public.DailyEntryGrades" {
   uuid Id

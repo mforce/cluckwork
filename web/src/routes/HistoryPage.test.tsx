@@ -40,8 +40,8 @@ const FLOCK: Flock = {
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const ARCHIVED_FLOCK: Flock = { ...FLOCK, id: "f2", name: "Old Coop", status: "Archived" };
-const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
-const GRADE_B: EggGrade = { ...NO_RECORD_HISTORY, id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null };
+const GRADE_B: EggGrade = { ...NO_RECORD_HISTORY, id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null };
 
 // sellable = 100 − 2 − 3 − 5 = 90; two graded lines summing to 60 (within).
 const SUBMITTED: DailyEntry = {
@@ -196,7 +196,7 @@ describe("HistoryPage adjust panel excludes counter-fed grades", () => {
   const CRACKED: EggGrade = {
     ...NO_RECORD_HISTORY,
     id: "gr-cracked", farmId: "farm1", name: "Cracked", gradeType: "Quality",
-    sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true,
+    sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true, lowStockFloor: null,
   };
 
   it("offers no grade field for a saleable, active condition grade", async () => {

@@ -303,6 +303,21 @@ Shell), and custom buckets (Discarded/Internal Use), but the catalog is fully
 user-managed. `gradeType` (Size/Quality/Custom) records which axis a bucket
 is on and is immutable after creation.
 
+**Low-stock floor (#911)** — an optional per-grade warning point, in eggs,
+stored on the grade itself so a renamed grade keeps it and a deactivated grade
+takes it out of service. Only an Owner sets or clears one (farm configuration,
+#729); Managers and below read it. `GET /stock` reports the floor beside each
+grade's balance and flags the grade below it. A floored grade appears on Stock
+even with no egg lots at all, at a zero balance, because an empty grade is the
+case the floor exists for; a deactivated grade keeps its stock row but its floor
+is out of service until it is active again. The comparison is **available** alone —
+restricted eggs exist but cannot be sold, so counting them would hide a grade
+with nothing left to sell. Stock shows a band, a labelled mark and the
+shortfall; the Dashboard's morning brief states the fact and its stock ledger
+marks the row. A grade with no floor never warns. A floor of zero is a real
+setting and not a stand-in for "unset": the comparison is `Available < floor`,
+so zero never warns.
+
 **Egg movement ledger (#101)** — every change to a lot's available quantity
 is an explicit, append-only signed row (spec §9.4): `Production` when a
 submitted entry creates the lot, `Sale` per confirmed allocation, `Void` when

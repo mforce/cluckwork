@@ -698,6 +698,9 @@ export const tl = {
     entryStateRecordedTime: "Naitala {{time}}",
     entryStateDraftTime: "Draft, na-save {{time}}",
     attentionHouseNotRecorded: "Hindi pa naitala ang {{flock}}",
+    attentionGradeBelowFloor:
+      "Ang stock ng {{grade}} ay {{short}} na mas mababa sa pinakamababang stock",
+    attentionGradesBelowFloor: "{{grades}} grado ang mas mababa sa pinakamababang stock",
     attentionMore_one: "+{{count}} pa",
     attentionMore_other: "+{{count}} pa",
     tileLinkLabel: "{{flock}}: buksan ang tala ngayong araw",
@@ -772,6 +775,11 @@ export const tl = {
     eggsAvailableLabel_other: "itlog ang available",
     stockLedgerLabel: "Stock ayon sa grado",
     stockCaptionRestricted: "{{restricted}} restricted",
+    stockBelowFloorRowLabel: "Ang {{grade}} ay mas mababa sa pinakamababang stock nito",
+    stockCaptionBelowFloor:
+      "Ang stock ng {{grade}} ay {{short}} na mas mababa sa pinakamababang stock na {{floor}}",
+    stockCaptionBelowFloorMany:
+      "{{grades}} grado ang mas mababa sa pinakamababang stock nila",
 
     // Mga kamakailang benta (nakatago para sa ReadOnly/Denied, #127)
     salesPanelTitle: "Mga Kamakailang Benta",
@@ -928,7 +936,9 @@ export const tl = {
     intro:
       "Lumalabas ang mga nabebentang grado sa mga picker ng daily entry at "
       + "order. Kapag na-deactivate ang isang grado, aalisin ito sa mga "
-      + "picker; hindi maaapektuhan ang umiiral na stock at history.",
+      + "picker; hindi maaapektuhan ang umiiral na stock at history. Ang "
+      + "bawat grado ay maaaring magkaroon ng pinakamababang stock — ang "
+      + "punto kung saan nagsisimulang magbabala ang Stock at ang Dashboard.",
 
     // Buttons
     newGradeButton: "Bagong grado",
@@ -955,6 +965,15 @@ export const tl = {
 
     // Saleable column's "yes" badge
     saleableYesBadge: "Oo",
+
+    floorHeader: "Pinakamababang stock",
+    floorLabel: "Pinakamababang stock (mga itlog)",
+    floorNotSet: "Hindi nakatakda",
+    floorHelp:
+      "Magbabala sa Stock at sa Dashboard kapag bumaba sa bilang na ito ang "
+      + "mga itlog na available. Iwanang blangko kung ayaw ng babala.",
+    floorOwnerOnlyMessage:
+      "Ang Owner lamang ang makakapagpalit ng pinakamababang stock ng isang grado.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -1146,6 +1165,19 @@ export const tl = {
     restrictionPolicy: "May stock na may restriksyon, ngunit hindi ito maaaring ilaan sa mga benta.",
     gradesLabel: "Mga grado",
     noRestrictions: "Walang restriksyon",
+
+    floorBandTitle_one: "{{count}} grado ang mas mababa sa pinakamababang stock nito",
+    floorBandTitle_other: "{{count}} grado ang mas mababa sa pinakamababang stock nila",
+    floorBandItem: "Ang {{grade}} ay {{short}} na mas mababa sa stock na {{floor}}",
+    belowFloorTag: "Mababa sa stock",
+    belowFloorTagLabel:
+      "Mas mababa sa pinakamababang stock: {{available}} ang available, "
+      + "{{short}} ang kulang sa {{floor}} na itlog",
+    shortfallLine: "{{short}} na mas mababa sa stock na {{floor}}",
+    floorAbove: "Pinakamababang stock {{floor}} · {{over}} ang labis",
+    floorNotSet: "Walang pinakamababang stock",
+    floorPolicy:
+      "Ang pinakamababang stock ay itinatakda bawat grado sa Mga Grado ng Itlog.",
     title: "Stock",
 
     // Imperative messages
@@ -2544,6 +2576,11 @@ export const tl = {
       + "ring kumpirmahin ang mga linya ng order na naidagdag na noon, pero hindi na ito puwedeng ilagay sa "
       + "<em>bagong</em> linya ng order — i-reactivate ang grado para ibenta ang natitirang stock. Patuloy "
       + "na ipinapakita ng history ang pangalan nito.",
+    gradesLowStockFloor:
+      "Ang isang grado ay maaaring magkaroon ng <strong>Pinakamababang stock (mga itlog)</strong> — ang "
+      + "punto kung saan nagsisimulang magbabala ang Stock at ang Dashboard na nauubos na ang grado. "
+      + "Iwanang blangko kung ayaw ng babala. Ang Owner lamang ang nagtatakda o nag-aalis nito; nakikita "
+      + "ito ng iba sa talahanayan at sa record inspector.",
     gradesAdminOnly: "Configuration ang katalogo ng grado — ang pamamahala nito ay para sa admin lang.",
 
     productsHeading: "Mga Produkto (admin)",
@@ -2571,6 +2608,12 @@ export const tl = {
       + "feature na iyon kasama ng medication tracking. <strong>Wala pang minamarkahang restricted na "
       + "itlog, kaya hindi ipinapatupad ng system ang mga withdrawal time sa ngayon</strong> — pamahalaan "
       + "ang mga withholding period sa labas ng Cluckwork sa ngayon.",
+    stockLowStockFloor:
+      "Ang gradong bumaba na ang available na itlog sa <strong>Pinakamababang stock</strong> nito ay "
+      + "minamarkahan dito at sa Dashboard: binibilang sila ng banda sa itaas ng board, at may tag na "
+      + "<strong>Mababa sa stock</strong> ang bawat grado kasama ang kulang nito. Hindi kasama ang mga "
+      + "itlog na may restriksyon dahil hindi pa ito maibebenta. Ang pinakamababang stock ay itinatakda "
+      + "bawat grado sa Mga Grado ng Itlog.",
     stockFifo: "Palaging kinukuha muna ng pagbebenta ang mga pinakalumang lote, para natural na umiikot ang stock.",
     stockWriteOff:
       "Ang nawalang stock — nabasag, nasira, itlog na nagamit sa bahay — ay itinatala gamit ang "
@@ -3191,6 +3234,15 @@ export const tl = {
 
     glossaryGradeTerm: "Grado",
     glossaryGradeDef: "Isang grading bucket (sukat, kalidad, o custom). Ang mga gradong nabebenta ay puwedeng ibenta.",
+
+    glossaryLowStockFloorTerm: "Pinakamababang stock",
+    glossaryLowStockFloorDef:
+      "Isang opsyonal na punto ng babala bawat grado, sa bilang ng itlog, na itinatakda ng Owner sa Mga "
+      + "Grado ng Itlog. Kapag bumaba ang available na stock ng isang grado sa pinakamababang stock nito, "
+      + "minamarkahan ito ng Stock at ng Dashboard, pati na ang gradong tuluyang naubos. Hindi kasama ang "
+      + "mga itlog na may restriksyon dahil hindi pa ito maibebenta. Ang gradong walang nakatakdang halaga "
+      + "ay hindi nagbabala, at ang pinakamababang stock ng na-deactivate na grado ay wala sa serbisyo "
+      + "hanggang muli itong maging aktibo.",
 
     glossaryEggMovementLedgerTerm: "Talaan ng galaw ng itlog",
     glossaryEggMovementLedgerDef:

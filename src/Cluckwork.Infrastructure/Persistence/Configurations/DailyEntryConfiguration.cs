@@ -108,6 +108,17 @@ public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
 
         builder.Property(g => g.Version).IsConcurrencyToken();
 
+        // #911 — nullable on purpose: a grade with no floor is the ordinary
+        // case, and 0 is a legitimate floor rather than a stand-in for "unset"
+        // (the comparison is Available < floor, so a floor of 0 never warns —
+        // it is the setting that says "never warn about this grade" out loud).
+        // The check constraint matches
+        // #727's ceiling column: the aggregate and the validator both refuse a
+        // negative, and this makes a raw UPDATE refuse one too.
+        builder.ToTable(t => t.HasCheckConstraint(
+            "CK_EggGrades_LowStockFloor",
+            "\"LowStockFloor\" IS NULL OR \"LowStockFloor\" >= 0"));
+
         // Name uniqueness is case-insensitive per farm — enforced by a raw
         // lower(Name) expression index (EF can't model it); see the
         // InitialCreate migration (#245 squashed the AddEggGradeManagement one

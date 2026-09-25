@@ -62,15 +62,15 @@ const FLOCK: Flock = {
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const GRADES: EggGrade[] = [
-  { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true },
-  { ...NO_RECORD_HISTORY, id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true },
+  { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null },
+  { ...NO_RECORD_HISTORY, id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true, lowStockFloor: null },
 ];
 // #396 — saleable AND active, so it passes every pre-existing filter. The only
 // thing that keeps it out of the Grading pane is its kind.
 const CRACKED: EggGrade = {
   ...NO_RECORD_HISTORY,
   id: "gr-cracked", farmId: "farm1", name: "Cracked", gradeType: "Quality",
-  sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true,
+  sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true, lowStockFloor: null,
 };
 
 beforeEach(() => {
