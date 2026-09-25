@@ -2852,11 +2852,9 @@ export const en = {
     glossaryGroupSupplies: "Feed, water & supplies",
     glossaryGroupFarm: "Farm settings & branding",
 
-    // Contents-rail labels (TOC array, 2nd element). Order mirrors the <h3
-    // id=...> sections below — see the KEEP comment at the top of
-    // HelpPage.tsx. tocGlossary is the rail's link text only; the glossary
-    // section itself (heading + disclosures + closing note) is externalized
-    // further down, near the end of this block (Task 33, B6b).
+    // Contents-rail labels (TOC array, 2nd element), in the order of the <h3
+    // id=...> sections in HelpPage.tsx. tocGlossary is the rail's link text
+    // only; the glossary section itself is near the end of this block.
     tocGettingAround: "Getting around",
     tocDashboard: "Dashboard",
     tocSigningIn: "Signing in",
@@ -2889,22 +2887,23 @@ export const en = {
     gettingAroundSidebar:
       "On a computer, every screen sits in the <strong>sidebar</strong> on the left, grouped by job.",
     gettingAroundTabs:
-      "On a phone, the screens you use most are <strong>tabs across the bottom</strong>, in easy thumb reach. "
-      + "Which four you get depends on your role — a worker gets Daily entry, someone in sales gets Sales. "
+      "On a phone, the four screens you use most are <strong>tabs across the bottom</strong>, in easy "
+      + "thumb reach. Your role decides which four. A worker gets Daily entry, someone in sales gets Sales. "
       + "Everything else is one tap away under <strong>More</strong>.",
     gettingAroundPageLoading:
-      "The first time you open a screen after starting or updating Cluckwork, a brief page-loading message may appear while that screen opens. Navigation stays available; wait for the screen to appear.",
+      "The first time you open a screen after starting or updating Cluckwork, a brief page-loading "
+      + "message may appear. Navigation stays available while you wait.",
     gettingAroundErrorScreen:
-      "If a screen ever shows <strong>\"Something went wrong\"</strong>, that is the app catching an error "
-      + "instead of leaving you on a blank page. Anything you had already saved is safe (anything you were "
-      + "still typing may need to be entered again) — tap <strong>Reload</strong>, or <strong>Back to the "
-      + "dashboard</strong> and try again. If it keeps happening, open \"Error details\" and send a screenshot.",
+      "<strong>\"Something went wrong\"</strong> means the app caught an error instead of leaving you on "
+      + "a blank page. Anything you already saved is safe. Anything you were still typing, you may need to "
+      + "enter again. Tap <strong>Reload</strong>, or <strong>Back to the dashboard</strong>, and try "
+      + "again. If it keeps happening, open \"Error details\" and send a screenshot.",
     gettingAroundWhereMessagesAppear:
-      "A message about something that failed appears <strong>where the work is</strong>: if you were filling in "
-      + "a pop-up form, it appears inside that form, next to the fields it is about; if it was the screen itself "
-      + "— a list that would not load, say — it appears on the screen behind. So a form that refuses to save "
-      + "always tells you why without closing. Closing the form drops its message: that attempt is over, and "
-      + "anything the screen itself reported stays put.",
+      "A message about something that failed appears <strong>where the work is</strong>. A pop-up form's "
+      + "failure appears inside that form, next to the fields it is about, so a form that refuses to save "
+      + "always tells you why without closing. A failure on the screen itself, such as a list that would "
+      + "not load, appears on the screen behind. Closing the form drops its message, because that attempt "
+      + "is over. Anything the screen itself reported stays put.",
     // #512 — the shared searchable pickers (flock/customer name fields). The
     // three highlighted words (Load more, Retry, Unavailable) are the
     // picker's OWN catalog vocabulary (namedEntityPicker) — quoted here, not
@@ -2920,29 +2919,33 @@ export const en = {
 
     // Dashboard (#654) — the landing screen's three questions.
     dashboardHeading: "Dashboard",
-    dashboardTiles: "<strong>Morning collection</strong> shows progress and one row per active flock, with <strong>No entry</strong> rows first. Use <strong>Record</strong> for a missing entry or <strong>Continue</strong> for a draft. The list is paged inside the panel — six houses a page on a phone, eight on a wider screen — so every house is reachable without leaving the Dashboard; the progress bar and the houses-in count above it cover every house, not the page on screen. The morning brief combines missing houses with today’s total, including drafts.",
+    dashboardTiles:
+      "<strong>Morning collection</strong> shows progress and one row per active flock, with <strong>No "
+      + "entry</strong> rows first. Use <strong>Record</strong> for a missing entry or "
+      + "<strong>Continue</strong> for a draft. The list is paged inside the panel, six houses a page on a "
+      + "phone and eight on a wider screen, so every house is reachable without leaving the Dashboard. The "
+      + "progress bar and the houses-in count above it cover every house, not just the page on screen. The "
+      + "morning brief combines missing houses with today's total, including drafts.",
     dashboardTrend:
-      "<strong>Lay rate</strong>: eggs per day from the production report, with <strong>hen-day %"
-      + "</strong> for the chosen window and how it moved against the window of the same length "
-      + "before it. Point at a bar, "
-      + "or tab into the chart and use the arrow keys, to read that day on its own. A day the farm "
-      + "submitted with no eggs keeps a mark on the baseline; a day nobody submitted is an empty slot "
-      + "and reads as <strong>No entry</strong>; a day only some flocks submitted is drawn hatched, "
-      + "because its total is the least the farm produced rather than what it produced. "
-      + "<strong>Peak</strong> and <strong>Avg</strong> come only from the days every flock recorded. "
-      + "Hen-day % divides by the hen-days of the flocks that recorded, so a flock that forgets lowers "
-      + "what the figure is measured over, never the rate itself. <strong>Range</strong> chooses the window "
-      + "— the last 7 or 14 finished days, or <strong>Custom range…</strong> with <strong>From</strong>, "
-      + "<strong>To</strong> and <strong>Apply</strong> for any span up to 14 days; this card always draws "
-      + "one bar per day, so a longer range is refused in the form rather than redrawn at a coarser scale, "
-      + "and the choice is remembered on this device. The window always "
-      + "ends yesterday or earlier and counts <strong>submitted days only</strong> — a day still in Draft "
-      + "reads as No entry until it is submitted, unlike Reports where the range may reach today. "
-      + "Choose <strong>All flocks</strong> or "
-      + "a single flock above the chart to scope the whole card — bars, completeness, Avg and both "
-      + "hen-day periods — to that flock; with only one accessible flock its name shows without a "
-      + "picker. When no day in the window is fully recorded, Peak scales to the largest partial day "
-      + "instead and says \"partial days only\".",
+      "<strong>Lay rate</strong> plots eggs per day from the production report, with <strong>hen-day "
+      + "%</strong> for the chosen window and how it moved against the window of the same length before it. "
+      + "Point at a bar, or tab into the chart and use the arrow keys, to read that day on its own. A day "
+      + "the farm submitted with no eggs keeps a mark on the baseline. A day nobody submitted is an empty "
+      + "slot reading <strong>No entry</strong>. A day only some flocks submitted is drawn hatched, because "
+      + "its total is the least the farm produced rather than what it produced. <strong>Peak</strong> and "
+      + "<strong>Avg</strong> come only from the days every flock recorded. When no day in the window is "
+      + "fully recorded, Peak scales to the largest partial day instead and says \"partial days only\". "
+      + "Hen-day % divides by the hen-days of the flocks that recorded, so a flock that forgets lowers what "
+      + "the figure is measured over, never the rate itself. <strong>Range</strong> chooses the window. "
+      + "Pick the last 7 or 14 finished days, or <strong>Custom range…</strong> with <strong>From</strong>, "
+      + "<strong>To</strong> and <strong>Apply</strong> for any span up to 14 days. This card always draws "
+      + "one bar per day, so it refuses a longer range in the form rather than redrawing at a coarser "
+      + "scale, and it remembers your choice on this device. The window always ends yesterday or earlier "
+      + "and counts <strong>submitted days only</strong>. A day still in Draft reads as No entry until it "
+      + "is submitted, unlike Reports, where the range may reach today. Choose <strong>All flocks</strong> "
+      + "or a single flock above the chart to scope the whole card to that flock, including bars, "
+      + "completeness, Avg and both hen-day periods. With only one accessible flock its name shows without "
+      + "a picker.",
     dashboardOrders: "<strong>Recent orders</strong> shows each customer, amount and status, with the first line’s quantity and current grade name, five orders a page. Paging forward fetches the next five, so the total appears once the last page arrives. +N counts additional lines. Renaming a grade also changes its name here on old orders; an unavailable grade leaves the quantity alone.",
     dashboardStock: "<strong>Available stock</strong> shows the total and a <strong>stacked bar</strong> of its grade composition, followed by a <strong>Grade</strong>, <strong>Count</strong> and <strong>Share</strong> table. Hover or focus a row to highlight it. Restricted eggs are listed separately. These are the same available counts as Stock.",
 
@@ -2952,40 +2955,39 @@ export const en = {
       "Sign in with your <strong>farm code</strong>, then the email and password your administrator "
       + "set up. A wrong password just says <strong>Invalid email or password</strong> — try again.",
     signingInRateLimit:
-      "To slow down anyone guessing passwords, sign-in attempts from the same place are <strong>limited</strong>. "
-      + "After too many tries in a few minutes you'll see <strong>\"Too many sign-in attempts\"</strong> — that "
-      + "isn't a fault, just wait a few minutes and try again. Being <em>signed in</em> already is never "
-      + "affected; your work carries on normally.",
+      "Cluckwork <strong>limits</strong> sign-in attempts from the same place, to slow down password "
+      + "guessing. After too many tries in a few minutes you'll see <strong>\"Too many sign-in "
+      + "attempts\"</strong>. Nothing is broken. Wait a few minutes and try again. Being <em>signed in</em> "
+      + "already is never affected.",
     signingInAccountLock:
       "Separately, too many wrong passwords for <em>one account</em> briefly lock <em>that</em> account. While "
-      + "it is locked, even the correct password still says <strong>Invalid email or password</strong>. The "
-      + "lock is temporary — wait up to about 15 minutes and try again.",
+      + "it is locked, even the correct password still says <strong>Invalid email or password</strong>. "
+      + "Wait up to about 15 minutes and try again.",
     signingInPersistence:
-      "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
-      + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
-      + "you may be asked to sign in once more — that's expected.",
+      "Your sign-in is kept in your browser securely and stays active as you work, across reloads and "
+      + "with the app open in <strong>several tabs</strong> at once. After the app is "
+      + "<strong>updated</strong> you may be asked to sign in once more. That is expected.",
     // #532 — each farm owns a distinct refresh cookie. A tab remembers its
     // non-secret farm selector across reloads; a fresh tab cannot guess when
     // several farms are present, so it returns to login instead.
     signingInMultiTabResync:
       "Each farm keeps its own secure session in this browser, so farms open in different "
-      + "<strong>tabs</strong> no longer replace one another. A tab remembers its farm across reloads. A tab "
-      + "with no remembered farm that finds several sessions returns to sign-in rather than guessing — choose "
-      + "the farm code and sign in. The sign-in page also remembers farm codes you have signed in with on this "
-      + "device and offers them as a picker, and a ?farm= link prefills the field. Each remembered farm can be "
-      + "removed from that list with its Forget control; doing so does not clear another farm's session or any "
-      + "other preference on this device. No other farm's session is cleared.",
+      + "<strong>tabs</strong> no longer replace one another. A tab remembers its farm across reloads. A "
+      + "tab with no remembered farm that finds several sessions returns to sign-in rather than guessing. "
+      + "Choose the farm code and sign in. The sign-in page also remembers farm codes you have signed in "
+      + "with on this device and offers them as a picker, and a ?farm= link prefills the field. Each "
+      + "remembered farm can be removed from that list with its Forget control. Doing so clears neither "
+      + "another farm's session nor any other preference on this device.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
     signingInFirstRun:
-      "<strong>First sign-in on a brand-new farm.</strong> There is no default password — an operator runs a "
-      + "one-time setup command that prints a temporary password and the farm code. Sign in with both and "
-      + "you'll immediately land on a "
-      + "<strong>Set your password</strong> screen instead of the normal app; nothing else works until you pick "
-      + "your own password there. This is separate from an ordinary <em>Change password</em>. Until that setup "
-      + "step has been run, trying to sign in tells you so and points you at whoever administers the server, "
-      + "rather than claiming your details were wrong.",
+      "<strong>First sign-in on a brand-new farm.</strong> There is no default password. An operator runs "
+      + "a one-time setup command that prints a temporary password and the farm code. Sign in with both and "
+      + "you land on a <strong>Set your password</strong> screen instead of the normal app. Nothing else "
+      + "works until you pick your own password there. This is separate from an ordinary <em>Change "
+      + "password</em>. Until that setup step has been run, trying to sign in says so and points you at "
+      + "whoever administers the server, rather than claiming your details were wrong.",
     // #308/#356/#360 — deliberately does NOT mention "grant"/"token" —
     // that's internal mechanism, not user-facing language.
     signingInStepUp:
@@ -2998,12 +3000,12 @@ export const en = {
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
     interfaceLanguage:
-      "<strong>Interface language.</strong> Everyone can choose the language the interface is shown in from "
-      + "<strong>Account → Preferences</strong> — English, Español, or Tagalog. Translation is a work in "
-      + "progress: the login and sales screens, error messages, and <strong>Account → Preferences</strong> "
-      + "itself are translated today; the rest of the Account screen (including the password section) and the "
-      + "rest of the app are being translated screen by screen. Until a screen is translated it simply shows "
-      + "in English, whatever language you picked.",
+      "<strong>Interface language.</strong> Everyone can choose the language the interface is shown in "
+      + "from <strong>Account → Preferences</strong>. The choices are English, Español and Tagalog. "
+      + "Translation is a work in progress. The login and sales screens, error messages, and "
+      + "<strong>Account → Preferences</strong> itself are translated today. The rest of the Account "
+      + "screen, including the password section, and the rest of the app are being translated screen by "
+      + "screen. Until a screen is translated it shows in English, whatever language you picked.",
 
     // The daily loop
     dailyLoopHeading: "The daily loop",
@@ -3040,10 +3042,9 @@ export const en = {
       + "one. The <strong>role</strong> action promotes or demotes an existing user among the five roles — it "
       + "refuses targeting your own sign-in, and refuses demoting the account's last Admin (owner), so the farm "
       + "can never lock itself out of user administration. Creating any sign-in, resetting any user's password, "
-      + "and changing any user's role asks the signed-in Admin (owner) to re-enter their current password. A role "
-      + "change signs the affected sign-in out everywhere on its next request, the same "
-      + "way a password reset does. Controls you can't use are hidden, "
-      + "and the server refuses them regardless. "
+      + "and changing any user's role asks the signed-in Admin (owner) to re-enter their current password. "
+      + "A role change signs the affected sign-in out everywhere on its next request, the same way a "
+      + "password reset does. Controls you can't use are hidden, and the server refuses them regardless. "
       + "Select another user's row to find <strong>password</strong>, <strong>change email</strong>, "
       + "<strong>flocks</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below "
       + "the table.",
@@ -3123,20 +3124,20 @@ export const en = {
       + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to. A "
       + "draft can leave that partly done, or not started at all — submitting needs it exact.",
     dailyEntryGradingDown:
-      "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
-      + "place; it turns green the moment the day adds up and red if you go over — going over blocks saving "
-      + "the draft too, not just Submit. You cannot submit until it reads exactly zero — grading a day "
-      + "partway, or not at all, is fine for a draft but not for Submit.",
+      "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have "
+      + "to place. It turns green the moment the day adds up, and red if you go over. Going over blocks "
+      + "saving the draft as well as Submit. Submit is blocked whenever that count is above or below zero. "
+      + "A draft may be partly graded, or not graded at all.",
     dailyEntryButtons:
-      "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or <strong>hold</strong> "
-      + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
-      + "gloves on. A grade's <strong>+</strong> no longer stops at the day's current total — count the "
-      + "grades first and the total catches up to match. It only ever raises the total, never lowers it, so "
-      + "trimming the total on step 1 never pushes a grade back down. Farms that count by the tray can make "
-      + "each tap count a whole pack unit instead of one egg — the farm default lives in "
-      + "<strong>Settings</strong>, and each person can pick their own on their <strong>Account</strong> "
-      + "screen. When a pack unit is in force the buttons say so themselves (<strong>−30 / +30</strong>) and "
-      + "a note above the panes names the unit; typing still enters exact numbers.",
+      "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or "
+      + "<strong>hold</strong>. It speeds up as you go, so a few hundred eggs takes about a second. A "
+      + "grade's <strong>+</strong> does not stop at the day's current total. Count the grades first and "
+      + "the total catches up to match. It only ever raises the total, never lowers it, so trimming the "
+      + "total on step 1 never pushes a grade back down. Farms that count by the tray can make each tap "
+      + "count a whole pack unit instead of one egg. The farm default lives in <strong>Settings</strong>, "
+      + "and each person can pick their own on their <strong>Account</strong> screen. When a pack unit is "
+      + "in force the buttons say so themselves (<strong>−30 / +30</strong>), and a note above the panes "
+      + "names the unit. Typing still enters exact numbers.",
     dailyEntryPutAllIn:
       "Most days end the same way — one grade takes whatever is left. <strong>Put all in…</strong> beside the "
       + "remaining count does it in one move: drag it onto a grade, or tap it and pick one.",
@@ -3294,29 +3295,31 @@ export const en = {
       "A customer's name on the Customers page and on the dashboard is a link into Sales, filtered to "
       + "that customer's orders.",
     salesDrafts:
-      "Orders start as <strong>drafts</strong>: add lines by picking a <strong>product</strong>, a packed "
-      + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "
-      + "product's default, decimals allowed) — edit freely, or <strong>cancel</strong> (the draft is kept, "
-      + "read-only). The quantity counts <strong>units, not eggs</strong> — the field is labeled with the "
-      + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each "
-      + "line remembers how many eggs its unit held when it was added, so redefining a carton later never "
-      + "changes old orders. Choose <strong>close</strong> while an order loads to keep the panel closed; "
-      + "choose <strong>open</strong> again to view it."
-      + " When an order refreshes, editing ends if it is no longer a draft or the line is gone. Unedited inputs follow the refreshed line. If you have unsaved inputs and the fetched quantity or price changed, your inputs stay visible and save is blocked. Choose <strong>reload line</strong> to replace both inputs with the latest fetched values. Changes made after the last fetch are not detected here.",
+      "Orders start as <strong>drafts</strong>. Add lines by picking a <strong>product</strong>, a packed "
+      + "unit (dozen, carton, …), a whole-number quantity, and a price per unit, prefilled from the "
+      + "product's default and allowing decimals. Edit freely, or <strong>cancel</strong>, which keeps the "
+      + "draft read-only. The quantity counts <strong>units, not eggs</strong>. The field is labeled with "
+      + "the unit and shows the resulting egg count while you type, so 2 trays reads as 60 eggs, not 60 "
+      + "trays. Each line remembers how many eggs its unit held when it was added, so redefining a carton "
+      + "later never changes old orders. Choose <strong>close</strong> while an order loads to keep the "
+      + "panel closed, and <strong>open</strong> again to view it. When an order refreshes, editing ends if "
+      + "the order is no longer a draft or the line is gone. Unedited inputs follow the refreshed line. "
+      + "Unsaved ones stay visible and block save if the fetched quantity or price changed. Choose "
+      + "<strong>reload line</strong> to replace both inputs with the latest fetched values. Changes made "
+      + "after the last fetch are not detected here.",
     salesListPrice:
-      "Each line also shows its <strong>List price</strong> — the product's price when the line was "
-      + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
-      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there is nothing "
-      + "comparable to measure against. A line taken before the farm started keeping list prices says \"List "
-      + "price not recorded\" instead — that one means nobody can tell whether it was discounted. "
-      + "A line sold under list is marked three ways so it survives a greyscale print: "
-      + "a <strong>Below list</strong> tag beside the product, its List price struck through, and a tinted "
-      + "row. The order's <strong>Discount</strong> is totalled directly above the order total, as an "
-      + "amount and a percent of list; where part of the order has no list price, the total says so rather "
-      + "than pretending to cover it. The Orders list carries the same figure in its own "
-      + "<strong>Discount</strong> column, so a discounted order is visible without opening it — and an "
-      + "order every line of which was taken before list prices were recorded reads \"List price not "
-      + "recorded\" there, never zero.",
+      "Each line also shows its <strong>List price</strong>, the product's price when the line was added, "
+      + "next to a <strong>Discount</strong> worked out from it. That Discount is an amount and a percent "
+      + "when the line sold under list, <strong>Above list</strong> when it sold over, and \"No list "
+      + "price\" when there is nothing comparable to measure against. A line taken before the farm started "
+      + "keeping list prices says \"List price not recorded\" instead, which means nobody can tell whether "
+      + "it was discounted. A line sold under list is marked three ways, so it survives a greyscale print. "
+      + "It carries a <strong>Below list</strong> tag beside the product, its List price struck through, "
+      + "and a tinted row. The order's <strong>Discount</strong> is totalled directly above the order "
+      + "total, as an amount and a percent of list. Where part of the order has no list price, the total "
+      + "says so rather than pretending to cover it. The Orders list carries the same figure in its own "
+      + "<strong>Discount</strong> column, so a discounted order is visible without opening it, and an "
+      + "order whose every line predates list prices reads \"List price not recorded\" there, never zero.",
     salesCommitment: "Stock commitment previews the eggs in the order, including an unsaved quantity edit. Stock is allocated only when Confirm order succeeds.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
@@ -3334,26 +3337,26 @@ export const en = {
       + "mistakes, not for returns of delivered goods. (Orders confirmed before lot-level allocation tracking "
       + "existed can't self-serve void — ask your administrator.)",
     salesPayments:
-      "<strong>Payments</strong> (Sales, Manager, or admin — voiding a payment is admin/manager only): a "
-      + "confirmed order's panel shows its settlement history — record partial payments (date, amount, "
-      + "method, optional reference) until the outstanding amount reaches zero; overpaying is refused. A "
-      + "wrong payment is <strong>voided</strong> (reason required) and the outstanding grows back. An order "
-      + "with payments can't be voided until its payments are voided first. The Customers page shows each "
-      + "customer's outstanding balance, and the Orders list carries an <strong>Outstanding</strong> "
-      + "column per order, with an <strong>Unpaid only</strong> tick box that narrows the whole list — "
-      + "not just the rows on screen — to the orders still owing something.",
+      "<strong>Payments</strong> are open to Sales, Manager and admin, and only an admin or manager can "
+      + "void one. A confirmed order's panel shows its settlement history. Record partial payments there, "
+      + "each with a date, an amount, a method and an optional reference, until the outstanding amount "
+      + "reaches zero. Overpaying is refused. A wrong payment is <strong>voided</strong>, with a reason "
+      + "required, and the outstanding grows back. An order with payments can't be voided until its "
+      + "payments are voided. The Customers page shows each customer's outstanding balance. The Orders list "
+      + "carries an <strong>Outstanding</strong> column per order, with an <strong>Unpaid only</strong> "
+      + "tick box that narrows the whole list, not just the rows on screen, to the orders still owing "
+      + "something.",
 
     // Reports
     reportsHeading: "Reports",
     reportsProduction:
-      "<strong>Production</strong> (everyone): pick a date range — per-day eggs, losses, sellable, "
-      + "condition, deaths, and <strong>hen-day %</strong>, with period totals and a by-grade breakdown. "
-      + "Draft and voided entries don't count. Hen-day % is eggs collected ÷ hen-days × 100, and it "
-      + "divides by the hen-days of the <strong>flocks that recorded that day</strong> — a flock that "
-      + "filed nothing produced no eggs this report can see, so counting its birds would report a lay "
-      + "rate nothing supports. The <strong>Hen-days</strong> column is every bird alive, recorded or "
-      + "not, so the gap between the two is what is missing. A day nobody recorded shows — rather than "
-      + "0%.",
+      "<strong>Production</strong> is open to everyone. Pick a date range to see per-day eggs, losses, "
+      + "sellable, condition, deaths, and <strong>hen-day %</strong>, with period totals and a by-grade "
+      + "breakdown. Draft and voided entries don't count. Hen-day % is eggs collected ÷ hen-days × 100, and "
+      + "it divides by the hen-days of the <strong>flocks that recorded that day</strong>. A flock that "
+      + "filed nothing produced no eggs this report can see, so counting its birds would report a lay rate "
+      + "nothing supports. The <strong>Hen-days</strong> column is every bird alive, recorded or not, so "
+      + "the gap between the two is what is missing. A day nobody recorded shows a dash rather than 0%.",
     // #396 — the new column needs explaining because two of its neighbours look
     // like they should already cover it: Losses shows the same cracked/dirty
     // numbers (as counts, whether sold or not), and Sellable is the graded
@@ -3378,10 +3381,10 @@ export const en = {
     // Expenses
     expensesHeading: "Expenses (admin)",
     expensesRecording:
-      "Record money going out: date, category, description, and amount (in the farm's currency), optionally "
-      + "tied to a flock. The date range — the farm's own dates, not a browser clock elsewhere — shows a running "
-      + "total for the period you pick; categories are managed on the same screen "
-      + "(deactivating one hides it from new expenses — recorded ones keep it).",
+      "Record money going out: date, category, description, and amount in the farm's currency, optionally "
+      + "tied to a flock. The date range uses the farm's own dates, not a browser clock elsewhere, and "
+      + "shows a running total for the period you pick. Categories are managed on the same screen. "
+      + "Deactivating one hides it from new expenses, and recorded ones keep it.",
     // #679 — the two filter-row controls, named exactly as they are labelled.
     expensesClearingFilters:
       "The range opens on the current farm month. <strong>Clear filters</strong> beside the controls puts it "
@@ -3442,36 +3445,33 @@ export const en = {
       + "carry a similar \"Adjustment history\" link instead — narrower on purpose: only manual write-offs "
       + "and recounts are recorded against a lot itself, so this shows those, not the lot's full story.",
     auditRecordHistorySubmit:
-      "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
-      + "column names you as the creator with no change against you. If somebody else submits your draft, "
+      "Saving a daily entry and submitting it is one act, not a change. Do both yourself and the History "
+      + "column names you as the creator, with no change against you. If somebody else submits your draft, "
       + "their submit shows as the last change, so you can always see who made a day's numbers official. "
-      + "Either way the History column tells you WHEN it was submitted, since that is when the eggs "
-      + "entered stock. Confirming a sales order works the same way, and shows when stock was allocated. "
-      + "Correcting an entry after it is locked always shows, "
-      + "even if you created it, and so does cancelling your own draft order. Editing your own draft before "
-      + "submitting it stays hidden — that is just writing it. But if somebody else edits your draft, their "
-      + "change is shown, so the person whose numbers went into stock is never invisible. And once they "
-      + "have, your own later edits are shown too: if you put the numbers back the way you wanted them, "
-      + "the column names you and the time you did it, not the edit you overwrote.",
+      + "Either way the column tells you WHEN it was submitted, since that is when the eggs entered stock. "
+      + "Confirming a sales order works the same way, and shows when stock was allocated. Correcting an "
+      + "entry after it is locked always shows, even if you created it, and so does cancelling your own "
+      + "draft order. Editing your own draft before submitting it stays hidden, because that is just "
+      + "writing it. If somebody else edits your draft, their change is shown, so the person whose numbers "
+      + "went into stock is never invisible. Once they have, your own later edits are shown too. Put the "
+      + "numbers back the way you wanted them and the column names you and the time you did it, not the "
+      + "edit you overwrote.",
     // #500 — these system-actor labels appear on a REAL farm's audit log, not
     // just in demo data: offline commands run with no signed-in person.
     auditSystemActors:
       "A few entries are made by the system rather than by a person, and show a name in brackets instead of "
       + "an email. \"(bootstrap-admin)\" is the command that created your very first owner account, before "
-      + "anyone existed to do it. \"(break-glass)\" is the emergency command that resets a password when "
-      + "everyone is locked out — that entry also records which machine it was run from and the reason given, "
-      + "so an emergency reset is never anonymous. "
-      + "\"(suspend-account)\" and \"(reactivate-account)\" are the commands an operator runs to take the "
-      + "whole farm offline and bring it back; those entries record the machine they were run from and the "
-      + "reason given too. "
-      + "\"(provision-account)\" creates a new farm and its first Owner before anyone on that farm can sign in. "
-      + "\"(rename-account)\" is the command an operator runs to change your farm's code; that entry records "
-      + "the old and new codes, the machine it was run from and the reason given. "
-      + "Everything else names the person who did it.",
+      + "anyone existed to do it. \"(provision-account)\" creates a new farm and its first Owner before "
+      + "anyone on that farm can sign in. \"(break-glass)\" is the emergency command that resets a password "
+      + "when everyone is locked out. \"(suspend-account)\" and \"(reactivate-account)\" take the whole farm "
+      + "offline and bring it back. \"(rename-account)\" changes your farm's code, and records the old and "
+      + "new codes. Those last four also record the machine they were run from and the reason given, so an "
+      + "emergency reset or an operator change is never anonymous. Everything else names the person who "
+      + "did it.",
     auditRecordHistoryOlder:
-      "Records created before this was added show no \"created by\" line — there is simply no creation "
-      + "entry in the log for them, and none is invented after the fact. If such a record has been changed "
-      + "since, that change still shows; the History column is empty only when there is nothing at all.",
+      "Records created before this was added show no \"created by\" line. There is no creation entry in "
+      + "the log for them, and none is invented after the fact. If such a record has been changed since, "
+      + "that change still shows. The History column is empty only when there is nothing at all.",
 
     // Export & backup
     exportHeading: "Export & backup (admin)",
@@ -3496,10 +3496,10 @@ export const en = {
       + "once that formatting lands.",
     farmSettingsTimezone:
       "The <strong>timezone</strong> is the farm's day. Every field that records <em>when something "
-      + "happened</em> — daily entry, flocks, water, feed usage, stock purchases, expenses, orders and payments "
-      + "— opens on it and refuses to go past it for what you record, whatever day the phone or laptop in "
-      + "your hand is on, so a device travelling ahead of the farm can no longer offer a date the save then "
-      + "refuses. Dates that are meant to be in the future are not capped: a "
+      + "happened</em> opens on it and refuses to go past it for what you record, whatever day the phone or "
+      + "laptop in your hand is on. Those fields are daily entry, flocks, water, feed usage, stock "
+      + "purchases, expenses, orders and payments. So a device travelling ahead of the farm cannot offer a "
+      + "date the save then refuses. Dates meant to fall in the future are not capped, such as a "
       + "<strong>stock item's expiry date</strong>.",
     farmSettingsCurrency:
       "The <strong>currency</strong> locks the moment the farm records its first amount — a sale, a payment, "
@@ -3516,12 +3516,12 @@ export const en = {
     // overrides, replacing what used to be a bare free-text field.
     farmSettingsDateTimeFormat:
       "<strong>Date format</strong> and <strong>time format</strong> offer a few common choices in a "
-      + "dropdown — pick one and you are done. Need something not listed? Choose "
-      + "<strong>Custom…</strong> to type your own. Every date in a list — daily entries, egg lots, "
-      + "orders, payments, expenses, feed and water records, reports — is shown through the date format "
-      + "(with none set, the farm locale's own short form), so open any list to see a custom value "
-      + "rendered; the presets are all safe choices. Nothing displays a time through the time format "
-      + "yet, so a broken custom time value would not be visible today.",
+      + "dropdown. For anything not listed, choose <strong>Custom…</strong> and type your own. Every date "
+      + "in a list is shown through the date format, and with none set, through the farm locale's own short "
+      + "form. Those lists are daily entries, egg lots, orders, payments, expenses, feed and water records, "
+      + "and reports, so open any of them to see a custom value rendered. The presets are all safe choices. "
+      + "Nothing displays a time through the time format yet, so a broken custom time value would not be "
+      + "visible today.",
     farmSettingsSquareLogo:
       "The logo shows in the sidebar at about the height of a line of text. A simple, tightly-cropped mark "
       + "and a <strong>wide wordmark</strong> both read fine there — a wordmark keeps its own shape and uses "
@@ -3590,8 +3590,8 @@ export const en = {
       + "then <strong>Add to Home Screen</strong>.",
     installHttps:
       "Installing is only offered over a secure (<strong>https</strong>) address. If your farm reaches "
-      + "Cluckwork on a plain <strong>http</strong> one the option simply won't appear — nothing is broken, "
-      + "and the app works exactly as it does in the browser.",
+      + "Cluckwork on a plain <strong>http</strong> one, the option does not appear. Nothing is broken, and "
+      + "the app works exactly as it does in the browser.",
     installOffline:
       "Installing does <strong>not</strong> make the app work offline. It still needs a connection to load "
       + "and save; only the app's own screens are kept on the device so it starts quickly. Recording while "
@@ -3666,18 +3666,11 @@ export const en = {
       + "entry and the customer/date of an order are fixed, though: picked wrong, just record it again under "
       + "the right one (and cancel the wrong draft order).",
 
-    // Glossary (Task 33, B6b, #182): the 37-row term/definition table plus
-    // its closing repo-note paragraph. Externalized byte-faithful from the
-    // prior hardcoded English — see the Task 33 brief's alignment note:
-    // specs/product/GLOSSARY.md is the canonical 96-term termbase (Task 34
-    // reconciles it separately) and this in-app table is a curated subset,
-    // so its English wording is intentionally NOT rewritten here. HTML
-    // entities in the old JSX (&apos;/&quot;) are real apostrophe/quote
-    // characters below — same rendered text, just no entity escaping needed
-    // inside a JS string. <Trans>-only rows: glossaryInstallToHomeScreenDef
-    // (one <strong>) and glossaryRepoNote (one <code>, whose
-    // "specs/product/GLOSSARY.md" path text is literal — the closing note's
-    // <Trans> renders it via the components map, not a translated string).
+    // The in-app glossary: one term/definition pair per ./helpGlossary.ts
+    // entry, plus the closing repo note. It is a curated subset of
+    // specs/product/GLOSSARY.md, which stays the canonical termbase.
+    // glossaryRepoNote's "specs/product/GLOSSARY.md" path is literal. The
+    // note's <Trans> renders it through the components map, not a string.
     glossaryHeading: "Glossary",
 
     glossaryNavigationTerm: "Navigation",
@@ -3734,18 +3727,16 @@ export const en = {
     // email can belong to several farms.
     glossaryFarmCodeTerm: "Farm code",
     glossaryFarmCodeDef:
-      "The short code that names your farm on the sign-in screen. You type it before your "
-      + "email, because the same email address can exist in several farms and only the code "
-      + "says which one you mean. It is lowercase. It rarely changes, but an operator can "
-      + "change it on request — after that you sign in with the new code. The sign-in screen "
-      + "remembers the last 10 farms you have signed in with on this device, most recent "
-      + "first, and offers each one — even when there is only a single remembered farm — "
-      + "in a picker so you usually do not have to retype the code. Each entry can be "
-      + "forgotten individually with its Forget control, after a confirmation; that removes "
-      + "only that farm from this device and does not clear your language or theme or any "
-      + "other preference. A link such as /login?farm=<code> takes over and fills the code "
-      + "in for you, without showing the list. If you do not know your farm's code, ask "
-      + "your administrator — they can look it up.",
+      "The short code that names your farm on the sign-in screen. You type it before your email, because "
+      + "the same email address can exist in several farms and only the code says which one you mean. It is "
+      + "lowercase. It rarely changes, but an operator can change it on request, and after that you sign in "
+      + "with the new code. The sign-in screen remembers the last 10 farms you have signed in with on this "
+      + "device, most recent first, and offers them in a picker even when there is only one, so you usually "
+      + "do not have to retype the code. Each remembered farm can be forgotten individually with its Forget "
+      + "control, after a confirmation. That removes only that farm from this device, and clears nothing "
+      + "else, not your language, your theme, or any other preference. A link such as /login?farm=<code> "
+      + "fills the code in for you and skips the list. If you do not know your farm's code, ask your "
+      + "administrator, who can look it up.",
 
     glossaryLoginEmailTerm: "Login email",
     glossaryLoginEmailDef:
@@ -3874,9 +3865,12 @@ export const en = {
 
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:
-      "One product on an order: a whole-number quantity in selling units, priced per unit (the price may "
-      + "have decimals); the eggs behind it are quantity × the unit's egg count."
-      + " When an order refreshes, editing ends if it is no longer a draft or the line is gone. Unedited inputs follow the refreshed line. If you have unsaved inputs and the fetched quantity or price changed, your inputs stay visible and save is blocked. Choose reload line to replace both inputs with the latest fetched values. Changes made after the last fetch are not detected here.",
+      "One product on an order: a whole-number quantity in selling units, priced per unit, where the "
+      + "price may have decimals. The eggs behind it are quantity × the unit's egg count. When an order "
+      + "refreshes, editing ends if the order is no longer a draft or the line is gone. Unedited inputs "
+      + "follow the refreshed line. If you have unsaved inputs and the fetched quantity or price changed, "
+      + "your inputs stay visible and save is blocked. Choose reload line to replace both inputs with the "
+      + "latest fetched values. Changes made after the last fetch are not detected here.",
 
     glossaryConfirmOrderTerm: "Confirm (order)",
     glossaryConfirmOrderDef: "Turns a draft order into a real sale and allocates stock. Undone only by voiding.",
@@ -3891,22 +3885,21 @@ export const en = {
     glossaryListPriceTerm: "List price",
     glossaryListPriceDef:
       "The product's price at the moment a line was added, kept with the line so a later price change "
-      + "never rewrites a past order. Shown as \"No list price\" when there is nothing comparable "
-      + "to measure against — a recorded fact. A line taken before the farm started keeping list prices shows "
-      + "\"List price not recorded\" instead: that one is missing information, not an answer, so nobody "
+      + "never rewrites a past order. \"No list price\" means there was nothing comparable to measure "
+      + "against, which is a recorded fact. A line taken before the farm started keeping list prices shows "
+      + "\"List price not recorded\" instead. That is missing information rather than an answer, so nobody "
       + "can say whether the line was discounted.",
 
     glossaryDiscountTerm: "Discount",
     glossaryDiscountDef:
-      "How much a sale line sold under its own list price, shown per line — and summed for the whole "
-      + "order, as an amount and a percent of the list value of the lines that have a list price. An order "
-      + "that has lines but no list price on any of them says so rather than reading as zero — and when "
-      + "every one of those lines was taken before the farm started keeping list prices, it says the order "
-      + "predates that record. One line that simply had no list price is enough to rule that out. An order "
-      + "with no lines at "
-      + "all has nothing to measure and reads as a dash in the Orders list, with no discount line on the "
-      + "order itself. Different from the order-level discount a seller "
-      + "can type in — this one is worked out for you, never entered.",
+      "How much a sale line sold under its own list price, shown per line and summed for the whole order "
+      + "as an amount and a percent of the list value of the lines that have one. An order with lines but "
+      + "no list price on any of them says so rather than reading as zero. When every one of those lines "
+      + "predates list prices, it says the order predates that record, and one line that simply had no list "
+      + "price rules that out. An order with no lines at all has nothing to measure, so it reads as a dash "
+      + "in the Orders list, with no discount line on the order itself. This is different from the "
+      + "order-level discount a seller can type in. Cluckwork works this one out for you, and nobody ever "
+      + "enters it.",
 
     glossaryDiscountReasonTerm: "Discount reason",
     glossaryDiscountReasonDef:
@@ -3918,25 +3911,23 @@ export const en = {
 
     glossaryDiscountCeilingTerm: "Discount ceiling",
     glossaryDiscountCeilingDef:
-      "The largest discount a Sales or Worker user may put on one sale line. An owner sets it "
-      + "in Farm settings as Maximum discount. An owner or manager can confirm an order that "
-      + "goes over it. A line over the ceiling is marked Over maximum, and Confirm "
-      + "order stays blocked until the line is repriced or an owner or manager confirms the "
-      + "order untouched. A farm with no ceiling set behaves exactly as before, and a ceiling "
-      + "of 0 is not the same as none — it means nothing may be given away at all.",
+      "The largest discount a Sales or Worker user may put on one sale line. An owner sets it in Farm "
+      + "settings as Maximum discount. An owner or manager can confirm an order that goes over it. A line "
+      + "over the ceiling is marked Over maximum, and Confirm order stays blocked until the line is "
+      + "repriced or an owner or manager confirms the order untouched. A farm with no ceiling set has no "
+      + "limit. A ceiling of 0 is not the same as none, because it means nothing may be given away at all.",
 
     glossaryAboveListTerm: "Above list",
     glossaryAboveListDef: "A line sold for more than its own list price.",
 
     glossaryOutstandingTerm: "Outstanding",
     glossaryOutstandingDef:
-      "What a confirmed order still owes: its total less every payment that has not been voided. "
-      + "The Orders list shows it in its own Outstanding column, and Unpaid only narrows the list to "
-      + "the orders still owing something — a part-paid order counts as unpaid, because it is. A "
-      + "settled order reads Settled rather than a zero. Draft, cancelled and voided orders show a "
-      + "dash instead: payments attach to confirmed orders only, so they have no amount outstanding "
-      + "to speak of. Voiding a payment makes the outstanding amount grow back. Only Sales, Manager "
-      + "and owner users see this column.",
+      "What a confirmed order still owes, which is its total less every payment that has not been voided. "
+      + "The Orders list shows it in its own Outstanding column, and Unpaid only narrows the list to the "
+      + "orders still owing something, so a part-paid order counts as unpaid. A settled order reads Settled "
+      + "rather than a zero. Draft, cancelled and voided orders show a dash, because payments attach to "
+      + "confirmed orders only and so they have no outstanding amount. Voiding a payment makes the "
+      + "outstanding amount grow back. Only Sales, Manager and owner users see this column.",
 
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:
@@ -3997,9 +3988,9 @@ export const en = {
 
     glossaryCurrencyLockTerm: "Currency lock",
     glossaryCurrencyLockDef:
-      "The farm currency stops being editable once anything has recorded an amount in it — a sale, a "
-      + "payment, an expense, a priced product, money spent on feed. The field shows locked with the "
-      + "reason. Nothing already recorded is ever re-priced, which is the whole point.",
+      "The farm currency stops being editable once anything has recorded an amount in it: a sale, a "
+      + "payment, an expense, a priced product, or money spent on feed. The field shows locked with the "
+      + "reason. Nothing already recorded is ever re-priced.",
 
     glossaryFarmLogoTerm: "Farm logo",
     glossaryFarmLogoDef:
@@ -4011,15 +4002,15 @@ export const en = {
     glossaryFarmBannerTerm: "Farm banner",
     glossaryFarmBannerDef:
       "A second, independent image shown full-size on a splash screen right after signing in, once per "
-      + "sign-in. Separate from the farm logo above — a farm can have a logo, a banner, both, or neither. "
-      + "Same PNG/JPEG/WebP still-image rules, its own larger size limit (5 MB by default), uploaded from "
-      + "Farm settings. The device that shows it caches the image after that splash, so on a later visit "
-      + "it can also appear on the sign-in screen before entering a password — but only while the farm "
-      + "code field names that same farm; typing or picking a different code hides it right away, and a "
-      + "link that only names a farm code never shows its banner. If a farm code is later reassigned to a "
-      + "different farm, a device that already cached the previous holder's banner may still show it "
-      + "briefly, until that device's next sign-in confirms which farm the code belongs to now and clears "
-      + "the mismatch — never a new disclosure, only a stale image on a device that already had it.",
+      + "sign-in. It is separate from the farm logo above, and a farm can have a logo, a banner, both, or "
+      + "neither. Same PNG/JPEG/WebP still-image rules, its own larger size limit (5 MB by default), "
+      + "uploaded from Farm settings. The device that shows it caches the image after that splash, so on a "
+      + "later visit it can also appear on the sign-in screen before a password is entered, but only while "
+      + "the farm code field names that same farm. Typing or picking a different code hides it at once, and "
+      + "a link that only names a farm code never shows its banner. If a farm code is later reassigned to "
+      + "another farm, a device holding the previous holder's cached banner may still show it briefly, "
+      + "until that device's next sign-in confirms which farm the code belongs to now. That is a stale "
+      + "image on a device that already had it, never a new disclosure.",
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:

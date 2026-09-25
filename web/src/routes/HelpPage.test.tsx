@@ -192,7 +192,7 @@ describe("HelpPage", () => {
     // app-wide. Asserted per catalog because the i18n policy ships es/tl
     // with the English, and a missing key would render the key.
     render(<HelpPage />);
-    expect(screen.getByText(/if you were filling in a pop-up form, it appears inside that form/i))
+    expect(screen.getByText(/A pop-up form's failure appears inside that form/i))
       .toBeInTheDocument();
     // …and closing it drops that message rather than moving it to the screen.
     expect(screen.getByText(/Closing the form drops its message/i)).toBeInTheDocument();
@@ -287,9 +287,10 @@ describe("HelpPage", () => {
     // dailyEntryGradingDown: the old copy only warned about overshooting
     // ("You cannot submit while it is over") — a worker must see that being
     // short is refused exactly the same way, down to reading zero.
-    expect(screen.getByText(/You cannot submit until it reads exactly zero/)).toBeInTheDocument();
+    expect(screen.getByText(/Submit is blocked whenever that count is above or below zero/))
+      .toBeInTheDocument();
     expect(
-      screen.getByText(/grading a day partway, or not at all, is fine for a draft but not for Submit/),
+      screen.getByText(/draft may be partly graded, or not graded at all/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/You cannot submit while it is over/)).not.toBeInTheDocument();
 
@@ -340,7 +341,7 @@ describe("HelpPage", () => {
     expect(screen.getByText(/\(provision-account\)/)).toBeInTheDocument();
     // The accountability half matters as much as the label: a break-glass
     // reset records the machine and the reason, so it is never anonymous.
-    expect(screen.getByText(/which machine it was run from and the reason given/i)).toBeInTheDocument();
+    expect(screen.getByText(/the machine they were run from and the reason given/i)).toBeInTheDocument();
     // And it must not leave the reader thinking everything is nameless.
     expect(screen.getByText(/Everything else names the person who did it/i)).toBeInTheDocument();
   });

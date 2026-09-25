@@ -7,22 +7,16 @@ import { AuthContext } from "../auth/AuthContext";
 import { navGroups } from "./nav";
 import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
 
-// F18 (#71): in-app user guide + glossary. #52 restyled it into a docs layout
-// with a sticky contents rail that scroll-spies the section in view; #657
-// reordered the guide around common tasks, moved "Fixing mistakes" up beside
-// the daily loop, and made the glossary deep-linkable
-// (data in ./helpGlossary.ts), and put one search box over all of it. KEEP
-// THIS PAGE CURRENT: the docs-sync rule (AGENTS.md) requires every
-// user-visible change to update the relevant section here and
-// specs/product/GLOSSARY.md in the same PR.
+// In-app user guide + glossary (#71): a docs layout with a sticky contents
+// rail, one search box over everything, and a deep-linkable glossary whose
+// data lives in ./helpGlossary.ts. KEEP THIS PAGE CURRENT: the docs-sync rule
+// (AGENTS.md) requires every user-visible change to update the relevant
+// section here and specs/product/GLOSSARY.md in the same PR.
 
 // The contents rail mirrors the <h3 id=...> sections below in document order.
-//
-// Task 32 (B6a, #182): the label (2nd element) is a `help` catalog key, not
-// literal text — rendered via t(label) at render time. The `id` (1st element)
-// stays byte-identical: it drives the <h3 id=...> anchors below AND the
-// scroll-spy IntersectionObserver in the effect further down. Do NOT rename
-// an id — that would break both.
+// The label (2nd element) is a `help` catalog key rendered through t() at
+// render time. Do NOT rename an `id`: it drives both the <h3 id=...> anchors
+// below and the scroll-spy IntersectionObserver further down.
 const TOC = [
     ["getting-around", "tocGettingAround"],
     ["dashboard", "tocDashboard"],

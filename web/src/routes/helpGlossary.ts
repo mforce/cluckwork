@@ -1,14 +1,11 @@
-// #657 — the in-app glossary as data. One entry per term; the Help page
+// The in-app glossary as data (#657). One entry per term; the Help page
 // renders them grouped and alphabetised in the active language, each with a
 // stable anchor (`/help#glossary-egg-lot`) that GlossaryLink and the rail
-// point at.
-//
-// `spec` names the specs/product/GLOSSARY.md term this entry is the curated
-// subset of. helpGlossary.test.ts walks GLOSSARY.md and fails on any entry
-// whose spec term no longer exists there, which is how the two glossaries stay
-// in step without a hand-maintained checklist. The catalog keys are
-// `glossary<Key>Term` / `glossary<Key>Def`; the same test fails on a catalog
-// row with no entry here, and on an entry with no row in en, es or tl.
+// point at. `spec` names the specs/product/GLOSSARY.md term this entry is the
+// curated subset of, and the catalog keys are `glossary<Key>Term` /
+// `glossary<Key>Def`. helpGlossary.test.ts walks GLOSSARY.md and the three
+// catalogs and fails on a spec term that no longer exists, a catalog row with
+// no entry here, or an entry with no row in en, es or tl.
 
 export const GLOSSARY_GROUPS = [
   { key: "gettingAround", labelKey: "glossaryGroupGettingAround" },

@@ -97,7 +97,7 @@ resolve (deleted, out of scope, or otherwise inaccessible) shows
 **"Something went wrong" screen** — the error-boundary fallback. If a screen
 throws while rendering, the app catches it and shows this — a short message,
 **Reload**, and **Back to the dashboard** — instead of unmounting to a blank
-page (the failure mode #138 hit on a phone). The screen boundary keeps the nav
+page (#138). The screen boundary keeps the nav
 shell around it, so the rest of the app stays reachable; a second boundary wraps
 the whole app — outside the auth and router providers — for the rarer case where
 the shell or that setup itself throws. The error text
@@ -211,14 +211,14 @@ says which unit is counting and where a tap lands ("Counting by Tray — each
 tap moves 30 eggs"). At one egg per tap neither appears — plain icons, no
 caption — since "+1" would just restate the default.
 
-A grade's **+** no longer stops once the day is fully graded (#443) — a farm
+A grade's **+** does not stop once the day is fully graded (#443): a farm
 that counts the grades before adding them up needs to keep going past
 whatever **1 Egg counts** currently says. Grading past the current sellable
 figure raises that total to match instead of refusing the tap; it only ever
 raises the total, never lowers it, so trimming the total on step 1 never
-forces a grade back down. Typing already worked this way; the steppers now
-match it. **Over** is still reachable — trim the total below what is already
-graded — and it blocks both saves, not just Submit.
+forces a grade back down. Typing behaves the same way. **Over** is still
+reachable, by trimming the total below what is already graded, and it blocks
+both saves, not just Submit.
 
 **Put all in… (#134)** — hands the entire remainder to one grade in a single
 move, for the commonest last step of the day ("and the rest are Large"). Drag it
@@ -228,13 +228,11 @@ only way. It disappears when nothing is left to place.
 
 **Editing draft (#134)** — a badge beside the title when the day being captured
 already has a saved **Draft**, so re-opening work in progress is distinguishable
-from starting a fresh day. Only locked days carried a signal before.
+from starting a fresh day.
 
-**Daily entry lifecycle** (#69) — the arrow sketch this line used to carry
-(`Draft → Submitted → Locked → ManagerAdjusted / Voided`) read as one straight
-chain, which under-states the real graph in three ways: `ManagerAdjusted` is
+**Daily entry lifecycle** (#69) — not a straight chain: `ManagerAdjusted` is
 re-enterable, `Void` is reachable from `Submitted`, `Locked` **or**
-`ManagerAdjusted`, and a Draft cannot be voided at all. The drawn version is in
+`ManagerAdjusted`, and a Draft cannot be voided at all. The graph is drawn in
 [`docs/architecture.md`](../../docs/architecture.md#daily-entry); the states
 themselves:
 
@@ -277,10 +275,10 @@ themselves:
 **Sellable cap** — graded quantities must fit in
 `total − cracked − dirty − discarded`. You cannot grade more eggs than
 survived the day. This is the only rule a **Draft** enforces — a draft may be
-graded partially, or not at all, and still be saved. Since #443 the capture
-screen keeps the two sides from colliding on its own — grading past the
-current total raises the total to match — so this cap is normally satisfied
-by construction rather than by refusing input. It still applies: trimming the
+graded partially, or not at all, and still be saved. The capture screen keeps
+the two sides from colliding on its own (#443), because grading past the
+current total raises the total to match, so this cap is normally satisfied by
+construction rather than by refusing input. It still applies: trimming the
 total below an already-graded sum reaches it, and both saves are blocked (the
 same **Left to grade** chip turns **over**) until the numbers agree again.
 
@@ -450,7 +448,8 @@ and feed.
 **Customer** — name + phone required; email/address/note optional, all
 **editable in place** after creation via `PUT /customers/{id}` (Version-guarded
 optimistic concurrency, shipped #625) — no delete/archive/deactivate, no
-duplicate merge. No payments and balances (spec §10.11, shipped #89). A
+duplicate merge. Payments and outstanding balances arrived with #89
+(spec §10.11). A
 customer's name on the Customers page and on the dashboard is a link into
 Sales, filtered to that customer's orders via a canonical `customerId` URL
 parameter (#512).
@@ -522,9 +521,8 @@ when the caller states what list price it last saw and that no longer
 matches the catalogue's current one: the SPA states it whenever the selected
 product is still in its current product list — including stating that it saw
 no list price at all — but sends neither field once that product has dropped
-out of the list (a pinned test covers exactly this after a rejection-triggered
-refresh), and a raw API caller or either seeder that passes no expectation is
-deliberately unaffected by a catalogue move.
+out of the list, and a raw API caller or either seeder that passes no
+expectation is deliberately unaffected by a catalogue move.
 
 A `null` list price now carries a recorded reason (`list_price_basis`): the
 product had no default price, the denominations did not match, or the line
@@ -536,8 +534,7 @@ pre-dating line. The **Admin-only CSV export** carries the basis by name too.
 That last reason is distinguishable from the first two on purpose — a
 pre-migration line's `null` means *we do not know* whether it was discounted,
 while the other two are recorded facts that no discount is computable at all.
-#727 gates an Owner/Manager approval on that difference, and #773 is that
-same difference made visible to a reader.
+#727 gates an Owner/Manager approval on that difference.
 
 **Discount (#720, #723, #724)** — a *derived* amount at two levels, computed
 for display only and never stored. **Per line:** the gap between a **sales
@@ -629,8 +626,7 @@ the Flocks, Egg grades, Daily entry history, Sales and Expenses tables. Not a
 stored field: it is **derived from the audit log**. Creation is the record's
 `*.Create` event — identified by the action, never by being first on the trail,
 because two events can share an instant and their order is then unknowable.
-Creation itself became an audited action for these five in the same change
-(`Flock.Create` and siblings) — before that only corrections were on the trail.
+Creation is an audited action for all five (`Flock.Create` and siblings).
 
 The last change is the latest event that is neither that creation **nor a
 promotion by the person who created it**. A *promotion* is the action that turns
@@ -659,12 +655,11 @@ so cancelling your own order stays a reportable change. It is keyed on the actio
 person who created the record and shown for anybody else.
 
 Editing a draft **is** recorded, even though it alters no stock, because it is
-the only thing binding a person to the numbers. Without it, someone who rewrites
-a colleague's draft before it is submitted leaves no trace and the submitter is
-credited with their work. The rule above is what keeps that quiet in the ordinary
-case: your own edits to your own draft are part of writing it, so they are hidden
-along with your own submit, and only a **different** person's edit surfaces as a
-change.
+the only thing binding a person to the numbers: without it, someone who rewrites
+a colleague's draft before submit leaves no trace and the submitter is credited
+with their work. The rule above keeps that quiet in the ordinary case. Your own
+edits to your own draft are part of writing it, hidden along with your own
+submit, so only a **different** person's edit surfaces as a change.
 
 That hiding stops the moment the draft stops being yours alone. **Once somebody
 else has edited it, your own later edits are shown too** — because by then they
@@ -691,8 +686,7 @@ this is the one-line summary on the record's own page.
 "Audit history" link on a record's own screen (the same Flocks, Egg grades,
 Daily entry history, Sales and Expenses tables #494's summary covers) opens
 the admin-only /audit viewer pre-filtered to that one record (`?entityId=<id>`),
-reusing the `entityId` filter the endpoint already supported server-side but
-that nothing called until this feature. Not a new surface: same viewer, same
+over the endpoint's own server-side `entityId` filter. Not a new surface: same viewer, same
 admin gate, same action-type filter — just scoped. Distinct from the
 record-history summary above in the same way the summary itself is distinct
 from the full log: the summary is two points (created, last changed), the
@@ -720,7 +714,7 @@ against `FarmLogo`, a row shared by both the logo and the banner.
 
 **Clearing filters (#679)** — both filtered lists that can be narrowed while
 still showing rows carry a **Clear filters** control in the filter row itself,
-not only inside the zero-rows empty state where it used to live. On the /audit
+not only inside the zero-rows empty state. On the /audit
 viewer it resets all four narrowing controls (record type, action, from, to) in
 one write, and deliberately **keeps the `entityId` scope**: that scope is where
 the view was opened from — a record's own "Audit history" link — not a filter
@@ -910,9 +904,7 @@ immediately reusable; there is no retired-code list. The default farm's code is
 The farm code is the way to disambiguate login across farms (#532): the sign-in
 form requires it before the email, because one email address can now exist in
 several farms and only the farm code says which one is meant, and a wrong or
-unrecognised one is refused with its own message. (Written earlier, before
-#532 shipped: it was recorded and discoverable but not yet used at sign-in, and
-there was no SPA surface for it.)
+unrecognised one is refused with its own message.
 
 On the SPA sign-in page the field is prefilled in two ways. A `?farm=<slug>`
 link prefills the field with a validated slug (an invalid value is ignored, not
@@ -963,8 +955,7 @@ seeded farm and house. The farm's *settings* are already real (see below) —
 they live on the **account** row, which is why an account is presented to users
 as "a farm".
 
-This reliably confuses readers, so state it plainly: **`FarmId` and `HouseId`
-are per-account stand-ins for a sub-entity that does not exist yet, and they are
+Plainly: **`FarmId` and `HouseId` are per-account stand-ins for a sub-entity that does not exist yet, and they are
 NOT the tenant.** The tenant is `AccountId`. Multi-farm tenancy (#530) added
 *accounts*, not Farm/House management. Every unique index **that is scoped to a
 farm** is already `(AccountId, FarmId, …)`-prefixed, so the stand-ins stay
@@ -1016,14 +1007,6 @@ instead of being squashed into a square. What still does not survive that size
 is a detailed illustration or a busy scene, which shrinks to something
 unreadable — that belongs on the **farm banner**, below, a separate image
 entirely.
-
-This was not always so (#179). The slot was originally a fixed 26×26 **square**,
-and because it fits the whole image (`object-fit: contain`) a wide logo kept its
-aspect ratio and gave up its height, rendering as a sliver — `contain` prevents
-cropping, but on a square slot that is exactly what collapses a wordmark. The
-guidance then was "upload a square mark", which was a workaround for the slot
-rather than advice about logos. Two changes retired it: the banner gave detailed
-art a home of its own, and the slot itself became height-driven.
 
 **Farm banner (#179)** — a second, independent image: a wide/hero picture shown
 full-size on a **post-login splash**, once per login, rather than in the short
@@ -1091,7 +1074,7 @@ light/night preference. The set is curated rather than free-form because every
 palette ships a contrast-checked light and dark pair; an arbitrary colour
 cannot be held to that bar.
 
-Since #586 the palette is remembered per farm on each device, so a farm's own colour can appear on the
+The palette is remembered per farm on each device (#586), so a farm's own colour can appear on the
 sign-in screen before anyone signs in — when the sign-in link names that farm (`?farm=<code>`), or when
 the device remembers exactly one farm. A device that remembers several farms shows the default until
 sign-in, because at that point the app does not yet know which farm it is signing in to. Forgetting a
@@ -1136,8 +1119,15 @@ it as "Too many sign-in attempts" and never tears down an already-signed-in
 session. The real client IP comes from the reverse proxy's `X-Forwarded-For`
 via the framework's forwarded-headers handling (trusted-proxy networks are
 configured; a direct caller can't spoof the header). Limits and trusted proxies
-are configuration; in-process (single instance today — distributed limiting
-would be a later concern if the API is ever scaled horizontally).
+are configuration. **The budget is combined across replicas only while Redis is
+available.** The per-IP counter is the shared Redis-backed
+`IFixedWindowCounter` (#544); when Redis throws,
+`ResilientFixedWindowCounter` alarms and falls back to a process-local
+`InProcessFixedWindowCounter`, and a blank `SharedState:Redis:ConnectionString`
+registers only that process-local counter in the first place. In both of those
+states each replica keeps its own count, so N replicas allow roughly N times the
+intended budget. That is bounded rather than fail-open, and the dummy-PBKDF2
+cost still applies, but it is not one budget.
 
 **Account lockout (#128)** — a complement to the per-IP rate limit, working per
 **account**: repeated failed logins (default 5) lock that one account for a
@@ -1169,8 +1159,7 @@ cookie lands cleanly on login.
 CSRF is covered by SameSite=Strict plus a custom header (`X-Cluckwork-Auth`) that
 a cross-site request cannot set. Rotation + theft-detection (single-use, revoke
 the whole family on replay) are unchanged — this moved the storage, not the
-hygiene. Deploying #145 forces one re-login (the old localStorage token is
-purged on first load). Tabs on the same farm still share that farm's cookie, so
+hygiene. Tabs on the same farm still share that farm's cookie, so
 two same-farm tabs refreshing at once would each present the same value and the
 second could trip theft-detection, logging both out; refresh is therefore
 **serialised across tabs** via the browser Web Locks API (#169) so only one tab
@@ -1250,16 +1239,16 @@ It matters most around midnight. At 18:00 on July 15 in Los Angeles it is
 already July 16 in UTC, so on a UTC boundary a lot restricted through the 15th —
 eggs still inside a medication withholding period — would read as available a
 day early. A farm ahead of UTC has the mirror problem: its legitimate today
-looks like tomorrow. Recording a genuinely future day is refused outright; there
-is no longer any day-either-side slack.
+looks like tomorrow. Recording a genuinely future day is refused outright, with
+no day-either-side slack.
 
 The date fields agree with it (#123). Every picker that records *when something
 happened* — daily entry, flock placement and bird movements, water, feed
 purchase and usage, expenses, sales orders and payments, and the `to` end of a
 report range — opens on the farm's today and refuses to go past it, the farm's
-and not the one on the device in your hand. A phone travelling ahead of the farm
-used to offer a day the save would then refuse, and a phone behind it hid a day
-that was perfectly legal; both are gone.
+and not the one on the device in your hand. So a phone travelling ahead of the
+farm never offers a day the save would then refuse, and a phone behind it never
+hides a legal one.
 
 Three date fields are deliberately *not* capped, because a future date is the
 point of them: a feed lot's **expiry**, and the range filters on History and
@@ -1380,35 +1369,41 @@ a required sign-in input. A host's stdout collector (docker logs, journald, a
 platform log pipeline) may still capture it, so that output must be treated
 as sensitive while the password is valid. Re-running the command against an
 already-provisioned account is a safe no-op (no second Owner, no password
-reprinted). Because a migrated-but-unprovisioned **default account** has **no
-administrator to sign in as**, the **login screen says so**: attempting to sign in while the
-default account has no Owner answers with a short notice explaining that no
-**administrator** account exists yet and pointing at whoever administers the
-server, instead of the usual "invalid email or password". For the operator this
-exists to help — who holds no credentials at all yet — that generic denial
-describes a problem with their typing that they do not have. It disappears
-for good once the default account has an Owner. The notice deliberately publishes **no
-command and no deployment detail** — a page reachable by anyone is the wrong
-place to describe how the server is run, and the setup steps belong in the
-README. It is reported on the **failed sign-in itself**, not by a status check
-the page polls, so only someone actually attempting to sign in is told anything.
-It does not **enumerate**: the condition is a property of the **default
-account** and never of the address that was typed, so no attempt reveals
-anything about any particular account, and once that account has an Owner the
-response is byte-identical to the ordinary non-enumerating denial. It does
-**disclose one fact** — that the default account has no Owner — and that scope
-is exact in both directions: it can be true while ordinary non-Owner accounts
-exist and are protected (the predicate is the absence of an *Owner*, and the
-seeders create Workers and Managers without one), and it can be true while an
-Owner exists under a *different* account, since the predicate is scoped to the
-default account rather than to any Owner anywhere. Accepted deliberately: the fact is not a credential and grants no access;
-on a genuinely fresh install — no users at all — it is already inferable by
-anyone who can reach the form; and the alternative is leaving an operator
-stranded at a form no credential of theirs can satisfy. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
-setup secret vs. an offline recovery for a locked-out existing account) and
-from the browser step-up re-confirmation a signed-in Owner uses for sensitive
-actions (#308) — three distinct credential types, audiences, and lifetimes,
-never conflated.
+reprinted).
+
+A migrated-but-unprovisioned **default account** has **no administrator to sign
+in as**, so the **login screen says so**: a sign-in attempt while the default
+account has no Owner answers with a short notice that no **administrator**
+account exists yet, pointing at whoever administers the server, instead of the
+usual "invalid email or password", which would describe a typing problem the
+operator does not have. It disappears for good once the default account has an
+Owner.
+
+The notice publishes **no command and no deployment detail**: a page reachable
+by anyone is the wrong place to describe how the server is run, and the setup
+steps belong in the README. It is reported on the **failed sign-in itself**, not
+by a status check the page polls, so only someone actually attempting to sign in
+is told anything. It does not **enumerate**: the condition is a property of the
+**default account** and never of the address that was typed, so no attempt
+reveals anything about any particular account, and once that account has an
+Owner the response is byte-identical to the ordinary non-enumerating denial.
+
+It does **disclose one fact**, that the default account has no Owner, and that
+scope is exact in both directions. It can be true while ordinary non-Owner
+accounts exist and are protected, because the predicate is the absence of an
+*Owner* and the seeders create Workers and Managers without one; and it can be
+true while an Owner exists under a *different* account, because the predicate is
+scoped to the default account rather than to any Owner anywhere. Accepted
+deliberately: the fact is not a credential and grants no access, on a genuinely
+fresh install with no users at all it is already inferable by anyone who can
+reach the form, and the alternative is leaving an operator stranded at a form no
+credential of theirs can satisfy.
+
+This is a **separate mechanism** from break-glass recovery below (a pre-auth,
+one-shot setup secret vs. an offline recovery for a locked-out existing account)
+and from the browser step-up re-confirmation a signed-in Owner uses for
+sensitive actions (#308). Those are three distinct credential types, audiences
+and lifetimes, never conflated.
 
 **Must-change-password gate (#283)** — the flag (`ApplicationUser
 .MustChangePassword`) that forces the printed one-time password to actually
@@ -1494,8 +1489,8 @@ anything — installing does **not** make the app work offline. Offline capture 
 a later, deliberate piece of work.
 
 Installing is only offered on a **secure (https) connection**. On a plain-http
-address the browser simply won't show the option; the app itself works exactly
-as before.
+address the browser does not show the option; the app itself works exactly as it
+does in any browser.
 
 **New version is ready (#142)** — after a deploy, an installed app notices the
 new version in the background and asks before switching, rather than reloading
