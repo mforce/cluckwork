@@ -44,6 +44,13 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(web)"
+    ignore:
+      # jsdom 30.1 dropped the own Symbol(impl) property on its wrappers, which
+      # vitest's jsdom URL.createObjectURL shim reads, so every createObjectURL
+      # call throws under test (#952). Vitest 5.0.1 has no fix yet; drop this
+      # once a release reads jsdom 30.1 wrappers.
+      - dependency-name: "jsdom"
+        versions: [">=30.1.0"]
     groups:
       # Build/test tooling churns fastest and never reaches a user's browser —
       # keep it out of the way of runtime dependency review.
