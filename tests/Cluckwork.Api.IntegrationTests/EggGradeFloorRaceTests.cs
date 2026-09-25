@@ -69,11 +69,10 @@ public sealed class GradeReadRendezvousInterceptor : DbCommandInterceptor
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
 
-// #950 review round 1 (Codex gpt-6-sol): the floor's parallel-update test used
-// to accept two successes, so it would have stayed green with the Version
-// concurrency token removed and the two requests merely serialized. This one
-// forces both writers to read the same Version first, which makes exactly one
-// 204 and one 409 the only correct outcome.
+// A test that merely races two updates cannot tell a working concurrency token
+// from two writes that happened to serialize: it stays green either way. This
+// one forces both writers to read the same Version first, which makes exactly
+// one 204 and one 409 the only correct outcome (#911).
 public sealed class EggGradeFloorRaceTests(EggGradeFloorRaceFactory factory)
     : IClassFixture<EggGradeFloorRaceFactory>
 {

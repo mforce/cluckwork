@@ -388,10 +388,9 @@ describe("stockBar (#654, INV-4, #777)", () => {
       });
   });
 
-  // #950 review round 1 (Codex gpt-6-sol): the ledger names every grade the
-  // farm has stock rows for, including the empty ones — a grade at zero is
-  // exactly the one a low-stock floor is about. Only the BAR drops them,
-  // because a zero-width span draws nothing.
+  // The ledger names every grade the stock read returned, including the empty
+  // ones — a grade at zero is exactly the one a low-stock floor is about (#911).
+  // Only the BAR drops them, because a zero-width span draws nothing.
   it("keeps an empty grade in the ledger and out of the bar", () => {
     const bar = stockBar([
       { eggGradeId: "g1", gradeName: "Large", available: 100, restricted: 0, lowStockFloor: null, belowFloor: false },

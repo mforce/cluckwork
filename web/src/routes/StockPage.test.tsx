@@ -1690,8 +1690,8 @@ describe("StockPage low-stock floors (#911)", () => {
   });
 
   it("warns on a grade that has run out entirely", async () => {
-    // #950 review round 1: the zero-stock case is the one the floor exists
-    // for, and it must survive the meter's divide-by-the-largest scaling.
+    // The zero-stock case is the one the floor exists for, and it must
+    // survive the meter's divide-by-the-largest scaling.
     await renderFloors([
       { eggGradeId: "g1", gradeName: "Large", available: 28410, restricted: 0, lowStockFloor: 6000, belowFloor: false },
       { eggGradeId: "g2", gradeName: "Cracked", available: 0, restricted: 0, lowStockFloor: 2000, belowFloor: true },

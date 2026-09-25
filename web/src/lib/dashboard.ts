@@ -227,7 +227,7 @@ export const GRADE_COLOURS = 8;
 
 export interface StockSegment { eggGradeId: string; gradeName: string; available: number; pct: number; colorIndex: number }
 // `ledger` is every grade the stock read returned, in its own order; `segments`
-// is the subset the BAR can draw (#950 review round 1). A grade at zero has no
+// is the subset the BAR can draw. A grade at zero has no
 // width, but it is exactly the grade a low-stock floor is about, so the text of
 // record keeps naming it.
 export interface StockBarData {

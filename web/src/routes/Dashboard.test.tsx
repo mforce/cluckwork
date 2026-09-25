@@ -1486,8 +1486,8 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    // #950 review round 1: the ledger names the grade even at zero. Only the
-    // bar drops it — a zero-width span draws nothing.
+    // The ledger names the grade even at zero. Only the bar drops it — a
+    // zero-width span draws nothing.
     const table = within(stock).getByRole("table", { name: "Stock by grade" });
     expect(within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((c) => c.textContent)))
       .toEqual([["Grade A", "0", "0.0%"]]);
@@ -1541,9 +1541,9 @@ describe("Dashboard low-stock floors (#911)", () => {
   });
 
   it("marks the ledger row of a grade that has run out", async () => {
-    // The case the floor exists for: nothing left to sell. The row used to
-    // vanish from the ledger, leaving the brief's fact with nothing to point
-    // at (#950 review round 1).
+    // The case the floor exists for: nothing left to sell. Built off the bar's
+    // segments, the row vanished from the ledger and left the brief's fact
+    // with nothing to point at.
     mockStock.mockResolvedValue([STOCK[0], below("Cracked", 0, 2000)]);
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");

@@ -250,8 +250,6 @@ public sealed class EggGradeLowStockFloorTests(CluckworkWebApplicationFactory fa
         Assert.Contains("1500", updated.DetailsJson);
     }
 
-    // The deterministic one-winner assertion lives in EggGradeFloorRaceTests
-    // (#950 review round 1): it needs a rendezvous interceptor, which needs its
-    // own host, and a test that merely races two requests cannot tell a working
-    // concurrency token from two writes that happened to serialize.
+    // The deterministic one-winner assertion lives in EggGradeFloorRaceTests:
+    // it needs a rendezvous interceptor, which needs its own host.
 }
