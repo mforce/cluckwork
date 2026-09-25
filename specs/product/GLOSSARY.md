@@ -217,8 +217,8 @@ whatever **1 Egg counts** currently says. Grading past the current sellable
 figure raises that total to match instead of refusing the tap; it only ever
 raises the total, never lowers it, so trimming the total on step 1 never
 forces a grade back down. Typing behaves the same way. **Over** is still
-reachable — trim the total below what is already graded — and it blocks both
-saves, not just Submit.
+reachable, by trimming the total below what is already graded, and it blocks
+both saves, not just Submit.
 
 **Put all in… (#134)** — hands the entire remainder to one grade in a single
 move, for the commonest last step of the day ("and the rest are Large"). Drag it
@@ -276,8 +276,8 @@ themselves:
 `total − cracked − dirty − discarded`. You cannot grade more eggs than
 survived the day. This is the only rule a **Draft** enforces — a draft may be
 graded partially, or not at all, and still be saved. The capture screen keeps
-the two sides from colliding on its own (#443) — grading past the current
-total raises the total to match — so this cap is normally satisfied by
+the two sides from colliding on its own (#443), because grading past the
+current total raises the total to match, so this cap is normally satisfied by
 construction rather than by refusing input. It still applies: trimming the
 total below an already-graded sum reaches it, and both saves are blocked (the
 same **Left to grade** chip turns **over**) until the numbers agree again.
@@ -657,9 +657,9 @@ person who created the record and shown for anybody else.
 Editing a draft **is** recorded, even though it alters no stock, because it is
 the only thing binding a person to the numbers: without it, someone who rewrites
 a colleague's draft before submit leaves no trace and the submitter is credited
-with their work. The rule above keeps that quiet in the ordinary case — your own
+with their work. The rule above keeps that quiet in the ordinary case. Your own
 edits to your own draft are part of writing it, hidden along with your own
-submit — so only a **different** person's edit surfaces as a change.
+submit, so only a **different** person's edit surfaces as a change.
 
 That hiding stops the moment the draft stops being yours alone. **Once somebody
 else has edited it, your own later edits are shown too** — because by then they
@@ -1375,7 +1375,7 @@ A migrated-but-unprovisioned **default account** has **no administrator to sign
 in as**, so the **login screen says so**: a sign-in attempt while the default
 account has no Owner answers with a short notice that no **administrator**
 account exists yet, pointing at whoever administers the server, instead of the
-usual "invalid email or password" — which would describe a typing problem the
+usual "invalid email or password", which would describe a typing problem the
 operator does not have. It disappears for good once the default account has an
 Owner.
 
@@ -1388,22 +1388,22 @@ is told anything. It does not **enumerate**: the condition is a property of the
 reveals anything about any particular account, and once that account has an
 Owner the response is byte-identical to the ordinary non-enumerating denial.
 
-It does **disclose one fact** — that the default account has no Owner — and that
+It does **disclose one fact**, that the default account has no Owner, and that
 scope is exact in both directions. It can be true while ordinary non-Owner
 accounts exist and are protected, because the predicate is the absence of an
 *Owner* and the seeders create Workers and Managers without one; and it can be
 true while an Owner exists under a *different* account, because the predicate is
 scoped to the default account rather than to any Owner anywhere. Accepted
 deliberately: the fact is not a credential and grants no access, on a genuinely
-fresh install — no users at all — it is already inferable by anyone who can
+fresh install with no users at all it is already inferable by anyone who can
 reach the form, and the alternative is leaving an operator stranded at a form no
 credential of theirs can satisfy.
 
 This is a **separate mechanism** from break-glass recovery below (a pre-auth,
 one-shot setup secret vs. an offline recovery for a locked-out existing account)
 and from the browser step-up re-confirmation a signed-in Owner uses for
-sensitive actions (#308) — three distinct credential types, audiences, and
-lifetimes, never conflated.
+sensitive actions (#308). Those are three distinct credential types, audiences
+and lifetimes, never conflated.
 
 **Must-change-password gate (#283)** — the flag (`ApplicationUser
 .MustChangePassword`) that forces the printed one-time password to actually

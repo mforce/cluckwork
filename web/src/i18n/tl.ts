@@ -2249,8 +2249,8 @@ export const tl = {
       "Sa computer, nasa <strong>sidebar</strong> sa kaliwa ang bawat screen, nakagrupo ayon sa trabaho.",
     gettingAroundTabs:
       "Sa telepono, ang apat na screen na pinakamadalas mong gamitin ay lumalabas bilang <strong>mga tab "
-      + "sa ibaba</strong>, malapit sa hinlalaki. Depende sa tungkulin mo kung alin sa apat ang makukuha "
-      + "mo: makukuha ng manggagawa ang Araw-araw na Tala, makukuha ng Benta ang Benta. Isang tap na lang "
+      + "sa ibaba</strong>, malapit sa hinlalaki. Ang tungkulin mo ang nagpapasya kung alin ang apat na "
+      + "iyon. Makukuha ng manggagawa ang Araw-araw na Tala, makukuha ng Benta ang Benta. Isang tap na lang "
       + "ang lahat ng iba pa, sa ilalim ng <strong>Higit Pa</strong>.",
     gettingAroundPageLoading:
       "Sa unang pagkakataong magbukas ka ng screen pagkatapos simulan o i-update ang Cluckwork, maaaring "
@@ -2265,8 +2265,8 @@ export const tl = {
       "Ang mensahe tungkol sa isang bagay na nabigo ay lumalabas <strong>kung nasaan ang "
       + "trabaho</strong>. Ang pagkabigo ng pop-up na form ay lumalabas sa loob ng form na iyon, katabi ng "
       + "mga field na tinutukoy nito, kaya't ang isang form na ayaw mag-save ay laging nagsasabi kung bakit "
-      + "nang hindi nagsasara. Ang pagkabigo ng screen mismo — halimbawa, isang listahang hindi ma-load — "
-      + "ay lumalabas sa screen sa likod. Kapag isinara mo ang form, nawawala ang mensahe nito: tapos na "
+      + "nang hindi nagsasara. Ang pagkabigo ng screen mismo, halimbawa ang listahang hindi ma-load, ay "
+      + "lumalabas sa screen sa likod. Kapag isinara mo ang form, nawawala ang mensahe nito, dahil tapos na "
       + "ang pagsubok na iyon. Nananatili ang anumang iniulat ng screen mismo.",
     gettingAroundSearchablePicker:
       "<strong>Picker na may search</strong> ang mga field ng pangalan ng kawan at customer: mag-type para mag-search, gamitin "
@@ -2292,24 +2292,24 @@ export const tl = {
       + "produksyon, na may <strong>hen-day %</strong> para sa napiling panahon at kung paano ito gumalaw "
       + "kumpara sa naunang panahong kasintagal nito. Ituro ang isang bar, o pumasok sa tsart gamit ang tab "
       + "at gamitin ang mga arrow key, para basahin ito nang mag-isa. Ang araw na isinumite nang walang "
-      + "itlog ay may marka sa base; ang araw na walang nagsumite ay walang laman at mababasang "
-      + "<strong>Walang tala</strong>; ang araw na iilang kawan lang ang nagsumite ay may guhit, dahil ang "
+      + "itlog ay may marka sa base. Ang araw na walang nagsumite ay walang laman at mababasang "
+      + "<strong>Walang tala</strong>. Ang araw na iilang kawan lang ang nagsumite ay may guhit, dahil ang "
       + "kabuuan nito ay ang pinakamababang naprodyus at hindi ang aktwal na naprodyus. Ang "
       + "<strong>Pinakamataas</strong> at <strong>Average</strong> ay mula lamang sa mga araw na may tala "
-      + "ang lahat ng kawan, at kapag walang kumpletong araw sa window, isinusukat ang Pinakamataas sa "
+      + "ang lahat ng kawan. Kapag walang kumpletong araw sa window, isinusukat ang Pinakamataas sa "
       + "pinakamataas na hindi kumpletong araw at sinasabing \"mga araw na hindi kumpleto lamang\". Ang "
       + "hen-day % ay hinahati sa hen-days ng mga kawang may tala, kaya ang kawang nakalimot ay nagpapaliit "
-      + "sa sinusukat, hindi sa mismong porsyento. Pinipili ng <strong>Saklaw</strong> ang window: ang "
-      + "huling 7 o 14 kumpletong araw, o <strong>Sariling saklaw…</strong> gamit ang "
+      + "sa sinusukat, hindi sa mismong porsyento. Pinipili ng <strong>Saklaw</strong> ang window. Kunin "
+      + "ang huling 7 o 14 kumpletong araw, o ang <strong>Sariling saklaw…</strong> gamit ang "
       + "<strong>Mula</strong>, <strong>Hanggang</strong> at <strong>Ilapat</strong> hanggang 14 araw. "
-      + "Laging isang bar bawat araw ang iginuguhit ng kard na ito, kaya tinatanggihan sa form ang mas "
-      + "mahaba sa halip na iguhit sa ibang sukat, at naaalala ang pinili sa device na ito. Palaging "
-      + "nagtatapos kahapon o mas maaga ang window at binibilang lang ang <strong>mga naisumiteng "
-      + "araw</strong>: ang araw na Draft pa ay mababasang Walang tala hanggang maisumite, hindi tulad sa "
-      + "Mga Report kung saan maaaring umabot sa ngayon ang saklaw. Piliin ang <strong>Lahat ng "
-      + "kawan</strong> o iisang kawan sa itaas ng tsart para isaklaw ang buong kard — mga bar, "
-      + "pagkakumpleto, Average, at parehong panahon ng hen-day — sa kawang iyon; kung iisa lang ang "
-      + "accessible na kawan, lalabas ang pangalan nito nang walang picker.",
+      + "Laging isang bar bawat araw ang iginuguhit ng kard na ito, kaya tinatanggihan nito sa form ang mas "
+      + "mahabang saklaw sa halip na iguhit sa ibang sukat, at naaalala nito ang pinili mo sa device na "
+      + "ito. Palaging nagtatapos kahapon o mas maaga ang window at binibilang lang ang <strong>mga "
+      + "naisumiteng araw</strong>. Ang araw na Draft pa ay mababasang Walang tala hanggang maisumite, "
+      + "hindi tulad sa Mga Report, kung saan maaaring umabot sa ngayon ang saklaw. Piliin ang "
+      + "<strong>Lahat ng kawan</strong> o iisang kawan sa itaas ng tsart para isaklaw ang buong kard sa "
+      + "kawang iyon, kasama ang mga bar, ang pagkakumpleto, ang Average, at parehong panahon ng hen-day. "
+      + "Kung iisa lang ang accessible na kawan, lalabas ang pangalan nito nang walang picker.",
     dashboardOrders: "Ipinapakita ng <strong>Mga kamakailang order</strong> ang customer, halaga at katayuan, kasama ang bilang at kasalukuyang pangalan ng grado sa unang linya, limang order bawat pahina. Ang pagsulong ng pahina ay kumukuha ng susunod na lima, kaya lumalabas ang kabuuan pagdating ng huling pahina. Ang +N ay bilang ng dagdag na linya. Kapag pinalitan ang pangalan ng grado, magbabago rin ito sa lumang order; bilang lang ang makikita kung hindi available ang grado.",
     dashboardStock: "Ipinapakita ng <strong>Magagamit na stock</strong> ang kabuuan at isang <strong>stacked bar</strong> ayon sa grado, kasunod ang talahanayan ng <strong>Grado</strong>, <strong>Bilang</strong> at <strong>Bahagi</strong>. Itapat ang pointer o ituon ang keyboard sa hanay para markahan ito. Hiwalay na nakalista ang restricted na itlog. Pareho ang mga bilang sa Stock.",
 
@@ -2319,11 +2319,11 @@ export const tl = {
       + "ni-set up ng iyong administrator. Ang maling password ay nagsasabi lang na "
       + "<strong>Mali ang email o password</strong> — subukan ulit.",
     signingInRateLimit:
-      "Para pabagalin ang pag-guess ng password, <strong>limitado</strong> ang mga pagsubok sa pag-sign "
-      + "in mula sa parehong lugar. Pagkatapos ng sobrang dami ng subok sa loob ng ilang minuto, makikita "
-      + "mo ang <strong>\"Sobra na ang subok sa pag-sign in\"</strong>. Hindi iyon isang error: maghintay "
-      + "ng ilang minuto at subukan ulit. Hindi kailanman naaapektuhan ang pagiging <em>naka-sign in</em> "
-      + "na.",
+      "<strong>Nililimitahan</strong> ng Cluckwork ang mga pagsubok sa pag-sign in mula sa parehong "
+      + "lugar, para pabagalin ang pag-guess ng password. Pagkatapos ng sobrang dami ng subok sa loob ng "
+      + "ilang minuto, makikita mo ang <strong>\"Sobra na ang subok sa pag-sign in\"</strong>. Hindi iyon "
+      + "isang error. Maghintay ng ilang minuto at subukan ulit. Hindi kailanman naaapektuhan ang pagiging "
+      + "<em>naka-sign in</em> na.",
     signingInAccountLock:
       "Bukod dito, ang sobrang dami ng maling password para sa <em>isang account</em> ay panandaliang "
       + "nagba-block sa <em>account</em> na iyon. Habang naka-block, kahit ang tamang password ay nagsasabi "
@@ -2339,17 +2339,17 @@ export const tl = {
       "May sariling ligtas na session ang bawat bukid sa browser na ito, kaya hindi na pinapalitan ng mga "
       + "bukid na bukas sa magkakaibang <strong>tab</strong> ang session ng isa't isa. Naaalala ng tab ang "
       + "bukid nito kapag nag-reload. Ang tab na walang natatandaang bukid at makakakita ng ilang session "
-      + "ay babalik pa rin sa pag-sign in sa halip na manghula — piliin ang code ng bukid at mag-sign in. "
+      + "ay babalik pa rin sa pag-sign in sa halip na manghula. Piliin ang code ng bukid at mag-sign in. "
       + "Naaalala rin ng page ng pag-sign in ang mga code ng bukid na ginamit mo sa device na ito at "
       + "inaalok ang mga ito bilang isang pumipili, at ang link na ?farm= ay nag-pre-fill sa field. Ang "
-      + "bawat natatandaang bukid ay maaaring alisin sa listahan gamit ang kanyang kontrol na Kalimutan; sa "
+      + "bawat natatandaang bukid ay maaaring alisin sa listahan gamit ang kanyang kontrol na Kalimutan. Sa "
       + "paggawa nito ay hindi binubura ang session ng alinmang ibang bukid o iba pang setting ng device.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
-      "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
-      + "nagpapatakbo ang isang operator ng isang beses na setup command na naglilimbag ng pansamantalang "
+      "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password. "
+      + "Nagpapatakbo ang isang operator ng isang beses na setup command na naglilimbag ng pansamantalang "
       + "password at ang code ng bukid. Mag-sign in gamit ang dalawa at mapupunta ka sa isang screen ng "
-      + "<strong>Itakda ang iyong password</strong> sa halip na ang normal na app; wala pang gumagana "
+      + "<strong>Itakda ang iyong password</strong> sa halip na ang normal na app. Wala pang gumagana "
       + "hangga't hindi ka pumipili ng sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng "
       + "password</em>. Hangga't hindi pa naisasagawa ang hakbang na iyon sa setup, sinasabi ito sa iyo "
       + "kapag sinubukan mong mag-sign in at itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip "
@@ -2367,12 +2367,12 @@ export const tl = {
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
     interfaceLanguage:
       "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
-      + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "
-      + "trabaho ang pagsasalin: ang mga screen ng sign-in at benta, ang mga error message, at ang "
-      + "<strong>Account → Mga Kagustuhan</strong> mismo ay isinalin na ngayon; ang natitirang bahagi ng "
-      + "Account screen (kasama ang password section) at ang natitirang app ay isinasalin pa nang screen by "
-      + "screen. Hangga't hindi pa naisasalin ang isang screen, ipinapakita ito sa English, anuman ang "
-      + "wikang pinili mo.",
+      + "mula sa <strong>Account → Mga Kagustuhan</strong>. Ang mga pagpipilian ay English, Español at "
+      + "Tagalog. Isang patuloy na trabaho ang pagsasalin. Naisalin na ngayon ang mga screen ng sign-in at "
+      + "benta, ang mga error message, at ang <strong>Account → Mga Kagustuhan</strong> mismo. Isinasalin "
+      + "pa nang screen by screen ang natitirang bahagi ng Account screen, kasama ang password section, at "
+      + "ang natitirang app. Hangga't hindi pa naisasalin ang isang screen, ipinapakita ito sa English, "
+      + "anuman ang wikang pinili mo.",
 
     dailyLoopHeading: "Ang pang-araw-araw na siklo",
     dailyLoopChain:
@@ -2505,21 +2505,21 @@ export const tl = {
       + "sa isang draft — para sa Isumite, kailangan itong eksakto.",
     dailyEntryGradingDown:
       "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
-      + "naibibentang itlog pa ang kailangan mong ilagay: nagiging berde ito sa sandaling tumugma ang araw "
+      + "naibibentang itlog pa ang kailangan mong ilagay. Nagiging berde ito sa sandaling tumugma ang araw, "
       + "at pula kung lumagpas ka. Ang paglagpas ay humaharang sa pag-save ng draft at sa Isumite. "
-      + "Kailangan ng Isumite ang eksaktong zero, kulang man o sobra; puwedeng bahagya o hindi man na-grade "
+      + "Kailangan ng Isumite ang eksaktong zero, kulang man o sobra. Puwedeng bahagya o hindi man na-grade "
       + "ang draft.",
     dailyEntryButtons:
       "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
-      + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
+      + "<strong>i-hold</strong>. Bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
       + "ng isang segundo. Hindi humihinto ang <strong>+</strong> ng isang grado sa kasalukuyang kabuuan ng "
-      + "araw: bilangin muna ang mga grado at aabot ang kabuuan para tumugma. Tumataas lang ito, hindi "
+      + "araw. Bilangin muna ang mga grado at aabot ang kabuuan para tumugma. Tumataas lang ito, hindi "
       + "kailanman bumababa, kaya ang pagbawas sa kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa "
       + "ang isang grado. Ang mga bukid na nagbibilang bawat tray ay maaaring gawing isang buong pack unit "
-      + "ang bilang ng bawat tap sa halip na isang itlog — nasa <strong>Settings</strong> ang default ng "
+      + "ang bilang ng bawat tap sa halip na isang itlog. Nasa <strong>Settings</strong> ang default ng "
       + "bukid, at maaaring pumili ang bawat tao ng kanilang sarili sa kanilang <strong>Account</strong> "
       + "screen. Kapag may pack unit na ginagamit, sinasabi mismo ng mga button (<strong>−30 / "
-      + "+30</strong>) at may tala sa itaas ng mga pane na nagsasabi ng yunit; ang pag-type ay naglalagay "
+      + "+30</strong>), at may tala sa itaas ng mga pane na nagsasabi ng yunit. Ang pag-type ay naglalagay "
       + "pa rin ng eksaktong numero.",
     dailyEntryPutAllIn:
       "Karamihan sa mga araw ay natatapos sa parehong paraan — isang grado na lang ang kumukuha ng "
@@ -2690,38 +2690,38 @@ export const tl = {
       "Ang pangalan ng customer sa Customers page at sa dashboard ay isang link papunta sa Sales, "
       + "naka-filter sa mga order ng customer na iyon.",
     salesDrafts:
-      "Nagsisimula ang mga order bilang <strong>draft</strong>: magdagdag ng linya sa pamamagitan ng "
+      "Nagsisimula ang mga order bilang <strong>draft</strong>. Magdagdag ng linya sa pamamagitan ng "
       + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang na "
-      + "dami, at isang presyo kada unit (naka-prefill mula sa default ng produkto, pinapayagan ang "
-      + "decimal) — i-edit nang malaya, o <strong>kanselahin</strong> (mananatili ang draft, read-only). "
-      + "Ang dami ay bilang ng <strong>mga unit, hindi mga itlog</strong> — nakasaad sa field ang unit at "
-      + "ipinapakita nito ang kabuuang itlog habang nagta-type (2 tray = 60 itlog, hindi 60 tray). Naaalala "
-      + "ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi kailanman "
-      + "binabago ng muling pagtukoy sa isang karton ang mga lumang order. Kung naglo-load pa ang order, "
-      + "mananatiling sarado ang panel kapag pinili ang <strong>isara</strong>. Piliin muli ang "
-      + "<strong>buksan</strong> para tingnan ang order. Kapag na-refresh ang order, matatapos ang pag-edit "
-      + "kung hindi na draft ang order o wala na ang linya. Susunod sa bagong datos ang mga field na hindi "
-      + "mo binago; mananatili ang mga hindi pa nai-save at hindi muna magagamit ang i-save kung nagbago "
-      + "ang dami o presyong natanggap. Piliin ang <strong>i-load muli ang linya</strong> upang palitan ang "
-      + "parehong field ng pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa "
-      + "matapos ang huling pagkuha ng datos.",
+      + "dami, at isang presyo kada unit, na naka-prefill mula sa default ng produkto at pinapayagan ang "
+      + "decimal. I-edit nang malaya, o <strong>kanselahin</strong>, na nagpapanatili sa draft bilang "
+      + "read-only. Ang dami ay bilang ng <strong>mga unit, hindi mga itlog</strong>. Nakasaad sa field ang "
+      + "unit at ipinapakita nito ang kabuuang itlog habang nagta-type, kaya ang 2 tray ay 60 itlog, hindi "
+      + "60 tray. Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya "
+      + "hindi kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order. Kung naglo-load "
+      + "pa ang order, mananatiling sarado ang panel kapag pinili ang <strong>isara</strong>, at "
+      + "ipinapakita itong muli ng <strong>buksan</strong>. Kapag na-refresh ang order, matatapos ang "
+      + "pag-edit kung hindi na draft ang order o wala na ang linya. Susunod sa bagong datos ang mga field "
+      + "na hindi mo binago. Mananatili ang mga hindi pa nai-save at hindi muna magagamit ang i-save kung "
+      + "nagbago ang dami o presyong natanggap. Piliin ang <strong>i-load muli ang linya</strong> upang "
+      + "palitan ang parehong field ng pinakahuling natanggap na halaga. Hindi nito nakikita ang mga "
+      + "pagbabagong ginawa matapos ang huling pagkuha ng datos.",
     salesListPrice:
-      "Ipinapakita rin ng bawat linya ang <strong>Presyo sa listahan</strong> nito — ang presyo ng "
-      + "produkto noong idinagdag ang linya — katabi ng <strong>Diskwento</strong> na kinalkula mula rito: "
-      + "isang halaga at porsyento kapag naibenta sa mas mababa sa listahan, <strong>Higit sa presyo sa "
-      + "listahan</strong> kapag naibenta nang mas mataas, at \"Walang presyo sa listahan\" kapag walang "
-      + "maikukumpara. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan ang sakahan ay "
-      + "nagsasabing \"Hindi naitala ang presyo sa listahan\", kaya walang makapagsasabi kung may diskwento "
-      + "ito. Ang linyang naibenta sa mas mababa sa listahan ay minamarkahan sa tatlong paraan, para "
-      + "manatiling nababasa kahit sa greyscale na print: isang tag na <strong>Mas mababa sa lista</strong> "
-      + "katabi ng produkto, may guhit sa Presyo sa listahan nito, at may kulay ang hilera. Ang "
-      + "<strong>Diskwento</strong> ng order ay itinototal mismo sa itaas ng total ng order, bilang halaga "
-      + "at porsyento ng presyo sa listahan; kapag may bahagi ng order na walang presyo sa listahan, "
-      + "sinasabi ito ng total kaysa magpanggap na sakop ito. Ang listahan ng mga order ay may parehong "
-      + "bilang sa sariling kolum na <strong>Diskwento</strong> nito, kaya makikita ang order na may "
-      + "diskwento nang hindi ito binubuksan, at ang order na ang lahat ng linya ay nakuha bago pa naitala "
-      + "ang mga presyo sa listahan ay nakikitang \"Hindi naitala ang presyo sa listahan\" doon, hindi "
-      + "kailanman zero.",
+      "Ipinapakita rin ng bawat linya ang <strong>Presyo sa listahan</strong> nito, ang presyo ng "
+      + "produkto noong idinagdag ang linya, katabi ng <strong>Diskwento</strong> na kinalkula mula rito. "
+      + "Ang Diskwentong iyon ay isang halaga at porsyento kapag naibenta ang linya sa mas mababa sa "
+      + "listahan, <strong>Higit sa presyo sa listahan</strong> kapag naibenta nang mas mataas, at \"Walang "
+      + "presyo sa listahan\" kapag walang maikukumpara. Ang linyang nakuha bago pa nagsimulang magtala ng "
+      + "presyo sa listahan ang sakahan ay nagsasabing \"Hindi naitala ang presyo sa listahan\", kaya "
+      + "walang makapagsasabi kung may diskwento ito. Ang linyang naibenta sa mas mababa sa listahan ay "
+      + "minamarkahan sa tatlong paraan, para manatiling nababasa kahit sa greyscale na print. May tag "
+      + "itong <strong>Mas mababa sa lista</strong> katabi ng produkto, may guhit sa Presyo sa listahan "
+      + "nito, at may kulay ang hilera. Ang <strong>Diskwento</strong> ng order ay itinototal mismo sa "
+      + "itaas ng total ng order, bilang halaga at porsyento ng presyo sa listahan. Kapag may bahagi ng "
+      + "order na walang presyo sa listahan, sinasabi ito ng total kaysa magpanggap na sakop ito. Ang "
+      + "listahan ng mga order ay may parehong bilang sa sariling kolum na <strong>Diskwento</strong> nito, "
+      + "kaya makikita ang order na may diskwento nang hindi ito binubuksan, at ang order na ang lahat ng "
+      + "linya ay nakuha bago pa naitala ang mga presyo sa listahan ay nakikitang \"Hindi naitala ang "
+      + "presyo sa listahan\" doon, hindi kailanman zero.",
     salesDiscountCeiling:
       "Maaaring limitahan ng bukid mo kung gaano kalaking diskwento ang maibibigay mo. Kapag ganoon, "
       + "sinasabi ito ng screen ng Benta at ang linyang lampas sa limitasyon ay may tatak na "
@@ -2742,27 +2742,28 @@ export const tl = {
       + "naihatid na paninda. (Ang mga order na nakumpirma bago pa magkaroon ng lot-level allocation "
       + "tracking ay hindi puwedeng i-void nang mag-isa — magtanong sa administrator mo.)",
     salesPayments:
-      "<strong>Mga Bayad</strong> (Benta, Manager, o admin — ang pag-void ng isang bayad ay para sa "
-      + "admin/manager lang): ipinapakita ng panel ng isang nakumpirmang order ang settlement history nito "
-      + "— magtala ng bahagyang bayad (petsa, halaga, paraan, opsyonal na reference) hanggang umabot sa "
-      + "zero ang nakabinbin na halaga; tinatanggihan ang overpayment. Ang isang maling bayad ay "
-      + "<strong>ina-void</strong> (kailangan ng dahilan) at tumataas muli ang nakabinbin na halaga. Ang "
-      + "isang order na may bayad ay hindi puwedeng i-void hangga't hindi na-void ang mga bayad nito. "
-      + "Ipinapakita ng Customers page ang nakabinbin na balanse ng bawat customer, at may kolum na "
-      + "<strong>Nakabinbin</strong> kada order ang listahan ng mga order, kasama ang kahon na <strong>May "
-      + "nakabinbin lang</strong> na pinapaliit ang buong listahan — hindi lang ang mga hilerang nasa "
-      + "screen — sa mga order na may utang pa.",
+      "Bukas ang <strong>Mga Bayad</strong> sa Benta, Manager at admin, at admin o manager lang ang "
+      + "makakapag-void ng isa. Ipinapakita ng panel ng isang nakumpirmang order ang settlement history "
+      + "nito. Magtala doon ng bahagyang bayad, bawat isa ay may petsa, halaga, paraan at opsyonal na "
+      + "reference, hanggang umabot sa zero ang nakabinbin na halaga. Tinatanggihan ang overpayment. Ang "
+      + "isang maling bayad ay <strong>ina-void</strong>, na kailangan ng dahilan, at tumataas muli ang "
+      + "nakabinbin na halaga. Ang isang order na may bayad ay hindi puwedeng i-void hangga't hindi na-void "
+      + "ang mga bayad nito. Ipinapakita ng Customers page ang nakabinbin na balanse ng bawat customer. May "
+      + "kolum na <strong>Nakabinbin</strong> kada order ang listahan ng mga order, kasama ang kahon na "
+      + "<strong>May nakabinbin lang</strong> na pinapaliit ang buong listahan, hindi lang ang mga hilerang "
+      + "nasa screen, sa mga order na may utang pa.",
 
     reportsHeading: "Mga Report",
     reportsProduction:
-      "<strong>Production</strong> (lahat): pumili ng date range — itlog kada araw, nawala, naibibenta, "
-      + "may depekto, namatay, at <strong>hen-day %</strong>, may kasamang period total at breakdown kada "
-      + "grado. Hindi binibilang ang draft at na-void na entry. Ang hen-day % ay itlog na nakolekta ÷ "
-      + "hen-days × 100, at hinahati ito sa hen-days ng <strong>mga kawang may tala sa araw na "
-      + "iyon</strong> — ang kawang walang isinumite ay walang naprodyus na itlog na nakikita ng report na "
-      + "ito, kaya ang pagbilang sa mga ibon nito ay mag-uulat ng rate na walang basehan. Ang column na "
-      + "<strong>Hen-days</strong> ay lahat ng ibong buhay, may tala man o wala, kaya ang agwat sa pagitan "
-      + "ng dalawa ay ang nawawala. Ang araw na walang nagtala ay nagpapakita ng gitling sa halip na 0%.",
+      "Bukas sa lahat ang <strong>Production</strong>. Pumili ng date range para makita ang itlog kada "
+      + "araw, nawala, naibibenta, may depekto, namatay, at <strong>hen-day %</strong>, may kasamang period "
+      + "total at breakdown kada grado. Hindi binibilang ang draft at na-void na entry. Ang hen-day % ay "
+      + "itlog na nakolekta ÷ hen-days × 100, at hinahati ito sa hen-days ng <strong>mga kawang may tala sa "
+      + "araw na iyon</strong>. Ang kawang walang isinumite ay walang naprodyus na itlog na nakikita ng "
+      + "report na ito, kaya ang pagbilang sa mga ibon nito ay mag-uulat ng rate na walang basehan. Ang "
+      + "column na <strong>Hen-days</strong> ay lahat ng ibong buhay, may tala man o wala, kaya ang agwat "
+      + "sa pagitan ng dalawa ay ang nawawala. Ang araw na walang nagtala ay nagpapakita ng gitling sa "
+      + "halip na 0%.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>May depekto</strong>: basag at maruming itlog na naging stock sa halip na ituring na "
@@ -2778,18 +2779,18 @@ export const tl = {
     reportsThrottle:
       "<strong>Kung tinanggihan ang report</strong>: iilan lang ang report na pinapatakbo ng farm nang "
       + "sabay, para hindi mapabagal ng isang abalang screen ang app para sa lahat. Ang paghingi ng marami "
-      + "nang sabay — ilang tao na sabay-sabay magbukas ng Reports, o paulit-ulit na pagsubok — ay maaaring "
-      + "sumagot ng <strong>subukan ulit maya-maya</strong> sa halip na talahanayan. Walang naitala at "
-      + "walang nawala: pindutin ang <strong>subukan ulit</strong> sa Reports screen maya-maya at muling "
-      + "tatakbo ito gamit ang parehong mga petsang pinili mo.",
+      + "nang sabay — ilang tao na sabay-sabay magbukas ng Reports, o paulit-ulit na pagsubok — ay "
+      + "maaaring sumagot ng <strong>subukan ulit maya-maya</strong> sa halip na talahanayan. Walang "
+      + "naitala at walang nawala: pindutin ang <strong>subukan ulit</strong> sa Reports screen "
+      + "maya-maya at muling tatakbo ito gamit ang parehong mga petsang pinili mo.",
 
     expensesHeading: "Mga Gastos (admin)",
     expensesRecording:
-      "Itala ang lumalabas na pera: petsa, kategorya, deskripsyon, at halaga (sa currency ng bukid), "
-      + "opsyonal na naka-link sa isang kawan. Ipinapakita ng hanay ng petsa — ang sariling petsa ng bukid, "
-      + "hindi ng orasan ng browser sa ibang lugar — ang tumatakbong total para sa panahong pinili mo. "
-      + "Pinapamahalaan ang mga kategorya sa parehong screen; ang pag-deactivate ng isa ay nagtatago nito "
-      + "mula sa mga bagong gastos, at pinapanatili ito ng mga naitala na.",
+      "Itala ang lumalabas na pera: petsa, kategorya, deskripsyon, at halaga sa currency ng bukid, "
+      + "opsyonal na naka-link sa isang kawan. Gumagamit ang hanay ng petsa ng sariling petsa ng bukid, "
+      + "hindi ng orasan ng browser sa ibang lugar, at ipinapakita nito ang tumatakbong total para sa "
+      + "panahong pinili mo. Pinapamahalaan ang mga kategorya sa parehong screen. Ang pag-deactivate ng isa "
+      + "ay nagtatago nito mula sa mga bagong gastos, at pinapanatili ito ng mga naitala na.",
     expensesClearingFilters:
       "Bumubukas ang range sa kasalukuyang buwan ng bukid. Ibinabalik ito roon ng <strong>I-clear ang mga filter</strong> na katabi ng mga kontrol — naroon ito habang may nakalistang mga row pa, hindi lang kapag "
       + "may filter nang nagtago ng lahat — at kapag walang laman ang buwan, pinapalawak ng <strong>Ipakita ang lahat ng panahon</strong> ang view sa lahat ng panahon.",
@@ -2850,7 +2851,7 @@ export const tl = {
       + "write-off at recount lang ang naitala laban sa lote mismo, kaya iyon ang ipinapakita, hindi ang "
       + "buong kwento ng lote.",
     auditRecordHistorySubmit:
-      "Ang pag-save at pagsumite ng pang-araw-araw na entry ay iisang gawa, hindi pagbabago: kung ikaw "
+      "Ang pag-save at pagsumite ng pang-araw-araw na entry ay iisang gawa, hindi pagbabago. Kung ikaw "
       + "mismo ang gumawa ng dalawa, ipinapakita ka ng column na History bilang tagalikha at walang "
       + "nakalistang pagbabago. Kung iba ang nagsumite ng iyong draft, lalabas ang pagsumite nila bilang "
       + "huling pagbabago, kaya laging makikita kung sino ang nag-opisyal sa bilang ng araw na iyon. Ganito "
@@ -2860,8 +2861,8 @@ export const tl = {
       + "gumawa nito, gayundin ang pagkansela ng sarili mong draft na order. Nakatago ang pag-edit mo sa "
       + "sarili mong draft bago isumite, dahil bahagi lang iyon ng pagsulat nito. Kung iba ang nag-edit ng "
       + "draft mo, ipinapakita ang pagbabago nila, kaya hindi kailanman nawawala ang taong naglagay ng mga "
-      + "bilang na pumasok sa stock. Mula noon, ipinapakita na rin ang sarili mong mga susunod na pag-edit: "
-      + "kung ibinalik mo ang mga bilang sa gusto mo, ikaw ang pinapangalanan ng column at ang oras na "
+      + "bilang na pumasok sa stock. Mula noon, ipinapakita na rin ang sarili mong mga susunod na pag-edit. "
+      + "Kung ibinalik mo ang mga bilang sa gusto mo, ikaw ang pinapangalanan ng column at ang oras na "
       + "ginawa mo iyon, hindi ang pag-edit na pinalitan mo.",
     auditSystemActors:
       "May ilang tala na ang gumawa ay ang sistema, hindi isang tao, at nagpapakita ng pangalan sa loob "
@@ -2875,10 +2876,10 @@ export const tl = {
       + "ibinigay na dahilan, kaya hindi kailanman anonimo ang isang emergency reset o pagbabago ng "
       + "operator. Ang iba ay pinapangalanan ang taong gumawa.",
     auditRecordHistoryOlder:
-      "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — walang entry ng "
-      + "paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang ganoong "
-      + "record pagkatapos, ipinapakita pa rin ang pagbabagong iyon; blangko lang ang kolum na Kasaysayan "
-      + "kapag wala talagang anuman.",
+      "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\". Walang entry ng paggawa "
+      + "sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang ganoong record "
+      + "pagkatapos, ipinapakita pa rin ang pagbabagong iyon. Blangko lang ang kolum na Kasaysayan kapag "
+      + "wala talagang anuman.",
 
     exportHeading: "Export at Backup (admin)",
     exportCsv:
@@ -2903,11 +2904,12 @@ export const tl = {
       + "formatting na iyon.",
     farmSettingsTimezone:
       "Ang <strong>time zone</strong> ang araw ng bukid. Ang bawat field na nagtatala ng <em>kung kailan "
-      + "nangyari ang isang bagay</em> — araw-araw na entry, kawan, tubig, paggamit ng feed, pagbili ng "
-      + "stock, gastos, order at bayad — ay bumubukas dito at tumatanggi lumampas dito para sa itinatala "
-      + "mo, anuman ang araw sa telepono o laptop na hawak mo, kaya hindi makapag-alok ang isang device na "
-      + "nauuna sa bukid ng petsang tatanggihan din naman ng pag-save. Ang mga petsang nakatakdang mangyari "
-      + "sa hinaharap ay walang cap, tulad ng <strong>petsa ng expiry</strong> ng isang item sa stock.",
+      + "nangyari ang isang bagay</em> ay bumubukas dito at tumatanggi lumampas dito para sa itinatala mo, "
+      + "anuman ang araw sa telepono o laptop na hawak mo. Ang mga field na iyon ay araw-araw na entry, "
+      + "kawan, tubig, paggamit ng feed, pagbili ng stock, gastos, order at bayad. Kaya hindi makapag-alok "
+      + "ang isang device na nauuna sa bukid ng petsang tatanggihan din naman ng pag-save. Ang mga petsang "
+      + "nakatakdang mangyari sa hinaharap ay walang cap, tulad ng <strong>petsa ng expiry</strong> ng "
+      + "isang item sa stock.",
     farmSettingsCurrency:
       "Naka-lock ang <strong>currency</strong> sa sandaling itala ng bukid ang una nitong halaga — isang "
       + "benta, isang bayad, isang gastos, isang produktong may presyo, o perang ginastos sa feed. "
@@ -2923,12 +2925,12 @@ export const tl = {
     farmSettingsDateTimeFormat:
       "Nag-aalok ang <strong>format ng petsa</strong> at <strong>format ng oras</strong> ng ilang "
       + "karaniwang pagpipilian sa isang dropdown. Para sa hindi nakalista, piliin ang "
-      + "<strong>Custom…</strong> at mag-type ng sarili mo. Bawat petsa sa isang listahan — mga "
-      + "pang-araw-araw na entry, lote ng itlog, order, bayad, gastos, tala ng feed at tubig, ulat — ay "
-      + "ipinapakita gamit ang format ng petsa (kung wala, ang sariling maikling anyo ng locale ng farm), "
-      + "kaya buksan ang anumang listahan para makita ang custom value; palaging ligtas ang mga preset. "
-      + "Wala pang nagpapakita ng oras gamit ang format ng oras, kaya hindi makikita ngayon ang isang "
-      + "maling custom na oras.",
+      + "<strong>Custom…</strong> at mag-type ng sarili mo. Ang bawat petsa sa isang listahan ay "
+      + "ipinapakita gamit ang format ng petsa, at kung wala nito, gamit ang sariling maikling anyo ng "
+      + "locale ng farm. Ang mga listahang iyon ay mga pang-araw-araw na entry, lote ng itlog, order, "
+      + "bayad, gastos, tala ng feed at tubig, at ulat, kaya buksan ang alinman sa mga ito para makita ang "
+      + "custom value. Palaging ligtas ang mga preset. Wala pang nagpapakita ng oras gamit ang format ng "
+      + "oras, kaya hindi makikita ngayon ang isang maling custom na oras.",
     farmSettingsSquareLogo:
       "Lumalabas ang logo sa sidebar nang halos kasingtaas ng isang linya ng teksto. Maganda ang tingin "
       + "doon ng simple at maigsing-crop na marka at ng <strong>malawak na wordmark</strong> — pinananatili "
@@ -3001,7 +3003,7 @@ export const tl = {
       + "<strong>Share</strong>, pagkatapos ay <strong>Idagdag sa Home Screen</strong>.",
     installHttps:
       "Inaalok lang ang pag-install sa isang secure (<strong>https</strong>) address. Kung naaabot ng "
-      + "bukid mo ang Cluckwork sa isang plain na <strong>http</strong>, hindi lalabas ang opsyon — walang "
+      + "bukid mo ang Cluckwork sa isang plain na <strong>http</strong>, hindi lalabas ang opsyon. Walang "
       + "sira, at gumagana pa rin ang app nang eksakto tulad ng sa browser.",
     installOffline:
       "<strong>Hindi</strong> ginagawang offline ang app ng pag-install. Kailangan pa rin nito ng koneksyon "
@@ -3164,15 +3166,15 @@ export const tl = {
       "Ang maikling code na nagpapaalam sa bukid mo sa screen ng sign in. Isinusulat mo ito bago ang "
       + "iyong email, dahil maaaring nasa ilang bukid ang iisang email address at ang code lamang ang "
       + "nagsasabi kung alin ang ibig mo sabihin. Lowercase ito. Bihira itong magbago, ngunit maaari itong "
-      + "baguhin ng operator kapag hiniling; pagkatapos noon ay gagamitin mo na ang bagong code sa pag-sign "
-      + "in. Naaalala ng screen ng sign in ang huling 10 bukid na naka-sign in ka sa device na ito, "
-      + "pinakabago muna, at inaalok ang mga ito sa isang pumipili kahit isa lang ang natatandaan, para "
-      + "hindi mo na kailangang i-type ang code. Ang bawat natatandaang bukid ay maaaring kalimutan nang "
-      + "hiwalay gamit ang kontrol na Kalimutan nito, pagkatapos ng isang kumpirmasyon; ang aalis ay ang "
-      + "bukid na iyon lamang sa device na ito, at wala nang ibang binubura: hindi ang iyong wika, ang "
+      + "baguhin ng operator kapag hiniling, at pagkatapos noon ay gagamitin mo na ang bagong code sa "
+      + "pag-sign in. Naaalala ng screen ng sign in ang huling 10 bukid na naka-sign in ka sa device na "
+      + "ito, pinakabago muna, at inaalok ang mga ito sa isang pumipili kahit isa lang ang natatandaan, "
+      + "para hindi mo na kailangang i-type ang code. Ang bawat natatandaang bukid ay maaaring kalimutan "
+      + "nang hiwalay gamit ang kontrol na Kalimutan nito, pagkatapos ng isang kumpirmasyon. Ang aalis ay "
+      + "ang bukid na iyon lamang sa device na ito, at wala nang ibang binubura, hindi ang iyong wika, ang "
       + "iyong theme, o anumang ibang preference. Ang link tulad ng /login?farm=<code> ang pumupuno ng code "
       + "para sa iyo at nilalaktawan ang listahan. Kung hindi mo alam ang code ng bukid mo, tanungin ang "
-      + "iyong administrator: matitingnan nila ito.",
+      + "iyong administrator, na matitingnan ito.",
 
     glossaryLoginEmailTerm: "Email sa pag-sign in",
     glossaryLoginEmailDef:
@@ -3310,12 +3312,12 @@ export const tl = {
 
     glossarySalesLineTerm: "Linya ng benta",
     glossarySalesLineDef:
-      "Isang produkto sa isang order: isang buong bilang na dami sa selling unit, may presyo kada unit "
-      + "(maaaring may decimal ang presyo); ang mga itlog sa likod nito ay dami × ang bilang ng itlog ng "
-      + "unit. Kapag na-refresh ang order, matatapos ang pag-edit kung hindi na draft ang order o wala na "
-      + "ang linya. Susunod sa bagong datos ang mga field na hindi mo binago. Kung may hindi ka pa nai-save "
-      + "at nagbago ang dami o presyong natanggap, mananatili ang iyong mga inilagay at hindi muna "
-      + "magagamit ang i-save; piliin ang i-load muli ang linya upang palitan ang parehong field ng "
+      "Isang produkto sa isang order: isang buong bilang na dami sa selling unit, may presyo kada unit, "
+      + "at maaaring may decimal ang presyong iyon. Ang mga itlog sa likod nito ay dami × ang bilang ng "
+      + "itlog ng unit. Kapag na-refresh ang order, matatapos ang pag-edit kung hindi na draft ang order o "
+      + "wala na ang linya. Susunod sa bagong datos ang mga field na hindi mo binago. Kung may hindi ka pa "
+      + "nai-save at nagbago ang dami o presyong natanggap, mananatili ang iyong mga inilagay at hindi muna "
+      + "magagamit ang i-save. Piliin ang i-load muli ang linya upang palitan ang parehong field ng "
       + "pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa matapos ang "
       + "huling pagkuha ng datos.",
 
@@ -3338,20 +3340,21 @@ export const tl = {
       + "pagbabago ng presyo ay hindi na muling isulat ang isang nakaraang order. Ang \"Walang presyo sa "
       + "listahan\" ay nangangahulugang walang presyong maikukumpara, at iyon ay isang naitalang "
       + "katotohanan. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan ang sakahan ay "
-      + "nagpapakita ng \"Hindi naitala ang presyo sa listahan\": kulang na impormasyon, hindi sagot, kaya "
-      + "walang makapagsasabi kung may diskwento ang linya.",
+      + "nagpapakita ng \"Hindi naitala ang presyo sa listahan\". Kulang na impormasyon iyon at hindi "
+      + "sagot, kaya walang makapagsasabi kung may diskwento ang linya.",
 
     glossaryDiscountTerm: "Diskwento",
     glossaryDiscountDef:
       "Gaano kababa ang naibenta ng isang linya kumpara sa sarili nitong presyo sa listahan, ipinapakita "
       + "kada linya at itinototal para sa buong order, bilang halaga at porsyento ng halaga sa listahan ng "
       + "mga linyang mayroon nito. Ang order na may mga linya ngunit walang kahit isang linyang may presyo "
-      + "sa listahan ay sinasabi ito sa halip na magbasang sero, at kapag lahat ng linyang iyon ay mas "
-      + "maaga kaysa sa mga presyo sa listahan, sinasabi nitong mas maaga ang order kaysa sa pagtatalang "
-      + "iyon; sapat na ang isang linyang talagang walang presyo sa listahan para mapawalang-bisa iyon. Ang "
-      + "order na walang anumang linya ay walang masusukat: isang gitling sa listahan ng mga order, at "
-      + "walang linya ng diskwento sa mismong order. Iba ito sa diskwentong maaaring ilagay ng nagbebenta "
-      + "sa buong order — ito ay awtomatikong nakukuha, hindi inilalagay.",
+      + "sa listahan ay sinasabi ito sa halip na magbasang sero. Kapag lahat ng linyang iyon ay mas maaga "
+      + "kaysa sa mga presyo sa listahan, sinasabi nitong mas maaga ang order kaysa sa pagtatalang iyon, at "
+      + "sapat na ang isang linyang talagang walang presyo sa listahan para mapawalang-bisa iyon. Ang order "
+      + "na walang anumang linya ay walang masusukat, kaya nakikita itong gitling sa listahan ng mga order, "
+      + "na walang linya ng diskwento sa mismong order. Iba ito sa diskwentong maaaring ilagay ng "
+      + "nagbebenta sa buong order. Ang Cluckwork ang kumakalkula nito para sa iyo, at wala kailanman "
+      + "naglalagay nito.",
 
     glossaryDiscountReasonTerm: "Dahilan ng diskwento",
     glossaryDiscountReasonDef:
@@ -3370,22 +3373,22 @@ export const tl = {
       + "Maaaring kumpirmahin ng isang Owner o Manager ang order na lalampas dito. Ang linyang lampas sa "
       + "limitasyon ay may markang Higit sa pinakamataas, at nananatiling naka-block ang Kumpirmahin ang "
       + "order hanggang mabago ang presyo ng linya o kumpirmahin ng isang Owner o Manager ang order nang "
-      + "walang binabago. Ang bukid na walang itinakdang limitasyon ay walang hangganan, at ang limitasyong "
-      + "0 ay hindi katulad ng wala — ibig sabihin nito ay walang maibibigay na diskwento.",
+      + "walang binabago. Ang bukid na walang itinakdang limitasyon ay walang hangganan. Ang limitasyong 0 "
+      + "ay hindi katulad ng wala, dahil ibig sabihin nito ay walang maibibigay na diskwento.",
 
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
     glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",
 
     glossaryOutstandingTerm: "Nakabinbin",
     glossaryOutstandingDef:
-      "Kung magkano pa ang utang ng isang nakumpirmang order: ang kabuuan nito bawas ang bawat bayad na "
-      + "hindi na-void. Ipinapakita ito ng listahan ng mga order sa sariling kolum nitong Nakabinbin, at "
-      + "pinapaliit ng May nakabinbin lang ang listahan sa mga order na may utang pa — ang order na "
-      + "bahagyang nabayaran ay may nakabinbin pa rin. Ang order na tapos nang bayaran ay nagsasabing Bayad "
-      + "na sa halip na zero. Ang mga order na draft, kanselado at na-void ay nagpapakita ng gitling: ang "
-      + "mga bayad ay para lang sa nakumpirmang order, kaya wala silang nakabinbin na halaga. Ang pag-void "
-      + "ng isang bayad ay nagpapabalik ng nakabinbin na halaga. Ang mga user lang na Benta, Manager at "
-      + "owner ang nakakakita ng kolum na ito.",
+      "Kung magkano pa ang utang ng isang nakumpirmang order, ibig sabihin ang kabuuan nito bawas ang "
+      + "bawat bayad na hindi na-void. Ipinapakita ito ng listahan ng mga order sa sariling kolum nitong "
+      + "Nakabinbin, at pinapaliit ng May nakabinbin lang ang listahan sa mga order na may utang pa, kaya "
+      + "ang order na bahagyang nabayaran ay may nakabinbin pa rin. Ang order na tapos nang bayaran ay "
+      + "nagsasabing Bayad na sa halip na zero. Ang mga order na draft, kanselado at na-void ay nagpapakita "
+      + "ng gitling, dahil ang mga bayad ay para lang sa nakumpirmang order at kaya wala silang nakabinbin "
+      + "na halaga. Ang pag-void ng isang bayad ay nagpapabalik ng nakabinbin na halaga. Ang mga user lang "
+      + "na Benta, Manager at owner ang nakakakita ng kolum na ito.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:
@@ -3458,8 +3461,8 @@ export const tl = {
 
     glossaryCurrencyLockTerm: "Currency lock",
     glossaryCurrencyLockDef:
-      "Hindi na ma-e-edit ang currency ng bukid sa sandaling may magtala ng halaga dito — isang benta, "
-      + "isang bayad, isang gastos, isang produktong may presyo, pera na ginastos sa feed. Ipinapakita ng "
+      "Hindi na ma-e-edit ang currency ng bukid sa sandaling may magtala ng halaga dito: isang benta, "
+      + "isang bayad, isang gastos, isang produktong may presyo, o pera na ginastos sa feed. Ipinapakita ng "
       + "field na naka-lock ito kasama ang dahilan. Wala nang muling pinepresyuhan ang anumang naitala na.",
 
     glossaryFarmLogoTerm: "Logo ng Bukid",
@@ -3472,18 +3475,18 @@ export const tl = {
     glossaryFarmBannerTerm: "Banner ng Bukid",
     glossaryFarmBannerDef:
       "Pangalawa, independiyenteng larawan na ipinapakita nang buong-laki sa isang splash screen kaagad "
-      + "pagkatapos mag-log in, isang beses kada session. Hiwalay sa logo ng bukid sa itaas: puwedeng "
-      + "magkaroon ang isang bukid ng logo, banner, pareho, o wala. Parehong panuntunan ng still image na "
-      + "PNG/JPEG/WebP, may sarili itong mas malaking limitasyon sa laki (5 MB bilang default), ina-upload "
-      + "mula sa Mga Setting ng Bukid. Ang device na nagpapakita nito ay nag-ka-cache ng larawan pagkatapos "
-      + "ng splash screen na iyon, kaya sa susunod na pagbisita puwede rin itong lumabas sa sign-in screen "
-      + "bago pa maglagay ng password — pero habang pinangalanan ng field na Code ng Bukid ang parehong "
-      + "bukid na iyon. Ang pag-type o pagpili ng ibang code ay agad itong nagtatago, at ang link na "
-      + "pangalan lang ng Code ng Bukid ay hindi kailanman nagpapakita ng banner nito. Kapag ang isang Code "
-      + "ng Bukid ay na-reassign sa ibang bukid, ang device na naka-cache na ng banner ng dating may-ari "
-      + "nito ay puwede pa ring magpakita nito nang maikli, hanggang kumpirmahin ng susunod na pag-sign-in "
-      + "sa device na iyon kung aling bukid na ngayon ang may-ari ng code. Isang lumang larawan iyon sa "
-      + "device na mayroon na rito, hindi bagong pagsisiwalat.",
+      + "pagkatapos mag-log in, isang beses kada session. Hiwalay ito sa logo ng bukid sa itaas, at "
+      + "puwedeng magkaroon ang isang bukid ng logo, banner, pareho, o wala. Parehong panuntunan ng still "
+      + "image na PNG/JPEG/WebP, may sarili itong mas malaking limitasyon sa laki (5 MB bilang default), "
+      + "ina-upload mula sa Mga Setting ng Bukid. Ang device na nagpapakita nito ay nag-ka-cache ng larawan "
+      + "pagkatapos ng splash screen na iyon, kaya sa susunod na pagbisita puwede rin itong lumabas sa "
+      + "sign-in screen bago pa maglagay ng password, pero habang pinangalanan ng field na Code ng Bukid "
+      + "ang parehong bukid na iyon. Ang pag-type o pagpili ng ibang code ay agad itong nagtatago, at ang "
+      + "link na pangalan lang ng Code ng Bukid ay hindi kailanman nagpapakita ng banner nito. Kapag ang "
+      + "isang Code ng Bukid ay na-reassign sa ibang bukid, ang device na naka-cache na ng banner ng dating "
+      + "may-ari nito ay puwede pa ring magpakita nito nang maikli, hanggang kumpirmahin ng susunod na "
+      + "pag-sign-in sa device na iyon kung aling bukid na ngayon ang may-ari ng code. Isang lumang larawan "
+      + "iyon sa device na mayroon na rito, hindi bagong pagsisiwalat.",
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:

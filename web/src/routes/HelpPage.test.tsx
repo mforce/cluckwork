@@ -289,7 +289,7 @@ describe("HelpPage", () => {
     // short is refused exactly the same way, down to reading zero.
     expect(screen.getByText(/Submit needs it at exactly zero/)).toBeInTheDocument();
     expect(
-      screen.getByText(/a draft may be graded partway or not at all/),
+      screen.getByText(/draft may be graded partway or not at all/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/You cannot submit while it is over/)).not.toBeInTheDocument();
 
