@@ -1,6 +1,6 @@
 // web/src/lib/dayWindow.test.ts
 import { describe, it, expect } from "vitest";
-import { DAY_GAP_PHONE_PX, DAY_GAP_PX, DAY_SLOT_PX, dayWindow, stripWidth } from "./dayWindow";
+import { DAY_GAP_PX, DAY_SLOT_PX, dayWindow, stripWidth } from "./dayWindow";
 
 // 1280 desktop: the expanded panel leaves about 1,080px of scroll region
 // beside its axis gutter. 90 days is 90x22 + 89x4 = 2,336px, so it scrolls;
@@ -88,7 +88,7 @@ describe("dayWindow (#941)", () => {
 
   it("scrolls at every range on a phone, where the narrower gap still does not save it", () => {
     // 390x844 leaves roughly 300px of region. 30 days is 30x22 + 29x2 = 718px.
-    const phone = { days: 30, slot: DAY_SLOT_PX, gap: DAY_GAP_PHONE_PX, viewport: 300 };
+    const phone = { days: 30, slot: DAY_SLOT_PX, gap: 2, viewport: 300 };
     expect(stripWidth(phone)).toBe(718);
     const w = dayWindow(phone, 0);
     expect(w.fits).toBe(false);

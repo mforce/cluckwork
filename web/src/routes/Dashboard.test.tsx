@@ -2319,6 +2319,10 @@ describe("Dashboard expanded Lay rate chart (#941)", () => {
     await waitFor(() => expect(expandedBars()).toHaveLength(30));
     expect(mockReport).toHaveBeenCalledWith(
       daysBefore(today, 30), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    // Checked after closing, not through the open chart: while it is up the
+    // page behind is `aria-hidden`, so a role query cannot see the card at all
+    // — which is the modality this view now actually enforces.
+    await user.click(screen.getByRole("button", { name: "Back to dashboard" }));
     expect(await cardBars()).toHaveLength(14);
   });
 
@@ -2327,6 +2331,16 @@ describe("Dashboard expanded Lay rate chart (#941)", () => {
     await open(user);
     await user.click(screen.getByRole("button", { name: "Back to dashboard" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Expand the lay rate chart" }));
+  });
+
+  // #958 review round 1, P2: Escape is the frame's other way out, and it has to
+  // land the reader back where they left, not on the body.
+  it("closes on Escape and hands focus back to the control that opened it", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Expand the lay rate chart" }));
   });
 
@@ -2370,6 +2384,7 @@ describe("Dashboard expanded Lay rate chart (#941)", () => {
     // React state — which is what makes writing to the card's key visible.
     await open(user);
     await waitFor(() => expect(expandedBars()).toHaveLength(60));
+    await user.click(screen.getByRole("button", { name: "Back to dashboard" }));
     expect(within(await panel("Lay rate trend")).getByLabelText("Range")).toHaveValue("14");
   });
 });

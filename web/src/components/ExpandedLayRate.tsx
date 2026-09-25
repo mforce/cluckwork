@@ -19,7 +19,7 @@
 // Give the box its own index state and that loop comes back.
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, LinearProgress, TextField, useMediaQuery } from "@mui/material";
+import { Alert, Button, LinearProgress, Modal, TextField, useMediaQuery } from "@mui/material";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayLegend, DayReadout } from "./DayStrip";
 import { DaySlots } from "./DaySlots";
@@ -27,8 +27,8 @@ import { useDayStrip } from "./useDayStrip";
 import { FilterDateField } from "./FilterBar";
 import { useFormat } from "../farm/useFormat";
 import { MD_UP_QUERY } from "../lib/breakpoints";
-import { DAY_GAP_PHONE_PX, DAY_GAP_PX, DAY_SLOT_PX, dayWindow, stripWidth } from "../lib/dayWindow";
-import type { DayWindow } from "../lib/dayWindow";
+import { DAY_GAP_PX, DAY_SLOT_PX, dayWindow, stripWidth } from "../lib/dayWindow";
+import type { DayWindow, StripMetrics } from "../lib/dayWindow";
 import {
   EXPANDED_RANGE_PRESETS, MAX_EXPANDED_RANGE_DAYS, customRangeError,
 } from "../lib/layRateRange";
@@ -41,6 +41,10 @@ const TICK_DAYS = 7;
 // A label within this many slots of the left edge is left-aligned instead of
 // centred, so it cannot paint outside the strip it belongs to.
 const EDGE_TICK_SLOTS = 3;
+// How long the window has to settle before the visible span is announced. A
+// drag crosses a day boundary every 26px, so an undebounced live region would
+// speak forty times on one sweep of a quarter.
+const ANNOUNCE_SETTLE_MS = 500;
 
 export function ExpandedLayRate({
   data, failed, label, title, peak, average, legend, tip,
@@ -66,20 +70,36 @@ export function ExpandedLayRate({
   const fmt = useFormat();
   const titleId = useId();
   const isDesktop = useMediaQuery(MD_UP_QUERY);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLSpanElement>(null);
+  const prevPageRef = useRef<HTMLButtonElement>(null);
+  const nextPageRef = useRef<HTMLButtonElement>(null);
 
   const slots = data?.slots ?? [];
   const days = slots.length;
-  const gap = isDesktop ? DAY_GAP_PX : DAY_GAP_PHONE_PX;
   const [view, setView] = useState<DayWindow>(
-    () => dayWindow({ days, slot: DAY_SLOT_PX, gap, viewport: 0 }, 0),
+    () => dayWindow({ days, slot: DAY_SLOT_PX, gap: DAY_GAP_PX, viewport: 0 }, 0),
   );
   const strip = useDayStrip(slots, tip, { firstVisible: view.firstVisible, scrollerRef, gutterRef });
+
+  // The gap is read back from the STRIP, so the stylesheet is the only thing
+  // that decides it. `MD_UP_QUERY` is `(min-width: 900px)` and the phone rule
+  // is `(max-width: 900px)`: both match at exactly 900, where a JS-side 4px
+  // against a laid-out 2px put `stripWidth` 178px out over 90 days and lit an
+  // edge cue on a chart that clips nothing. jsdom loads no stylesheet, so the
+  // desktop value stands in there and the browser answers for itself.
+  const metricsOf = useCallback((region: HTMLElement | null): StripMetrics => {
+    const node = strip.stripRef.current;
+    const measured = node === null ? Number.NaN : Number.parseFloat(getComputedStyle(node).columnGap);
+    return {
+      days,
+      slot: DAY_SLOT_PX,
+      gap: Number.isFinite(measured) ? measured : DAY_GAP_PX,
+      viewport: region?.clientWidth ?? 0,
+    };
+  }, [days, strip.stripRef]);
 
   // The box is written to the DOM rather than rendered from state: its left
   // and width change on every scroll frame, and a 90-button strip re-rendered
@@ -88,10 +108,7 @@ export function ExpandedLayRate({
   // edges hide something — go back into React.
   const sync = useCallback(() => {
     const region = scrollerRef.current;
-    const next = dayWindow(
-      { days, slot: DAY_SLOT_PX, gap, viewport: region?.clientWidth ?? 0 },
-      region?.scrollLeft ?? 0,
-    );
+    const next = dayWindow(metricsOf(region), region?.scrollLeft ?? 0);
     if (boxRef.current !== null) {
       boxRef.current.style.left = `${next.boxLeftPct}%`;
       boxRef.current.style.width = `${next.boxWidthPct}%`;
@@ -99,17 +116,20 @@ export function ExpandedLayRate({
     setView((prev) => (prev.fits === next.fits && prev.firstVisible === next.firstVisible
       && prev.lastVisible === next.lastVisible && prev.atStart === next.atStart
       && prev.atEnd === next.atEnd) ? prev : next);
-  }, [days, gap]);
+  }, [metricsOf]);
 
   // The newest day sits at the right edge, as it does on the card, so the view
   // opens on the days the farm just filed rather than on the quarter's first
   // week. A range narrower than the window leaves its empty space on the LEFT
   // (styles.css `.bigstrip`), which is the same rule with nothing to scroll.
+  // Keyed on the REPORT, which is what "a new range opened" means. Keyed on
+  // `sync` it also re-ran whenever the gap changed, so a window dragged across
+  // 900px threw a reader who was mid-quarter back to the newest day.
   useLayoutEffect(() => {
     const region = scrollerRef.current;
     if (region !== null) region.scrollLeft = region.scrollWidth;
     sync();
-  }, [sync]);
+  }, [data]);
 
   useEffect(() => {
     const region = scrollerRef.current;
@@ -119,13 +139,22 @@ export function ExpandedLayRate({
     return () => observer.disconnect();
   }, [sync]);
 
-  // The one way out takes focus on open, so a keyboard user is not dropped on
-  // <body> with a full-screen overlay they cannot see the edge of.
-  useEffect(() => { closeRef.current?.focus(); }, []);
-
   const page = (direction: number) => {
     const region = scrollerRef.current;
     if (region !== null) region.scrollLeft += direction * region.clientWidth;
+  };
+
+  // A pager button that disables while it holds focus drops focus to <body>,
+  // and the next Tab lands wherever the browser's starting-point rule chooses.
+  // `scrollLeft` reads back clamped in the same tick, so the edge is known
+  // before the disabled attribute commits.
+  const pageFromButton = (direction: number) => {
+    page(direction);
+    const region = scrollerRef.current;
+    if (region === null) return;
+    const next = dayWindow(metricsOf(region), region.scrollLeft);
+    if (direction > 0 && next.atEnd) prevPageRef.current?.focus();
+    if (direction < 0 && next.atStart) nextPageRef.current?.focus();
   };
 
   // A press on the map centres the window on the pressed point; a drag repeats
@@ -139,8 +168,7 @@ export function ExpandedLayRate({
     if (map === null || region === null) return;
     const box = map.getBoundingClientRect();
     const fraction = Math.min(1, Math.max(0, (clientX - box.left) / box.width));
-    const width = stripWidth({ days, slot: DAY_SLOT_PX, gap, viewport: region.clientWidth });
-    region.scrollLeft = fraction * width - region.clientWidth / 2;
+    region.scrollLeft = fraction * stripWidth(metricsOf(region)) - region.clientWidth / 2;
   };
 
   const onMapPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -163,25 +191,15 @@ export function ExpandedLayRate({
   };
 
   // Page Up and Page Down are the keyboard's pager and the keyboard's swipe:
-  // they move the WINDOW and leave the selection where it is. Tab is contained
-  // because this claims `aria-modal`, and a claim of modality that a Tab press
-  // walks straight out of is a false one.
+  // they move the WINDOW and leave the selection where it is. Tab containment
+  // and Escape belong to `Modal` below, not to this handler.
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape") { onClose(); return; }
-    if (e.key === "PageUp" || e.key === "PageDown") {
-      e.preventDefault();
-      page(e.key === "PageDown" ? 1 : -1);
-      return;
-    }
-    if (e.key !== "Tab" || rootRef.current === null) return;
-    const stops = [...rootRef.current.querySelectorAll<HTMLElement>(
-      "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]",
-    )].filter((el) => el.tabIndex >= 0);
-    if (stops.length === 0) return;
-    const edge = e.shiftKey ? stops[0] : stops[stops.length - 1];
-    if (document.activeElement !== edge) return;
+    if (e.key !== "PageUp" && e.key !== "PageDown") return;
+    // Chrome's native date input steps its focused segment by a month on these
+    // two keys; swallowing them everywhere took that away inside the form.
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
     e.preventDefault();
-    (e.shiftKey ? stops[stops.length - 1] : stops[0]).focus();
+    page(e.key === "PageDown" ? 1 : -1);
   };
 
   const rangeSpan = t("rangeSpan", { from: fmt.date(from), to: fmt.date(to) });
@@ -192,12 +210,28 @@ export function ExpandedLayRate({
         to: fmt.date(slots[view.lastVisible].date),
         count: days, days: fmt.count(days),
       });
+  const [announced, setAnnounced] = useState(shownNote);
+  useEffect(() => {
+    const timer = setTimeout(() => setAnnounced(shownNote), ANNOUNCE_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [shownNote]);
 
   return (
-    <div
-      className="lay-expand-backdrop" role="dialog" aria-modal="true" aria-labelledby={titleId}
-      ref={rootRef} onKeyDown={onKeyDown}
-    >
+    // `Modal` rather than a bare fixed div, so the frame reuses the
+    // `ModalManager` every Dialog in this app already depends on: siblings go
+    // `aria-hidden`, the body's scroll is locked and restored, Escape closes,
+    // and Tab is contained however focus got where it is — a click on the
+    // backdrop used to leave it on <body>, where the hand-rolled trap could
+    // not see the next press. It also supplies `theme.zIndex.modal`, so the
+    // stylesheet no longer carries a literal 1300. `hideBackdrop` because the
+    // opaque `.lay-expand-backdrop` below IS the backdrop; `disableRestoreFocus`
+    // because the caller returns focus to the Expand control itself, and two
+    // actors restoring focus is the conflict #483 is named for.
+    <Modal open onClose={onClose} hideBackdrop disableRestoreFocus>
+      <div
+        className="lay-expand-backdrop" role="dialog" aria-modal="true" aria-labelledby={titleId}
+        onKeyDown={onKeyDown}
+      >
       <div className="lay-expand">
         <div className="lay-expand-panel">
           <div className="lay-expand-head">
@@ -213,14 +247,16 @@ export function ExpandedLayRate({
               />
               <div className="lay-expand-pager">
                 <Button
-                  aria-label={t("expandPrev")} onClick={() => page(-1)}
+                  ref={prevPageRef}
+                  aria-label={t("expandPrev")} onClick={() => pageFromButton(-1)}
                   disabled={view.fits || view.atStart}
                   sx={{ "&&": { minWidth: 44, minHeight: 44 } }}
                 >
                   <ChevronLeft size={18} aria-hidden focusable={false} />
                 </Button>
                 <Button
-                  aria-label={t("expandNext")} onClick={() => page(1)}
+                  ref={nextPageRef}
+                  aria-label={t("expandNext")} onClick={() => pageFromButton(1)}
                   disabled={view.fits || view.atEnd}
                   sx={{ "&&": { minWidth: 44, minHeight: 44 } }}
                 >
@@ -302,20 +338,36 @@ export function ExpandedLayRate({
                   </div>
                   <div className="lay-expand-foot">
                     <DayLegend legend={legend} />
-                    <span className="lay-expand-shown">{shownNote}</span>
+                    {/* The caption a sighted reader watches, and beside it the
+                        one a screen reader hears. The visible span updates on
+                        every page so it never lags the chart; the live region
+                        waits for the window to settle, because a drag crosses
+                        a day boundary every 26px and would otherwise speak
+                        forty times on one sweep. Splitting them is what stops
+                        the same sentence being read twice. */}
+                    <span className="lay-expand-shown" aria-hidden="true">{shownNote}</span>
+                    <span className="sr-only" aria-live="polite">{announced}</span>
                   </div>
                 </figure>
               </>}
         </div>
+        {/* The one way out takes focus on open, so a keyboard user is not
+            dropped on a full-screen overlay they cannot see the edge of.
+            `data-mui-focusable` is how `FocusTrap` is told which descendant to
+            open on; without it the trap focuses the frame's root instead. The
+            attribute is MUI's own (`utils/focusable.js`), so a rename on
+            upgrade would quietly fall back to that root — which is what
+            ExpandedLayRate.test.tsx's opening-focus assertion is there for. */}
         <Button
-          ref={closeRef} variant="contained" onClick={onClose}
+          data-mui-focusable variant="contained" onClick={onClose}
           className="lay-expand-leave" sx={{ "&&": { minHeight: 44 } }}
         >
           {t("expandClose")}
         </Button>
         <span className="lay-expand-hint">{t("expandEscapeHint")}</span>
       </div>
-    </div>
+      </div>
+    </Modal>
   );
 }
 

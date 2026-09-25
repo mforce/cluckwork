@@ -1,5 +1,5 @@
 // web/src/routes/Dashboard.tsx
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bird, Check, ChevronRight, CircleDashed, Egg, Maximize2, ShoppingCart, TriangleAlert } from "lucide-react";
@@ -152,6 +152,13 @@ export function Dashboard() {
   const [expandedFailed, setExpandedFailed] = useState(false);
   const expandRef = useRef<HTMLButtonElement>(null);
   const expandedPlotted = trendWindow(expandedRange, today);
+  // Shaped by the same `dayStrip` the card uses, so a day means one thing on
+  // both. Memoised, and declared up here above the loading and failure returns
+  // rather than beside the card's own line: the chart keys its
+  // scroll-to-the-newest-day effect on this identity, and rebuilt every render
+  // that effect would re-run on every render and the window could never move.
+  const expandedLine = useMemo(
+    () => dayStrip({ days: expandedReport?.days ?? [] }), [expandedReport]);
   // #918 — the flock LIST read can fail alone while the other three panels
   // succeed; "failed" must not read as "0 accessible flocks". `flocksRetrying`
   // holds the unavailable state up until the retried read SETTLES — clearing
@@ -370,6 +377,18 @@ export function Dashboard() {
     return () => controller.abort();
   }, [from, to, previousFrom, trendFlockId, canSeeSales]);
 
+  // #941 — focus returns to the control that opened the chart: it is the only
+  // thing that tells a screen-reader user where the view went. It has to
+  // happen AFTER the overlay is gone — called from `onClose`, while the frame
+  // is still mounted, its focus trap pulls any focus outside it straight back
+  // and the unmount then drops focus on <body>. The ref keeps the first render
+  // from stealing focus to a control nobody has touched.
+  const wasExpanded = useRef(false);
+  useEffect(() => {
+    if (wasExpanded.current && !expanded) expandRef.current?.focus();
+    wasExpanded.current = expanded;
+  }, [expanded]);
+
   // #941 — the expanded chart's own read, issued only while it is open, so a
   // reader who never expands pays nothing for a 90-day report. It needs the
   // plotted window alone: the hen-day comparison against the previous equal
@@ -465,9 +484,6 @@ export function Dashboard() {
     henDay: henDayTrend(trend.current, trend.previous),
   };
   const bar = stock === null ? null : stockBar(stock);
-  // #941 — the expanded chart's own line and its own window sentence. Shaped
-  // by the same `dayStrip` the card uses, so a day means one thing on both.
-  const expandedLine = dayStrip({ days: expandedReport?.days ?? [] });
   // The window's own dates, which every sentence about the card's range uses
   // rather than a preset's wording: a custom range has no preset to name, and
   // one string cannot be built from a stem plus a suffix (#650).
@@ -1028,9 +1044,7 @@ export function Dashboard() {
             setExpandedRange(next);
             writeAccountScoped(EXPANDED_RANGE_STORAGE_KEY, formatStoredRange(next));
           }}
-          // Focus goes back to the control that opened the view: it is the
-          // only thing that tells a screen-reader user where the view went.
-          onClose={() => { setExpanded(false); expandRef.current?.focus(); }}
+          onClose={() => setExpanded(false)}
         />
       )}
     </Container>

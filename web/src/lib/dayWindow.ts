@@ -7,11 +7,13 @@
 
 // #912's slot, fixed at every range (owner, 2026-09-24): a bar never stretches
 // to fill the column, so a 30-day chart draws the same bar as a 90-day one.
-// The gap is the card's own, narrowed on a phone exactly as the card narrows
-// it.
+//
+// The GAP is not a constant here, because the stylesheet narrows it on a phone
+// and two declarations of one number disagreed at exactly 900px, where both
+// media queries match. `ExpandedLayRate` reads it back off the strip; this is
+// the desktop value it falls back to where there is no stylesheet to read.
 export const DAY_SLOT_PX = 22;
 export const DAY_GAP_PX = 4;
-export const DAY_GAP_PHONE_PX = 2;
 
 export interface StripMetrics {
   days: number;

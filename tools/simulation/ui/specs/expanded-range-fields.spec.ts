@@ -60,9 +60,9 @@ async function scanField(page: Page, input: Locator): Promise<FieldScan> {
     const context = canvas.getContext("2d")!;
     context.drawImage(bitmap, 0, 0);
     const { data: px, width, height } = context.getImageData(0, 0, bitmap.width, bitmap.height);
-    const pixel = (x: number, y: number) => {
+    const pixel = (x: number, y: number): [number, number, number] => {
       const i = (y * width + x) * 4;
-      return [px[i], px[i + 1], px[i + 2]] as const;
+      return [px[i] ?? 0, px[i + 1] ?? 0, px[i + 2] ?? 0];
     };
     // The middle band: the date and the icon are both vertically centred, and
     // the field's own top and bottom rows carry chrome the scan must not read.
@@ -77,7 +77,8 @@ async function scanField(page: Page, input: Locator): Promise<FieldScan> {
         tally.set(key, (tally.get(key) ?? 0) + 1);
       }
     }
-    const background = [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0].split(",").map(Number);
+    const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+    const [bgR = 0, bgG = 0, bgB = 0] = (ranked[0]?.[0] ?? "0,0,0").split(",").map(Number);
     const ink: boolean[] = [];
     for (let x = 0; x < width; x += 1) {
       let found = false;
@@ -85,7 +86,7 @@ async function scanField(page: Page, input: Locator): Promise<FieldScan> {
         const [r, g, b] = pixel(x, y);
         // Generous, so an anti-aliased glyph edge does not read as background
         // and manufacture a gap that is not there.
-        found = Math.abs(r - background[0]) + Math.abs(g - background[1]) + Math.abs(b - background[2]) > 60;
+        found = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB) > 60;
       }
       ink.push(found);
     }

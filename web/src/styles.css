@@ -1815,14 +1815,12 @@ label.check {
    prefers-reduced-motion: no-preference. Two owner departures: the column is
    wider than the splash's 640px because the subject is ninety bars rather than
    one image, and it follows the APP THEME rather than forcing a dark lightbox. */
+/* No z-index of its own: this is the child of a MUI `Modal`, which stacks at
+   `theme.zIndex.modal` and so clears the permanent Drawer (1200) without a
+   literal repeated here. */
 .lay-expand-backdrop {
   position: fixed;
   inset: 0;
-  /* MUI's own modal layer. The splash sits at 55 because it renders before the
-     shell exists and has nothing to out-stack; this one opens from inside the
-     shell, where the permanent Drawer is at `theme.zIndex.drawer` (1200) and
-     would otherwise paint the sidebar straight over the chart. */
-  z-index: 1300;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1849,8 +1847,11 @@ label.check {
   /* The safety net, not the normal path: the column is sized to fit at both
      captured viewports. A locale that runs long enough to overflow anyway
      scrolls here rather than squashing the panel, which is what put the plot
-     on top of the legend at 390 before `.lay-expand-plot` stopped shrinking. */
+     on top of the legend at 390 before `.lay-expand-plot` stopped shrinking.
+     `contain` so reaching either end of that scroll does not chain to the
+     document behind and let Chrome Android's pull-to-refresh fire. */
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .lay-expand-panel {
@@ -1941,7 +1942,7 @@ label.check {
   padding-bottom: 4px;
   border-bottom: 1px solid var(--rule);
   cursor: grab;
-  /* So a press is read as a jump rather than first interpreted as a page pan. */
+  /* Desktop drags the box, so a press here must not be read as a pan first. */
   touch-action: none;
 }
 
@@ -2034,12 +2035,18 @@ label.check {
 .lay-expand-scroll {
   overflow-x: auto;
   overflow-y: hidden;
+  /* A vertical pan on the bars has nothing to scroll here, so without this it
+     chains to the document underneath. */
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   padding-bottom: 6px;
 }
 
-/* The edge cue is the token the scrolling tables already use (#150), so a
-   clipped strip announces itself the same way everywhere. It lives OUTSIDE the
+/* The same edge-fade treatment the scrolling tables use (#150), so a clipped
+   strip announces itself the way the rest of the app does. It fades to
+   `--surface` rather than carrying the `--scroll-cue` shadow those tables use:
+   this cue sits over the panel's own background, and a fade INTO that
+   background is what makes a clipped bar read as clipped. It lives OUTSIDE the
    scroller: positioned inside one it is placed against the scrolled content,
    which drew a pale band down the middle of the chart (#941, lab finding 5). */
 .scroll-cue {
@@ -2229,6 +2236,11 @@ label.check {
   .daymap {
     height: 34px;
     cursor: pointer;
+    /* The phone taps the map, never drags it, so only the horizontal axis has
+       to be claimed. `none` here also killed a vertical swipe that happened to
+       start on the 34px strip, which on a short phone is how the column is
+       scrolled. */
+    touch-action: pan-y;
   }
 
   /* A shorter plot, so the whole panel plus its one way out AND the Escape
