@@ -1909,6 +1909,10 @@ label.check {
   align-items: flex-end;
 }
 
+.lay-expand-date {
+  flex: 1 1 8rem;
+}
+
 .lay-expand-pager {
   display: flex;
   gap: 0.5rem;
@@ -2198,6 +2202,20 @@ label.check {
     min-width: 0;
   }
 
+  /* Stacked, each the full width of the control column, and Apply on its own
+     line under them. Side by side at 390 the To field had 137px of box for a
+     92px date, 28px of padding and a 14px picker icon, which left the date
+     three columns clear of the icon (specs/expanded-range-fields.spec.ts).
+     The long locale is tl, whose labels are longer again. */
+  .lay-expand-custom {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .lay-expand-date {
+    flex: none;
+  }
+
   .lay-expand-axis {
     width: 2.75rem;
     font-size: 0.625rem;
@@ -2213,10 +2231,12 @@ label.check {
     cursor: pointer;
   }
 
-  /* A shorter plot, so the whole panel plus its one way out fits an 844px
-     phone with the custom-range form open — the tallest state it has. */
+  /* A shorter plot, so the whole panel plus its one way out AND the Escape
+     hint under it fit an 844px phone with the custom-range form open — the
+     tallest state it has, and one row taller since the two date fields
+     stacked. At 15rem the hint fell 8px past the fold. */
   .bigstrip {
-    height: min(32vh, 15rem);
+    height: min(28vh, 13rem);
   }
 
   /* #912's own phone gap. `DAY_GAP_PHONE_PX` is the same number, and

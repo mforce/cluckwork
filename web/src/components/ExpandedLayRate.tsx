@@ -382,17 +382,22 @@ function ExpandedRangePicker({ range, from, to, latestDay, onRangeChange }: {
       </TextField>
       {custom && (
         <div className="lay-expand-custom">
+          {/* Sized in styles.css, not here: the phone rule is a change of flex
+              DIRECTION, and a flex-basis written as an sx prop would then be a
+              height. */}
           <FilterDateField
+            className="lay-expand-date"
             label={t("rangeFromLabel")} value={draftFrom}
             slotProps={{ htmlInput: { max: latestDay } }}
             onChange={(e) => setDraftFrom(e.target.value)}
-            sx={{ flex: "1 1 8rem", maxWidth: "none" }}
+            sx={{ maxWidth: "none" }}
           />
           <FilterDateField
+            className="lay-expand-date"
             label={t("rangeToLabel")} value={draftTo}
             slotProps={{ htmlInput: { max: latestDay } }}
             onChange={(e) => setDraftTo(e.target.value)}
-            sx={{ flex: "1 1 8rem", maxWidth: "none" }}
+            sx={{ maxWidth: "none" }}
           />
           <Button variant="outlined" color="inherit" onClick={apply} sx={{ "&&": { minHeight: 44 } }}>
             {t("rangeApply")}
