@@ -2162,24 +2162,26 @@ export const es = {
       "En una computadora, cada pantalla está en la <strong>barra lateral</strong> de la izquierda, agrupada "
       + "por función.",
     gettingAroundTabs:
-      "En un teléfono, las pantallas que más usa aparecen como <strong>pestañas en la parte "
-      + "inferior</strong>, al alcance del pulgar. Cuáles cuatro obtiene depende de su rol — un trabajador "
-      + "obtiene Entrada diaria, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de "
-      + "distancia bajo <strong>Más</strong>.",
+      "En un teléfono, las cuatro pantallas que más usa aparecen como <strong>pestañas en la parte "
+      + "inferior</strong>, al alcance del pulgar. Cuáles cuatro depende de su rol: un trabajador obtiene "
+      + "Entrada diaria, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de distancia bajo "
+      + "<strong>Más</strong>.",
     gettingAroundPageLoading:
-      "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, puede aparecer brevemente un mensaje de carga mientras se abre esa pantalla. La navegación sigue disponible; espere a que aparezca la pantalla.",
+      "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, aparece brevemente "
+      + "un mensaje de carga. La navegación sigue disponible mientras espera.",
     gettingAroundErrorScreen:
-      "Si una pantalla alguna vez muestra <strong>\"Algo salió mal\"</strong>, eso es la aplicación "
-      + "capturando un error en lugar de dejarlo en una página en blanco. Todo lo que ya había guardado "
-      + "está a salvo (lo que todavía estaba escribiendo puede que deba ingresarlo de nuevo) — toque "
-      + "<strong>Recargar</strong>, o <strong>Volver al panel</strong> e inténtelo de nuevo. Si sigue "
-      + "sucediendo, abra \"Detalles del error\" y envíe una captura de pantalla.",
+      "<strong>\"Algo salió mal\"</strong> significa que la aplicación capturó un error en lugar de "
+      + "dejarlo en una página en blanco. Todo lo que ya había guardado está a salvo; lo que todavía estaba "
+      + "escribiendo puede que deba ingresarlo de nuevo. Toque <strong>Recargar</strong>, o <strong>Volver "
+      + "al panel</strong> e inténtelo de nuevo. Si sigue sucediendo, abra \"Detalles del error\" y envíe "
+      + "una captura de pantalla.",
     gettingAroundWhereMessagesAppear:
-      "El mensaje de algo que falló aparece <strong>donde está el trabajo</strong>: si estaba llenando un "
-      + "formulario emergente, aparece dentro de ese formulario, junto a los campos a los que se refiere; si "
-      + "fue la pantalla misma — una lista que no cargó, por ejemplo — aparece en la pantalla de atrás. Así, "
-      + "un formulario que se niega a guardar siempre le dice por qué sin cerrarse. Al cerrar el formulario se "
-      + "descarta su mensaje: ese intento terminó, y lo que informó la pantalla misma se queda.",
+      "El mensaje de algo que falló aparece <strong>donde está el trabajo</strong>. El fallo de un "
+      + "formulario emergente aparece dentro de ese formulario, junto a los campos a los que se refiere, "
+      + "así que un formulario que se niega a guardar siempre le dice por qué sin cerrarse. El fallo de la "
+      + "pantalla misma — una lista que no cargó, por ejemplo — aparece en la pantalla de atrás. Al cerrar "
+      + "el formulario se descarta su mensaje: ese intento terminó. Lo que informó la pantalla misma se "
+      + "queda.",
     gettingAroundSearchablePicker:
       "Los campos de nombre de parvada y de cliente son <strong>selectores de búsqueda</strong>: escriba para "
       + "buscar, use las flechas del teclado o el puntero para explorar los resultados, y presione "
@@ -2190,28 +2192,34 @@ export const es = {
       + "muestra <strong>No disponible</strong> con Reintentar.",
 
     dashboardHeading: "Panel",
-    dashboardTiles: "<strong>Recolección de la mañana</strong> muestra el progreso y una fila por lote activo, primero los que indican <strong>Sin registro</strong>. Use <strong>Registrar</strong> para un registro pendiente o <strong>Continuar</strong> para un borrador. La lista se pagina dentro del panel — seis naves por página en el teléfono, ocho en una pantalla más ancha — así que se llega a todas sin salir del Panel; la barra de progreso y el recuento de naves encima abarcan todas, no la página mostrada. El resumen de la mañana combina las naves pendientes con el total de hoy, incluidos los borradores.",
+    dashboardTiles:
+      "<strong>Recolección de la mañana</strong> muestra el progreso y una fila por lote activo, primero "
+      + "los que indican <strong>Sin registro</strong>. Use <strong>Registrar</strong> para un registro "
+      + "pendiente o <strong>Continuar</strong> para un borrador. La lista se pagina dentro del panel, seis "
+      + "naves por página en el teléfono y ocho en una pantalla más ancha, así que se llega a todas sin "
+      + "salir del Panel. La barra de progreso y el recuento de naves encima abarcan todas, no solo la "
+      + "página mostrada. El resumen de la mañana combina las naves pendientes con el total de hoy, "
+      + "incluidos los borradores.",
     dashboardTrend:
-      "<strong>Tasa de postura</strong>: huevos por día del informe de producción, con el <strong>% de "
-      + "postura</strong> del período elegido y su variación frente al período anterior de la misma "
-      + "duración. Señale una barra, o entre al gráfico con el tabulador y use las flechas, para leerla por separado. "
-      + "Un día que la granja envió sin huevos conserva una marca en la base; un día que nadie envió queda "
-      + "vacío y se lee como <strong>Sin registro</strong>; un día que solo enviaron algunos lotes se "
-      + "dibuja rayado, porque su total es lo mínimo que produjo la granja y no lo que produjo. "
-      + "<strong>Máximo</strong> y <strong>Prom.</strong> salen solo de los días que registraron todos los "
-      + "lotes. El % de postura divide entre los días-gallina de los lotes que registraron, así que un lote que olvida "
-      + "reduce sobre cuánto se mide la cifra, nunca la cifra misma. <strong>Período</strong> elige la ventana "
-      + "— los últimos 7 o 14 días completos, o <strong>Período personalizado…</strong> con "
-      + "<strong>Desde</strong>, <strong>Hasta</strong> y <strong>Aplicar</strong> hasta 14 días; esta tarjeta "
-      + "siempre dibuja una barra por día, así que un período más largo se rechaza en el formulario en vez de "
-      + "redibujarse a otra escala, y la elección se recuerda en este "
-      + "dispositivo. La ventana siempre termina ayer o antes y cuenta <strong>solo días enviados</strong> — "
-      + "un día aún en borrador se lee como Sin registro hasta que se envía, a diferencia de Informes, donde "
-      + "el rango puede llegar a hoy. Elija "
-      + "<strong>Todos los lotes</strong> o un solo lote encima del gráfico para acotar toda la tarjeta "
-      + "— barras, integridad, Prom. y ambos períodos de postura — a ese lote; con un solo lote accesible "
-      + "su nombre aparece sin selector. Cuando ningún día del período está completo, el Máximo se ajusta "
-      + "al día parcial más alto y dice \"solo días incompletos\".",
+      "<strong>Tasa de postura</strong> traza los huevos por día del informe de producción, con el "
+      + "<strong>% de postura</strong> del período elegido y su variación frente al período anterior de la "
+      + "misma duración. Señale una barra, o entre al gráfico con el tabulador y use las flechas, para "
+      + "leerla por separado. Un día que la granja envió sin huevos conserva una marca en la base; un día "
+      + "que nadie envió queda vacío y se lee como <strong>Sin registro</strong>; un día que solo enviaron "
+      + "algunos lotes se dibuja rayado, porque su total es lo mínimo que produjo la granja y no lo que "
+      + "produjo. <strong>Máximo</strong> y <strong>Prom.</strong> salen solo de los días que registraron "
+      + "todos los lotes, y cuando ningún día del período está completo el Máximo se ajusta al día parcial "
+      + "más alto y dice \"solo días incompletos\". El % de postura divide entre los días-gallina de los "
+      + "lotes que registraron, así que un lote que olvida reduce sobre cuánto se mide la cifra, nunca la "
+      + "cifra misma. <strong>Período</strong> elige la ventana: los últimos 7 o 14 días completos, o "
+      + "<strong>Período personalizado…</strong> con <strong>Desde</strong>, <strong>Hasta</strong> y "
+      + "<strong>Aplicar</strong> hasta 14 días. Esta tarjeta siempre dibuja una barra por día, así que un "
+      + "período más largo se rechaza en el formulario en vez de redibujarse a otra escala, y la elección "
+      + "se recuerda en este dispositivo. La ventana siempre termina ayer o antes y cuenta <strong>solo "
+      + "días enviados</strong>: un día aún en borrador se lee como Sin registro hasta que se envía, a "
+      + "diferencia de Informes, donde el rango puede llegar a hoy. Elija <strong>Todos los lotes</strong> "
+      + "o un solo lote encima del gráfico para acotar toda la tarjeta — barras, integridad, Prom. y ambos "
+      + "períodos de postura — a ese lote; con un solo lote accesible su nombre aparece sin selector.",
     dashboardOrders: "<strong>Pedidos recientes</strong> muestra el cliente, importe y estado, con la cantidad de la primera línea y el nombre actual de su grado, cinco pedidos por página. Avanzar de página pide los cinco siguientes, así que el total aparece al llegar la última. +N indica líneas adicionales. Renombrar un grado también cambia su nombre en pedidos antiguos; si no está disponible, solo se muestra la cantidad.",
     dashboardStock: "<strong>Existencias disponibles</strong> muestra el total y una <strong>barra apilada</strong> de su composición por grado, seguida de una tabla de <strong>Grado</strong>, <strong>Cantidad</strong> y <strong>Proporción</strong>. Pase el puntero o enfoque una fila para resaltarla. Los huevos restringidos se indican aparte. Las cantidades coinciden con Existencias.",
 
@@ -2221,16 +2229,15 @@ export const es = {
       + "electrónico y la contraseña que configuró su administrador. Una contraseña incorrecta simplemente "
       + "indica <strong>Correo electrónico o contraseña inválidos</strong> — inténtelo de nuevo.",
     signingInRateLimit:
-      "Para frenar a cualquiera que intente adivinar contraseñas, los intentos de inicio de sesión desde "
-      + "el mismo lugar están <strong>limitados</strong>. Después de demasiados intentos en pocos minutos "
-      + "verá <strong>\"Demasiados intentos de inicio de sesión\"</strong> — eso no es una falla, solo "
-      + "espere unos minutos e inténtelo de nuevo. Estar <em>ya conectado</em> nunca se ve afectado; su "
-      + "trabajo continúa con normalidad.",
+      "Para frenar el intento de adivinar contraseñas, los intentos de inicio de sesión desde el mismo "
+      + "lugar están <strong>limitados</strong>. Después de demasiados intentos en pocos minutos verá "
+      + "<strong>\"Demasiados intentos de inicio de sesión\"</strong>. No es una falla: espere unos minutos "
+      + "e inténtelo de nuevo. Estar <em>ya conectado</em> nunca se ve afectado.",
     signingInAccountLock:
       "Por separado, demasiadas contraseñas incorrectas para <em>una cuenta</em> bloquean brevemente "
       + "<em>esa</em> cuenta. Mientras está bloqueada, incluso la contraseña correcta sigue indicando "
-      + "<strong>Correo electrónico o contraseña inválidos</strong>. El bloqueo es temporal — espere hasta "
-      + "unos 15 minutos e inténtelo de nuevo.",
+      + "<strong>Correo electrónico o contraseña inválidos</strong>. Espere hasta unos 15 minutos e "
+      + "inténtelo de nuevo.",
     signingInPersistence:
       "Su inicio de sesión se guarda de forma segura en su navegador y permanece activo mientras trabaja, "
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
@@ -2239,22 +2246,22 @@ export const es = {
     // machine-drafted (#532) — pending native review.
     signingInMultiTabResync:
       "Cada granja mantiene su propia sesión segura en este navegador, por lo que las granjas abiertas en "
-      + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Una pestaña recuerda su granja al "
-      + "recargar. Una pestaña sin una granja recordada que encuentre varias sesiones vuelve al inicio de sesión en "
-      + "lugar de adivinar — elija el código de granja e inicie sesión. La página de inicio de sesión también "
-      + "recuerda los códigos de granja con los que ha iniciado sesión en este dispositivo y los ofrece como un "
-      + "selector, y un enlace ?farm= rellena previamente el campo. Cada granja recordada puede eliminarse de esa "
-      + "lista con su control Olvidar; al hacerlo no se borra la sesión de otra granja ni ninguna otra preferencia "
-      + "del dispositivo. No se borra la sesión de ninguna otra granja.",
+      + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Una pestaña recuerda su granja "
+      + "al recargar. Una pestaña sin una granja recordada que encuentre varias sesiones vuelve al inicio "
+      + "de sesión en lugar de adivinar — elija el código de granja e inicie sesión. La página de inicio de "
+      + "sesión también recuerda los códigos de granja con los que ha iniciado sesión en este dispositivo y "
+      + "los ofrece como un selector, y un enlace ?farm= rellena previamente el campo. Cada granja "
+      + "recordada puede eliminarse de esa lista con su control Olvidar; al hacerlo no se borra la sesión "
+      + "de ninguna otra granja ni ninguna otra preferencia del dispositivo.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
-      "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
-      + "un operador ejecuta un comando de configuración único que imprime una contraseña temporal y el código "
-      + "de la granja. Inicie sesión con ambos y llegará de inmediato a una pantalla de <strong>Establecer su "
+      "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada "
+      + "— un operador ejecuta un comando de configuración único que imprime una contraseña temporal y el "
+      + "código de la granja. Inicie sesión con ambos y llegará a una pantalla de <strong>Establecer su "
       + "contraseña</strong> en lugar de la aplicación normal; nada más funciona hasta que elija su propia "
-      + "contraseña allí. Esto es distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se realice "
-      + "ese paso de configuración, al intentar iniciar sesión se le indica esto y se le remite a quien "
-      + "administra el servidor, en lugar de afirmar que sus datos eran incorrectos.",
+      + "contraseña allí. Esto es distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se "
+      + "realice ese paso de configuración, al intentar iniciar sesión se le indica esto y se le remite a "
+      + "quien administra el servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
       "Ocho acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
@@ -2272,8 +2279,8 @@ export const es = {
       + "un trabajo en progreso: las pantallas de inicio de sesión y ventas, los mensajes de error, y "
       + "<strong>Cuenta → Preferencias</strong> mismo están traducidos hoy; el resto de la pantalla de "
       + "Cuenta (incluida la sección de contraseña) y el resto de la aplicación se están traduciendo "
-      + "pantalla por pantalla. Hasta que una pantalla esté traducida, simplemente se muestra en inglés, "
-      + "sea cual sea el idioma que eligió.",
+      + "pantalla por pantalla. Hasta que una pantalla esté traducida, se muestra en inglés, sea cual sea "
+      + "el idioma que eligió.",
 
     dailyLoopHeading: "El ciclo diario",
     dailyLoopChain:
@@ -2401,22 +2408,21 @@ export const es = {
       + "clasificar — para enviar, debe cuadrar exactamente.",
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
-      + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede — "
-      + "excederse también bloquea guardar el borrador, no solo Enviar. No puede enviar hasta que llegue "
-      + "exactamente a cero — clasificar el día a medias, o no clasificarlo, está bien para un borrador, "
-      + "pero no para enviar.",
+      + "vendibles le quedan por ubicar: se pone verde en cuanto el día cuadra y rojo si se excede. "
+      + "Excederse bloquea guardar el borrador además de Enviar. Enviar necesita exactamente cero; un "
+      + "borrador puede quedar clasificado a medias o sin clasificar.",
     dailyEntryButtons:
-      "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o <strong>mantenga "
-      + "presionado</strong> — se acelera a medida que avanza, así que unos cientos de huevos toman "
-      + "aproximadamente un segundo. Más fácil que un teclado numérico con guantes puestos. El "
-      + "<strong>+</strong> de un grado ya no se detiene en el total actual del día — cuente los grados "
-      + "primero y el total se ajusta para igualarlos. Solo aumenta el total, nunca lo reduce, así que "
-      + "recortar el total en el paso 1 nunca empuja un grado hacia abajo. Las granjas que cuentan por "
-      + "bandeja pueden hacer que cada toque cuente una unidad de empaque completa en lugar de un huevo — "
-      + "el valor predeterminado de la granja está en <strong>Configuración</strong>, y cada persona puede "
-      + "elegir el suyo en su pantalla de <strong>Cuenta</strong>. Cuando una unidad de empaque está en uso, "
-      + "los propios botones lo indican (<strong>−30 / +30</strong>) y una nota sobre los paneles nombra la "
-      + "unidad; escribir sigue ingresando números exactos.",
+      "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o "
+      + "<strong>mantenga presionado</strong> — se acelera a medida que avanza, así que unos cientos de "
+      + "huevos toman aproximadamente un segundo. El <strong>+</strong> de un grado no se detiene en el "
+      + "total actual del día: cuente los grados primero y el total se ajusta para igualarlos. Solo aumenta "
+      + "el total, nunca lo reduce, así que recortar el total en el paso 1 nunca empuja un grado hacia "
+      + "abajo. Las granjas que cuentan por bandeja pueden hacer que cada toque cuente una unidad de "
+      + "empaque completa en lugar de un huevo — el valor predeterminado de la granja está en "
+      + "<strong>Configuración</strong>, y cada persona puede elegir el suyo en su pantalla de "
+      + "<strong>Cuenta</strong>. Cuando una unidad de empaque está en uso, los propios botones lo indican "
+      + "(<strong>−30 / +30</strong>) y una nota sobre los paneles nombra la unidad; escribir sigue "
+      + "ingresando números exactos.",
     dailyEntryPutAllIn:
       "La mayoría de los días terminan de la misma manera — un grado se lleva lo que queda. <strong>Poner "
       + "todo en…</strong> junto al conteo restante lo hace en un solo movimiento: arrástrelo a un grado, o "
@@ -2581,29 +2587,32 @@ export const es = {
       "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
       + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "
       + "precio por unidad (precargado desde el valor predeterminado del producto, se permiten decimales) — "
-      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). La cantidad "
-      + "cuenta <strong>unidades, no huevos</strong> — el campo indica la unidad y muestra el total de huevos "
-      + "resultante mientras escribe (2 bandejas = 60 huevos, no 60 bandejas). Cada línea "
+      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). La "
+      + "cantidad cuenta <strong>unidades, no huevos</strong> — el campo indica la unidad y muestra el "
+      + "total de huevos resultante mientras escribe (2 bandejas = 60 huevos, no 60 bandejas). Cada línea "
       + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
       + "nunca cambia pedidos antiguos. Si el pedido aún se está cargando, <strong>cerrar</strong> mantiene "
-      + "el panel cerrado. Use <strong>abrir</strong> de nuevo para verlo."
-      + " Al actualizar un pedido, la edición termina si ya no es un borrador o la línea desapareció. Los campos sin editar adoptan los valores recibidos. Si hay cambios sin guardar y la cantidad o el precio recibidos cambiaron, se conservan sus datos y se bloquea guardar. Elija <strong>recargar línea</strong> para reemplazar ambos campos con los últimos valores recibidos. Aquí no se detectan cambios posteriores a la última consulta.",
+      + "el panel cerrado. Use <strong>abrir</strong> de nuevo para verlo. Al actualizar un pedido, la "
+      + "edición termina si el pedido ya no es un borrador o la línea desapareció. Los campos sin editar "
+      + "adoptan los valores recibidos; los que tienen cambios sin guardar se conservan y bloquean guardar "
+      + "si la cantidad o el precio recibidos cambiaron. Elija <strong>recargar línea</strong> para tomar "
+      + "los últimos valores recibidos. Aquí no se detectan cambios posteriores a la última consulta.",
     salesListPrice:
       "Cada línea también muestra su <strong>Precio de lista</strong> — el precio del producto cuando se "
       + "agregó la línea — junto a un <strong>Descuento</strong> calculado a partir de él: un monto y un "
-      + "porcentaje cuando se vende por debajo de la lista, <strong>Sobre el precio de lista</strong> cuando "
-      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada comparable con qué medirla. "
-      + "Una línea tomada antes de que la granja empezara a guardar precios de lista dice \"Precio de lista "
-      + "no registrado\" — esa significa que nadie puede saber si llevó descuento. Una línea "
+      + "porcentaje cuando se vende por debajo de la lista, <strong>Sobre el precio de lista</strong> "
+      + "cuando se vende por encima, y \"Sin precio de lista\" cuando no hay nada comparable con qué "
+      + "medirla. Una línea tomada antes de que la granja empezara a guardar precios de lista dice \"Precio "
+      + "de lista no registrado\", lo que significa que nadie puede saber si llevó descuento. Una línea "
       + "vendida por debajo de la lista se marca de tres maneras, para que siga siendo legible en una "
-      + "impresión en escala de grises: una etiqueta <strong>Por debajo de lista</strong> junto al producto, "
-      + "su Precio de lista tachado y una fila con color de fondo. El <strong>Descuento</strong> del pedido "
-      + "se totaliza justo encima del total del pedido, como un monto y un porcentaje del precio de lista; "
-      + "cuando parte del pedido no tiene precio de lista, el total lo indica en lugar de pretender "
-      + "abarcarlo. La lista de pedidos lleva la misma cifra en su propia columna "
-      + "<strong>Descuento</strong>, así que un pedido con descuento se ve sin abrirlo — y un pedido "
-      + "cuyas líneas se tomaron todas antes de que se registraran los precios de lista se lee allí como "
-      + "\"Precio de lista no registrado\", nunca como cero.",
+      + "impresión en escala de grises: una etiqueta <strong>Por debajo de lista</strong> junto al "
+      + "producto, su Precio de lista tachado y una fila con color de fondo. El <strong>Descuento</strong> "
+      + "del pedido se totaliza justo encima del total del pedido, como un monto y un porcentaje del precio "
+      + "de lista; cuando parte del pedido no tiene precio de lista, el total lo indica en lugar de "
+      + "pretender abarcarlo. La lista de pedidos lleva la misma cifra en su propia columna "
+      + "<strong>Descuento</strong>, así que un pedido con descuento se ve sin abrirlo, y un pedido cuyas "
+      + "líneas se tomaron todas antes de que se registraran los precios de lista se lee allí como \"Precio "
+      + "de lista no registrado\", nunca como cero.",
     salesDiscountCeiling:
       "Su granja puede limitar cuánto descuento puede dar. Cuando lo hace, la pantalla de Ventas lo "
       + "indica y una línea por encima del límite lleva la etiqueta <strong>Sobre el máximo</strong>, "
@@ -2628,21 +2637,21 @@ export const es = {
       + "registre pagos parciales (fecha, monto, método, referencia opcional) hasta que el saldo pendiente "
       + "llegue a cero; el sobrepago se rechaza. Un pago erróneo se <strong>anula</strong> (motivo "
       + "requerido) y el saldo pendiente vuelve a crecer. Un pedido con pagos no se puede anular hasta que "
-      + "sus pagos se anulen primero. La pantalla de Clientes muestra el saldo pendiente de cada cliente, "
-      + "y la lista de pedidos lleva una columna <strong>Pendiente</strong> por pedido, con una casilla "
-      + "<strong>Solo pendientes</strong> que reduce la lista entera — no solo las filas en pantalla — "
-      + "a los pedidos que aún deben algo.",
+      + "sus pagos se anulen. La pantalla de Clientes muestra el saldo pendiente de cada cliente, y la "
+      + "lista de pedidos lleva una columna <strong>Pendiente</strong> por pedido, con una casilla "
+      + "<strong>Solo pendientes</strong> que reduce la lista entera — no solo las filas en pantalla — a "
+      + "los pedidos que aún deben algo.",
 
     reportsHeading: "Informes",
     reportsProduction:
       "<strong>Producción</strong> (todos): elija un rango de fechas — huevos por día, pérdidas, "
-      + "vendibles, con defecto, muertes, y <strong>% de puesta diaria</strong>, con totales del período "
-      + "y un desglose por grado. Las entradas en borrador y anuladas no cuentan. El % de puesta diaria "
-      + "es huevos recolectados ÷ días-gallina × 100, y divide entre los días-gallina de los "
-      + "<strong>lotes que registraron ese día</strong> — un lote que no envió nada no produjo huevos "
-      + "que este informe pueda ver, así que contar sus aves informaría una tasa que nada respalda. La "
-      + "columna <strong>Días-gallina</strong> son todas las aves vivas, registradas o no, así que la "
-      + "diferencia entre ambas es lo que falta. Un día que nadie registró muestra — en vez de 0 %.",
+      + "vendibles, con defecto, muertes, y <strong>% de puesta diaria</strong>, con totales del período y "
+      + "un desglose por grado. Las entradas en borrador y anuladas no cuentan. El % de puesta diaria es "
+      + "huevos recolectados ÷ días-gallina × 100, y divide entre los días-gallina de los <strong>lotes que "
+      + "registraron ese día</strong> — un lote que no envió nada no produjo huevos que este informe pueda "
+      + "ver, así que contar sus aves informaría una tasa que nada respalda. La columna "
+      + "<strong>Días-gallina</strong> son todas las aves vivas, registradas o no, así que la diferencia "
+      + "entre ambas es lo que falta. Un día que nadie registró muestra un guion en vez de 0 %.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "
@@ -2656,20 +2665,20 @@ export const es = {
       + "pendiente), gastos por categoría, y <strong>ganancia básica</strong> — ingresos confirmados menos "
       + "gastos registrados, sin costo de bienes vendidos.",
     reportsThrottle:
-      "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, para "
-      + "que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo tiempo — "
-      + "varias personas abriendo Informes a la vez, o reintentos repetidos — puede responder "
+      "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, "
+      + "para que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo "
+      + "tiempo — varias personas abriendo Informes a la vez, o reintentos repetidos — responde "
       + "<strong>inténtelo de nuevo en un momento</strong> en lugar de una tabla. No se registró ni se "
-      + "perdió nada: presione <strong>reintentar</strong> en la pantalla de Informes un momento después "
-      + "y se vuelve a ejecutar con las mismas fechas que eligió.",
+      + "perdió nada: presione <strong>reintentar</strong> un momento después y se vuelve a ejecutar con "
+      + "las mismas fechas que eligió.",
 
     expensesHeading: "Gastos (admin)",
     expensesRecording:
       "Registre el dinero que sale: fecha, categoría, descripción y monto (en la moneda de la granja), "
       + "opcionalmente vinculado a un lote. El rango de fechas — las fechas propias de la granja, no un "
-      + "reloj del navegador en otro lugar — muestra un total acumulado para el período elegido; las categorías "
-      + "se administran en la misma pantalla (desactivar una la oculta de los gastos nuevos — los ya "
-      + "registrados la conservan).",
+      + "reloj del navegador en otro lugar — muestra un total acumulado para el período elegido. Las "
+      + "categorías se administran en la misma pantalla; desactivar una la oculta de los gastos nuevos, y "
+      + "los ya registrados la conservan.",
     expensesClearingFilters:
       "El rango se abre en el mes actual de la granja. <strong>Borrar filtros</strong>, junto a los controles, "
       + "lo devuelve ahí — está disponible mientras aún se ven filas, no solo cuando un filtro ya lo ocultó "
@@ -2732,33 +2741,31 @@ export const es = {
       "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
       + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "
       + "borrador, ese envío aparece como el último cambio, así siempre se sabe quién oficializó los "
-      + "números del día. En ambos casos la columna Historial indica CUÁNDO se envió, porque ese es el "
-      + "momento en que los huevos entraron en existencias. Confirmar un pedido de venta funciona igual y "
-      + "muestra cuándo se asignaron las existencias. Corregir un registro ya bloqueado "
-      + "siempre se muestra, aunque tú lo hayas creado, y cancelar tu propio pedido en borrador también. "
-      + "Editar tu propio borrador antes de enviarlo queda oculto: eso es simplemente escribirlo. Pero si "
-      + "otra persona edita tu borrador, su cambio sí se muestra, para que nunca sea invisible quien puso "
-      + "los números que entraron en existencias. Y a partir de ese momento también se muestran tus "
-      + "propias ediciones posteriores: si dejas los números como querías, la columna te nombra a ti y "
-      + "marca la hora en que lo hiciste, no la edición que reemplazaste.",
+      + "números del día. En ambos casos la columna indica CUÁNDO se envió, porque ese es el momento en que "
+      + "los huevos entraron en existencias. Confirmar un pedido de venta funciona igual y muestra cuándo "
+      + "se asignaron las existencias. Corregir un registro ya bloqueado siempre se muestra, aunque tú lo "
+      + "hayas creado, y cancelar tu propio pedido en borrador también. Editar tu propio borrador antes de "
+      + "enviarlo queda oculto, porque eso es escribirlo. Si otra persona edita tu borrador, su cambio sí "
+      + "se muestra, para que nunca sea invisible quien puso los números que entraron en existencias. A "
+      + "partir de ese momento también se muestran tus propias ediciones posteriores: si dejas los números "
+      + "como querías, la columna te nombra a ti y marca la hora en que lo hiciste, no la edición que "
+      + "reemplazaste.",
     auditSystemActors:
       "Algunas entradas las hace el sistema y no una persona, y muestran un nombre entre paréntesis en "
-      + "lugar de un correo. \"(bootstrap-admin)\" es el comando que creó su primera cuenta de "
-      + "propietario, antes de que existiera alguien para hacerlo. \"(break-glass)\" es el comando de "
-      + "emergencia que restablece una contraseña cuando todos han perdido el acceso; esa entrada "
-      + "también registra desde qué equipo se ejecutó y el motivo indicado, de modo que un "
-      + "restablecimiento de emergencia nunca es anónimo. \"(suspend-account)\" y \"(reactivate-account)\" "
-      + "son los comandos que ejecuta un operador para dejar toda la granja fuera de línea y activarla de "
-      + "nuevo; esas entradas también registran la máquina desde la que se ejecutaron y el motivo indicado. "
-      + "\"(provision-account)\" crea una granja nueva y su primer propietario antes de que alguien de esa granja pueda iniciar sesión. "
-      + "\"(rename-account)\" es el comando que ejecuta un operador para cambiar el código de granja; esa "
-      + "entrada registra el código anterior y el nuevo, la máquina desde la que se ejecutó y el motivo indicado. "
+      + "lugar de un correo. \"(bootstrap-admin)\" es el comando que creó su primera cuenta de propietario, "
+      + "antes de que existiera alguien para hacerlo. \"(provision-account)\" crea una granja nueva y su "
+      + "primer propietario antes de que alguien de esa granja pueda iniciar sesión. \"(break-glass)\" es "
+      + "el comando de emergencia que restablece una contraseña cuando todos han perdido el acceso. "
+      + "\"(suspend-account)\" y \"(reactivate-account)\" dejan toda la granja fuera de línea y la activan "
+      + "de nuevo. \"(rename-account)\" cambia el código de granja y registra el código anterior y el "
+      + "nuevo. Esos cuatro últimos registran además la máquina desde la que se ejecutaron y el motivo "
+      + "indicado, de modo que un restablecimiento de emergencia o un cambio del operador nunca es anónimo. "
       + "Todo lo demás nombra a la persona que lo hizo.",
     auditRecordHistoryOlder:
-      "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
-      + "simplemente no hay una entrada de creación en el registro para ellos, y no se inventa ninguna "
-      + "después. Si un registro así se modificó luego, ese cambio sí se muestra; la columna Historial "
-      + "queda vacía solo cuando no hay absolutamente nada.",
+      "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": no hay "
+      + "una entrada de creación en el registro para ellos, y no se inventa ninguna después. Si un registro "
+      + "así se modificó luego, ese cambio sí se muestra; la columna Historial queda vacía solo cuando no "
+      + "hay absolutamente nada.",
 
     exportHeading: "Exportar y respaldo (admin)",
     exportCsv:
@@ -2781,12 +2788,13 @@ export const es = {
       + "resto se registra contra la granja e influirá en cómo se muestran los montos, las fechas y las "
       + "medidas una vez que ese formato esté disponible.",
     farmSettingsTimezone:
-      "La <strong>zona horaria</strong> es el día de la granja. Cada campo que registra <em>cuándo sucedió "
-      + "algo</em> — entrada diaria, lotes, agua, uso de alimento, compras de existencias, gastos, pedidos y pagos — se "
-      + "abre en ella y se niega a ir más allá para lo que usted registra, sea cual sea el día en el "
-      + "teléfono o la laptop que tiene en la mano, para que un dispositivo adelantado a la granja ya no "
-      + "pueda ofrecer una fecha que el guardado luego rechace. Las fechas que están destinadas a estar en "
-      + "el futuro no tienen tope — la <strong>fecha de vencimiento</strong> de un artículo en existencia.",
+      "La <strong>zona horaria</strong> es el día de la granja. Cada campo que registra <em>cuándo "
+      + "sucedió algo</em> — entrada diaria, lotes, agua, uso de alimento, compras de existencias, gastos, "
+      + "pedidos y pagos — se abre en ella y se niega a ir más allá para lo que usted registra, sea cual "
+      + "sea el día en el teléfono o la laptop que tiene en la mano, así que un dispositivo adelantado a la "
+      + "granja no puede ofrecer una fecha que el guardado luego rechace. Las fechas destinadas a caer en "
+      + "el futuro no tienen tope, como la <strong>fecha de vencimiento</strong> de un artículo en "
+      + "existencia.",
     farmSettingsCurrency:
       "La <strong>moneda</strong> se bloquea en el momento en que la granja registra su primer monto — una "
       + "venta, un pago, un gasto, un producto con precio, o dinero gastado en alimento. El campo se "
@@ -2801,13 +2809,13 @@ export const es = {
       + "barra lateral vuelve a la marca de Cluckwork.",
     farmSettingsDateTimeFormat:
       "<strong>Formato de fecha</strong> y <strong>formato de hora</strong> ofrecen algunas opciones "
-      + "comunes en un menú desplegable — elija una y listo. ¿Necesita algo que no está en la lista? "
-      + "Elija <strong>Personalizado…</strong> para escribir el suyo. Toda fecha en una lista — registros "
-      + "diarios, lotes de huevos, pedidos, pagos, gastos, registros de alimento y agua, informes — se "
-      + "muestra con el formato de fecha (sin uno definido, la forma corta propia de la configuración "
-      + "regional de la granja), así que abra cualquier lista para ver un valor personalizado; las "
-      + "opciones predefinidas son siempre seguras. Nada muestra una hora mediante el formato de hora "
-      + "todavía, así que un valor de hora personalizado incorrecto no sería visible hoy.",
+      + "comunes en un menú desplegable. Para algo que no esté en la lista, elija "
+      + "<strong>Personalizado…</strong> y escriba el suyo. Toda fecha en una lista — registros diarios, "
+      + "lotes de huevos, pedidos, pagos, gastos, registros de alimento y agua, informes — se muestra con "
+      + "el formato de fecha (sin uno definido, la forma corta propia de la configuración regional de la "
+      + "granja), así que abra cualquier lista para ver un valor personalizado; las opciones predefinidas "
+      + "son siempre seguras. Nada muestra una hora mediante el formato de hora todavía, así que un valor "
+      + "de hora personalizado incorrecto no sería visible hoy.",
     farmSettingsSquareLogo:
       "El logotipo se muestra en la barra lateral más o menos con la altura de una línea de texto. Tanto "
       + "una marca simple y bien recortada como un <strong>logotipo ancho</strong> se ven bien ahí — un "
@@ -2879,8 +2887,8 @@ export const es = {
       + "<strong>Compartir</strong>, luego <strong>Agregar a pantalla de inicio</strong>.",
     installHttps:
       "Instalar solo se ofrece a través de una dirección segura (<strong>https</strong>). Si su granja "
-      + "accede a Cluckwork en una dirección <strong>http</strong> simple, la opción simplemente no "
-      + "aparecerá — nada está roto, y la aplicación funciona exactamente como en el navegador.",
+      + "accede a Cluckwork en una dirección <strong>http</strong> simple, la opción no aparecerá — nada "
+      + "está roto, y la aplicación funciona exactamente como en el navegador.",
     installOffline:
       "Instalar <strong>no</strong> hace que la aplicación funcione sin conexión. Todavía necesita una "
       + "conexión para cargar y guardar; solo las propias pantallas de la aplicación se guardan en el "
@@ -3034,20 +3042,16 @@ export const es = {
     // (machine-drafted, pending native review)
     glossaryFarmCodeTerm: "Código de granja",
     glossaryFarmCodeDef:
-      "El código corto que identifica a su granja en la pantalla de inicio de sesión. Lo "
-      + "escribe antes que su correo electrónico, porque la misma dirección puede existir en "
-      + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas. "
-      + "Rara vez cambia, pero un operador puede cambiarlo si lo solicita; a partir de "
-      + "entonces inicia sesión con el código nuevo. "
-      + "La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
-      + "ha iniciado sesión en este dispositivo, la más reciente primero, y se las ofrece "
-      + "una por una — incluso si solo recuerda una — en un selector, para que normalmente "
-      + "no tenga que volver a escribir el código. Cada entrada puede olvidarse "
-      + "individualmente con su control Olvidar, tras una confirmación; eso elimina solo "
-      + "esa granja de este dispositivo y no borra su idioma, su tema ni ninguna otra "
-      + "preferencia. Un enlace como /login?farm=<code> se impone y rellena el código por "
-      + "usted, sin mostrar la lista. Si no sabe el código de su granja, pregunte a su "
-      + "administrador: puede consultarlo.",
+      "El código corto que identifica a su granja en la pantalla de inicio de sesión. Lo escribe antes "
+      + "que su correo electrónico, porque la misma dirección puede existir en varias granjas y solo el "
+      + "código indica a cuál se refiere. Está en minúsculas. Rara vez cambia, pero un operador puede "
+      + "cambiarlo si lo solicita; a partir de entonces inicia sesión con el código nuevo. La pantalla de "
+      + "inicio de sesión recuerda las últimas 10 granjas con las que ha iniciado sesión en este "
+      + "dispositivo, la más reciente primero, y las ofrece en un selector aunque solo recuerde una, para "
+      + "que normalmente no tenga que volver a escribir el código. El control Olvidar de una granja la "
+      + "elimina de este dispositivo tras una confirmación, y no borra nada más: ni su idioma, ni su tema, "
+      + "ni ninguna otra preferencia. Un enlace como /login?farm=<code> rellena el código por usted y omite "
+      + "la lista. Si no sabe el código de su granja, pregunte a su administrador.",
 
     glossaryLoginEmailTerm: "Correo de inicio de sesión",
     glossaryLoginEmailDef:
@@ -3186,8 +3190,9 @@ export const es = {
     glossarySalesLineDef:
       "Un producto en un pedido: una cantidad entera en unidades de venta, con precio por unidad (el "
       + "precio puede tener decimales); los huevos detrás de ella son la cantidad × el conteo de huevos de "
-      + "la unidad."
-      + " Al actualizar un pedido, la edición termina si ya no es un borrador o la línea desapareció. Los campos sin editar adoptan los valores recibidos. Si hay cambios sin guardar y la cantidad o el precio recibidos cambiaron, se conservan sus datos y se bloquea guardar. Elija recargar línea para reemplazar ambos campos con los últimos valores recibidos. Aquí no se detectan cambios posteriores a la última consulta.",
+      + "la unidad. Si el pedido se actualiza mientras edita, los campos sin editar adoptan los valores "
+      + "recibidos, y los que tienen cambios sin guardar se conservan con guardar bloqueado hasta que elija "
+      + "recargar línea.",
 
     glossaryConfirmOrderTerm: "Confirmar (pedido)",
     glossaryConfirmOrderDef:
@@ -3204,24 +3209,22 @@ export const es = {
     glossaryListPriceTerm: "Precio de lista",
     glossaryListPriceDef:
       "El precio del producto en el momento en que se agregó la línea, guardado junto con la línea para "
-      + "que un cambio de precio posterior nunca reescriba un pedido pasado. Se muestra como \"Sin precio "
-      + "de lista\" cuando no hay nada comparable con qué medirla — un hecho registrado. Una línea "
+      + "que un cambio de precio posterior nunca reescriba un pedido pasado. \"Sin precio de lista\" "
+      + "significa que no había nada comparable con qué medirla, lo cual es un hecho registrado. Una línea "
       + "tomada antes de que la granja empezara a guardar precios de lista muestra \"Precio de lista no "
-      + "registrado\": eso es información que falta, no una respuesta, así que nadie puede decir si la "
-      + "línea llevó descuento.",
+      + "registrado\": información que falta y no una respuesta, así que nadie puede decir si la línea "
+      + "llevó descuento.",
 
     glossaryDiscountTerm: "Descuento",
     glossaryDiscountDef:
-      "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea — y sumado "
-      + "para todo el pedido, como un monto y un porcentaje del valor de lista de las líneas que tienen "
-      + "precio de lista. Un pedido que tiene líneas pero ninguna con precio de lista lo dice en lugar de "
-      + "leerse como cero — y cuando todas esas líneas se tomaron antes de que la granja empezara a guardar "
-      + "precios de lista, dice que el pedido es anterior a ese registro. Basta una línea que simplemente "
-      + "no tenía precio de lista para descartarlo. Un pedido sin líneas no tiene nada que medir y se lee "
-      + "como una raya en la lista "
-      + "de pedidos, sin línea de descuento en el pedido mismo. Es "
-      + "distinto del descuento a nivel de pedido que un vendedor puede ingresar — este se calcula solo, "
-      + "nunca se ingresa.",
+      "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea y sumado "
+      + "para todo el pedido, como un monto y un porcentaje del valor de lista de las líneas que lo tienen. "
+      + "Un pedido que tiene líneas pero ninguna con precio de lista lo dice en lugar de leerse como cero, "
+      + "y cuando todas esas líneas son anteriores a los precios de lista, dice que el pedido es anterior a "
+      + "ese registro; basta una línea que simplemente no tenía precio de lista para descartarlo. Un pedido "
+      + "sin líneas no tiene nada que medir: una raya en la lista de pedidos, y ninguna línea de descuento "
+      + "en el pedido mismo. Es distinto del descuento a nivel de pedido que un vendedor puede ingresar — "
+      + "este se calcula solo, nunca se ingresa.",
 
     glossaryDiscountReasonTerm: "Motivo del descuento",
     glossaryDiscountReasonDef:
@@ -3234,27 +3237,25 @@ export const es = {
 
     glossaryDiscountCeilingTerm: "Tope de descuento",
     glossaryDiscountCeilingDef:
-      "El mayor descuento que un usuario de Ventas o Trabajador puede poner en una línea de "
-      + "venta. Un propietario lo fija en Configuración de la granja como Descuento máximo. Un "
-      + "propietario o gerente puede confirmar un pedido que lo supere. Una línea por encima "
-      + "del tope se marca como Sobre el máximo, y Confirmar pedido queda bloqueado hasta que "
-      + "se cambie el precio de la línea o un propietario o gerente confirme el pedido sin "
-      + "tocarlo. Una granja sin tope funciona exactamente como antes, y un tope de 0 no es lo "
-      + "mismo que ninguno: significa que no se puede dar ningún descuento.",
+      "El mayor descuento que un usuario de Ventas o Trabajador puede poner en una línea de venta. Un "
+      + "propietario lo fija en Configuración de la granja como Descuento máximo. Un propietario o gerente "
+      + "puede confirmar un pedido que lo supere. Una línea por encima del tope se marca como Sobre el "
+      + "máximo, y Confirmar pedido queda bloqueado hasta que se cambie el precio de la línea o un "
+      + "propietario o gerente confirme el pedido sin tocarlo. Una granja sin tope no tiene límite, y un "
+      + "tope de 0 no es lo mismo que ninguno: significa que no se puede dar ningún descuento.",
 
     glossaryAboveListTerm: "Sobre el precio de lista",
     glossaryAboveListDef: "Una línea que se vendió por más de su propio precio de lista.",
 
     glossaryOutstandingTerm: "Pendiente",
     glossaryOutstandingDef:
-      "Lo que todavía debe un pedido confirmado: su total menos cada pago que no se haya anulado. "
-      + "La lista de pedidos lo muestra en su propia columna Pendiente, y Solo pendientes reduce la "
-      + "lista a los pedidos que aún deben algo — un pedido pagado en parte cuenta como pendiente, "
-      + "porque lo está. Un pedido saldado dice Liquidado en lugar de un cero. Los pedidos en "
-      + "borrador, cancelados y anulados muestran una raya: los pagos solo se aplican a pedidos "
-      + "confirmados, así que no tienen monto pendiente del que hablar. Anular un pago hace que el "
-      + "monto pendiente vuelva a crecer. Solo los usuarios de Ventas, Gerente y propietario ven "
-      + "esta columna.",
+      "Lo que todavía debe un pedido confirmado: su total menos cada pago que no se haya anulado. La "
+      + "lista de pedidos lo muestra en su propia columna Pendiente, y Solo pendientes reduce la lista a "
+      + "los pedidos que aún deben algo — un pedido pagado en parte cuenta como pendiente. Un pedido "
+      + "saldado dice Liquidado en lugar de un cero. Los pedidos en borrador, cancelados y anulados "
+      + "muestran una raya: los pagos solo se aplican a pedidos confirmados, así que no tienen monto "
+      + "pendiente. Anular un pago hace que el monto pendiente vuelva a crecer. Solo los usuarios de "
+      + "Ventas, Gerente y propietario ven esta columna.",
 
     glossaryInventoryItemTerm: "Artículo de inventario",
     glossaryInventoryItemDef:
@@ -3327,7 +3328,7 @@ export const es = {
     glossaryCurrencyLockDef:
       "La moneda de la granja deja de ser editable en cuanto algo registra un monto en ella — una venta, "
       + "un pago, un gasto, un producto con precio, dinero gastado en alimento. El campo se muestra "
-      + "bloqueado con el motivo. Nada de lo ya registrado se vuelve a valorar jamás, que es todo el punto.",
+      + "bloqueado con el motivo. Nada de lo ya registrado se vuelve a valorar jamás.",
 
     glossaryFarmLogoTerm: "Logotipo de la granja",
     glossaryFarmLogoDef:
@@ -3339,18 +3340,17 @@ export const es = {
     glossaryFarmBannerTerm: "Banner de la granja",
     glossaryFarmBannerDef:
       "Una segunda imagen, independiente, que se muestra a tamaño completo en una pantalla de bienvenida "
-      + "justo después de iniciar sesión, una vez por sesión. Separada del logotipo de la granja anterior "
-      + "— una granja puede tener un logotipo, un banner, ambos, o ninguno. Mismas reglas de imagen fija "
+      + "justo después de iniciar sesión, una vez por sesión. Separada del logotipo de la granja anterior: "
+      + "una granja puede tener un logotipo, un banner, ambos, o ninguno. Mismas reglas de imagen fija "
       + "PNG/JPEG/WebP, su propio límite de tamaño más grande (5 MB por defecto), se sube desde "
-      + "Configuración de la granja. El dispositivo que la muestra guarda la imagen en caché después de esa "
-      + "pantalla de bienvenida, así que en una visita posterior también puede aparecer en la pantalla de "
-      + "inicio de sesión antes de ingresar una contraseña — pero solo mientras el campo de código de granja "
-      + "nombre esa misma granja; escribir o elegir un código distinto lo oculta de inmediato, y un enlace "
-      + "que solo nombra un código de granja nunca muestra su banner. Si un código de granja se reasigna "
-      + "después a otra granja, un dispositivo que ya guardó en caché el banner del titular anterior puede "
-      + "seguir mostrándolo brevemente, hasta que el siguiente inicio de sesión de ese dispositivo confirme "
-      + "a qué granja pertenece el código ahora y corrija la discrepancia — nunca una divulgación nueva, "
-      + "solo una imagen obsoleta en un dispositivo que ya la tenía.",
+      + "Configuración de la granja. El dispositivo que la muestra guarda la imagen en caché, así que en "
+      + "una visita posterior también puede aparecer en la pantalla de inicio de sesión antes de ingresar "
+      + "una contraseña — pero solo mientras el campo de código de granja nombre esa misma granja. Escribir "
+      + "o elegir un código distinto lo oculta de inmediato, y un enlace que solo nombra un código de "
+      + "granja nunca muestra su banner. Si un código de granja se reasigna después a otra granja, un "
+      + "dispositivo que guarda en caché el banner del titular anterior puede seguir mostrándolo hasta que "
+      + "el siguiente inicio de sesión de ese dispositivo confirme a qué granja pertenece el código ahora. "
+      + "Eso es una imagen obsoleta en un dispositivo que ya la tenía, nunca una divulgación nueva.",
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:
