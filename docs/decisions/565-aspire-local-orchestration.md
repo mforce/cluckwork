@@ -148,5 +148,25 @@ only `aspire run` is caught by no CI job.
   drift from the Compose pins.
 
 **Nothing enforces the "teach the AppHost about a new config key" half of this
-rule; it relies on review** — the same exposure #370 records for the simulation
-harness, and for the same reason: the AppHost is deliberately not in CI.
+rule; it relies on review.** `AppHost.Tests` does run in CI, as `ci.yml`'s
+`apphost` matrix leg, and it pins the entries the AppHost already declares. What
+no test does is compare the API's set of REQUIRED configuration keys with what
+the AppHost wires, so a newly required key passes every check and surfaces only
+under `aspire run`. #370 records the same exposure for the simulation harness. In
+both places a person maintains a second copy by hand, and no guard derives that
+copy from the first. See the amendment at the end of this file.
+
+## Amendment, 2026-09-25: `AppHost.Tests` is in CI; the required-key set is not (#956)
+
+"The AppHost is deliberately not in CI" is wrong as written. `ci.yml`'s `tests`
+matrix carries an `apphost` leg (`ci.yml:189`) running
+`tests/Cluckwork.AppHost.Tests`, and `AppHostModelTests` asserts the model the
+AppHost declares, including the `SharedState__Redis__ConnectionString` entry and
+the `WithReference(database, connectionName: "Default")` relationship.
+
+What no job covers is the claim this rule rests on. Those tests pin the entries
+the AppHost already declares. Nothing derives the API's set of REQUIRED
+configuration keys and checks that the AppHost supplies them. So a newly required
+key still passes every check, and it surfaces only when someone runs `aspire run`
+locally and the API refuses to boot. That is the gap, and it is why a new required
+key is taught to `src/Cluckwork.AppHost/Program.cs` in the same pull request.

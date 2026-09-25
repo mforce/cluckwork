@@ -58,10 +58,12 @@ still fails.
 Keying the tier on the folder (`src/Cluckwork.Api/Mcp/` existing) was rejected:
 that folder does not exist yet, so a guard keyed on it would be red from the
 moment this slice lands until #806 merges, training everyone to ignore it
-exactly the way a chronically-red CI check does. `Dormant` is the alternative —
-green today, informational, and it goes stale (not red) the day #806 adds a
-type under the namespace or maps `/mcp`, which is the signal for that PR's
-author to drop the real-tree Dormant assertion rather than route around it.
+exactly the way a chronically-red CI check does. `Dormant` is the alternative.
+It is green today and informational. The day #806 adds a type under the
+namespace or maps `/mcp`, the row stops being dormant and
+`AdapterTierRealTreeTests.McpTierRow_IsDormantToday` goes red. That failure is
+the signal for that PR's author to drop the real-tree Dormant assertion rather
+than route around it.
 
 Binding the tool-attribute detection to the actual
 `ModelContextProtocol.Server.McpServerToolType` symbol was rejected for the
