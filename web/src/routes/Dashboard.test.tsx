@@ -2275,3 +2275,101 @@ describe("Dashboard Recent orders paging (#915)", () => {
     expect(mockOrders.mock.calls.filter(([p]) => (p?.offset ?? 0) === 5)).toHaveLength(1);
   });
 });
+
+// #941 — the expanded chart. The card keeps #940's fourteen-day ceiling; the
+// month and the quarter live behind the Expand control, on a surface wide
+// enough to keep every bar 22px.
+describe("Dashboard expanded Lay rate chart (#941)", () => {
+  const nextDay = (iso: string) => daysBefore(iso, -1);
+  const spanReport = (from: string, to: string) => {
+    const days = [];
+    for (let d = from; d <= to; d = nextDay(d)) days.push(day(d, 100));
+    return report(null, days);
+  };
+  const anyWindow = (from: string, to: string) => Promise.resolve(
+    from === to ? report(null, [day(from, 321)]) : spanReport(from, to),
+  );
+  const cardBars = async () =>
+    within((await panel("Lay rate trend")).querySelector(".daystrip") as HTMLElement).getAllByRole("button");
+  const expandedBars = () =>
+    within(within(screen.getByRole("dialog")).getByRole("group", { name: /^Eggs per day, / })).getAllByRole("button");
+  const open = async (user: ReturnType<typeof userEvent.setup>) => {
+    const rendered = renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    await user.click(screen.getByRole("button", { name: "Expand the lay rate chart" }));
+    await screen.findByRole("dialog");
+    return rendered;
+  };
+
+  beforeEach(() => {
+    stubMatchMedia(true);
+    mockReport.mockImplementation(anyWindow);
+  });
+  afterEach(() => clearBoundAccount());
+
+  it("costs a reader who never expands nothing at all", async () => {
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /^Eggs per day, / });
+    expect(mockReport.mock.calls.some(([from]) => from === daysBefore(today, 30))).toBe(false);
+  });
+
+  it("opens on its own thirty-day window and leaves the card's fortnight alone", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await waitFor(() => expect(expandedBars()).toHaveLength(30));
+    expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 30), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+    expect(await cardBars()).toHaveLength(14);
+  });
+
+  it("hands focus back to the control that opened it", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await user.click(screen.getByRole("button", { name: "Back to dashboard" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Expand the lay rate chart" }));
+  });
+
+  it("takes a quarter where the card stops at a fortnight", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    const dialog = screen.getByRole("dialog");
+    await user.selectOptions(within(dialog).getByLabelText("Range"), "custom");
+    fireEvent.change(within(dialog).getByLabelText("From"), { target: { value: daysBefore(today, 90) } });
+    fireEvent.change(within(dialog).getByLabelText("To"), { target: { value: daysBefore(today, 1) } });
+    await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(expandedBars()).toHaveLength(90));
+    expect(mockReport).toHaveBeenCalledWith(
+      daysBefore(today, 90), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+  });
+
+  it("refuses the day past the quarter, naming its own ceiling rather than the card's", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    const dialog = screen.getByRole("dialog");
+    await user.selectOptions(within(dialog).getByLabelText("Range"), "custom");
+    fireEvent.change(within(dialog).getByLabelText("From"), { target: { value: daysBefore(today, 91) } });
+    fireEvent.change(within(dialog).getByLabelText("To"), { target: { value: daysBefore(today, 1) } });
+    await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+    expect(await within(dialog).findByText("Choose a range of at most 90 days.")).toBeInTheDocument();
+  });
+
+  it("remembers its own window on this device, without touching the card's", async () => {
+    const user = userEvent.setup();
+    bindAccount("11111111-1111-4111-8111-111111111111");
+    const first = await open(user);
+    const dialog = screen.getByRole("dialog");
+    await user.selectOptions(within(dialog).getByLabelText("Range"), "custom");
+    fireEvent.change(within(dialog).getByLabelText("From"), { target: { value: daysBefore(today, 60) } });
+    fireEvent.change(within(dialog).getByLabelText("To"), { target: { value: daysBefore(today, 1) } });
+    await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(expandedBars()).toHaveLength(60));
+    first.unmount();
+
+    // A fresh mount, so the answer comes out of storage rather than out of
+    // React state — which is what makes writing to the card's key visible.
+    await open(user);
+    await waitFor(() => expect(expandedBars()).toHaveLength(60));
+    expect(within(await panel("Lay rate trend")).getByLabelText("Range")).toHaveValue("14");
+  });
+});

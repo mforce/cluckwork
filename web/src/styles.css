@@ -1639,6 +1639,26 @@ label.check {
   box-sizing: border-box;
 }
 
+/* Keyboard focus on a SELECTED day (#941). `.day.on` is (0,2,0) and the global
+   `:focus-visible` (0,1,0) loses to it, so a focused day used to draw exactly
+   the ink ring a HOVERED one draws — no focus indicator at all. Focusing a
+   slot also selects it, so this pair is the only state that needs answering.
+
+   The ring is two-toned because no single tone clears 3:1 against both of its
+   neighbours. `--focus` is the brand accent, which sits at 1.20-1.55 against
+   the `--ink` a selected bar is filled with, in every brand and both themes
+   (DayStrip.focus.test.ts measures all eight). The inner tone is `--surface`,
+   `--ink`'s own opposite by construction, so the accent ring is never read
+   against the bar it rings. */
+.day.on:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.day.on:focus-visible > i {
+  outline: 2px solid var(--surface);
+}
+
 /* The arrow, anchored to the slot element. Never positioned by index
    arithmetic: the slots carry a 4px gap plus the 9px week break, so
    (i + 0.5) / n is not where a slot actually is. 5px of arrow in the dock's
@@ -1783,6 +1803,408 @@ label.check {
   margin: 0.2rem 0 0;
   font-size: 0.8125rem;
   color: var(--muted);
+}
+
+/* ------------------------------ The expanded Lay rate chart (#941)
+   Concept C of the #941 mockup lab (docs/designs/941-expand-chart/), chosen by
+   the owner on 2026-09-24: an overview map of the whole range above a daily
+   window that scrolls, both drawn from the same day slots the card uses.
+
+   The frame is the post-login splash's, above — fixed full-viewport backdrop,
+   content centred on both axes, one way out beneath it, and a fade only under
+   prefers-reduced-motion: no-preference. Two owner departures: the column is
+   wider than the splash's 640px because the subject is ninety bars rather than
+   one image, and it follows the APP THEME rather than forcing a dark lightbox. */
+.lay-expand-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--canvas);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lay-expand-backdrop {
+    animation: brand-splash-fade-in 0.2s ease-out;
+  }
+}
+
+.lay-expand {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: min(94vw, 1180px);
+  min-height: 0;
+}
+
+.lay-expand-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1.25rem 1.375rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-panel);
+}
+
+.lay-expand-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.125rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 1rem;
+}
+
+.lay-expand-title {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.lay-expand-context {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.lay-expand-controls {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.lay-expand-range {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lay-expand-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.lay-expand-pager {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* "Whole range · 90" on the left, the range's own dates on the right. */
+.lay-expand-maplabel {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.625rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+/* The map: a second, UNSELECTABLE plot of the same range, always fitting. Its
+   bars are the accent at reduced opacity so the box, drawn in --ink, never has
+   to compete with them in either theme. */
+.daymap {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 42px;
+  margin-bottom: 0.625rem;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rule);
+  cursor: grab;
+  /* So a press is read as a jump rather than first interpreted as a page pan. */
+  touch-action: none;
+}
+
+.daymap.is-static {
+  cursor: default;
+}
+
+.daymap i {
+  flex: 1 1 0;
+  min-width: 0;
+  background: color-mix(in oklab, var(--stat-accent) 55%, transparent);
+}
+
+.daymap i.daymap-partial {
+  background: color-mix(in oklab, var(--stat-accent) 28%, transparent);
+}
+
+.daymap i.daymap-none {
+  background: transparent;
+}
+
+/* A lens over the map rather than a shape on it: a 2px --ink rule and a wash
+   light enough to leave the bars under it readable. --ink is near-black on a
+   light map and near-white on a dark one, so the box carries the same contrast
+   in both directions. The 1px --surface halo keeps it legible where it crosses
+   a tall bar. */
+.window-box {
+  position: absolute;
+  top: -3px;
+  bottom: 1px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--ink) 7%, transparent);
+  /* A halo rather than a drop shadow (#651): the box crosses tall bars, and
+     one hairline of surface is what keeps its own rule legible over them. */
+  outline: 1px solid var(--surface);
+  pointer-events: none;
+}
+
+/* Nothing is hidden, so the box is a position readout saying "you are looking
+   at all of it" rather than a control. */
+.daymap.is-static .window-box {
+  opacity: 0.35;
+}
+
+.lay-expand-figure {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lay-expand-plot {
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
+/* The axis gutter sits OUTSIDE the scroller rather than sticky inside it: same
+   result, and a momentum fling cannot briefly drag it away. */
+.lay-expand-axis {
+  position: relative;
+  flex: none;
+  width: 3.625rem;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  border-right: 1px solid var(--rule);
+}
+
+.lay-expand-axis-top,
+.lay-expand-axis-zero {
+  position: absolute;
+  right: 0.5rem;
+  white-space: nowrap;
+}
+
+.lay-expand-axis-top {
+  top: 0;
+}
+
+.lay-expand-axis-zero {
+  bottom: 1.5rem;
+}
+
+.lay-expand-window {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.lay-expand-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  padding-bottom: 6px;
+}
+
+/* The edge cue is the token the scrolling tables already use (#150), so a
+   clipped strip announces itself the same way everywhere. It lives OUTSIDE the
+   scroller: positioned inside one it is placed against the scrolled content,
+   which drew a pale band down the middle of the chart (#941, lab finding 5). */
+.scroll-cue {
+  position: absolute;
+  top: 0;
+  bottom: 6px;
+  width: 36px;
+  pointer-events: none;
+}
+
+.scroll-cue.left {
+  left: 0;
+  background: linear-gradient(to right, var(--surface), transparent);
+}
+
+.scroll-cue.right {
+  right: 0;
+  background: linear-gradient(to left, var(--surface), transparent);
+}
+
+/* The window itself: #912's slot at every range (owner, 2026-09-24), never
+   stretched to fill the column. `justify-content: flex-end` is the whole of
+   "the newest day sits at the right edge": a range too short to fill the
+   region leaves its empty space before the OLDEST day. */
+.bigstrip {
+  --slot: 22px;
+  --gap: 4px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: var(--gap);
+  width: max-content;
+  min-width: 100%;
+  height: min(46vh, 20rem);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.bigstrip .day {
+  flex: 0 0 var(--slot);
+  width: var(--slot);
+}
+
+/* The week hairline without the card's 9px jog. Over ninety days that jog is
+   more than 100px of drift, and `dayWindow`'s arithmetic — the box, the cues,
+   the tab stop — is written against slots and gaps alone. */
+.lay-expand .day-week {
+  margin-left: 0;
+}
+
+.lay-expand .day-week::before {
+  left: calc(var(--gap) / -2);
+}
+
+/* The date rule under the window carries more than two endpoints: it scrolls
+   with the bars, one label a week counted back from the newest day, so a day
+   in the middle of a quarter can be placed without counting bars. */
+.datebar {
+  --slot: 22px;
+  --gap: 4px;
+  display: flex;
+  gap: var(--gap);
+  width: max-content;
+  min-width: 100%;
+  justify-content: flex-end;
+  margin-top: 6px;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.datebar > span {
+  flex: 0 0 var(--slot);
+  width: var(--slot);
+  overflow: visible;
+}
+
+.date-tick {
+  display: inline-block;
+  font-weight: 400;
+  white-space: nowrap;
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+
+/* The two labels that would otherwise paint outside the strip they belong to,
+   which would put pixels into the scroll region that no slot accounts for. */
+.date-tick.is-start {
+  margin-left: 0;
+  transform: none;
+}
+
+.date-tick.is-end {
+  margin-left: 100%;
+  transform: translateX(-100%);
+}
+
+.lay-expand-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem 1.25rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.875rem;
+}
+
+.lay-expand-foot .trend-legend {
+  border-bottom-width: 0;
+  padding-bottom: 0;
+}
+
+.lay-expand-shown {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The way out, in the splash's own position under the panel, and the element
+   that takes focus when the view opens. */
+.lay-expand-leave {
+  align-self: center;
+}
+
+.lay-expand-hint {
+  display: block;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: -1.125rem;
+}
+
+@media (max-width: 900px) {
+  .lay-expand-backdrop {
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .lay-expand {
+    gap: 1rem;
+    max-width: 94vw;
+  }
+
+  .lay-expand-panel {
+    padding: 0.875rem 0.75rem 0.75rem;
+  }
+
+  .lay-expand-controls {
+    width: 100%;
+  }
+
+  .lay-expand-range {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lay-expand-axis {
+    width: 2.75rem;
+    font-size: 0.625rem;
+  }
+
+  .lay-expand-axis-top,
+  .lay-expand-axis-zero {
+    right: 0.3125rem;
+  }
+
+  .daymap {
+    height: 34px;
+    cursor: pointer;
+  }
+
+  /* #912's own phone gap. `DAY_GAP_PHONE_PX` is the same number, and
+     ExpandedLayRate.styles.test.ts fails if the two ever differ. */
+  .bigstrip,
+  .datebar {
+    --gap: 2px;
+  }
+
+  .lay-expand-leave {
+    align-self: stretch;
+  }
 }
 
 /* ---------------------------------- Stock stacked bar (#654, #777) */

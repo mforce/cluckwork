@@ -45,7 +45,7 @@ function declaredClasses(): Set<string> {
 }
 
 const exactDynamicValues = new Map<string, readonly string[]>([
-  ["components/DayStrip.tsx:s.kind", DAY_SLOT_KINDS],
+  ["components/DaySlots.tsx:s.kind", DAY_SLOT_KINDS],
   ["components/GradingChip.tsx:tone", GRADING_TONES],
   ["components/StatusBadge.tsx:variant", STATUS_BADGE_CLASSES],
   ["components/StockBar.tsx:s.colorIndex", Array.from({ length: GRADE_COLOURS }, (_, index) => String(index + 1))],

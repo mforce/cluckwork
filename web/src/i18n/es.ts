@@ -728,6 +728,20 @@ export const es = {
     rangeErrorFuture: "El período debe terminar el {{date}} o antes.",
     rangeErrorTooLong_one: "Elija un período de {{days}} día como máximo.",
     rangeErrorTooLong_other: "Elija un período de {{days}} días como máximo.",
+    // #941 — la vista ampliada: todo el período como mapa, con una ventana
+    // diaria que se desplaza debajo.
+    expandLabel: "Ampliar",
+    expandAriaLabel: "Ampliar el gráfico de tasa de postura",
+    expandClose: "Volver al panel",
+    expandEscapeHint: "Escape cierra",
+    expandPrev: "Días anteriores",
+    expandNext: "Días posteriores",
+    expandMapLabel_one: "Período completo · {{days}} día",
+    expandMapLabel_other: "Período completo · {{days}} días",
+    expandShown_one: "{{from}} – {{to}} de {{days}} día",
+    expandShown_other: "{{from}} – {{to}} de {{days}} días",
+    expandAllShown_one: "Se muestra {{days}} día completo",
+    expandAllShown_other: "Se muestran los {{days}} días",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
@@ -2220,7 +2234,13 @@ export const es = {
       + "diferencia de Informes, donde el rango puede llegar a hoy. Elija <strong>Todos los lotes</strong> "
       + "o un solo lote encima del gráfico para acotar toda la tarjeta a ese lote, incluidas las barras, la "
       + "integridad, Prom. y ambos períodos de postura. Con un solo lote accesible su nombre aparece sin "
-      + "selector.",
+      + "selector. <strong>Ampliar</strong> abre el mismo gráfico a pantalla completa, donde "
+      + "<strong>Período</strong> ofrece los últimos 30 días completos o un <strong>Período "
+      + "personalizado…</strong> de hasta 90. Sobre las barras hay un mapa de todo el período con un "
+      + "recuadro que marca los días en pantalla: desplace o deslice las barras para moverlo, o pulse el "
+      + "mapa para saltar allí. Las barras conservan el mismo ancho en cualquier período, así que el día "
+      + "más reciente queda siempre en el borde derecho. <strong>Volver al panel</strong> o Escape lo "
+      + "cierra, y el período de la tarjeta no cambia.",
     dashboardOrders: "<strong>Pedidos recientes</strong> muestra el cliente, importe y estado, con la cantidad de la primera línea y el nombre actual de su grado, cinco pedidos por página. Avanzar de página pide los cinco siguientes, así que el total aparece al llegar la última. +N indica líneas adicionales. Renombrar un grado también cambia su nombre en pedidos antiguos; si no está disponible, solo se muestra la cantidad.",
     dashboardStock: "<strong>Existencias disponibles</strong> muestra el total y una <strong>barra apilada</strong> de su composición por grado, seguida de una tabla de <strong>Grado</strong>, <strong>Cantidad</strong> y <strong>Proporción</strong>. Pase el puntero o enfoque una fila para resaltarla. Los huevos restringidos se indican aparte. Las cantidades coinciden con Existencias.",
 
@@ -3115,6 +3135,9 @@ export const es = {
 
     glossaryLayRateRangeTerm: "Período de la tasa de postura",
     glossaryLayRateRangeDef: "El período que dibuja la tarjeta Tasa de postura: los últimos 7 o 14 días completos, o un período personalizado de dos fechas de hasta 14 días. La tarjeta dibuja una barra por día y nada más grueso, así que un período más largo se rechaza en el formulario en vez de redibujarse a otra escala. El período siempre termina ayer o antes, la elección se recuerda en este dispositivo, y el % de postura compara el período elegido con el período anterior de la misma duración.",
+
+    glossaryExpandedLayRateChartTerm: "Gráfico ampliado de tasa de postura",
+    glossaryExpandedLayRateChartDef: "El control <strong>Ampliar</strong> de la tarjeta Tasa de postura abre el mismo gráfico a pantalla completa, donde <strong>Período</strong> ofrece los últimos 30 días completos o un <strong>Período personalizado…</strong> de hasta 90, recordado aparte del período de la tarjeta. Sobre las barras diarias hay un mapa de todo el período con un recuadro que marca los días en pantalla: desplazar o deslizar las barras mueve el recuadro, y pulsar el mapa desplaza la ventana allí. Los botones de paginación, Re Pág y Av Pág mueven la ventana sin mover la selección. Las barras conservan el mismo ancho en cualquier período, así que el día más reciente queda en el borde derecho y un período corto deja su espacio a la izquierda. <strong>Volver al panel</strong> o Escape lo cierra y devuelve el foco a Ampliar.",
 
     glossaryLayRateFlockScopeTerm: "Ámbito de lote de la tasa de postura",
     glossaryLayRateFlockScopeDef: "La tarjeta de Tasa de postura del panel puede mostrar Todos los lotes o un lote elegido. Toda la tarjeta sigue esa elección — la franja, la completitud, el promedio y ambos períodos de comparación de postura — y las cifras vienen del servidor, no de filtrar la vista de Todos los lotes. Los demás paneles del panel no cambian.",

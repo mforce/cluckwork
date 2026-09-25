@@ -782,7 +782,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
   // the section rendered perfectly happily with the misleading copy in it.
   it("tells the reader a sale quantity is a whole number, not that fractional amounts are typeable (#398)", () => {
     render(<HelpPage />);
-    expect(screen.getByText(/always a/i)).toBeInTheDocument();
+    // Anchored on the sentence's own words rather than on "always a", which
+    // matches any later prose containing "always at" as well.
+    expect(screen.getByText(/it is always a/i)).toBeInTheDocument();
     expect(screen.getByText(/stepped or typed/i)).toBeInTheDocument();
     expect(screen.getByText(/Decimals belong in prices/i)).toBeInTheDocument();
     // The retired wording must be gone, not merely joined by the new sentence —

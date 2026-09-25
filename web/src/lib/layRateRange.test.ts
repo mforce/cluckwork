@@ -1,7 +1,8 @@
 // web/src/lib/layRateRange.test.ts
 import { describe, it, expect } from "vitest";
 import {
-  DEFAULT_RANGE, MAX_RANGE_DAYS, RANGE_PRESETS, customRangeError, formatStoredRange,
+  DEFAULT_EXPANDED_RANGE, DEFAULT_RANGE, EXPANDED_RANGE_PRESETS, MAX_EXPANDED_RANGE_DAYS,
+  MAX_RANGE_DAYS, RANGE_PRESETS, customRangeError, formatStoredRange,
   parseStoredRange, trendWindow,
 } from "./layRateRange";
 
@@ -129,5 +130,48 @@ describe("remembered range (#914, #535 per-farm storage)", () => {
     expect(parseStoredRange("30", LATEST)).toBeNull();
     expect(parseStoredRange("2026-06-21..2026-07-20", LATEST)).toBeNull();
     expect(parseStoredRange("2026-05-01..2026-07-20", LATEST)).toBeNull();
+  });
+});
+
+// #941 — the same rules under the expanded chart's own ceiling. It scrolls, so
+// what it can draw is no longer what fits a column.
+describe("the expanded chart's range (#941)", () => {
+  it("offers 30 days and starts there", () => {
+    expect(EXPANDED_RANGE_PRESETS).toEqual([30]);
+    expect(DEFAULT_EXPANDED_RANGE).toEqual({ kind: "preset", days: 30 });
+    expect(MAX_EXPANDED_RANGE_DAYS).toBe(90);
+  });
+
+  it("plots a 30-day preset ending on the farm's yesterday", () => {
+    expect(trendWindow(DEFAULT_EXPANDED_RANGE, TODAY)).toEqual({
+      from: "2026-06-21", to: "2026-07-20", days: 30,
+      previousFrom: "2026-05-22", previousTo: "2026-06-20",
+    });
+  });
+
+  it("accepts a quarter and rejects the day past it", () => {
+    expect(customRangeError("2026-04-22", LATEST, LATEST, MAX_EXPANDED_RANGE_DAYS)).toBeNull();
+    expect(customRangeError("2026-04-21", LATEST, LATEST, MAX_EXPANDED_RANGE_DAYS)).toBe("tooLong");
+    // The card's own ceiling is untouched by any of this.
+    expect(customRangeError("2026-04-22", LATEST, LATEST)).toBe("tooLong");
+    expect(MAX_RANGE_DAYS).toBe(14);
+  });
+
+  it("remembers a window the expanded chart can draw, and forgets the card's", () => {
+    const presets = EXPANDED_RANGE_PRESETS;
+    const max = MAX_EXPANDED_RANGE_DAYS;
+    expect(parseStoredRange("30", LATEST, presets, max)).toEqual({ kind: "preset", days: 30 });
+    expect(parseStoredRange("2026-04-22..2026-07-20", LATEST, presets, max))
+      .toEqual({ kind: "custom", from: "2026-04-22", to: "2026-07-20" });
+    // 14 is the card's preset, not one of these, so it is not a remembered
+    // window here — the two surfaces keep separate memories.
+    expect(parseStoredRange("14", LATEST, presets, max)).toBeNull();
+    expect(parseStoredRange("2026-04-21..2026-07-20", LATEST, presets, max)).toBeNull();
+  });
+
+  it("writes a window back in the form it reads", () => {
+    expect(formatStoredRange({ kind: "preset", days: 30 })).toBe("30");
+    expect(formatStoredRange({ kind: "custom", from: "2026-04-22", to: "2026-07-20" }))
+      .toBe("2026-04-22..2026-07-20");
   });
 });
