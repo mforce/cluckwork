@@ -1566,6 +1566,31 @@ describe("Dashboard low-stock floors (#911)", () => {
     expect(within(stock).getByText("2 grades are below their low-stock floor")).toBeInTheDocument();
   });
 
+  it("drops a stale warning when a later stock read fails", async () => {
+    // A warning is a claim about the farm right now, so a stock read that
+    // failed must not leave the previous one's claim on screen. The house
+    // facts come from their own read and stay.
+    const user = userEvent.setup();
+    mockFlocks
+      .mockRejectedValueOnce(new Error("flock list down"))
+      .mockResolvedValue([flock("f1", "Active"), flock("f2", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 178)]); // f2 missing
+    mockStock
+      .mockResolvedValueOnce([STOCK[0], below("Cracked", 1500, 2000)])
+      .mockRejectedValue(new Error("stock down"));
+
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Cracked stock is 500 below floor")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Flock f2 not recorded")).toBeInTheDocument();
+    expect(screen.queryByText(/below floor/)).not.toBeInTheDocument();
+    const stock = await panel("Stock");
+    expect(within(stock).getByText("Could not load.")).toBeInTheDocument();
+    expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
+  });
+
   it("marks the ledger row and captions the panel without relying on colour", async () => {
     mockStock.mockResolvedValue([STOCK[0], below("Cracked", 1500, 2000)]);
     renderWithProviders(<Dashboard />);

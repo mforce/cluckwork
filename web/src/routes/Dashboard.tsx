@@ -285,7 +285,11 @@ export function Dashboard() {
       setEntries(rows); setEntriesTruncated(truncated);
     }).catch(() => { if (!cancelled) setEntriesFailed(true); }).finally(settle);
     stockRead.then((rows) => { if (!cancelled) setStock(rows); })
-      .catch(() => { if (!cancelled) setStockFailed(true); }).finally(settle);
+      // Unlike the other two panels, a failed stock read DROPS what it had: a
+      // stale count reads as old, but a stale below-floor warning reads as
+      // true. The panel shows its error, the brief's fact goes with it, and
+      // the house facts stand on their own read.
+      .catch(() => { if (!cancelled) { setStock(null); setStockFailed(true); } }).finally(settle);
 
     // The page-level verdict still needs every answer, because "everything
     // failed" is only true once nothing is outstanding.

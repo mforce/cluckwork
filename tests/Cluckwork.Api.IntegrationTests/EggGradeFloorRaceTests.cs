@@ -22,11 +22,10 @@ public sealed class EggGradeFloorRaceFactory : CluckworkWebApplicationFactory
     }
 }
 
-// Holds the first N readers of an EggGrade at their SELECT until all N have
-// arrived, then releases them together. Each request reads the grade once
-// before it writes, so no single request can satisfy the count alone: the
-// rendezvous is what makes "both writers saw the same Version" a fact rather
-// than a hope about thread timing.
+// Holds the first N readers of an EggGrade until all N have EXECUTED their
+// SELECT. Releasing before the statements run proves nothing: one request could
+// then read, update and commit before the other read at all, and both would
+// correctly return 204. One read per request, so one cannot satisfy N alone.
 public sealed class GradeReadRendezvousInterceptor : DbCommandInterceptor
 {
     private readonly Lock gate = new();
@@ -44,8 +43,8 @@ public sealed class GradeReadRendezvousInterceptor : DbCommandInterceptor
         }
     }
 
-    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
         CancellationToken cancellationToken = default)
     {
         TaskCompletionSource? wait = null;
