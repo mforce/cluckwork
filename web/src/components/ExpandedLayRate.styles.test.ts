@@ -48,6 +48,14 @@ describe("the expanded chart's slot geometry (#941)", () => {
     expect(bodyOf(".datebar")).toMatch(/justify-content:\s*flex-end/);
   });
 
+  it("keeps the date rule's end label out of the region's scrollable width", () => {
+    // Measured at 1280: a 41-day range that fits reported `scrollWidth` 1140
+    // against `clientWidth` 1076, because the end label's layout box hangs
+    // past the strip even though a transform paints it back inside. The chart
+    // opened scrolled 64px past its own first bars.
+    expect(value(".datebar", "overflow")).toBe("hidden");
+  });
+
   it("drops the card's week jog, which `stripWidth` does not account for", () => {
     // 9px every seventh day is over 100px of drift across a quarter, and every
     // figure `dayWindow` returns would carry it.

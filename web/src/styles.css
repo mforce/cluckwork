@@ -1818,7 +1818,11 @@ label.check {
 .lay-expand-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* MUI's own modal layer. The splash sits at 55 because it renders before the
+     shell exists and has nothing to out-stack; this one opens from inside the
+     shell, where the permanent Drawer is at `theme.zIndex.drawer` (1200) and
+     would otherwise paint the sidebar straight over the chart. */
+  z-index: 1300;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1842,12 +1846,20 @@ label.check {
   width: 100%;
   max-width: min(94vw, 1180px);
   min-height: 0;
+  /* The safety net, not the normal path: the column is sized to fit at both
+     captured viewports. A locale that runs long enough to overflow anyway
+     scrolls here rather than squashing the panel, which is what put the plot
+     on top of the legend at 390 before `.lay-expand-plot` stopped shrinking. */
+  overflow-y: auto;
 }
 
 .lay-expand-panel {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  /* Never shrunk: a squashed panel does not reflow, it paints its own plot
+     over the legend and the date rule below it (measured at 390, where a
+     320px strip sat in a 298px plot). */
+  flex: none;
   padding: 1.25rem 1.375rem 1rem;
   background: var(--surface);
   border: 1px solid var(--rule);
@@ -1974,13 +1986,12 @@ label.check {
 .lay-expand-figure {
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 .lay-expand-plot {
   display: flex;
   align-items: stretch;
-  min-height: 0;
+  flex: none;
 }
 
 /* The axis gutter sits OUTSIDE the scroller rather than sticky inside it: same
@@ -2090,6 +2101,13 @@ label.check {
   width: max-content;
   min-width: 100%;
   justify-content: flex-end;
+  /* The end label is laid out 22px into its slot and only PAINTED back inside
+     it by a transform, so its layout box hangs 64px past the strip. Left to
+     propagate, that is 64px of scroll the chart has no days for: measured at
+     1280, a 41-day range that fits reported `scrollWidth` 1140 against
+     `clientWidth` 1076 and opened scrolled past its own first bars. Clipped
+     here, the region's scrollable width is the strip's and nothing else. */
+  overflow: hidden;
   margin-top: 6px;
   font-size: 0.6875rem;
   color: var(--muted);
@@ -2193,6 +2211,12 @@ label.check {
   .daymap {
     height: 34px;
     cursor: pointer;
+  }
+
+  /* A shorter plot, so the whole panel plus its one way out fits an 844px
+     phone with the custom-range form open — the tallest state it has. */
+  .bigstrip {
+    height: min(32vh, 15rem);
   }
 
   /* #912's own phone gap. `DAY_GAP_PHONE_PX` is the same number, and
