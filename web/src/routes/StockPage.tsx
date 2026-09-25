@@ -543,7 +543,7 @@ export function StockPage() {
                   boxShadow: "inset 4px 0 var(--warn)",
                 }),
               }}>
-                <Box role="region" aria-label={r.gradeName} sx={{ width: "100%", display: "grid", gridTemplateColumns: { xs: "80px 75px minmax(0, 1fr)", md: "110px 100px minmax(80px, 1fr) 120px 120px" }, gap: { xs: 1, md: 1.5 }, alignItems: "center", py: { xs: 1, md: 2 }, px: 1 }}>
+                <Box role="region" aria-label={r.gradeName} sx={{ width: "100%", display: "grid", gridTemplateColumns: { xs: "80px 75px minmax(0, 1fr)", md: "110px 100px minmax(80px, 1fr) 180px 120px" }, gap: { xs: 1, md: 1.5 }, alignItems: "center", py: { xs: 1, md: 2 }, px: 1 }}>
                   <Typography component="strong" sx={{ fontFamily: "Georgia, serif", fontSize: "1.1rem", fontWeight: 700 }}>{r.gradeName}</Typography>
                   <Box>
                     <Typography sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.count(r.available)}</Typography>
@@ -565,13 +565,13 @@ export function StockPage() {
                       <>
                         {/* Icon AND word, with the whole fact as the accessible
                             name — the tint alone never carries the warning. */}
-                        <span className="badge badge-warn" role="img" aria-label={t("belowFloorTagLabel", {
+                        <Box component="span" className="badge badge-warn" sx={{ border: "1px solid currentColor" }} role="img" aria-label={t("belowFloorTagLabel", {
                           available: fmt.count(r.available),
                           short: fmt.count(shortfall(r)),
                           floor: fmt.count(r.lowStockFloor ?? 0),
                         })}>
                           <TriangleAlert size={12} aria-hidden /> {t("belowFloorTag")}
-                        </span>
+                        </Box>
                         <Box sx={{ mt: 0.5, color: "var(--warn)", fontWeight: 650 }}>
                           {t("shortfallLine", {
                             short: fmt.count(shortfall(r)),

@@ -281,7 +281,6 @@ export function GradesPage() {
               helperText={t("floorHelp")}
               slotProps={{ htmlInput: { min: 0 }, inputLabel: { shrink: true } }}
               onChange={(e) => setFloor(e.target.value)}
-              sx={{ maxWidth: "14rem" }}
             />
           ) : <p className="muted">{t("floorOwnerOnlyMessage")}</p>}
           <FormControlLabel
@@ -328,7 +327,6 @@ export function GradesPage() {
               helperText={t("floorHelp")}
               slotProps={{ htmlInput: { min: 0 }, inputLabel: { shrink: true } }}
               onChange={(e) => setEditFloor(e.target.value)}
-              sx={{ maxWidth: "14rem" }}
             />
           ) : <p className="muted">{t("floorOwnerOnlyMessage")}</p>}
           <FormControlLabel
