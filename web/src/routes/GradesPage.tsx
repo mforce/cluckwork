@@ -387,11 +387,11 @@ export function GradesPage() {
             emptyMessage={tc("inspectorEmptyPrompt")}
             fields={selectedGrade ? [
               { label: t("typeHeader"), value: gradeTypeLabel(selectedGrade.gradeType) },
-              { label: t("sortHeader"), value: fmt.count(selectedGrade.sortOrder) },
-              { label: t("saleableHeader"), value: selectedGrade.isSaleable ? t("saleableYesBadge") : "—" },
               { label: t("floorHeader"), value: selectedGrade.lowStockFloor === null
                 ? <em className="muted">{t("floorNotSet")}</em>
                 : fmt.count(selectedGrade.lowStockFloor) },
+              { label: t("sortHeader"), value: fmt.count(selectedGrade.sortOrder) },
+              { label: t("saleableHeader"), value: selectedGrade.isSaleable ? t("saleableYesBadge") : "—" },
               { label: t("statusHeader"), value: <StatusBadge status={selectedGrade.active ? "Active" : "Inactive"} label={statusLabel(selectedGrade.active ? "Active" : "Inactive")} /> },
             ] : undefined}
             actions={selectedGrade ? renderActions(selectedGrade) : undefined}
