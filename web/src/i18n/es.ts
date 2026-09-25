@@ -2163,12 +2163,12 @@ export const es = {
       + "por función.",
     gettingAroundTabs:
       "En un teléfono, las cuatro pantallas que más usa aparecen como <strong>pestañas en la parte "
-      + "inferior</strong>, al alcance del pulgar. Cuáles cuatro depende de su rol: un trabajador obtiene "
-      + "Entrada diaria, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de distancia bajo "
-      + "<strong>Más</strong>.",
+      + "inferior</strong>, al alcance del pulgar. Las cuatro que aparecen dependen de su rol: un "
+      + "trabajador obtiene Entrada diaria, alguien de ventas obtiene Ventas. Todo lo demás está a un toque "
+      + "de distancia bajo <strong>Más</strong>.",
     gettingAroundPageLoading:
-      "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, aparece brevemente "
-      + "un mensaje de carga. La navegación sigue disponible mientras espera.",
+      "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, puede aparecer "
+      + "brevemente un mensaje de carga. La navegación sigue disponible mientras espera.",
     gettingAroundErrorScreen:
       "<strong>\"Algo salió mal\"</strong> significa que la aplicación capturó un error en lugar de "
       + "dejarlo en una página en blanco. Todo lo que ya había guardado está a salvo; lo que todavía estaba "
@@ -2409,8 +2409,8 @@ export const es = {
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
       + "vendibles le quedan por ubicar: se pone verde en cuanto el día cuadra y rojo si se excede. "
-      + "Excederse bloquea guardar el borrador además de Enviar. Enviar necesita exactamente cero; un "
-      + "borrador puede quedar clasificado a medias o sin clasificar.",
+      + "Excederse bloquea guardar el borrador además de Enviar. Enviar necesita exactamente cero, tanto si "
+      + "falta como si sobra; un borrador puede quedar clasificado a medias o sin clasificar.",
     dailyEntryButtons:
       "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o "
       + "<strong>mantenga presionado</strong> — se acelera a medida que avanza, así que unos cientos de "
@@ -2595,8 +2595,9 @@ export const es = {
       + "el panel cerrado. Use <strong>abrir</strong> de nuevo para verlo. Al actualizar un pedido, la "
       + "edición termina si el pedido ya no es un borrador o la línea desapareció. Los campos sin editar "
       + "adoptan los valores recibidos; los que tienen cambios sin guardar se conservan y bloquean guardar "
-      + "si la cantidad o el precio recibidos cambiaron. Elija <strong>recargar línea</strong> para tomar "
-      + "los últimos valores recibidos. Aquí no se detectan cambios posteriores a la última consulta.",
+      + "si la cantidad o el precio recibidos cambiaron. Elija <strong>recargar línea</strong> para "
+      + "reemplazar ambos campos con los últimos valores recibidos. Aquí no se detectan cambios posteriores "
+      + "a la última consulta.",
     salesListPrice:
       "Cada línea también muestra su <strong>Precio de lista</strong> — el precio del producto cuando se "
       + "agregó la línea — junto a un <strong>Descuento</strong> calculado a partir de él: un monto y un "
@@ -2667,10 +2668,10 @@ export const es = {
     reportsThrottle:
       "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, "
       + "para que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo "
-      + "tiempo — varias personas abriendo Informes a la vez, o reintentos repetidos — responde "
+      + "tiempo — varias personas abriendo Informes a la vez, o reintentos repetidos — puede responder "
       + "<strong>inténtelo de nuevo en un momento</strong> en lugar de una tabla. No se registró ni se "
-      + "perdió nada: presione <strong>reintentar</strong> un momento después y se vuelve a ejecutar con "
-      + "las mismas fechas que eligió.",
+      + "perdió nada: presione <strong>reintentar</strong> en la pantalla de Informes un momento después y "
+      + "se vuelve a ejecutar con las mismas fechas que eligió.",
 
     expensesHeading: "Gastos (admin)",
     expensesRecording:
@@ -3048,10 +3049,11 @@ export const es = {
       + "cambiarlo si lo solicita; a partir de entonces inicia sesión con el código nuevo. La pantalla de "
       + "inicio de sesión recuerda las últimas 10 granjas con las que ha iniciado sesión en este "
       + "dispositivo, la más reciente primero, y las ofrece en un selector aunque solo recuerde una, para "
-      + "que normalmente no tenga que volver a escribir el código. El control Olvidar de una granja la "
-      + "elimina de este dispositivo tras una confirmación, y no borra nada más: ni su idioma, ni su tema, "
-      + "ni ninguna otra preferencia. Un enlace como /login?farm=<code> rellena el código por usted y omite "
-      + "la lista. Si no sabe el código de su granja, pregunte a su administrador.",
+      + "que normalmente no tenga que volver a escribir el código. Cada granja recordada puede olvidarse "
+      + "individualmente con su control Olvidar, tras una confirmación; eso elimina solo esa granja de este "
+      + "dispositivo y no borra nada más: ni su idioma, ni su tema, ni ninguna otra preferencia. Un enlace "
+      + "como /login?farm=<code> rellena el código por usted y omite la lista. Si no sabe el código de su "
+      + "granja, pregunte a su administrador: puede consultarlo.",
 
     glossaryLoginEmailTerm: "Correo de inicio de sesión",
     glossaryLoginEmailDef:
@@ -3190,9 +3192,11 @@ export const es = {
     glossarySalesLineDef:
       "Un producto en un pedido: una cantidad entera en unidades de venta, con precio por unidad (el "
       + "precio puede tener decimales); los huevos detrás de ella son la cantidad × el conteo de huevos de "
-      + "la unidad. Si el pedido se actualiza mientras edita, los campos sin editar adoptan los valores "
-      + "recibidos, y los que tienen cambios sin guardar se conservan con guardar bloqueado hasta que elija "
-      + "recargar línea.",
+      + "la unidad. Al actualizar un pedido, la edición termina si el pedido ya no es un borrador o la "
+      + "línea desapareció. Los campos sin editar adoptan los valores recibidos. Si hay cambios sin guardar "
+      + "y la cantidad o el precio recibidos cambiaron, se conservan sus datos y se bloquea guardar; elija "
+      + "recargar línea para reemplazar ambos campos con los últimos valores recibidos. Aquí no se detectan "
+      + "cambios posteriores a la última consulta.",
 
     glossaryConfirmOrderTerm: "Confirmar (pedido)",
     glossaryConfirmOrderDef:
@@ -3343,14 +3347,15 @@ export const es = {
       + "justo después de iniciar sesión, una vez por sesión. Separada del logotipo de la granja anterior: "
       + "una granja puede tener un logotipo, un banner, ambos, o ninguno. Mismas reglas de imagen fija "
       + "PNG/JPEG/WebP, su propio límite de tamaño más grande (5 MB por defecto), se sube desde "
-      + "Configuración de la granja. El dispositivo que la muestra guarda la imagen en caché, así que en "
-      + "una visita posterior también puede aparecer en la pantalla de inicio de sesión antes de ingresar "
-      + "una contraseña — pero solo mientras el campo de código de granja nombre esa misma granja. Escribir "
-      + "o elegir un código distinto lo oculta de inmediato, y un enlace que solo nombra un código de "
-      + "granja nunca muestra su banner. Si un código de granja se reasigna después a otra granja, un "
-      + "dispositivo que guarda en caché el banner del titular anterior puede seguir mostrándolo hasta que "
-      + "el siguiente inicio de sesión de ese dispositivo confirme a qué granja pertenece el código ahora. "
-      + "Eso es una imagen obsoleta en un dispositivo que ya la tenía, nunca una divulgación nueva.",
+      + "Configuración de la granja. El dispositivo que la muestra guarda la imagen en caché después de esa "
+      + "pantalla de bienvenida, así que en una visita posterior también puede aparecer en la pantalla de "
+      + "inicio de sesión antes de ingresar una contraseña — pero solo mientras el campo de código de "
+      + "granja nombre esa misma granja. Escribir o elegir un código distinto lo oculta de inmediato, y un "
+      + "enlace que solo nombra un código de granja nunca muestra su banner. Si un código de granja se "
+      + "reasigna después a otra granja, un dispositivo que guarda en caché el banner del titular anterior "
+      + "puede seguir mostrándolo brevemente, hasta que el siguiente inicio de sesión de ese dispositivo "
+      + "confirme a qué granja pertenece el código ahora. Eso es una imagen obsoleta en un dispositivo que "
+      + "ya la tenía, nunca una divulgación nueva.",
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:

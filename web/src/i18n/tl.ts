@@ -2249,12 +2249,12 @@ export const tl = {
       "Sa computer, nasa <strong>sidebar</strong> sa kaliwa ang bawat screen, nakagrupo ayon sa trabaho.",
     gettingAroundTabs:
       "Sa telepono, ang apat na screen na pinakamadalas mong gamitin ay lumalabas bilang <strong>mga tab "
-      + "sa ibaba</strong>, malapit sa hinlalaki. Depende sa tungkulin mo kung alin sa apat: makukuha ng "
-      + "manggagawa ang Araw-araw na Tala, makukuha ng Benta ang Benta. Isang tap na lang ang lahat ng iba "
-      + "pa, sa ilalim ng <strong>Higit Pa</strong>.",
+      + "sa ibaba</strong>, malapit sa hinlalaki. Depende sa tungkulin mo kung alin sa apat ang makukuha "
+      + "mo: makukuha ng manggagawa ang Araw-araw na Tala, makukuha ng Benta ang Benta. Isang tap na lang "
+      + "ang lahat ng iba pa, sa ilalim ng <strong>Higit Pa</strong>.",
     gettingAroundPageLoading:
-      "Sa unang pagkakataong magbukas ka ng screen pagkatapos simulan o i-update ang Cluckwork, sandaling "
-      + "lumalabas ang mensahe ng pag-load. Magagamit pa rin ang navigation habang naghihintay ka.",
+      "Sa unang pagkakataong magbukas ka ng screen pagkatapos simulan o i-update ang Cluckwork, maaaring "
+      + "sandaling lumabas ang mensahe ng pag-load. Magagamit pa rin ang navigation habang naghihintay ka.",
     gettingAroundErrorScreen:
       "Ang <strong>\"May Nangyaring Mali\"</strong> ay nangangahulugang na-catch ng app ang isang error "
       + "sa halip na mag-iwan sa iyo ng blangkong page. Ligtas ang anumang na-save mo na; maaaring "
@@ -2507,7 +2507,8 @@ export const tl = {
       "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
       + "naibibentang itlog pa ang kailangan mong ilagay: nagiging berde ito sa sandaling tumugma ang araw "
       + "at pula kung lumagpas ka. Ang paglagpas ay humaharang sa pag-save ng draft at sa Isumite. "
-      + "Kailangan ng Isumite ang eksaktong zero; puwedeng bahagya o hindi man na-grade ang draft.",
+      + "Kailangan ng Isumite ang eksaktong zero, kulang man o sobra; puwedeng bahagya o hindi man na-grade "
+      + "ang draft.",
     dailyEntryButtons:
       "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
       + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
@@ -2701,9 +2702,9 @@ export const tl = {
       + "<strong>buksan</strong> para tingnan ang order. Kapag na-refresh ang order, matatapos ang pag-edit "
       + "kung hindi na draft ang order o wala na ang linya. Susunod sa bagong datos ang mga field na hindi "
       + "mo binago; mananatili ang mga hindi pa nai-save at hindi muna magagamit ang i-save kung nagbago "
-      + "ang dami o presyong natanggap. Piliin ang <strong>i-load muli ang linya</strong> para kunin ang "
-      + "pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa matapos ang "
-      + "huling pagkuha ng datos.",
+      + "ang dami o presyong natanggap. Piliin ang <strong>i-load muli ang linya</strong> upang palitan ang "
+      + "parehong field ng pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa "
+      + "matapos ang huling pagkuha ng datos.",
     salesListPrice:
       "Ipinapakita rin ng bawat linya ang <strong>Presyo sa listahan</strong> nito — ang presyo ng "
       + "produkto noong idinagdag ang linya — katabi ng <strong>Diskwento</strong> na kinalkula mula rito: "
@@ -2777,10 +2778,10 @@ export const tl = {
     reportsThrottle:
       "<strong>Kung tinanggihan ang report</strong>: iilan lang ang report na pinapatakbo ng farm nang "
       + "sabay, para hindi mapabagal ng isang abalang screen ang app para sa lahat. Ang paghingi ng marami "
-      + "nang sabay — ilang tao na sabay-sabay magbukas ng Reports, o paulit-ulit na pagsubok — ay "
-      + "sumasagot ng <strong>subukan ulit maya-maya</strong> sa halip na talahanayan. Walang naitala at "
-      + "walang nawala: pindutin ang <strong>subukan ulit</strong> maya-maya at muling tatakbo ito gamit "
-      + "ang parehong mga petsang pinili mo.",
+      + "nang sabay — ilang tao na sabay-sabay magbukas ng Reports, o paulit-ulit na pagsubok — ay maaaring "
+      + "sumagot ng <strong>subukan ulit maya-maya</strong> sa halip na talahanayan. Walang naitala at "
+      + "walang nawala: pindutin ang <strong>subukan ulit</strong> sa Reports screen maya-maya at muling "
+      + "tatakbo ito gamit ang parehong mga petsang pinili mo.",
 
     expensesHeading: "Mga Gastos (admin)",
     expensesRecording:
@@ -3166,11 +3167,12 @@ export const tl = {
       + "baguhin ng operator kapag hiniling; pagkatapos noon ay gagamitin mo na ang bagong code sa pag-sign "
       + "in. Naaalala ng screen ng sign in ang huling 10 bukid na naka-sign in ka sa device na ito, "
       + "pinakabago muna, at inaalok ang mga ito sa isang pumipili kahit isa lang ang natatandaan, para "
-      + "hindi mo na kailangang i-type ang code. Ang kontrol na Kalimutan ng isang bukid ay nag-aalis dito "
-      + "sa device na ito pagkatapos ng isang kumpirmasyon, at wala nang ibang binubura: hindi ang iyong "
-      + "wika, ang iyong theme, o anumang ibang preference. Ang link tulad ng /login?farm=<code> ang "
-      + "pumupuno ng code para sa iyo at nilalaktawan ang listahan. Kung hindi mo alam ang code ng bukid "
-      + "mo, tanungin ang iyong administrator.",
+      + "hindi mo na kailangang i-type ang code. Ang bawat natatandaang bukid ay maaaring kalimutan nang "
+      + "hiwalay gamit ang kontrol na Kalimutan nito, pagkatapos ng isang kumpirmasyon; ang aalis ay ang "
+      + "bukid na iyon lamang sa device na ito, at wala nang ibang binubura: hindi ang iyong wika, ang "
+      + "iyong theme, o anumang ibang preference. Ang link tulad ng /login?farm=<code> ang pumupuno ng code "
+      + "para sa iyo at nilalaktawan ang listahan. Kung hindi mo alam ang code ng bukid mo, tanungin ang "
+      + "iyong administrator: matitingnan nila ito.",
 
     glossaryLoginEmailTerm: "Email sa pag-sign in",
     glossaryLoginEmailDef:
@@ -3310,9 +3312,12 @@ export const tl = {
     glossarySalesLineDef:
       "Isang produkto sa isang order: isang buong bilang na dami sa selling unit, may presyo kada unit "
       + "(maaaring may decimal ang presyo); ang mga itlog sa likod nito ay dami × ang bilang ng itlog ng "
-      + "unit. Kung na-refresh ang order habang nag-e-edit ka, susunod sa bagong datos ang mga field na "
-      + "hindi mo binago, at mananatili ang mga hindi pa nai-save na may harang sa i-save hanggang piliin "
-      + "mo ang i-load muli ang linya.",
+      + "unit. Kapag na-refresh ang order, matatapos ang pag-edit kung hindi na draft ang order o wala na "
+      + "ang linya. Susunod sa bagong datos ang mga field na hindi mo binago. Kung may hindi ka pa nai-save "
+      + "at nagbago ang dami o presyong natanggap, mananatili ang iyong mga inilagay at hindi muna "
+      + "magagamit ang i-save; piliin ang i-load muli ang linya upang palitan ang parehong field ng "
+      + "pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa matapos ang "
+      + "huling pagkuha ng datos.",
 
     glossaryConfirmOrderTerm: "Kumpirmahin (order)",
     glossaryConfirmOrderDef:
@@ -3470,15 +3475,15 @@ export const tl = {
       + "pagkatapos mag-log in, isang beses kada session. Hiwalay sa logo ng bukid sa itaas: puwedeng "
       + "magkaroon ang isang bukid ng logo, banner, pareho, o wala. Parehong panuntunan ng still image na "
       + "PNG/JPEG/WebP, may sarili itong mas malaking limitasyon sa laki (5 MB bilang default), ina-upload "
-      + "mula sa Mga Setting ng Bukid. Ang device na nagpapakita nito ay nag-ka-cache ng larawan, kaya sa "
-      + "susunod na pagbisita puwede rin itong lumabas sa sign-in screen bago pa maglagay ng password — "
-      + "pero habang pinangalanan ng field na Code ng Bukid ang parehong bukid na iyon. Ang pag-type o "
-      + "pagpili ng ibang code ay agad itong nagtatago, at ang link na pangalan lang ng Code ng Bukid ay "
-      + "hindi kailanman nagpapakita ng banner nito. Kapag ang isang Code ng Bukid ay na-reassign sa ibang "
-      + "bukid, ang device na naka-cache na ng banner ng dating may-ari nito ay puwede pa ring magpakita "
-      + "nito hanggang kumpirmahin ng susunod na pag-sign-in sa device na iyon kung aling bukid na ngayon "
-      + "ang may-ari ng code. Isang lumang larawan iyon sa device na mayroon na rito, hindi bagong "
-      + "pagsisiwalat.",
+      + "mula sa Mga Setting ng Bukid. Ang device na nagpapakita nito ay nag-ka-cache ng larawan pagkatapos "
+      + "ng splash screen na iyon, kaya sa susunod na pagbisita puwede rin itong lumabas sa sign-in screen "
+      + "bago pa maglagay ng password — pero habang pinangalanan ng field na Code ng Bukid ang parehong "
+      + "bukid na iyon. Ang pag-type o pagpili ng ibang code ay agad itong nagtatago, at ang link na "
+      + "pangalan lang ng Code ng Bukid ay hindi kailanman nagpapakita ng banner nito. Kapag ang isang Code "
+      + "ng Bukid ay na-reassign sa ibang bukid, ang device na naka-cache na ng banner ng dating may-ari "
+      + "nito ay puwede pa ring magpakita nito nang maikli, hanggang kumpirmahin ng susunod na pag-sign-in "
+      + "sa device na iyon kung aling bukid na ngayon ang may-ari ng code. Isang lumang larawan iyon sa "
+      + "device na mayroon na rito, hindi bagong pagsisiwalat.",
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:

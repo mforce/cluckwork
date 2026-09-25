@@ -2891,7 +2891,8 @@ export const en = {
       + "reach. Which four depends on your role: a worker gets Daily entry, someone in sales gets Sales. "
       + "Everything else is one tap away under <strong>More</strong>.",
     gettingAroundPageLoading:
-      "The first time you open a screen after starting or updating Cluckwork, a brief page-loading message appears. Navigation stays available while you wait.",
+      "The first time you open a screen after starting or updating Cluckwork, a brief page-loading "
+      + "message may appear. Navigation stays available while you wait.",
     gettingAroundErrorScreen:
       "<strong>\"Something went wrong\"</strong> means the app caught an error instead of leaving you on a "
       + "blank page. Anything already saved is safe; anything you were still typing may need entering again. "
@@ -3116,10 +3117,10 @@ export const en = {
       + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to. A "
       + "draft can leave that partly done, or not started at all — submitting needs it exact.",
     dailyEntryGradingDown:
-      "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
-      + "place: it turns green the moment the day adds up and red if you go over. Going over blocks saving "
-      + "the draft as well as Submit. Submit needs it at exactly zero; a draft may be graded partway or not "
-      + "at all.",
+      "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have "
+      + "to place: it turns green the moment the day adds up and red if you go over. Going over blocks "
+      + "saving the draft as well as Submit. Submit needs it at exactly zero, short as well as over; a "
+      + "draft may be graded partway or not at all.",
     dailyEntryButtons:
       "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or <strong>hold</strong> "
       + "— it speeds up as you go, so a few hundred eggs takes about a second. A grade's <strong>+</strong> "
@@ -3291,14 +3292,14 @@ export const en = {
       + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "
       + "product's default, decimals allowed) — edit freely, or <strong>cancel</strong> (the draft is kept, "
       + "read-only). The quantity counts <strong>units, not eggs</strong> — the field is labeled with the "
-      + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each "
-      + "line remembers how many eggs its unit held when it was added, so redefining a carton later never "
+      + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each line "
+      + "remembers how many eggs its unit held when it was added, so redefining a carton later never "
       + "changes old orders. Choose <strong>close</strong> while an order loads to keep the panel closed; "
-      + "choose <strong>open</strong> again to view it."
-      + " When an order refreshes, editing ends if the order is no longer a draft or the line is gone. "
-      + "Unedited inputs follow the refreshed line; unsaved ones stay visible and block save if the fetched "
-      + "quantity or price changed. Choose <strong>reload line</strong> to take the latest fetched values. "
-      + "Changes made after the last fetch are not detected here.",
+      + "choose <strong>open</strong> again to view it. When an order refreshes, editing ends if the order "
+      + "is no longer a draft or the line is gone. Unedited inputs follow the refreshed line; unsaved ones "
+      + "stay visible and block save if the fetched quantity or price changed. Choose <strong>reload "
+      + "line</strong> to replace both inputs with the latest fetched values. Changes made after the last "
+      + "fetch are not detected here.",
     salesListPrice:
       "Each line also shows its <strong>List price</strong> — the product's price when the line was "
       + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
@@ -3366,9 +3367,9 @@ export const en = {
     reportsThrottle:
       "<strong>If a report is refused</strong>: the farm runs only a few reports at a time, so one busy "
       + "screen cannot slow the app for everyone else. Asking for several at once — a few people opening "
-      + "Reports together, or repeated retries — comes back as <strong>try again shortly</strong> instead "
-      + "of a table. Nothing was recorded and nothing was lost: press <strong>retry</strong> a moment later "
-      + "and it re-runs with the same dates you picked.",
+      + "Reports together, or repeated retries — can come back as <strong>try again shortly</strong> "
+      + "instead of a table. Nothing was recorded and nothing was lost: press <strong>retry</strong> on the "
+      + "Reports screen a moment later and it re-runs with the same dates you picked.",
 
     // Expenses
     expensesHeading: "Expenses (admin)",
@@ -3719,16 +3720,16 @@ export const en = {
     // email can belong to several farms.
     glossaryFarmCodeTerm: "Farm code",
     glossaryFarmCodeDef:
-      "The short code that names your farm on the sign-in screen. You type it before your "
-      + "email, because the same email address can exist in several farms and only the code "
-      + "says which one you mean. It is lowercase. It rarely changes, but an operator can "
-      + "change it on request; after that you sign in with the new code. The sign-in screen "
-      + "remembers the last 10 farms you have signed in with on this device, most recent "
-      + "first, and offers them in a picker even when there is only one, so you usually do "
-      + "not have to retype the code. A farm's Forget control removes it from this device "
-      + "after a confirmation, and clears nothing else — not your language, your theme, or "
-      + "any other preference. A link such as /login?farm=<code> fills the code in for you "
-      + "and skips the list. If you do not know your farm's code, ask your administrator.",
+      "The short code that names your farm on the sign-in screen. You type it before your email, because "
+      + "the same email address can exist in several farms and only the code says which one you mean. It is "
+      + "lowercase. It rarely changes, but an operator can change it on request; after that you sign in "
+      + "with the new code. The sign-in screen remembers the last 10 farms you have signed in with on this "
+      + "device, most recent first, and offers them in a picker even when there is only one, so you usually "
+      + "do not have to retype the code. Each remembered farm can be forgotten individually with its Forget "
+      + "control, after a confirmation; that removes only that farm from this device, and clears nothing "
+      + "else — not your language, your theme, or any other preference. A link such as /login?farm=<code> "
+      + "fills the code in for you and skips the list. If you do not know your farm's code, ask your "
+      + "administrator — they can look it up.",
 
     glossaryLoginEmailTerm: "Login email",
     glossaryLoginEmailDef:
@@ -3858,9 +3859,11 @@ export const en = {
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:
       "One product on an order: a whole-number quantity in selling units, priced per unit (the price may "
-      + "have decimals); the eggs behind it are quantity × the unit's egg count. When the order refreshes "
-      + "mid-edit, unedited inputs follow the refreshed line, and unsaved ones stay visible with save "
-      + "blocked until you choose reload line.",
+      + "have decimals); the eggs behind it are quantity × the unit's egg count. When an order refreshes, "
+      + "editing ends if the order is no longer a draft or the line is gone. Unedited inputs follow the "
+      + "refreshed line. If you have unsaved inputs and the fetched quantity or price changed, your inputs "
+      + "stay visible and save is blocked; choose reload line to replace both inputs with the latest "
+      + "fetched values. Changes made after the last fetch are not detected here.",
 
     glossaryConfirmOrderTerm: "Confirm (order)",
     glossaryConfirmOrderDef: "Turns a draft order into a real sale and allocates stock. Undone only by voiding.",
@@ -3994,13 +3997,13 @@ export const en = {
       "A second, independent image shown full-size on a splash screen right after signing in, once per "
       + "sign-in. Separate from the farm logo above: a farm can have a logo, a banner, both, or neither. "
       + "Same PNG/JPEG/WebP still-image rules, its own larger size limit (5 MB by default), uploaded from "
-      + "Farm settings. The device that shows it caches the image, so on a later visit it can also appear "
-      + "on the sign-in screen before a password is entered — but only while the farm code field names that "
-      + "same farm. Typing or picking a different code hides it at once, and a link that only names a farm "
-      + "code never shows its banner. If a farm code is later reassigned to another farm, a device holding "
-      + "the previous holder's cached banner may still show it until that device's next sign-in confirms "
-      + "which farm the code belongs to now. That is a stale image on a device that already had it, never "
-      + "a new disclosure.",
+      + "Farm settings. The device that shows it caches the image after that splash, so on a later visit it "
+      + "can also appear on the sign-in screen before a password is entered — but only while the farm code "
+      + "field names that same farm. Typing or picking a different code hides it at once, and a link that "
+      + "only names a farm code never shows its banner. If a farm code is later reassigned to another farm, "
+      + "a device holding the previous holder's cached banner may still show it briefly, until that "
+      + "device's next sign-in confirms which farm the code belongs to now. That is a stale image on a "
+      + "device that already had it, never a new disclosure.",
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:

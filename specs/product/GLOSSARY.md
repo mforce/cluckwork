@@ -1119,9 +1119,15 @@ it as "Too many sign-in attempts" and never tears down an already-signed-in
 session. The real client IP comes from the reverse proxy's `X-Forwarded-For`
 via the framework's forwarded-headers handling (trusted-proxy networks are
 configured; a direct caller can't spoof the header). Limits and trusted proxies
-are configuration. The per-IP counter is shared across replicas through Redis
-(#544), falling back to an in-process counter with an alarm when Redis is
-unavailable, so the budget is one combined budget rather than one per instance.
+are configuration. **The budget is combined across replicas only while Redis is
+available.** The per-IP counter is the shared Redis-backed
+`IFixedWindowCounter` (#544); when Redis throws,
+`ResilientFixedWindowCounter` alarms and falls back to a process-local
+`InProcessFixedWindowCounter`, and a blank `SharedState:Redis:ConnectionString`
+registers only that process-local counter in the first place. In both of those
+states each replica keeps its own count, so N replicas allow roughly N times the
+intended budget. That is bounded rather than fail-open, and the dummy-PBKDF2
+cost still applies, but it is not one budget.
 
 **Account lockout (#128)** — a complement to the per-IP rate limit, working per
 **account**: repeated failed logins (default 5) lock that one account for a
