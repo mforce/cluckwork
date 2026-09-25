@@ -3819,8 +3819,9 @@ export const en = {
     glossaryLowStockFloorTerm: "Low-stock floor",
     glossaryLowStockFloorDef:
       "An optional per-grade warning point, in eggs, set by the Owner on Egg grades. When a grade's "
-      + "available stock falls below its floor, Stock and the Dashboard flag it. Restricted eggs do not "
-      + "count towards it — they cannot be sold. A grade with no floor never warns.",
+      + "available stock falls below its floor, Stock and the Dashboard flag it, including a grade that "
+      + "has run out entirely. Restricted eggs do not count towards it — they cannot be sold. A grade with "
+      + "no floor never warns, and a deactivated grade's floor is out of service until it is active again.",
 
     glossaryEggMovementLedgerTerm: "Egg movement ledger",
     glossaryEggMovementLedgerDef:

@@ -1486,8 +1486,11 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(within(stock).queryByText("Grade A")).not.toBeInTheDocument();
-    expect(within(stock).queryByRole("table", { name: "Stock by grade" })).not.toBeInTheDocument();
+    // #950 review round 1: the ledger names the grade even at zero. Only the
+    // bar drops it — a zero-width span draws nothing.
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((c) => c.textContent)))
+      .toEqual([["Grade A", "0", "0.0%"]]);
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
 });
@@ -1535,6 +1538,32 @@ describe("Dashboard low-stock floors (#911)", () => {
 
     expect(await screen.findByText("Flock f2 not recorded")).toBeInTheDocument();
     expect(screen.queryByText(/below floor/)).not.toBeInTheDocument();
+  });
+
+  it("marks the ledger row of a grade that has run out", async () => {
+    // The case the floor exists for: nothing left to sell. The row used to
+    // vanish from the ledger, leaving the brief's fact with nothing to point
+    // at (#950 review round 1).
+    mockStock.mockResolvedValue([STOCK[0], below("Cracked", 0, 2000)]);
+    renderWithProviders(<Dashboard />);
+    const stock = await panel("Stock");
+
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getByRole("img", { name: "Cracked is below its low-stock floor" }))
+      .toBeInTheDocument();
+    expect(within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((c) => c.textContent)))
+      .toEqual([["Grade A", "1,240", "100.0%"], ["Cracked", "0", "0.0%"]]);
+  });
+
+  it("keeps the ledger when every grade is empty", async () => {
+    mockStock.mockResolvedValue([below("Cracked", 0, 2000), below("Small", 0, 5000)]);
+    renderWithProviders(<Dashboard />);
+    const stock = await panel("Stock");
+
+    const table = within(stock).getByRole("table", { name: "Stock by grade" });
+    expect(within(table).getAllByRole("row")).toHaveLength(3); // header + two grades
+    expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
+    expect(within(stock).getByText("2 grades are below their low-stock floor")).toBeInTheDocument();
   });
 
   it("marks the ledger row and captions the panel without relying on colour", async () => {

@@ -378,8 +378,38 @@ describe("stockBar (#654, INV-4, #777)", () => {
     expect(bar.segments.map((s) => s.pct)).toEqual([50, 30, 20]);
   });
   it("has no segments and zero available when nothing is available, but keeps the restricted total", () => {
-    expect(stockBar([])).toEqual({ segments: [], totalAvailable: 0, totalRestricted: 0 });
+    expect(stockBar([])).toEqual({ segments: [], ledger: [], totalAvailable: 0, totalRestricted: 0 });
     expect(stockBar([{ eggGradeId: "g", gradeName: "G", available: 0, restricted: 4, lowStockFloor: null, belowFloor: false }]))
-      .toEqual({ segments: [], totalAvailable: 0, totalRestricted: 4 });
+      .toEqual({
+        segments: [],
+        ledger: [{ eggGradeId: "g", gradeName: "G", available: 0, pct: 0, colorIndex: 1 }],
+        totalAvailable: 0,
+        totalRestricted: 4,
+      });
+  });
+
+  // #950 review round 1 (Codex gpt-6-sol): the ledger names every grade the
+  // farm has stock rows for, including the empty ones — a grade at zero is
+  // exactly the one a low-stock floor is about. Only the BAR drops them,
+  // because a zero-width span draws nothing.
+  it("keeps an empty grade in the ledger and out of the bar", () => {
+    const bar = stockBar([
+      { eggGradeId: "g1", gradeName: "Large", available: 100, restricted: 0, lowStockFloor: null, belowFloor: false },
+      { eggGradeId: "g2", gradeName: "Cracked", available: 0, restricted: 0, lowStockFloor: 2000, belowFloor: true },
+    ]);
+
+    expect(bar.segments.map((s) => s.gradeName)).toEqual(["Large"]);
+    expect(bar.ledger.map((s) => [s.gradeName, s.available, s.pct, s.colorIndex]))
+      .toEqual([["Large", 100, 100, 1], ["Cracked", 0, 0, 2]]);
+  });
+
+  it("gives every grade a zero share rather than a NaN when the farm is empty", () => {
+    const bar = stockBar([
+      { eggGradeId: "g1", gradeName: "Large", available: 0, restricted: 0, lowStockFloor: 500, belowFloor: true },
+      { eggGradeId: "g2", gradeName: "Cracked", available: 0, restricted: 0, lowStockFloor: 200, belowFloor: true },
+    ]);
+
+    expect(bar.segments).toEqual([]);
+    expect(bar.ledger.map((s) => s.pct)).toEqual([0, 0]);
   });
 });

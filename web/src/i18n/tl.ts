@@ -3239,8 +3239,10 @@ export const tl = {
     glossaryLowStockFloorDef:
       "Isang opsyonal na punto ng babala bawat grado, sa bilang ng itlog, na itinatakda ng Owner sa Mga "
       + "Grado ng Itlog. Kapag bumaba ang available na stock ng isang grado sa pinakamababang stock nito, "
-      + "minamarkahan ito ng Stock at ng Dashboard. Hindi kasama ang mga itlog na may restriksyon dahil "
-      + "hindi pa ito maibebenta. Ang gradong walang nakatakdang halaga ay hindi nagbabala.",
+      + "minamarkahan ito ng Stock at ng Dashboard, pati na ang gradong tuluyang naubos. Hindi kasama ang "
+      + "mga itlog na may restriksyon dahil hindi pa ito maibebenta. Ang gradong walang nakatakdang halaga "
+      + "ay hindi nagbabala, at ang pinakamababang stock ng na-deactivate na grado ay wala sa serbisyo "
+      + "hanggang muli itong maging aktibo.",
 
     glossaryEggMovementLedgerTerm: "Talaan ng galaw ng itlog",
     glossaryEggMovementLedgerDef:

@@ -1689,6 +1689,36 @@ describe("StockPage low-stock floors (#911)", () => {
     expect(responsiveStyle(detail, "(min-width:600px)", "display")).toBe("block");
   });
 
+  it("warns on a grade that has run out entirely", async () => {
+    // #950 review round 1: the zero-stock case is the one the floor exists
+    // for, and it must survive the meter's divide-by-the-largest scaling.
+    await renderFloors([
+      { eggGradeId: "g1", gradeName: "Large", available: 28410, restricted: 0, lowStockFloor: 6000, belowFloor: false },
+      { eggGradeId: "g2", gradeName: "Cracked", available: 0, restricted: 0, lowStockFloor: 2000, belowFloor: true },
+    ]);
+    const row = screen.getByRole("region", { name: "Cracked" });
+
+    expect(within(row).getByRole("img", {
+      name: "Below low-stock floor: 0 available, 2,000 below the 2,000 egg floor",
+    })).toBeInTheDocument();
+    expect(within(row).getByText("2,000 below the 2,000 floor")).toBeInTheDocument();
+  });
+
+  it("still draws the board when every grade is empty", async () => {
+    await renderFloors([
+      { eggGradeId: "g1", gradeName: "Large", available: 0, restricted: 0, lowStockFloor: 6000, belowFloor: true },
+      { eggGradeId: "g2", gradeName: "Cracked", available: 0, restricted: 0, lowStockFloor: 2000, belowFloor: true },
+    ]);
+
+    expect(within(screen.getByRole("status")).getByText("2 grades are below their low-stock floor"))
+      .toBeInTheDocument();
+    // Every meter reads zero rather than dividing by an empty farm's total.
+    expect(screen.getAllByRole("region", { name: /Large|Cracked/ })).toHaveLength(2);
+    for (const name of ["Large", "Cracked"]) {
+      expect(screen.getByRole("progressbar", { name })).toHaveAttribute("aria-valuenow", "0");
+    }
+  });
+
   it("puts no band on the board when every grade is above its floor", async () => {
     await renderFloors(FLOOR_ROWS.slice(0, 2));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();

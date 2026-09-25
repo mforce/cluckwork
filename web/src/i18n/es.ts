@@ -3122,9 +3122,10 @@ export const es = {
     glossaryLowStockFloorTerm: "Mínimo de existencias",
     glossaryLowStockFloorDef:
       "Un punto de aviso opcional por grado, en huevos, que el propietario define en Grados. Cuando las "
-      + "existencias disponibles de un grado bajan de su mínimo, Existencias y el Panel lo señalan. Los "
-      + "huevos restringidos no cuentan para el mínimo, porque no se pueden vender. Un grado sin mínimo "
-      + "nunca avisa.",
+      + "existencias disponibles de un grado bajan de su mínimo, Existencias y el Panel lo señalan, "
+      + "incluso si el grado se ha agotado del todo. Los huevos restringidos no cuentan para el mínimo, "
+      + "porque no se pueden vender. Un grado sin mínimo nunca avisa, y el mínimo de un grado desactivado "
+      + "queda fuera de servicio hasta que vuelva a activarse.",
 
     glossaryEggMovementLedgerTerm: "Libro mayor de movimientos de huevos",
     glossaryEggMovementLedgerDef:

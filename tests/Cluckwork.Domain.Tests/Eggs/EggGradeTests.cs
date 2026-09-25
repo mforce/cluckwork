@@ -70,7 +70,8 @@ public sealed class EggGradeTests
     public void Create_leaves_the_floor_unset()
     {
         // The ordinary grade warns about nothing. `null` is that state, and it
-        // is distinct from a floor of 0, which warns the moment the grade empties.
+        // is distinct from a floor of 0, which is stored and never warns
+        // (BelowFloor is Available < floor, and nothing is below zero).
         Assert.Null(Make().LowStockFloor);
     }
 

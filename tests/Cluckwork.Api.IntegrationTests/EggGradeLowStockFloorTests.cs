@@ -150,6 +150,90 @@ public sealed class EggGradeLowStockFloorTests(CluckworkWebApplicationFactory fa
     }
 
     [Fact]
+    public async Task An_active_floored_grade_with_no_lots_still_warns()
+    {
+        // The case the feature exists for: a grade the farm has run out of, or
+        // has never produced, has no lot rows at all. Aggregating lots alone
+        // returns no row for it, so nothing warns precisely when stock is zero.
+        var (owner, _, accountId) = await SetupAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, SeedDefaults.FarmId, "Empty");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await PutAsync(owner, grades["Empty"],
+            new { name = "Empty", sortOrder = 0, isSaleable = true, lowStockFloor = 500 })).StatusCode);
+
+        var stock = await owner.GetFromJsonAsync<List<StockRow>>("/api/v1/stock");
+
+        var row = Assert.Single(stock!, r => r.EggGradeId == grades["Empty"]);
+        Assert.Equal(0, row.Available);
+        Assert.Equal(0, row.Restricted);
+        Assert.Equal(500, row.LowStockFloor);
+        Assert.True(row.BelowFloor);
+    }
+
+    [Fact]
+    public async Task A_grade_with_neither_stock_nor_a_floor_stays_off_the_board()
+    {
+        // The complement, so the fix above cannot be "list every grade": a
+        // grade with nothing to say stays off Stock exactly as before.
+        var (owner, _, accountId) = await SetupAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, SeedDefaults.FarmId, "Quiet");
+
+        var stock = await owner.GetFromJsonAsync<List<StockRow>>("/api/v1/stock");
+
+        Assert.DoesNotContain(stock!, r => r.EggGradeId == grades["Quiet"]);
+    }
+
+    [Fact]
+    public async Task Deactivating_a_grade_takes_its_floor_out_of_service()
+    {
+        // Deactivation removes a grade from capture and order pickers, so its
+        // floor stops being a thing the farm can act on. The stock the grade
+        // still holds stays on the board; the warning does not.
+        var (owner, _, accountId) = await SetupAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, SeedDefaults.FarmId, "Retiring");
+        await factory.SeedEggLotAsync(accountId, grades["Retiring"], 100);
+        var id = grades["Retiring"];
+
+        Assert.Equal(HttpStatusCode.NoContent, (await PutAsync(owner, id,
+            new { name = "Retiring", sortOrder = 0, isSaleable = true, lowStockFloor = 5000 })).StatusCode);
+        var active = (await owner.GetFromJsonAsync<List<StockRow>>("/api/v1/stock"))!.Single(r => r.EggGradeId == id);
+        Assert.True(active.BelowFloor);
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await owner.PostWithKeyAsync($"/api/v1/egg-grades/{id}/deactivate", Guid.NewGuid().ToString())).StatusCode);
+
+        var inactive = (await owner.GetFromJsonAsync<List<StockRow>>("/api/v1/stock"))!.Single(r => r.EggGradeId == id);
+        Assert.Equal(100, inactive.Available);
+        Assert.Null(inactive.LowStockFloor);
+        Assert.False(inactive.BelowFloor);
+
+        // Reactivating puts the stored floor back in service unchanged.
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await owner.PostWithKeyAsync($"/api/v1/egg-grades/{id}/activate", Guid.NewGuid().ToString())).StatusCode);
+
+        var reactivated = (await owner.GetFromJsonAsync<List<StockRow>>("/api/v1/stock"))!.Single(r => r.EggGradeId == id);
+        Assert.Equal(5000, reactivated.LowStockFloor);
+        Assert.True(reactivated.BelowFloor);
+    }
+
+    [Fact]
+    public async Task An_inactive_floored_grade_with_no_lots_is_off_the_board_entirely()
+    {
+        // The two fixes meet here: an empty grade earns a row from its floor,
+        // and an inactive grade has no floor in service, so it earns nothing.
+        var (owner, _, accountId) = await SetupAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, SeedDefaults.FarmId, "Gone");
+        var id = grades["Gone"];
+
+        await PutAsync(owner, id, new { name = "Gone", sortOrder = 0, isSaleable = true, lowStockFloor = 500 });
+        await owner.PostWithKeyAsync($"/api/v1/egg-grades/{id}/deactivate", Guid.NewGuid().ToString());
+
+        var stock = await owner.GetFromJsonAsync<List<StockRow>>("/api/v1/stock");
+
+        Assert.DoesNotContain(stock!, r => r.EggGradeId == id);
+    }
+
+    [Fact]
     public async Task A_floor_change_lands_on_the_grade_update_audit_action()
     {
         var (owner, _, accountId) = await SetupAsync();
@@ -166,30 +250,8 @@ public sealed class EggGradeLowStockFloorTests(CluckworkWebApplicationFactory fa
         Assert.Contains("1500", updated.DetailsJson);
     }
 
-    [Fact]
-    public async Task Parallel_floor_updates_do_not_tear_the_grade()
-    {
-        var (owner, _, accountId) = await SetupAsync();
-        var id = await CreateGradeAsync(owner, $"Race {Guid.NewGuid():N}");
-
-        var a = PutAsync(owner, id, new { name = "Race A", sortOrder = 1, isSaleable = true, lowStockFloor = 1000 });
-        var b = PutAsync(owner, id, new { name = "Race B", sortOrder = 2, isSaleable = false, lowStockFloor = 2000 });
-        var responses = await Task.WhenAll(a, b);
-
-        Assert.All(responses, r => Assert.True(
-            r.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.Conflict,
-            $"unexpected {(int)r.StatusCode}"));
-        var successes = responses.Count(r => r.StatusCode == HttpStatusCode.NoContent);
-        Assert.True(successes >= 1);
-
-        var final = (await owner.GetFromJsonAsync<List<GradeDto>>("/api/v1/egg-grades"))!.Single(g => g.Id == id);
-        var isA = final is { Name: "Race A", SortOrder: 1, IsSaleable: true, LowStockFloor: 1000 };
-        var isB = final is { Name: "Race B", SortOrder: 2, IsSaleable: false, LowStockFloor: 2000 };
-        Assert.True(isA || isB,
-            $"torn write: {final.Name}/{final.SortOrder}/{final.IsSaleable}/{final.LowStockFloor}");
-
-        var version = await factory.WithTenantScopeAsync(accountId, async db =>
-            (await db.EggGrades.FirstAsync(g => g.Id == id)).Version);
-        Assert.Equal(successes, version);
-    }
+    // The deterministic one-winner assertion lives in EggGradeFloorRaceTests
+    // (#950 review round 1): it needs a rendezvous interceptor, which needs its
+    // own host, and a test that merely races two requests cannot tell a working
+    // concurrency token from two writes that happened to serialize.
 }

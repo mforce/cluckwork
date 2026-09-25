@@ -123,27 +123,38 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
             })
             .ToListAsync(ct);
 
-        if (sums.Count == 0) return [];
-
         var ids = sums.Select(s => s.EggGradeId).ToList();
+        // The board is every grade with stock PLUS every active grade carrying a
+        // floor (#911). A grade that has run out has no lot rows at all, so
+        // aggregating lots alone drops it — the one case the floor exists for.
+        // The floor is only in service while the grade is: deactivation takes a
+        // grade out of capture and order pickers, so its warning goes with it,
+        // while the stock it still holds stays on the board.
         var grades = await db.EggGrades
             .AsNoTracking()
-            .Where(g => ids.Contains(g.Id))
-            .ToDictionaryAsync(g => g.Id, ct);
+            .Where(g => ids.Contains(g.Id) || (g.Active && g.LowStockFloor != null))
+            .ToListAsync(ct);
 
-        return sums
-            .Select(s =>
-            {
-                var grade = grades.GetValueOrDefault(s.EggGradeId);
-                return new StockByGrade(
-                    s.EggGradeId,
-                    grade?.Name ?? s.EggGradeId.ToString(),
-                    grade?.SortOrder ?? int.MaxValue,
-                    s.Available, s.Restricted,
-                    grade?.LowStockFloor);
-            })
-            .OrderBy(r => r.SortOrder).ThenBy(r => r.GradeName)
-            .ToList();
+        var sumsByGrade = sums.ToDictionary(s => s.EggGradeId);
+        var rows = grades.Select(g =>
+        {
+            var sum = sumsByGrade.GetValueOrDefault(g.Id);
+            return new StockByGrade(
+                g.Id, g.Name, g.SortOrder,
+                sum?.Available ?? 0, sum?.Restricted ?? 0,
+                g.Active ? g.LowStockFloor : null);
+        }).ToList();
+
+        // A lot whose grade row is gone still holds eggs; it keeps the id-named
+        // row this method has always returned for it.
+        var named = grades.Select(g => g.Id).ToHashSet();
+        rows.AddRange(sums
+            .Where(s => !named.Contains(s.EggGradeId))
+            .Select(s => new StockByGrade(
+                s.EggGradeId, s.EggGradeId.ToString(), int.MaxValue,
+                s.Available, s.Restricted, LowStockFloor: null)));
+
+        return rows.OrderBy(r => r.SortOrder).ThenBy(r => r.GradeName).ToList();
     }
 
     public async Task AddAsync(EggLot entity, CancellationToken ct = default) =>

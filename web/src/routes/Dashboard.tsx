@@ -666,14 +666,14 @@ export function Dashboard() {
                 <span className="stock-fig">{fmt.count(bar.totalAvailable)}</span>{" "}{t("eggsAvailableLabel", { count: bar.totalAvailable })}
               </Typography>
               <StockBar data={bar} />
-              {bar.segments.length > 0 && (
+              {bar.ledger.length > 0 && (
                 <Table aria-label={t("stockLedgerLabel")} size="small" sx={{ mt: 1.5, tableLayout: "fixed", "& th, & td": { px: 0.75, py: 1, overflowWrap: "anywhere" } }}>
                   <TableHead><TableRow>
                     <TableCell sx={{ width: "46%" }}>{t("gradeColumn")}</TableCell>
                     <TableCell align="right">{t("countColumn")}</TableCell>
                     <TableCell align="right">{t("shareColumn")}</TableCell>
                   </TableRow></TableHead>
-                  <TableBody>{bar.segments.map((s) => (
+                  <TableBody>{bar.ledger.map((s) => (
                     <TableRow key={s.eggGradeId} tabIndex={0} sx={{
                       "&:hover, &:focus": { bgcolor: "var(--surface-2)", outline: "2px solid var(--focus)", outlineOffset: -2 },
                       "&:hover th, &:focus th": { textDecoration: "underline", textUnderlineOffset: "3px" },
