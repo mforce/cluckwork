@@ -1,6 +1,6 @@
 // tools/simulation/ui/specs-screenshots/screenshots.spec.ts — #549.
 //
-// Captures the three images the root README embeds, from the REAL built SPA
+// Captures the four images the root README embeds, from the REAL built SPA
 // over the #243 simulation fixture. Run it deliberately:
 //
 //     npm run screenshots        # from tools/simulation/ui, with the sim stack up
@@ -8,7 +8,7 @@
 // ================== THE STALENESS CONTRACT ==================
 //
 // These images are DOCUMENTATION ARTEFACTS, not test baselines, and **nothing
-// enforces that they match the current UI**. A change to any of the three
+// enforces that they match the current UI**. A change to any of the four
 // screens below silently invalidates them; a reviewer looking at a stale
 // screenshot cannot tell. The honest mitigation is the one this file can
 // actually keep: the capture is scripted, so refreshing is one command rather
@@ -203,6 +203,7 @@ test.describe("README screenshots", () => {
 
   test("reports — production and money over the seeded period", async ({ page, signIn, farm }) => {
     await signIn(castMember("Owner"));
+    await page.setViewportSize({ width: 1280, height: 1100 });
     await page.goto("/reports");
 
     // The default range ends TODAY, and the fixture's most recent days are
@@ -239,7 +240,8 @@ test.describe("README screenshots", () => {
   });
 
   test("sales — orders across their lifecycle", async ({ page, signIn }) => {
-    await signIn(castMember("Sales"));
+    await signIn(readmeFarmOwner());
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/sales");
 
     await expect(page.getByRole("heading", { name: tEn("sales:ordersHeading") })).toBeVisible();

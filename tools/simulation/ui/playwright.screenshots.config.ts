@@ -52,9 +52,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      // The dashboard capture runs in its own project below, at a taller
-      // frame (#660) — excluded here so this project's three images stay
-      // byte-identical to before.
+      // The dashboard uses its own taller viewport below.
       grepInvert: /dashboard — the morning view/,
       use: {
         ...devices["Desktop Chrome"],
@@ -64,18 +62,11 @@ export default defineConfig({
         // project's `use` beats the top-level one. Setting the frame above the
         // spread silently captures at the device's size instead of this one.
         //
-        // A fixed frame means a refreshed image differs from its predecessor
-        // only where the app changed. 1280x800 is the widest that still reads
-        // at GitHub's rendered README width without shrinking the type to
-        // noise.
+        // The taller frame keeps the daily entry totals and Reports money
+        // summary above the fold after the #920 recapture.
         //
-        // Scale 1, measured rather than assumed: at scale 2 the three images
-        // are 910 KB, at scale 1 they are 382 KB, and GitHub renders a README
-        // image into roughly 890 CSS pixels — so a 1280-wide capture still has
-        // ~1.4x the pixels of its slot and stays sharp on a HiDPI display.
-        // Every regeneration adds its bytes to git history permanently, which
-        // is what makes the 2.4x worth avoiding.
-        viewport: { width: 1280, height: 800 },
+        // Scale 1 keeps the committed PNGs at their CSS pixel size.
+        viewport: { width: 1280, height: 1000 },
         deviceScaleFactor: 1,
 
         launchOptions: executablePath ? { executablePath } : {},
@@ -83,25 +74,12 @@ export default defineConfig({
     },
     {
       name: "chromium-dashboard",
-      // #660: the 1280x800 frame showed only the alarm-state tile grid — the
-      // 14-day trend, stock, and recent-sales panels fell below the fold, so
-      // this capture got its own project at 1280x1180.
-      //
-      // WHAT DECIDES THAT NUMBER HAS CHANGED, and the height is no longer
-      // shrinkable to fit the content. Since the capture moved to the
-      // demo-seeded README farm, its main column ends at 700px — two tiles
-      // instead of twelve — and there is visible empty page below it. The
-      // SIDEBAR is what holds the frame open now: signed in as an Owner every
-      // destination is offered, and measured against the rendered page that
-      // column's own content ends at 1164px with the footer pinned to the
-      // viewport bottom. Anything shorter clips the navigation mid-list and
-      // overlaps it with Night/Sign out, which looks broken in a way the empty
-      // space does not. Re-measure before changing it; do not infer it from the
-      // main column.
+      // #920: Morning collection, stock, recent orders, and the Lay rate
+      // KPI all fit in this 1:1 frame after the dashboard redesign.
       grep: /dashboard — the morning view/,
       use: {
         ...devices["Desktop Chrome"],
-        viewport: { width: 1280, height: 1180 },
+        viewport: { width: 1280, height: 1300 },
         deviceScaleFactor: 1,
         launchOptions: executablePath ? { executablePath } : {},
       },

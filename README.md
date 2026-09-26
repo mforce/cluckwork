@@ -9,9 +9,15 @@ production, track egg lots from the hen through to the sale with full
 traceability, block medication-restricted lots, manage sales and customers, and
 see the numbers that matter (hen-day rate, saleable %, stock on hand).
 
-![The dashboard: today's capture-status tiles by flock, a 14-day production trend, stock on hand by grade, and recent sales orders](docs/images/dashboard.png)
+The Dashboard brings the morning brief, collection status, stock by grade,
+recent orders, and the Lay rate trend onto one screen.
 
-![The daily entry screen: egg counts and grading for one flock on one day, with the sellable total derived from them](docs/images/daily-entry.png)
+![Meadowlark Dashboard with a morning brief, collection status for two houses, stock by grade, recent orders, and a 14-day Lay rate chart](docs/images/dashboard.png)
+
+Daily entry separates collection and grading counts for one flock and day. It
+shows the sellable target and whether the graded count balances.
+
+![Daily entry for Sim House A with collection and grading counts, a sellable target, and Save draft and Submit day actions](docs/images/daily-entry.png)
 
 - **Backend:** C# / .NET 10 (ASP.NET Core minimal APIs) · **Database:** PostgreSQL (EF Core)
 - **Frontend:** React 19 + Vite (TypeScript), served by the API in production
@@ -86,20 +92,21 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 
 ## More of it
 
-Sales orders through their lifecycle — draft, confirmed, with who did what and
-when against each one:
+Sales orders move from draft to confirmed. Filter by status, customer, or
+unpaid balance; each row shows the order total, outstanding amount, and a link
+to its audit history.
 
-![The sales screen: a filterable order list showing reference, date, customer, status, total, and a history column naming the user who created and confirmed each order](docs/images/sales.png)
+![Sales page with status and customer filters, an Unpaid only checkbox, and draft and confirmed orders with totals, outstanding balances, and audit history links](docs/images/sales.png)
 
-The numbers a farm actually runs on — daily production with losses split by
-cause, hen-day %, the by-grade breakdown, and the money beside it:
+Reports show daily production for a selected date range, grade totals, and a
+Money summary of revenue, expenses, and basic profit.
 
-![The reports screen: a seven-day production table with eggs, losses, sellable, condition, deaths, hen-days and hen-day percent, then a money section summarising sales and expenses](docs/images/reports.png)
+![Reports page with a seven-day production table, reported grade totals, and a Money summary of revenue, expenses, and basic profit](docs/images/reports.png)
 
-Screenshots are captured from the real built SPA over the simulation fixture —
-[`tools/simulation/ui/specs-screenshots/`](tools/simulation/ui/specs-screenshots/),
-refreshed with `npm run screenshots`. Nothing enforces that they match the
-current UI; they are refreshed deliberately.
+The Dashboard and Sales images use the demo-seeded `readme-farm`; Daily entry
+and Reports use the simulation fixture. All four come from the built SPA via
+[`tools/simulation/ui/specs-screenshots/`](tools/simulation/ui/specs-screenshots/)
+and are refreshed with `npm run screenshots`.
 
 ## Architecture
 
