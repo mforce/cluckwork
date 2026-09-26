@@ -525,15 +525,13 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
             row.HenDayPct);
     }
 
-    // #943 (Codex review of #959) — a same-day ADDITION is part of that day's
-    // exposure. A negative Adjustment is the ledger's correction for a miscount:
-    // dated D, it says the flock held those birds from D on, and they laid on
-    // D. Applying every movement after counting D's birds rated 20 eggs from
-    // 20 hens at 200%. Removals keep the start-of-day convention: a bird that
-    // died on D was alive for D's lay, so mortality and culls dated D shrink
-    // D+1's exposure, not D's.
+    // #943 — every movement takes effect from the NEXT day whatever its sign
+    // (#92), so a flock topped up on D reads over 100% for D. That is the
+    // over-100 flag's case: rated eggs exceed recorded hen-days and the figure
+    // is shown as computed. A same-day rule for additions was tried in #959
+    // and reverted after Codex round 2 (see the two tests below).
     [Fact]
-    public async Task Production_SameDayAddition_CountsTowardThatDaysExposure()
+    public async Task Production_SameDayAddition_ReadsOver100AndMeetsTheFlagCondition()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
@@ -553,11 +551,87 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
             $"/api/v1/reports/production?from={d:yyyy-MM-dd}&to={d.AddDays(1):yyyy-MM-dd}");
         var (day, next) = (report!.Days[0], report.Days[1]);
 
-        Assert.Equal((20L, 20L, 20), (day.HenDays, day.RecordedHenDays, day.RatedEggs));
-        Assert.Equal(100m, day.HenDayPct);
+        Assert.Equal((10L, 10L, 20), (day.HenDays, day.RecordedHenDays, day.RatedEggs));
+        Assert.Equal(200m, day.HenDayPct);
+        Assert.True(day.RatedEggs > day.RecordedHenDays, "the flag condition: more rated eggs than recorded hen-days");
         Assert.Equal((20L, 20L, 16), (next.HenDays, next.RecordedHenDays, next.RatedEggs));
         Assert.Equal(80m, next.HenDayPct);
-        Assert.Equal(90m, report.PeriodHenDayPct);
+        Assert.Equal(120m, report.PeriodHenDayPct);
+        Assert.True(report.TotalRatedEggs > report.TotalRecordedHenDays);
+    }
+
+    // Codex round 2 on #959 — the scenario that broke the same-day split: an
+    // entry's mortality writes a positive movement dated D and its correction
+    // writes a negative one dated D. Under the next-day rule both apply from
+    // D+1 and cancel, so D holds every placed bird and D+1 does too.
+    [Fact]
+    public async Task Production_MortalityCorrectedOnItsDay_LeavesExposureConsistent()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var d = Today.AddDays(-2);
+
+        var entryId = await RecordAsync(client, farmId, grades["Large"], flockId, d, 100, mortality: 2);
+        await RecordAsync(client, farmId, grades["Large"], flockId, d.AddDays(1), 90);
+        var version = (await client.GetFromJsonAsync<EntryVersion>($"/api/v1/daily-entries/{entryId}"))!.Version;
+        var adjust = await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/adjust", Guid.NewGuid().ToString(), new
+        {
+            version, totalEggs = 100, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            reason = "deaths were entered against the wrong house",
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 100 } }
+        });
+        Assert.Equal(HttpStatusCode.OK, adjust.StatusCode);
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={d:yyyy-MM-dd}&to={d.AddDays(1):yyyy-MM-dd}");
+        var (day, next) = (report!.Days[0], report.Days[1]);
+
+        Assert.Equal((100L, 100L, 100), (day.HenDays, day.RecordedHenDays, day.RatedEggs));
+        Assert.Equal(100m, day.HenDayPct);
+        Assert.Equal((100L, 100L, 90), (next.HenDays, next.RecordedHenDays, next.RatedEggs));
+        Assert.Equal(90m, next.HenDayPct);
+        Assert.Equal(95m, report.PeriodHenDayPct);
+    }
+
+    // Codex round 2 on #959 — ten birds moved from A to B as a +10 and a −10
+    // Adjustment dated D. Under the next-day rule the ten stay in A through D
+    // and appear in B from D+1, so the farm holds 200 hen-days on both days and
+    // each flock's own report agrees with the farm-wide one.
+    [Fact]
+    public async Task Production_PairedSameDayTransfer_KeepsFarmTotalsConsistent()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var a = await factory.SeedFlockAsync(accountId, farmId);
+        var b = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var d = Today.AddDays(-2);
+
+        await MoveAsync(client, a, d, "Adjustment", 10);
+        await MoveAsync(client, b, d, "Adjustment", -10);
+        foreach (var flockId in new[] { a, b })
+        {
+            await RecordAsync(client, farmId, grades["Large"], flockId, d, 80);
+            await RecordAsync(client, farmId, grades["Large"], flockId, d.AddDays(1), 80);
+        }
+
+        var range = $"from={d:yyyy-MM-dd}&to={d.AddDays(1):yyyy-MM-dd}";
+        var farm = await client.GetFromJsonAsync<ProductionDto>($"/api/v1/reports/production?{range}");
+        var onlyA = await client.GetFromJsonAsync<ProductionDto>($"/api/v1/reports/production?{range}&flockId={a}");
+        var onlyB = await client.GetFromJsonAsync<ProductionDto>($"/api/v1/reports/production?{range}&flockId={b}");
+
+        Assert.Equal((200L, 200L, 160), (farm!.Days[0].HenDays, farm.Days[0].RecordedHenDays, farm.Days[0].RatedEggs));
+        Assert.Equal((200L, 200L, 160), (farm.Days[1].HenDays, farm.Days[1].RecordedHenDays, farm.Days[1].RatedEggs));
+        Assert.Equal(80m, farm.PeriodHenDayPct);
+        Assert.Equal((100L, 90L), (onlyA!.Days[0].HenDays, onlyA.Days[1].HenDays));
+        Assert.Equal((100L, 110L), (onlyB!.Days[0].HenDays, onlyB.Days[1].HenDays));
+        Assert.Equal(farm.Days[1].HenDays, onlyA.Days[1].HenDays + onlyB.Days[1].HenDays);
     }
 
     [Fact]
@@ -593,19 +667,22 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    private static async Task RecordAsync(
-        HttpClient client, Guid farmId, Guid gradeId, Guid flockId, DateOnly date, int total)
+    private sealed record EntryVersion(int Version);
+
+    private static async Task<Guid> RecordAsync(
+        HttpClient client, Guid farmId, Guid gradeId, Guid flockId, DateOnly date, int total, int mortality = 0)
     {
         var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
             farmId, houseId = Guid.NewGuid(), flockId, date,
-            totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = mortality,
             grades = new[] { new { eggGradeId = gradeId, quantity = total } }
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
         Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
             $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        return id;
     }
 
     // #780, found by an external review — completeness cannot be a comparison of
