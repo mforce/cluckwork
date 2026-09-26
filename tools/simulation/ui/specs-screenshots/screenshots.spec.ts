@@ -1,7 +1,7 @@
 // tools/simulation/ui/specs-screenshots/screenshots.spec.ts — #549.
 //
-// Captures the four images the root README embeds, from the REAL built SPA
-// over the #243 simulation fixture. Run it deliberately:
+// Captures the four images the root README embeds, from the built SPA
+// over the simulation and demo farms. Run it deliberately:
 //
 //     npm run screenshots        # from tools/simulation/ui, with the sim stack up
 //
@@ -86,11 +86,8 @@ test.describe("README screenshots", () => {
   // exactly one user and it holds the Owner role. Both derive `isAdmin`, so the
   // recent-sales panel asserted below renders either way.
   //
-  // The image IS committed and the README embeds it (#660, #663) — all four
-  // captures this file produces are tracked. #660 gave this test its own project
-  // in playwright.screenshots.config.ts at a taller 1280x1180 frame, so the
-  // trend, stock and recent-sales panels are captured below the tiles instead of
-  // falling off a 1280x800 fold.
+  // The dashboard uses its own 1280x1300 project so the Lay rate KPI fits
+  // below Morning collection, stock, and recent orders.
 
   test("dashboard — the morning view: capture status, the fortnight, stock by grade", async ({ page, signIn }) => {
     await signIn(readmeFarmOwner());

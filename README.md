@@ -92,9 +92,9 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 
 ## More of it
 
-Sales orders move from draft to confirmed. Filter by status, customer, or
-unpaid balance; each row shows the order total, outstanding amount, and a link
-to its audit history.
+Sales orders move from draft to confirmed. Filter by status and customer, or
+show unpaid orders only. Each row shows the total, outstanding amount, and a
+link to its audit history.
 
 ![Sales page with status and customer filters, an Unpaid only checkbox, and draft and confirmed orders with totals, outstanding balances, and audit history links](docs/images/sales.png)
 

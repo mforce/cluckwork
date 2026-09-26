@@ -1,7 +1,7 @@
 // tools/simulation/ui/playwright.screenshots.config.ts — #549.
 //
-// Captures the README's screenshots from the REAL built SPA over the same
-// `seed --profile simulation` fixture every other spec here uses. Deliberately
+// Captures the README's screenshots from the built SPA over the simulation
+// and demo farms. Deliberately
 // a THIRD config rather than a spec in `specs/`: this run WRITES FILES into the
 // repo (docs/images/), and a capture that rides along with `npm test` would
 // rewrite committed images on every smoke run — turning an unrelated green run
@@ -62,8 +62,8 @@ export default defineConfig({
         // project's `use` beats the top-level one. Setting the frame above the
         // spread silently captures at the device's size instead of this one.
         //
-        // The taller frame keeps the daily entry totals and Reports money
-        // summary above the fold after the #920 recapture.
+        // Daily entry uses this height; Reports and Sales set their own
+        // viewports in the spec to fit their content.
         //
         // Scale 1 keeps the committed PNGs at their CSS pixel size.
         viewport: { width: 1280, height: 1000 },
