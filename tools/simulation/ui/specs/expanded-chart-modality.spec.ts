@@ -38,6 +38,35 @@ test.describe("Expanded Lay rate chart modality (#941)", () => {
     await expect(chart).toBeVisible();
   });
 
+  // #958 review round 2, P2: the Close button used to carry
+  // `data-mui-focusable`, which made it FocusTrap's focusTarget as well as the
+  // last tabbable node. The trap's "focus start" branch answered every
+  // Shift+Tab by focusing it again, so the key did nothing at all and the only
+  // way backwards was forward Tab around the whole loop.
+  test("walks backwards out of Close, not into it", async ({ page, signIn }) => {
+    await signIn(readmeFarmOwner());
+    await page.goto("/");
+    const chart = await open(page);
+
+    const close = chart.getByRole("button", { name: tEn("dashboard:expandClose") });
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+
+    // The day strip is one tab stop (#654), so backwards out of Close lands on
+    // the day in view rather than on the last of ninety bars.
+    const landed = await page.evaluate(() => {
+      const active = document.activeElement;
+      return {
+        onClose: active?.getAttribute("class")?.includes("lay-expand-leave") ?? false,
+        onStrip: active?.classList.contains("day") ?? false,
+        inside: document.querySelector('[role="dialog"]')?.contains(active) ?? false,
+      };
+    });
+    expect(landed.onClose, "Shift+Tab focused Close again").toBe(false);
+    expect(landed.inside).toBe(true);
+    expect(landed.onStrip, "Shift+Tab should reach the strip's tab stop").toBe(true);
+  });
+
   test("locks the page behind it, and gives the scroll back on close", async ({ page, signIn }) => {
     await signIn(readmeFarmOwner());
     await page.goto("/");
