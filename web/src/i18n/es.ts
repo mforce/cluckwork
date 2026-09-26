@@ -1812,6 +1812,7 @@ export const es = {
     recordedHenDaysHeader: "Registrados",
     ratedEggsHeader: "Huevos contados",
     henDayPctHeader: "% días-gallina",
+    henDayOver100: "Más del 100 %: se registraron más huevos que aves en el registro de aves. Revise el recuento de aves de los lotes.",
     periodRowLabel: "Período",
     gradeTotalsLabel: "Totales por clasificación registrados",
 
@@ -2676,7 +2677,9 @@ export const es = {
       + "nada no produjo huevos que este informe pueda ver, así que contar sus aves informaría una tasa que "
       + "nada respalda. La columna <strong>Días-gallina</strong> cuenta todas las aves vivas, registradas o "
       + "no, así que la diferencia entre ambas es lo que falta. Un día que nadie registró muestra un guion "
-      + "en vez de 0 %.",
+      + "en vez de 0 %. Una cifra por encima del 100 % se marca: una gallina pone como máximo un huevo al "
+      + "día, así que más huevos que días-gallina registrados significa que una entrada y el registro de "
+      + "aves no coinciden, y hay que revisar el recuento de aves de ese lote.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "

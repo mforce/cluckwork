@@ -15,6 +15,7 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
+import { HenDayOver100Flag } from "../components/HenDayOver100Flag";
 import { ExpandedLayRate } from "../components/ExpandedLayRate";
 import { StockBar } from "../components/StockBar";
 import { Dialog } from "../components/Dialog";
@@ -1026,7 +1027,7 @@ export function Dashboard() {
             : trendData === null ? panelError : <>
               <DayStrip {...stripStrings(trendData.line, rangeSpan)}
                 data={trendData.line} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
-              <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
+              <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><HenDayOver100Flag pct={trendData.henDay.current} /><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
               <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>
                 {t("henDaySubLabel", { range: rangeSpan, count: plotted.days, days: fmt.count(plotted.days) })}
               </Typography>

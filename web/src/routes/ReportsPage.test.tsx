@@ -49,6 +49,17 @@ const PRODUCTION: ProductionReport = {
   ],
 };
 const PRODUCTION_NO_GRADES: ProductionReport = { ...PRODUCTION, gradeTotals: [] };
+// #943 — a rate above 100% (a hen lays at most one egg a day). Day 1 rates
+// 104 eggs over 100 recorded hen-days; the period, 199 over 196.
+const PRODUCTION_OVER_100: ProductionReport = {
+  ...PRODUCTION,
+  days: [
+    { ...PRODUCTION.days[0], totalEggs: 104, ratedEggs: 104, recordedHenDays: 100, henDayPct: 104.0 },
+    PRODUCTION.days[1],
+  ],
+  totalRatedEggs: 199, periodHenDayPct: 101.5,
+};
+const OVER_100_FLAG = "Above 100%: more eggs were recorded than birds on the ledger. Check the flocks' bird counts.";
 
 const SALES: SalesSummary = {
   confirmedCount: 5, revenueMinorUnits: 10000, paidMinorUnits: 8000, outstandingMinorUnits: 2000,
@@ -114,6 +125,29 @@ describe("ReportsPage production section (renders for every role)", () => {
     within(periodRow).getByText("92.3"); // periodHenDayPct
 
     expect(screen.getByRole("list", { name: "Reported grade totals" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
+  });
+
+  // #943 — a rate above 100% is impossible and means a filing and the bird
+  // ledger disagree. The figure stays as computed, so it still reproduces
+  // from Rated eggs ÷ Recorded, and a flag beside it says so rather than the
+  // page presenting it as a result.
+  it("flags a hen-day % above 100 on its day row and on both period figures", async () => {
+    mockGetProductionReport.mockResolvedValue(PRODUCTION_OVER_100);
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
+    within(row1).getByText("104.0");
+    within(row1).getByLabelText(OVER_100_FLAG);
+    const row2 = screen.getByRole("row", { name: /07\/18\/2026/ });
+    expect(within(row2).queryByLabelText(OVER_100_FLAG)).toBeNull();
+    // The day row, the period summary and the period footer row.
+    expect(screen.getAllByLabelText(OVER_100_FLAG)).toHaveLength(3);
+  });
+
+  it("shows no flag while every hen-day % is at or under 100", async () => {
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
+    expect(screen.queryByLabelText(OVER_100_FLAG)).toBeNull();
   });
 
   // #396 — Condition sits BESIDE Sellable, never folded into it. The fixture

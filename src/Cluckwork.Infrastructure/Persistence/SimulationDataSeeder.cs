@@ -759,6 +759,10 @@ public sealed class SimulationDataSeeder(
     // equal to the oldest entry date.
     private const int FlockPlacementMarginDays = 7;
 
+    // #943 — shared with the production history, whose eggs are a lay rate
+    // over these birds less the removals the seeder itself writes.
+    private static readonly int[] OperationalFlockInitialCounts = [400, 350];
+
     private async Task<IReadOnlyList<Guid>> SeedFlockTopologyAsync(
         Guid accountId, DateOnly today, SimCast cast, SimulationOptions sim, CancellationToken ct)
     {
@@ -770,8 +774,8 @@ public sealed class SimulationDataSeeder(
 
         (string Name, string Breed, DateOnly PlacementDate, int InitialCount)[] wanted =
         [
-            ("Sim House A", "ISA Brown", placementDate, 400),
-            ("Sim House B", "Lohmann Brown", placementDate, 350),
+            ("Sim House A", "ISA Brown", placementDate, OperationalFlockInitialCounts[0]),
+            ("Sim House B", "Lohmann Brown", placementDate, OperationalFlockInitialCounts[1]),
         ];
 
         // A manager places the flocks (#500) — Flock.Create is audited, so this
@@ -903,6 +907,9 @@ public sealed class SimulationDataSeeder(
     // stable sentinel note so the SPA ledger spec can prove the second page
     // renders — but the note is DATA, not identity.
     private const int ExplicitBirdMovementCount = 51;
+    // The 51st non-multiple of five (51 rows + 12 skipped offsets); the bound
+    // `LiveBirdsOnDay` walks the same band by.
+    private const int ExplicitBirdMovementLastOffset = 63;
     private const string BirdMovementPageTwoSentinelNote = "Sim bird movement page two sentinel";
 
     private async Task SeedExplicitBirdMovementsAsync(
@@ -1076,8 +1083,36 @@ public sealed class SimulationDataSeeder(
 
         for (var i = 0; i < flockIds.Count; i++)
             await SeedFlockHistoryAsync(
-                accountId, flockIds[i], baseline: 320 + i * 60, today, historyDays, grades, cast, ct);
+                accountId, flockIds[i], OperationalFlockInitialCounts[i], carriesExplicitAdjustments: i == 0,
+                today, historyDays, grades, cast, ct);
     }
+
+    // #943 — the birds a flock holds at the START of the day `d` days before
+    // today, mirroring the two removal schedules this seeder writes: one
+    // automatic mortality on every submitted day whose offset is a multiple
+    // of five (`SeedFlockHistoryAsync`), and, on the first house only, the
+    // 51 explicit +1 adjustments of `SeedExplicitBirdMovementsAsync` on the
+    // offsets 1..63 not divisible by five. Same start-of-day convention as
+    // the production report: only movements dated strictly before the day
+    // count. Computed rather than read back because the history loop walks
+    // newest-first, so the older days' mortality rows do not exist yet when
+    // a newer day's eggs are decided.
+    private static int LiveBirdsOnDay(int initialCount, int d, int historyDays, bool carriesExplicitAdjustments)
+    {
+        var removed = 0;
+        for (var earlier = d + 1; earlier <= historyDays; earlier++)
+            if (earlier > DraftWindowDays && earlier % 5 == 0) removed++;
+        if (carriesExplicitAdjustments)
+            for (var earlier = d + 1; earlier <= ExplicitBirdMovementLastOffset; earlier++)
+                if (earlier % 5 != 0) removed++;
+        return initialCount - removed;
+    }
+
+    // Live birds at an 86–94% hen-day rate that varies day to day. A hen lays
+    // at most one egg a day; the former constant baseline (380 eggs from 350
+    // birds) rated every day of the Dashboard and Reports over 100% (#943).
+    // Deterministic variation — no Random, reproducible seeds.
+    private static int EggsOnDay(int liveBirds, int d) => liveBirds * (86 + (d * 7) % 9) / 100;
 
     // Shared by production history (above) and the sales catalog (#243 Task
     // 3b) — both need the same saleable-grade lookup, keyed by name.
@@ -1092,7 +1127,8 @@ public sealed class SimulationDataSeeder(
     }
 
     private async Task SeedFlockHistoryAsync(
-        Guid accountId, Guid flockId, int baseline, DateOnly today, int historyDays,
+        Guid accountId, Guid flockId, int initialCount, bool carriesExplicitAdjustments,
+        DateOnly today, int historyDays,
         IReadOnlyDictionary<string, Guid> grades, SimCast cast, CancellationToken ct)
     {
         for (var d = 1; d <= historyDays; d++)
@@ -1107,8 +1143,7 @@ public sealed class SimulationDataSeeder(
                 accountId, SeedDefaults.FarmId, SeedDefaults.HouseId, flockId, date, ct);
             if (existing is not null) continue;
 
-            // Deterministic variation — no Random, reproducible seeds.
-            var total = baseline + (d * 7) % 23;
+            var total = EggsOnDay(LiveBirdsOnDay(initialCount, d, historyDays, carriesExplicitAdjustments), d);
             var cracked = 4 + d % 3;
             var dirty = 2 + d % 2;
             const int discarded = 1;

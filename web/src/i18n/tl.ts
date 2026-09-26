@@ -1880,6 +1880,7 @@ export const tl = {
     recordedHenDaysHeader: "May tala",
     ratedEggsHeader: "Itlog na binilang",
     henDayPctHeader: "Hen-day %",
+    henDayOver100: "Lampas sa 100%: mas maraming itlog ang naitala kaysa sa mga ibon sa talaan ng ibon. Suriin ang bilang ng ibon ng mga kawan.",
     periodRowLabel: "Panahon",
     gradeTotalsLabel: "Naitalang kabuuan ayon sa grado",
 
@@ -2784,7 +2785,10 @@ export const tl = {
       + "report na ito, kaya ang pagbilang sa mga ibon nito ay mag-uulat ng rate na walang basehan. Ang "
       + "column na <strong>Hen-days</strong> ay lahat ng ibong buhay, may tala man o wala, kaya ang agwat "
       + "sa pagitan ng dalawa ay ang nawawala. Ang araw na walang nagtala ay nagpapakita ng gitling sa "
-      + "halip na 0%.",
+      + "halip na 0%. Minamarkahan ang bilang na lampas sa 100%: isang itlog lang bawat araw ang "
+      + "inilalagay ng inahin, kaya ang mas maraming itlog kaysa sa hen-days na may tala ay "
+      + "nangangahulugang hindi magkatugma ang entry at ang talaan ng ibon, at kailangang suriin ang "
+      + "bilang ng ibon ng kawang iyon.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>May depekto</strong>: basag at maruming itlog na naging stock sa halip na ituring na "

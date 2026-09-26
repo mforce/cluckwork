@@ -278,6 +278,26 @@ public sealed class DemoDataSeeder(
         }
     }
 
+    private const int House1Birds = 500;
+    private const int House2Birds = 400;
+
+    // #943 — birds at the start of the day `d` days before today: the
+    // placement less the one mortality the loop below submits on every past
+    // day whose offset is a multiple of three. House 1 recorded 430–452 eggs
+    // a day from the 420 birds left after eight months, which rated the
+    // README farm's Reports page over 100%.
+    private static int LiveBirdsOnDay(int initialCount, int d, int days)
+    {
+        var removed = 0;
+        for (var earlier = d + 1; earlier <= days; earlier++)
+            if (earlier % 3 == 0) removed++;
+        return initialCount - removed;
+    }
+
+    // Live birds at an 86–94% hen-day rate that varies day to day — a hen lays
+    // at most one egg a day. Deterministic: no Random, reproducible demos.
+    private static int EggsOnDay(int liveBirds, int d) => liveBirds * (86 + (d * 7) % 9) / 100;
+
     private async Task SeedDemoAsync(Guid accountId, CancellationToken ct)
     {
         // The farm's own today, not the UTC date: the Dashboard's Today panel
@@ -297,9 +317,9 @@ public sealed class DemoDataSeeder(
 
         // --- Flocks: two active at different ages + one depleted historical.
         var house1 = Require(await createFlock.HandleAsync(new CreateFlockCommand(
-            "House 1 layers", "ISA Brown", today.AddDays(-45 * 7), 500), accountId, ct));
+            "House 1 layers", "ISA Brown", today.AddDays(-45 * 7), House1Birds), accountId, ct));
         var house2 = Require(await createFlock.HandleAsync(new CreateFlockCommand(
-            "House 2 layers", "Lohmann Brown", today.AddDays(-40 * 7), 400), accountId, ct));
+            "House 2 layers", "Lohmann Brown", today.AddDays(-40 * 7), House2Birds), accountId, ct));
         var oldBatch = Require(await createFlock.HandleAsync(new CreateFlockCommand(
             "2025 batch (sold)", "ISA Brown", today.AddDays(-90 * 7), 450), accountId, ct));
 
@@ -315,13 +335,13 @@ public sealed class DemoDataSeeder(
         // page (#465 — the load-more pager and date filter are exercisable
         // straight from a demo farm). Today stays unrecorded for House 2 so the
         // dashboard shows the "no entry" flag.
-        foreach (var (flockId, baseline, days) in new[] { (house1, 430, 240), (house2, 275, 240) })
+        foreach (var (flockId, initialCount, days) in new[] { (house1, House1Birds, 240), (house2, House2Birds, 240) })
         {
             for (var d = days; d >= 0; d--)
             {
                 if (d == 0 && flockId == house2) continue;
                 var date = today.AddDays(-d);
-                var total = baseline + (d * 7) % 23;
+                var total = EggsOnDay(LiveBirdsOnDay(initialCount, d, days), d);
                 var cracked = 4 + d % 3;
                 var dirty = 2 + d % 2;
                 var mortality = d % 3 == 0 ? 1 : 0;

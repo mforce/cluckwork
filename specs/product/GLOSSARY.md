@@ -754,6 +754,14 @@ reproduced rather than taken on trust. They equal the day's eggs and its
 hen-days on any ordinary day; a gap means a filing and the bird ledger
 disagree about that date.
 
+A figure **above 100% is impossible** — a hen lays at most one egg a day —
+and means a flock filed more eggs than the bird ledger holds birds for it on
+that date (an unrecorded placement top-up, a mistyped count, a mortality
+entered against the wrong flock). Reports and the Dashboard's Lay rate card
+show the figure as computed and **flag** it (#943) rather than capping it at
+100: a capped number would no longer reproduce from Rated eggs ÷ Recorded
+hen-days, and would hide the ledger error the farm needs to correct.
+
 **Partly recorded day (#780)** — a date where at least one flock filed an
 official entry and at least one did not. Its egg total is a **floor**, not
 the day's output, so the Dashboard's 14-day strip draws it hatched and

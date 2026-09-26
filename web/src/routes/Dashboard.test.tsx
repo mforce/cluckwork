@@ -977,6 +977,27 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(delta.className).toBe("trend-delta is-down");
   });
 
+  // #943 — a hen-day figure above 100% is impossible and means a filing and
+  // the bird ledger disagree. The card keeps the server's figure and flags it
+  // rather than capping it to a number the report would not reproduce.
+  it("flags a hen-day figure above 100% and leaves a plausible one unflagged", async () => {
+    const flag = "Above 100%: more eggs were recorded than birds on the ledger. Check the flocks' bird counts.";
+    // 1470/1400 = 105.0 on the plotted window; the comparison window's 85.1 stays.
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d, i) => (i === 14 ? { ...d, ratedEggs: 1470 } : d)),
+      })));
+    const { unmount } = renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("105.0%")).toBeInTheDocument();
+    expect(screen.getAllByLabelText(flag)).toHaveLength(1);
+    unmount();
+
+    mockReport.mockImplementation(reportByWindow(today));
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("87.4%")).toBeInTheDocument();
+    expect(screen.queryByLabelText(flag)).toBeNull();
+  });
+
   it("renders — for a null hen-day figure, never 0, and keeps the delta neutral", async () => {
     // periodHenDayPct is null only once a week's OWN exposure is zero
     // (#918 — recomputed from `ratedEggs`/`recordedHenDays`, never taken at
