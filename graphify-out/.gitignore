@@ -5,3 +5,7 @@
 cache/
 # Per-machine token-cost ledger (upstream team-setup guidance: local only)
 cost.json
+# Dated pre-overwrite backups (graphify's backup_if_protected). Each one copies
+# the graph a refresh replaced, which git history already holds; committing them
+# added ~25 MB of duplicate JSON to the tree per refresh.
+/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
