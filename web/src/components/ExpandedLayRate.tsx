@@ -84,15 +84,14 @@ export function ExpandedLayRate({
   );
   const strip = useDayStrip(slots, tip, { firstVisible: view.firstVisible, scrollerRef, gutterRef });
 
-  // The gap is read back from the STRIP, so the stylesheet is the only thing
+  // The gap is read back off the STRIP, so the stylesheet is the only thing
   // that decides it. `MD_UP_QUERY` is `(min-width: 900px)` and the phone rule
-  // is `(max-width: 900px)`: both match at exactly 900, where a JS-side 4px
-  // against a laid-out 2px put `stripWidth` 178px out over 90 days and lit an
-  // edge cue on a chart that clips nothing. jsdom loads no stylesheet, so the
-  // desktop value stands in there and the browser answers for itself.
+  // is `(max-width: 900px)`, so both match at exactly 900 — there a JS-side
+  // 4px against a laid-out 2px put `stripWidth` 178px out over 90 days. The
+  // fallback covers jsdom, which loads no stylesheet to read.
   const metricsOf = useCallback((region: HTMLElement | null): StripMetrics => {
     const node = strip.stripRef.current;
-    const measured = node === null ? Number.NaN : Number.parseFloat(getComputedStyle(node).columnGap);
+    const measured = Number.parseFloat(node === null ? "" : getComputedStyle(node).columnGap);
     return {
       days,
       slot: DAY_SLOT_PX,
@@ -119,12 +118,9 @@ export function ExpandedLayRate({
   }, [metricsOf]);
 
   // The newest day sits at the right edge, as it does on the card, so the view
-  // opens on the days the farm just filed rather than on the quarter's first
-  // week. A range narrower than the window leaves its empty space on the LEFT
-  // (styles.css `.bigstrip`), which is the same rule with nothing to scroll.
-  // Keyed on the REPORT, which is what "a new range opened" means. Keyed on
-  // `sync` it also re-ran whenever the gap changed, so a window dragged across
-  // 900px threw a reader who was mid-quarter back to the newest day.
+  // opens on the days the farm just filed. Keyed on the REPORT, which is what
+  // "a new range opened" means: keyed on anything derived from the day count,
+  // a new range of the same length leaves the reader at the wrong end of it.
   useLayoutEffect(() => {
     const region = scrollerRef.current;
     if (region !== null) region.scrollLeft = region.scrollWidth;
@@ -217,16 +213,13 @@ export function ExpandedLayRate({
   }, [shownNote]);
 
   return (
-    // `Modal` rather than a bare fixed div, so the frame reuses the
-    // `ModalManager` every Dialog in this app already depends on: siblings go
-    // `aria-hidden`, the body's scroll is locked and restored, Escape closes,
-    // and Tab is contained however focus got where it is — a click on the
-    // backdrop used to leave it on <body>, where the hand-rolled trap could
-    // not see the next press. It also supplies `theme.zIndex.modal`, so the
-    // stylesheet no longer carries a literal 1300. `hideBackdrop` because the
-    // opaque `.lay-expand-backdrop` below IS the backdrop; `disableRestoreFocus`
-    // because the caller returns focus to the Expand control itself, and two
-    // actors restoring focus is the conflict #483 is named for.
+    // `Modal` for the `ModalManager` every Dialog here already depends on:
+    // siblings go `aria-hidden`, the body's scroll is locked and restored,
+    // Escape closes, Tab is contained however focus got where it is, and the
+    // frame takes `theme.zIndex.modal` instead of a literal in the stylesheet.
+    // `hideBackdrop` because the opaque `.lay-expand-backdrop` IS the backdrop;
+    // `disableRestoreFocus` because the caller restores focus itself, and two
+    // actors doing it is the conflict #483 is named for.
     <Modal open onClose={onClose} hideBackdrop disableRestoreFocus>
       <div
         className="lay-expand-backdrop" role="dialog" aria-modal="true" aria-labelledby={titleId}
@@ -338,26 +331,21 @@ export function ExpandedLayRate({
                   </div>
                   <div className="lay-expand-foot">
                     <DayLegend legend={legend} />
-                    {/* The caption a sighted reader watches, and beside it the
-                        one a screen reader hears. The visible span updates on
-                        every page so it never lags the chart; the live region
-                        waits for the window to settle, because a drag crosses
-                        a day boundary every 26px and would otherwise speak
-                        forty times on one sweep. Splitting them is what stops
-                        the same sentence being read twice. */}
+                    {/* One caption for the eye, one for the ear. The visible
+                        span never lags the chart; the live region waits for
+                        the window to settle. Splitting them is what keeps the
+                        same sentence from being read twice. */}
                     <span className="lay-expand-shown" aria-hidden="true">{shownNote}</span>
                     <span className="sr-only" aria-live="polite">{announced}</span>
                   </div>
                 </figure>
               </>}
         </div>
-        {/* The one way out takes focus on open, so a keyboard user is not
-            dropped on a full-screen overlay they cannot see the edge of.
-            `data-mui-focusable` is how `FocusTrap` is told which descendant to
-            open on; without it the trap focuses the frame's root instead. The
-            attribute is MUI's own (`utils/focusable.js`), so a rename on
-            upgrade would quietly fall back to that root — which is what
-            ExpandedLayRate.test.tsx's opening-focus assertion is there for. */}
+        {/* The one way out takes focus on open. `data-mui-focusable` is how
+            `FocusTrap` is told which descendant to open on, and it is MUI's own
+            attribute (`utils/focusable.js`) — a rename on upgrade would fall
+            back to the frame's root, which is what the opening-focus assertion
+            in ExpandedLayRate.test.tsx is there to catch. */}
         <Button
           data-mui-focusable variant="contained" onClick={onClose}
           className="lay-expand-leave" sx={{ "&&": { minHeight: 44 } }}

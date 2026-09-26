@@ -377,12 +377,11 @@ export function Dashboard() {
     return () => controller.abort();
   }, [from, to, previousFrom, trendFlockId, canSeeSales]);
 
-  // #941 — focus returns to the control that opened the chart: it is the only
-  // thing that tells a screen-reader user where the view went. It has to
-  // happen AFTER the overlay is gone — called from `onClose`, while the frame
-  // is still mounted, its focus trap pulls any focus outside it straight back
-  // and the unmount then drops focus on <body>. The ref keeps the first render
-  // from stealing focus to a control nobody has touched.
+  // #941 — focus returns to the control that opened the chart, AFTER the
+  // overlay is gone: called from `onClose` it lands while the frame is still
+  // mounted, whose focus trap pulls it straight back and then drops it on
+  // <body>. The ref keeps the first render from stealing focus to a control
+  // nobody has touched.
   const wasExpanded = useRef(false);
   useEffect(() => {
     if (wasExpanded.current && !expanded) expandRef.current?.focus();
