@@ -58,9 +58,17 @@ function buildFixture(assetByteSize, runtimeRoute = RUNTIME_ROUTE_FN) {
   return dist;
 }
 
+// execFileSync's default stdio inherits the child's stderr straight to this
+// process's real stderr (in addition to capturing it), so a fixture's
+// expected `::error::` line would otherwise reach the CI job log and get
+// read as a GitHub annotation on every run, passing or not. Piping instead
+// of inheriting keeps the capture this file asserts on without leaking it.
 function runVerifySw(dist) {
   try {
-    const stdout = execFileSync("node", [scriptPath, dist], { encoding: "utf8" });
+    const stdout = execFileSync("node", [scriptPath, dist], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     return { status: 0, stdout, stderr: "" };
   } catch (err) {
     return { status: err.status, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
