@@ -106,9 +106,10 @@ production-sized copy before running the pre-deploy job.
 Each module declares its chronological types and exclusions beside its
 persistence configuration. `BusinessRecordModel` merges those contributions,
 then its centralized model walk classifies every mapped type as mutable,
-create-only, or excluded. The same walk fixes the set of chronological tables
-and rejects duplicate contributions. A new mapped type cannot rely on a
-developer remembering this document alone.
+create-only, or excluded. The walk rejects duplicate contributions, unmapped
+exclusions, and unclassified mapped types. It cannot infer which tables users
+page or read by time. An omitted chronological contribution therefore stays
+green, and only review catches it.
 
 ## Sales line display order (#906)
 
