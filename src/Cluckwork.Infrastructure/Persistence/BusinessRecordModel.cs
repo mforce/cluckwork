@@ -1,53 +1,21 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
-using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Expenses;
-using Cluckwork.Domain.Flocks;
-using Cluckwork.Domain.Inventory;
-using Cluckwork.Domain.Sales;
-using Cluckwork.Infrastructure.Identity;
-using Cluckwork.Infrastructure.Jobs;
-using Microsoft.AspNetCore.Identity;
+using Cluckwork.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 internal static class BusinessRecordModel
 {
-    // Sequence is persistence-only, so this is the deliberate policy list;
-    // unlike timestamp classification, no domain interface should expose it.
-    private static readonly Type[] ChronologicalListTypes =
+    private static readonly BusinessRecordContribution[] Contributions =
     [
-        typeof(SalesOrder),
-        typeof(SalesOrderItem),
-        typeof(Expense),
-        typeof(DailyEntry),
-        typeof(EggLot),
-        typeof(BirdMovement),
-        typeof(Payment),
-        typeof(InventoryLot),
-        typeof(FeedUsage),
-        typeof(WaterUsage),
-        typeof(InventoryMovement),
-        typeof(EggInventoryMovement)
-    ];
-
-    private static readonly Type[] MappedExclusions =
-    [
-        typeof(AuditEvent),
-        typeof(ApplicationRole),
-        typeof(IdentityRoleClaim<Guid>),
-        typeof(IdentityUserClaim<Guid>),
-        typeof(IdentityUserLogin<Guid>),
-        typeof(IdentityUserRole<Guid>),
-        typeof(IdentityUserToken<Guid>),
-        typeof(IdentityPasskeyData),
-        typeof(RefreshToken),
-        typeof(IdempotencyRecord),
-        typeof(SimulationSeedState),
-        typeof(DurableJob)
+        CommerceBusinessRecords.Contribution,
+        EggOperationsBusinessRecords.Contribution,
+        FinanceBusinessRecords.Contribution,
+        FlockManagementBusinessRecords.Contribution,
+        GeneralInventoryBusinessRecords.Contribution,
+        PlatformBusinessRecords.Contribution
     ];
 
     public static void Apply(ModelBuilder builder)
@@ -59,10 +27,21 @@ internal static class BusinessRecordModel
         var timestampedRecords = mappedTypes
             .Where(typeof(ICreatedRecord).IsAssignableFrom)
             .ToHashSet();
-        var chronologicalLists = ChronologicalListTypes.ToHashSet();
-        var exclusions = MappedExclusions.ToHashSet();
+        var chronologicalListContributions = Contributions
+            .SelectMany(contribution => contribution.ChronologicalListTypes)
+            .ToArray();
+        var chronologicalLists = chronologicalListContributions.ToHashSet();
+        var exclusions = Contributions
+            .SelectMany(contribution => contribution.MappedExclusions)
+            .ToHashSet();
 
-        ValidateCensus(mappedTypes, timestampedRecords, chronologicalLists, exclusions);
+        ValidateCensus(
+            mappedTypes,
+            timestampedRecords,
+            Contributions,
+            chronologicalListContributions,
+            chronologicalLists,
+            exclusions);
 
         foreach (var recordType in timestampedRecords)
         {
@@ -85,11 +64,24 @@ internal static class BusinessRecordModel
     private static void ValidateCensus(
         HashSet<Type> mappedTypes,
         HashSet<Type> timestampedRecords,
+        BusinessRecordContribution[] contributions,
+        Type[] chronologicalListContributions,
         HashSet<Type> chronologicalLists,
         HashSet<Type> exclusions)
     {
-        if (ChronologicalListTypes.Length != chronologicalLists.Count)
-            throw new InvalidOperationException("The chronological-list census contains a duplicate type.");
+        if (chronologicalListContributions.Length != chronologicalLists.Count)
+            throw new InvalidOperationException(DuplicateContributionMessage(
+                contributions,
+                contribution => contribution.ChronologicalListTypes,
+                "chronological-list"));
+        var exclusionContributions = contributions
+            .SelectMany(contribution => contribution.MappedExclusions)
+            .ToArray();
+        if (exclusionContributions.Length != exclusions.Count)
+            throw new InvalidOperationException(DuplicateContributionMessage(
+                contributions,
+                contribution => contribution.MappedExclusions,
+                "mapped-exclusion"));
         if (!chronologicalLists.IsSubsetOf(timestampedRecords))
             throw new InvalidOperationException("Every chronological list must be a timestamped business record.");
         if (timestampedRecords.Overlaps(exclusions))
@@ -108,7 +100,23 @@ internal static class BusinessRecordModel
             .ToArray();
         if (unclassifiedTypes.Length != 0)
             throw new InvalidOperationException(
-                $"Mapped entities have no business-record timestamp policy: {string.Join(", ", unclassifiedTypes.Select(type => type.Name))}.");
+                $"Mapped entities have no business-record timestamp policy: {string.Join(", ", unclassifiedTypes.Select(type => type.FullName))}.");
+    }
+
+    private static string DuplicateContributionMessage(
+        BusinessRecordContribution[] contributions,
+        Func<BusinessRecordContribution, Type[]> selectTypes,
+        string contributionKind)
+    {
+        var duplicateType = contributions
+            .SelectMany(selectTypes)
+            .GroupBy(type => type)
+            .First(group => group.Count() > 1)
+            .Key;
+        var modules = contributions
+            .Where(contribution => selectTypes(contribution).Contains(duplicateType))
+            .Select(contribution => contribution.Module);
+        return $"The {contributionKind} census contains duplicate contributions for '{duplicateType.Name}' from modules: {string.Join(", ", modules)}.";
     }
 
     private static void ConfigureTimestamps(
@@ -152,3 +160,8 @@ internal static class BusinessRecordModel
         property.Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
     }
 }
+
+internal sealed record BusinessRecordContribution(
+    string Module,
+    Type[] ChronologicalListTypes,
+    Type[] MappedExclusions);
