@@ -1510,12 +1510,21 @@ label.check {
 }
 
 /* Positioned by a measured clamp from the component, not by index arithmetic.
-   `left` is written there; everything that does not depend on the text's own
-   width lives here. */
+   The component writes `transform`; everything that does not depend on the
+   text's own width lives here.
+
+   `left: 0` is load-bearing, and it is not cosmetic. An absolutely positioned
+   box with `left` written to it shrinks to fit the space remaining to its
+   RIGHT, so a box the Dashboard card lets wrap (`white-space: normal` there)
+   got narrower the further right it was placed — its width then depended on
+   its own position, and the measurement that chose that position read the
+   width left over from the previous one (#962). Pinned at 0 the box always
+   sizes against the whole dock, and a transform moves it without touching
+   layout. */
 .tip {
   position: absolute;
   bottom: 8px;
-  transform: translateX(-50%);
+  left: 0;
   max-width: 100%;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;

@@ -142,18 +142,27 @@ test.describe("README screenshots", () => {
     // The sequence that broke it: focus one day, hover a far one, take the
     // pointer off the strip. The selection returns to the focused day — its
     // ring and arrow move back — and a stored centre left the box behind.
+    //
+    // Read as a RECT in the dock's own coordinates, never as the inline style
+    // that put it there: #962 fixed this by moving the placement from `left` to
+    // `transform`, and an assertion naming either property would have had to be
+    // edited by the fix it exists to hold. The rect is what the reader sees.
     const slots = page.locator(".daystrip > .day");
-    const readoutLeft = () => page.locator(".tip").evaluate((el) => (el as HTMLElement).style.left);
+    const readoutOffset = () => page.locator(".tipdock").evaluate((dock) => {
+      const box = dock.querySelector(".tip");
+      if (!(box instanceof HTMLElement)) throw new Error("no readout in the dock");
+      return box.getBoundingClientRect().left - dock.getBoundingClientRect().left;
+    });
     const slotCount = await slots.count();
     if (slotCount > 3) {
       await slots.nth(1).focus();
-      const parked = await readoutLeft();
+      const parked = await readoutOffset();
       await slots.nth(slotCount - 1).hover();
       await expect(page.locator(".tip")).toBeVisible();
       await page.mouse.move(2, 2);
       // Back on the focused day, and back at that day's own position.
       await expect(slots.nth(1)).toHaveClass(/\bon\b/);
-      expect(await readoutLeft()).toBe(parked);
+      expect(await readoutOffset()).toBeCloseTo(parked, 1);
     }
   });
 
