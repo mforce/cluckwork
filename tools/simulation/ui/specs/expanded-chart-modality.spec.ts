@@ -7,6 +7,7 @@
 import { expect, test } from "../src/fixtures";
 import { readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
+import { daysBefore, farmToday } from "../src/farm";
 
 const open = async (page: import("@playwright/test").Page) => {
   await page.getByRole("button", { name: tEn("dashboard:expandAriaLabel") }).click();
@@ -61,7 +62,7 @@ test.describe("Expanded Lay rate chart modality (#941)", () => {
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(parked);
   });
 
-  test("agrees with its own layout at exactly 900px, where both media queries match", async ({ page, signIn }) => {
+  test("agrees with its own layout at exactly 900px, where both media queries match", async ({ page, signIn, farm }) => {
     // `MD_UP_QUERY` is `(min-width: 900px)` and the stylesheet's phone block is
     // `(max-width: 900px)`. At exactly 900 the strip lays out on the phone's
     // 2px gap; a JS-side 4px made a 30-day range that fits read as clipped,
@@ -71,10 +72,20 @@ test.describe("Expanded Lay rate chart modality (#941)", () => {
     await page.goto("/");
     const chart = await open(page);
 
+    // 32 days is inside the window the two answers disagree over: on the
+    // laid-out 2px gap it is 32x22 + 31x2 = 766px and fits, on a 4px gap it
+    // computes to 828px and does not.
+    const latest = daysBefore(farmToday(farm.timeZoneId), 1);
+    await chart.getByLabel(tEn("dashboard:rangeLabel"), { exact: true }).selectOption("custom");
+    await chart.getByLabel(tEn("dashboard:rangeFromLabel")).fill(daysBefore(latest, 31));
+    await chart.getByLabel(tEn("dashboard:rangeToLabel")).fill(latest);
+    await chart.getByRole("button", { name: tEn("dashboard:rangeApply") }).click();
+    await expect(chart.locator(".bigstrip .day")).toHaveCount(32);
+
     const measured = await chart.locator(".lay-expand-scroll").evaluate((region) => ({
       client: region.clientWidth, scroll: region.scrollWidth,
     }));
-    expect(measured.scroll, "30 days lays out inside this region").toBeLessThanOrEqual(measured.client);
+    expect(measured.scroll, "32 days lays out inside this region").toBeLessThanOrEqual(measured.client);
 
     await expect(chart.getByRole("button", { name: tEn("dashboard:expandPrev") })).toBeDisabled();
     await expect(chart.getByRole("button", { name: tEn("dashboard:expandNext") })).toBeDisabled();
