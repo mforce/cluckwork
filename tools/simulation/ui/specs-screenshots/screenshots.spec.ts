@@ -147,22 +147,44 @@ test.describe("README screenshots", () => {
     // that put it there: #962 fixed this by moving the placement from `left` to
     // `transform`, and an assertion naming either property would have had to be
     // edited by the fix it exists to hold. The rect is what the reader sees.
+    //
+    // `expected` is derived from the rects of the SELECTED day and the dock, so
+    // it also catches a placement that stopped running altogether — a box left
+    // at the row's left edge returns to the same offset after every hover and
+    // would satisfy the comparison below on its own.
     const slots = page.locator(".daystrip > .day");
-    const readoutOffset = () => page.locator(".tipdock").evaluate((dock) => {
+    const readout = () => page.locator("body").evaluate(() => {
+      const dock = document.querySelector(".tipdock");
+      if (!(dock instanceof HTMLElement)) throw new Error("no readout dock");
       const box = dock.querySelector(".tip");
+      const day = document.querySelector(".daystrip > .day.on");
       if (!(box instanceof HTMLElement)) throw new Error("no readout in the dock");
-      return box.getBoundingClientRect().left - dock.getBoundingClientRect().left;
+      if (!(day instanceof HTMLElement)) throw new Error("no selected day");
+      const d = dock.getBoundingClientRect();
+      const b = box.getBoundingClientRect();
+      const s = day.getBoundingClientRect();
+      const centre = s.left + s.width / 2 - d.left;
+      return {
+        offset: b.left - d.left,
+        expected: Math.min(Math.max(centre - b.width / 2, 0), Math.max(0, d.width - b.width)),
+      };
     });
+    const onItsDay = (r: { offset: number; expected: number }, step: string) =>
+      expect(Math.abs(r.offset - r.expected), `${step}: readout at ${r.offset.toFixed(1)}px, belongs at ${r.expected.toFixed(1)}px`).toBeLessThanOrEqual(1);
     const slotCount = await slots.count();
     if (slotCount > 3) {
       await slots.nth(1).focus();
-      const parked = await readoutOffset();
+      const parked = await readout();
+      onItsDay(parked, "focused day");
       await slots.nth(slotCount - 1).hover();
       await expect(page.locator(".tip")).toBeVisible();
+      onItsDay(await readout(), "hovered day");
       await page.mouse.move(2, 2);
       // Back on the focused day, and back at that day's own position.
       await expect(slots.nth(1)).toHaveClass(/\bon\b/);
-      expect(await readoutOffset()).toBeCloseTo(parked, 1);
+      const restored = await readout();
+      onItsDay(restored, "back on the focused day");
+      expect(restored.offset).toBeCloseTo(parked.offset, 1);
     }
   });
 
