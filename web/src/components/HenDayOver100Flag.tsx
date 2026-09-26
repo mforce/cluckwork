@@ -6,10 +6,11 @@ import { useTranslation } from "react-i18next";
 // day): a filing and the bird ledger disagree about that flock's birds. The
 // figure is shown as computed, so it still reproduces from Rated eggs ÷
 // Recorded hen-days, and this marks it instead of capping it to a number the
-// report would not reproduce.
-export function HenDayOver100Flag({ pct }: { pct: number | null }) {
+// report would not reproduce. Decided from the two unrounded halves, never
+// the displayed percentage: 10,001 over 10,000 prints as 100.0.
+export function HenDayOver100Flag({ ratedEggs, recordedHenDays }: { ratedEggs: number; recordedHenDays: number }) {
   const { t } = useTranslation("reports");
-  if (pct === null || pct <= 100) return null;
+  if (recordedHenDays <= 0 || ratedEggs <= recordedHenDays) return null;
   const label = t("henDayOver100");
   return (
     <Tooltip title={label}>

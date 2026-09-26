@@ -137,9 +137,11 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         // contribution. A flock counts on day D only while placed and not yet
         // depleted/archived (a depletion writes NO removal movement — without
         // the terminator its remaining birds would count forever; codex review
-        // of #92). Start-of-day convention: the day's deaths do not shrink that
-        // day's denominator (industry hen-day practice), so a flock's count on
-        // D is initial − removals BEFORE D.
+        // of #92). Start-of-day convention for removals: the day's deaths do
+        // not shrink that day's denominator (industry hen-day practice), so a
+        // flock's count on D is initial − removals BEFORE D + additions ON OR
+        // BEFORE D (#943: a negative Adjustment dated D corrects the count
+        // from D on, and those birds laid on D).
         //
         // #311: a flock whose lifecycle has fully ended before `from` (either
         // terminator date < from) contributes 0 to every day in [from, to] —
@@ -179,21 +181,30 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 .Select(g => new { FlockId = g.Key, Quantity = g.Sum(m => (long)m.Quantity) })
                 .ToDictionaryAsync(x => x.FlockId, x => x.Quantity, ct);
 
-        // Per-day removals WITHIN the window only — bounded by (days × flocks)
+        // Per-day movements WITHIN the window only — bounded by (days × flocks)
         // in this report's range, not by the account's all-time movement count.
-        var removalsByFlockDay = flockIds.Count == 0
-            ? new Dictionary<Guid, Dictionary<DateOnly, long>>()
+        // Removals (positive) and additions (negative Adjustments) are summed
+        // apart: the walk below applies them on different sides of the count.
+        var movementsByFlockDay = flockIds.Count == 0
+            ? new Dictionary<Guid, Dictionary<DateOnly, (long Removed, long Added)>>()
             : (await db.BirdMovements
                 .Where(m => flockIds.Contains(m.FlockId) && m.Date >= from && m.Date <= to)
                 .GroupBy(m => new { m.FlockId, m.Date })
-                .Select(g => new { g.Key.FlockId, g.Key.Date, Quantity = g.Sum(m => (long)m.Quantity) })
+                .Select(g => new
+                {
+                    g.Key.FlockId,
+                    g.Key.Date,
+                    Removed = g.Sum(m => m.Quantity > 0 ? (long)m.Quantity : 0L),
+                    Added = g.Sum(m => m.Quantity < 0 ? -(long)m.Quantity : 0L),
+                })
                 .ToListAsync(ct))
                 .GroupBy(x => x.FlockId)
-                .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.Date, x => x.Quantity));
+                .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.Date, x => (x.Removed, x.Added)));
 
         var days = new List<ProductionDay>();
-        // Per flock: birds at start of `from` = initial − removals strictly
-        // before `from`; then walk, applying each day's removals AFTER counting.
+        // Per flock: birds at start of `from` = initial − net movements
+        // strictly before `from`; then walk, applying each day's additions
+        // BEFORE counting and its removals AFTER.
         var flockCounts = flocks.ToDictionary(
             f => f.Id,
             f => f.InitialCount - openingRemovals.GetValueOrDefault(f.Id));
@@ -237,6 +248,8 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             var rated = new HashSet<Guid>();
             foreach (var f in flocks)
             {
+                var (removed, added) = movementsByFlockDay.GetValueOrDefault(f.Id)?.GetValueOrDefault(d) ?? (0L, 0L);
+                flockCounts[f.Id] += added;
                 var ended = (f.DepletedOn is { } dep && d > dep)
                             || (f.ArchivedOn is { } arc && d > arc);
                 if (f.PlacementDate <= d && !ended)
@@ -266,8 +279,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                         missingFlocks++;
                     }
                 }
-                var todaysRemovals = removalsByFlockDay.GetValueOrDefault(f.Id)?.GetValueOrDefault(d) ?? 0L;
-                flockCounts[f.Id] -= todaysRemovals;
+                flockCounts[f.Id] -= removed;
             }
 
             // Counted from the entries, NOT from the lifecycle walk above: a

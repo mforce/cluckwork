@@ -525,6 +525,89 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
             row.HenDayPct);
     }
 
+    // #943 (Codex review of #959) — a same-day ADDITION is part of that day's
+    // exposure. A negative Adjustment is the ledger's correction for a miscount:
+    // dated D, it says the flock held those birds from D on, and they laid on
+    // D. Applying every movement after counting D's birds rated 20 eggs from
+    // 20 hens at 200%. Removals keep the start-of-day convention: a bird that
+    // died on D was alive for D's lay, so mortality and culls dated D shrink
+    // D+1's exposure, not D's.
+    [Fact]
+    public async Task Production_SameDayAddition_CountsTowardThatDaysExposure()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var d = Today.AddDays(-2);
+
+        // 100 placed − 90 culled the day before D = 10 birds; +10 corrected on D.
+        await MoveAsync(client, flockId, d.AddDays(-1), "Cull", 90);
+        await MoveAsync(client, flockId, d, "Adjustment", -10);
+        await RecordAsync(client, farmId, grades["Large"], flockId, d, 20);
+        await RecordAsync(client, farmId, grades["Large"], flockId, d.AddDays(1), 16);
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={d:yyyy-MM-dd}&to={d.AddDays(1):yyyy-MM-dd}");
+        var (day, next) = (report!.Days[0], report.Days[1]);
+
+        Assert.Equal((20L, 20L, 20), (day.HenDays, day.RecordedHenDays, day.RatedEggs));
+        Assert.Equal(100m, day.HenDayPct);
+        Assert.Equal((20L, 20L, 16), (next.HenDays, next.RecordedHenDays, next.RatedEggs));
+        Assert.Equal(80m, next.HenDayPct);
+        Assert.Equal(90m, report.PeriodHenDayPct);
+    }
+
+    [Fact]
+    public async Task Production_SameDayRemoval_TakesEffectTheNextDay()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var d = Today.AddDays(-2);
+
+        // 100 birds; 50 culled on D, after they laid.
+        await MoveAsync(client, flockId, d, "Cull", 50);
+        await RecordAsync(client, farmId, grades["Large"], flockId, d, 80);
+        await RecordAsync(client, farmId, grades["Large"], flockId, d.AddDays(1), 40);
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={d:yyyy-MM-dd}&to={d.AddDays(1):yyyy-MM-dd}");
+        var (day, next) = (report!.Days[0], report.Days[1]);
+
+        Assert.Equal((100L, 100L, 80), (day.HenDays, day.RecordedHenDays, day.RatedEggs));
+        Assert.Equal(80m, day.HenDayPct);
+        Assert.Equal((50L, 50L, 40), (next.HenDays, next.RecordedHenDays, next.RatedEggs));
+        Assert.Equal(80m, next.HenDayPct);
+    }
+
+    private static async Task MoveAsync(HttpClient client, Guid flockId, DateOnly date, string type, int quantity)
+    {
+        var response = await client.PostWithKeyAsync($"/api/v1/flocks/{flockId}/movements",
+            Guid.NewGuid().ToString(), new { date, type, quantity });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    private static async Task RecordAsync(
+        HttpClient client, Guid farmId, Guid gradeId, Guid flockId, DateOnly date, int total)
+    {
+        var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId = Guid.NewGuid(), flockId, date,
+            totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = new[] { new { eggGradeId = gradeId, quantity = total } }
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+    }
+
     // #780, found by an external review — completeness cannot be a comparison of
     // RecordedFlocks against ExpectedFlocks, because they count different SETS.
     // A flock that files outside its own lifecycle window counts as having

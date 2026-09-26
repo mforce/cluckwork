@@ -482,6 +482,7 @@ export function Dashboard() {
   const trendData = trend === null ? null : {
     line: dayStrip({ days: trend.current.days }),
     henDay: henDayTrend(trend.current, trend.previous),
+    henDayExposure: { ratedEggs: trend.current.totalRatedEggs, recordedHenDays: trend.current.totalRecordedHenDays },
   };
   const bar = stock === null ? null : stockBar(stock);
   // The window's own dates, which every sentence about the card's range uses
@@ -1027,7 +1028,7 @@ export function Dashboard() {
             : trendData === null ? panelError : <>
               <DayStrip {...stripStrings(trendData.line, rangeSpan)}
                 data={trendData.line} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
-              <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><HenDayOver100Flag pct={trendData.henDay.current} /><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
+              <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><HenDayOver100Flag {...trendData.henDayExposure} /><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
               <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>
                 {t("henDaySubLabel", { range: rangeSpan, count: plotted.days, days: fmt.count(plotted.days) })}
               </Typography>

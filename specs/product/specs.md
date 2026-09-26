@@ -2273,6 +2273,11 @@ Rules:
 
 - Use the point-in-time ledger count on the entry date, never the current live count.
   Using the current (post-mortality) count inflates the percentage.
+- Same-day movements split by sign (#943). A bird **added** on a date (a negative
+  Adjustment correcting a miscount) was present and laying that day, so it counts toward
+  that date's hen-days. A bird **removed** on a date (mortality, cull) was alive for that
+  day's lay, so the removal takes effect from the next date. The `movement_date <= date`
+  sum above therefore applies to additions; removals use `movement_date < date`.
 - Count laying **females only**. Hen-day is a female-bird metric by definition. Exclude
   males and non-layer flocks.
 - **Mixed-sex flocks (`sex = 'mixed'`) overcount** because the ledger tracks a single

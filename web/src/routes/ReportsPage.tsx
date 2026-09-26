@@ -126,7 +126,7 @@ export function ReportsPage() {
             {[
               [t("eggsHeader"), fmt.count(production.totalEggs)],
               [t("sellableHeader"), fmt.count(production.totalSellable)],
-              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : <>{fmt.count(production.periodHenDayPct, 1)}%<HenDayOver100Flag pct={production.periodHenDayPct} /></>],
+              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : <>{fmt.count(production.periodHenDayPct, 1)}%<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></>],
               ...(isAdmin && profit ? [[t("profitRowLabel"), fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)]] : []),
               [t("lossesHeader"), fmt.count(production.days.reduce((sum, day) => sum + day.cracked + day.dirty + day.discarded, 0))],
             ].map(([label, value]) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
@@ -165,7 +165,7 @@ export function ReportsPage() {
                     <TableCell align="right">{fmt.count(d.henDays)}</TableCell>
                     <TableCell align="right">{fmt.count(d.recordedHenDays)}</TableCell>
                     <TableCell align="right">{fmt.count(d.ratedEggs)}</TableCell>
-                    <TableCell align="right">{d.henDayPct === null ? "—" : fmt.count(d.henDayPct, 1)}<HenDayOver100Flag pct={d.henDayPct} /></TableCell>
+                    <TableCell align="right">{d.henDayPct === null ? "—" : fmt.count(d.henDayPct, 1)}<HenDayOver100Flag ratedEggs={d.ratedEggs} recordedHenDays={d.recordedHenDays} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -180,7 +180,7 @@ export function ReportsPage() {
                   <TableCell component="th" align="right">{fmt.count(production.totalHenDays)}</TableCell>
                   <TableCell component="th" align="right">{fmt.count(production.totalRecordedHenDays)}</TableCell>
                   <TableCell component="th" align="right">{fmt.count(production.totalRatedEggs)}</TableCell>
-                  <TableCell component="th" align="right">{production.periodHenDayPct === null ? "—" : fmt.count(production.periodHenDayPct, 1)}<HenDayOver100Flag pct={production.periodHenDayPct} /></TableCell>
+                  <TableCell component="th" align="right">{production.periodHenDayPct === null ? "—" : fmt.count(production.periodHenDayPct, 1)}<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></TableCell>
                 </TableRow>
               </TableFooter>
             </Table>

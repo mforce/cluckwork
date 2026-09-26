@@ -725,7 +725,9 @@ action (#655).
 
 **Hen-day % (#91, #780)** — eggs collected ÷ **recorded** hen-days × 100
 (spec §19.3, amended by #780). A hen-day is one bird alive for one day; the
-day's bird count comes from the bird ledger (placements + movements). The
+day's bird count comes from the bird ledger (placements + movements). A bird
+added on a date counts from that date; a bird removed on a date counts through
+it and leaves the next day (#943). The
 production report shows it per day and for the whole period (period eggs ÷
 period recorded hen-days — not an average of daily percentages).
 

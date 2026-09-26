@@ -998,6 +998,26 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(screen.queryByLabelText(flag)).toBeNull();
   });
 
+  it("flags an excess that rounds to 100.0% and leaves exact equality unflagged", async () => {
+    const flag = "Above 100%: more eggs were recorded than birds on the ledger. Check the flocks' bird counts.";
+    // The plotted window's first day carries 10,000 hen-days beside the other
+    // thirteen days' 100 each: 11,301 over 11,300 rounds to 100.0.
+    const window = (ratedEggs: number) => (from: string, to: string) =>
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d, i) => (i === 14 ? { ...d, ratedEggs, recordedHenDays: 10000 } : d)),
+      }));
+    mockReport.mockImplementation(window(11301));
+    const { unmount } = renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("100.0%")).toBeInTheDocument();
+    expect(screen.getAllByLabelText(flag)).toHaveLength(1);
+    unmount();
+
+    mockReport.mockImplementation(window(11300));
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("100.0%")).toBeInTheDocument();
+    expect(screen.queryByLabelText(flag)).toBeNull();
+  });
+
   it("renders — for a null hen-day figure, never 0, and keeps the delta neutral", async () => {
     // periodHenDayPct is null only once a week's OWN exposure is zero
     // (#918 — recomputed from `ratedEggs`/`recordedHenDays`, never taken at
