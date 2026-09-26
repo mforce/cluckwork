@@ -35,10 +35,11 @@
 # ~9.5. Both projects still run: the phone project is simply the last group
 # of files in the shard order.
 #
-# The count is written in two places, the matrix list and SHARD_COUNT, and
-# the first step checks they agree. `strategy.job-total` alone would keep
-# them in step, but a second matrix axis would then silently raise the
-# denominator and leave tests unrun; with the check, any drift fails the job.
+# A job's shard is `strategy.job-index + 1` of `strategy.job-total`, so the
+# jobs always cover the whole list whatever the matrix entries say: the
+# entries only make the jobs and name them. The first step checks each name
+# matches the shard its job runs, so a mistyped list fails instead of
+# labelling one shard as another.
 #
 # workflow_dispatch remains for the modes a PR run never exercises — `slow`
 # (the real 15-minute expiry spec) and `canary` — and for the k6 sibling the
@@ -112,8 +113,6 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    env:
-      SHARD_COUNT: 3
     # PR runs are the quick suite with a headroom cap (a hung stack must fail
     # fast, not burn minutes). Dispatch stays generous because a `slow: true`
     # run spends 16 of these minutes asleep on purpose.
@@ -122,8 +121,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Check the matrix agrees with the shard count
-        run: test "${{ strategy.job-total }}" -eq "$SHARD_COUNT"
+      - name: Number this shard and check the job name agrees
+        run: |
+          shard=$(( ${{ strategy.job-index }} + 1 ))
+          test "${{ matrix.shard }}" -eq "$shard"
+          echo "SHARD=$shard/${{ strategy.job-total }}" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v7
         with:
@@ -204,7 +206,7 @@ jobs:
           # absence of a system one — see the header.
           CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
           CLUCKWORK_E2E_SLOW: ${{ inputs.slow && '1' || '' }}
-        run: npm test -- --shard="${{ matrix.shard }}/$SHARD_COUNT"
+        run: npm test -- --shard="$SHARD"
 
       - name: Run the canary probe
         # One probe per dispatch, not one per shard: the canary has its own
