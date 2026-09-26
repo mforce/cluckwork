@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.1.3](https://github.com/mforce/cluckwork/compare/v0.1.2...v0.1.3) (2026-09-26)
+
+
+### Features
+
+* **dashboard:** redesign the Operations Desk and show order grade names ([#912](https://github.com/mforce/cluckwork/issues/912)) ([49fc2a3](https://github.com/mforce/cluckwork/commit/49fc2a3356d9ee3b296e6a7157fdc1aca7ba5765))
+* **eggs:** warn per grade when available stock falls below its floor ([#950](https://github.com/mforce/cluckwork/issues/950)) ([8125845](https://github.com/mforce/cluckwork/commit/8125845a7067469cb066b5f6977592c3f311d205))
+* redesign daily entry as count workbench ([#913](https://github.com/mforce/cluckwork/issues/913)) ([aa685ad](https://github.com/mforce/cluckwork/commit/aa685ad225e7cce8cd0f40e69179e4b80e97e278))
+* **web:** add a flock scope selector to the Dashboard, fixing the strip's scale fallback ([#918](https://github.com/mforce/cluckwork/issues/918)) ([f4fa057](https://github.com/mforce/cluckwork/commit/f4fa0570028545ed5855eb9502579f53d59b77ed))
+* **web:** add a Lay rate range switcher and page the Dashboard panels ([#940](https://github.com/mforce/cluckwork/issues/940)) ([e0c1f68](https://github.com/mforce/cluckwork/commit/e0c1f686ccc7c9214ee0ac191a263308e4fcdf8f))
+* **web:** convert and redesign Settings, Help, Login, Audit, Export, Account and Set Password ([#833](https://github.com/mforce/cluckwork/issues/833)) ([#901](https://github.com/mforce/cluckwork/issues/901)) ([4ee8b03](https://github.com/mforce/cluckwork/commit/4ee8b03699492bee3730321d366a19c728430152))
+* **web:** convert Dialog and useConfirm to MUI Dialog ([#892](https://github.com/mforce/cluckwork/issues/892)) ([647ed64](https://github.com/mforce/cluckwork/commit/647ed64fd75377de2aa5840725e0a830bb978d60))
+* **web:** convert the CRUD lists to MUI ([#897](https://github.com/mforce/cluckwork/issues/897)) ([009db86](https://github.com/mforce/cluckwork/commit/009db86d677336f8b16ddfeb1e50fe750cea87cd))
+* **web:** expand the Lay rate chart into an overview map and a scrolling daily window ([#958](https://github.com/mforce/cluckwork/issues/958)) ([852c845](https://github.com/mforce/cluckwork/commit/852c84598bf75fcbb8cddb936f49bb535061bc5b))
+* **web:** give display figures an optical size with Inter's opsz axis ([#948](https://github.com/mforce/cluckwork/issues/948)) ([a8de94e](https://github.com/mforce/cluckwork/commit/a8de94e4879804f17f52ee3b09d86fdb7f28c411))
+* **web:** migrate small controls to MUI ([#934](https://github.com/mforce/cluckwork/issues/934)) ([e684a3e](https://github.com/mforce/cluckwork/commit/e684a3ef3e9255d34e9ba17f5112315269ff4758))
+* **web:** redesign Sales with a MUI order desk and settlement rail ([#927](https://github.com/mforce/cluckwork/issues/927)) ([99e7e83](https://github.com/mforce/cluckwork/commit/99e7e83af78a26d57f8a27c758bb034b2e165376))
+* **web:** redesign seven ledgers as a Field Console with MUI ([#899](https://github.com/mforce/cluckwork/issues/899)) ([167ac68](https://github.com/mforce/cluckwork/commit/167ac68ecbe5761c47eefc7e0e93578e2b914f81))
+* **web:** redesign the pending-update prompt as a branded overlay ([#938](https://github.com/mforce/cluckwork/issues/938)) ([aaf171d](https://github.com/mforce/cluckwork/commit/aaf171d26245dba86a3419688e03a9f27fad52ab))
+* **web:** redesign the setup lists as a table with a bottom inspector ([#939](https://github.com/mforce/cluckwork/issues/939)) ([0c0faad](https://github.com/mforce/cluckwork/commit/0c0faadad1a7b3819adba215c9773215779dd7af))
+* **web:** replace NamedEntityPicker's combobox with MUI Autocomplete ([#898](https://github.com/mforce/cluckwork/issues/898)) ([0f7b966](https://github.com/mforce/cluckwork/commit/0f7b966636570763528d6b84dbd7bd3efce39491))
+
+
+### Bug fixes
+
+* filter Audit log by record type ([#965](https://github.com/mforce/cluckwork/issues/965)) ([da203b7](https://github.com/mforce/cluckwork/commit/da203b72d8d17000d5f205bfd8a338a979e42080))
+* **seed:** date the demo farm's draft by the farm clock, not the UTC date ([#893](https://github.com/mforce/cluckwork/issues/893)) ([ef0f2a9](https://github.com/mforce/cluckwork/commit/ef0f2a9029f023637acb46398695fa872b8b4d23))
+* **seed:** give House 2 realistic demo history ([#917](https://github.com/mforce/cluckwork/issues/917)) ([1472221](https://github.com/mforce/cluckwork/commit/1472221a6a490d9d7b8ef6cb901b739027437ec1))
+* **seed:** rate the fixture farms at 86–94% hen-day and flag a rate over 100% ([#959](https://github.com/mforce/cluckwork/issues/959)) ([a426efe](https://github.com/mforce/cluckwork/commit/a426efedff073a45f1231d05cf8445d8a92c4c0a))
+* **web:** fit Users actions and compact selected-record inspectors ([#947](https://github.com/mforce/cluckwork/issues/947)) ([3e80bc6](https://github.com/mforce/cluckwork/commit/3e80bc67c06d1f9a3e75e711caa4df1c9f04eba2))
+* **web:** keep the Lay rate readout inside its reserved row ([#964](https://github.com/mforce/cluckwork/issues/964)) ([1598f9b](https://github.com/mforce/cluckwork/commit/1598f9b30cd5c5e6305a66339a1a23fa57073239))
+* **web:** make FieldConsole row links theme-aware in dark mode ([#931](https://github.com/mforce/cluckwork/issues/931)) ([0f0afcd](https://github.com/mforce/cluckwork/commit/0f0afcd04bd13bcdcaf640e62de8a09d5fbaafff))
+* **web:** restore the grouped, alphabetised Help glossary ([#657](https://github.com/mforce/cluckwork/issues/657)) ([#924](https://github.com/mforce/cluckwork/issues/924)) ([dcd0e1b](https://github.com/mforce/cluckwork/commit/dcd0e1b2a355d124367795a2bd7ec68c49211390)), closes [#833](https://github.com/mforce/cluckwork/issues/833)
+* **web:** stop the customer picker reserving 240px of height inside dialogs, and keep the phone dialog footer side by side ([#896](https://github.com/mforce/cluckwork/issues/896)) ([91e3d65](https://github.com/mforce/cluckwork/commit/91e3d65253e0abc6c8719599a56ecbdf9a8a7cde))
+* **web:** stop the Lay rate flock picker dialog from shrink-wrapping ([#937](https://github.com/mforce/cluckwork/issues/937)) ([190dcd6](https://github.com/mforce/cluckwork/commit/190dcd67e1728e897a747a12b280f972189bd18f))
+
+
+### Documentation
+
+* correct four false claims about CI coverage and gh pr edit ([#956](https://github.com/mforce/cluckwork/issues/956)) ([7d73bfe](https://github.com/mforce/cluckwork/commit/7d73bfe977bc0c0f007a1e4d6b1ad26ea11901d4))
+* deslop AGENTS.md without weakening its rules ([#921](https://github.com/mforce/cluckwork/issues/921)) ([#925](https://github.com/mforce/cluckwork/issues/925)) ([e44d435](https://github.com/mforce/cluckwork/commit/e44d435ab5b0342c857dc5e2ea38c84ba6803e76))
+* document local JWT dev-keypair setup in CONTRIBUTING ([#949](https://github.com/mforce/cluckwork/issues/949)) ([d4f3585](https://github.com/mforce/cluckwork/commit/d4f3585dc487aa587aa303f92eaf292678f95804))
+* recapture the README screenshots after the SPA revamp ([#961](https://github.com/mforce/cluckwork/issues/961)) ([cb37bf0](https://github.com/mforce/cluckwork/commit/cb37bf02c6b0d96a912477c31de5607094029ae8))
+* **web:** tighten the Help page and product glossary ([#957](https://github.com/mforce/cluckwork/issues/957)) ([bd267ba](https://github.com/mforce/cluckwork/commit/bd267bad911721585145bbd43a513a4a5afd08b5))
+
 ## [0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-16)
 
 
