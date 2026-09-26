@@ -1851,13 +1851,13 @@ describe("DailyEntryPage new-flock role-change session (#703 r2)", () => {
     await act(async () => { gate.resolve({ id: "f2" }); });                              // old create lands
 
     expect(vi.mocked(getFlock)).not.toHaveBeenCalledWith("f2");
-    // The new-flock dialog is still open here (this flow never calls
-    // cancel()) — MUI's modal marks the rest of the page `aria-hidden`
-    // while it is open, so the picker's trigger was never accessible-role
-    // queryable at this point even under the old `<button>` trigger; this
-    // assertion is a presence check for exactly that reason, both before
-    // and after #826.
-    expect(screen.queryByRole("textbox", { name: "Flock" })).not.toBeInTheDocument();
+    // #946: querying the trigger by role without `hidden: true` relied on
+    // MUI's ModalManager timing (aria-hidden on the background, or the
+    // dialog's own exit-transition unmount) — both slip under load. Assert
+    // the write's target instead: the trigger must still show the
+    // originally-captured flock, not the one the in-flight create resolved to.
+    const trigger = screen.getByRole("textbox", { name: "Flock", hidden: true }) as HTMLInputElement;
+    expect(trigger).toHaveValue("Hen House 1 (ISA)");
   });
 });
 
