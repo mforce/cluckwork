@@ -32,7 +32,7 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task RecordTypeQuery_AcceptsKnownType_AndIgnoresUnknownType()
+    public async Task RecordTypeQuery_AcceptsKnownType_AndReturnsNoRowsForUnknownType()
     {
         var (client, _, accountId, _, _, _) = await SetupAsync();
         var flock = AuditEvent.Create(Guid.NewGuid(), accountId,
@@ -51,9 +51,13 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
             "/api/v1/audit?entityType=Flock"))!;
         Assert.Equal([flock.Id], typed.Select(row => row.Id));
 
-        var ignored = (await client.GetFromJsonAsync<List<AuditRow>>(
-            "/api/v1/audit?entityType=UnknownType"))!;
-        Assert.Equal(2, ignored.Count);
+        var unknown = await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?entityType=UnknownType");
+        Assert.Empty(unknown!);
+
+        var wrongCase = await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?entityType=flock");
+        Assert.Empty(wrongCase!);
     }
 
     [Fact]

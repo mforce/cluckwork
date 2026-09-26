@@ -706,12 +706,10 @@ under that scope. "Adjustment history" says exactly what it shows.
 
 **Record-type filter (#520)** — a second dropdown on the /audit viewer,
 ahead of the existing action filter. Picking a record type (Flock, Sales
-order, User, …) does not query anything itself — it narrows the action
-dropdown's option list to only the actions actually recorded against that
-type, so an admin who knows *what kind of record* they're after isn't
-scanning one flat list of every action the farm can log to find it. The
-mapping from action to type is read off the server's own audit-write call
-sites, not the action code's own "Entity.Verb" prefix — the four
+order, User, …) sends `entityType` to `GET /api/v1/audit`, which shows only
+events for that type. It also narrows the action dropdown to actions recorded
+against that type. The mapping from action to type is read off the server's
+audit-write call sites, not the action code's own "Entity.Verb" prefix — the four
 `Account.Set/RemoveLogo/Banner` actions are prefixed `Account` but recorded
 against `FarmLogo`, a row shared by both the logo and the banner.
 

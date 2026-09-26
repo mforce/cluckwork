@@ -38,8 +38,7 @@ public static class AuditEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await events.ListAsync(action,
-            entityType is not null && AuditEntityTypes.Known.Contains(entityType) ? entityType : null,
+        var list = await events.ListAsync(action, entityType,
             entityId, from, to, take, skip, ct);
         return Results.Ok(list.Select(ToResponse));
     }
