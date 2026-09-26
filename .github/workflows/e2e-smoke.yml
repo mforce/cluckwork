@@ -111,7 +111,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3]
     env:
       SHARD_COUNT: 3
     # PR runs are the quick suite with a headroom cap (a hung stack must fail
