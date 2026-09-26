@@ -57,6 +57,11 @@ export function useDayStrip(
   // here may assume a width. The arrow is anchored to the slot element instead
   // (.day.on::after), never positioned by index arithmetic: the slots carry a
   // gap, so (i + 0.5) / n is not where a slot is.
+  //
+  // Written as a TRANSFORM, against a box the stylesheet pins at `left: 0`.
+  // Writing `left` here resized the box it was about to measure, so the
+  // placement and the width defined each other and one of them was always a
+  // step behind (#962 — the reasoning is on `.tip` in styles.css).
   const placeReadout = () => {
     const dock = dockRef.current;
     const box = tipRef.current;
@@ -66,20 +71,37 @@ export function useDayStrip(
     // hovered day while the arrow and ring stayed on the focused one.
     const slot = stripRef.current?.children[activeIndex];
     if (dock === null || box === null || !(slot instanceof HTMLElement)) return;
-    const half = box.offsetWidth / 2;
     // In the expanded view the strip is inset by the axis gutter and displaced
     // by the scroll, so the slot's own offset is not yet a dock coordinate.
     const shift = (scroll?.gutterRef.current?.offsetWidth ?? 0) - (scroll?.scrollerRef.current?.scrollLeft ?? 0);
     const centre = slot.offsetLeft + slot.offsetWidth / 2 + shift;
-    const x = half * 2 >= dock.offsetWidth
-      ? dock.offsetWidth / 2
-      : Math.min(Math.max(centre, half), dock.offsetWidth - half);
-    box.style.left = `${x}px`;
+    // `.tip` carries `max-width: 100%` of the dock, so a box wider than its
+    // row should be impossible — but #941 overrode two other declarations on
+    // this exact selector from a panel's `sx`, so the floor stays and a box
+    // that outgrows its dock lands at 0 rather than at a negative offset.
+    const slack = Math.max(0, dock.offsetWidth - box.offsetWidth);
+    const x = Math.min(Math.max(centre - box.offsetWidth / 2, 0), slack);
+    box.style.transform = `translateX(${x}px)`;
   };
 
   // `tip(active)` is in the deps because the farm locale resolves after mount,
   // which changes the text's width without changing which day is selected.
-  useLayoutEffect(placeReadout, [activeIndex, tip]);
+  //
+  // The observer is what makes the placement follow the box's CURRENT size
+  // rather than its size when a day was chosen: a wrap appearing, a late
+  // webfont and a panel resize all change the width with no React render to
+  // hang an effect on. It is loop-safe only because the placement is a
+  // transform, which cannot change what it measures.
+  useLayoutEffect(() => {
+    placeReadout();
+    const box = tipRef.current;
+    const dock = dockRef.current;
+    if (box === null || dock === null) return;
+    const observer = new ResizeObserver(placeReadout);
+    observer.observe(box);
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, [activeIndex, tip]);
 
   const select = (slot: DayStripSlot, keyboard = false) => {
     setActiveDate(slot.date);
