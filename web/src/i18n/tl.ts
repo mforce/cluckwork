@@ -762,6 +762,20 @@ export const tl = {
     rangeErrorFuture: "Dapat magtapos ang saklaw sa {{date}} o mas maaga.",
     rangeErrorTooLong_one: "Pumili ng saklaw na hanggang {{days}} araw lamang.",
     rangeErrorTooLong_other: "Pumili ng saklaw na hanggang {{days}} araw lamang.",
+    // #941 — ang pinalaking tsart: buong saklaw bilang mapa, na may araw-araw
+    // na bintanang naka-scroll sa ilalim.
+    expandLabel: "Palakihin",
+    expandAriaLabel: "Palakihin ang tsart ng dami ng itlog bawat inahin",
+    expandClose: "Bumalik sa dashboard",
+    expandEscapeHint: "Isinasara ng Escape",
+    expandPrev: "Mas lumang mga araw",
+    expandNext: "Mas bagong mga araw",
+    expandMapLabel_one: "Buong saklaw · {{days}} araw",
+    expandMapLabel_other: "Buong saklaw · {{days}} araw",
+    expandShown_one: "{{from}} – {{to}} sa {{days}} araw",
+    expandShown_other: "{{from}} – {{to}} sa {{days}} araw",
+    expandAllShown_one: "Ipinapakita ang lahat ng {{days}} araw",
+    expandAllShown_other: "Ipinapakita ang lahat ng {{days}} araw",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
@@ -2309,7 +2323,14 @@ export const tl = {
       + "hindi tulad sa Mga Report, kung saan maaaring umabot sa ngayon ang saklaw. Piliin ang "
       + "<strong>Lahat ng kawan</strong> o iisang kawan sa itaas ng tsart para isaklaw ang buong kard sa "
       + "kawang iyon, kasama ang mga bar, ang pagkakumpleto, ang Average, at parehong panahon ng hen-day. "
-      + "Kung iisa lang ang accessible na kawan, lalabas ang pangalan nito nang walang picker.",
+      + "Kung iisa lang ang accessible na kawan, lalabas ang pangalan nito nang walang picker. "
+      + "Binubuksan ng <strong>Palakihin</strong> ang parehong tsart sa buong screen, kung saan "
+      + "nag-aalok ang <strong>Saklaw</strong> ng huling 30 tapos na araw o ng <strong>Sariling "
+      + "saklaw…</strong> na hanggang 90. Sa itaas ng mga bar ay may mapa ng buong saklaw na may kahong "
+      + "nagtatakda sa mga araw na nasa screen: i-scroll o i-swipe ang mga bar para igalaw ito, o pindutin "
+      + "ang mapa para tumalon doon. Pareho ang lapad ng mga bar sa lahat ng saklaw, kaya laging nasa "
+      + "kanang gilid ang pinakabagong araw. Isinasara ito ng <strong>Bumalik sa dashboard</strong> o ng "
+      + "Escape, at hindi nagbabago ang sariling window ng kard.",
     dashboardOrders: "Ipinapakita ng <strong>Mga kamakailang order</strong> ang customer, halaga at katayuan, kasama ang bilang at kasalukuyang pangalan ng grado sa unang linya, limang order bawat pahina. Ang pagsulong ng pahina ay kumukuha ng susunod na lima, kaya lumalabas ang kabuuan pagdating ng huling pahina. Ang +N ay bilang ng dagdag na linya. Kapag pinalitan ang pangalan ng grado, magbabago rin ito sa lumang order; bilang lang ang makikita kung hindi available ang grado.",
     dashboardStock: "Ipinapakita ng <strong>Magagamit na stock</strong> ang kabuuan at isang <strong>stacked bar</strong> ayon sa grado, kasunod ang talahanayan ng <strong>Grado</strong>, <strong>Bilang</strong> at <strong>Bahagi</strong>. Itapat ang pointer o ituon ang keyboard sa hanay para markahan ito. Hiwalay na nakalista ang restricted na itlog. Pareho ang mga bilang sa Stock.",
 
@@ -3232,6 +3253,9 @@ export const tl = {
 
     glossaryLayRateRangeTerm: "Saklaw ng dami ng itlog bawat inahin",
     glossaryLayRateRangeDef: "Ang panahong iginuguhit ng kard na Dami ng itlog bawat inahin: ang huling 7 o 14 kumpletong araw, o sariling saklaw na dalawang petsa hanggang 14 araw. Isang bar bawat araw ang iginuguhit ng kard at walang mas magaspang, kaya tinatanggihan sa form ang mas mahaba sa halip na iguhit sa ibang sukat. Palaging nagtatapos kahapon o mas maaga ang panahon, naaalala ang pinili sa device na ito, at inihahambing ng hen-day ang napiling panahon sa naunang panahong kasintagal nito.",
+
+    glossaryExpandedLayRateChartTerm: "Pinalaking tsart ng dami ng itlog bawat inahin",
+    glossaryExpandedLayRateChartDef: "Binubuksan ng kontrol na <strong>Palakihin</strong> sa kard na Dami ng itlog bawat inahin ang parehong tsart sa buong screen, kung saan nag-aalok ang <strong>Saklaw</strong> ng huling 30 tapos na araw o ng <strong>Sariling saklaw…</strong> na hanggang 90, na hiwalay na naaalala sa window ng kard. Sa itaas ng arawang mga bar ay may mapa ng buong saklaw na may kahong nagtatakda sa mga araw na nasa screen: ang pag-scroll o pag-swipe sa mga bar ay naggagalaw sa kahon, at ang pagpindot sa mapa ay nag-iiscroll ng window doon. Inililipat ng mga pager button, ng Page Up at ng Page Down ang window nang hindi ginagalaw ang pinili. Pareho ang lapad ng mga bar sa lahat ng saklaw, kaya nasa kanang gilid ang pinakabagong araw at nasa kaliwa ang puwang ng maikling saklaw. Isinasara ito ng <strong>Bumalik sa dashboard</strong> o ng Escape at ibinabalik ang focus sa Palakihin.",
 
     glossaryLayRateFlockScopeTerm: "Saklaw ng kawan sa dami ng itlog bawat inahin",
     glossaryLayRateFlockScopeDef: "Maaaring ipakita ng kard ng Dami ng itlog bawat inahin sa Dashboard ang Lahat ng kawan o isang piniling kawan. Sinusunod ng buong kard ang pinili — ang guhit, pagkakumpleto, ang average, at parehong panahon ng paghahambing ng postura — at galing sa server ang mga bilang, hindi sa pag-filter ng tanawin ng Lahat ng kawan. Hindi nagbabago ang ibang bahagi ng Dashboard.",

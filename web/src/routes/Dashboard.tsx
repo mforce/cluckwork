@@ -1,8 +1,8 @@
 // web/src/routes/Dashboard.tsx
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bird, Check, ChevronRight, CircleDashed, Egg, ShoppingCart, TriangleAlert } from "lucide-react";
+import { Bird, Check, ChevronRight, CircleDashed, Egg, Maximize2, ShoppingCart, TriangleAlert } from "lucide-react";
 import {
   Alert, Box, Button, Card, Container, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery,
 } from "@mui/material";
@@ -15,6 +15,7 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
 import { DayStrip } from "../components/DayStrip";
+import { ExpandedLayRate } from "../components/ExpandedLayRate";
 import { StockBar } from "../components/StockBar";
 import { Dialog } from "../components/Dialog";
 import { FilterDateField } from "../components/FilterBar";
@@ -30,7 +31,8 @@ import {
 } from "../lib/dashboard";
 import type { CaptureTile, DayStripData, DayStripSlot } from "../lib/dashboard";
 import {
-  DEFAULT_RANGE, MAX_RANGE_DAYS, RANGE_PRESETS, RANGE_STORAGE_KEY, customRangeError,
+  DEFAULT_EXPANDED_RANGE, DEFAULT_RANGE, EXPANDED_RANGE_PRESETS, EXPANDED_RANGE_STORAGE_KEY,
+  MAX_EXPANDED_RANGE_DAYS, MAX_RANGE_DAYS, RANGE_PRESETS, RANGE_STORAGE_KEY, customRangeError,
   formatStoredRange, parseStoredRange, trendWindow,
 } from "../lib/layRateRange";
 import type { CustomRangeError, LayRateRange } from "../lib/layRateRange";
@@ -135,6 +137,28 @@ export function Dashboard() {
   const [draftFrom, setDraftFrom] = useState(plotted.from);
   const [draftTo, setDraftTo] = useState(plotted.to);
   const [rangeError, setRangeError] = useState<CustomRangeError | null>(null);
+  // #941 — the expanded chart asks a different question (a month or a quarter,
+  // not a fortnight), so it holds its own window, its own memory and its own
+  // read. Opening it never moves the card's window, and closing it never
+  // leaves the card refetching.
+  const [expanded, setExpanded] = useState(false);
+  const [expandedRange, setExpandedRange] = useState<LayRateRange>(
+    () => parseStoredRange(
+      readAccountScoped(EXPANDED_RANGE_STORAGE_KEY), latestDay,
+      EXPANDED_RANGE_PRESETS, MAX_EXPANDED_RANGE_DAYS,
+    ) ?? DEFAULT_EXPANDED_RANGE,
+  );
+  const [expandedReport, setExpandedReport] = useState<ProductionReport | null>(null);
+  const [expandedFailed, setExpandedFailed] = useState(false);
+  const expandRef = useRef<HTMLButtonElement>(null);
+  const expandedPlotted = trendWindow(expandedRange, today);
+  // Shaped by the same `dayStrip` the card uses, so a day means one thing on
+  // both. Memoised, and declared up here above the loading and failure returns
+  // rather than beside the card's own line: the chart keys its
+  // scroll-to-the-newest-day effect on this identity, and rebuilt every render
+  // that effect would re-run on every render and the window could never move.
+  const expandedLine = useMemo(
+    () => dayStrip({ days: expandedReport?.days ?? [] }), [expandedReport]);
   // #918 — the flock LIST read can fail alone while the other three panels
   // succeed; "failed" must not read as "0 accessible flocks". `flocksRetrying`
   // holds the unavailable state up until the retried read SETTLES — clearing
@@ -224,6 +248,11 @@ export function Dashboard() {
   // `soleFlock` itself — the array's reference changes every render, the id does not.
   const soleFlock = flocks !== null && flocks.length === 1 ? flocks[0] : null;
   const soleFlockId = soleFlock?.id ?? null;
+  // With exactly one accessible flock there is no All-flocks scope to offer,
+  // so both production reads always report that flock — the SAME `flockId` a
+  // picker selection would produce, never a separate "everything" branch
+  // (parity requirement, SELECTION.md).
+  const trendFlockId = soleFlockId ?? (scope.kind === "flock" ? scope.flock.id : undefined);
 
   // #918 — "everything failed" spans BOTH effects (panels + trend). Each
   // side tracks its OWN outcome directly rather than through a generation
@@ -324,11 +353,6 @@ export function Dashboard() {
   // `daysBefore(today,14)..daysBefore(today,1)` request now covers both
   // weeks, split client-side by `splitProductionReport`.
   useEffect(() => {
-    // With exactly one accessible flock there is no All-flocks scope to
-    // offer, so this always reports that flock — the SAME `flockId` a picker
-    // selection would produce, never a separate "everything" branch (parity
-    // requirement, SELECTION.md).
-    const flockId = soleFlockId ?? (scope.kind === "flock" ? scope.flock.id : undefined);
     const controller = new AbortController();
     setTrendLoading(true);
     setTrendOutcome("pending"); // re-decided freshly on every dispatch, never frozen at a stale outcome
@@ -336,7 +360,7 @@ export function Dashboard() {
     // ONE contiguous request that `splitProductionReport` divides at the
     // chosen window's first day. Only the later half is drawn; the earlier
     // half exists for the hen-day comparison alone.
-    getProductionReport(previousFrom, to, flockId, controller.signal)
+    getProductionReport(previousFrom, to, trendFlockId, controller.signal)
       .then((report) => {
         if (controller.signal.aborted) return;
         const { earlier, later } = splitProductionReport(report, from);
@@ -351,7 +375,33 @@ export function Dashboard() {
         setTrendOutcome("failure");
       });
     return () => controller.abort();
-  }, [from, to, previousFrom, scope, soleFlockId, canSeeSales]);
+  }, [from, to, previousFrom, trendFlockId, canSeeSales]);
+
+  // #941 — focus returns to the control that opened the chart, AFTER the
+  // overlay is gone: called from `onClose` it lands while the frame is still
+  // mounted, whose focus trap pulls it straight back and then drops it on
+  // <body>. The ref keeps the first render from stealing focus to a control
+  // nobody has touched.
+  const wasExpanded = useRef(false);
+  useEffect(() => {
+    if (wasExpanded.current && !expanded) expandRef.current?.focus();
+    wasExpanded.current = expanded;
+  }, [expanded]);
+
+  // #941 — the expanded chart's own read, issued only while it is open, so a
+  // reader who never expands pays nothing for a 90-day report. It needs the
+  // plotted window alone: the hen-day comparison against the previous equal
+  // window is the CARD's measure and stays there.
+  useEffect(() => {
+    if (!expanded) return;
+    const controller = new AbortController();
+    setExpandedReport(null);
+    setExpandedFailed(false);
+    getProductionReport(expandedPlotted.from, expandedPlotted.to, trendFlockId, controller.signal)
+      .then((report) => { if (!controller.signal.aborted) setExpandedReport(report); })
+      .catch(() => { if (!controller.signal.aborted) setExpandedFailed(true); });
+    return () => controller.abort();
+  }, [expanded, expandedPlotted.from, expandedPlotted.to, trendFlockId]);
 
   // #918 — Codex review: yesterday's close belongs to the farm-wide Morning
   // collection panel, so it is fetched WITHOUT a flock id and depends only on
@@ -438,6 +488,9 @@ export function Dashboard() {
   // one string cannot be built from a stem plus a suffix (#650).
   const rangeSpan = t("rangeSpan", { from: fmt.date(from), to: fmt.date(to) });
   const presetLabel = (days: number) => t("rangePresetOption", { count: days, total: fmt.count(days) });
+  const expandedSpan = t("rangeSpan", {
+    from: fmt.date(expandedPlotted.from), to: fmt.date(expandedPlotted.to),
+  });
   const rangeSelection = range.kind === "custom" || customOpen ? "custom" : String(range.days);
   const selectRange = (value: string) => {
     setRangeError(null);
@@ -477,23 +530,23 @@ export function Dashboard() {
   // #916 — branches on `line.scale`, never a null check: `max` is non-null
   // under BOTH "complete" and "partial", so a null check alone used to say
   // "no peak or average" beside a caption and Peak figure showing a real number.
-  const trendLabel = (line: DayStripData) => {
+  const trendLabel = (line: DayStripData, span: string) => {
     if (line.scale === "none") {
       // A window where no flock ever owed a filing is not a window of missing
       // ones — a new farm's strip used to draw fourteen blank-but-blameless
       // slots and announce that none had an entry. `partial` is always 0 here:
       // a partial slot requires a recorded figure, which "none" has none of.
       return line.partial === 0 && line.unrecorded === 0
-        ? t("trendStripLabelNoFlocks", { range: rangeSpan })
-        : t("trendStripLabelNone", { range: rangeSpan });
+        ? t("trendStripLabelNoFlocks", { range: span })
+        : t("trendStripLabelNone", { range: span });
     }
     if (line.scale === "partial") {
       // The fallback peak: no complete day exists, so there is still no
       // average (that stays complete-day-only), but Peak is real and the
       // sentence must say so, not fall back to "no peak or average".
-      return t("trendStripLabelPartialScale", { range: rangeSpan, max: fmt.count(line.max!) });
+      return t("trendStripLabelPartialScale", { range: span, max: fmt.count(line.max!) });
     }
-    const figures = { range: rangeSpan, max: fmt.count(line.max!), avg: fmt.count(line.average!, 1) };
+    const figures = { range: span, max: fmt.count(line.max!), avg: fmt.count(line.average!, 1) };
     const gaps = line.partial + line.unrecorded;
     return gaps === 0
       ? t("trendStripLabel", figures)
@@ -523,6 +576,18 @@ export function Dashboard() {
       }
     }
   };
+  // Every string a strip is handed, built once so the card and the expanded
+  // chart cannot describe the same days differently.
+  const stripStrings = (line: DayStripData, span: string) => ({
+    label: trendLabel(line, span),
+    title: t(line.scale === "partial" ? "trendScaleTitlePartial"
+      : line.scale === "none" ? "trendScaleTitleNone" : "trendScaleTitle"),
+    peak: t("trendPeak", { total: line.max === null ? "—" : fmt.count(line.max) }),
+    average: line.average === null ? t("trendNoCompleteAvg")
+      : t("trendCompleteAvg", { total: fmt.count(line.average, 1) }),
+    legend: { complete: t("legendComplete"), partial: t("legendPartial"), noEntry: t("legendNoEntry") },
+    tip: trendTip,
+  });
   const deltaClass = (delta: number | null): (typeof DASHBOARD_DELTA_CLASSES)[number] =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 
@@ -775,6 +840,16 @@ export function Dashboard() {
               head's fixed "Last 14 days" caption, which the control replaces. */}
           <Box sx={headingSx}>
             <Typography variant="h3" aria-label={t("trendPanelTitle")}><Link to="/reports">{t("layRateTitle")}</Link></Typography>
+            {/* #941 — the card draws at most fourteen real days (#940). Longer
+                ranges live behind this control, on a surface wide enough to
+                keep every bar 22px. */}
+            <Button
+              ref={expandRef} size="small" startIcon={<Maximize2 size={16} aria-hidden focusable={false} />}
+              aria-label={t("expandAriaLabel")} onClick={() => setExpanded(true)}
+              sx={{ textTransform: "none", "&&": { minHeight: 44 } }}
+            >
+              {t("expandLabel")}
+            </Button>
           </Box>
 
           {flocksFailed ? (
@@ -949,16 +1024,8 @@ export function Dashboard() {
 
           {trendLoading ? <LinearProgress aria-label={t("trendPanelTitle")} sx={{ height: 5, borderRadius: 2, mb: 1 }} />
             : trendData === null ? panelError : <>
-              <DayStrip data={trendData.line} label={trendLabel(trendData.line)}
-                title={t(
-                  trendData.line.scale === "partial" ? "trendScaleTitlePartial"
-                    : trendData.line.scale === "none" ? "trendScaleTitleNone"
-                      : "trendScaleTitle",
-                )}
-                peak={t("trendPeak", { total: trendData.line.max === null ? "—" : fmt.count(trendData.line.max) })}
-                average={trendData.line.average === null ? t("trendNoCompleteAvg") : t("trendCompleteAvg", { total: fmt.count(trendData.line.average, 1) })}
-                legend={{ complete: t("legendComplete"), partial: t("legendPartial"), noEntry: t("legendNoEntry") }}
-                tip={trendTip} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
+              <DayStrip {...stripStrings(trendData.line, rangeSpan)}
+                data={trendData.line} from={<FarmDate iso={from} />} to={<FarmDate iso={to} />} />
               <Typography className="trend-kpi"><span className="trend-fig">{trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}</span><span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span></Typography>
               <Typography className="trend-sub" variant="caption" sx={{ display: "block" }}>
                 {t("henDaySubLabel", { range: rangeSpan, count: plotted.days, days: fmt.count(plotted.days) })}
@@ -966,6 +1033,19 @@ export function Dashboard() {
           </>}
         </Card>
       </Box>
+      {expanded && (
+        <ExpandedLayRate
+          {...stripStrings(expandedLine, expandedSpan)}
+          data={expandedReport === null ? null : expandedLine} failed={expandedFailed}
+          scopeName={contextScope} from={expandedPlotted.from} to={expandedPlotted.to}
+          latestDay={latestDay} range={expandedRange}
+          onRangeChange={(next) => {
+            setExpandedRange(next);
+            writeAccountScoped(EXPANDED_RANGE_STORAGE_KEY, formatStoredRange(next));
+          }}
+          onClose={() => setExpanded(false)}
+        />
+      )}
     </Container>
   );
 }

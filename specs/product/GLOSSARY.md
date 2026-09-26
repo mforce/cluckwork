@@ -124,7 +124,8 @@ vacated its day, #82); a Draft does (captured, not yet submitted). Depleted
 and archived flocks appear only when they do have an entry today. Recent
 orders pages the same way, five at a time, fetching each page as it is asked
 for. Beside them the dashboard shows the chosen **Lay rate range** — up to a
-fortnight, one bar a day — from the **Production report** (submitted days
+fortnight, one bar a day, with **Expand** for a month or a quarter — from the
+**Production report** (submitted days
 only, ending yesterday or earlier — never today, unlike Reports) with the report's own **Hen-day %** for that
 window against the window of the same length before it, and stock as one
 stacked bar by grade whose total is the Stock screen's.
@@ -781,8 +782,24 @@ on the farm's yesterday or earlier, because the card counts submitted days
 only, and a hairline marks each seven-day boundary inside it. The choice is
 remembered per device and per farm. The hen-day figure below always compares
 the chosen window against the window of the same length before it. Longer
-ranges, and the expanded view that could carry them, are #941 (owner
-decision, 2026-09-23).
+ranges live in the **Expanded lay rate chart** below.
+
+**Expanded lay rate chart (#941)** — the **Expand** control on the Lay rate
+card opens the same chart on a full screen, framed like the post-login brand
+splash and following the app theme. There the window is the last **30**
+finished days or a custom span of up to **90**, kept in its own memory so
+opening it never moves the card's own window. Above the daily bars sits a map
+of the whole range with a box marking the days on screen; the bars are a
+native horizontal scroll region, so scrolling or swiping them moves the box,
+and pressing the map scrolls the window there. The pager buttons, Page Up and
+Page Down move the window without moving the selection, and the strip keeps
+its one tab stop and arrow keys. A bar is always **22px** at every range, so
+the newest day sits at the right edge and a range narrower than the window
+leaves its empty space before the oldest day. Whether the window scrolls at
+all is decided from that layout — days times the slot against the region's
+width — never from a measured `scrollWidth`, so the date rule's overhanging
+end label cannot light an edge cue on a chart hiding nothing. **Back to
+dashboard** or Escape closes it and returns focus to Expand.
 
 **Lay rate flock scope (#916)** — the Dashboard's Lay rate card reads one
 scope: **All flocks** (every flock the signed-in user can see) or one

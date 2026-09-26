@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cluckwork · Expanded lay-rate chart, direction lab (#941)</title>
+<style>
+/* ------------------------------------------------------------------ tokens
+   Lifted verbatim from web/src/styles.css (aubergine default palette, light
+   and dark). No new colour is introduced anywhere in this lab: every fill,
+   rule and accent below resolves to one of these. */
+:root {
+  --brand:#4a154b; --brand-press:#611f69; --on-brand:#ffffff;
+  --ink:#1d1d1d; --muted:#696969;
+  --canvas:#f3eee8; --surface:#fffdf9; --surface-2:#f3eee8;
+  --hairline:#ded3ca; --rule:var(--hairline); --rule-strong:rgba(29,29,29,.28);
+  --scroll-cue:rgba(29,21,33,.22);
+  --error:#bd3a14; --success:#007a5a; --warn:#8a5a00;
+  --stat-accent:var(--brand); --focus:var(--stat-accent);
+  --r-input:4px; --r-panel:8px; --r-card:12px;
+  --shadow-dialog:0 1px 2px rgba(29,21,33,.06),0 12px 32px rgba(29,21,33,.10),0 40px 96px rgba(29,21,33,.12);
+  --font:"Inter Variable",Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+}
+/* Also matchable on a SUBTREE, which is the whole trick behind the dark
+   overlay: the expanded view carries data-theme="dark" on its own root, so it
+   holds the app's night tokens while the page behind it stays in day. */
+:root[data-theme="dark"], [data-theme="dark"] {
+  --ink:#f2ecf4; --muted:#b3a8b8;
+  --canvas:#302733; --surface:#231d25; --surface-2:#302733;
+  --hairline:#554655; --rule:var(--hairline); --rule-strong:rgba(242,236,244,.28);
+  --scroll-cue:rgba(255,255,255,.16);
+  --error:#ff8666; --success:#4bbf97; --warn:#e0a44a;
+  --stat-accent:#e2b4e6; --focus:var(--stat-accent);
+  --shadow-dialog:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.4),0 40px 96px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--canvas);color:var(--ink);font:15px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ------------------------------------------------------------- lab chrome */
+.lab{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:#1d1620;color:#f2ecf4;font-size:13px;position:relative;z-index:120}
+.lab strong{margin-right:auto;letter-spacing:-.01em}
+.lab label{display:flex;gap:6px;align-items:center;color:#c6b8c4}
+.lab select,.lab button{background:#2f2534;color:#f2ecf4;border:1px solid #6b5a6e;border-radius:4px;padding:6px 10px;min-height:34px;cursor:pointer}
+.lab button[aria-pressed="true"]{background:#f2ecf4;color:#1d1620;border-color:#f2ecf4}
+body.capture .lab{display:none}
+/* A capture is of the SETTLED state: the 0.2s fade is real behaviour, but a
+   frame taken mid-fade shows the dashboard through an overlay that is opaque
+   in the running app, which is a lie about the design. */
+body.capture .veil{animation:none!important}
+
+.sheet{max-width:1180px;margin:0 auto;padding:34px 24px 80px}
+.sheet h1{font-size:34px;line-height:1.1;letter-spacing:-.03em;margin:0 0 12px;max-width:22ch}
+.sheet h2{font-size:21px;letter-spacing:-.015em;margin:34px 0 8px}
+.sheet h3{font-size:15px;margin:22px 0 6px}
+.sheet p{margin:0 0 14px;max-width:74ch}
+.sheet .lede{font-size:17px;color:var(--muted);max-width:70ch}
+.note{border-left:2px solid var(--rule-strong);padding-left:14px;color:var(--muted);font-size:14px;max-width:70ch}
+.tradeoffs{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin:16px 0 0}
+.tradeoffs section{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-panel);padding:16px}
+.tradeoffs h3{margin:0 0 8px;font-size:14px}
+.tradeoffs section.chosen{border-color:var(--stat-accent);border-left-width:3px;box-shadow:0 1px 2px rgba(29,21,33,.06)}
+.tradeoffs .tag{font-style:normal;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--stat-accent);color:var(--surface);border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:2px}
+.tradeoffs ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--muted)}
+.tradeoffs li{margin-bottom:6px}
+.verdict{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--stat-accent);border-radius:var(--r-panel);padding:18px 20px;margin-top:18px}
+body.capture .sheet{display:none}
+
+/* --------------------------------------------------- dashboard page mock */
+.app{display:flex;min-height:100vh}
+.side{width:244px;flex:none;background:var(--brand);color:var(--on-brand);padding:18px 14px;font-size:14px}
+.side b{display:block;font-size:15px;margin-bottom:18px;letter-spacing:-.01em}
+.side i{display:block;font-style:normal;padding:9px 10px;border-radius:6px;color:#d9bdde}
+.side i.on{background:#611f69;color:#fff}
+.page{flex:1;min-width:0;padding:22px;background:var(--canvas)}
+.page-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px}
+.page-head h2{font-size:22px;margin:0;letter-spacing:-.02em}
+.page-head span{font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-card);padding:20px}
+.card h3{margin:0 0 4px;font-size:17px;letter-spacing:-.01em}
+.filler p{font-size:13px;color:var(--muted);margin:0 0 10px}
+.filler .row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--rule);font-size:14px}
+.filler .row b{font-weight:600;font-variant-numeric:tabular-nums}
+@media (max-width:760px){
+  .side{display:none}
+  .page{padding:14px}
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .sheet{padding:22px 14px 60px}
+  .sheet h1{font-size:26px}
+}
+
+/* ------------------------------------- the card's own strip (app fidelity) */
+.scope-label{display:block;text-transform:uppercase;letter-spacing:.08em;font-size:10px;color:var(--muted);margin:14px 0 5px}
+.scope-value{font-size:16px;font-weight:600;min-height:44px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--rule)}
+.scope-value svg{opacity:.6}
+.rangerow{display:flex;gap:8px;align-items:stretch;margin:10px 0 8px}
+.rangerow select{flex:1;min-width:0;min-height:44px;padding:0 10px;border:1px solid var(--rule-strong);border-radius:var(--r-input);background:var(--surface)}
+.expand{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;white-space:nowrap;border:1px solid var(--rule-strong);border-radius:var(--r-input);background:var(--surface);cursor:pointer;font-weight:600;font-size:14px}
+.expand:hover{background:var(--surface-2)}
+.expand svg{flex:none}
+.trend-context{font-size:12px;color:var(--muted);margin:0 0 22px}
+.trend-scale{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.5rem;font-size:.8125rem;color:var(--muted);margin-bottom:.4rem}
+.trend-figures{display:flex;gap:.75rem;align-items:baseline}
+.trend-peak{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.trend-avg{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tipdock{position:relative;height:2.2rem}
+.tip{position:absolute;bottom:8px;transform:translateX(-50%);max-width:100%;padding:.15rem .45rem;border-radius:4px;background:var(--ink);color:var(--surface);font-size:.75rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.daystrip{position:relative;display:flex;align-items:flex-end;gap:4px;height:5rem;border-bottom:1px solid var(--hairline)}
+.avgline{position:absolute;left:0;right:0;border-top:1px dashed color-mix(in oklab,var(--ink) 55%,transparent);pointer-events:none}
+.day{flex:1 1 0;display:flex;align-items:flex-end;justify-content:center;position:relative;height:100%;padding:0;border:none;border-radius:3px 3px 0 0;background:color-mix(in oklab,var(--stat-accent) 7%,transparent);cursor:pointer;font:inherit}
+.day>i{display:block;width:100%;max-width:18px;min-height:3px;border-radius:3px 3px 0 0;background:var(--stat-accent)}
+.day.on{outline:1.5px solid var(--ink);outline-offset:1px}
+.day.on>i{background:var(--ink)}
+.day-partial>i{background:linear-gradient(135deg,var(--stat-accent) 25%,transparent 25%,transparent 50%,var(--stat-accent) 50%,var(--stat-accent) 75%,transparent 75%);background-size:6px 6px;border:1px solid var(--stat-accent);box-sizing:border-box}
+.day.on.day-partial>i{background:linear-gradient(135deg,var(--ink) 25%,transparent 25%,transparent 50%,var(--ink) 50%,var(--ink) 75%,transparent 75%);background-size:6px 6px;border:1px solid var(--ink)}
+.day.on::after{content:"";position:absolute;left:50%;bottom:100%;transform:translateX(-50%);border-width:5px 5px 0;border-style:solid;border-color:transparent;border-top-color:var(--ink);pointer-events:none}
+.day-week{margin-left:9px}
+.day-week::before{content:"";position:absolute;left:-6px;top:0;bottom:0;border-left:1px solid var(--hairline)}
+.trend-rule{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:.35rem}
+.trend-legend{display:flex;gap:.75rem;flex-wrap:wrap;list-style:none;margin:0;padding:0 0 .875rem;border-bottom:1px solid var(--rule);font-size:.6875rem;color:var(--muted)}
+.trend-legend li{display:flex;align-items:center;gap:.3rem}
+.sw{display:block;width:.75rem;height:.75rem;flex-shrink:0;background:var(--stat-accent)}
+.sw.partial{background:linear-gradient(135deg,var(--stat-accent) 25%,transparent 25%,transparent 50%,var(--stat-accent) 50%,var(--stat-accent) 75%,transparent 75%);background-size:6px 6px;border:1px solid var(--stat-accent);box-sizing:border-box}
+.sw.missing{background:transparent;border:1px dashed var(--muted);box-sizing:border-box}
+.trend-kpi{display:flex;align-items:baseline;gap:.55rem;margin:.9rem 0 0}
+.trend-fig{font-size:1.4rem;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.trend-delta{font-size:.8125rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted)}
+.trend-delta.is-up{color:var(--success)}
+.trend-delta.is-down{color:var(--error)}
+.trend-sub{margin:.2rem 0 0;font-size:.8125rem;color:var(--muted)}
+
+/* ==========================================================================
+   THE EXPANDED VIEW — composed exactly like the post-login brand splash
+   (.brand-splash-backdrop / .brand-splash, web/src/styles.css ~636-690):
+   fixed full-viewport, flex column, centred on both axes, 1.5rem gap and
+   padding, opaque background, 0.2s fade under prefers-reduced-motion:
+   no-preference, and one clear way out that takes focus on open.
+
+   Two deliberate departures from the splash, both stated on the sheet:
+   - max-width. The splash caps its column at min(90vw, 640px) because it
+     frames one image. 640px holds 24 daily slots; the whole point here is
+     more. The cap is min(94vw, 1180px) — the widest column that still keeps
+     a visible margin on a 1280 laptop, and 45 days on screen at once.
+   - the 60vh image cap becomes a cap on the PLOT, not on the column: the
+     chrome above and below it (scale caption, reserved readout, date rule,
+     legend) must stay on screen or the chart cannot be read.
+   ========================================================================== */
+.veil{position:fixed;inset:0;z-index:100;color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem;background:var(--canvas)}
+@media (prefers-reduced-motion:no-preference){.veil{animation:veil-in .2s ease-out}}
+@keyframes veil-in{from{opacity:0}to{opacity:1}}
+@media (max-width:760px){.veil{gap:1rem;padding:1rem}}
+
+.veil-col{display:flex;flex-direction:column;align-items:stretch;gap:1.5rem;width:100%;max-width:min(94vw,1180px);min-height:0}
+@media (max-width:760px){.veil-col{gap:1rem;max-width:94vw}}
+
+.chart{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-card);box-shadow:var(--shadow-dialog);padding:20px 22px 16px;min-height:0;display:flex;flex-direction:column}
+@media (max-width:760px){.chart{padding:14px 12px 12px}}
+
+.chart-head{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--rule);margin-bottom:16px}
+.chart-title{margin:0;font-size:20px;letter-spacing:-.02em}
+.chart-title span{display:block;font-size:12px;font-weight:400;color:var(--muted);letter-spacing:0;margin-top:3px}
+.chart-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chart-controls select{color:var(--ink);min-height:40px;padding:0 10px;border:1px solid var(--rule-strong);border-radius:var(--r-input);background:var(--surface)}
+.seg{display:flex;border:1px solid var(--rule-strong);border-radius:var(--r-input);overflow:hidden}
+.seg button:disabled{opacity:.45;cursor:not-allowed}
+.seg button{min-height:40px;padding:0 14px;border:0;background:transparent;cursor:pointer;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--stat-accent);color:var(--surface);font-weight:600}
+@media (max-width:760px){
+  .chart-head{gap:10px;align-items:stretch}
+  .chart-title{font-size:17px}
+  .chart-controls{width:100%}
+  .chart-controls select{flex:1;min-width:0}
+}
+
+/* The plot: a fixed axis gutter beside a horizontally scrolling strip. The
+   gutter sits OUTSIDE the scroller rather than being position:sticky inside
+   it — same result, and it cannot be scrolled away by a rubber-band or a
+   momentum fling, which sticky on iOS can briefly allow. */
+.plot{display:flex;align-items:stretch;min-height:0}
+.yaxis{flex:none;width:58px;position:relative;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;border-right:1px solid var(--rule)}
+.yaxis span{position:absolute;right:8px;transform:translateY(-50%);white-space:nowrap}
+.yaxis .y-avg{color:var(--ink)}
+@media (max-width:760px){.yaxis{width:44px;font-size:10px}.yaxis span{right:5px}}
+
+.scroller.no-scroll{overflow-x:hidden}
+.scroller{position:relative;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding-bottom:6px}
+.scroller::-webkit-scrollbar{height:10px}
+.scroller::-webkit-scrollbar-thumb{background:var(--scroll-cue);border-radius:99px}
+/* The edge cue is the token the scrolling tables already use (#150), so a
+   clipped strip announces itself the same way everywhere in the app. */
+.scroll-cue{position:absolute;top:0;bottom:6px;width:36px;pointer-events:none;z-index:3}
+.scroll-cue.right{right:0;background:linear-gradient(to left,var(--surface),transparent)}
+.scroll-cue.left{left:0;background:linear-gradient(to right,var(--surface),transparent)}
+
+/* The strip itself. `--slot` and `--gap` are #912's OWN measured geometry —
+   22px slots with 4px gaps on desktop, 2px on a phone. The expanded view does
+   not invent a bar size; it removes the 14-slot ceiling and lets the surplus
+   scroll. That is why A is cheap to build. */
+.bigstrip{--slot:22px;--gap:4px;position:relative;display:flex;align-items:flex-end;gap:var(--gap);height:var(--plot-h,320px);border-bottom:1px solid var(--hairline);width:max-content;min-width:100%}
+@media (max-width:760px){.bigstrip{--slot:22px;--gap:2px}}
+.bigstrip.fit{width:100%;min-width:0}
+.bigstrip .day{flex:0 0 var(--slot);width:var(--slot)}
+.bigstrip.fit .day{flex:1 1 0;width:auto;min-width:0}
+.bigstrip.fit .day>i{max-width:none}
+.bigstrip .day>i{max-width:20px}
+.bigstrip .day-week{margin-left:calc(var(--gap) + 5px)}
+.bigstrip .day-week::before{left:-5px}
+
+/* The date rule under an expanded strip carries more than two endpoints: it
+   scrolls with the bars, one label per week, so a day in the middle of a
+   90-day range can be placed without counting bars. */
+.datebar{display:flex;gap:var(--gap,4px);width:max-content;min-width:100%;margin-top:6px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.datebar.fit{width:100%;min-width:0}
+.datebar span{flex:0 0 var(--slot,22px);width:var(--slot,22px);text-align:center;white-space:nowrap;overflow:visible}
+.datebar.fit span{flex:1 1 0;width:auto;min-width:0}
+.datebar b{font-weight:400;display:inline-block;transform:translateX(-50%);margin-left:50%}
+
+.chart-foot{display:flex;flex-wrap:wrap;gap:10px 20px;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--rule)}
+.chart-foot .trend-legend{border:0;padding:0}
+.span-note{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* The way out. One control, below the panel, in the splash's own position —
+   and it is the element that takes focus when the view opens. */
+.leave{align-self:center;min-height:44px;padding:0 24px;border-radius:var(--r-input);border:1px solid transparent;background:var(--stat-accent);color:var(--surface);font-weight:600;font-size:15px;cursor:pointer}
+.leave:hover{filter:brightness(1.06)}
+@media (max-width:760px){.leave{align-self:stretch;width:100%}}
+.leave-hint{display:block;text-align:center;font-size:12px;color:var(--muted);margin-top:-.75rem}
+
+/* ---------------------------------------------------- concept C additions
+   The map is a second, UNSELECTABLE plot of the same range. Its bars are the
+   accent at reduced opacity so the box, which is drawn in --ink, never has to
+   compete with them for attention in either theme. It is the only surface in
+   the view that takes a pointer without selecting a day. */
+.overview{position:relative;display:flex;align-items:flex-end;gap:1px;height:46px;margin-bottom:10px;padding:0 0 4px;border-bottom:1px solid var(--rule);cursor:grab;touch-action:none}
+.overview.dragging{cursor:grabbing}
+.overview.static{cursor:default}
+.overview i{flex:1 1 0;min-width:0;background:color-mix(in oklab,var(--stat-accent) 55%,transparent);border-radius:1px 1px 0 0}
+.overview i.ov-partial{background:color-mix(in oklab,var(--stat-accent) 28%,transparent)}
+.overview i.ov-none{background:transparent}
+/* The box reads as a lens over the map, not as a shape ON it: a 2px --ink
+   rule plus a wash light enough to leave the bars underneath readable. In
+   light mode --ink is near-black on a cream map; in dark it is near-white on
+   an aubergine one. Both directions carry the same contrast against the
+   accent bars because both are the theme's own text colour. */
+.window-box{position:absolute;top:-3px;bottom:1px;border:2px solid var(--ink);border-radius:3px;background:color-mix(in oklab,var(--ink) 7%,transparent);box-shadow:0 0 0 1px var(--surface);pointer-events:none;transition:none}
+.overview.static .window-box{opacity:.35}
+@media (max-width:760px){
+  /* A phone never drags the box: at 390 it is a position readout and a
+     tap target, and the swipe happens on the window itself. */
+  .overview{height:34px;cursor:pointer}
+  .window-box{border-width:2px}
+}
+.pager{display:flex;gap:8px;align-items:center}
+.pager button{color:var(--ink);min-width:44px;min-height:40px;border:1px solid var(--rule-strong);border-radius:var(--r-input);background:var(--surface);cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:default}
+.ov-label{font-size:11px;color:var(--muted);margin:0 0 4px;display:flex;justify-content:space-between;gap:10px}
+.ov-label span:last-child{white-space:nowrap}
+
+/* Focus rendering for the captures: Playwright's .focus() paints :focus-visible
+   only after a real key event, so the lab mirrors it with a class. */
+.kbd-focus{outline:2px solid var(--focus)!important;outline-offset:2px!important}
+</style>
+</head>
+<body>
+<header class="lab">
+  <strong>Cluckwork · #941 expanded lay-rate chart</strong>
+  <label>Concept
+    <select id="c-concept">
+      <option value="A">A · Splash frame, daily + scroll</option>
+      <option value="B">B · Splash frame, fit the whole range</option>
+      <option value="C">C · Overview map + scrolling window (chosen)</option>
+    </select>
+  </label>
+  <label>Range
+    <select id="c-range"><option value="30">30 days</option><option value="60">60 days (custom)</option><option value="90" selected>90 days (custom)</option></select>
+  </label>
+  <label>App theme
+    <select id="c-theme"><option value="light">Light</option><option value="dark">Dark</option></select>
+  </label>
+  <label>Locale
+    <select id="c-locale"><option value="en">en</option><option value="es">es</option><option value="tl">tl</option></select>
+  </label>
+  <button id="c-open" aria-pressed="false">Open expanded view</button>
+</header>
+
+<div id="stage"></div>
+<div id="veil-root"></div>
+
+<main class="sheet">
+  <p class="lede">The Lay rate card can show fourteen daily bars and no more — 22px slots in 342px of phone plot (#912). A ninety-day range does not fit in a dashboard card, and the answer to that is not thinner bars. It is a second surface.</p>
+  <h1>Turn the lamp down and put the whole ledger on the wall.</h1>
+  <p>Three ways to build that surface, all composed like the post-login brand splash: a fixed full-viewport backdrop, the chart centred on both axes, and one way out underneath it. The difference between them is what happens to ninety bars once they are there — scroll past them, shrink them to fit, or keep a readable window and a map of the rest.</p>
+
+  <h2>What every concept keeps</h2>
+  <p class="note">Missing, partial and complete stay three distinct marks: a solid bar, a hatched bar that reads as a floor rather than a figure, and no bar at all. The reserved readout row stays reserved, so selecting a day reflows nothing. The strip stays one tab stop with Left/Right/Home/End inside it (#654/#777/#780) — ninety tab stops would be worse than fourteen, not better. Dates stay farm-local. Every string is shown in en, es and tl.</p>
+
+  <h2>Concepts</h2>
+  <div class="tradeoffs">
+    <section>
+      <h3>A · Splash frame, daily bars, horizontal scroll</h3>
+      <ul>
+        <li><b>Geometry:</b> #912's own slot size, uncapped. 22px slots, 4px gaps on desktop and 2px on a phone. 90 days is 2,340px of strip; about 45 of them are on screen at 1280 and 14 on a phone.</li>
+        <li><b>Accessibility:</b> arrow keys walk the strip and scroll the selected day into view, so the keyboard never loses the selection off-screen. Home/End reach the ends of a 90-day range in one press.</li>
+        <li><b>Touch:</b> drag is the native gesture for a scroller and every slot stays at its measured 22px hit width.</li>
+        <li><b>Build:</b> cheapest of the three. DayStrip renders as-is inside an overflow container; the new parts are the axis gutter, the scroll cue and scroll-into-view on arrow keys.</li>
+        <li><b>Conflict:</b> #914 banned horizontal scroll <i>inside the card</i>. This is not the card. The ban's reason — a scroller hidden inside a dashboard panel that nobody discovers — does not survive on a surface whose whole subject is one chart.</li>
+        <li><b>Weakness:</b> you never see all ninety days at once. Answered by the Daily/Weekly toggle in the head, not by a second concept.</li>
+      </ul>
+    </section>
+    <section>
+      <h3>B · Splash frame, fit the whole range</h3>
+      <ul>
+        <li><b>Geometry:</b> the strip always fills the column. 90 days over ~1,090px of desktop plot is a 12px slot; the same 90 over 300px of phone plot is a 3px slot.</li>
+        <li><b>Accessibility:</b> keyboard is unaffected and arguably better — nothing moves under the selection.</li>
+        <li><b>Touch:</b> this is where it fails. A 3px target is not tappable, so the phone must fall back to weekly bars, which is the collapsed card again with more padding.</li>
+        <li><b>Build:</b> also cheap — it is the existing flex strip with the cap lifted — plus the auto-fallback rule and its wording.</li>
+        <li><b>Conflict:</b> none with #914; it is #914's own weekly answer applied to a bigger box.</li>
+        <li><b>Weakness:</b> answers "what is the shape of the quarter" well and "what happened on 14 August" not at all.</li>
+      </ul>
+    </section>
+    <section class="chosen">
+      <h3>C · Overview map + scrolling window <em class="tag">Chosen</em></h3>
+      <ul>
+        <li><b>Owner decision, 2026-09-24:</b> C, with the window made a real horizontal scroller, and the expanded view following the app theme rather than forcing night tokens. The captures below the card are the <code>C2-*</code> set; the older <code>C-*</code> frames are the pre-decision draft and are kept only as history.</li>
+        <li><b>Geometry:</b> two plots of the same range. A 42px map (34px on a phone) that always fits, and beneath it concept A's strip verbatim — #912's 22px slots in a native <code>overflow-x:auto</code> region. 90 days is 2,340px of strip; about 41 of them are on screen at 1280 and 12 on a phone.</li>
+        <li><b>Sync:</b> one writer each way. Scrolling moves the box; pressing or dragging the map scrolls the window. See the note under the captures.</li>
+        <li><b>Accessibility:</b> the strip stays one tab stop with Left/Right/Home/End inside it, and the selection scrolls itself into view. Page Up/Down and the pager buttons move the window without moving the selection. The map is <code>role="img"</code>: it is a picture of where you are, never the only way to get there.</li>
+        <li><b>Touch:</b> the window is swiped — the native gesture for a scroller, with every slot at its measured 22px hit width. The map takes a tap to jump; at 390 it is deliberately not a drag handle.</li>
+        <li><b>Build:</b> A's cost plus the map. The scroller, the edge cue, the axis gutter and scroll-into-view are A. The new parts are one more strip, two lines of scroll→box arithmetic, the pointer handler, and Page Up/Down.</li>
+        <li><b>Conflict:</b> #914 banned horizontal scroll <i>inside the card</i>. This is not the card, and unlike A it is not a bare scroller either: the map shows where the clipped days are before anyone has to discover that scrolling exists.</li>
+        <li><b>Weakness:</b> still a control nothing else in Cluckwork has, and the map inherits the series' flatness — it shows where nobody filed and little else.</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="verdict">
+    <h3 style="margin-top:0">Decided: C, made scrollable and theme-following.</h3>
+    <p>The lab originally recommended A. The owner chose C on 2026-09-24 and settled the open question underneath it at the same time: the expanded view is <b>light in light mode and dark in dark mode</b>, using the app's own tokens, not a forced lightbox. The frame is otherwise unchanged from the splash — fixed full-viewport backdrop, centred column, one way out that takes focus, fade only under <code>prefers-reduced-motion: no-preference</code>.</p>
+    <p style="margin-bottom:0">What that buys over plain A is discovery and placement: A's scroller tells you there is more only by fading at its edge, and answers "where am I in the quarter" only in the footer's prose. C answers both with a picture. What it costs is the map — and the map is where the build delta lives, so the note below prices it.</p>
+  </div>
+
+  <h2>How the two-way sync works</h2>
+  <p>There is exactly one writer in each direction, and that is the whole design:</p>
+  <p class="note"><b>scroller → map.</b> The scroller's <code>scroll</code> event calls <code>updateBox()</code>, which writes <i>only</i> <code>box.style.left</code> and <code>box.style.width</code>, both derived from <code>scrollLeft</code>, <code>clientWidth</code> and <code>scrollWidth</code>. No state, no index, no re-render.<br>
+  <b>map → scroller.</b> A pointer press on the map computes a fraction of its width and writes <i>only</i> <code>scroller.scrollLeft</code>, centring the window on the pressed point. Dragging repeats that on <code>pointermove</code> under pointer capture, so the sweep survives the cursor leaving the 42px strip.</p>
+  <p><b>Why this cannot oscillate.</b> A programmatic <code>scrollLeft</code> fires <code>scroll</code>, which repaints the box; the box never writes <code>scrollLeft</code> back, so the chain terminates after one hop. No guard flag, no rAF latch, no epsilon comparison. The feedback loop everyone writes by accident is the other shape — the one where the box owns a <code>start</code> index and the strip is re-rendered from it. That is what this lab's <i>first</i> concept C did, which is precisely why it could not scroll: the map and the window each believed they owned the position. If a future change gives the box its own state, that loop comes back. Keep the scroller as the single source of truth for "where am I", and the map as a projection of it.</p>
+  <p class="note">One exception is worth knowing before it is rediscovered. A strip that <i>fits</i> still reports a few pixels of <code>scrollWidth</code> over <code>clientWidth</code>, because the date rule's end label overhangs its slot. Treated as scrollable, that offsets the box by a couple of percent and lights the edge cue on a chart with nothing clipped. Both <code>updateBox()</code> and <code>updateCues()</code> answer the fits case from the <code>no-scroll</code> class instead of from the measurement.</p>
+
+  <h2>One thing the scrolling version changed underneath</h2>
+  <p><b>Keyboard entry has to follow the window, in two places.</b> With nothing selected, the strip's key handler fell back to index 0, so the first Left or Right press selected the first day of the <i>range</i>. Worse, the strip is one tab stop and that stop is rendered on index 0 — so merely tabbing into a window scrolled to September made the browser scroll 25 June back into view, the chart losing your place before a key was pressed. Both now resolve to the first day actually <b>on screen</b>, computed from <code>scrollLeft</code>: <code>moveTabStopIntoView()</code> runs on every scroll, and the key handler uses the same index as its fallback. Verified by tabbing in at <code>scrollLeft</code> 1,173 and pressing Left five times — the selection lands on 8 August and the window does not move. Concept A carries the same latent bug and the same fix; it is only visible once the window can be far from the start of the range.</p>
+
+  <h2>What happens at 30 days</h2>
+  <p>At 1280 it does not need to scroll. Thirty days at a 22px slot and a 4px gap is 780px inside 1,076px of plot, so the strip fits: the scroller takes <code>no-scroll</code>, the strip fills the column, the pager buttons disable, both edge cues go dark, the footer reads <i>All 30 days shown</i>, and the map box spans the whole map at reduced opacity — a position indicator saying "you are looking at everything" (<code>C2-1280-30-light.png</code>, <code>C2-1280-30-dark.png</code>). The break-even at 1280 is about 41 days, so 30 fits and 60 does not.</p>
+  <p>Two consequences worth deciding before implementation rather than after. First, filling the column stretches each slot to about 29px, wider than #912's 22 — the alternative, leaving a third of the plot empty on the right, looks broken, so this is the right trade, but the chart at 30 days is visibly not the chart at 90. Second, <b>on a phone nothing fits</b>: 30 days is 720px against roughly 300px of plot, so the phone always scrolls and the map is always live. The fits case is a desktop-only state, and any test that asserts a disabled pager must pin a viewport.</p>
+
+  <h2>Touch on the phone</h2>
+  <p>Swiping the window is the gesture. It is a native scroller, so momentum, rubber-band and the platform's own overlay scrollbar all come free, and every slot keeps its measured 22px hit width — the reason C does not shrink bars to fit. The map is 34px tall at 390 and the box, at twelve days of ninety, is about 44px wide: large enough to read as a position, too small to grab reliably beside a 390px viewport. So the phone gets <b>tap to jump</b> and no drag: <code>pointerdown</code> centres the window on the tapped point and the handler returns before wiring <code>pointermove</code>. The map carries <code>touch-action:none</code> so that tap is not first interpreted as a page pan.</p>
+  <p class="note">The one thing to watch in implementation: the window and the page behind it both scroll, in different axes. The veil is <code>position:fixed</code> and the page beneath it is <code>inert</code>, so a vertical drag inside the panel has nothing to scroll and a horizontal one reaches the strip — but that only holds while the panel itself fits the viewport. If the panel ever grows taller than a phone screen, the two scrollers compete and a diagonal swipe becomes ambiguous. Cap the plot height, as the frame already does, rather than letting the column scroll.</p>
+
+  <h2>Build-cost delta over plain A</h2>
+  <p>A is the floor: put <code>DayStrip</code> in an <code>overflow-x</code> container, add the fixed axis gutter, the edge cue and scroll-into-view on arrow keys. Everything C adds sits on top of an unchanged A:</p>
+  <p class="note"><b>The map</b> — a second, unselectable render of the same periods at a fixed height, plus its label row. Reuses the scale and the three marks; no new data path.<br>
+  <b>The box</b> — one absolutely-positioned element and the four lines of <code>updateBox()</code>.<br>
+  <b>The pointer handler</b> — press-to-centre, plus drag under pointer capture on non-phone widths. This is the only genuinely new interaction, and it is about fifteen lines with no library.<br>
+  <b>Page Up / Page Down and the pager buttons</b> — <code>scrollLeft += ±clientWidth</code>, shared by all three entry points.</p>
+  <p>Call it a day's work on top of A, and no new dependency: the earlier estimate of "dearest, a brush control MUI gives you nothing for" priced a <i>brush</i> — a control that owns a range and re-renders the plot beneath it. This is not that. The scroller owns the range, natively, and the map only draws it. The part that stays expensive is not code but explanation: two plots of the same data, one of them uninspectable, is still a thing a farm manager has to be taught once.</p>
+
+  <h2>The C2 captures</h2>
+  <p class="note">All 1:1, from this file through <code>shoot-c2.mjs</code>, so every frame is reproducible from its own name. <code>collapsed</code> is the dashboard card carrying the Expand control; <code>start</code> and <code>mid</code> are the same 90-day range scrolled to 0% and 45% of its scrollable distance, so the box has visibly moved between them; <code>readout</code> is a pointer-selected day, <code>kbd</code> the same day with the focus ring. Each exists at 1280 and 390 in both themes, plus <code>C2-1280-30-*</code> for the fits case and <code>C2-1280-90-mid-tl.png</code> for the long locale. The older <code>C-*</code> frames are the pre-decision draft.</p>
+
+  <h2>Three things the renders showed that the plan did not</h2>
+  <p><b>A longer range does not produce a more interesting shape.</b> A laying flock's daily output varies by single-digit percent, and these bars are anchored at zero on purpose (#654 — a cropped axis would dramatise a 3% swing). So the complete-day average sits within a few percent of the peak at 30, 60 and 90 days alike, and ninety bars are ninety bars of nearly the same height. What the long range makes legible is where the gaps and the partial days are, and how long the September heat dip took to come back. Say that in the issue before it ships, not after someone opens it expecting a curve.</p>
+  <p><b>Concept C's overview inherits that flatness.</b> Look at its 42px map: it shows where nobody filed, and almost nothing else. A map earns its build cost on a series with shape, and this one has little. It still earns it here, but on placement rather than on pattern — it answers <i>where in the quarter am I</i>, not <i>what shape is the quarter</i>.</p>
+  <p><b>The 7-day preset draws thin bars in wide slots.</b> With the cap at 14, seven days gives each slot a seventh of the card and the bar stays capped at 18px, so the card fills with track rather than bar (capture <code>A-1280-collapsed-7day.png</code>). Not this issue's problem — visible only because 7 is now a preset — but worth a line on #941 rather than a rediscovery later.</p>
+
+  <h2>On theme</h2>
+  <p><b>Settled on 2026-09-24: C follows the app's own setting.</b> Light page, light expanded view; dark page, dark one — the app's tokens either way, no new palette. Concepts A and B are left as drawn, with <code>data-theme="dark"</code> forced on the veil root, so the lab still shows what the rejected lightbox looked like.</p>
+  <p>The lightbox had a real argument: the dashboard goes out, one lit panel remains, and closing returns the daylit page. What decided against it is that a light-mode farm would meet a surface that matches nothing else it has ever seen in the app, on a press of a control labelled only <i>Expand chart</i>. Following the theme never surprises anyone, and it costs the view nothing — the frame still does the separating work, because it is a full-viewport backdrop in <code>--canvas</code> with the chart lifted off it in <code>--surface</code> under <code>--shadow-dialog</code>. In light mode that reads as cream-on-cream with a raised card, which is how every other dialog in the app already reads.</p>
+  <p class="note">Two things the light captures showed that the dark-only draft could not. The map box is drawn in <code>--ink</code>, so it is near-black on a cream map in light and near-white on an aubergine one in dark — the same element, the same contrast, in both directions; it needs the 2px rule and the 1px <code>--surface</code> halo to hold that on the phone at 44px wide, and it has them. And the keyboard focus ring is the weak spot in <b>both</b> themes rather than only one: <code>--focus</code> is <code>--stat-accent</code> while a selected bar is filled with <code>--ink</code>, so the ring lands accent-on-ink and is far quieter than a focus ring should be (compare <code>C2-1280-90-kbd-light.png</code> with <code>C2-1280-90-readout-light.png</code> — the difference is one thin purple line). That is inherited from #654's selected-bar treatment, not introduced here, but the expanded view is where a keyboard user will spend the most time on this chart, so it should be fixed with the slice rather than after it.</p>
+  <p class="note">The close path still matters even without the dark-always rule: fade the veil out, do not unmount it under a repaint. Same 0.2s, same <code>prefers-reduced-motion: no-preference</code> guard as the splash. And returning focus to the Expand control is not optional — it is the only thing that tells a screen-reader user where the view went.</p>
+</main>
+<script>
+/* =========================================================================
+   Fixtures. 180 farm-local days ending 2026-09-22 (the farm's yesterday —
+   a preset never plots an unsubmitted today), so every window the lab shows
+   also has the equal window BEFORE it that the hen-day KPI compares against.
+   One layer house of 2,400 birds across three houses; lay rate drifts from
+   ~92% down to ~86% over the flock's cycle, with a five-day heat dip, four
+   days nobody recorded and six days only two of the three houses filed.
+   Illustrative values, not a live farm.
+   ======================================================================= */
+const HENS0 = 2520, EXPECTED = 3, DAY = 86400000, END = Date.UTC(2026, 8, 22);
+const MISSING_BACK = [9, 26, 73, 119, 151];
+const PARTIAL_BACK = [3, 41, 67, 96, 133, 160];
+
+const ALL = (() => {
+  let s = 7919;
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0), s / 4294967296);
+  const out = [];
+  for (let k = 0; k < 180; k++) {
+    const ms = END - (179 - k) * DAY;
+    const t = k / 179;
+    let rate = 0.929 - 0.070 * t + Math.sin(k / 8.5) * 0.0068 + (rnd() - 0.5) * 0.012;
+    // A five-day heat event in the second week of September: intake drops,
+    // lay rate follows it down and takes a fortnight to come back.
+    if (k >= 140 && k <= 149) rate -= 0.055 * Math.exp(-Math.pow(k - 143, 2) / 7);
+    rate = Math.max(0.842, Math.min(0.938, rate));
+    // Birds leave the house and are not replaced inside a cycle: 2,520 down to
+    // about 2,290 over 180 days is ordinary mortality plus culling.
+    const hens = Math.round(HENS0 * (1 - 0.092 * t));
+    out.push({ ms, iso: new Date(ms).toISOString().slice(0, 10), rate, hens,
+      eggs: Math.round(rate * hens), kind: "recorded", filed: EXPECTED });
+  }
+  MISSING_BACK.forEach((b) => { const d = out[179 - b]; d.kind = "unrecorded"; d.eggs = null; d.filed = 0; });
+  PARTIAL_BACK.forEach((b) => { const d = out[179 - b]; d.kind = "partial"; d.filed = 2; d.eggs = Math.round(d.eggs * 0.63); });
+  return out;
+})();
+
+/* ------------------------------------------------------------- i18n draft
+   Three locales, because a label that fits in en is not a label that fits:
+   tl runs roughly 30% longer (#688). Draft prose — native es/tl review is a
+   separate job the repo already requires. */
+const TAG = { en: "en-GB", es: "es-ES", tl: "fil-PH" };
+const STR = {
+  en: { layRate:"Lay rate", allFlocks:"All flocks", scope:"Flock", range:"Range", days:(n)=>`Last ${n} days`,
+    custom:(n)=>`Custom · ${n} days`, expand:"Expand chart", leave:"Back to dashboard", esc:"Escape closes",
+    daily:"Daily", weekly:"Weekly", caption:"Eggs per day · complete-day scale", peak:(v)=>`Peak ${v}`,
+    avg:(v)=>`Complete-day avg ${v}`, complete:"Complete", partial:"Partial", noEntry:"No entry",
+    henDay:(n)=>`Hen-day, ${n} days, against the ${n} before`, zero:"0",
+    tip:{ recorded:(d,e)=>`${d} · ${e} eggs, complete`, partial:(d,e,f)=>`${d} · ${e} eggs, ${f} of ${EXPECTED} houses`,
+      unrecorded:(d)=>`${d} · no entry, ${EXPECTED} houses` },
+    shown:(a,b,n,u)=>`${a} – ${b} shown of ${n} ${u}`, fits:(n,u)=>`All ${n} ${u} shown`, unitDay:"days", unitWeek:"weeks",
+    windowOf:(a,b,n)=>`${a} – ${b} · window of ${n} days`, mapLabel:"Whole range", prev:"Earlier", next:"Later" },
+  es: { layRate:"Tasa de postura", allFlocks:"Todos los lotes", scope:"Lote", range:"Rango", days:(n)=>`Últimos ${n} días`,
+    custom:(n)=>`Personalizado · ${n} días`, expand:"Ampliar gráfico", leave:"Volver al panel", esc:"Escape cierra",
+    daily:"Diario", weekly:"Semanal", caption:"Huevos por día · escala de días completos", peak:(v)=>`Pico ${v}`,
+    avg:(v)=>`Prom. días completos ${v}`, complete:"Completo", partial:"Parcial", noEntry:"Sin registro",
+    henDay:(n)=>`Gallina-día, ${n} días, frente a los ${n} anteriores`, zero:"0",
+    tip:{ recorded:(d,e)=>`${d} · ${e} huevos, completo`, partial:(d,e,f)=>`${d} · ${e} huevos, ${f} de ${EXPECTED} casetas`,
+      unrecorded:(d)=>`${d} · sin registro, ${EXPECTED} casetas` },
+    shown:(a,b,n,u)=>`${a} – ${b} de ${n} ${u}`, fits:(n,u)=>`Los ${n} ${u} a la vista`, unitDay:"días", unitWeek:"semanas",
+    windowOf:(a,b,n)=>`${a} – ${b} · ventana de ${n} días`, mapLabel:"Rango completo", prev:"Antes", next:"Después" },
+  tl: { layRate:"Antas ng pangingitlog", allFlocks:"Lahat ng kawan", scope:"Kawan", range:"Saklaw", days:(n)=>`Huling ${n} araw`,
+    custom:(n)=>`Pasadya · ${n} araw`, expand:"Palakihin ang tsart", leave:"Bumalik sa dashboard", esc:"Escape ang pagsara",
+    daily:"Araw-araw", weekly:"Lingguhan", caption:"Itlog bawat araw · sukat ng kumpletong araw", peak:(v)=>`Pinakamataas ${v}`,
+    avg:(v)=>`Karaniwan ng kumpletong araw ${v}`, complete:"Kumpleto", partial:"Bahagya", noEntry:"Walang tala",
+    henDay:(n)=>`Inahin-araw, ${n} araw, laban sa ${n} bago nito`, zero:"0",
+    tip:{ recorded:(d,e)=>`${d} · ${e} itlog, kumpleto`, partial:(d,e,f)=>`${d} · ${e} itlog, ${f} sa ${EXPECTED} kulungan`,
+      unrecorded:(d)=>`${d} · walang tala, ${EXPECTED} kulungan` },
+    shown:(a,b,n,u)=>`${a} – ${b} sa ${n} ${u}`, fits:(n,u)=>`Lahat ng ${n} ${u} ay nakikita`, unitDay:"araw", unitWeek:"linggo",
+    windowOf:(a,b,n)=>`${a} – ${b} · bintana ng ${n} araw`, mapLabel:"Buong saklaw", prev:"Mas luma", next:"Mas bago" },
+};
+
+const S = {
+  concept: "A", range: 90, cardRange: 14, theme: "light", locale: "en",
+  open: false, grain: "daily", sel: null, kbd: false, winStart: null, scrollLeft: null,
+};
+const L = () => STR[S.locale];
+const fdate = (iso) => new Intl.DateTimeFormat(TAG[S.locale], { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(iso));
+const fnum = (n, dp = 0) => n === null ? "—" : n.toLocaleString(TAG[S.locale], { minimumFractionDigits: dp, maximumFractionDigits: dp });
+
+/* --------------------------------------------------------------- geometry */
+const isPhone = () => window.matchMedia("(max-width:760px)").matches;
+const slotPx = () => (isPhone() ? 22 : 22);
+const gapPx = () => (isPhone() ? 2 : 4);
+const plotH = () => Math.round(isPhone() ? Math.min(230, innerHeight * 0.30) : Math.min(340, innerHeight * 0.44));
+
+function windowOf(n) { return ALL.slice(ALL.length - n); }
+function previousOf(n) { return ALL.slice(ALL.length - 2 * n, ALL.length - n); }
+
+/* Weekly buckets from the START of the window (#914), so the SHORT bucket is
+   the last one when the range does not divide by seven. */
+function weekly(days) {
+  const out = [];
+  for (let i = 0; i < days.length; i += 7) {
+    const chunk = days.slice(i, i + 7);
+    const filed = chunk.filter((d) => d.kind !== "unrecorded");
+    const eggs = filed.reduce((a, d) => a + d.eggs, 0);
+    const complete = filed.length === chunk.length && chunk.every((d) => d.kind === "recorded");
+    out.push({ iso: chunk[0].iso, endIso: chunk[chunk.length - 1].iso, count: chunk.length,
+      kind: filed.length === 0 ? "unrecorded" : complete ? "recorded" : "partial",
+      eggs: filed.length === 0 ? null : Math.round(eggs / filed.length), filed: filed.length });
+  }
+  return out;
+}
+
+/* Scale: peak and average over COMPLETE periods only. A partial total is a
+   floor, so averaging it in drags the reference line down by however many
+   houses forgot. */
+function scaleOf(periods) {
+  const complete = periods.filter((p) => p.kind === "recorded");
+  const pool = complete.length ? complete : periods.filter((p) => p.kind === "partial");
+  const max = pool.length ? Math.max(...pool.map((p) => p.eggs)) : null;
+  const avg = complete.length ? Math.round(complete.reduce((a, p) => a + p.eggs, 0) / complete.length * 10) / 10 : null;
+  return { max, avg, avgPct: avg !== null && max ? (avg / max) * 100 : null };
+}
+const heightOf = (p, max) => p.eggs === null || !max ? null : Math.min(100, Math.max(2, (p.eggs / max) * 100));
+
+function tipOf(p) {
+  const d = p.endIso && p.endIso !== p.iso ? `${fdate(p.iso)} – ${fdate(p.endIso)}` : fdate(p.iso);
+  if (p.kind === "unrecorded") return L().tip.unrecorded(d);
+  if (p.kind === "partial") return L().tip.partial(d, fnum(p.eggs), p.filed);
+  return L().tip.recorded(d, fnum(p.eggs));
+}
+
+function henDay(n) {
+  const cur = windowOf(n).filter((d) => d.kind === "recorded");
+  const prev = previousOf(n).filter((d) => d.kind === "recorded");
+  const m = (a) => a.reduce((s, d) => s + d.rate, 0) / a.length * 100;
+  return { current: m(cur), delta: m(cur) - m(prev) };
+}
+
+const ICON_EXPAND = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+const ICON_CHEV = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
+
+/* ======================================================= shared strip HTML */
+function slotsHTML(periods, scale, o) {
+  return periods.map((p, i) => {
+    const h = heightOf(p, scale.max);
+    const on = p.iso === o.sel;
+    const cls = ["day", `day-${p.kind}`, on ? "on" : "", on && o.kbd ? "kbd-focus" : "",
+      o.weekBreak && i > 0 && i % 7 === 0 ? "day-week" : ""].filter(Boolean).join(" ");
+    return `<button type="button" class="${cls}" data-i="${i}" data-iso="${p.iso}" tabindex="${on || (o.sel === null && i === 0) ? 0 : -1}"`
+      + ` aria-current="${on}" aria-label="${tipOf(p)}">${h === null ? "" : `<i style="height:${h}%"></i>`}</button>`;
+  }).join("");
+}
+function legendHTML() {
+  return `<ul class="trend-legend"><li><span class="sw"></span>${L().complete}</li>`
+    + `<li><span class="sw partial"></span>${L().partial}</li>`
+    + `<li><span class="sw missing"></span>${L().noEntry}</li></ul>`;
+}
+function scaleRowHTML(scale) {
+  return `<figcaption class="trend-scale"><span>${L().caption}</span><span class="trend-figures">`
+    + `<span class="trend-avg">${L().avg(fnum(scale.avg, 1))}</span>`
+    + `<span class="trend-peak">${L().peak(fnum(scale.max))}</span></span></figcaption>`;
+}
+function dockHTML(periods, o) {
+  const p = periods.find((x) => x.iso === o.sel);
+  return `<div class="tipdock" aria-hidden="true">${p ? `<span class="tip">${tipOf(p)}</span>` : ""}</div>`;
+}
+
+/* ================================================== the dashboard card mock */
+function cardHTML() {
+  const days = windowOf(S.cardRange);
+  const scale = scaleOf(days);
+  const kpi = henDay(S.cardRange);
+  const sel = S.open ? null : S.sel;
+  return `<section class="card" id="laycard">
+    <h3>${L().layRate}</h3>
+    <span class="scope-label">${L().scope}</span>
+    <div class="scope-value"><span>${L().allFlocks}</span>${ICON_CHEV}</div>
+    <div class="rangerow">
+      <select id="card-range" aria-label="${L().range}">
+        <option value="7"${S.cardRange === 7 ? " selected" : ""}>${L().days(7)}</option>
+        <option value="14"${S.cardRange === 14 ? " selected" : ""}>${L().days(14)}</option>
+      </select>
+      <button type="button" class="expand" id="btn-expand" aria-haspopup="dialog" aria-expanded="${S.open}">${ICON_EXPAND}${L().expand}</button>
+    </div>
+    <p class="trend-context">${L().allFlocks} · ${fdate(days[0].iso)} – ${fdate(days[days.length - 1].iso)}</p>
+    <figure class="trend" style="margin:0">
+      ${scaleRowHTML(scale)}
+      ${dockHTML(days, { sel })}
+      <div class="daystrip" role="group" aria-label="${L().caption}">
+        ${slotsHTML(days, scale, { sel, kbd: S.kbd && !S.open, weekBreak: true })}
+        ${scale.avgPct !== null ? `<span class="avgline" style="bottom:${scale.avgPct}%"></span>` : ""}
+      </div>
+      <div class="trend-rule"><span>${fdate(days[0].iso)}</span><span>${fdate(days[days.length - 1].iso)}</span></div>
+      ${legendHTML()}
+    </figure>
+    <p class="trend-kpi"><span class="trend-fig">${fnum(kpi.current, 1)}%</span>
+      <span class="trend-delta ${kpi.delta >= 0 ? "is-up" : "is-down"}">${kpi.delta >= 0 ? "+" : "−"}${fnum(Math.abs(kpi.delta), 1)} pts</span></p>
+    <p class="trend-sub">${L().henDay(S.cardRange)}</p>
+  </section>`;
+}
+
+function stageHTML() {
+  return `<div class="app" id="app-shell">
+    <nav class="side"><b>Sunrise Layers</b><i class="on">Dashboard</i><i>Daily entry</i><i>Egg lots</i><i>Stock</i><i>Sales</i><i>Reports</i><i>Setup</i></nav>
+    <div class="page">
+      <div class="page-head"><h2>Dashboard</h2><span>${fdate("2026-09-23")}</span></div>
+      <div class="grid">
+        <section class="card filler">
+          <h3>Today's capture</h3>
+          <p>3 houses · 2 filed</p>
+          <div class="row"><span>House A · Lohmann Brown</span><b>${fnum(786)}</b></div>
+          <div class="row"><span>House B · Lohmann Brown</span><b>${fnum(742)}</b></div>
+          <div class="row"><span>House C · Hy-Line</span><b>No entry yet</b></div>
+          <div class="row" style="border:0"><span>Stock on hand</span><b>${fnum(14380)}</b></div>
+        </section>
+        ${cardHTML()}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============================================== the expanded view (A/B/C) */
+function rangeSelectHTML() {
+  return `<select id="veil-range" aria-label="${L().range}">
+    <option value="30"${S.range === 30 ? " selected" : ""}>${L().days(30)}</option>
+    <option value="60"${S.range === 60 ? " selected" : ""}>${L().custom(60)}</option>
+    <option value="90"${S.range === 90 ? " selected" : ""}>${L().custom(90)}</option>
+  </select>`;
+}
+function grainSegHTML(forced) {
+  // When the range cannot be drawn daily at this width, Daily is DISABLED and
+  // Weekly reads as pressed. Leaving Daily pressed over weekly bars would have
+  // the control state disagree with the chart.
+  return `<div class="seg" role="group" aria-label="${L().daily} / ${L().weekly}">
+    <button type="button" data-grain="daily"${forced ? " disabled" : ""} aria-pressed="${!forced && S.grain === "daily"}">${L().daily}</button>
+    <button type="button" data-grain="weekly" aria-pressed="${forced || S.grain === "weekly"}">${L().weekly}</button></div>`;
+}
+function headHTML(days, extra) {
+  return `<div class="chart-head">
+    <h2 class="chart-title" id="veil-title">${L().layRate}
+      <span>${L().allFlocks} · ${fdate(days[0].iso)} – ${fdate(days[days.length - 1].iso)}</span></h2>
+    <div class="chart-controls">${rangeSelectHTML()}${extra}</div>
+  </div>`;
+}
+function axisHTML(scale, h) {
+  return `<div class="yaxis" style="height:${h}px" aria-hidden="true">
+    <span style="top:1px;transform:none">${fnum(scale.max)}</span>
+    ${scale.avgPct !== null && scale.avgPct <= 88 ? `<span class="y-avg" style="bottom:${scale.avgPct}%;transform:translateY(50%)">${fnum(scale.avg, 0)}</span>` : ""}
+    <span style="bottom:-2px;transform:none">${L().zero}</span></div>`;
+}
+function dateBarHTML(periods, fit, slot, gap, base) {
+  let step = base || 7;
+  while (step * (slot + gap) < 56) step += (base || 7);
+  const n = periods.length, first = (n - 1) % step;
+  return `<div class="datebar${fit ? " fit" : ""}" style="--slot:${slot}px;--gap:${gap}px" aria-hidden="true">`
+    + periods.map((p, i) => {
+      if ((n - 1 - i) % step !== 0) return "<span></span>";
+      const edge = i === n - 1 ? ' style="margin-left:100%;transform:translateX(-100%)"'
+        : i === first ? ' style="margin-left:0;transform:none"' : "";
+      return `<span><b${edge}>${fdate(p.iso)}</b></span>`;
+    }).join("") + `</div>`;
+}
+
+function veilHTML() {
+  const days = windowOf(S.range);
+  const phone = isPhone();
+  const h = plotH();
+  const slot = slotPx(), gap = gapPx();
+  let body = "";
+
+  if (S.concept === "A") {
+    const periods = S.grain === "weekly" ? weekly(days) : days;
+    const scale = scaleOf(periods);
+    const avail = Math.min(innerWidth * 0.94, 1180) - (phone ? 44 : 58) - (phone ? 26 : 46);
+    const fits = periods.length * (slot + gap) <= avail;
+    const fitGap = Math.max(gap, Math.round((avail / periods.length) * 0.18));
+    const base = S.grain === "weekly" ? 1 : 7;
+    body = `<div class="chart" id="chartpanel">
+      ${headHTML(days, grainSegHTML())}
+      <figure class="trend" style="margin:0;min-height:0;display:flex;flex-direction:column">
+        <figcaption class="trend-scale"><span>${L().caption}</span><span class="trend-figures"><span class="trend-avg">${L().avg(fnum(scale.avg, 1))}</span><span class="trend-peak">${L().peak(fnum(scale.max))}</span></span></figcaption>
+        ${dockHTML(periods, { sel: S.sel })}
+        <div class="plot">
+          ${axisHTML(scale, h)}
+          <div class="scroller${fits ? " no-scroll" : ""}" id="scroller">
+            <div class="bigstrip${fits ? " fit" : ""}" id="bigstrip" role="group" aria-label="${L().caption}" style="--slot:${slot}px;--gap:${fits ? fitGap : gap}px;--plot-h:${h}px">
+              ${slotsHTML(periods, scale, { sel: S.sel, kbd: S.kbd, weekBreak: S.grain === "daily" })}
+              ${scale.avgPct !== null ? `<span class="avgline" style="bottom:${scale.avgPct}%"></span>` : ""}
+            </div>
+            ${dateBarHTML(periods, fits, fits ? Math.floor(avail / periods.length) - fitGap : slot, fits ? fitGap : gap, base)}
+            <span class="scroll-cue left" id="cue-l" hidden></span><span class="scroll-cue right" id="cue-r"></span>
+          </div>
+        </div>
+        <div class="chart-foot">${legendHTML()}<span class="span-note" id="spannote"></span></div>
+      </figure></div>`;
+  }
+
+  if (S.concept === "B") {
+    /* Fit mode: the strip always fills the column, so the slot is whatever
+       the range leaves. Below ~8px it stops being a target anyone can tap,
+       and the view falls back to weekly bars and says so. */
+    const avail = Math.min(innerWidth * 0.94, 1180) - (phone ? 44 : 58) - (phone ? 26 : 46);
+    const wouldBe = avail / days.length;
+    const forced = S.grain === "daily" && wouldBe < 8;
+    const periods = S.grain === "weekly" || forced ? weekly(days) : days;
+    const scale = scaleOf(periods);
+    const fitSlot = Math.max(2, Math.floor(avail / periods.length) - 2);
+    body = `<div class="chart" id="chartpanel">
+      ${headHTML(days, grainSegHTML(forced))}
+      <figure class="trend" style="margin:0;min-height:0;display:flex;flex-direction:column">
+        <figcaption class="trend-scale"><span>${L().caption}</span><span class="trend-figures"><span class="trend-avg">${L().avg(fnum(scale.avg, 1))}</span><span class="trend-peak">${L().peak(fnum(scale.max))}</span></span></figcaption>
+        ${dockHTML(periods, { sel: S.sel })}
+        <div class="plot">
+          ${axisHTML(scale, h)}
+          <div style="flex:1;min-width:0">
+            <div class="bigstrip fit" id="bigstrip" role="group" aria-label="${L().caption}" style="--gap:${Math.max(1, Math.round((avail / periods.length) * 0.18))}px;--plot-h:${h}px">
+              ${slotsHTML(periods, scale, { sel: S.sel, kbd: S.kbd, weekBreak: false })}
+              ${scale.avgPct !== null ? `<span class="avgline" style="bottom:${scale.avgPct}%"></span>` : ""}
+            </div>
+            ${dateBarHTML(periods, true, fitSlot, 2)}
+          </div>
+        </div>
+        <div class="chart-foot">${legendHTML()}<span class="span-note">${forced
+          ? `${Math.round(wouldBe * 10) / 10}px per day is untappable — showing ${periods.length} weekly bars`
+          : L().fits(periods.length, S.grain === "weekly" || forced ? L().unitWeek : L().unitDay)}</span></div>
+      </figure></div>`;
+  }
+
+  if (S.concept === "C") {
+    /* Overview map + a SCROLLING daily window (owner decision, 2026-09-24).
+       The window is concept A's strip verbatim — #912's 22px slots inside a
+       native overflow-x scroller — and the map above it is the part C adds.
+       Nothing here re-renders on scroll: the box is repositioned from the
+       scroller's own geometry, which is why the two can never disagree. */
+    const periods = days;
+    const scale = scaleOf(periods);
+    const avail = Math.min(innerWidth * 0.94, 1180) - (phone ? 44 : 58) - (phone ? 26 : 46);
+    const fits = periods.length * (slot + gap) <= avail;
+    const fitGap = Math.max(gap, Math.round((avail / periods.length) * 0.18));
+    const win = Math.max(1, Math.min(periods.length, Math.floor(avail / (slot + gap))));
+    const ovH = phone ? 34 : 42;
+    return wrap(`<div class="chart" id="chartpanel">
+      ${headHTML(days, `<div class="pager"><button type="button" id="pg-prev" aria-label="${L().prev}"${fits ? " disabled" : ""}>&lsaquo;</button><button type="button" id="pg-next" aria-label="${L().next}"${fits ? " disabled" : ""}>&rsaquo;</button></div>`)}
+      <p class="ov-label"><span>${L().mapLabel} · ${days.length}</span><span>${fdate(days[0].iso)} – ${fdate(days[days.length - 1].iso)}</span></p>
+      <div class="overview${fits ? " static" : ""}" id="overview" style="height:${ovH}px" role="img" aria-label="${L().mapLabel}">
+        ${days.map((d) => { const hh = heightOf(d, scale.max);
+          return `<i class="${d.kind === "partial" ? "ov-partial" : d.kind === "unrecorded" ? "ov-none" : ""}" style="height:${hh === null ? 0 : hh}%"></i>`; }).join("")}
+        <span class="window-box" id="winbox" style="left:0;width:${Math.min(100, (win / days.length) * 100)}%"></span>
+      </div>
+      <figure class="trend" style="margin:0;min-height:0;display:flex;flex-direction:column">
+        <figcaption class="trend-scale"><span>${L().caption}</span>
+          <span class="trend-figures"><span class="trend-avg">${L().avg(fnum(scale.avg, 1))}</span><span class="trend-peak">${L().peak(fnum(scale.max))}</span></span></figcaption>
+        ${dockHTML(periods, { sel: S.sel })}
+        <div class="plot">
+          ${axisHTML(scale, h)}
+          <div class="scroller${fits ? " no-scroll" : ""}" id="scroller">
+            <div class="bigstrip${fits ? " fit" : ""}" id="bigstrip" role="group" aria-label="${L().caption}" style="--slot:${slot}px;--gap:${fits ? fitGap : gap}px;--plot-h:${h}px">
+              ${slotsHTML(periods, scale, { sel: S.sel, kbd: S.kbd, weekBreak: true })}
+              ${scale.avgPct !== null ? `<span class="avgline" style="bottom:${scale.avgPct}%"></span>` : ""}
+            </div>
+            ${dateBarHTML(periods, fits, fits ? Math.floor(avail / periods.length) - fitGap : slot, fits ? fitGap : gap, 7)}
+            <span class="scroll-cue left" id="cue-l" hidden></span><span class="scroll-cue right" id="cue-r"${fits ? " hidden" : ""}></span>
+          </div>
+        </div>
+        <div class="chart-foot">${legendHTML()}<span class="span-note" id="spannote"></span></div>
+      </figure></div>`);
+  }
+
+  return wrap(body);
+
+  function wrap(inner) {
+    /* A and B keep the forced night tokens they were drawn with. C FOLLOWS
+       THE APP THEME (owner decision, 2026-09-24): light page, light expanded
+       view; dark page, dark one. The frame is unchanged either way — fixed
+       full-viewport backdrop, centred column, one way out that takes focus,
+       and the 0.2s fade only under prefers-reduced-motion: no-preference. */
+    const veilTheme = S.concept === "C" ? S.theme : (S.veilDark === false ? S.theme : "dark");
+    return `<div class="veil" data-theme="${veilTheme}" role="dialog" aria-modal="true" aria-labelledby="veil-title">
+      <div class="veil-col">${inner}
+        <button type="button" class="leave" id="btn-leave">${L().leave}</button>
+        <span class="leave-hint">${L().esc}</span>
+      </div></div>`;
+  }
+}
+
+/* ============================================================ render + wire */
+S.veilDark = true;
+const stage = document.getElementById("stage");
+const veilRoot = document.getElementById("veil-root");
+
+function render() {
+  document.documentElement.setAttribute("data-theme", S.theme);
+  stage.innerHTML = stageHTML();
+  veilRoot.innerHTML = S.open ? veilHTML() : "";
+  stage.querySelector("#app-shell").toggleAttribute("inert", S.open);
+  wire();
+}
+
+function currentPeriods() {
+  const days = windowOf(S.open ? S.range : S.cardRange);
+  if (!S.open) return days;
+  // C scrolls the whole range now, so its strip IS the range: arrow keys walk
+  // all ninety days and scroll the selection into view, exactly as in A.
+  if (S.concept === "C") return days;
+  const fitForced = S.concept === "B" && S.grain === "daily"
+    && (Math.min(innerWidth * 0.94, 1180) - (isPhone() ? 44 : 58) - (isPhone() ? 26 : 46)) / days.length < 8;
+  return S.grain === "weekly" || fitForced ? weekly(days) : days;
+}
+
+/* The readout box, clamped inside its dock against MEASURED widths — the
+   component's own rule (#654), extended by one term for the scroller's
+   offset so a selected day that has been scrolled keeps its arrow. */
+function placeTip(root) {
+  const dock = root.querySelector(".tipdock");
+  const tip = dock && dock.querySelector(".tip");
+  const slot = root.querySelector(".day.on");
+  if (!dock || !tip || !slot) return;
+  const gutter = root.querySelector(".yaxis");
+  const scroller = root.querySelector(".scroller");
+  const half = tip.offsetWidth / 2;
+  const centre = slot.offsetLeft + slot.offsetWidth / 2
+    - (scroller ? scroller.scrollLeft : 0) + (gutter ? gutter.offsetWidth : 0);
+  tip.style.left = half * 2 >= dock.offsetWidth
+    ? `${dock.offsetWidth / 2}px`
+    : `${Math.min(Math.max(centre, half), dock.offsetWidth - half)}px`;
+}
+
+function updateCues() {
+  const sc = document.getElementById("scroller");
+  if (!sc) return;
+  const l = document.getElementById("cue-l"), r = document.getElementById("cue-r"), note = document.getElementById("spannote");
+  // Same no-scroll exception as updateBox: a few px of end-label overhang is
+  // not a clipped chart, so it must not light the edge cue or change the note.
+  const still = sc.classList.contains("no-scroll");
+  const atStart = still || sc.scrollLeft <= 1;
+  const atEnd = still || sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 1;
+  if (l) l.hidden = atStart;
+  if (r) r.hidden = atEnd;
+  if (note) {
+    const ps = currentPeriods(), strip = document.getElementById("bigstrip");
+    const per = strip.children[0] ? strip.children[0].offsetWidth + gapPx() : 26;
+    const first = Math.max(0, Math.floor(sc.scrollLeft / per));
+    const last = Math.min(ps.length - 1, Math.ceil((sc.scrollLeft + sc.clientWidth) / per) - 1);
+    const u = S.grain === "weekly" ? L().unitWeek : L().unitDay;
+    note.textContent = atStart && atEnd ? L().fits(ps.length, u)
+      : L().shown(fdate(ps[first].iso), fdate(ps[last].iso), ps.length, u);
+  }
+}
+
+/* ---------------------------------------------------------- the two-way sync
+   ONE writer each way, and that is the whole of it:
+     scroller --(scroll event)--> updateBox()   writes only box.style
+     map      --(pointer event)--> sc.scrollLeft writes only the scroller
+   A programmatic scrollLeft fires `scroll`, which repaints the box; the box
+   never writes scrollLeft back, so the chain terminates after one hop and no
+   guard flag, rAF latch or epsilon comparison is needed. The loop everyone
+   writes by accident is the one where the box also owns a `start` index and
+   re-renders the strip from it — that is what the previous C did, and it is
+   why it could not scroll. */
+function updateBox() {
+  const sc = document.getElementById("scroller"), box = document.getElementById("winbox");
+  if (!sc || !box) return;
+  // A strip that FITS still reports a few px of scrollWidth (the date rule's
+  // end label overhangs its slot). Treating that as scrollable would offset
+  // the box by a couple of percent and imply a window that cannot be moved,
+  // so the no-scroll case is answered from the class, not from the geometry.
+  if (sc.classList.contains("no-scroll")) { box.style.left = "0"; box.style.width = "100%"; return; }
+  const total = sc.scrollWidth || 1;
+  const max = Math.max(0, total - sc.clientWidth);
+  box.style.width = `${Math.min(100, (sc.clientWidth / total) * 100)}%`;
+  box.style.left = `${max === 0 ? 0 : (sc.scrollLeft / total) * 100}%`;
+}
+
+/* The strip is ONE tab stop (#654/#777/#780), and with nothing selected that
+   stop is the first day. Left where it is rendered, tabbing into a window
+   scrolled to September would make the browser scroll index 0 back into view
+   — the chart losing your place before you have pressed a key. So the stop
+   follows the window: it is the first day actually on screen. */
+function moveTabStopIntoView() {
+  const sc = document.getElementById("scroller"), strip = document.getElementById("bigstrip");
+  if (!sc || !strip || S.sel !== null) return;
+  const days = [...strip.querySelectorAll(".day")];
+  const per = days[0] ? days[0].offsetWidth + gapPx() : 26;
+  const at = Math.min(days.length - 1, Math.max(0, Math.round(sc.scrollLeft / per)));
+  days.forEach((d, i) => d.setAttribute("tabindex", i === at ? "0" : "-1"));
+}
+
+function scrollSelectionIntoView() {
+  const sc = document.getElementById("scroller"), slot = document.querySelector("#bigstrip .day.on");
+  if (!sc || !slot) return;
+  const left = slot.offsetLeft, right = left + slot.offsetWidth;
+  if (left < sc.scrollLeft + 8) sc.scrollLeft = Math.max(0, left - 24);
+  else if (right > sc.scrollLeft + sc.clientWidth - 8) sc.scrollLeft = right - sc.clientWidth + 24;
+  S.scrollLeft = sc.scrollLeft;
+  updateBox();
+}
+
+function select(iso, kbd) { S.sel = iso; S.kbd = kbd === true; render(); }
+
+function wire() {
+  const card = document.getElementById("laycard");
+  if (card) {
+    card.querySelector("#card-range").onchange = (e) => { S.cardRange = +e.target.value; S.sel = null; render(); };
+    card.querySelector("#btn-expand").onclick = () => openVeil();
+  }
+  document.querySelectorAll(".daystrip, .bigstrip").forEach((strip) => {
+    const buttons = [...strip.querySelectorAll(".day")];
+    buttons.forEach((b) => {
+      b.onmouseenter = () => { S.sel = b.dataset.iso; S.kbd = false; repaintSelection(strip); };
+      b.onclick = () => select(b.dataset.iso, true);
+    });
+    strip.onkeydown = (e) => {
+      const ps = strip.closest(".veil") ? currentPeriods() : windowOf(S.cardRange);
+      /* With nothing selected yet, start from the first day IN VIEW, not from
+         index 0. In the card those are the same; in a scrolled 90-day window
+         they are up to eighty days apart, and the old behaviour teleported the
+         window back to the start of the range on the first arrow press. */
+      let at = ps.findIndex((p) => p.iso === S.sel);
+      if (at < 0) {
+        const sc = document.getElementById("scroller"), b0 = strip.querySelector(".day");
+        const per = b0 ? b0.offsetWidth + gapPx() : 26;
+        at = sc ? Math.min(ps.length - 1, Math.max(0, Math.round(sc.scrollLeft / per))) : 0;
+      }
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1
+        : e.key === "Home" ? -ps.length : e.key === "End" ? ps.length : 0;
+      if (step === 0) return;
+      e.preventDefault();
+      select(ps[Math.min(ps.length - 1, Math.max(0, at + step))].iso, true);
+      scrollSelectionIntoView();
+    };
+  });
+  const veil = document.querySelector(".veil");
+  if (veil) {
+    veil.querySelector("#btn-leave").onclick = closeVeil;
+    const rs = veil.querySelector("#veil-range");
+    if (rs) rs.onchange = (e) => { S.range = +e.target.value; S.sel = null; S.winStart = null; S.scrollLeft = null; render(); };
+    veil.querySelectorAll("[data-grain]").forEach((b) => { b.onclick = () => { S.grain = b.dataset.grain; S.sel = null; S.scrollLeft = null; render(); }; });
+    const sc = veil.querySelector("#scroller");
+    if (sc) {
+      // Default position is the END of the range: a farm opens this to look at
+      // the days it just filed, not at the quarter's first week.
+      sc.scrollLeft = sc.classList.contains("no-scroll") ? 0
+        : (S.scrollLeft === null ? sc.scrollWidth : S.scrollLeft);
+      sc.onscroll = () => { S.scrollLeft = sc.scrollLeft; updateCues(); placeTip(veil); updateBox(); moveTabStopIntoView(); };
+    }
+    const prev = veil.querySelector("#pg-prev"), next = veil.querySelector("#pg-next");
+    const page = (dir) => { if (sc) sc.scrollLeft += dir * sc.clientWidth; };
+    if (prev) prev.onclick = () => page(-1);
+    if (next) next.onclick = () => page(1);
+
+    /* The map. On a pointer device it is a brush: press anywhere to centre the
+       window there, drag to sweep. On a phone the same press still jumps, and
+       the drag is deliberately NOT wired — at 34px tall beside a 390px viewport
+       the box is a position readout, and the gesture that moves the window is a
+       swipe on the window itself. */
+    const ov = veil.querySelector("#overview");
+    if (ov && sc && !ov.classList.contains("static")) {
+      const jumpTo = (clientX) => {
+        const r = ov.getBoundingClientRect();
+        const frac = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+        const max = sc.scrollWidth - sc.clientWidth;
+        if (max <= 0) return;
+        sc.scrollLeft = Math.min(max, Math.max(0, frac * sc.scrollWidth - sc.clientWidth / 2));
+      };
+      ov.onpointerdown = (e) => {
+        e.preventDefault();
+        jumpTo(e.clientX);
+        if (isPhone()) return;
+        ov.setPointerCapture(e.pointerId);
+        ov.classList.add("dragging");
+        ov.onpointermove = (m) => jumpTo(m.clientX);
+        const done = () => { ov.onpointermove = null; ov.onpointerup = ov.onpointercancel = null;
+          ov.classList.remove("dragging");
+          if (ov.hasPointerCapture(e.pointerId)) ov.releasePointerCapture(e.pointerId); };
+        ov.onpointerup = ov.onpointercancel = done;
+      };
+    }
+
+    scrollSelectionIntoView();
+    updateCues();
+    placeTip(veil);
+    updateBox();
+    moveTabStopIntoView();
+  }
+  const c = document.getElementById("laycard");
+  if (c) placeTip(c);
+}
+
+/* A cheap in-place repaint for hover, so moving the pointer along a 90-bar
+   strip does not re-render the document under the cursor. */
+function repaintSelection(strip) {
+  strip.querySelectorAll(".day").forEach((b) => {
+    const on = b.dataset.iso === S.sel;
+    b.classList.toggle("on", on);
+    b.classList.remove("kbd-focus");
+    b.setAttribute("aria-current", String(on));
+  });
+  const root = strip.closest(".veil") || strip.closest(".card");
+  const ps = strip.closest(".veil") ? currentPeriods() : windowOf(S.cardRange);
+  const dock = root.querySelector(".tipdock");
+  const p = ps.find((x) => x.iso === S.sel);
+  dock.innerHTML = p ? `<span class="tip">${tipOf(p)}</span>` : "";
+  placeTip(root);
+}
+
+function openVeil() { S.open = true; S.sel = null; S.grain = "daily"; S.winStart = null; S.scrollLeft = null; render();
+  const b = document.getElementById("btn-leave"); if (b) b.focus(); }
+function closeVeil() { S.open = false; S.sel = null; render();
+  const b = document.getElementById("btn-expand"); if (b) b.focus(); }
+document.addEventListener("keydown", (e) => {
+  if (!S.open) return;
+  if (e.key === "Escape") { closeVeil(); return; }
+  // Page Up / Page Down are the keyboard equivalent of the pager, and of a
+  // swipe: they move the WINDOW, leaving the selection where it is.
+  if (e.key === "PageUp" || e.key === "PageDown") {
+    const sc = document.getElementById("scroller");
+    if (!sc) return;
+    e.preventDefault();
+    sc.scrollLeft += (e.key === "PageDown" ? 1 : -1) * sc.clientWidth;
+  }
+});
+
+/* -------------------------------------------------------- lab controls */
+const bind = (id, fn) => { document.getElementById(id).onchange = (e) => { fn(e.target.value); render(); }; };
+bind("c-concept", (v) => { S.concept = v; S.sel = null; S.winStart = null; });
+bind("c-range", (v) => { S.range = +v; S.sel = null; S.winStart = null; });
+bind("c-theme", (v) => { S.theme = v; });
+bind("c-locale", (v) => { S.locale = v; });
+document.getElementById("c-open").onclick = () => { S.open ? closeVeil() : openVeil();
+  document.getElementById("c-open").setAttribute("aria-pressed", String(S.open)); };
+window.addEventListener("resize", () => render());
+
+/* Capture hook. Playwright sets the viewport, then calls this; every frame in
+   the folder was produced through it, so a capture is reproducible from its
+   own filename. */
+window.configure = (o) => {
+  Object.assign(S, { sel: null, kbd: false, winStart: null, selBack: null, veilDark: true, scrollLeft: null, scrollFrac: null }, o);
+  document.body.classList.toggle("capture", o.capture !== false);
+  render();
+  // scrollFrac is a fraction of the SCROLLABLE distance, so 0 is the first day
+  // of the range and 1 the last — a capture name can state where it scrolled to.
+  if (S.scrollFrac !== null && S.scrollFrac !== undefined) {
+    const sc = document.getElementById("scroller");
+    if (sc) {
+      sc.scrollLeft = Math.round(S.scrollFrac * Math.max(0, sc.scrollWidth - sc.clientWidth));
+      S.scrollLeft = sc.scrollLeft;
+      updateCues(); updateBox(); placeTip(document.querySelector(".veil"));
+    }
+  }
+  if (S.selBack !== undefined && S.selBack !== null) {
+    const ps = currentPeriods();
+    const p = ps[Math.max(0, ps.length - 1 - S.selBack)];
+    if (p) { S.sel = p.iso; S.kbd = o.kbd === true; render(); scrollSelectionIntoView(); updateCues(); updateBox();
+      placeTip(document.querySelector(".veil") || document.getElementById("laycard")); }
+  }
+  return true;
+};
+render();
+</script>
+</body>
+</html>

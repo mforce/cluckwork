@@ -43,6 +43,7 @@ const ENTRIES = [
   { key: "CaptureStatus", group: "flocksEntry", spec: "Capture status" },
   { key: "LayRateStripScale", group: "flocksEntry", spec: "Lay rate strip scale" },
   { key: "LayRateRange", group: "flocksEntry", spec: "Lay rate range" },
+  { key: "ExpandedLayRateChart", group: "flocksEntry", spec: "Expanded lay rate chart", rich: true },
   { key: "LayRateFlockScope", group: "flocksEntry", spec: "Lay rate flock scope" },
   { key: "DailyEntry", group: "flocksEntry", spec: "Daily entry" },
   { key: "OperationalDay", group: "flocksEntry", spec: "Operational day" },
