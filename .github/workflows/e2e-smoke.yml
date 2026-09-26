@@ -112,7 +112,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 2]
     # PR runs are the quick suite with a headroom cap (a hung stack must fail
     # fast, not burn minutes). Dispatch stays generous because a `slow: true`
     # run spends 16 of these minutes asleep on purpose.
