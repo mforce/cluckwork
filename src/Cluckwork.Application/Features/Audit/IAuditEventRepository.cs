@@ -12,7 +12,7 @@ public interface IAuditEventRepository
     public const int MaxBatchIds = 500;
 
     Task<IReadOnlyList<AuditEvent>> ListAsync(
-        string? action, Guid? entityId, DateOnly? from, DateOnly? to,
+        string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
         int limit, int offset, CancellationToken ct = default);
 
     // #494 — created/last-changed per entity id, for one entity type. An id

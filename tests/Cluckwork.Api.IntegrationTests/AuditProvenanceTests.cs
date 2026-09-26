@@ -1172,6 +1172,45 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(sameInstant, provenance.LastChangedAtUtc);
     }
 
+    private async Task<(Guid AccountId, Guid CreateId, Guid UpdateId)> SeedListFilterEventsAsync()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var create = Event(accountId, Guid.NewGuid(), "Flock.Create", "a@farm.test", 0);
+        var update = Event(accountId, Guid.NewGuid(), "Flock.Update", "b@farm.test", 1440);
+        var user = Event(accountId, Guid.NewGuid(), "User.Create", "c@farm.test", 1440,
+            entityType: "User");
+        await SeedEventsAsync(accountId, create, update, user);
+        return (accountId, create.Id, update.Id);
+    }
+
+    [Fact]
+    public async Task List_FiltersByRecordTypeAlone()
+    {
+        var (accountId, createId, updateId) = await SeedListFilterEventsAsync();
+        var rows = await WithRepositoryAsync(accountId, repo =>
+            repo.ListAsync(null, "Flock", null, null, null, 10, 0));
+        Assert.Equal([updateId, createId], rows.Select(row => row.Id));
+    }
+
+    [Fact]
+    public async Task List_CombinesRecordTypeAndAction()
+    {
+        var (accountId, _, updateId) = await SeedListFilterEventsAsync();
+        var rows = await WithRepositoryAsync(accountId, repo =>
+            repo.ListAsync("Flock.Update", "Flock", null, null, null, 10, 0));
+        Assert.Equal([updateId], rows.Select(row => row.Id));
+    }
+
+    [Fact]
+    public async Task List_CombinesRecordTypeAndDateWindow()
+    {
+        var (accountId, createId, _) = await SeedListFilterEventsAsync();
+        var day = DateOnly.FromDateTime(Base.UtcDateTime);
+        var rows = await WithRepositoryAsync(accountId, repo =>
+            repo.ListAsync(null, "Flock", null, day, day, 10, 0));
+        Assert.Equal([createId], rows.Select(row => row.Id));
+    }
+
     // The same durability requirement, one layer out: the Audit page's own list.
     // Here a wrong order is not a wrong VALUE — both rows are shown — but the
     // pair renders in the wrong sequence, and paging needs a total order that
@@ -1199,7 +1238,7 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
             await SeedEventsAsync(accountId, e);
 
         var rows = await WithRepositoryAsync(accountId, repo =>
-            repo.ListAsync(null, entityId, null, null, 10, 0));
+            repo.ListAsync(null, null, entityId, null, null, 10, 0));
 
         Assert.Collection(rows,
             row => Assert.Equal("later@farm.test", row.ActorEmail),

@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) : IAuditEventRepository
 {
     public async Task<IReadOnlyList<AuditEvent>> ListAsync(
-        string? action, Guid? entityId, DateOnly? from, DateOnly? to,
+        string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
         int limit, int offset, CancellationToken ct = default)
     {
         // Date filters are inclusive calendar days over the UTC timestamp.
@@ -26,6 +26,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         return await db.AuditEvents
             .AsNoTracking()
             .Where(e => (action == null || e.Action == action)
+                     && (entityType == null || e.EntityType == entityType)
                      && (entityId == null || e.EntityId == entityId)
                      && (fromUtc == null || e.OccurredAtUtc >= fromUtc)
                      && (toUtc == null || e.OccurredAtUtc < toUtc))

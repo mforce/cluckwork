@@ -245,13 +245,8 @@ export function AuditPage() {
     }, { replace: true });
   }, [setSearchParams]);
 
-  // Entity-type filter narrows the action dropdown's OPTION LIST only — it is
-  // never sent to the server (the /api/v1/audit query still filters on
-  // `action` alone, matching what the backend supports). Changing it drops
-  // any selected `action`: AUDIT_ACTION_ENTITY_TYPE is a many-to-one map, so
-  // a previously chosen action can fall outside the new type's option list,
-  // and leaving it selected-but-hidden would silently keep querying against
-  // a type the visible dropdown no longer shows.
+  // Changing the record type drops any selected action: the old action can
+  // fall outside the new type's option list and remain hidden but active.
   const rawEntityTypeFilter = searchParams.get("entityType");
   const entityTypeFilter: EntityTypeValue | "" =
     rawEntityTypeFilter && (ENTITY_TYPE_VALUES as readonly string[]).includes(rawEntityTypeFilter)
@@ -303,13 +298,7 @@ export function AuditPage() {
   // view and is deliberately NOT here — it selects which of the two sentence
   // families applies, in the ternary below, rather than whether the view is
   // narrowed at all.
-  const isNarrowed = Boolean(actionFilter || fromFilter || toFilter);
-
-  // #679 — what the CLEAR control keys off, and deliberately not `isNarrowed`
-  // above: that one answers "which empty-state sentence applies" and excludes
-  // the scope axes on purpose, while this one answers "is any control the user
-  // can see currently narrowing the list", which includes the entity type.
-  const hasFilters = Boolean(entityTypeFilter || actionFilter || fromFilter || toFilter);
+  const isNarrowed = Boolean(entityTypeFilter || actionFilter || fromFilter || toFilter);
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
   // itself (codex review of #94) now lives in usePagedList, shared with every
@@ -323,6 +312,7 @@ export function AuditPage() {
     (offset: number, limit: number) =>
       listAuditEvents({
         action: actionFilter || undefined,
+        entityType: entityTypeFilter || undefined,
         entityId,
         from: fromFilter || undefined,
         to: toFilter || undefined,
@@ -333,7 +323,7 @@ export function AuditPage() {
     // stale-window discipline below (isFetchStale, committedFetchPage, the
     // blanked table) keys on this identity: a filter missing from these deps
     // renders the previous window's rows under the new window's controls.
-    [actionFilter, entityId, fromFilter, toFilter],
+    [actionFilter, entityTypeFilter, entityId, fromFilter, toFilter],
   );
   const events = usePagedList({ fetchPage, pageSize: PAGE });
 
@@ -474,7 +464,7 @@ export function AuditPage() {
           <FilterDateField label={t("toLabel")} value={toFilter}
             onChange={(e) => updateDateFilter("to", e.target.value)} />
       </Box>
-      {hasFilters && (
+      {isNarrowed && (
         <button className="link audit-clear-filters" type="button" onClick={clearFilters}>
           {tc("clearFiltersButton")}
         </button>
@@ -502,22 +492,12 @@ export function AuditPage() {
         // classified this screen's empty state and did not list it among the
         // thirteen EmptyState sites, so this stays out of
         // emptyStates.guard.test.ts's registries.
-        // Four sentences over THREE independent narrowings — scope (entityId),
-        // action, and date range — not four over two. An earlier version of
-        // this enumerated the axes it happened to be touching and called that
-        // exhaustive, which left `?action=X` with no rows still claiming the
-        // whole log was empty (INV-4, the exact defect this slice exists to
-        // remove). isNarrowed names the non-scope narrowings; entityId is handled by the
-        // ternary below. Both lists are hand-maintained: a new server-sent
-        // filter must be added to whichever of the two matches its shape — a
-        // scope-shaped one beside entityId, anything else inside isNarrowed —
-        // or the false sentence returns exactly as it did for `action`. Wording matches the sibling screens'
-        // noRecordsMatch rather than naming the date range, because the range
-        // is no longer the only thing that can empty this view.
+        // A filtered window can be empty even when the full log has events.
         <p className="muted">
           {entityId
             ? (isNarrowed ? t("scopedFilteredEmptyMessage") : t("scopedEmptyMessage"))
-            : (isNarrowed ? t("filteredEmptyMessage") : t("emptyMessage"))}
+            : (entityTypeFilter ? t("recordTypeEmptyMessage")
+              : isNarrowed ? t("filteredEmptyMessage") : t("emptyMessage"))}
         </p>
       ) : (
         <>
