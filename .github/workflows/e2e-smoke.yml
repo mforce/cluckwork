@@ -120,10 +120,10 @@ jobs:
     timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 45 }}
 
     steps:
+      - uses: actions/checkout@v7
+
       - name: Check the matrix agrees with the shard count
         run: test "${{ strategy.job-total }}" -eq "$SHARD_COUNT"
-
-      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
