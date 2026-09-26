@@ -21,6 +21,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { useTranslation } from "react-i18next";
 import { Alert, Button, LinearProgress, Modal, TextField, useMediaQuery } from "@mui/material";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCountedAsOpenDialog } from "./Dialog";
 import { DayLegend, DayReadout } from "./DayStrip";
 import { DaySlots } from "./DaySlots";
 import { useDayStrip } from "./useDayStrip";
@@ -135,6 +136,20 @@ export function ExpandedLayRate({
     return () => observer.disconnect();
   }, [sync]);
 
+  // #485 — this is a MUI `Modal`, so the page behind it cannot speak.
+  useCountedAsOpenDialog();
+
+  // The body's scroll lock stops the document being scrolled, not Chrome
+  // Android's pull-to-refresh, and `overscroll-behavior` on a region with no
+  // overflow is never consulted — which is `.lay-expand` at both captured
+  // sizes. The root is in the chain whatever the panel's height.
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.overscrollBehaviorY;
+    root.style.overscrollBehaviorY = "contain";
+    return () => { root.style.overscrollBehaviorY = previous; };
+  }, []);
+
   const page = (direction: number) => {
     const region = scrollerRef.current;
     if (region !== null) region.scrollLeft += direction * region.clientWidth;
@@ -198,6 +213,21 @@ export function ExpandedLayRate({
     page(e.key === "PageDown" ? 1 : -1);
   };
 
+  // The one way out takes focus on open, and neither obvious way of doing that
+  // works here. Not a mount effect: `Modal` renders its children into a portal
+  // on a SECOND commit, so the ref is still null when this component's own
+  // effect runs. Not `data-mui-focusable`: it makes the button `FocusTrap`'s
+  // focusTarget as well as its last tabbable node, and the trap then answers
+  // every Shift+Tab by focusing it again — a dead key. A ref callback runs in
+  // the portal's own commit, before the trap's effect, which leaves focus
+  // alone once it is inside the root.
+  const hasOpeningFocus = useRef(false);
+  const takeOpeningFocus = useCallback((node: HTMLButtonElement | null) => {
+    if (node === null || hasOpeningFocus.current) return;
+    hasOpeningFocus.current = true;
+    node.focus();
+  }, []);
+
   const rangeSpan = t("rangeSpan", { from: fmt.date(from), to: fmt.date(to) });
   const shownNote = view.fits || days === 0
     ? t("expandAllShown", { count: days, days: fmt.count(days) })
@@ -206,9 +236,22 @@ export function ExpandedLayRate({
         to: fmt.date(slots[view.lastVisible].date),
         count: days, days: fmt.count(days),
       });
-  const [announced, setAnnounced] = useState(shownNote);
+  // Announced only once the window has SETTLED, and only when it has moved
+  // since the last settled reading. Seeded per report, because the first real
+  // sentence arriving in a live region is a mutation like any other: without
+  // this the chart spoke its own opening state, and again on every range
+  // change, for a window nobody had moved.
+  const [announced, setAnnounced] = useState("");
+  const settled = useRef<string | null>(null);
   useEffect(() => {
-    const timer = setTimeout(() => setAnnounced(shownNote), ANNOUNCE_SETTLE_MS);
+    settled.current = null;
+    setAnnounced("");
+  }, [data]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (settled.current !== null && settled.current !== shownNote) setAnnounced(shownNote);
+      settled.current = shownNote;
+    }, ANNOUNCE_SETTLE_MS);
     return () => clearTimeout(timer);
   }, [shownNote]);
 
@@ -221,9 +264,11 @@ export function ExpandedLayRate({
     // `disableRestoreFocus` because the caller restores focus itself, and two
     // actors doing it is the conflict #483 is named for.
     <Modal open onClose={onClose} hideBackdrop disableRestoreFocus>
+      {/* `tabIndex={-1}` so `FocusTrap` never has to patch the root it was
+          handed; it is not a tab stop, only a focusable container. */}
       <div
         className="lay-expand-backdrop" role="dialog" aria-modal="true" aria-labelledby={titleId}
-        onKeyDown={onKeyDown}
+        tabIndex={-1} onKeyDown={onKeyDown}
       >
       <div className="lay-expand">
         <div className="lay-expand-panel">
@@ -341,13 +386,8 @@ export function ExpandedLayRate({
                 </figure>
               </>}
         </div>
-        {/* The one way out takes focus on open. `data-mui-focusable` is how
-            `FocusTrap` is told which descendant to open on, and it is MUI's own
-            attribute (`utils/focusable.js`) — a rename on upgrade would fall
-            back to the frame's root, which is what the opening-focus assertion
-            in ExpandedLayRate.test.tsx is there to catch. */}
         <Button
-          data-mui-focusable variant="contained" onClick={onClose}
+          ref={takeOpeningFocus} variant="contained" onClick={onClose}
           className="lay-expand-leave" sx={{ "&&": { minHeight: 44 } }}
         >
           {t("expandClose")}

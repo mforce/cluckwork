@@ -1645,11 +1645,11 @@ label.check {
    slot also selects it, so this pair is the only state that needs answering.
 
    The ring is two-toned because no single tone clears 3:1 against both of its
-   neighbours. `--focus` is the brand accent, which sits at 1.20-1.55 against
-   the `--ink` a selected bar is filled with, in every brand and both themes
-   (DayStrip.focus.test.ts measures all eight). The inner tone is `--surface`,
-   `--ink`'s own opposite by construction, so the accent ring is never read
-   against the bar it rings. */
+   neighbours. Measured 2026-09, recorded here rather than asserted anywhere:
+   `--focus` is 1.20-1.55 against `--ink` in all four brands and both themes.
+   The inner tone is `--surface`, `--ink`'s own opposite by construction, so
+   the accent ring is never read against the bar it rings, and
+   DayStrip.focus.test.ts holds every adjacency of that chain to 3:1. */
 .day.on:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
@@ -1849,7 +1849,10 @@ label.check {
      scrolls here rather than squashing the panel, which is what put the plot
      on top of the legend at 390 before `.lay-expand-plot` stopped shrinking.
      `contain` so reaching either end of that scroll does not chain to the
-     document behind and let Chrome Android's pull-to-refresh fire. */
+     document behind. It is inert wherever the column does NOT overflow, which
+     is both captured viewports — the root element carries the same rule while
+     the chart is open (ExpandedLayRate.tsx), and that is what actually holds
+     off Chrome Android's pull-to-refresh. */
   overflow-y: auto;
   overscroll-behavior: contain;
 }

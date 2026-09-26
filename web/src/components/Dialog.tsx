@@ -176,6 +176,19 @@ function bumpOpenCount(delta: 1 | -1) {
   scheduleModalStateNotify();
 }
 
+// #485 — an overlay that is NOT this file's `Dialog` but still takes the page
+// out of the accessibility tree has to be counted here too. Any MUI `Modal`
+// does: `ModalManager` marks every sibling of the portal `aria-hidden`,
+// including the root the PWA update banner lives in. Left uncounted,
+// `useMissedAnnouncement` records no debt and replays nothing on close, so a
+// screen-reader user is never told a new version arrived (#941).
+export function useCountedAsOpenDialog(): void {
+  useEffect(() => {
+    bumpOpenCount(1);
+    return () => bumpOpenCount(-1);
+  }, []);
+}
+
 // #483 — focus restoration, kept as this file's own bookkeeping rather than
 // handed to MUI. `FocusTrap` (Unstable_TrapFocus/FocusTrap.js) DOES restore
 // focus to the previously active element on close, but two things it does not

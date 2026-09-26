@@ -10,7 +10,9 @@
 // the `--ink` a selected bar is filled with, in every brand and both themes,
 // so simply raising its specificity would have put a near-invisible ring
 // beside a near-black (or near-white) block. The indicator is two-toned for
-// that reason, and this file measures both tones.
+// that reason, and every assertion here is a MINIMUM. That accent-against-ink
+// figure is recorded in the stylesheet instead of asserted: it measures a
+// palette weakness, and a palette that improved it should not turn a test red.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -63,15 +65,6 @@ describe("keyboard focus on a selected day (#941)", () => {
       expect(contrast(ink, surface), `${brand}/${mode} bar vs inner tone`).toBeGreaterThanOrEqual(MIN);
       expect(contrast(surface, focus), `${brand}/${mode} inner tone vs ring`).toBeGreaterThanOrEqual(MIN);
       expect(contrast(focus, surface), `${brand}/${mode} ring vs card`).toBeGreaterThanOrEqual(MIN);
-    });
-
-    it.each(MODES)("%s: the accent alone could not have done it", (mode) => {
-      const tokens = resolveTokens(attrFor(brand), mode);
-      // Recorded rather than asserted as a target: this is the measurement
-      // that makes the second tone load-bearing rather than decorative. If a
-      // future palette ever clears 3:1 here, this fails and the inner tone
-      // can be reconsidered on the evidence.
-      expect(contrast(tokens.get("--focus")!, tokens.get("--ink")!)).toBeLessThan(MIN);
     });
   });
 });

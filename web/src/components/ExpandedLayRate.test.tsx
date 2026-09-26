@@ -7,6 +7,8 @@ import { daysBefore } from "../lib/dates";
 import { DEFAULT_LOCALE, formatDate } from "../lib/format";
 import { stubMatchMedia } from "../test/matchMedia";
 import { ExpandedLayRate } from "./ExpandedLayRate";
+import { anyDialogOpen } from "./Dialog";
+import { useMissedAnnouncement } from "./useMissedAnnouncement";
 import { DAY_GAP_PX, DAY_SLOT_PX } from "../lib/dayWindow";
 import type { DayStripData, DayStripSlot } from "../lib/dashboard";
 
@@ -28,19 +30,20 @@ const data: DayStripData = {
 // own container.
 const frame = () => screen.getByRole("dialog");
 
+const props = (over: Partial<Parameters<typeof ExpandedLayRate>[0]> = {}) => ({
+  data, failed: false, label: "Eggs per day", title: "Eggs per day · complete-day scale",
+  peak: "Peak 2,137", average: "Complete-day avg 2,052.4",
+  legend: { complete: "Complete", partial: "Partial", noEntry: "No entry" },
+  tip: (slot: DayStripSlot) => `${slot.date} readout`,
+  scopeName: "All flocks", from: slots[0].date, to: slots[DAYS - 1].date,
+  latestDay: slots[DAYS - 1].date, range: { kind: "preset", days: 30 } as const,
+  onRangeChange: () => {}, onClose: () => {},
+  ...over,
+});
+
 const view = (over: Partial<Parameters<typeof ExpandedLayRate>[0]> = {}) => {
   const onClose = vi.fn();
-  const result = renderWithProviders(
-    <ExpandedLayRate
-      data={data} failed={false} label="Eggs per day" title="Eggs per day · complete-day scale"
-      peak="Peak 2,137" average="Complete-day avg 2,052.4"
-      legend={{ complete: "Complete", partial: "Partial", noEntry: "No entry" }}
-      tip={(slot) => `${slot.date} readout`}
-      scopeName="All flocks" from={slots[0].date} to={slots[DAYS - 1].date}
-      latestDay={slots[DAYS - 1].date} range={{ kind: "preset", days: 30 }}
-      onRangeChange={() => {}} onClose={onClose} {...over}
-    />,
-  );
+  const result = renderWithProviders(<ExpandedLayRate {...props({ onClose, ...over })} />);
   return { ...result, onClose };
 };
 
@@ -229,24 +232,75 @@ describe("ExpandedLayRate (#941)", () => {
   });
 
   // #958 review round 1, P3: the visible caption must not lag the chart, and
-  // the announcement must not fire once per day crossed on a drag.
-  it("announces the window only once it settles, while the caption keeps up", () => {
+  // the announcement must not fire once per day crossed on a drag. Round 2,
+  // P3: nor may it speak for a window nobody has moved — the first settled
+  // reading of a range is the baseline, not news.
+  it("says nothing about a window nobody has moved, then announces one that settles", () => {
     vi.useFakeTimers();
     try {
       view();
       measure({ viewport: 1080, scrollLeft: 0 });
       act(() => { vi.advanceTimersByTime(600); });
-      expect(announcement()).toBe(caption());
+      expect(caption()).toBe(`${shown(0)} – ${shown(41)} shown of 90 days`);
+      expect(announcement()).toBe("");
 
       measure({ viewport: 1080, scrollLeft: 628 });
       expect(caption()).toBe(`${shown(24)} – ${shown(65)} shown of 90 days`);
-      expect(announcement()).not.toBe(caption());
+      expect(announcement()).toBe("");
 
       act(() => { vi.advanceTimersByTime(600); });
       expect(announcement()).toBe(caption());
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // #958 review round 2, P3: `overscroll-behavior` on a region that does not
+  // overflow is never consulted, and at 390 the column is sized to fit — so
+  // the rule on `.lay-expand` is inert exactly where the gesture lives. The
+  // root element is in the scroll chain whatever the panel's height.
+  it("holds off the document's own overscroll while it is open, and gives it back", () => {
+    const root = document.documentElement;
+    root.style.overscrollBehaviorY = "auto";
+    const { unmount } = view();
+    expect(root.style.overscrollBehaviorY).toBe("contain");
+    unmount();
+    expect(root.style.overscrollBehaviorY).toBe("auto");
+  });
+
+  // #958 review round 2, P2: a MUI `Modal` takes the page out of the
+  // accessibility tree the same way this app's own `Dialog` does, so the PWA
+  // update banner cannot speak from behind it. Uncounted, #485 records no debt
+  // and replays nothing, and a screen-reader user is never told a new version
+  // arrived.
+  it("counts as an open dialog while it is up, so a silenced page is known to be silenced", () => {
+    expect(anyDialogOpen()).toBe(false);
+    const { unmount } = view();
+    expect(anyDialogOpen()).toBe(true);
+    unmount();
+    expect(anyDialogOpen()).toBe(false);
+  });
+
+  it("replays an update banner that arrived while it was covering the page", async () => {
+    const banner = "A new version is available";
+    function Shell({ open }: { open: boolean }) {
+      const spoken = useMissedAnnouncement(banner);
+      return (
+        <>
+          <span data-testid="replay">{spoken}</span>
+          {open ? <ExpandedLayRate {...(props())} /> : null}
+        </>
+      );
+    }
+    const { rerender } = renderWithProviders(<Shell open />);
+    await act(async () => { await Promise.resolve(); });
+    // The page is `aria-hidden` behind the chart, so the banner's own region
+    // said nothing and the debt is held rather than spoken.
+    expect(screen.getByTestId("replay")).toHaveTextContent("");
+
+    rerender(<Shell open={false} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByTestId("replay")).toHaveTextContent(banner);
   });
 
   // #958 review round 1, P3: the scroll-to-the-newest-day effect used to be
