@@ -4,6 +4,14 @@ using Cluckwork.Domain.Eggs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
+internal static class EggOperationsBusinessRecords
+{
+    public static readonly BusinessRecordContribution Contribution = new(
+        "EggOperations",
+        [typeof(DailyEntry), typeof(EggLot), typeof(EggInventoryMovement)],
+        []);
+}
+
 public sealed class DailyEntryConfiguration : IEntityTypeConfiguration<DailyEntry>
 {
     public void Configure(EntityTypeBuilder<DailyEntry> builder)

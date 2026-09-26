@@ -103,9 +103,12 @@ transaction retains them until commit. CI proves the upgrade on its fixture,
 not its duration at production volume, so deployment must time it on a
 production-sized copy before running the pre-deploy job.
 
-An executable model census classifies every mapped type as mutable,
-create-only, or excluded. It also fixes the set of chronological tables. A new
-mapped type cannot rely on a developer remembering this document alone.
+Each module declares its chronological types and exclusions beside its
+persistence configuration. `BusinessRecordModel` merges those contributions,
+then its centralized model walk classifies every mapped type as mutable,
+create-only, or excluded. The same walk fixes the set of chronological tables
+and rejects duplicate contributions. A new mapped type cannot rely on a
+developer remembering this document alone.
 
 ## Sales line display order (#906)
 

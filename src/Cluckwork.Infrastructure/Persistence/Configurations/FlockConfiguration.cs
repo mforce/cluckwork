@@ -4,6 +4,14 @@ using Cluckwork.Domain.Flocks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
+internal static class FlockManagementBusinessRecords
+{
+    public static readonly BusinessRecordContribution Contribution = new(
+        "FlockManagement",
+        [typeof(BirdMovement)],
+        []);
+}
+
 public sealed class FlockConfiguration : IEntityTypeConfiguration<Flock>
 {
     public void Configure(EntityTypeBuilder<Flock> builder)
