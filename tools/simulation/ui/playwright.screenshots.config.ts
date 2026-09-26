@@ -1,11 +1,8 @@
 // tools/simulation/ui/playwright.screenshots.config.ts — #549.
 //
 // Captures the README's screenshots from the built SPA over the simulation
-// and demo farms. Deliberately
-// a THIRD config rather than a spec in `specs/`: this run WRITES FILES into the
-// repo (docs/images/), and a capture that rides along with `npm test` would
-// rewrite committed images on every smoke run — turning an unrelated green run
-// into a dirty working tree.
+// and demo farms. This separate config keeps `npm test` from rewriting the
+// committed PNGs in docs/images/ on every smoke run.
 //
 // NOT a visual-regression suite. Nothing here asserts on pixels; rendering is
 // not byte-deterministic across fonts and antialiasing, so a byte-diff gate
