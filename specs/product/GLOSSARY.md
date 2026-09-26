@@ -725,7 +725,8 @@ action (#655).
 
 **Hen-day % (#91, #780)** — eggs collected ÷ **recorded** hen-days × 100
 (spec §19.3, amended by #780). A hen-day is one bird alive for one day; the
-day's bird count comes from the bird ledger (placements + movements). The
+day's bird count comes from the bird ledger (placements + movements); every
+movement takes effect from the next day. The
 production report shows it per day and for the whole period (period eggs ÷
 period recorded hen-days — not an average of daily percentages).
 
@@ -753,6 +754,17 @@ the percentage's own numerator and denominator — so the figure can be
 reproduced rather than taken on trust. They equal the day's eggs and its
 hen-days on any ordinary day; a gap means a filing and the bird ledger
 disagree about that date.
+
+A figure **above 100%** cannot be a real lay rate — a hen lays at most one egg
+a day. It means the flock filed more eggs on that date than the bird ledger
+holds for it: a mistyped count, a mortality entered against the wrong flock,
+or birds added that same day, because every movement takes effect from the
+**next** day (the #92 convention; a same-day rule for additions was tried in
+#959 and reverted because it inflated exposure on a corrected day and
+double-counted paired transfers). Reports and the Dashboard's Lay rate card
+show the figure as computed and **flag** it (#943) rather than capping it at
+100: a capped number would no longer reproduce from Rated eggs ÷ Recorded
+hen-days, and would hide what the farm needs to check.
 
 **Partly recorded day (#780)** — a date where at least one flock filed an
 official entry and at least one did not. Its egg total is a **floor**, not

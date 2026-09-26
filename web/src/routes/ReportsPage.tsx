@@ -10,6 +10,7 @@ import type {
   ExpenseSummaryReport, ProductionReport, ProfitReport, SalesSummary,
 } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { HenDayOver100Flag } from "../components/HenDayOver100Flag";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
@@ -125,10 +126,10 @@ export function ReportsPage() {
             {[
               [t("eggsHeader"), fmt.count(production.totalEggs)],
               [t("sellableHeader"), fmt.count(production.totalSellable)],
-              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : `${fmt.count(production.periodHenDayPct, 1)}%`],
+              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : <>{fmt.count(production.periodHenDayPct, 1)}%<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></>],
               ...(isAdmin && profit ? [[t("profitRowLabel"), fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)]] : []),
               [t("lossesHeader"), fmt.count(production.days.reduce((sum, day) => sum + day.cracked + day.dirty + day.discarded, 0))],
-            ].map(([label, value]) => <Box key={label} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
+            ].map(([label, value]) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
               <Typography component="dt" variant="body2" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
               <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
             </Box>)}
@@ -164,7 +165,7 @@ export function ReportsPage() {
                     <TableCell align="right">{fmt.count(d.henDays)}</TableCell>
                     <TableCell align="right">{fmt.count(d.recordedHenDays)}</TableCell>
                     <TableCell align="right">{fmt.count(d.ratedEggs)}</TableCell>
-                    <TableCell align="right">{d.henDayPct === null ? "—" : fmt.count(d.henDayPct, 1)}</TableCell>
+                    <TableCell align="right">{d.henDayPct === null ? "—" : fmt.count(d.henDayPct, 1)}<HenDayOver100Flag ratedEggs={d.ratedEggs} recordedHenDays={d.recordedHenDays} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -179,7 +180,7 @@ export function ReportsPage() {
                   <TableCell component="th" align="right">{fmt.count(production.totalHenDays)}</TableCell>
                   <TableCell component="th" align="right">{fmt.count(production.totalRecordedHenDays)}</TableCell>
                   <TableCell component="th" align="right">{fmt.count(production.totalRatedEggs)}</TableCell>
-                  <TableCell component="th" align="right">{production.periodHenDayPct === null ? "—" : fmt.count(production.periodHenDayPct, 1)}</TableCell>
+                  <TableCell component="th" align="right">{production.periodHenDayPct === null ? "—" : fmt.count(production.periodHenDayPct, 1)}<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></TableCell>
                 </TableRow>
               </TableFooter>
             </Table>

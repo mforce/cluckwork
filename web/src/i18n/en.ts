@@ -2465,6 +2465,8 @@ export const en = {
     recordedHenDaysHeader: "Recorded",
     ratedEggsHeader: "Rated eggs",
     henDayPctHeader: "Hen-day %",
+    // #943 — a hen lays at most one egg a day; above 100% the figure is flagged, never capped.
+    henDayOver100: "Above 100%: more eggs were recorded than birds on the ledger. Check the flocks' bird counts.",
     periodRowLabel: "Period",
     gradeTotalsLabel: "Reported grade totals",
 
@@ -3375,7 +3377,9 @@ export const en = {
       + "it divides by the hen-days of the <strong>flocks that recorded that day</strong>. A flock that "
       + "filed nothing produced no eggs this report can see, so counting its birds would report a lay rate "
       + "nothing supports. The <strong>Hen-days</strong> column is every bird alive, recorded or not, so "
-      + "the gap between the two is what is missing. A day nobody recorded shows a dash rather than 0%.",
+      + "the gap between the two is what is missing. A day nobody recorded shows a dash rather than 0%. "
+      + "A figure above 100% is flagged: a hen lays at most one egg a day, so more eggs than recorded "
+      + "hen-days means a filing and the bird ledger disagree, and that flock's bird count needs checking.",
     // #396 — the new column needs explaining because two of its neighbours look
     // like they should already cover it: Losses shows the same cracked/dirty
     // numbers (as counts, whether sold or not), and Sellable is the graded

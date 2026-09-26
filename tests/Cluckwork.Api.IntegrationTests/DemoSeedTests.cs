@@ -38,6 +38,8 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
     private sealed record StockDto(Guid EggGradeId, string GradeName, int Available, int Restricted);
     private sealed record OrderDto(Guid Id, string Status);
     private sealed record TokenDto(string AccessToken);
+    private sealed record ProductionDayDto(DateOnly Date, decimal? HenDayPct, int RatedEggs, long RecordedHenDays);
+    private sealed record ProductionReportDto(List<ProductionDayDto> Days, decimal? PeriodHenDayPct);
 
     [Fact]
     public async Task DemoSeed_PopulatesEveryScreen_AndIsIdempotent()
@@ -82,9 +84,26 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
                 .SingleAsync();
             Assert.Equal(240, house2Entries.Count);
             Assert.Equal(0, house2Entries.Count(e => e.Date < house2PlacementDate));
-            Assert.Equal(297, house2Entries.Max(e => e.TotalEggs));
-            Assert.All(house2Entries, e => Assert.True(e.TotalEggs <= house2.CurrentBirds));
             Assert.DoesNotContain(draftDate, house2Entries.Select(e => e.Date));
+        }
+
+        // #943 — both active houses lay a rate a real house could post, rated
+        // per flock over its own exposure by the report itself. House 1
+        // recorded 430–452 eggs a day from the 420 birds left after eight
+        // months of mortality, which put the README farm's Reports page over
+        // 100% while House 2 stayed plausible and masked it in the farm total.
+        var utcToday = DateOnly.FromDateTime(DateTime.UtcNow);
+        var range = $"from={utcToday.AddDays(-241):yyyy-MM-dd}&to={utcToday.AddDays(-2):yyyy-MM-dd}";
+        foreach (var house in flocks.Where(f => f.Status == "Active"))
+        {
+            var report = await client.GetFromJsonAsync<ProductionReportDto>(
+                $"/api/v1/reports/production?{range}&flockId={house.Id}");
+            var rated = report!.Days.Where(d => d.HenDayPct is not null).ToList();
+            Assert.True(rated.Count >= 230, $"{house.Name}: only {rated.Count} rated days.");
+            Assert.All(rated, d => Assert.True(
+                d.HenDayPct is >= 85m and <= 95m,
+                $"{house.Name} on {d.Date:yyyy-MM-dd}: {d.RatedEggs} eggs over {d.RecordedHenDays} " +
+                $"recorded hen-days is {d.HenDayPct}%, outside the 85–95% a real house posts."));
         }
 
         var stock = await client.GetFromJsonAsync<List<StockDto>>("/api/v1/stock");

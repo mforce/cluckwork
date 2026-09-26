@@ -37,18 +37,41 @@ const mockGetProfitReport = vi.mocked(getProfitReport);
 
 // Two days: one with a real henDayPct, one with null — exercises both sides
 // of the `?? "—"` fallback (DATA, left raw per the namespace header comment).
+// Every day's halves reproduce its percentage (100 / 109 = 91.7): the over-100
+// flag decides from the halves, so an inconsistent fixture would flag itself.
 const PRODUCTION: ProductionReport = {
   days: [
-    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 98, recordedHenDays: 98, ratedEggs: 100, henDayPct: 91.8 },
+    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 109, recordedHenDays: 109, ratedEggs: 100, henDayPct: 91.7 },
     { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, fromCounts: 0, deaths: 0, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 98, recordedHenDays: 98, ratedEggs: 95, henDayPct: null },
   ],
-  totalEggs: 195, totalSellable: 181, totalFromCounts: 6, totalDeaths: 1, totalHenDays: 196, totalRecordedHenDays: 196, totalRatedEggs: 195, periodHenDayPct: 92.3,
+  totalEggs: 195, totalSellable: 181, totalFromCounts: 6, totalDeaths: 1, totalHenDays: 207, totalRecordedHenDays: 207, totalRatedEggs: 195, periodHenDayPct: 94.2,
   gradeTotals: [
     { eggGradeId: "gr1", name: "Grade A", quantity: 60 },
     { eggGradeId: "gr2", name: "Grade B", quantity: 30 },
   ],
 };
 const PRODUCTION_NO_GRADES: ProductionReport = { ...PRODUCTION, gradeTotals: [] };
+// #943 — a rate above 100% (a hen lays at most one egg a day). Day 1 rates
+// 104 eggs over 100 recorded hen-days; the period, 199 over 196.
+const PRODUCTION_OVER_100: ProductionReport = {
+  ...PRODUCTION,
+  days: [
+    { ...PRODUCTION.days[0], totalEggs: 104, ratedEggs: 104, recordedHenDays: 100, henDayPct: 104.0 },
+    PRODUCTION.days[1],
+  ],
+  totalRecordedHenDays: 196, totalRatedEggs: 199, periodHenDayPct: 101.5,
+};
+// The flag decides from the unrounded halves: 10,001 over 10,000 displays as
+// 100.0 and is still an excess; 100 over 100 is not. The period sums both.
+const PRODUCTION_ROUNDS_TO_100: ProductionReport = {
+  ...PRODUCTION,
+  days: [
+    { ...PRODUCTION.days[0], totalEggs: 10001, ratedEggs: 10001, recordedHenDays: 10000, henDayPct: 100.0 },
+    { ...PRODUCTION.days[1], totalEggs: 100, ratedEggs: 100, recordedHenDays: 100, henDayPct: 100.0 },
+  ],
+  totalRatedEggs: 10101, totalRecordedHenDays: 10100, periodHenDayPct: 100.0,
+};
+const OVER_100_FLAG = "Above 100%: more eggs were recorded than birds on the ledger. Check the flocks' bird counts.";
 
 const SALES: SalesSummary = {
   confirmedCount: 5, revenueMinorUnits: 10000, paidMinorUnits: 8000, outstandingMinorUnits: 2000,
@@ -98,8 +121,8 @@ describe("ReportsPage production section (renders for every role)", () => {
     // #780 — Hen-days and Recorded are adjacent and equal on a fully recorded
     // day, which is the point: the gap between them is what a period is
     // missing, and eggs ÷ Recorded has to reproduce the percentage beside it.
-    expect(within(row1).getAllByText("98")).toHaveLength(2); // henDays, recordedHenDays
-    within(row1).getByText("91.8"); // henDayPct
+    expect(within(row1).getAllByText("109")).toHaveLength(2); // henDays, recordedHenDays
+    within(row1).getByText("91.7"); // henDayPct
     for (const cell of within(row1).getAllByText("100")) expect(cell).toHaveStyle({ textAlign: "right" });
     expect(within(row1).getByText("07/19/2026")).not.toHaveStyle({ textAlign: "right" });
     expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveStyle({ textAlign: "right" });
@@ -110,10 +133,46 @@ describe("ReportsPage production section (renders for every role)", () => {
     const periodRow = screen.getByRole("row", { name: /Period/ });
     expect(within(periodRow).getAllByText("195")).toHaveLength(2); // totalEggs, totalRatedEggs
     within(periodRow).getByText("181"); // totalSellable
-    expect(within(periodRow).getAllByText("196")).toHaveLength(2); // totalHenDays, totalRecordedHenDays
-    within(periodRow).getByText("92.3"); // periodHenDayPct
+    expect(within(periodRow).getAllByText("207")).toHaveLength(2); // totalHenDays, totalRecordedHenDays
+    within(periodRow).getByText("94.2"); // periodHenDayPct
 
     expect(screen.getByRole("list", { name: "Reported grade totals" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
+  });
+
+  // #943 — a rate above 100% is impossible and means a filing and the bird
+  // ledger disagree. The figure stays as computed, so it still reproduces
+  // from Rated eggs ÷ Recorded, and a flag beside it says so rather than the
+  // page presenting it as a result.
+  it("flags a hen-day % above 100 on its day row and on both period figures", async () => {
+    mockGetProductionReport.mockResolvedValue(PRODUCTION_OVER_100);
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
+    within(row1).getByText("104.0");
+    within(row1).getByLabelText(OVER_100_FLAG);
+    const row2 = screen.getByRole("row", { name: /07\/18\/2026/ });
+    expect(within(row2).queryByLabelText(OVER_100_FLAG)).toBeNull();
+    // The day row, the period summary and the period footer row.
+    expect(screen.getAllByLabelText(OVER_100_FLAG)).toHaveLength(3);
+  });
+
+  it("flags an excess that rounds to 100.0 and leaves exact equality unflagged", async () => {
+    mockGetProductionReport.mockResolvedValue(PRODUCTION_ROUNDS_TO_100);
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
+    within(row1).getByText("100.0");
+    within(row1).getByLabelText(OVER_100_FLAG);
+    const row2 = screen.getByRole("row", { name: /07\/18\/2026/ });
+    within(row2).getByText("100.0");
+    expect(within(row2).queryByLabelText(OVER_100_FLAG)).toBeNull();
+    expect(screen.getAllByLabelText(OVER_100_FLAG)).toHaveLength(3);
+  });
+
+  it("shows no flag while every hen-day % is at or under 100", async () => {
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
+    expect(screen.queryByLabelText(OVER_100_FLAG)).toBeNull();
   });
 
   // #396 — Condition sits BESIDE Sellable, never folded into it. The fixture

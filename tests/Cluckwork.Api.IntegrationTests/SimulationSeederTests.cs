@@ -904,6 +904,46 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Equal(expenses.GrandTotalMinorUnits, profit.ExpensesMinorUnits);
     }
 
+    private sealed record RatedDayDto(DateOnly Date, decimal? HenDayPct, int RatedEggs, long RecordedHenDays);
+    private sealed record RatedReportDto(List<RatedDayDto> Days, decimal? PeriodHenDayPct);
+
+    // #943 — the fixture's eggs must be a lay rate a real house could post.
+    // Sim House B recorded 380+ eggs a day from 350 birds, so every day of
+    // the Dashboard's Lay rate card and the Reports table read over 100%.
+    // Rated per flock over its own exposure, through the report itself, so
+    // the check is the figure a user sees rather than a re-derivation.
+    [Fact]
+    public async Task SimulationSeed_EveryOperationalFlock_LaysBetween85And95PercentOnEveryRecordedDay()
+    {
+        using var seedClient = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
+        using var scope = factory.Services.CreateScope();
+        var flocks = await OperationalFlocksAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+        Assert.Equal(2, flocks.Count);
+
+        var loginResponse = await factory.TryLoginAsync(factory.AdminEmail, factory.AdminPassword);
+        loginResponse.EnsureSuccessStatusCode();
+        var tokens = await TestHarness.ReadTokensAsync(loginResponse);
+        var client = factory.CreateAuthedClient(tokens.AccessToken);
+
+        var from = UtcToday.AddDays(-(SimulationSeedFactory.HistoryDays + 1));
+        var to = UtcToday.AddDays(-1);
+        foreach (var flock in flocks)
+        {
+            var report = await client.GetFromJsonAsync<RatedReportDto>(
+                $"/api/v1/reports/production?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&flockId={flock.Id}");
+            var rated = report!.Days.Where(d => d.HenDayPct is not null).ToList();
+            // Every submitted day is rated; only the Draft window has no rate.
+            Assert.True(rated.Count >= SimulationSeedFactory.HistoryDays - 3,
+                $"{flock.Name}: only {rated.Count} rated days in the seeded window.");
+            Assert.All(rated, d => Assert.True(
+                d.HenDayPct is >= 85m and <= 95m,
+                $"{flock.Name} on {d.Date:yyyy-MM-dd}: {d.RatedEggs} eggs over {d.RecordedHenDays} " +
+                $"recorded hen-days is {d.HenDayPct}%, outside the 85–95% a real house posts."));
+            Assert.True(report.PeriodHenDayPct is >= 85m and <= 95m,
+                $"{flock.Name}: period hen-day % is {report.PeriodHenDayPct}.");
+        }
+    }
+
     [Fact]
     public async Task SimulationSeed_ExportEndpoints_ReturnNonTrivialVolumeAcrossTheHistoryWindow()
     {
