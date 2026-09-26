@@ -1,6 +1,5 @@
 namespace Cluckwork.Api.Endpoints.Audit;
 
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
