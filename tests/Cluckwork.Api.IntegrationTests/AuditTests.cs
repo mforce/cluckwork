@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Auditing;
 
 // #93 — the audit trail is domain data: written in the same transaction as
 // the change (a failed action leaves nothing), actor captured from the JWT,
@@ -28,6 +29,31 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
         var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
         return (client, email, accountId, farmId, flockId, grades["Large"]);
+    }
+
+    [Fact]
+    public async Task RecordTypeQuery_AcceptsKnownType_AndIgnoresUnknownType()
+    {
+        var (client, _, accountId, _, _, _) = await SetupAsync();
+        var flock = AuditEvent.Create(Guid.NewGuid(), accountId,
+            new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero), Guid.NewGuid(),
+            "owner@test.local", "Flock.Create", "Flock", Guid.NewGuid());
+        var user = AuditEvent.Create(Guid.NewGuid(), accountId,
+            new DateTimeOffset(2026, 9, 1, 13, 0, 0, TimeSpan.Zero), Guid.NewGuid(),
+            "owner@test.local", "User.Create", "User", Guid.NewGuid());
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.AuditEvents.AddRange(flock, user);
+            await db.SaveChangesAsync();
+        });
+
+        var typed = (await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?entityType=Flock"))!;
+        Assert.Equal([flock.Id], typed.Select(row => row.Id));
+
+        var ignored = (await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?entityType=UnknownType"))!;
+        Assert.Equal(2, ignored.Count);
     }
 
     [Fact]

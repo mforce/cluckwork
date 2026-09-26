@@ -666,6 +666,41 @@ describe("AuditPage expandable event panels", () => {
 });
 
 describe("AuditPage filter", () => {
+  it("refetches by record type alone, clears it, and restores it from the URL", async () => {
+    mockListAuditEvents.mockImplementation(async (params) =>
+      params?.entityType === "Flock" ? [EVENT_A] : [EVENT_A, EVENT_B]);
+    renderAuditWithProbe();
+    await screen.findByText("admin@farm.test");
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox", { name: "Record type" }), {
+        target: { value: "Flock" },
+      });
+    });
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityType: "Flock", action: undefined, offset: 0 }),
+    ));
+    expect(screen.getByTestId("probe-search")).toHaveTextContent("entityType=Flock");
+    await screen.findByText("admin@farm.test");
+    expect(screen.queryByText("manager@farm.test")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox", { name: "Record type" }), {
+        target: { value: "" },
+      });
+    });
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityType: undefined }),
+    ));
+    expect(screen.getByTestId("probe-search")).not.toHaveTextContent("entityType=");
+    await screen.findByText("manager@farm.test");
+
+    fireEvent.click(screen.getByRole("button", { name: "probe-back" }));
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityType: "Flock" }),
+    ));
+    expect((screen.getByRole("combobox", { name: "Record type" }) as HTMLSelectElement).value).toBe("Flock");
+  });
   it("re-queries listAuditEvents with the chosen action when the filter changes", async () => {
     mockListAuditEvents.mockResolvedValue([]);
     renderAudit();
@@ -732,7 +767,7 @@ describe("AuditPage filter", () => {
 
   it("carries the record-type filter in the URL, independent of entityId scoping", async () => {
     renderAudit("/audit?entityType=Flock");
-    await screen.findByText("No audit events yet.");
+    await screen.findByText("No audit events for this record type match these filters.");
 
     expect((screen.getByRole("combobox", { name: "Record type" }) as HTMLSelectElement).value).toBe(
       "Flock",
@@ -759,7 +794,7 @@ describe("AuditPage filter", () => {
     // never in Flock's action list, so a hand-edited or shared URL carrying
     // both must not silently keep querying the hidden action.
     renderAudit("/audit?entityType=Flock&action=User.Create");
-    await screen.findByText("No audit events yet.");
+    await screen.findByText("No audit events for this record type match these filters.");
 
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
       expect.objectContaining({ action: undefined }),
@@ -769,7 +804,7 @@ describe("AuditPage filter", () => {
 
   it("clears the entityType query param when the record type is reset to 'All types'", async () => {
     renderAudit("/audit?entityType=Flock");
-    await screen.findByText("No audit events yet.");
+    await screen.findByText("No audit events for this record type match these filters.");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Record type" }), {
       target: { value: "" },

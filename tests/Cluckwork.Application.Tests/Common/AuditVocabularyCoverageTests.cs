@@ -81,6 +81,10 @@ public sealed class AuditVocabularyCoverageTests
         AssertSetsMatch(
             "observed audit.WriteAsync entityType arguments vs web/src/i18n/enums.ts ENTITY_TYPE_VALUES",
             serverEntityTypes, clientEntityTypes);
+
+        AssertSetsMatch(
+            "observed audit.WriteAsync entityType arguments vs AuditEntityTypes.Known",
+            serverEntityTypes, AuditEntityTypes.Known.ToHashSet());
     }
 
     // Every audit.WriteAsync(...) call site under src/, found by walking every

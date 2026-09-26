@@ -249,6 +249,25 @@ test.describe("Owner", () => {
     await expect(page.getByRole("alert")).toBeHidden();
   });
 
+  test("record type alone narrows the audit rows", async ({ page, nav }) => {
+    const initialResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/v1/audit" && response.status() === 200);
+    await nav.link("nav:audit").click();
+    const initial: { entityType: string }[] = await (await initialResponse).json();
+    expect(new Set(initial.map((row) => row.entityType)).size).toBeGreaterThan(1);
+    const type = initial[0]!.entityType;
+
+    const filteredResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/v1/audit"
+        && new URL(response.url()).searchParams.get("entityType") === type
+        && response.status() === 200);
+    await page.getByLabel(tEn("audit:entityTypeFilterLabel")).selectOption(type);
+    const rows: { entityType: string }[] = await (await filteredResponse).json();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.entityType === type)).toBe(true);
+    await expect(page.getByRole("article")).toHaveCount(rows.length);
+  });
+
   test("export downloads a real file", async ({ page, nav }) => {
     await nav.link("nav:export").click();
     await expect(page.getByRole("heading", { name: tEn("export:heading") })).toBeVisible();

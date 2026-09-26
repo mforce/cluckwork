@@ -604,7 +604,9 @@ email snapshot), UTC timestamp, action code, entity reference, the reason
 where the command carried one, and a small details payload. Domain data,
 not telemetry (tech spec): written **in the same transaction** as the
 change — a rollback erases the event with the change, and there is no
-update or delete surface anywhere. Admin-only viewer at /audit. The
+update or delete surface anywhere. Admin-only viewer at /audit. The Record
+type filter shows only events for the selected record type and narrows the
+Action choices. From and To limit results to the selected UTC days. The
 entity-local snapshots (`AdjustedFromJson` etc.) remain — they are the
 record's own history; the audit log is the cross-cutting trail.
 

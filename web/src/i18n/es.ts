@@ -1869,6 +1869,7 @@ export const es = {
     emptyMessage: "Aún no hay eventos de auditoría.",
     scopedEmptyMessage: "Aún no hay eventos de auditoría para este registro.",
     filteredEmptyMessage: "Ningún evento de auditoría coincide con estos filtros.",
+    recordTypeEmptyMessage: "Ningún evento de auditoría de este tipo de registro coincide con estos filtros.",
     scopedFilteredEmptyMessage: "Ningún evento de auditoría de este registro coincide con estos filtros.",
     loadMoreButton: "cargar más",
   },
@@ -2742,12 +2743,9 @@ export const es = {
       + "escribe junto con el cambio mismo — una acción fallida no deja rastro, una exitosa siempre lo hace "
       + "— y nunca es editable, por nadie.",
     auditRecordTypeFilter:
-      "El menú \"Tipo de registro\" del registro de auditoría no filtra las filas por sí solo — reduce el "
-      + "menú \"Acción\" de al lado a solo las acciones que ocurren en el tipo elegido (Lote, Pedido de "
-      + "venta, etc.), para que no tengas que revisar una lista larga con cada acción que la granja puede "
-      + "registrar. Elige la acción de esa lista reducida para filtrar las filas realmente. "
-      + "Las fechas \"Desde\" y \"Hasta\" junto a ellos SÍ filtran las filas, sobre el día UTC que "
-      + "muestra la columna \"Cuándo (UTC)\".",
+      "El filtro \"Tipo de registro\" del registro de auditoría muestra solo los eventos del tipo "
+      + "elegido. También reduce las opciones de \"Acción\" a las acciones de ese tipo. Desde y Hasta "
+      + "limitan los resultados a los días UTC seleccionados.",
     auditClearingFilters:
       "<strong>Borrar filtros</strong>, junto a esos controles, restablece los cuatro a la vez. Deja el "
       + "registro en el que llegó: abrir el historial desde el enlace de una fila lo limita a ese registro, "

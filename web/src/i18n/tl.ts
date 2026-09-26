@@ -1941,6 +1941,7 @@ export const tl = {
     emptyMessage: "Wala pang audit event.",
     scopedEmptyMessage: "Wala pang audit event para sa record na ito.",
     filteredEmptyMessage: "Walang audit event na tumutugma sa mga filter na ito.",
+    recordTypeEmptyMessage: "Walang audit event para sa uri ng record na ito na tumutugma sa mga filter na ito.",
     scopedFilteredEmptyMessage: "Walang audit event para sa record na ito na tumutugma sa mga filter na ito.",
     loadMoreButton: "mag-load pa",
   },
@@ -2851,12 +2852,9 @@ export const tl = {
       + "Isinusulat ito kasabay ng pagbabago mismo — walang naiiwang bakas ang isang nabigong aksyon, "
       + "palaging may naiiwan ang isang matagumpay — at hindi kailanman ine-edit, ng kahit sino.",
     auditRecordTypeFilter:
-      "Ang dropdown na \"Uri ng record\" sa audit log ay hindi ito ang nagsa-salà sa mga row — pinapaliit "
-      + "lamang nito ang dropdown na \"Aksyon\" sa tabi nito para lang sa mga aksyong nangyayari sa uring "
-      + "pinili mo (Kawan, Order ng benta, atbp.), para hindi mo na kailangang mag-scan sa isang mahabang "
-      + "listahan ng bawat aksyong maaaring itala ng bukid. Piliin ang aksyon sa napaliit na listahang iyon "
-      + "para talagang masalà ang mga row. Ang mga petsang \"Mula\" at \"Hanggang\" sa tabi nila ay "
-      + "TALAGANG nagsasalà sa mga row, batay sa araw na UTC na ipinapakita sa column na \"Kailan (UTC)\".",
+      "Ang filter na \"Uri ng record\" sa audit log ay nagpapakita lang ng mga event para sa piniling uri. "
+      + "Nililimitahan din nito ang mga pagpipilian sa \"Aksyon\" sa mga aksyon para sa uring iyon. "
+      + "Nililimitahan ng Mula at Hanggang ang mga resulta sa piniling mga araw sa UTC.",
     auditClearingFilters:
       "Ni-reset ng <strong>I-clear ang mga filter</strong> na katabi ng mga kontrol na iyon ang lahat ng apat "
       + "nang sabay. Iniiwan nito ang record na pinanggalingan mo: kapag binuksan ang log mula sa link na "

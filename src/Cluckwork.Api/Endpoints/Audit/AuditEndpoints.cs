@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Audit;
 
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
@@ -15,7 +16,7 @@ public static class AuditEndpoints
     {
         group.MapGet("/", ListAuditEvents)
             .WithName("ListAuditEvents")
-            .WithSummary("List audit events newest first (optional action/entity/date filters, paged).");
+            .WithSummary("List audit events newest first (optional action/record type/entity/date filters, paged).");
 
         return group;
     }
@@ -25,6 +26,7 @@ public static class AuditEndpoints
         TenantContext tenant,
         CancellationToken ct,
         string? action = null,
+        string? entityType = null,
         Guid? entityId = null,
         DateOnly? from = null,
         DateOnly? to = null,
@@ -36,7 +38,9 @@ public static class AuditEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await events.ListAsync(action, entityId, from, to, take, skip, ct);
+        var list = await events.ListAsync(action,
+            entityType is not null && AuditEntityTypes.Known.Contains(entityType) ? entityType : null,
+            entityId, from, to, take, skip, ct);
         return Results.Ok(list.Select(ToResponse));
     }
 

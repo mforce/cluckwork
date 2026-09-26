@@ -2556,6 +2556,7 @@ export const en = {
     // Distinct from emptyMessage on purpose: under an active date range the
     // log is not empty, the window is (INV-4).
     filteredEmptyMessage: "No audit events match these filters.",
+    recordTypeEmptyMessage: "No audit events for this record type match these filters.",
     scopedFilteredEmptyMessage: "No audit events for this record match these filters.",
     loadMoreButton: "load more",
   },
@@ -3445,12 +3446,8 @@ export const en = {
       + "change itself — a failed action leaves no trace, a successful one always does — and never editable, "
       + "by anyone.",
     auditRecordTypeFilter:
-      "The Audit log's \"Record type\" dropdown does not filter the rows itself — it narrows the "
-      + "\"Action\" dropdown next to it down to only the actions that happen on the type you pick "
-      + "(Flock, Sales order, and so on), so you are not scanning one long list of every action the "
-      + "farm can log. Pick the action from that narrowed list to actually filter the rows. "
-      + "The From and To dates beside them DO filter the rows, over the UTC day shown in the "
-      + "\"When (UTC)\" column.",
+      "The Audit log's \"Record type\" filter shows only events for the chosen type. It also narrows the "
+      + "\"Action\" choices to actions for that type. From and To limit the results to the selected UTC days.",
     // #679 — the control, and the one thing it deliberately does NOT clear.
     auditClearingFilters:
       "<strong>Clear filters</strong> beside those controls resets all four at once. It leaves the record "
