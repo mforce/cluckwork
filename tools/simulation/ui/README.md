@@ -177,8 +177,9 @@ its kill is reported as `NOT WIDTH-SPECIFIC` rather than counted.
 ## What runs for you, and what still doesn't
 
 The **quick suite now runs on pull requests** (`.github/workflows/e2e-smoke.yml`,
-path-filtered, ~3 min — owner call 2026-08-08 after #433 broke it silently), so
-a PR that breaks a covered screen or boot guard gets told. Everything else keeps
+path-filtered, three shards of about 5.5 min each since #966 — owner call
+2026-08-08 after #433 broke it silently), so a PR that breaks a covered screen
+or boot guard gets told. Everything else keeps
 the standing #370 warning from `tools/simulation/README.md`: the `slow` and
 `canary` dispatch modes, the k6 harness, and any change a docs-only path filter
 skips — **nothing runs those for you**, and you are the only thing that will

@@ -5,16 +5,14 @@
 # The quick suite runs ON PULL REQUESTS (owner call, 2026-08-08, revising the
 # original dispatch-only decision): #433 merged a deliberate session-contract
 # change that broke this suite and nothing reported it for a day — the exact
-# #370 rot the dispatch-only header used to warn about. The original cost
-# estimate ("roughly 6-10 billed minutes") is also stale: the measured job is
-# ~3 minutes wall (image build + boot + migrate + seed + 46 specs), which is
-# in proportion to a PR gate. Path-filtered to changes the suite can actually
-# see, and superseded runs are cancelled, so docs-only PRs and force-push
-# churn cost nothing.
+# #370 rot the dispatch-only header used to warn about. Path-filtered to
+# changes the suite can actually see, and superseded runs are cancelled, so
+# docs-only PRs and force-push churn cost nothing.
 #
-# The spec count was stale at 28 for long enough to be worth naming: it is the
-# kind of number nothing checks, so read it as an order of magnitude and not as
-# a contract.
+# The cost figures this header carried went stale twice. Measured over 15 PR
+# runs on 2026-09-26 (#966): 115 specs, a median 380s of a 570s job, 600s cap.
+# Read any number here as an order of magnitude; the shard block below is how
+# the run stays inside the cap.
 #
 # ================== TWO PROJECTS, ONE COMMAND ==================
 #
@@ -23,6 +21,25 @@
 # spec runs in exactly one of them and none runs twice. `npm test` runs both
 # already, which is why nothing in the steps below changes: the phone project
 # is a config fact, not a second job.
+#
+# ================== THREE SHARDS, ONE STACK EACH (#966) ==================
+#
+# The specs share one seeded database and run serially within a stack
+# (`workers: 1` in playwright.config.ts). The PR run therefore splits the
+# suite across a matrix of three jobs, each booting its own stack and running
+# `--shard=N/3`. Playwright shards by whole spec file, so a file's tests stay
+# together and in order, and every test lands in exactly one shard. Each spec
+# file already owns the rows it mutates, so it does not matter which files
+# share a stack. The cost is three image builds and three stack boots per PR;
+# the wall clock is one boot plus the busiest shard, ~5.5 minutes instead of
+# ~9.5. Both projects still run: the phone project is simply the last group
+# of files in the shard order.
+#
+# A job's shard is `strategy.job-index + 1` of `strategy.job-total`, so the
+# jobs always cover the whole list whatever the matrix entries say: the
+# entries only make the jobs and name them. The first step checks each name
+# matches the shard its job runs, so a mistyped list fails instead of
+# labelling one shard as another.
 #
 # workflow_dispatch remains for the modes a PR run never exercises — `slow`
 # (the real 15-minute expiry spec) and `canary` — and for the k6 sibling the
@@ -87,15 +104,28 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright smoke over the simulation fixture
+    name: Playwright smoke over the simulation fixture (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
-    # PR runs are the ~3-minute quick suite with a headroom cap (a hung stack
-    # must fail fast, not burn minutes). Dispatch stays generous because a
-    # `slow: true` run spends 16 of these minutes asleep on purpose.
+    # A red shard says nothing about the other two, and cancelling them buys
+    # back a couple of minutes at the cost of a full re-run to learn what else
+    # is red, so every shard reports.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    # PR runs are the quick suite with a headroom cap (a hung stack must fail
+    # fast, not burn minutes). Dispatch stays generous because a `slow: true`
+    # run spends 16 of these minutes asleep on purpose.
     timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 45 }}
 
     steps:
       - uses: actions/checkout@v7
+
+      - name: Number this shard and check the job name agrees
+        run: |
+          shard=$(( ${{ strategy.job-index }} + 1 ))
+          test "${{ matrix.shard }}" -eq "$shard"
+          echo "SHARD=$shard/${{ strategy.job-total }}" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v7
         with:
@@ -176,10 +206,12 @@ jobs:
           # absence of a system one — see the header.
           CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
           CLUCKWORK_E2E_SLOW: ${{ inputs.slow && '1' || '' }}
-        run: npm test
+        run: npm test -- --shard="$SHARD"
 
       - name: Run the canary probe
-        if: ${{ inputs.canary }}
+        # One probe per dispatch, not one per shard: the canary has its own
+        # config and never shards.
+        if: ${{ inputs.canary && matrix.shard == 1 }}
         working-directory: tools/simulation/ui
         env:
           CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
@@ -227,7 +259,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-failure-media
+          name: playwright-failure-media-${{ matrix.shard }}
           path: |
             tools/simulation/ui/test-results/**/*.png
             tools/simulation/ui/test-results/**/*.webm
