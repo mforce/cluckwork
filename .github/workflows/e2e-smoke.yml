@@ -9,11 +9,10 @@
 # changes the suite can actually see, and superseded runs are cancelled, so
 # docs-only PRs and force-push churn cost nothing.
 #
-# Every cost figure this header has carried went stale: "6-10 billed minutes",
-# then "~3 minutes wall" for 46 specs. Measured over 15 PR runs on 2026-09-26
-# (#966), 115 specs took a median 380s of the job's 570s, against a 600s cap.
-# Read any number here as an order of magnitude; the shard block below says
-# how the run is kept inside the cap.
+# The cost figures this header carried went stale twice. Measured over 15 PR
+# runs on 2026-09-26 (#966): 115 specs, a median 380s of a 570s job, 600s cap.
+# Read any number here as an order of magnitude; the shard block below is how
+# the run stays inside the cap.
 #
 # ================== TWO PROJECTS, ONE COMMAND ==================
 #
