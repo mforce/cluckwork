@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { initialTheme, applyTheme } from "./theme";
+import { initialTheme, applyTheme, watchDeviceTheme } from "./theme";
+import { stubMatchMedia } from "../test/matchMedia";
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-theme");
@@ -76,5 +77,34 @@ describe("theme", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
     set.mockRestore();
     remove.mockRestore();
+  });
+});
+
+describe("watchDeviceTheme (#976)", () => {
+  it("follows a live OS scheme change while nothing is explicitly saved", () => {
+    const media = stubMatchMedia(false);
+    const stop = watchDeviceTheme();
+    media.triggerChange(true);
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    media.triggerChange(false);
+    expect(document.documentElement.dataset.theme).toBe("light");
+    stop();
+  });
+
+  it("an explicit saved choice wins over a later OS change", () => {
+    const media = stubMatchMedia(false);
+    applyTheme("light");
+    const stop = watchDeviceTheme();
+    media.triggerChange(true); // OS flips to dark; the saved "light" must not move
+    expect(document.documentElement.dataset.theme).toBe("light");
+    stop();
+  });
+
+  it("stops listening after the returned unsubscribe runs", () => {
+    const media = stubMatchMedia(false);
+    const stop = watchDeviceTheme();
+    stop();
+    media.triggerChange(true);
+    expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 });

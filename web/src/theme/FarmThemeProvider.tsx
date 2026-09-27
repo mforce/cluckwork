@@ -9,6 +9,8 @@ import {
   type ThemeMode, type ThemeToken, type TokenValues,
 } from "./farmTokens";
 import { syncThemeColorMeta } from "./metaThemeColor";
+import { watchDeviceTheme } from "../lib/theme";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 
 /** WCAG 2.2 AAA 2.5.5, and the floor `styles.css` already holds phone controls to. */
 const PHONE_TOUCH_TARGET_PX = 44;
@@ -632,7 +634,26 @@ export function FarmThemeProvider({ children }: { children: ReactNode }) {
     // in the same tick a route mounts). Re-read once on attach rather than
     // trusting the render-time read to still be current.
     setSignal((n) => n + 1);
-    return () => observer.disconnect();
+
+    // #976 round 1 — follow-device mode must react to a LIVE OS scheme
+    // change. watchDeviceTheme writes data-theme directly, which the
+    // observer above already watches, so no separate recompute path is
+    // needed here.
+    const stopWatchingDevice = watchDeviceTheme();
+
+    // The meta colour picks --lavender or --canvas by layout width (#976
+    // round 1), which crossing MD_UP_QUERY changes without touching
+    // data-theme/data-brand — this is the one trigger the observer can't see.
+    // jsdom has no matchMedia (BottomNav.tsx/lib/theme.ts guard the same way).
+    const layout = typeof window.matchMedia === "function" ? window.matchMedia(MD_UP_QUERY) : null;
+    const onLayoutChange = () => setSignal((n) => n + 1);
+    layout?.addEventListener("change", onLayoutChange);
+
+    return () => {
+      observer.disconnect();
+      stopWatchingDevice();
+      layout?.removeEventListener("change", onLayoutChange);
+    };
   }, []);
 
   const tokens = useMemo(
