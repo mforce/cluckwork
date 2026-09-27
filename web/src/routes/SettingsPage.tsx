@@ -379,6 +379,8 @@ export function SettingsPage() {
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
       saveAttempt.current = attempt;
+      // The write may finish after a farm switch; only this binding may receive its palette.
+      const boundAt = farmBindingToken();
 
       try {
         await updateFarmSettings(body, attempt.key);
@@ -403,9 +405,6 @@ export function SettingsPage() {
       // the same change twice.
       saveAttempt.current = null;
       setSaved(true);
-      // Captured BEFORE the await: the response may land after a farm switch
-      // in the same tab, in which case it is farm A's value, not this farm's.
-      const boundAt = farmBindingToken();
       try {
         const fresh = await load();
         // Applied from THIS response rather than waiting on refresh() below:

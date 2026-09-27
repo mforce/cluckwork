@@ -12,7 +12,7 @@ import {
 import type { Account, FarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
-import { BRANDS, brandKeyFor } from "../lib/brand";
+import { BRANDS, applyBrand, brandKeyFor } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
@@ -425,6 +425,34 @@ describe("SettingsPage saving", () => {
     bindFarm(null);
     bindAccount(null);
     localStorage.removeItem(key);
+  });
+
+  it("does not apply a late saved palette to a different farm", async () => {
+    bindAccount("acct-A");
+    bindFarm("first-farm");
+    let finishUpdate: (() => void) | undefined;
+    mockUpdate.mockReturnValue(new Promise((resolve) => {
+      finishUpdate = () => resolve(undefined);
+    }));
+    const { unmount } = await renderReady(SETTINGS({ brand: "forest" }));
+    mockGetSettings.mockRejectedValueOnce(new Error("offline"));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    unmount();
+    bindAccount("acct-B");
+    bindFarm("second-farm");
+    applyBrand("terracotta", farmBindingToken());
+
+    await act(async () => { finishUpdate!(); });
+
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+    expect(localStorage.getItem(brandKeyFor("second-farm"))).toBe("terracotta");
+    bindFarm(null);
+    bindAccount(null);
+    localStorage.removeItem(brandKeyFor("first-farm"));
+    localStorage.removeItem(brandKeyFor("second-farm"));
   });
 
   it("says the change may not have reached the rest of the app when /account fails", async () => {
