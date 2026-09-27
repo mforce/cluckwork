@@ -288,6 +288,21 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }
   });
 
+  test("Customers rows stay one line tall and Edit remains in the inspector", async ({ page }) => {
+    await page.goto("/customers");
+    const row = page.getByRole("row", { name: /Sim Customer 1/ });
+    await expect(row).toBeVisible();
+    const box = await rectOf(row, "the first Customers row");
+    expect(box.height).toBeLessThanOrEqual(60);
+    await expect(row.getByRole("button")).toHaveCount(0);
+
+    await row.getByRole("cell", { name: "555-0201" }).click();
+    const inspector = page.getByRole("region", {
+      name: tEn("common:inspectorLabel", { entity: tEn("customers:entitySingular") }),
+    });
+    await expect(inspector.getByRole("button", { name: tEn("customers:editButton") })).toBeVisible();
+  });
+
   test("a destination that is not a tab is reachable only through More", async ({ page, phone }) => {
     // The control for the test's own name: Customers is genuinely NOT one of
     // Owner's four tabs, so reaching it through the sheet is the only route.
