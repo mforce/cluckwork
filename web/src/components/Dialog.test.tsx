@@ -401,6 +401,41 @@ describe("Dialog wide (#822 D2 pair 2)", () => {
   });
 });
 
+// #980 — compactTitle drops the title one step down the type scale for a
+// dialog titled by a RECORD's identity, without changing the heading level or
+// the dialog's accessible name. Read from the generated rule for the same
+// reason lastMaxWidth does: jsdom resolves no theme typography of its own.
+function fontSizeOf(el: HTMLElement): string | undefined {
+  const cls = el.className.split(" ").find((c) => c.startsWith("css-"));
+  if (!cls) throw new Error("title carries no emotion class to inspect");
+  const rule = Array.from(document.querySelectorAll("style"))
+    .map((style) => style.textContent ?? "")
+    .join("\n")
+    .split("}")
+    .find((block) => block.includes(`.${cls}{`));
+  if (!rule) throw new Error(`no generated rule found for .${cls}`);
+  return [...rule.matchAll(/font-size:([^;]+);/g)].at(-1)?.[1];
+}
+
+describe("Dialog compactTitle (#980)", () => {
+  it("renders the title smaller while it stays the dialog's h2 name", () => {
+    const { rerender } = render(
+      <Dialog open title="26 Sep · Sim House A" onClose={() => {}}><Body /></Dialog>,
+    );
+    const full = screen.getByRole("heading", { name: "26 Sep · Sim House A" });
+    expect(full.tagName).toBe("H2");
+    const fullSize = fontSizeOf(full);
+
+    rerender(<Dialog open compactTitle title="26 Sep · Sim House A" onClose={() => {}}><Body /></Dialog>);
+    const compact = screen.getByRole("heading", { name: "26 Sep · Sim House A" });
+    expect(compact.tagName).toBe("H2");
+    expect(screen.getByRole("dialog", { name: "26 Sep · Sim House A" })).toBeInTheDocument();
+    // Smaller, not a pinned value: these render under MUI's default theme, so
+    // a number here would pin that rather than the farm's own type scale.
+    expect(parseFloat(fontSizeOf(compact) ?? "")).toBeLessThan(parseFloat(fullSize ?? ""));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // #482 (partial) — event routing across two open dialogs. The scroll-lock and
 // background-inertness halves of this guarantee now rest on MUI's own

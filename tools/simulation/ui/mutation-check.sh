@@ -303,8 +303,7 @@ the Sales draft-order panel's buttons share no common vertical band"
   [phone-entry-foot-stacked]="in the daily-entry save bar spans"
   [phone-dialog-footer-stacked]="dialog footer's row is not laid out as a row (computed flex-direction: column)
 dialog footer's buttons share no common vertical band"
-  [phone-mui-table-overflow-unclipped]="/customers scrolls sideways at phone width
-/history scrolls sideways at phone width"
+  [phone-mui-table-overflow-unclipped]="/customers scrolls sideways at phone width"
 )
 
 MUTANTS=("$@")

@@ -564,7 +564,11 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       { path: "/customers", content: "role=table", what: "the customer book" },
       { path: "/flocks", content: "role=table", what: "the flock table" },
       { path: "/stock", content: `role=list[name="${tEn("stock:title")}"]`, what: "the stock board" },
-      { path: "/history", content: "role=table", what: "the entry history table" },
+      // #980 — below 900px History renders one two-line button per entry
+      // instead of its ten-column table, so the thing whose width is judged
+      // here is that list. The desktop table is still walked at 1280 by the
+      // specs that measure it there.
+      { path: "/history", content: `role=list[name="${tEn("history:title")}"]`, what: "the entry history list" },
       { path: "/sales", content: "role=table", what: "the orders table" },
     ];
 
@@ -602,9 +606,10 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // SOFT, so one run names EVERY offending route instead of stopping at the
       // first. That is not a preference: the containment these assert is
       // per-element, so a regression typically hits some screens and not
-      // others — measured under the table-overflow mutant, /sales, /history,
-      // /flocks and /customers all overflow while /daily-entry and /stock stay
-      // exactly 390. A hard assertion would report one quarter of that and
+      // others — measured under the table-overflow mutant, /sales, /flocks and
+      // /customers all overflow while /daily-entry, /stock and (since #980)
+      // /history stay exactly 390. A hard assertion would report one third of
+      // that and
       // send the reader to fix one screen.
       //
       // The message names the route, and the mutation harness greps for it.
@@ -761,7 +766,10 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
   });
   test("History adjustment displays full labels and a four-digit count without clipping", async ({ page }) => {
     await page.goto("/history");
-    await page.getByRole("button", { name: tEn("history:adjustButton"), exact: true }).first().click();
+    // #980 — adjust lives in the row's Details dialog at this width, not in a
+    // tenth column off the right edge.
+    await historyRow(page, tEn("history:statusSubmitted")).click();
+    await page.getByRole("dialog").getByRole("button", { name: tEn("history:adjustButton"), exact: true }).click();
     const dialog = page.getByRole("dialog");
     for (const key of ["dailyEntry:totalEggsLabel", "dailyEntry:discardedLabel"] as const) {
       const label = dialog.locator("label").getByText(tEn(key), { exact: true });
@@ -783,7 +791,46 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     expect(fit.available, "History count input fits four digits").toBeGreaterThanOrEqual(fit.needed);
   });
 
+
+  // #980 — twelve two-line rows where the ten-column ledger fitted five, with
+  // the row's own actions moved behind a tap instead of off the right edge.
+  test("twelve History entries fit one screen, and a tap opens the entry's actions", async ({ page, phone }) => {
+    await page.goto("/history");
+    const list = page.getByRole("list", { name: tEn("history:title") });
+    await expect(list, "History rendered no phone list, so nothing can be counted").toBeVisible();
+    await page.waitForLoadState("networkidle");
+
+    const rows = list.getByRole("button");
+    expect(await rows.count(), "the fixture holds fewer than twelve entries, so twelve cannot be measured")
+      .toBeGreaterThanOrEqual(12);
+
+    // Scrolled to the end of the list, so the count is "how many fit at once"
+    // rather than "how many the page happened to start with under the filters
+    // and summary". The tab bar's own top edge is the floor: a row under it is
+    // not on screen, whatever the document says.
+    await rows.last().scrollIntoViewIfNeeded();
+    const floor = (await rectOf(phone.tabbar, "the tab bar")).y;
+    const onScreen = await rows.evaluateAll((els, bottom) => els.filter((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.top >= 0 && rect.bottom <= bottom;
+    }).length, floor);
+    expect(onScreen, `only ${onScreen} History rows fit between the top of the screen and the tab bar`)
+      .toBeGreaterThanOrEqual(12);
+
+    const row = historyRow(page, tEn("history:statusSubmitted"));
+    await row.click();
+    const details = page.getByRole("dialog");
+    await expect(details, "tapping a History row opened no details dialog").toBeVisible();
+    await expect(details.getByRole("button", { name: tEn("history:adjustButton"), exact: true })).toBeVisible();
+  });
 });
+
+/** The first phone History row carrying `status`, as its own tap target. */
+function historyRow(page: Page, status: string): Locator {
+  return page.getByRole("list", { name: tEn("history:title") })
+    .locator("li").filter({ hasText: status }).first()
+    .getByRole("button");
+}
 
 test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {
   test("the Forget control meets the 44px touch-target floor on both axes", async ({ page }) => {
