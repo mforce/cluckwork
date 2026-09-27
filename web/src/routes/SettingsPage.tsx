@@ -356,7 +356,7 @@ export function SettingsPage() {
     e.preventDefault();
     // In-flight re-entry (the old `saving || logoBusy` check) is the hook's
     // job now: run() below skips while any flight is open.
-    if (stale || loaded === null) return;
+    if (stale || loaded === null || savedBrand === null) return;
     await run("settings", async () => {
       setSaveError(null);
       setSaved(false);
@@ -382,7 +382,7 @@ export function SettingsPage() {
       try {
         await updateFarmSettings(body, attempt.key);
       } catch (err) {
-        setBrand(savedBrand ?? DEFAULT_BRAND);
+        setBrand(savedBrand);
         if (err instanceof ApiError && err.status === 409) {
           // The version this screen holds is now definitively wrong, and a retry
           // sends the same one: the middleware caches only 2xx, so it re-executes
@@ -412,7 +412,7 @@ export function SettingsPage() {
         // palette live and cached while the authoritative value was in hand (#149).
         applyBrand(fresh.settings.brand, boundAt);
       } catch {
-        setBrand(savedBrand ?? DEFAULT_BRAND);
+        setBrand(savedBrand);
         setStale(true);
         setSaveError(i18n.t("settings:saveReadBackFailedMessage"));
         return;
