@@ -124,17 +124,16 @@ for (const { route, actions } of screens) {
           expect.soft(styles.contrast, brand).toBeGreaterThanOrEqual(4.5);
           expect.soft(styles.textOpacity, brand).toBe("1");
           expect.soft(styles.headerOpacity, brand).toBe("1");
-          expect.soft(styles.children, brand).toBe(1);
-          expect.soft(styles.paddingTop, brand).toBe("7.5px");
-          expect.soft(styles.paddingBottom, brand).toBe("7.5px");
-          expect.soft(styles.height, brand).toBeGreaterThanOrEqual(36);
-          expect.soft(styles.height, brand).toBeLessThanOrEqual(37);
+          expect.soft(styles.children, brand).toBe(2);
+          expect.soft(styles.paddingTop, brand).toBe("0px");
+          expect.soft(styles.paddingBottom, brand).toBe("0px");
+          expect.soft(styles.height, brand).toBe(44);
         }
         const footer = inspector.locator(":scope > div").last();
         await expect(footer).toHaveCSS("border-top-width", "1px");
         await expect(footer).toHaveCSS("background-color", theme === "dark" ? "rgb(48, 39, 51)" : "rgb(255, 253, 249)");
         await expect(footer).toHaveCSS("border-top-color", theme === "dark" ? "rgb(179, 168, 184)" : "rgb(222, 211, 202)");
-        const actionLabels = await inspector.locator("button, a").allTextContents();
+        const actionLabels = await footer.locator("button, a").allTextContents();
         expect.soft(actionLabels.map((label) => label.trim())).toEqual(actions);
         if (route !== "customers") {
           await expect(inspector.locator("button, a").last().locator("..")).toHaveCSS("border-left-width", "1px");
@@ -151,6 +150,9 @@ for (const { route, actions } of screens) {
         expect(actionBounds!.y + actionBounds!.height).toBeLessThanOrEqual(navBounds!.y);
       });
     }
+    await inspector.getByRole("button", { name: t("en", "audit:closeInspector") }).click();
+    await expect(row).toHaveAttribute("aria-selected", "false");
+    await expect(row).toBeFocused();
   });
 }
 
