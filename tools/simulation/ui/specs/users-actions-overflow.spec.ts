@@ -13,7 +13,6 @@ for (const language of LANGUAGES) {
       await page.goto("/users");
       await expect(page.getByRole("heading", { name: t(language, "users:heading"), exact: true })).toBeVisible();
       const table = page.getByRole("table");
-      await expect(table.getByRole("button", { name: t(language, "users:editButton"), exact: true }).first()).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       for (const theme of ["light", "dark"] as const) {
         await page.emulateMedia({ colorScheme: theme });
@@ -22,7 +21,17 @@ for (const language of LANGUAGES) {
           await test.step(`${theme}, ${width}px`, async () => {
             await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
             await expect(page.getByRole("heading", { name: t(language, "users:heading"), exact: true })).toBeVisible();
-            await expect(table.getByRole("button", { name: t(language, "users:editButton"), exact: true }).first()).toBeVisible();
+            const rowEdit = table.getByRole("button", { name: t(language, "users:editButton"), exact: true });
+            if (width === 390) {
+              await expect(rowEdit).toHaveCount(0);
+              await table.getByRole("row").nth(1).getByRole("cell").first().click();
+              const inspector = page.getByRole("region", {
+                name: t(language, "common:inspectorLabel", { entity: t(language, "users:entitySingular") }),
+              });
+              await expect(inspector.getByRole("button", { name: t(language, "users:editButton"), exact: true })).toBeVisible();
+            } else {
+              await expect(rowEdit.first()).toBeVisible();
+            }
             const geometry = await table.evaluate((element) => {
               const container = element.parentElement;
               if (!container) throw new Error("Users table has no container");
