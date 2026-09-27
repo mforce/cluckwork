@@ -162,7 +162,7 @@ function keyFor(attempt: Attempt | null, payload: string): Attempt {
 // §4.6's currency lock surfaced as a locked field instead of a 422 the user
 // only meets after typing.
 export function SettingsPage() {
-  const { refresh } = useFarm();
+  const { farm, refresh } = useFarm();
   const { confirm, confirmDialog } = useConfirm();
   const { t } = useTranslation("settings");
   const { t: tc } = useTranslation("common");
@@ -217,10 +217,8 @@ export function SettingsPage() {
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  // Set when a save landed but the follow-up read did not: the screen still
-  // holds the OLD version, so another save from here would 409 and blame
-  // someone else for this user's own write.
-  const [stale, setStale] = useState(false);
+  const [staleReason, setStaleReason] = useState<"conflict" | "readback" | null>(null);
+  const stale = staleReason !== null;
   const saveAttempt = useRef<Attempt | null>(null);
 
   const [focusUploadAfterRemove, setFocusUploadAfterRemove] = useState(false);
@@ -261,13 +259,16 @@ export function SettingsPage() {
 
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
   const savedBrand = loaded === null ? null : isBrand(loaded.settings.brand) ? loaded.settings.brand : DEFAULT_BRAND;
+  const displayedBrand = staleReason === "conflict" && farm !== null
+    ? isBrand(farm.brand) ? farm.brand : DEFAULT_BRAND
+    : brand;
 
   useEffect(() => {
     if (savedBrand === null) return;
     const boundAt = farmBindingToken();
-    previewBrand(brand, boundAt);
-    return () => previewBrand(savedBrand, boundAt);
-  }, [brand, savedBrand]);
+    previewBrand(displayedBrand, boundAt);
+    return () => previewBrand(staleReason === "conflict" ? displayedBrand : savedBrand, boundAt);
+  }, [displayedBrand, savedBrand, staleReason, farm]);
 
   // Seeds every field from the server. Called on mount, and after a save (the
   // version moved, and the currency may have locked). NOT after a logo write:
@@ -388,8 +389,9 @@ export function SettingsPage() {
           // sends the same one: the middleware caches only 2xx, so it re-executes
           // and 409s again, forever. Disable the button so it agrees with the
           // message rather than inviting the loop (pi round 2).
-          setStale(true);
+          setStaleReason("conflict");
           setSaveError(i18n.t("settings:versionConflictMessage"));
+          await refresh();
         } else {
           setSaveError(errText(err));
         }
@@ -401,10 +403,10 @@ export function SettingsPage() {
       // the same change twice.
       saveAttempt.current = null;
       setSaved(true);
+      // Captured BEFORE the await: the response may land after a farm switch
+      // in the same tab, in which case it is farm A's value, not this farm's.
+      const boundAt = farmBindingToken();
       try {
-        // Captured BEFORE the await: the response may land after a farm switch
-        // in the same tab, in which case it is farm A's value, not this farm's.
-        const boundAt = farmBindingToken();
         const fresh = await load();
         // Applied from THIS response rather than waiting on refresh() below:
         // refresh() cannot throw (the provider has to survive a failed read), so
@@ -412,8 +414,12 @@ export function SettingsPage() {
         // palette live and cached while the authoritative value was in hand (#149).
         applyBrand(fresh.settings.brand, boundAt);
       } catch {
-        setBrand(savedBrand);
-        setStale(true);
+        setLoaded((prev) => prev === null ? prev : {
+          ...prev,
+          settings: { ...prev.settings, brand },
+        });
+        applyBrand(brand, boundAt);
+        setStaleReason("readback");
         setSaveError(i18n.t("settings:saveReadBackFailedMessage"));
         return;
       }
@@ -750,9 +756,9 @@ export function SettingsPage() {
                       type="radio"
                       name="brand"
                       value={id}
-                      checked={brand === id}
+                      checked={displayedBrand === id}
                       onChange={() => setBrand(id)}
-                      disabled={saving}
+                      disabled={saving || stale}
                     />
                     <Box aria-hidden sx={{
                       width: 14, height: 14, borderRadius: "var(--r-pill)", border: "1px solid",
@@ -762,7 +768,7 @@ export function SettingsPage() {
                   </Box>
                 ))}
               </Stack>
-              {savedBrand !== null && brand !== savedBrand && (
+              {!stale && savedBrand !== null && displayedBrand !== savedBrand && (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} role="status">
                   {t("palettePreviewHint", { save: t("saveButton") })}
                 </Typography>

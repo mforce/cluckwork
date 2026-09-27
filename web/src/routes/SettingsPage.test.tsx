@@ -4,9 +4,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsPage, formatByteCap } from "./SettingsPage";
-import { FarmContext } from "../farm/FarmContext";
+import { FarmContext, FarmProvider } from "../farm/FarmContext";
 import {
-  getFarmBanner, getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmBanner,
+  getAccount, getFarmBanner, getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmBanner,
   removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
 } from "../api/cluckwork";
 import type { Account, FarmSettings } from "../api/cluckwork";
@@ -65,6 +65,7 @@ vi.mock("../api/cluckwork", async () => {
   return {
     ...actual,
     getFarmSettings: vi.fn(),
+    getAccount: vi.fn(),
     updateFarmSettings: vi.fn(),
     uploadFarmLogo: vi.fn(),
     removeFarmLogo: vi.fn(),
@@ -79,6 +80,7 @@ vi.mock("../api/cluckwork", async () => {
 });
 
 const mockGetSettings = vi.mocked(getFarmSettings);
+const mockGetAccount = vi.mocked(getAccount);
 const mockUpdate = vi.mocked(updateFarmSettings);
 const mockUpload = vi.mocked(uploadFarmLogo);
 const mockRemove = vi.mocked(removeFarmLogo);
@@ -400,6 +402,31 @@ describe("SettingsPage saving", () => {
     expect(screen.queryByText("Settings saved.")).not.toBeInTheDocument();
   });
 
+  it("keeps a landed palette when its settings read-back fails", async () => {
+    bindAccount("acct-A");
+    bindFarm("default-farm");
+    const key = brandKeyFor("default-farm");
+    localStorage.setItem(key, "forest");
+    mockUpdate.mockResolvedValue(undefined);
+    const { unmount } = await renderReady(SETTINGS({ brand: "forest" }));
+    mockGetSettings.mockRejectedValueOnce(new Error("offline"));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/Saved\. This screen could not read the settings back/);
+    expect(screen.getByRole("radio", { name: "Slate" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Slate" })).toBeDisabled();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    expect(localStorage.getItem(key)).toBe("slate");
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
+    unmount();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    bindFarm(null);
+    bindAccount(null);
+    localStorage.removeItem(key);
+  });
+
   it("says the change may not have reached the rest of the app when /account fails", async () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady();
@@ -468,6 +495,23 @@ describe("SettingsPage saving", () => {
     // retry sends the same version, so it 409s forever (the middleware caches
     // only 2xx, so nothing is replayed).
     expect(screen.getByRole("button", { name: "Save settings" })).toBeDisabled();
+  });
+
+  it("shows the other Owner's palette after a version conflict", async () => {
+    const initial = SETTINGS({ brand: "forest" });
+    mockGetSettings.mockResolvedValue(initial);
+    mockGetAccount.mockResolvedValue(account({ brand: "terracotta" }));
+    mockUpdate.mockRejectedValue(new ApiError(409, "Account.VersionMismatch", "Version mismatch."));
+    render(<FarmProvider initialAccount={initial.settings}><SettingsPage /></FarmProvider>);
+    await screen.findByRole("radio", { name: "Forest" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockGetAccount).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Terracotta" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Terracotta" })).toBeDisabled();
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
   });
 
   it("surfaces the server's message for any other refusal", async () => {
@@ -662,6 +706,29 @@ describe("SettingsPage palette (#149)", () => {
     bindFarm(null);
     bindAccount(null);
     localStorage.removeItem(key);
+  });
+
+  it("keeps an unsaved preview after a logo upload refreshes the farm", async () => {
+    const initial = SETTINGS({ brand: "forest" });
+    mockGetSettings.mockResolvedValue(initial);
+    mockGetAccount.mockResolvedValue(account({ brand: "forest" }));
+    mockUpload.mockResolvedValue({
+      contentType: "image/png", contentHash: "new-logo", width: 1, height: 1,
+      byteLength: 10, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    render(<FarmProvider initialAccount={initial.settings}><SettingsPage /></FarmProvider>);
+    await screen.findByRole("radio", { name: "Forest" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(10)] } });
+    });
+
+    expect(mockGetAccount).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Slate" })).toBeChecked();
+    expect(screen.getByText("Previewing. Select Save settings to keep this palette.")).toBeInTheDocument();
+    expect(document.documentElement.dataset.brand).toBe("slate");
   });
 
   it("restores the saved palette when leaving without saving", async () => {
