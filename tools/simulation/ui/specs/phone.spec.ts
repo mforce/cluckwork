@@ -271,6 +271,23 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }).getByText(tEn("common:inspectorEmptyPrompt"))).toBeVisible();
   });
 
+  test("Flocks rows stay one line tall and actions move into the inspector", async ({ page }) => {
+    await page.goto("/flocks");
+    const row = page.getByRole("row", { name: /Sim House A/ });
+    await expect(row).toBeVisible();
+    const box = await rectOf(row, "the first Flocks row");
+    expect(box.height).toBeLessThanOrEqual(60);
+    await expect(row.getByRole("button")).toHaveCount(0);
+
+    await row.getByRole("cell").first().click();
+    const inspector = page.getByRole("region", {
+      name: tEn("common:inspectorLabel", { entity: tEn("flocks:entitySingular") }),
+    });
+    for (const key of ["editButton", "openLedgerButton", "depleteButton", "archiveButton"] as const) {
+      await expect(inspector.getByRole("button", { name: tEn(`flocks:${key}`) })).toBeVisible();
+    }
+  });
+
   test("a destination that is not a tab is reachable only through More", async ({ page, phone }) => {
     // The control for the test's own name: Customers is genuinely NOT one of
     // Owner's four tabs, so reaching it through the sheet is the only route.
