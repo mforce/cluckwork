@@ -144,4 +144,15 @@ describe("watchDeviceTheme (#976)", () => {
     expect(document.documentElement.dataset.theme).toBe("light");
     stop();
   });
+
+  it("treats a storage read failure as no saved choice, still following the device", () => {
+    const getSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage denied");
+    });
+    stubMatchMedia(true);
+    const stop = watchDeviceTheme();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    getSpy.mockRestore();
+    stop();
+  });
 });
