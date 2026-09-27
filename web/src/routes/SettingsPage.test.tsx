@@ -528,7 +528,7 @@ describe("SettingsPage saving", () => {
   it("shows the other Owner's palette after a version conflict", async () => {
     const initial = SETTINGS({ brand: "forest" });
     mockGetSettings.mockResolvedValue(initial);
-    mockGetAccount.mockResolvedValue(account({ brand: "terracotta" }));
+    mockGetAccount.mockResolvedValue(account({ brand: "terracotta", version: 8 }));
     mockUpdate.mockRejectedValue(new ApiError(409, "Account.VersionMismatch", "Version mismatch."));
     render(<FarmProvider initialAccount={initial.settings}><SettingsPage /></FarmProvider>);
     await screen.findByRole("radio", { name: "Forest" });
@@ -757,6 +757,31 @@ describe("SettingsPage palette (#149)", () => {
     expect(screen.getByRole("radio", { name: "Slate" })).toBeChecked();
     expect(screen.getByText("Previewing. Select Save settings to keep this palette.")).toBeInTheDocument();
     expect(document.documentElement.dataset.brand).toBe("slate");
+  });
+
+  it("keeps a newer farm palette after refreshing without a preview", async () => {
+    const initial = SETTINGS({ brand: "forest" });
+    mockGetSettings.mockResolvedValue(initial);
+    mockGetAccount.mockResolvedValue(account({ brand: "terracotta", version: 8 }));
+    mockUpload.mockResolvedValue({
+      contentType: "image/png", contentHash: "new-logo", width: 1, height: 1,
+      byteLength: 10, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    const { unmount } = render(
+      <FarmProvider initialAccount={initial.settings}><SettingsPage /></FarmProvider>);
+    await screen.findByRole("radio", { name: "Forest" });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(10)] } });
+    });
+
+    expect(mockGetAccount).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Terracotta" })).toBeChecked();
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+    unmount();
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
   });
 
   it("restores the saved palette when leaving without saving", async () => {

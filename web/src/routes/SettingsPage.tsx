@@ -259,16 +259,19 @@ export function SettingsPage() {
 
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
   const savedBrand = loaded === null ? null : isBrand(loaded.settings.brand) ? loaded.settings.brand : DEFAULT_BRAND;
-  const displayedBrand = staleReason === "conflict" && farm !== null
+  // A successful settings read-back can be newer than /account when its refresh fails.
+  const baselineBrand = farm !== null && (loaded === null || farm.version > loaded.settings.version)
     ? (isBrand(farm.brand) ? farm.brand : DEFAULT_BRAND)
-    : brand;
+    : savedBrand;
+  const displayedBrand = baselineBrand !== null && (staleReason === "conflict" || brand === savedBrand)
+    ? baselineBrand : brand;
 
   useEffect(() => {
-    if (savedBrand === null) return;
+    if (baselineBrand === null) return;
     const boundAt = farmBindingToken();
     previewBrand(displayedBrand, boundAt);
-    return () => previewBrand(staleReason === "conflict" ? displayedBrand : savedBrand, boundAt);
-  }, [displayedBrand, savedBrand, staleReason, farm]);
+    return () => previewBrand(baselineBrand, boundAt);
+  }, [displayedBrand, baselineBrand, farm]);
 
   // Seeds every field from the server. Called on mount, and after a save (the
   // version moved, and the currency may have locked). NOT after a logo write:
@@ -767,7 +770,7 @@ export function SettingsPage() {
                   </Box>
                 ))}
               </Stack>
-              {!stale && savedBrand !== null && displayedBrand !== savedBrand && (
+              {!stale && savedBrand !== null && brand !== savedBrand && (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} role="status">
                   {t("palettePreviewHint", { save: t("saveButton") })}
                 </Typography>
