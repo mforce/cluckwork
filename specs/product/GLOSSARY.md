@@ -78,9 +78,10 @@ details in a panel docked to the bottom of the list, instead of a popup. The
 table above it keeps its own scrolling and comparison columns; the inspector
 never covers a row, and the row it is showing stays visibly marked. On a
 phone, the table scrolls in both directions within its own bounded area, so it
-carries a **Swipe columns ↔ · Scroll rows ↕** hint. On Users, **edit** and **role**
-stay in the row. Select another user’s row to reach **password**, **change email**, **flocks**,
-and **disable** or **enable** in the inspector.
+carries a **Swipe columns ↔ · Scroll rows ↕** hint. Row-action buttons are hidden
+from the phone table; select a row to use those actions in the inspector. Wider
+screens also show them in the row. On Users, select another user’s row to reach
+**password**, **change email**, **flocks**, and **disable** or **enable** in the inspector.
 Use **Close inspector** or Escape to clear the selection and return focus to its row.
 
 **Searchable picker (#512)** — the type-to-search control used for flock and

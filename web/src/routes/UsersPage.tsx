@@ -845,7 +845,10 @@ export function UsersPage() {
         onClearSelection={() => setSelectedId(null)}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
-            <Table size="small" sx={{ "& .MuiTableCell-root": { pr: { md: 1.5, lg: 2 } } }}>
+            <Table size="small" sx={{
+              "& .MuiTableCell-root": { pr: { md: 1.5, lg: 2 } },
+              "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } },
+            }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("emailColumnHeader")}</TableCell>

@@ -2270,7 +2270,7 @@ export const tl = {
       + "nagtatakda ng tatlong kasunod. Makikita rin ng manggagawa ang Araw-araw na Tala at ng Benta ang Benta. "
       + "Buksan ang <strong>Higit Pa</strong> para sa iba pang screen.",
     gettingAroundInspector:
-      "Sa mga listahan ng setup, pumili ng row para makita ang detalye nito sa ilalim ng table. Gamitin ang <strong>Isara ang inspector</strong> o Escape para bumalik sa buong listahan. Babalik ang focus sa row na iyon.",
+      "Sa mga listahan ng setup, pumili ng row para makita ang detalye nito sa ilalim ng table. Sa telepono, nasa inspector na ito ang mga aksyon ng row. Gamitin ang <strong>Isara ang inspector</strong> o Escape para bumalik sa buong listahan. Babalik ang focus sa row na iyon.",
     gettingAroundPageLoading:
       "Sa unang pagkakataong magbukas ka ng screen pagkatapos simulan o i-update ang Cluckwork, maaaring "
       + "sandaling lumabas ang mensahe ng pag-load. Magagamit pa rin ang navigation habang naghihintay ka.",
@@ -3140,7 +3140,8 @@ export const tl = {
       + "na isang popup. Patuloy na nag-iisa mag-scroll ang table sa itaas, at nananatiling malinaw na markado "
       + "ang napiling row. "
       + "Inaalis ng Isara ang inspector o Escape ang pagpili at ibinabalik ang focus sa row na iyon. "
-      + "Sa Mga User, nananatili sa row ang i-edit at tungkulin. Pumili ng row ng ibang user para gamitin ang password, "
+      + "Sa telepono, nasa inspector ang mga aksyon ng row; makikita rin ang mga ito sa row sa mas malalaking screen. "
+      + "Sa Mga User, pumili ng row ng ibang user para gamitin ang password, "
       + "palitan ang email, mga kawan, at i-disable o i-enable sa panel na ito.",
 
     glossarySearchablePickerTerm: "Picker na may search",

@@ -2184,7 +2184,7 @@ export const es = {
       + "determina las otras tres. Los trabajadores también ven Registro diario y el personal de ventas ve "
       + "Ventas. Abra <strong>Más</strong> para ver las demás pantallas.",
     gettingAroundInspector:
-      "En las listas de configuración, seleccione una fila para ver sus detalles debajo de la tabla. Use <strong>Cerrar inspector</strong> o Escape para volver a la lista completa. El foco regresa a esa fila.",
+      "En las listas de configuración, seleccione una fila para ver sus detalles debajo de la tabla. En un teléfono, las acciones de la fila están en este inspector. Use <strong>Cerrar inspector</strong> o Escape para volver a la lista completa. El foco regresa a esa fila.",
     gettingAroundPageLoading:
       "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, puede aparecer "
       + "brevemente un mensaje de carga. La navegación sigue disponible mientras espera.",
@@ -3022,7 +3022,8 @@ export const es = {
       + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
       + "marcada visiblemente. "
       + "Cerrar inspector o Escape borra la selección y devuelve el foco a esa fila. "
-      + "En Usuarios, editar y rol siguen en la fila. Seleccione la fila de otro usuario para acceder a contraseña, "
+      + "En un teléfono, las acciones de la fila están en el inspector; en pantallas más grandes también aparecen en la fila. "
+      + "En Usuarios, seleccione la fila de otro usuario para acceder a contraseña, "
       + "cambiar correo, lotes y deshabilitar o habilitar en este panel.",
 
     glossarySearchablePickerTerm: "Selector de búsqueda",
