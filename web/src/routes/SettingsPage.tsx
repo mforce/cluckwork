@@ -260,7 +260,7 @@ export function SettingsPage() {
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
   const savedBrand = loaded === null ? null : isBrand(loaded.settings.brand) ? loaded.settings.brand : DEFAULT_BRAND;
   // A successful settings read-back can be newer than /account when its refresh fails.
-  const baselineBrand = farm !== null && (loaded === null || farm.version > loaded.settings.version)
+  const baselineBrand = farm !== null && loaded !== null && farm.version > loaded.settings.version
     ? (isBrand(farm.brand) ? farm.brand : DEFAULT_BRAND)
     : savedBrand;
   const displayedBrand = baselineBrand !== null && (staleReason === "conflict" || brand === savedBrand)
