@@ -435,6 +435,7 @@ export function FlocksPage() {
 
       <ListInspectorPane
         tableLabel={t("title")}
+        onClearSelection={() => setSelectedId(null)}
         table={visible.length === 0 ? (
           // #655 — distinguish an empty farm from a filter that hides all its flocks.
           archivedCount > 0

@@ -54,6 +54,34 @@ test.describe("Owner", () => {
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
   });
 
+  test("morning brief follows the farm theme in light and dark", async ({ page }) => {
+    await page.goto("/");
+    const brief = page.getByRole("region", { name: tEn("dashboard:morningBrief") });
+    for (const mode of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: mode });
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, mode);
+      await expect(brief).toBeVisible();
+      const colors = await brief.evaluate((element, theme) => {
+        const expected = document.createElement("span");
+        expected.style.backgroundColor = theme === "light" ? "var(--ink)" : "var(--surface)";
+        expected.style.color = theme === "light" ? "var(--surface)" : "var(--ink)";
+        expected.style.borderLeft = "1px solid var(--rule)";
+        document.body.appendChild(expected);
+        const actual = getComputedStyle(element);
+        const tokens = getComputedStyle(expected);
+        const result = { background: actual.backgroundColor, text: actual.color,
+          divider: getComputedStyle(element.lastElementChild!).borderLeftColor,
+          expectedBackground: tokens.backgroundColor, expectedText: tokens.color,
+          expectedDivider: tokens.borderLeftColor };
+        expected.remove();
+        return result;
+      }, mode);
+      expect(colors.divider).toBe(colors.expectedDivider);
+      expect(colors.background).toBe(colors.expectedBackground);
+      expect(colors.text).toBe(colors.expectedText);
+    }
+  });
+
   test("stock rows highlight on hover and keyboard focus", async ({ page }) => {
     await page.goto("/");
     const stock = page.getByRole("table", { name: tEn("dashboard:stockLedgerLabel") });

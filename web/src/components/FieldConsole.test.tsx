@@ -38,7 +38,7 @@ it("walks arbitrary rows and footer variants, rejecting emphasis masked by MUI c
 
 function SelectableList() {
   const [selected, setSelected] = useState(false);
-  return <ListInspectorPane tableLabel="Records"
+  return <ListInspectorPane tableLabel="Records" onClearSelection={() => setSelected(false)}
     table={<Table><TableBody><TableRow {...selectableRowProps(selected, () => setSelected(true))}>
       <TableCell>First record</TableCell><TableCell><button>Edit record</button></TableCell>
     </TableRow></TableBody></Table>}
@@ -55,9 +55,24 @@ it.each(["{Enter}", " "])("moves keyboard selection into the shared inspector on
   await user.keyboard(key);
   expect(screen.getByRole("heading", { name: "First record" })).toHaveFocus();
   await user.tab();
+  expect(screen.getByRole("button", { name: "Close inspector" })).toHaveFocus();
+  await user.tab();
   expect(screen.getByRole("button", { name: "Inspect action" })).toHaveFocus();
   await user.keyboard("{Escape}");
   expect(row).toHaveFocus();
+  expect(row).toHaveAttribute("aria-selected", "false");
+  expect(screen.queryByRole("heading", { name: "First record" })).not.toBeInTheDocument();
+});
+
+it("closes a selected record and returns focus to its row", async () => {
+  const user = userEvent.setup();
+  render(<SelectableList />);
+  const row = screen.getByRole("row");
+  await user.click(screen.getByRole("cell", { name: "First record" }));
+  await user.click(screen.getByRole("button", { name: "Close inspector" }));
+  expect(row).toHaveFocus();
+  expect(row).toHaveAttribute("aria-selected", "false");
+  expect(screen.queryByRole("heading", { name: "First record" })).not.toBeInTheDocument();
 });
 
 it("keeps mouse selection focused on the row", async () => {
@@ -67,6 +82,17 @@ it("keeps mouse selection focused on the row", async () => {
   await user.click(screen.getByRole("cell", { name: "First record" }));
   expect(screen.getByRole("heading", { name: "First record" })).toBeInTheDocument();
   expect(row).toHaveFocus();
+});
+
+it("clears a mouse-selected row with Escape while keeping focus on it", async () => {
+  const user = userEvent.setup();
+  render(<SelectableList />);
+  const row = screen.getByRole("row");
+  await user.click(screen.getByRole("cell", { name: "First record" }));
+  await user.keyboard("{Escape}");
+  expect(row).toHaveFocus();
+  expect(row).toHaveAttribute("aria-selected", "false");
+  expect(screen.queryByRole("heading", { name: "First record" })).not.toBeInTheDocument();
 });
 
 it("leaves row button clicks and keyboard activation with the button", async () => {

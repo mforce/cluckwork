@@ -234,7 +234,9 @@ describe("FlocksPage selected-record inspector (#908)", () => {
     if (archived) fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("row", { name: new RegExp(name) }));
     const inspector = screen.getByRole("region", { name: "Flock details" });
-    expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(actions);
+    expect([...inspector.querySelectorAll("button, a")]
+      .filter((control) => control.getAttribute("aria-label") !== "Close inspector")
+      .map((control) => control.textContent?.trim())).toEqual(actions);
     const corrective = within(inspector).getByRole("button", { name: "reactivate" });
     expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
     expect(corrective).not.toHaveStyle({ color: "var(--error)" });

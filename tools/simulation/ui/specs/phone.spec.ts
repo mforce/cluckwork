@@ -27,7 +27,7 @@ import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
 /** Owner's four thumb tabs, in the order `tabEntries` picks them (nav.tsx TAB_PRIORITY). */
-const OWNER_TABS = ["nav:dailyEntry", "nav:stock", "nav:sales", "nav:history"];
+const OWNER_TABS = ["nav:dashboard", "nav:dailyEntry", "nav:stock", "nav:sales"];
 
 /**
  * The smallest target a thumb can reliably hit, on both axes.
@@ -231,6 +231,44 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       page,
       "a thumb tab did not navigate — the bar renders and is hittable but goes nowhere",
     ).toHaveURL(/\/sales$/);
+  });
+
+  test("a selected Product can be closed to show the full list", async ({ page }) => {
+    await page.goto("/products");
+    const list = page.getByRole("region", { name: tEn("products:title") });
+    const rows = list.getByRole("row");
+    const selected = rows.nth(1);
+    await expect(selected).toBeVisible();
+    const count = await rows.count();
+    await selected.getByRole("cell").first().click();
+    await expect(selected).toHaveAttribute("aria-selected", "true");
+    const close = page.getByRole("button", { name: tEn("audit:closeInspector") });
+    const target = await rectOf(close, "the inspector close button");
+    expect(target.width).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    expect(target.height).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    await selected.focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      const ring = await close.evaluate((button) => {
+        const style = getComputedStyle(button);
+        return { outlineColor: style.outlineColor, textColor: style.color,
+          outlineWidth: style.outlineWidth, outlineOffset: style.outlineOffset };
+      });
+      expect(ring.outlineColor).toBe(ring.textColor);
+      expect(ring.outlineWidth).toBe("2px");
+      expect(ring.outlineOffset).toBe("-3px");
+    }
+    await close.click();
+    await expect(selected).toHaveAttribute("aria-selected", "false");
+    await expect(selected).toBeFocused();
+    await expect(rows).toHaveCount(count);
+    await expect(page.getByRole("region", {
+      name: tEn("common:inspectorLabel", { entity: tEn("products:entitySingular") }),
+    }).getByText(tEn("common:inspectorEmptyPrompt"))).toBeVisible();
   });
 
   test("a destination that is not a tab is reachable only through More", async ({ page, phone }) => {

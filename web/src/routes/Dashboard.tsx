@@ -638,10 +638,12 @@ export function Dashboard() {
         <FarmDate iso={today} /> · {t("farmTime", { time: fmt.time(openedAt) ?? "—" })}
       </Typography>
 
-      <Box component="section" aria-label={t("morningBrief")} sx={{
+      <Box component="section" aria-label={t("morningBrief")} sx={(theme) => ({
         display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) auto" }, gap: 2,
-        p: 2.5, mb: 3, borderRadius: "var(--r-panel)", bgcolor: "#2b2328", color: "#fffaf4",
-      }}>
+        p: 2.5, mb: 3, borderRadius: "var(--r-panel)", border: "1px solid var(--rule)",
+        bgcolor: theme.palette.mode === "dark" ? "var(--surface)" : "var(--ink)",
+        color: theme.palette.mode === "dark" ? "var(--ink)" : "var(--surface)",
+      })}>
         <Box>
           <Typography variant="h3" sx={{ fontFamily: "Georgia, serif", fontSize: "1.4rem", mb: 1 }}>{t("morningBrief")}</Typography>
           <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
@@ -663,7 +665,7 @@ export function Dashboard() {
             )}
           </Box>
         </Box>
-        {allTiles !== null && entries !== null && <Box sx={{ borderLeft: { md: "1px solid #62535e" }, borderTop: { xs: "1px solid #62535e", md: 0 }, pl: { md: 2.5 }, pt: { xs: 1.5, md: 0 }, minWidth: 150 }}>
+        {allTiles !== null && entries !== null && <Box sx={{ borderLeft: { md: "1px solid var(--rule)" }, borderTop: { xs: "1px solid var(--rule)", md: 0 }, pl: { md: 2.5 }, pt: { xs: 1.5, md: 0 }, minWidth: 150 }}>
           <Typography variant="caption">{t("todaySoFarLabel")}</Typography>
           <Typography className="num" sx={{ fontFamily: "Georgia, serif", fontSize: "2rem", fontWeight: 600, lineHeight: 1.15 }}>
             {entries === null ? "—" : fmt.count(todaysEggs(entries))}

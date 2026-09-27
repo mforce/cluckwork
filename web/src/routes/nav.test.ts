@@ -67,17 +67,14 @@ describe("navGroups role gates", () => {
 
 describe("tabEntries", () => {
   it("promotes the four highest-priority destinations a producer reaches", () => {
-    expect(tabsFor("Admin", true)).toEqual(["dailyEntry", "stock", "sales", "history"]);
+    expect(tabsFor("Admin", true)).toEqual(["dashboard", "dailyEntry", "stock", "sales"]);
   });
 
   it("drops Daily entry for Sales and Daily+Sales for ReadOnly/Denied", () => {
-    // Sales keeps its Sales tab; the fourth slot is Dashboard, because "/"
-    // outranks "/reports" in TAB_PRIORITY and Sales fills four before reaching it.
-    expect(tabsFor("Sales", false)).toEqual(["stock", "sales", "history", "dashboard"]);
-    // ReadOnly has no Sales, so History + Dashboard come earlier and Reports
-    // makes the fourth.
-    expect(tabsFor("ReadOnly", false)).toEqual(["stock", "history", "dashboard", "reports"]);
-    expect(tabsFor("Denied", false)).toEqual(["stock", "history", "dashboard", "reports"]);
+    expect(tabsFor("Sales", false)).toEqual(["dashboard", "stock", "sales", "history"]);
+    // ReadOnly has no Daily entry or Sales, so Reports fills the fourth slot.
+    expect(tabsFor("ReadOnly", false)).toEqual(["dashboard", "stock", "history", "reports"]);
+    expect(tabsFor("Denied", false)).toEqual(["dashboard", "stock", "history", "reports"]);
   });
 
   it("always returns exactly four, never a duplicate, for every role", () => {
@@ -118,6 +115,6 @@ describe("tabEntries", () => {
         { to: "/stock", labelKey: "stock", Icon: (() => null) as never },
       ] },
     ];
-    expect(tabEntries(groups).map((e) => e.labelKey)).toEqual(["stock", "dashboard"]);
+    expect(tabEntries(groups).map((e) => e.labelKey)).toEqual(["dashboard", "stock"]);
   });
 });

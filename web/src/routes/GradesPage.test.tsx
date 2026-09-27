@@ -727,7 +727,9 @@ it("keeps corrective actions outside the destructive group for an inactive recor
   await renderReady(ADMIN);
   fireEvent.click(screen.getByRole("row", { name: /Legacy/ }));
   const inspector = screen.getByRole("region", { name: "Grade details" });
-  expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "Audit history", "activate"]);
+  expect([...inspector.querySelectorAll("button, a")]
+    .filter((control) => control.getAttribute("aria-label") !== "Close inspector")
+    .map((control) => control.textContent?.trim())).toEqual(["edit", "Audit history", "activate"]);
   const corrective = within(inspector).getByRole("button", { name: "activate" });
   expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
   expect(corrective).not.toHaveStyle({ color: "var(--error)" });

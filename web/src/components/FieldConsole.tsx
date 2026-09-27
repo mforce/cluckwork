@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
-import { Box, TableContainer, Typography } from "@mui/material";
+import { Box, IconButton, TableContainer, Typography } from "@mui/material";
 import type { Theme } from "@mui/material";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const CONSOLE_PANEL_SX = {
@@ -177,6 +178,8 @@ export interface InspectorField {
   value: ReactNode;
 }
 
+const InspectorCloseContext = createContext<(() => void) | null>(null);
+
 // #908 — the setup lists' selected-record panel, docked below the table
 // (Concept B, issue #908's owner-approved direction). Renders nothing but the
 // empty prompt until a row is selected.
@@ -188,6 +191,7 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   emptyMessage: string;
 }) {
   const { t } = useTranslation("audit");
+  const closeInspector = useContext(InspectorCloseContext);
   const detailsRef = useRef<HTMLDivElement>(null);
   const fieldsRef = useRef<HTMLDListElement>(null);
   const [hiddenEdges, setHiddenEdges] = useState({ top: false, bottom: false });
@@ -220,15 +224,20 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
   return (
     <Box component="aside" role="region" aria-label={ariaLabel} sx={{ minWidth: 0, display: "flex", flexDirection: "column", maxHeight: "inherit" }}>
       <Box sx={(theme) => ({
-        ...CONSOLE_RAIL_SX, flexShrink: 0, borderRadius: 0, border: 0, mx: "-1px", p: "7.5px 19px",
+        ...CONSOLE_RAIL_SX, display: "flex", alignItems: "center", flexShrink: 0, borderRadius: 0, border: 0, mx: "-1px", p: "0 8px 0 19px", minHeight: 44,
         ...(theme.palette.mode === "dark" && {
           bgcolor: "var(--stat-accent)", color: "var(--surface)",
         }),
       })}>
         <Typography component="h3" variant="h3" noWrap tabIndex={-1} sx={{
-          m: 0, color: "inherit",
+          m: 0, color: "inherit", flex: 1, minWidth: 0,
           "&:focus-visible": { outline: "none" },
         }}>{title}</Typography>
+        {closeInspector && <IconButton aria-label={t("closeInspector")} onClick={closeInspector}
+          sx={{ minWidth: 44, minHeight: 44, color: "inherit", flexShrink: 0,
+            "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: -3 } }}>
+          <X size={18} aria-hidden />
+        </IconButton>}
       </Box>
       {fields && fields.length > 0 && (
         <Box ref={detailsRef} role="region" aria-label={t("detailsHeader")}
@@ -278,7 +287,9 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
 
 // #908 — a flex column so the table owns its own scroll above a bottom-docked
 // inspector, in the same region, never overlapping it (Concept B).
-export function ListInspectorPane({ table, inspector, tableLabel }: { table: ReactNode; inspector: ReactNode; tableLabel: string }) {
+export function ListInspectorPane({ table, inspector, tableLabel, onClearSelection }: {
+  table: ReactNode; inspector: ReactNode; tableLabel: string; onClearSelection: () => void;
+}) {
   const paneRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -335,10 +346,18 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
   useLayoutEffect(() => {
     if (keyboardSelection > 0) inspectorRef.current?.querySelector<HTMLElement>("h3")?.focus();
   }, [keyboardSelection]);
+  const closeInspector = () => {
+    tableRef.current?.querySelector<HTMLElement>('tr[aria-selected="true"]')?.focus();
+    onClearSelection();
+  };
   return (
     <Box ref={paneRef} onKeyDown={(event) => {
-      if (event.target instanceof HTMLTableRowElement && event.target.tabIndex === 0
-          && (event.key === "Enter" || event.key === " ")) {
+      if (!(event.target instanceof HTMLTableRowElement)) return;
+      if (event.key === "Escape" && event.target.getAttribute("aria-selected") === "true") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeInspector();
+      } else if (event.target.tabIndex === 0 && (event.key === "Enter" || event.key === " ")) {
         setKeyboardSelection((selection) => selection + 1);
       }
     }} sx={{
@@ -359,7 +378,7 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
             || !event.currentTarget.contains(event.target)) return;
         event.preventDefault();
         event.stopPropagation();
-        paneRef.current?.querySelector<HTMLElement>('tr[aria-selected="true"]')?.focus();
+        closeInspector();
       }} sx={(theme) => ({
         flex: "0 0 auto", maxHeight: { xs: 260, md: 220 }, overflow: "hidden",
         borderTop: "1px solid var(--rule)", bgcolor: "var(--surface)",
@@ -369,7 +388,7 @@ export function ListInspectorPane({ table, inspector, tableLabel }: { table: Rea
           ...(theme.palette.mode === "dark" && { bgcolor: "var(--surface-2)" }),
         },
       })}>
-        {inspector}
+        <InspectorCloseContext.Provider value={closeInspector}>{inspector}</InspectorCloseContext.Provider>
       </Box>
     </Box>
   );

@@ -102,7 +102,7 @@ export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
 // the role can reach; a producer gets Daily entry, a ReadOnly viewer does not,
 // and either way whatever is not a tab is one tap away in More.
 const TAB_PRIORITY = [
-  "/daily-entry", "/stock", "/sales", "/history", "/", "/reports", "/inventory", "/flocks", "/water",
+  "/", "/daily-entry", "/stock", "/sales", "/history", "/reports", "/inventory", "/flocks", "/water",
 ];
 
 // The four thumb tabs (More is the fixed fifth slot). Priority order wins;

@@ -236,7 +236,7 @@ describe("UsersPage load", () => {
 
 // #908 — the table-plus-bottom-inspector redesign (Concept B).
 describe("UsersPage selected-record inspector (#908)", () => {
-  it.each(["{Enter}", " "])("focuses the inspector on %s with edit one Tab away", async (key) => {
+  it.each(["{Enter}", " "])("focuses the inspector on %s with close one Tab away", async (key) => {
     const user = userEvent.setup();
     await renderReady(ADMIN);
     const row = screen.getByRole("row", { name: /worker@farm.test/ });
@@ -244,6 +244,8 @@ describe("UsersPage selected-record inspector (#908)", () => {
     await user.keyboard(key);
     const inspector = screen.getByRole("region", { name: "User details" });
     expect(within(inspector).getByRole("heading", { name: "worker@farm.test" })).toHaveFocus();
+    await user.tab();
+    expect(within(inspector).getByRole("button", { name: "Close inspector" })).toHaveFocus();
     await user.tab();
     expect(within(inspector).getByRole("button", { name: "edit" })).toHaveFocus();
     await user.tab();
@@ -263,7 +265,9 @@ describe("UsersPage selected-record inspector (#908)", () => {
       .toEqual(["edit", "role"]);
     fireEvent.click(row);
     const inspector = screen.getByRole("region", { name: "User details" });
-    expect(within(inspector).getAllByRole("button").map((button) => button.textContent?.trim()))
+    expect(within(inspector).getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-label") !== "Close inspector")
+      .map((button) => button.textContent?.trim()))
       .toEqual(["edit", "role", "password", "change email", "flocks", "disable"]);
   });
 
@@ -4002,7 +4006,9 @@ it("keeps corrective actions outside the destructive group for an inactive recor
   await renderReady(ADMIN);
   fireEvent.click(screen.getByRole("row", { name: /disabled@farm.test/ }));
   const inspector = screen.getByRole("region", { name: "User details" });
-  expect([...inspector.querySelectorAll("button, a")].map((control) => control.textContent?.trim())).toEqual(["edit", "role", "password", "change email", "flocks", "enable"]);
+  expect([...inspector.querySelectorAll("button, a")]
+    .filter((control) => control.getAttribute("aria-label") !== "Close inspector")
+    .map((control) => control.textContent?.trim())).toEqual(["edit", "role", "password", "change email", "flocks", "enable"]);
   const corrective = within(inspector).getByRole("button", { name: "enable" });
   expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
   expect(corrective).not.toHaveStyle({ color: "var(--error)" });

@@ -106,6 +106,24 @@ describe("AppLayout lazy route containment (#595)", () => {
 });
 
 describe("AppLayout sidebar", () => {
+  it.each(["light", "dark"] as const)("uses the same shell surfaces on Dashboard and Stock in %s mode", (mode) => {
+    const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, mode), mode);
+    const renderRoute = (route: string) => {
+      const view = renderWithProviders(
+        <ThemeProvider theme={theme}><AppLayout /></ThemeProvider>,
+        { route, token: { sub: "u1", role: "Admin" } },
+      );
+      const colors = {
+        sidebar: getComputedStyle(screen.getByRole("complementary")).backgroundColor,
+        content: getComputedStyle(screen.getByRole("main")).backgroundColor,
+      };
+      view.unmount();
+      return colors;
+    };
+
+    expect(renderRoute("/")).toEqual(renderRoute("/stock"));
+  });
+
   it("renders the selected destination as a contrasting filled row", () => {
     const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
     renderWithProviders(
@@ -257,7 +275,7 @@ describe("AppLayout bottom tabs", () => {
   it("promotes the four most-used destinations a producer can reach, plus More", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     const tabs = tabbar().getAllByRole("link").map((a) => a.textContent);
-    expect(tabs).toEqual(["Daily entry", "Stock", "Sales", "History"]);
+    expect(tabs).toEqual(["Dashboard", "Daily entry", "Stock", "Sales"]);
     expect(tabbar().getByRole("button", { name: "More" })).toBeInTheDocument();
   });
 
@@ -266,7 +284,7 @@ describe("AppLayout bottom tabs", () => {
     const tabs = tabbar().getAllByRole("link").map((a) => a.textContent);
     // No Daily entry (can't produce), no Sales (ReadOnly) — the bar backfills
     // with what this role actually reaches, in priority order.
-    expect(tabs).toEqual(["Stock", "History", "Dashboard", "Reports"]);
+    expect(tabs).toEqual(["Dashboard", "Stock", "History", "Reports"]);
   });
 
   it("opens the More sheet with the full grouped nav and a way out", () => {
