@@ -445,7 +445,10 @@ export function FlocksPage() {
                 action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); openDialog("create"); setCreating(true); } } : undefined} />
         ) : (
           <LedgerTableContainer scrollHint="columnsAndRows">
-            <Table size="small" sx={{ "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } } }}>
+            <Table size="small" sx={{
+              "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } },
+              "& td:nth-last-child(2) a": { display: { xs: "none", md: "inline" } },
+            }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>

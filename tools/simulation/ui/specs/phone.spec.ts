@@ -301,6 +301,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       name: tEn("common:inspectorLabel", { entity: tEn("customers:entitySingular") }),
     });
     await expect(inspector.getByRole("button", { name: tEn("customers:editButton") })).toBeVisible();
+    await expect(inspector.getByText("Simulation fixture customer")).toBeVisible();
   });
 
   test("a destination that is not a tab is reachable only through More", async ({ page, phone }) => {
