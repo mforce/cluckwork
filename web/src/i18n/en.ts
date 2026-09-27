@@ -1905,6 +1905,7 @@ export const en = {
     paletteHint:
       "The accent colour for everyone on this farm. Each person still "
       + "chooses light or night mode for themselves.",
+    palettePreviewHint: "Previewing. Select {{save}} to keep this palette.",
     // Curated palette DISPLAY names (#149) — the ids themselves stay raw DATA
     // (see the namespace header comment above).
     paletteAubergine: "Aubergine",
@@ -3575,8 +3576,8 @@ export const en = {
     farmPaletteHeading: "Farm palette",
     farmPaletteIntro:
       "Farm settings lets an owner pick the accent colour used across the app for everyone on the farm: "
-      + "Aubergine, Forest, Slate or Terracotta. The choice applies when you save, and everyone sees it the "
-      + "next time their app loads."
+      + "Aubergine, Forest, Slate or Terracotta. Selecting a palette previews it across your app without saving it. "
+      + "Select Save settings to keep it for everyone; leaving or a failed save restores the saved palette."
       + " Each device also remembers the palette for each farm, so a farm's own colour can appear on the "
       + "sign-in screen before anyone signs in: when you open that farm's link, or when the device "
       + "remembers exactly one farm. A device that remembers several farms shows the default colour until "
@@ -4041,7 +4042,7 @@ export const en = {
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:
       "The farm-wide accent colour, chosen by an owner in Farm settings. Separate from each person's own "
-      + "light/night mode setting."
+      + "light/night mode setting. A selection previews across the owner's app until saved or discarded."
       + " Remembered for each farm on each device, so it can appear on the sign-in screen before anyone "
       + "signs in; a device that remembers several farms shows the default until sign-in.",
 

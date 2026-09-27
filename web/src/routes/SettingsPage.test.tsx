@@ -4,15 +4,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsPage, formatByteCap } from "./SettingsPage";
-import { FarmContext } from "../farm/FarmContext";
+import { FarmContext, FarmProvider } from "../farm/FarmContext";
 import {
-  getFarmBanner, getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmBanner,
+  getAccount, getFarmBanner, getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmBanner,
   removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
 } from "../api/cluckwork";
 import type { Account, FarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
-import { BRANDS } from "../lib/brand";
+import { BRANDS, applyBrand, brandKeyFor } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
@@ -65,6 +65,7 @@ vi.mock("../api/cluckwork", async () => {
   return {
     ...actual,
     getFarmSettings: vi.fn(),
+    getAccount: vi.fn(),
     updateFarmSettings: vi.fn(),
     uploadFarmLogo: vi.fn(),
     removeFarmLogo: vi.fn(),
@@ -79,6 +80,7 @@ vi.mock("../api/cluckwork", async () => {
 });
 
 const mockGetSettings = vi.mocked(getFarmSettings);
+const mockGetAccount = vi.mocked(getAccount);
 const mockUpdate = vi.mocked(updateFarmSettings);
 const mockUpload = vi.mocked(uploadFarmLogo);
 const mockRemove = vi.mocked(removeFarmLogo);
@@ -400,6 +402,59 @@ describe("SettingsPage saving", () => {
     expect(screen.queryByText("Settings saved.")).not.toBeInTheDocument();
   });
 
+  it("keeps a landed palette when its settings read-back fails", async () => {
+    bindAccount("acct-A");
+    bindFarm("default-farm");
+    const key = brandKeyFor("default-farm");
+    localStorage.setItem(key, "forest");
+    mockUpdate.mockResolvedValue(undefined);
+    const { unmount } = await renderReady(SETTINGS({ brand: "forest" }));
+    mockGetSettings.mockRejectedValueOnce(new Error("offline"));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/Saved\. This screen could not read the settings back/);
+    expect(screen.getByRole("radio", { name: "Slate" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Slate" })).toBeDisabled();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    expect(localStorage.getItem(key)).toBe("slate");
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
+    unmount();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    bindFarm(null);
+    bindAccount(null);
+    localStorage.removeItem(key);
+  });
+
+  it("does not apply a late saved palette to a different farm", async () => {
+    bindAccount("acct-A");
+    bindFarm("first-farm");
+    let finishUpdate: (() => void) | undefined;
+    mockUpdate.mockReturnValue(new Promise((resolve) => {
+      finishUpdate = () => resolve(undefined);
+    }));
+    const { unmount } = await renderReady(SETTINGS({ brand: "forest" }));
+    mockGetSettings.mockRejectedValueOnce(new Error("offline"));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    unmount();
+    bindAccount("acct-B");
+    bindFarm("second-farm");
+    applyBrand("terracotta", farmBindingToken());
+
+    await act(async () => { finishUpdate!(); });
+
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+    expect(localStorage.getItem(brandKeyFor("second-farm"))).toBe("terracotta");
+    bindFarm(null);
+    bindAccount(null);
+    localStorage.removeItem(brandKeyFor("first-farm"));
+    localStorage.removeItem(brandKeyFor("second-farm"));
+  });
+
   it("says the change may not have reached the rest of the app when /account fails", async () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady();
@@ -468,6 +523,23 @@ describe("SettingsPage saving", () => {
     // retry sends the same version, so it 409s forever (the middleware caches
     // only 2xx, so nothing is replayed).
     expect(screen.getByRole("button", { name: "Save settings" })).toBeDisabled();
+  });
+
+  it("shows the other Owner's palette after a version conflict", async () => {
+    const initial = SETTINGS({ brand: "forest" });
+    mockGetSettings.mockResolvedValue(initial);
+    mockGetAccount.mockResolvedValue(account({ brand: "terracotta", version: 8 }));
+    mockUpdate.mockRejectedValue(new ApiError(409, "Account.VersionMismatch", "Version mismatch."));
+    render(<FarmProvider initialAccount={initial.settings}><SettingsPage /></FarmProvider>);
+    await screen.findByRole("radio", { name: "Forest" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockGetAccount).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Terracotta" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Terracotta" })).toBeDisabled();
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
   });
 
   it("surfaces the server's message for any other refusal", async () => {
@@ -647,13 +719,102 @@ describe("SettingsPage palette (#149)", () => {
     expect(mockUpdate.mock.calls[0][0]).toMatchObject({ brand: "slate" });
   });
 
-  it("does not change the palette before the save lands", async () => {
-    // The issue asks for apply-on-save, not a live preview.
+  it("previews the palette without writing the farm cache and shows the unsaved hint", async () => {
+    bindAccount("acct-A");
+    bindFarm("default-farm");
+    const key = brandKeyFor("default-farm");
+    localStorage.setItem(key, "aubergine");
     await renderReady(SETTINGS({ brand: "aubergine" }));
 
     fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
 
-    expect(document.documentElement.dataset.brand).toBeUndefined();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    expect(screen.getByText("Previewing. Select Save settings to keep this palette.")).toBeInTheDocument();
+    expect(localStorage.getItem(key)).toBe("aubergine");
+    bindFarm(null);
+    bindAccount(null);
+    localStorage.removeItem(key);
+  });
+
+  it("keeps an unsaved preview after a logo upload refreshes the farm", async () => {
+    const initial = SETTINGS({ brand: "forest" });
+    mockGetSettings.mockResolvedValue(initial);
+    mockGetAccount.mockResolvedValue(account({ brand: "forest" }));
+    mockUpload.mockResolvedValue({
+      contentType: "image/png", contentHash: "new-logo", width: 1, height: 1,
+      byteLength: 10, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    render(<FarmProvider initialAccount={initial.settings}><SettingsPage /></FarmProvider>);
+    await screen.findByRole("radio", { name: "Forest" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(10)] } });
+    });
+
+    expect(mockGetAccount).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Slate" })).toBeChecked();
+    expect(screen.getByText("Previewing. Select Save settings to keep this palette.")).toBeInTheDocument();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+  });
+
+  it("keeps a newer farm palette after refreshing without a preview", async () => {
+    const initial = SETTINGS({ brand: "forest" });
+    mockGetSettings.mockResolvedValue(initial);
+    mockGetAccount.mockResolvedValue(account({ brand: "terracotta", version: 8 }));
+    mockUpload.mockResolvedValue({
+      contentType: "image/png", contentHash: "new-logo", width: 1, height: 1,
+      byteLength: 10, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    const { unmount } = render(
+      <FarmProvider initialAccount={initial.settings}><SettingsPage /></FarmProvider>);
+    await screen.findByRole("radio", { name: "Forest" });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(10)] } });
+    });
+
+    expect(mockGetAccount).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Terracotta" })).toBeChecked();
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+    unmount();
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+  });
+
+  it("restores the saved palette when leaving without saving", async () => {
+    const { unmount } = await renderReady(SETTINGS({ brand: "forest" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    expect(document.documentElement.dataset.brand).toBe("slate");
+
+    unmount();
+
+    expect(document.documentElement.dataset.brand).toBe("forest");
+  });
+
+  it("restores the saved palette when the selection is reset", async () => {
+    await renderReady(SETTINGS({ brand: "forest" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Forest" }));
+
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
+  });
+
+  it("restores the saved palette after a failed save", async () => {
+    await renderReady(SETTINGS({ brand: "forest" }));
+    mockUpdate.mockRejectedValue(new ApiError(500, "Save failed", "Save failed"));
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    });
+
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    expect(screen.getByRole("radio", { name: "Forest" })).toBeChecked();
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
   });
 
   it("applies the palette from its own re-read even when the shell refresh fails", async () => {

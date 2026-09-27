@@ -48,6 +48,12 @@ export function isBrand(value: string): value is Brand {
   return (BRANDS as readonly string[]).includes(value);
 }
 
+export function previewBrand(brand: Brand, tokenAt: string): void {
+  if (tokenAt !== farmBindingToken()) return;
+  if (brand === DEFAULT_BRAND) delete document.documentElement.dataset.brand;
+  else document.documentElement.dataset.brand = brand;
+}
+
 // `tokenAt` is the `farmBindingToken()` captured by the caller before its
 // await. Required, not optional: every caller is post-await or could become
 // so, and an optional guard is one a future caller forgets.
@@ -63,14 +69,8 @@ export function isBrand(value: string): value is Brand {
 export function applyBrand(brand: string, tokenAt: string): void {
   if (tokenAt !== farmBindingToken()) return;
   // Attribute first: the palette must apply even if nothing persists.
-  if (brand === DEFAULT_BRAND || !isBrand(brand)) {
-    // An unknown id is treated as the default rather than written through: the
-    // server rejects unknown ids on save, so seeing one here means stale cache
-    // or tampering, and aubergine is the safe reading of both.
-    delete document.documentElement.dataset.brand;
-  } else {
-    document.documentElement.dataset.brand = brand;
-  }
+  // An unknown id is treated as the default: the server rejects it on save.
+  previewBrand(isBrand(brand) ? brand : DEFAULT_BRAND, tokenAt);
   // #586 — cache ONLY under a slug this session's login typed, and only while
   // that login's account is still the tab's bound account. A fresh tab restored
   // from the refresh cookie has no such binding: it paints, and caches nothing.

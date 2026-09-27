@@ -18,7 +18,7 @@ import { useFarm } from "../farm/useFarm";
 import { useBannerObjectUrl, useLogoObjectUrl } from "../farm/useLogoObjectUrl";
 import { farmBindingToken, getBoundFarmCode } from "../auth/tokenStore";
 import { cacheBannerBytes, forgetBannerFor } from "../lib/bannerCache";
-import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
+import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand, previewBrand } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
 import { newId } from "../lib/ids";
@@ -162,7 +162,7 @@ function keyFor(attempt: Attempt | null, payload: string): Attempt {
 // §4.6's currency lock surfaced as a locked field instead of a 422 the user
 // only meets after typing.
 export function SettingsPage() {
-  const { refresh } = useFarm();
+  const { farm, refresh } = useFarm();
   const { confirm, confirmDialog } = useConfirm();
   const { t } = useTranslation("settings");
   const { t: tc } = useTranslation("common");
@@ -175,7 +175,7 @@ export function SettingsPage() {
   const [locale, setLocale] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
   const [unitSystem, setUnitSystem] = useState("Metric");
-  const [brand, setBrand] = useState<string>(DEFAULT_BRAND);
+  const [brand, setBrand] = useState<Brand>(DEFAULT_BRAND);
   // #444 — the farm-default Daily Entry stepper pack unit. Fetched alongside
   // the settings themselves (not a separate effect) so the select's value and
   // its options always land together — no race where the stored code briefly
@@ -217,10 +217,8 @@ export function SettingsPage() {
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  // Set when a save landed but the follow-up read did not: the screen still
-  // holds the OLD version, so another save from here would 409 and blame
-  // someone else for this user's own write.
-  const [stale, setStale] = useState(false);
+  const [staleReason, setStaleReason] = useState<"conflict" | "readback" | null>(null);
+  const stale = staleReason !== null;
   const saveAttempt = useRef<Attempt | null>(null);
 
   const [focusUploadAfterRemove, setFocusUploadAfterRemove] = useState(false);
@@ -260,6 +258,20 @@ export function SettingsPage() {
   const bannerMaxUploadKb = Math.floor(bannerMaxUploadBytes / 1024);
 
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
+  const savedBrand = loaded === null ? null : isBrand(loaded.settings.brand) ? loaded.settings.brand : DEFAULT_BRAND;
+  // A successful settings read-back can be newer than /account when its refresh fails.
+  const baselineBrand = farm !== null && loaded !== null && farm.version > loaded.settings.version
+    ? (isBrand(farm.brand) ? farm.brand : DEFAULT_BRAND)
+    : savedBrand;
+  const displayedBrand = baselineBrand !== null && (staleReason === "conflict" || brand === savedBrand)
+    ? baselineBrand : brand;
+
+  useEffect(() => {
+    if (baselineBrand === null) return;
+    const boundAt = farmBindingToken();
+    previewBrand(displayedBrand, boundAt);
+    return () => previewBrand(baselineBrand, boundAt);
+  }, [displayedBrand, baselineBrand, farm]);
 
   // Seeds every field from the server. Called on mount, and after a save (the
   // version moved, and the currency may have locked). NOT after a logo write:
@@ -348,7 +360,7 @@ export function SettingsPage() {
     e.preventDefault();
     // In-flight re-entry (the old `saving || logoBusy` check) is the hook's
     // job now: run() below skips while any flight is open.
-    if (stale || loaded === null) return;
+    if (stale || loaded === null || savedBrand === null) return;
     await run("settings", async () => {
       setSaveError(null);
       setSaved(false);
@@ -370,17 +382,21 @@ export function SettingsPage() {
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
       saveAttempt.current = attempt;
+      // The write may finish after a farm switch; only this binding may receive its palette.
+      const boundAt = farmBindingToken();
 
       try {
         await updateFarmSettings(body, attempt.key);
       } catch (err) {
+        setBrand(savedBrand);
         if (err instanceof ApiError && err.status === 409) {
           // The version this screen holds is now definitively wrong, and a retry
           // sends the same one: the middleware caches only 2xx, so it re-executes
           // and 409s again, forever. Disable the button so it agrees with the
           // message rather than inviting the loop (pi round 2).
-          setStale(true);
+          setStaleReason("conflict");
           setSaveError(i18n.t("settings:versionConflictMessage"));
+          await refresh();
         } else {
           setSaveError(errText(err));
         }
@@ -393,9 +409,6 @@ export function SettingsPage() {
       saveAttempt.current = null;
       setSaved(true);
       try {
-        // Captured BEFORE the await: the response may land after a farm switch
-        // in the same tab, in which case it is farm A's value, not this farm's.
-        const boundAt = farmBindingToken();
         const fresh = await load();
         // Applied from THIS response rather than waiting on refresh() below:
         // refresh() cannot throw (the provider has to survive a failed read), so
@@ -403,7 +416,12 @@ export function SettingsPage() {
         // palette live and cached while the authoritative value was in hand (#149).
         applyBrand(fresh.settings.brand, boundAt);
       } catch {
-        setStale(true);
+        setLoaded({
+          ...loaded,
+          settings: { ...loaded.settings, brand },
+        });
+        applyBrand(brand, boundAt);
+        setStaleReason("readback");
         setSaveError(i18n.t("settings:saveReadBackFailedMessage"));
         return;
       }
@@ -740,9 +758,9 @@ export function SettingsPage() {
                       type="radio"
                       name="brand"
                       value={id}
-                      checked={brand === id}
+                      checked={displayedBrand === id}
                       onChange={() => setBrand(id)}
-                      disabled={saving}
+                      disabled={saving || stale}
                     />
                     <Box aria-hidden sx={{
                       width: 14, height: 14, borderRadius: "var(--r-pill)", border: "1px solid",
@@ -752,6 +770,11 @@ export function SettingsPage() {
                   </Box>
                 ))}
               </Stack>
+              {!stale && savedBrand !== null && brand !== savedBrand && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} role="status">
+                  {t("palettePreviewHint", { save: t("saveButton") })}
+                </Typography>
+              )}
             </Box>
           </AccordionDetails>
         </Accordion>

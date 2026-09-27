@@ -1103,6 +1103,10 @@ light/night preference. The set is curated rather than free-form because every
 palette ships a contrast-checked light and dark pair; an arbitrary colour
 cannot be held to that bar.
 
+Selecting a palette previews it across the Owner's app without saving it.
+Save settings commits it for everyone. Leaving Farm settings or a failed save
+restores the saved palette; the preview is never cached on the device.
+
 The palette is remembered per farm on each device (#586), so a farm's own colour can appear on the
 sign-in screen before anyone signs in — when the sign-in link names that farm (`?farm=<code>`), or when
 the device remembers exactly one farm. A device that remembers several farms shows the default until

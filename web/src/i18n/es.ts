@@ -1414,6 +1414,7 @@ export const es = {
     paletteHint:
       "El color de acento para todos en esta granja. Cada persona sigue "
       + "eligiendo el modo claro o nocturno por sí misma.",
+    palettePreviewHint: "Vista previa. Seleccione {{save}} para conservar esta paleta.",
     paletteAubergine: "Berenjena",
     paletteForest: "Bosque",
     paletteSlate: "Pizarra",
@@ -2878,8 +2879,9 @@ export const es = {
     farmPaletteHeading: "Paleta de la granja",
     farmPaletteIntro:
       "La configuración de la granja permite a un propietario elegir el color de acento usado en toda "
-      + "la aplicación para todos en la granja: Berenjena, Bosque, Pizarra o Terracota. La elección se "
-      + "aplica al guardar, y todos la ven la próxima vez que carga su aplicación."
+      + "la aplicación para todos en la granja: Berenjena, Bosque, Pizarra o Terracota. Al seleccionar una paleta, "
+      + "se ve una vista previa en toda su aplicación sin guardarla. Seleccione Guardar configuración para "
+      + "conservarla para todos; al salir o si falla el guardado, vuelve la paleta guardada."
       + " Cada dispositivo también recuerda la paleta de cada granja, por lo que el color propio de una "
       + "granja puede aparecer en la pantalla de inicio de sesión antes de que alguien inicie sesión: al "
       + "abrir el enlace de esa granja, o cuando el dispositivo recuerda exactamente una granja. Un "
@@ -3392,7 +3394,8 @@ export const es = {
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:
       "El color de acento de toda la granja, elegido por un propietario en Configuración de la granja. "
-      + "Independiente de la configuración de modo claro/nocturno de cada persona."
+      + "Independiente de la configuración de modo claro/nocturno de cada persona. La selección se muestra "
+      + "en toda la aplicación del propietario hasta que se guarda o se descarta."
       + " Se recuerda por granja en cada dispositivo, por lo que puede aparecer en la pantalla de inicio "
       + "de sesión antes de que alguien inicie sesión; un dispositivo que recuerda varias granjas muestra "
       + "el predeterminado hasta iniciar sesión.",
