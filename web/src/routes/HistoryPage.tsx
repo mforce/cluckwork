@@ -952,6 +952,7 @@ export function HistoryPage() {
                       "& strong": { fontWeight: 650, color: e.status === "Voided" ? "inherit" : "var(--ink)" },
                     }}>
                       <Trans ns="history" i18nKey="rowSummary" components={{ strong: <strong /> }}
+                        count={e.mortalityCount}
                         values={{ total: fmt.count(e.totalEggs), losses: lossList(e), deaths: fmt.count(e.mortalityCount) }} />
                     </Box>
                   </ButtonBase>

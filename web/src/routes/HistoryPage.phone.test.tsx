@@ -174,6 +174,15 @@ describe("HistoryPage phone rows (#980)", () => {
     await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1));
   });
 
+  it("agrees in number with the death count", async () => {
+    vi.mocked(listDailyEntries).mockResolvedValue([
+      SUBMITTED, { ...SUBMITTED, id: "de9", date: "2026-07-17", mortalityCount: 4 },
+    ]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    expect(await screen.findByRole("button", { name: /1 death$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /4 deaths$/ })).toBeInTheDocument();
+  });
+
   it("mutes a voided row without dropping its figures", async () => {
     vi.mocked(listDailyEntries).mockResolvedValue([
       { ...SUBMITTED, status: "Voided", voidReason: "spoiled" },

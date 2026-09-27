@@ -1779,6 +1779,7 @@ export const es = {
     voidButton: "anular",
     loadMoreButton: "cargar más",
     rowSummary: "<strong>{{total}}</strong> total · <strong>{{losses}}</strong> pérdidas · <strong>{{deaths}}</strong> muertes",
+    rowSummary_one: "<strong>{{total}}</strong> total · <strong>{{losses}}</strong> pérdidas · <strong>{{deaths}}</strong> muerte",
 
     // Entry-status pills
     statusVoided: "Anulado",

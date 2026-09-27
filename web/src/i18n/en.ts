@@ -2419,8 +2419,11 @@ export const en = {
     voidButton: "void",
     loadMoreButton: "load more",
     // #980 — the phone row's second line. <strong> marks the FIGURES; the
-    // words between them, and their order, belong to the translator.
+    // words between them, and their order, belong to the translator. `count`
+    // is the mortality number and drives the plural; the three interpolated
+    // values are the farm-formatted strings (same shape as trendDayTip).
     rowSummary: "<strong>{{total}}</strong> total · <strong>{{losses}}</strong> losses · <strong>{{deaths}}</strong> deaths",
+    rowSummary_one: "<strong>{{total}}</strong> total · <strong>{{losses}}</strong> losses · <strong>{{deaths}}</strong> death",
 
     // Entry-status pills (statusCell) — see the namespace header comment
     // above for why this is a separate vocabulary from enums:status.
