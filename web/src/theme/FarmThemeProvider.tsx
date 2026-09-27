@@ -8,6 +8,7 @@ import {
   pixelsFrom, readThemeMode, readThemeTokens,
   type ThemeMode, type ThemeToken, type TokenValues,
 } from "./farmTokens";
+import { syncThemeColorMeta } from "./metaThemeColor";
 
 /** WCAG 2.2 AAA 2.5.5, and the floor `styles.css` already holds phone controls to. */
 const PHONE_TOUCH_TARGET_PX = 44;
@@ -634,12 +635,20 @@ export function FarmThemeProvider({ children }: { children: ReactNode }) {
     return () => observer.disconnect();
   }, []);
 
-  const theme = useMemo(
-    // `signal` is the dependency that matters: the reads below are of live DOM
-    // state, so they must re-run whenever the observer fires.
-    () => createFarmTheme(readThemeTokens(), readThemeMode()),
+  const tokens = useMemo(
+    // `signal` is the dependency that matters: this reads live DOM state, so
+    // it must re-run whenever the observer fires.
+    () => readThemeTokens(),
     [signal],
   );
+  const theme = useMemo(() => createFarmTheme(tokens, readThemeMode()), [tokens]);
+
+  // #974 — same cadence as the theme itself: on mount, and again whenever the
+  // observer above sees data-brand/data-theme change, so the browser chrome
+  // never lags the in-page one.
+  useEffect(() => {
+    syncThemeColorMeta(tokens);
+  }, [tokens]);
 
   return (
     <CacheProvider value={emotionCache}>

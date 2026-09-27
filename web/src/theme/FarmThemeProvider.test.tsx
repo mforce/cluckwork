@@ -1,8 +1,16 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { useTheme } from "@mui/material/styles";
 import Chip from "@mui/material/Chip";
 import { FarmThemeProvider } from "./FarmThemeProvider";
+import { syncThemeColorMeta } from "./metaThemeColor";
+
+// #974 — which colour `--lavender` resolves to per brand/mode is pinned by
+// metaThemeColor.test.ts against the real stylesheet; this file only has
+// jsdom's fallback tokens (constant regardless of data-theme/data-brand), so
+// it can prove WIRING (does the provider call the sync on mount and again
+// after an outside-React switch) but not the resolved colour itself.
+vi.mock("./metaThemeColor", () => ({ syncThemeColorMeta: vi.fn() }));
 
 function Probe() {
   const theme = useTheme();
@@ -28,6 +36,18 @@ describe("FarmThemeProvider (#674)", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("dark"));
     document.documentElement.dataset.theme = "light";
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("light"));
+  });
+
+  it("syncs meta[name=theme-color] on mount and again after a data-theme change outside React (#974)", async () => {
+    const spy = vi.mocked(syncThemeColorMeta);
+    spy.mockClear();
+
+    render(<FarmThemeProvider><Probe /></FarmThemeProvider>);
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    const callsOnMount = spy.mock.calls.length;
+
+    document.documentElement.dataset.theme = "dark";
+    await waitFor(() => expect(spy.mock.calls.length).toBeGreaterThan(callsOnMount));
   });
 
   // #873 — this file carries NO csp-nonce meta, which is the Vite dev server's
