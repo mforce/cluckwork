@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BRANDS } from "../lib/brand";
 import { stubMatchMedia } from "../test/matchMedia";
-import { syncThemeColorMeta, themeColorFrom } from "./metaThemeColor";
+import { resyncThemeColorMeta, syncThemeColorMeta, themeColorFrom } from "./metaThemeColor";
 import { tokensFor } from "./farmTokens.test";
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("themeColorFrom (#976 round 1)", () => {
+describe("themeColorFrom (#976)", () => {
   it("reads --lavender on desktop, the token MuiDrawer's shell paper paints with", () => {
     for (const brand of BRANDS) {
       for (const mode of ["light", "dark"] as const) {
         const tokens = tokensFor(brand, mode);
-        expect(themeColorFrom(tokens, true)).toBe(tokens["--lavender"]);
+        expect(themeColorFrom(tokens, true, false)).toBe(tokens["--lavender"]);
       }
     }
   });
@@ -20,7 +20,7 @@ describe("themeColorFrom (#976 round 1)", () => {
     for (const brand of BRANDS) {
       for (const mode of ["light", "dark"] as const) {
         const tokens = tokensFor(brand, mode);
-        expect(themeColorFrom(tokens, false)).toBe(tokens["--canvas"]);
+        expect(themeColorFrom(tokens, false, false)).toBe(tokens["--canvas"]);
       }
     }
   });
@@ -29,10 +29,22 @@ describe("themeColorFrom (#976 round 1)", () => {
     const seen = new Set<string>();
     for (const brand of BRANDS) {
       for (const mode of ["light", "dark"] as const) {
-        seen.add(themeColorFrom(tokensFor(brand, mode), true));
+        seen.add(themeColorFrom(tokensFor(brand, mode), true, false));
       }
     }
     expect(seen.size).toBe(BRANDS.length * 2);
+  });
+
+  // #976 round 2 — the login screen and post-login splash fill the whole
+  // viewport in --surface-2/--canvas with no sidebar at all, at ANY layout
+  // width, so this overrides the layout branch rather than adding a third one.
+  it("reads --canvas when an auth surface is showing, even at desktop layout", () => {
+    for (const brand of BRANDS) {
+      for (const mode of ["light", "dark"] as const) {
+        const tokens = tokensFor(brand, mode);
+        expect(themeColorFrom(tokens, true, true)).toBe(tokens["--canvas"]);
+      }
+    }
   });
 });
 
@@ -80,5 +92,47 @@ describe("syncThemeColorMeta (#974/#976)", () => {
     syncThemeColorMeta(tokens, doc);
 
     expect(doc.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe(tokens["--canvas"]);
+  });
+
+  it("picks --canvas at desktop layout when AuthShell's marker is present", () => {
+    stubMatchMedia(true); // desktop layout — would otherwise pick --lavender
+    const doc = document.implementation.createHTMLDocument("");
+    doc.head.append(metaTag(doc, ""));
+    doc.body.innerHTML = '<main data-meta-surface="auth"></main>';
+
+    const tokens = tokensFor("aubergine", "dark");
+    syncThemeColorMeta(tokens, doc);
+
+    expect(doc.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe(tokens["--canvas"]);
+  });
+
+  it("picks --canvas at desktop layout when the splash backdrop is present", () => {
+    stubMatchMedia(true);
+    const doc = document.implementation.createHTMLDocument("");
+    doc.head.append(metaTag(doc, ""));
+    doc.body.innerHTML = '<div class="brand-splash-backdrop"></div>';
+
+    const tokens = tokensFor("aubergine", "dark");
+    syncThemeColorMeta(tokens, doc);
+
+    expect(doc.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe(tokens["--canvas"]);
+  });
+});
+
+describe("resyncThemeColorMeta (#976 round 2)", () => {
+  it("reads live tokens off the real document and writes the meta tag", () => {
+    stubMatchMedia(true);
+    const meta = document.createElement("meta");
+    meta.name = "theme-color";
+    document.head.appendChild(meta);
+    try {
+      resyncThemeColorMeta();
+      // jsdom has no real stylesheet here, so this only proves the call reads
+      // SOME tokens and writes SOME colour — themeColorFrom's own tests prove
+      // which one against the real stylesheet.
+      expect(meta.content.length).toBeGreaterThan(0);
+    } finally {
+      meta.remove();
+    }
   });
 });

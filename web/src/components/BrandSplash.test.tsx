@@ -1,9 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { BrandSplash } from "./BrandSplash";
 import { getFarmBanner } from "../api/cluckwork";
 import { bindAccount, bindFarm } from "../auth/tokenStore";
 import { readCachedBannerBlob } from "../lib/bannerCache";
+import { readThemeTokens } from "../theme/farmTokens";
+import { themeColorFrom } from "../theme/metaThemeColor";
+import { stubMatchMedia } from "../test/matchMedia";
 
 vi.mock("../api/cluckwork", async () => {
   const actual = await vi.importActual<typeof import("../api/cluckwork")>("../api/cluckwork");
@@ -90,5 +93,32 @@ describe("BrandSplash", () => {
 
     await screen.findByAltText("Hen House banner");
     expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
+  });
+
+  // #976 round 2 — the splash backdrop fills the whole viewport in --canvas,
+  // wrong at desktop width if the meta colour still assumed the
+  // sidebar-and-shell layout while the splash overlays it.
+  describe("meta theme-colour (#976 round 2)", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("resyncs to the splash colour on mount even at desktop layout, then back on unmount", () => {
+      stubMatchMedia(true); // desktop — would pick --lavender if the backdrop were ignored
+      mockGetFarmBanner.mockReturnValue(new Promise(() => {}));
+      const meta = document.createElement("meta");
+      meta.name = "theme-color";
+      document.head.appendChild(meta);
+      try {
+        const tokens = readThemeTokens();
+        const { unmount } = render(
+          <BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />,
+        );
+        expect(meta.content).toBe(themeColorFrom(tokens, true, true));
+
+        unmount();
+        expect(meta.content).toBe(themeColorFrom(tokens, true, false));
+      } finally {
+        meta.remove();
+      }
+    });
   });
 });

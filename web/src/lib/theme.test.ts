@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { initialTheme, applyTheme, watchDeviceTheme } from "./theme";
+import { initialTheme, applyTheme, watchDeviceTheme, resetExplicitThemeChoiceForTests } from "./theme";
 import { stubMatchMedia } from "../test/matchMedia";
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-theme");
   localStorage.clear();
+  resetExplicitThemeChoiceForTests();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -101,10 +102,46 @@ describe("watchDeviceTheme (#976)", () => {
   });
 
   it("stops listening after the returned unsubscribe runs", () => {
-    const media = stubMatchMedia(false);
+    const media = stubMatchMedia(false); // resolves "light" once on attach
     const stop = watchDeviceTheme();
+    expect(document.documentElement.dataset.theme).toBe("light");
     stop();
     media.triggerChange(true);
-    expect(document.documentElement.dataset.theme).toBeUndefined();
+    expect(document.documentElement.dataset.theme).toBe("light"); // unaffected post-unsubscribe
+  });
+
+  // #976 round 2, finding 1: a failed write must not make a later OS change
+  // look like "nothing was ever chosen".
+  it("keeps an explicit choice across a later OS change even when the write failed", () => {
+    const setSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage denied");
+    });
+    applyTheme("light");
+    setSpy.mockRestore();
+    expect(localStorage.getItem("cluckwork.theme")).toBeNull(); // the write really failed
+
+    const media = stubMatchMedia(false);
+    const stop = watchDeviceTheme();
+    media.triggerChange(true); // OS flips to dark; the in-memory "light" must not move
+    expect(document.documentElement.dataset.theme).toBe("light");
+    stop();
+  });
+
+  // #976 round 2, finding 3: theme-init.js resolves the OS preference once at
+  // load; an OS change between then and this listener attaching (React still
+  // loading) must not wait for a SECOND change to be caught.
+  it("reconciles with the current media state immediately on attach", () => {
+    stubMatchMedia(true); // OS already dark before subscribing
+    const stop = watchDeviceTheme();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    stop();
+  });
+
+  it("does not reconcile on attach when an explicit choice already exists", () => {
+    stubMatchMedia(true); // OS says dark
+    applyTheme("light"); // chosen before subscribing
+    const stop = watchDeviceTheme();
+    expect(document.documentElement.dataset.theme).toBe("light");
+    stop();
   });
 });

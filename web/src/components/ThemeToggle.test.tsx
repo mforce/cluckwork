@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ThemeToggle } from "./ThemeToggle";
-import { watchDeviceTheme } from "../lib/theme";
+import { watchDeviceTheme, resetExplicitThemeChoiceForTests } from "../lib/theme";
 import { stubMatchMedia } from "../test/matchMedia";
 import i18n from "../i18n";
 
-beforeEach(() => document.documentElement.removeAttribute("data-theme"));
+beforeEach(() => {
+  document.documentElement.removeAttribute("data-theme");
+  resetExplicitThemeChoiceForTests();
+});
 afterEach(() => document.documentElement.removeAttribute("data-theme"));
 
 describe("ThemeToggle", () => {

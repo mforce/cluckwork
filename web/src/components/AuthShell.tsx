@@ -1,16 +1,29 @@
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Paper, Typography } from "@mui/material";
 import { ThemeToggle } from "./ThemeToggle";
+import { resyncThemeColorMeta } from "../theme/metaThemeColor";
 
 export function AuthShell({
   children, footerNote, bannerSlot,
 }: { children: ReactNode; footerNote: string; bannerSlot?: ReactNode }) {
   const { t } = useTranslation("auth");
 
+  // #976 round 2 — this screen fills the whole viewport in --surface-2, with
+  // no sidebar at all, so the meta colour is wrong at desktop width unless
+  // resynced on both edges of this mount: entering here from the app shell,
+  // and leaving here back to it (FarmThemeProvider sits outside the router
+  // and cannot see either transition).
+  useEffect(() => {
+    resyncThemeColorMeta();
+    return () => resyncThemeColorMeta();
+  }, []);
+
   return (
     <Box
       component="main"
+      data-meta-surface="auth"
       sx={{
         position: "relative", minHeight: "100dvh", display: "flex",
         alignItems: { xs: "flex-start", md: "center" }, justifyContent: "center",
