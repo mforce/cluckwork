@@ -1,17 +1,16 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Moon, Sun } from "lucide-react";
 import { Button, IconButton } from "@mui/material";
-import { applyTheme, initialTheme, type Theme } from "../lib/theme";
+import { applyTheme, useThemeMode, type Theme } from "../lib/theme";
 
 // Light/night switch (#52). Shared by the sidebar, the More sheet and the
-// login screen. Reads the resolved theme for its own label.
+// login screen.
 //
-// It deliberately does NOT track live OS changes (#149). The pre-paint script
-// always writes a concrete data-theme, so the old `!dataset.theme` guard could
-// never fire again — dead code that would have left the page dark while this
-// button still said "Switch to night mode". An OS flip mid-session now waits
-// for a reload; first-visit and cross-visit OS respect are both unaffected.
+// #976 round 1 — follow-device mode now tracks a live OS scheme change
+// (`watchDeviceTheme`, wired from FarmThemeProvider), so the label reads the
+// resolved theme through `useThemeMode` rather than a `useState` read once at
+// mount: a stale local copy is exactly the "button still says night while
+// the page is light" bug #149 already named, just from a new trigger.
 //
 // D2 pair 19 (#829): `IconButton` where a caller renders it icon-only
 // (`showLabel={false}`, the two auth screens), `Button variant="text"` where
@@ -22,12 +21,11 @@ export function ThemeToggle({
   iconSize = 17,
 }: { className?: string; showLabel?: boolean; iconSize?: number }) {
   const { t } = useTranslation("themeToggle");
-  const [theme, setTheme] = useState<Theme>(initialTheme);
+  const theme = useThemeMode();
 
   function toggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     applyTheme(next);
-    setTheme(next);
   }
 
   const label = theme === "dark" ? t("switchToLightMode") : t("switchToNightMode");

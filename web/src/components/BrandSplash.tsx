@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useBannerObjectUrl } from "../farm/useLogoObjectUrl";
 import { farmBindingToken } from "../auth/tokenStore";
 import { cacheBannerBytes } from "../lib/bannerCache";
+import { resyncThemeColorMeta } from "../theme/metaThemeColor";
 
 interface BrandSplashProps {
   farmName: string;
@@ -37,6 +38,15 @@ export function BrandSplash({ farmName, bannerContentHash, onDismiss }: BrandSpl
   // keyboard user is not dropped on <body>.
   useEffect(() => {
     continueRef.current?.focus();
+  }, []);
+
+  // #976 round 2 — `.brand-splash-backdrop` fills the viewport in --canvas,
+  // detected by metaThemeColor.ts's isAuthSurfaceShowing. Resync on both
+  // edges: FarmThemeProvider sits outside this overlay and cannot see it
+  // mount or unmount on its own.
+  useEffect(() => {
+    resyncThemeColorMeta();
+    return () => resyncThemeColorMeta();
   }, []);
 
   // A banner that will not load is not worth a screen for — skip straight to

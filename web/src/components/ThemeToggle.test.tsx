@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ThemeToggle } from "./ThemeToggle";
+import { watchDeviceTheme, resetExplicitThemeChoiceForTests } from "../lib/theme";
+import { stubMatchMedia } from "../test/matchMedia";
 import i18n from "../i18n";
 
-beforeEach(() => document.documentElement.removeAttribute("data-theme"));
+beforeEach(() => {
+  document.documentElement.removeAttribute("data-theme");
+  resetExplicitThemeChoiceForTests();
+});
 afterEach(() => document.documentElement.removeAttribute("data-theme"));
 
 describe("ThemeToggle", () => {
@@ -17,6 +22,22 @@ describe("ThemeToggle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Switch to light mode" }));
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(screen.getByText("Night")).toBeInTheDocument();
+  });
+
+  // #976 round 1 — a live OS scheme change (watchDeviceTheme) now writes
+  // data-theme outside any click; a `useState(initialTheme)` label would go
+  // stale here, the same bug class #149 already named from a different cause.
+  it("follows a live OS scheme change, not only its own click", async () => {
+    const media = stubMatchMedia(false);
+    const stopWatching = watchDeviceTheme();
+    render(<ThemeToggle />);
+    expect(screen.getByRole("button", { name: "Switch to night mode" })).toBeInTheDocument();
+
+    media.triggerChange(true);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Switch to light mode" })).toBeInTheDocument());
+    expect(screen.getByText("Light")).toBeInTheDocument();
+
+    stopWatching();
   });
 
   it("can render icon-only (no text label) while keeping an accessible name", () => {
