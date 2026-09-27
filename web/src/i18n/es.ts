@@ -2179,12 +2179,11 @@ export const es = {
       "En una computadora, cada pantalla está en la <strong>barra lateral</strong> de la izquierda, agrupada "
       + "por función.",
     gettingAroundTabs:
-      "En un teléfono, las cuatro pantallas que más usa aparecen como <strong>pestañas en la parte "
-      + "inferior</strong>, al alcance del pulgar. Panel es la primera; su rol decide cuáles son las otras tres. Un trabajador "
-      + "obtiene Registro diario, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de "
-      + "distancia bajo <strong>Más</strong>.",
+      "En un teléfono, Panel es la primera de cuatro <strong>pestañas en la parte inferior</strong>. Su rol "
+      + "determina las otras tres. Los trabajadores también ven Registro diario y el personal de ventas ve "
+      + "Ventas. Abra <strong>Más</strong> para ver las demás pantallas.",
     gettingAroundInspector:
-      "En las listas de configuración, seleccione una fila para ver sus detalles debajo de la tabla. Use <strong>Cerrar inspector</strong> o Escape para volver a la lista completa; el foco regresa a esa fila.",
+      "En las listas de configuración, seleccione una fila para ver sus detalles debajo de la tabla. Use <strong>Cerrar inspector</strong> o Escape para volver a la lista completa. El foco regresa a esa fila.",
     gettingAroundPageLoading:
       "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, puede aparecer "
       + "brevemente un mensaje de carga. La navegación sigue disponible mientras espera.",
@@ -3007,8 +3006,8 @@ export const es = {
 
     glossaryNavigationTerm: "Navegación",
     glossaryNavigationDef:
-      "En una computadora, las pantallas están en la barra lateral izquierda; en un teléfono, las cuatro "
-      + "que más usa aparecen como pestañas en la parte inferior, con Panel primero, y el resto está bajo Más.",
+      "En una computadora, las pantallas están en la barra lateral izquierda. En un teléfono, Panel es la "
+      + "primera de cuatro pestañas inferiores. Las demás pantallas están bajo Más.",
 
     glossaryPageLoadingTerm: "Carga de página",
     glossaryPageLoadingDef:

@@ -64,8 +64,7 @@ Insights, Setup, Help). Below 900px — a phone — the sidebar gives way to a
 plus **More**, which opens a sheet with the complete grouped list. The four
 tabs are chosen per role from a fixed priority order (Dashboard, Daily entry,
 Stock, Sales, History, …), so Dashboard leads for every role that can reach it.
-Both navs are built from one
-model, so the role gates cannot drift between them.
+Both navs are built from one model, so the role gates cannot drift between them.
 
 **Page loading** — the brief **Loading…** state that may appear the first time
 a screen opens in the current app version. Only the content pane waits; the

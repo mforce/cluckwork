@@ -2265,12 +2265,11 @@ export const tl = {
     gettingAroundSidebar:
       "Sa computer, nasa <strong>sidebar</strong> sa kaliwa ang bawat screen, nakagrupo ayon sa trabaho.",
     gettingAroundTabs:
-      "Sa telepono, ang apat na screen na pinakamadalas mong gamitin ay lumalabas bilang <strong>mga tab "
-      + "sa ibaba</strong>, malapit sa hinlalaki. Dashboard ang una; ang tungkulin mo ang nagpapasya kung alin ang tatlong "
-      + "iyon. Makukuha ng manggagawa ang Araw-araw na Tala, makukuha ng Benta ang Benta. Isang tap na lang "
-      + "ang lahat ng iba pa, sa ilalim ng <strong>Higit Pa</strong>.",
+      "Sa telepono, Dashboard ang una sa apat na <strong>tab sa ibaba</strong>. Ang tungkulin mo ang "
+      + "nagtatakda ng tatlong kasunod. Makikita rin ng manggagawa ang Araw-araw na Tala at ng Benta ang Benta. "
+      + "Buksan ang <strong>Higit Pa</strong> para sa iba pang screen.",
     gettingAroundInspector:
-      "Sa mga listahan ng setup, pumili ng row para makita ang detalye nito sa ilalim ng table. Gamitin ang <strong>Isara ang inspector</strong> o Escape para bumalik sa buong listahan; babalik ang focus sa row na iyon.",
+      "Sa mga listahan ng setup, pumili ng row para makita ang detalye nito sa ilalim ng table. Gamitin ang <strong>Isara ang inspector</strong> o Escape para bumalik sa buong listahan. Babalik ang focus sa row na iyon.",
     gettingAroundPageLoading:
       "Sa unang pagkakataong magbukas ka ng screen pagkatapos simulan o i-update ang Cluckwork, maaaring "
       + "sandaling lumabas ang mensahe ng pag-load. Magagamit pa rin ang navigation habang naghihintay ka.",
@@ -3125,8 +3124,8 @@ export const tl = {
 
     glossaryNavigationTerm: "Navigation",
     glossaryNavigationDef:
-      "Nasa sidebar sa kaliwa ang mga screen sa computer; sa telepono, ang apat na pinakamadalas mong "
-      + "gamitin ay mga tab sa ibaba, una ang Dashboard, at ang iba pa ay nasa ilalim ng More.",
+      "Nasa sidebar sa kaliwa ang mga screen sa computer. Sa telepono, Dashboard ang una sa apat na tab sa "
+      + "ibaba. Nasa ilalim ng Higit Pa ang mga screen na wala sa mga tab.",
 
     glossaryPageLoadingTerm: "Pag-load ng page",
     glossaryPageLoadingDef:

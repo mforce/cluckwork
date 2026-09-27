@@ -2905,11 +2905,10 @@ export const en = {
     gettingAroundSidebar:
       "On a computer, every screen sits in the <strong>sidebar</strong> on the left, grouped by job.",
     gettingAroundTabs:
-      "On a phone, the four screens you use most are <strong>tabs across the bottom</strong>, in easy "
-      + "thumb reach. Dashboard is first; your role decides which three follow. A worker gets Daily entry, someone in sales gets Sales. "
-      + "Everything else is one tap away under <strong>More</strong>.",
+      "On a phone, Dashboard is the first of four <strong>bottom tabs</strong>. Your role decides which three "
+      + "follow. Workers also see Daily entry. Sales users see Sales. Open <strong>More</strong> for the other screens.",
     gettingAroundInspector:
-      "On setup lists, select a row to see its details below the table. Use <strong>Close inspector</strong> or Escape to return to the full list; focus returns to that row.",
+      "On setup lists, select a row to see its details below the table. Use <strong>Close inspector</strong> or Escape to return to the full list. Focus returns to that row.",
     gettingAroundPageLoading:
       "The first time you open a screen after starting or updating Cluckwork, a brief page-loading "
       + "message may appear. Navigation stays available while you wait.",
@@ -3698,8 +3697,8 @@ export const en = {
 
     glossaryNavigationTerm: "Navigation",
     glossaryNavigationDef:
-      "Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across "
-      + "the bottom, with Dashboard first and the rest under More.",
+      "Screens live in the left sidebar on a computer. On a phone, Dashboard is the first of four bottom tabs. "
+      + "Screens outside those tabs are under More.",
 
     glossaryPageLoadingTerm: "Page loading",
     glossaryPageLoadingDef:
