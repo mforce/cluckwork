@@ -106,6 +106,24 @@ describe("AppLayout lazy route containment (#595)", () => {
 });
 
 describe("AppLayout sidebar", () => {
+  it.each(["light", "dark"] as const)("uses the same shell surfaces on Dashboard and Stock in %s mode", (mode) => {
+    const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, mode), mode);
+    const renderRoute = (route: string) => {
+      const view = renderWithProviders(
+        <ThemeProvider theme={theme}><AppLayout /></ThemeProvider>,
+        { route, token: { sub: "u1", role: "Admin" } },
+      );
+      const colors = {
+        sidebar: getComputedStyle(screen.getByRole("complementary")).backgroundColor,
+        content: getComputedStyle(screen.getByRole("main")).backgroundColor,
+      };
+      view.unmount();
+      return colors;
+    };
+
+    expect(renderRoute("/")).toEqual(renderRoute("/stock"));
+  });
+
   it("renders the selected destination as a contrasting filled row", () => {
     const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
     renderWithProviders(

@@ -91,12 +91,6 @@ export function AppLayout() {
           "& .MuiDrawer-paper": {
             width: "var(--sidebar-w)", boxSizing: "border-box", position: "sticky", top: 0, height: "100dvh",
             display: "flex", flexDirection: "column",
-            ...(location.pathname === "/" ? {
-              bgcolor: "var(--brand)", color: "var(--on-brand)",
-              "& .brand, & .brand-name, & .MuiListItemIcon-root, & .nav-group-label, & .MuiTypography-root": { color: "inherit" },
-              "& .MuiListItemButton-root:not(.Mui-selected):hover": { bgcolor: "var(--brand-press)" },
-              "& :focus-visible": { outlineColor: "var(--on-brand)" },
-            } : {}),
           },
         }}
       >
@@ -149,7 +143,7 @@ export function AppLayout() {
         </Box>
       </Drawer>
 
-      <Box component="main" className="content" id="main-content" tabIndex={-1} sx={(theme) => ({ flexGrow: 1, minWidth: 0, ...(location.pathname === "/" ? { bgcolor: theme.palette.mode === "light" ? "#faf7f2" : "#211b1e" } : {}) })}>
+      <Box component="main" className="content" id="main-content" tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
         {/* Carries the warning the banner below could not announce because a
             dialog had it inert (#485), and stays empty otherwise so the two
             never say the same thing twice.
