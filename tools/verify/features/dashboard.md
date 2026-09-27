@@ -24,8 +24,7 @@ low-stock warning is deliberately absent.
 
 ## How to get to it (user POV)
 
-Sign in; it is the landing route `/`. On the phone it lives under More in the tab bar
-(Dashboard is not one of the four tabs).
+Sign in; it is the landing route `/`. On the phone, Dashboard is the first tab.
 
 ## Driving it with Playwright
 

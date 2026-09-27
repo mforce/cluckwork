@@ -1856,6 +1856,7 @@ export const es = {
     actionHeader: "Acción",
     entityHeader: "Entidad",
     detailsHeader: "Detalles",
+    closeInspector: "Cerrar inspector",
     detailsAtList: "a precio de lista {{amount}}",
     detailsAtPrice: "a {{amount}}",
     detailsListParen: "(lista {{amount}})",
@@ -2179,9 +2180,11 @@ export const es = {
       + "por función.",
     gettingAroundTabs:
       "En un teléfono, las cuatro pantallas que más usa aparecen como <strong>pestañas en la parte "
-      + "inferior</strong>, al alcance del pulgar. Su rol decide cuáles son esas cuatro. Un trabajador "
-      + "obtiene Entrada diaria, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de "
+      + "inferior</strong>, al alcance del pulgar. Panel es la primera; su rol decide cuáles son las otras tres. Un trabajador "
+      + "obtiene Registro diario, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de "
       + "distancia bajo <strong>Más</strong>.",
+    gettingAroundInspector:
+      "En las listas de configuración, seleccione una fila para ver sus detalles debajo de la tabla. Use <strong>Cerrar inspector</strong> o Escape para volver a la lista completa; el foco regresa a esa fila.",
     gettingAroundPageLoading:
       "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, puede aparecer "
       + "brevemente un mensaje de carga. La navegación sigue disponible mientras espera.",
@@ -3005,7 +3008,7 @@ export const es = {
     glossaryNavigationTerm: "Navegación",
     glossaryNavigationDef:
       "En una computadora, las pantallas están en la barra lateral izquierda; en un teléfono, las cuatro "
-      + "que más usa aparecen como pestañas en la parte inferior, y el resto está bajo Más.",
+      + "que más usa aparecen como pestañas en la parte inferior, con Panel primero, y el resto está bajo Más.",
 
     glossaryPageLoadingTerm: "Carga de página",
     glossaryPageLoadingDef:
@@ -3017,6 +3020,7 @@ export const es = {
       + "muestran sus detalles completos en un panel anclado en la parte inferior de la lista, en lugar de una "
       + "ventana emergente. La tabla de arriba sigue desplazándose por su cuenta y la fila seleccionada queda "
       + "marcada visiblemente. "
+      + "Cerrar inspector o Escape borra la selección y devuelve el foco a esa fila. "
       + "En Usuarios, editar y rol siguen en la fila. Seleccione la fila de otro usuario para acceder a contraseña, "
       + "cambiar correo, lotes y deshabilitar o habilitar en este panel.",
 

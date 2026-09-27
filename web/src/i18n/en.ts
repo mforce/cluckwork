@@ -2536,6 +2536,7 @@ export const en = {
     // is available, and falls back to the row's reason. Renamed from
     // reasonHeader; AuditPage.test.tsx's header-marker table names the new key.
     detailsHeader: "Details",
+    closeInspector: "Close inspector",
     // Sales-line summaries. The product name and unit come from the payload
     // itself (#747), never a lookup, so a renamed product cannot rewrite history.
     detailsAtList: "at list {{amount}}",
@@ -2905,8 +2906,10 @@ export const en = {
       "On a computer, every screen sits in the <strong>sidebar</strong> on the left, grouped by job.",
     gettingAroundTabs:
       "On a phone, the four screens you use most are <strong>tabs across the bottom</strong>, in easy "
-      + "thumb reach. Your role decides which four. A worker gets Daily entry, someone in sales gets Sales. "
+      + "thumb reach. Dashboard is first; your role decides which three follow. A worker gets Daily entry, someone in sales gets Sales. "
       + "Everything else is one tap away under <strong>More</strong>.",
+    gettingAroundInspector:
+      "On setup lists, select a row to see its details below the table. Use <strong>Close inspector</strong> or Escape to return to the full list; focus returns to that row.",
     gettingAroundPageLoading:
       "The first time you open a screen after starting or updating Cluckwork, a brief page-loading "
       + "message may appear. Navigation stays available while you wait.",
@@ -3696,7 +3699,7 @@ export const en = {
     glossaryNavigationTerm: "Navigation",
     glossaryNavigationDef:
       "Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across "
-      + "the bottom, the rest under More.",
+      + "the bottom, with Dashboard first and the rest under More.",
 
     glossaryPageLoadingTerm: "Page loading",
     glossaryPageLoadingDef:
@@ -3707,6 +3710,7 @@ export const en = {
       "On the Customers, Products, Grades, Flocks and Users screens, clicking or activating a row shows its "
       + "full details in a panel docked to the bottom of the list, instead of a popup. The table above it keeps "
       + "scrolling on its own, and the selected row stays visibly marked. "
+      + "Close inspector or Escape clears the selection and returns focus to its row. "
       + "On Users, edit and role stay in the row. Select another user's row for password, change email, "
       + "flocks, and disable or enable in this panel.",
 

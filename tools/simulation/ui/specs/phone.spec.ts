@@ -27,7 +27,7 @@ import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
 /** Owner's four thumb tabs, in the order `tabEntries` picks them (nav.tsx TAB_PRIORITY). */
-const OWNER_TABS = ["nav:dailyEntry", "nav:stock", "nav:sales", "nav:history"];
+const OWNER_TABS = ["nav:dashboard", "nav:dailyEntry", "nav:stock", "nav:sales"];
 
 /**
  * The smallest target a thumb can reliably hit, on both axes.
@@ -231,6 +231,25 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       page,
       "a thumb tab did not navigate — the bar renders and is hittable but goes nowhere",
     ).toHaveURL(/\/sales$/);
+  });
+
+  test("a selected Product can be closed to show the full list", async ({ page }) => {
+    await page.goto("/products");
+    const list = page.getByRole("region", { name: tEn("products:title") });
+    const rows = list.getByRole("row");
+    const count = await rows.count();
+    const selected = rows.nth(1);
+    await selected.getByRole("cell").first().click();
+    await expect(selected).toHaveAttribute("aria-selected", "true");
+    const close = page.getByRole("button", { name: tEn("audit:closeInspector") });
+    const target = await rectOf(close, "the inspector close button");
+    expect(target.width).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    expect(target.height).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    await close.click();
+    await expect(selected).toHaveAttribute("aria-selected", "false");
+    await expect(selected).toBeFocused();
+    await expect(rows).toHaveCount(count);
+    await expect(page.getByText(tEn("common:inspectorEmptyPrompt"))).toBeVisible();
   });
 
   test("a destination that is not a tab is reachable only through More", async ({ page, phone }) => {

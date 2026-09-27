@@ -343,6 +343,7 @@ export function GradesPage() {
 
       <ListInspectorPane
         tableLabel={t("title")}
+        onClearSelection={() => setSelectedId(null)}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
             <Table size="small">

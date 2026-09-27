@@ -842,6 +842,7 @@ export function UsersPage() {
 
       <ListInspectorPane
         tableLabel={t("heading")}
+        onClearSelection={() => setSelectedId(null)}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
             <Table size="small" sx={{ "& .MuiTableCell-root": { pr: { md: 1.5, lg: 2 } } }}>

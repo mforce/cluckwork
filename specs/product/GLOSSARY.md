@@ -62,9 +62,9 @@ aubergine **sidebar**, grouped by job (Overview, Production, Sales & stock,
 Insights, Setup, Help). Below 900px — a phone — the sidebar gives way to a
 **bottom tab bar**: the four most-used destinations the current role can reach,
 plus **More**, which opens a sheet with the complete grouped list. The four
-tabs are chosen per role from a fixed priority order (Daily entry, Stock, Sales,
-History, …), so a worker leads with Daily entry and a ReadOnly viewer, who has
-neither production nor sales, leads with Stock. Both navs are built from one
+tabs are chosen per role from a fixed priority order (Dashboard, Daily entry,
+Stock, Sales, History, …), so Dashboard leads for every role that can reach it.
+Both navs are built from one
 model, so the role gates cannot drift between them.
 
 **Page loading** — the brief **Loading…** state that may appear the first time
@@ -82,6 +82,7 @@ phone, the table scrolls in both directions within its own bounded area, so it
 carries a **Swipe columns ↔ · Scroll rows ↕** hint. On Users, **edit** and **role**
 stay in the row. Select another user’s row to reach **password**, **change email**, **flocks**,
 and **disable** or **enable** in the inspector.
+Use **Close inspector** or Escape to clear the selection and return focus to its row.
 
 **Searchable picker (#512)** — the type-to-search control used for flock and
 customer name fields app-wide. Typing explores the results without changing

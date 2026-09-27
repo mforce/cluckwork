@@ -257,7 +257,7 @@ describe("AppLayout bottom tabs", () => {
   it("promotes the four most-used destinations a producer can reach, plus More", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     const tabs = tabbar().getAllByRole("link").map((a) => a.textContent);
-    expect(tabs).toEqual(["Daily entry", "Stock", "Sales", "History"]);
+    expect(tabs).toEqual(["Dashboard", "Daily entry", "Stock", "Sales"]);
     expect(tabbar().getByRole("button", { name: "More" })).toBeInTheDocument();
   });
 
@@ -266,7 +266,7 @@ describe("AppLayout bottom tabs", () => {
     const tabs = tabbar().getAllByRole("link").map((a) => a.textContent);
     // No Daily entry (can't produce), no Sales (ReadOnly) — the bar backfills
     // with what this role actually reaches, in priority order.
-    expect(tabs).toEqual(["Stock", "History", "Dashboard", "Reports"]);
+    expect(tabs).toEqual(["Dashboard", "Stock", "History", "Reports"]);
   });
 
   it("opens the More sheet with the full grouped nav and a way out", () => {

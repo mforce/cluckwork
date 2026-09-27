@@ -303,6 +303,7 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="gettingAroundTabs" components={{ strong: <strong /> }} />
         </li>
         <li>{t("gettingAroundPageLoading")}</li>
+        <li><Trans ns="help" i18nKey="gettingAroundInspector" components={{ strong: <strong /> }} /></li>
         <li>
           <Trans ns="help" i18nKey="gettingAroundErrorScreen" components={{ strong: <strong /> }} />
         </li>

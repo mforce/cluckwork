@@ -29,7 +29,7 @@ describe("BottomNav", () => {
   it("renders the four highest-priority destinations an admin reaches, plus More", () => {
     renderBottomNav();
     const tabs = tabbar().getAllByRole("link").map((a) => a.textContent);
-    expect(tabs).toEqual(["Daily entry", "Stock", "Sales", "History"]);
+    expect(tabs).toEqual(["Dashboard", "Daily entry", "Stock", "Sales"]);
     expect(tabbar().getByRole("button", { name: "More" })).toBeInTheDocument();
   });
 

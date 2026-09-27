@@ -520,6 +520,7 @@ export function ProductsPage() {
         ) : (
           <ListInspectorPane
             tableLabel={t("title")}
+            onClearSelection={() => setSelectedProductId(null)}
             table={(
               <LedgerTableContainer scrollHint="columnsAndRows">
                 <Table size="small">
@@ -590,6 +591,7 @@ export function ProductsPage() {
       <Box role="tabpanel" id="packed-units-tabpanel" aria-labelledby="packed-units-tab" hidden={tab !== "packedUnits"}>
         <ListInspectorPane
           tableLabel={t("packedUnitsHeading")}
+          onClearSelection={() => setSelectedConvId(null)}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
               <Table size="small">
