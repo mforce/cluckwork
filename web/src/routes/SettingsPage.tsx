@@ -260,7 +260,7 @@ export function SettingsPage() {
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
   const savedBrand = loaded === null ? null : isBrand(loaded.settings.brand) ? loaded.settings.brand : DEFAULT_BRAND;
   const displayedBrand = staleReason === "conflict" && farm !== null
-    ? isBrand(farm.brand) ? farm.brand : DEFAULT_BRAND
+    ? (isBrand(farm.brand) ? farm.brand : DEFAULT_BRAND)
     : brand;
 
   useEffect(() => {
@@ -414,9 +414,9 @@ export function SettingsPage() {
         // palette live and cached while the authoritative value was in hand (#149).
         applyBrand(fresh.settings.brand, boundAt);
       } catch {
-        setLoaded((prev) => prev === null ? prev : {
-          ...prev,
-          settings: { ...prev.settings, brand },
+        setLoaded({
+          ...loaded,
+          settings: { ...loaded.settings, brand },
         });
         applyBrand(brand, boundAt);
         setStaleReason("readback");
