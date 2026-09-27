@@ -817,8 +817,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     expect(onScreen, `only ${onScreen} History rows fit between the top of the screen and the tab bar`)
       .toBeGreaterThanOrEqual(12);
 
-    const row = historyRow(page, tEn("history:statusSubmitted"));
-    await row.click();
+    await historyRow(page, tEn("history:statusSubmitted")).click();
     const details = page.getByRole("dialog");
     await expect(details, "tapping a History row opened no details dialog").toBeVisible();
     await expect(details.getByRole("button", { name: tEn("history:adjustButton"), exact: true })).toBeVisible();
