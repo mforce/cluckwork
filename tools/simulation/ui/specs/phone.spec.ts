@@ -271,7 +271,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }).getByText(tEn("common:inspectorEmptyPrompt"))).toBeVisible();
   });
 
-  test("Flocks rows stay one line tall and actions move into the inspector", async ({ page }) => {
+  test("Flocks rows stay one line tall and actions remain in the inspector", async ({ page }) => {
     await page.goto("/flocks");
     const row = page.getByRole("row", { name: /Sim House A/ });
     await expect(row).toBeVisible();

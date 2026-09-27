@@ -120,7 +120,7 @@ describe("FlocksPage loading + list", () => {
   it("hides phone row actions while the inspector keeps every flock action", async () => {
     await renderReady(ADMIN);
     const activeRow = screen.getByRole("row", { name: /Hen House 1/ });
-    const table = activeRow.closest("table")!;
+    const table = screen.getByRole("table");
     const generatedClass = [...table.classList].find((name) => name.startsWith("css-"));
     expect(generatedClass).toBeDefined();
     const cssRules = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]);
