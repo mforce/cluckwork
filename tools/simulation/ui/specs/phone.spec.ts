@@ -246,6 +246,22 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     const target = await rectOf(close, "the inspector close button");
     expect(target.width).toBeGreaterThanOrEqual(MIN_TARGET_PX);
     expect(target.height).toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    await selected.focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      const ring = await close.evaluate((button) => {
+        const style = getComputedStyle(button);
+        return { outlineColor: style.outlineColor, textColor: style.color,
+          outlineWidth: style.outlineWidth, outlineOffset: style.outlineOffset };
+      });
+      expect(ring.outlineColor).toBe(ring.textColor);
+      expect(ring.outlineWidth).toBe("2px");
+      expect(ring.outlineOffset).toBe("-3px");
+    }
     await close.click();
     await expect(selected).toHaveAttribute("aria-selected", "false");
     await expect(selected).toBeFocused();

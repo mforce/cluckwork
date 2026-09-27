@@ -84,6 +84,17 @@ it("keeps mouse selection focused on the row", async () => {
   expect(row).toHaveFocus();
 });
 
+it("clears a mouse-selected row with Escape while keeping focus on it", async () => {
+  const user = userEvent.setup();
+  render(<SelectableList />);
+  const row = screen.getByRole("row");
+  await user.click(screen.getByRole("cell", { name: "First record" }));
+  await user.keyboard("{Escape}");
+  expect(row).toHaveFocus();
+  expect(row).toHaveAttribute("aria-selected", "false");
+  expect(screen.queryByRole("heading", { name: "First record" })).not.toBeInTheDocument();
+});
+
 it("leaves row button clicks and keyboard activation with the button", async () => {
   const user = userEvent.setup();
   render(<SelectableList />);

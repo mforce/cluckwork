@@ -234,7 +234,8 @@ export function RecordInspector({ ariaLabel, title, fields, actions, emptyMessag
           "&:focus-visible": { outline: "none" },
         }}>{title}</Typography>
         {closeInspector && <IconButton aria-label={t("closeInspector")} onClick={closeInspector}
-          sx={{ minWidth: 44, minHeight: 44, color: "inherit", flexShrink: 0 }}>
+          sx={{ minWidth: 44, minHeight: 44, color: "inherit", flexShrink: 0,
+            "&:focus-visible": { outline: "2px solid currentColor", outlineOffset: -3 } }}>
           <X size={18} aria-hidden />
         </IconButton>}
       </Box>
@@ -351,8 +352,12 @@ export function ListInspectorPane({ table, inspector, tableLabel, onClearSelecti
   };
   return (
     <Box ref={paneRef} onKeyDown={(event) => {
-      if (event.target instanceof HTMLTableRowElement && event.target.tabIndex === 0
-          && (event.key === "Enter" || event.key === " ")) {
+      if (!(event.target instanceof HTMLTableRowElement)) return;
+      if (event.key === "Escape" && event.target.getAttribute("aria-selected") === "true") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeInspector();
+      } else if (event.target.tabIndex === 0 && (event.key === "Enter" || event.key === " ")) {
         setKeyboardSelection((selection) => selection + 1);
       }
     }} sx={{
