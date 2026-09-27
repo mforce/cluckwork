@@ -18,7 +18,7 @@ import { useFarm } from "../farm/useFarm";
 import { useBannerObjectUrl, useLogoObjectUrl } from "../farm/useLogoObjectUrl";
 import { farmBindingToken, getBoundFarmCode } from "../auth/tokenStore";
 import { cacheBannerBytes, forgetBannerFor } from "../lib/bannerCache";
-import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
+import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand, previewBrand } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
 import { newId } from "../lib/ids";
@@ -175,7 +175,7 @@ export function SettingsPage() {
   const [locale, setLocale] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
   const [unitSystem, setUnitSystem] = useState("Metric");
-  const [brand, setBrand] = useState<string>(DEFAULT_BRAND);
+  const [brand, setBrand] = useState<Brand>(DEFAULT_BRAND);
   // #444 — the farm-default Daily Entry stepper pack unit. Fetched alongside
   // the settings themselves (not a separate effect) so the select's value and
   // its options always land together — no race where the stored code briefly
@@ -260,6 +260,14 @@ export function SettingsPage() {
   const bannerMaxUploadKb = Math.floor(bannerMaxUploadBytes / 1024);
 
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
+  const savedBrand = loaded === null ? null : isBrand(loaded.settings.brand) ? loaded.settings.brand : DEFAULT_BRAND;
+
+  useEffect(() => {
+    if (savedBrand === null) return;
+    const boundAt = farmBindingToken();
+    previewBrand(brand, boundAt);
+    return () => previewBrand(savedBrand, boundAt);
+  }, [brand, savedBrand]);
 
   // Seeds every field from the server. Called on mount, and after a save (the
   // version moved, and the currency may have locked). NOT after a logo write:
@@ -374,6 +382,7 @@ export function SettingsPage() {
       try {
         await updateFarmSettings(body, attempt.key);
       } catch (err) {
+        setBrand(savedBrand ?? DEFAULT_BRAND);
         if (err instanceof ApiError && err.status === 409) {
           // The version this screen holds is now definitively wrong, and a retry
           // sends the same one: the middleware caches only 2xx, so it re-executes
@@ -403,6 +412,7 @@ export function SettingsPage() {
         // palette live and cached while the authoritative value was in hand (#149).
         applyBrand(fresh.settings.brand, boundAt);
       } catch {
+        setBrand(savedBrand ?? DEFAULT_BRAND);
         setStale(true);
         setSaveError(i18n.t("settings:saveReadBackFailedMessage"));
         return;
@@ -752,6 +762,11 @@ export function SettingsPage() {
                   </Box>
                 ))}
               </Stack>
+              {savedBrand !== null && brand !== savedBrand && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} role="status">
+                  {t("palettePreviewHint", { save: t("saveButton") })}
+                </Typography>
+              )}
             </Box>
           </AccordionDetails>
         </Accordion>

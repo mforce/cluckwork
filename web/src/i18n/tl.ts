@@ -1472,6 +1472,7 @@ export const tl = {
     paletteHint:
       "Ang accent color para sa lahat sa bukid na ito. Pipiliin pa rin ng "
       + "bawat tao ang sarili nilang light mode o night mode.",
+    palettePreviewHint: "Preview ito. Piliin ang {{save}} para panatilihin ang paletang ito.",
     paletteAubergine: "Talong",
     paletteForest: "Kagubatan",
     paletteSlate: "Slate",
@@ -2991,8 +2992,9 @@ export const tl = {
     farmPaletteHeading: "Paleta ng Bukid",
     farmPaletteIntro:
       "Ang mga setting ng bukid ay nagpapahintulot sa isang Owner na pumili ng accent color na ginagamit "
-      + "sa buong app para sa lahat sa bukid: Talong, Kagubatan, Slate, o Terracotta. Naaaplay ang pinili "
-      + "kapag nag-save ka, at nakikita ito ng lahat sa susunod na pag-load ng app nila."
+      + "sa buong app para sa lahat sa bukid: Talong, Kagubatan, Slate, o Terracotta. Kapag pumili ng paleta, "
+      + "makikita ang preview sa buong app mo nang hindi ito nase-save. Piliin ang I-save ang mga setting "
+      + "para manatili ito para sa lahat; babalik ang naka-save na paleta kapag umalis ka o pumalya ang pag-save."
       + " Naaalala rin ng bawat device ang paleta para sa bawat bukid, kaya maaaring lumabas ang sariling "
       + "kulay ng isang bukid sa sign-in screen bago pa mag-sign in ang sinuman: kapag binuksan mo ang link "
       + "ng bukid na iyon, o kapag iisang bukid lang ang naaalala ng device. Ang device na nakakaalala ng "
@@ -3520,7 +3522,8 @@ export const tl = {
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:
       "Ang accent color para sa buong bukid, pinipili ng isang Owner sa Mga Setting ng Bukid. Hiwalay ito "
-      + "sa sariling setting ng light/night mode ng bawat tao."
+      + "sa sariling setting ng light/night mode ng bawat tao. Makikita muna ang napiling paleta sa buong "
+      + "app ng Owner hanggang sa i-save o balewalain ito."
       + " Naaalala ito bawat bukid sa bawat device, kaya maaari itong lumabas sa sign-in screen bago "
       + "mag-sign in ang sinuman; ang device na nakakaalala ng ilang bukid ay nagpapakita ng default "
       + "hanggang sa mag-sign in.",

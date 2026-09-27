@@ -12,7 +12,7 @@ import {
 import type { Account, FarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
-import { BRANDS } from "../lib/brand";
+import { BRANDS, brandKeyFor } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
@@ -647,13 +647,54 @@ describe("SettingsPage palette (#149)", () => {
     expect(mockUpdate.mock.calls[0][0]).toMatchObject({ brand: "slate" });
   });
 
-  it("does not change the palette before the save lands", async () => {
-    // The issue asks for apply-on-save, not a live preview.
+  it("previews the palette without writing the farm cache and shows the unsaved hint", async () => {
+    bindAccount("acct-A");
+    bindFarm("default-farm");
+    const key = brandKeyFor("default-farm");
+    localStorage.setItem(key, "aubergine");
     await renderReady(SETTINGS({ brand: "aubergine" }));
 
     fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
 
-    expect(document.documentElement.dataset.brand).toBeUndefined();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    expect(screen.getByText("Previewing. Select Save settings to keep this palette.")).toBeInTheDocument();
+    expect(localStorage.getItem(key)).toBe("aubergine");
+    bindFarm(null);
+    bindAccount(null);
+    localStorage.removeItem(key);
+  });
+
+  it("restores the saved palette when leaving without saving", async () => {
+    const { unmount } = await renderReady(SETTINGS({ brand: "forest" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    expect(document.documentElement.dataset.brand).toBe("slate");
+
+    unmount();
+
+    expect(document.documentElement.dataset.brand).toBe("forest");
+  });
+
+  it("restores the saved palette when the selection is reset", async () => {
+    await renderReady(SETTINGS({ brand: "forest" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Forest" }));
+
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
+  });
+
+  it("restores the saved palette after a failed save", async () => {
+    await renderReady(SETTINGS({ brand: "forest" }));
+    mockUpdate.mockRejectedValue(new ApiError(500, "Save failed", "Save failed"));
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    });
+
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    expect(screen.getByRole("radio", { name: "Forest" })).toBeChecked();
+    expect(screen.queryByText("Previewing. Select Save settings to keep this palette.")).not.toBeInTheDocument();
   });
 
   it("applies the palette from its own re-read even when the shell refresh fails", async () => {
