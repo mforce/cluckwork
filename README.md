@@ -9,6 +9,12 @@ production, track egg lots from the hen through to the sale with full
 traceability, block medication-restricted lots, manage sales and customers, and
 see the numbers that matter (hen-day rate, saleable %, stock on hand).
 
+The egg loop in 25 seconds: the Dashboard flags a house that has not reported,
+the day is counted and graded, submitting it creates the egg lots, and the same
+Dashboard shows the house recorded with collection and stock moved.
+
+![Recording a day of egg production in Cluckwork: a house flagged as not recorded, its eggs counted and graded, submitted into egg lots, and the Dashboard totals updating](https://github.com/user-attachments/assets/1ecd57e8-991c-424e-a330-be315682ba7c)
+
 The Dashboard brings the morning brief, collection status, stock by grade,
 recent orders, and the Lay rate trend onto one screen.
 
