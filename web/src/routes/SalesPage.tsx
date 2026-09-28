@@ -3,7 +3,7 @@ import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import {
-  Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
+  Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder,
@@ -18,19 +18,21 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { CustomerPicker } from "../components/CustomerPicker";
-import { FieldConsole, LedgerTableContainer, ConsoleSummary, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
+import { FieldConsole, LedgerTableContainer, ConsoleSubhead, ConsoleSummary, CONSOLE_LINK_SX, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { FilterBar } from "../components/FilterBar";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
-import { ProvenanceCell } from "../components/ProvenanceCell";
+import { ProvenanceCell, ProvenanceSummary } from "../components/ProvenanceCell";
+import { focusPhoneRow, PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow, PhoneLedgerSummary } from "../components/PhoneLedger";
 import { useDialogAction } from "../components/useDialogAction";
 import { useConfirm } from "../components/useConfirm";
 import { usePagedList } from "../components/usePagedList";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import { discountCeiling, lineExceedsCeiling } from "../lib/discountCeiling";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
@@ -64,6 +66,19 @@ const MANIFEST_ACTIONS_SX = {
   "& button": { display: "inline-flex", minHeight: { xs: 44, md: "auto" }, mr: .75 },
 };
 const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidth: "100%" };
+// #986's phone chip: 36px, below the 44px floor the rest of the phone UI keeps,
+// because three of these have to share one 353px line.
+const CHIP_SX = { borderRadius: "100px", minHeight: 36, fontSize: ".75rem" };
+// The settlement rail is a fixed dark panel in BOTH themes (CONSOLE_RAIL_SX
+// pins #2c2429/#fff), so the shared row's --ink and --muted resolved against
+// the wrong surface in light: 2.75:1 (#988 review r1). Derived from the rail's
+// own white, not copied from the dark palette, which #149 multiplies.
+const RAIL_PHONE_LIST_SX = {
+  "--surface": "transparent",
+  "--ink": "#fff",
+  "--muted": "rgba(255, 255, 255, .72)",
+  "--rule": "rgba(255, 255, 255, .22)",
+};
 
 function OrderStatus({ status }: { status: SalesOrder["status"] }) {
   return <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap",
@@ -283,6 +298,22 @@ function orderListValue(items: OrderItem[]): number | null {
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
   const { t } = useTranslation("sales");
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
+  // #987 — the phone list's three surfaces: the filter dialog the chips open,
+  // the order row's read-only peek, and the payment row's.
+  // A peek holds an ID, never a row: the row it describes is re-read from the
+  // live list every render, so a refresh can neither leave it showing a stale
+  // status nor leave it offering an action the record no longer allows (#988
+  // review r1).
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [paymentDetailsId, setPaymentDetailsId] = useState<string | null>(null);
+  // #988 review r2 — a peek action closes its dialog and disables its row in
+  // the same commit, so `Dialog`'s restore (one retry a frame later) lands on
+  // <body> for any request slower than a frame. The page names the target
+  // itself: the workspace the action opened, or the row once it is live again.
+  const orderPanelHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusAfterWrite = useRef<string | null>(null);
   const fmt = useFormat();
   // #752 — a percent under 0.05 rounds to "0.0" and sits beside a NON-zero
   // amount, so the pair contradicts itself. Below the rendering threshold say
@@ -691,6 +722,9 @@ export function SalesPage() {
     // the line altogether IS caught, by the reopen test below.
     setPaying(false);
     dismissDialog("record-payment");
+    // #987 — the phone peek belongs to the order that was open, for the same
+    // reason the form above does: its Void targets one payment by id.
+    setPaymentDetailsId(null);
     if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
@@ -705,6 +739,17 @@ export function SalesPage() {
     // render and re-fetch the payments. There is no eslint in this package to
     // have caught either.
   }, [activeId, activeStatus, canSettle, dismissDialog, setPageError]);
+
+  useEffect(() => {
+    if (busy) return;
+    const rowId = focusAfterWrite.current;
+    if (rowId === null) return;
+    focusAfterWrite.current = null;
+    // The workspace is what the user asked for; the row is where they were
+    // when the request failed and left them nothing else.
+    if (orderPanelHeadingRef.current !== null) orderPanelHeadingRef.current.focus();
+    else focusPhoneRow(rowId);
+  }, [busy]);
 
   // Exact decimal parsing in the ORDER's denomination (no float multiply —
   // #88 review); excess decimals are rejected, not silently rounded.
@@ -1133,34 +1178,210 @@ export function SalesPage() {
     setSearchParams(next);
   };
 
+  // Adjusted during render, the React-documented way to reset state a prop (or
+  // here, a refreshed list) invalidates: an id whose record left the window is
+  // retired, so a later load cannot silently reopen the peek on it.
+  if (detailsId !== null && !orders.rows.some((o) => o.id === detailsId)) setDetailsId(null);
+  if (paymentDetailsId !== null && payments !== null
+    && !payments.items.some((p) => p.id === paymentDetailsId)) setPaymentDetailsId(null);
+  const details = orders.rows.find((o) => o.id === detailsId) ?? null;
+  const paymentDetails = payments?.items.find((p) => p.id === paymentDetailsId) ?? null;
+
+  // The committed filter identity's own name, or null for "no customer filter".
+  // The chip and the picker trigger disagree only about how to say "all".
+  const customerFilterName = customerFilter === ""
+    ? null
+    : customerFilterEntity?.name
+      ?? (customerFilterSnapshot.selectionPhase === "unavailable"
+        ? t("filterCustomerUnavailable")
+        : i18n.t("namedEntityPicker:loading"));
+
+  // #987 — line 2 of a phone order row. Both segments read exactly the facts
+  // the desktop Outstanding and Discount cells read, and drop out where those
+  // cells would print an em dash: Details carries the full answer.
+  const settlementSegment = (o: SalesOrder) => {
+    if (o.outstandingMinorUnits === null) return null;
+    const amount = fmt.money(o.outstandingMinorUnits, o.currencyCode, o.currencyMinorUnit);
+    return o.outstandingMinorUnits === 0
+      ? <Box component="span" sx={{ color: "var(--success)" }}>{t("settledBadge")}</Box>
+      : <Box component="span" sx={{ color: "var(--error)" }}>{t("dueShort", { amount })}</Box>;
+  };
+
+  const discountBadgeText = (o: SalesOrder, discount: OrderDiscount, short: boolean) => {
+    if (discount.kind !== "below") return orderIsAtList(o.items) ? t("atListShort") : null;
+    const amount = fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
+    if (discount.percent === null) return t("discountBadgeNoPct", { amount });
+    const percent = discountPercent(discount.percent);
+    return short ? t("discountShort", { percent }) : t("discountBadge", { percent, amount });
+  };
+
+  const discountDescriptionText = (o: SalesOrder, discount: OrderDiscount) =>
+    discount.kind === "unknown"
+      ? listPriceBasisLabel(orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")
+      : discount.partial ? t("discountPartialNote") : "";
+
+  // The badge does NOT depend on the description: an order with one discounted
+  // line and one unpriced one is `below` AND `partial`, and dropping the
+  // percentage there hid a real discount (#988 review r1). Only the note stays
+  // behind in Details, which is where the desktop cell's own note goes.
+  const discountSegment = (o: SalesOrder) => {
+    const discount = orderDiscount(o.items);
+    const badge = discountBadgeText(o, discount, true);
+    return badge === null ? null
+      : discount.kind === "below"
+        ? <Box component="span" className="discount" sx={{ fontWeight: 750 }}>{badge}</Box>
+        : badge;
+  };
+
+  const detailsDiscount = (o: SalesOrder) => {
+    const discount = orderDiscount(o.items);
+    const description = discountDescriptionText(o, discount);
+    const badge = discountBadgeText(o, discount, false);
+    if (badge === null && !description) return "—";
+    return <PhoneLedgerSummary parts={[badge, description && <span className="muted">{description}</span>]} />;
+  };
+
   const listValue = active ? orderListValue(active.items) : null;
   const outstanding = active?.status === "Confirmed" && payments
     ? payments.outstandingMinorUnits : active?.outstandingMinorUnits;
 
-  return (
-    <FieldConsole>
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) auto" }, gap: 1.5, alignItems: "start" }}>
-        <Box><Typography variant="h2">{t("title")}</Typography><Typography variant="body2" className="muted" sx={{ fontSize: ".8125rem" }}>{t("intro")}</Typography></Box>
-        {/* #655 — also withheld exactly when the truly-empty state below is
-            offering this same action (never for the filtered-empty branch,
-            which offers "Clear filters" instead — no duplicate there). */}
-        {customers.length > 0 && !(orders.rows.length === 0 && !hasActiveFilter) && (
-          // Re-seeded on open, not only at mount: a tab left open across
-          // farm-midnight would otherwise offer yesterday as the order date
-          // while the picker's own ceiling had already moved on (codex review
-          // of #123).
-          <Button variant="contained" type="button" sx={{ minHeight: 44, width: { xs: "100%", md: "auto" }, borderRadius: "4px" }} onClick={() => {
-            // Nothing to clear on the way in: #479 moved that onto the
-            // dismissal, so the slot is already empty before a reopen.
-            setOrderDate(today);
-            setNewOrderCustomerPickerOpen(true);
-            openDialog("create-order"); // a new session — see #477
-            setCreatingOrder(true);
+  // #987 — one filter set, rendered inline on desktop and inside the phone
+  // filter dialog the chip row opens.
+  const filters = (
+    <FilterBar>
+      <TextField
+        select
+        label={t("status")}
+        value={statusFilter}
+        size="small"
+        // Shrink the label so it does not overlap the empty-value placeholder.
+        slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+        onChange={(e) => setStatusFilter(e.target.value)}
+      >
+        <option value="">{t("allOption")}</option>
+        <option value="Draft">{statusLabel("Draft")}</option>
+        <option value="Confirmed">{statusLabel("Confirmed")}</option>
+        <option value="Cancelled">{statusLabel("Cancelled")}</option>
+        <option value="Voided">{statusLabel("Voided")}</option>
+      </TextField>
+      <Box sx={PICKER_SX}>
+        {/* #512 US5 (T057) — `customerId` in the URL is the sole source of
+            truth (FR-046); select/clear clone the CURRENT URLSearchParams
+            and touch only `customerId` (FR-047), preserving every unrelated
+            key (`status` included, once it moves to the URL — none does
+            today, but the clone-and-set pattern costs nothing to get right
+            now). Malformed values never reach here (`requestedId` is ""),
+            so the picker shows blank/All for them, never an unavailable
+            state — a malformed id is absent, not inaccessible (FR-048). */}
+        <CustomerPicker
+          label={t("customer")}
+          required={false}
+          open={customerFilterPickerOpen}
+          requestedId={customerFilter || null}
+          onSnapshot={(snap) => {
+            setCustomerFilterSnapshot(snap);
+            if (snap.committed) setCustomerFilterEntity(snap.committed);
+          }}
+          onCommit={(c) => {
+            const next = new URLSearchParams(searchParams);
+            next.set("customerId", c.id);
+            setCustomerFilterEntity(c);
+            setSearchParams(next);
+            setCustomerFilterPickerOpen(false);
+          }}
+          onClear={() => {
+            const next = new URLSearchParams(searchParams);
+            next.delete("customerId");
+            setCustomerFilterEntity(null);
+            setSearchParams(next);
+          }}
+          onEscape={() => setCustomerFilterPickerOpen(false)}
+          onOutsideClick={() => setCustomerFilterPickerOpen(false)}
+          trigger={
+            <button type="button" className="named-picker-trigger"
+              onClick={() => setCustomerFilterPickerOpen(true)}>
+              {customerFilterName ?? t("allOption")}
+            </button>
+          }
+        />
+        {/* FR-049 — an unavailable filter identity must offer Clear even
+            while the picker is closed (the generic engine's own Clear only
+            renders inside the open combobox, and only once something is
+            actually committed — never during `unavailable`, where nothing
+            is). This is the page-owned affordance that closes the gap. */}
+        {customerFilterSnapshot.selectionPhase === "unavailable" && (
+          <button type="button" className="link" onClick={() => {
+            const next = new URLSearchParams(searchParams);
+            next.delete("customerId");
+            setCustomerFilterEntity(null);
+            setSearchParams(next);
           }}>
-            <Plus size={16} aria-hidden /> {t("newOrder")}
-          </Button>
+            {i18n.t("namedEntityPicker:clear")}
+          </button>
         )}
       </Box>
+      {/* #769 — the money tier only. Same clone-and-set discipline as the
+          customer filter above: touch `unpaid` and nothing else. */}
+      {canSettle && (
+        <FormControlLabel
+          label={t("unpaidOnlyFilter")}
+          slotProps={{ typography: { color: "text.secondary" } }}
+          control={
+            <Checkbox checked={unpaidFilter}
+              onChange={(e) => {
+                const next = new URLSearchParams(searchParams);
+                if (e.target.checked) next.set("unpaid", "1");
+                else next.delete("unpaid");
+                setSearchParams(next);
+              }} />
+          }
+        />
+      )}
+      {/* #987 — on a phone this control moves into the filter dialog's
+          footer, beside Done; the chip row has no width to spare. */}
+      {isDesktop && <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={clearFilters}>{tc("clearFiltersButton")}</Button>}
+    </FilterBar>
+  );
+
+  // Re-seeded on open, not only at mount: a tab left open across
+  // farm-midnight would otherwise offer yesterday as the order date while the
+  // picker's own ceiling had already moved on (codex review of #123). Nothing
+  // to clear on the way in: #479 moved that onto the dismissal.
+  const openNewOrder = () => {
+    setOrderDate(today);
+    setNewOrderCustomerPickerOpen(true);
+    openDialog("create-order"); // a new session — see #477
+    setCreatingOrder(true);
+  };
+
+  // #655 — withheld exactly when the truly-empty state below is offering this
+  // same action (never for the filtered-empty branch, which offers "Clear
+  // filters" instead — no duplicate there).
+  const newOrderButton = customers.length > 0 && !(orders.rows.length === 0 && !hasActiveFilter) && (
+    <Button variant="contained" type="button" sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0 }} onClick={openNewOrder}>
+      <Plus size={16} aria-hidden /> {t("newOrder")}
+    </Button>
+  );
+  const intro = <Typography variant="body2" className="muted" sx={{ fontSize: ".8125rem" }}>{t("intro")}</Typography>;
+
+  return (
+    <FieldConsole>
+      {isDesktop ? (
+        <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 1.5, alignItems: "start" }}>
+          <Box><Typography variant="h2">{t("title")}</Typography>{intro}</Box>
+          {newOrderButton}
+        </Box>
+      ) : (
+        // "Sales" is short enough to share its row with the create action, which
+        // is worth ~52px of list on a phone (#987).
+        <>
+          <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between", gap: 1, mb: 1 }}>
+            <Typography variant="h2">{t("title")}</Typography>
+            {newOrderButton}
+          </Stack>
+          {intro}
+        </>
+      )}
 
       {customers.length === 0 && (
         <p className="muted">{t("addCustomerFirst")}</p>
@@ -1251,7 +1472,7 @@ export function SalesPage() {
               <Box component="header" sx={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: "15px", pb: 1.75, mb: 1.75, borderBottom: "1px solid var(--rule)" }}>
                 <Box>
                   <Typography variant="overline" sx={{ fontSize: ".625rem", letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 750, color: "text.secondary" }}>{active.status === "Draft" ? t("draftOrderHeading") : t("orderHeading")}</Typography>
-                  <Typography variant="h3" component="h3" id={orderPanelHeadingId} sx={{ "&&": { m: 0 } }}>
+                  <Typography variant="h3" component="h3" id={orderPanelHeadingId} ref={orderPanelHeadingRef} tabIndex={-1} sx={{ "&&": { m: 0 } }}>
                     {active.referenceNumber} — {rowCustomerName(active)}
                   </Typography>
                 </Box>
@@ -1621,7 +1842,7 @@ export function SalesPage() {
               {active.status === "Confirmed" && canSettle && payments && (
                 <>
                   <Typography component="h4" sx={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "1.125rem", my: 2 }}>{t("payments")}</Typography>
-                  {payments.items.length > 0 && (
+                  {payments.items.length > 0 && (isDesktop ?
                     <LedgerTableContainer
                       // The settlement rail stays narrow on desktop too (#831).
                       alwaysShowSwipeCue>
@@ -1663,7 +1884,49 @@ export function SalesPage() {
                         </TableBody>
                       </Table>
                     </LedgerTableContainer>
+                    : <Box sx={RAIL_PHONE_LIST_SX}><PhoneLedgerList label={t("payments")}>
+                      {payments.items.map((p) => <li key={p.id}>
+                        <PhoneLedgerRow muted={p.voided} disabled={busy} onClick={() => setPaymentDetailsId(p.id)}
+                          date={<FarmDate iso={p.paymentDate} />}
+                          primary={t(`method${p.method as PaymentMethod}`)}
+                          trailing={<strong>{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</strong>}
+                          summary={<PhoneLedgerSummary parts={p.voided
+                            ? [<strong>{statusLabel("Voided")}</strong>, p.referenceNumber, p.voidReason]
+                            : [p.note]} />} />
+                      </li>)}
+                    </PhoneLedgerList></Box>
                   )}
+                  {!isDesktop && <Dialog open={paymentDetails !== null} compactTitle
+                    title={paymentDetails
+                      ? t("paymentDetailsDialogTitle", { date: fmt.date(paymentDetails.paymentDate), method: t(`method${paymentDetails.method as PaymentMethod}`) })
+                      : t("payments")}
+                    onClose={() => setPaymentDetailsId(null)}
+                    actions={paymentDetails && !paymentDetails.voided && isAdmin && (
+                      <Box sx={{ display: "flex", borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
+                        {/* Not the rail's #ffb4a2: that salmon is picked for the
+                            dark settlement panel and measures far under AA on
+                            the dialog's own paper. --error carries a value per
+                            theme. */}
+                        <BusyButton variant="text" size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)" }} disabled={busy}
+                          busy={isPending(`void-payment:${paymentDetails.id}`)}
+                          onClick={() => {
+                            const { id, version } = paymentDetails;
+                            setPaymentDetailsId(null);
+                            void onVoidPayment(id, version);
+                          }}>{t("voidPaymentButton")}</BusyButton>
+                      </Box>
+                    )}>
+                    {paymentDetails && <Box component="dl" sx={{ m: 0 }}>
+                      <PhoneDetailsField label={t("amount")}>{fmt.money(paymentDetails.amountMinorUnits, paymentDetails.currencyCode, paymentDetails.currencyMinorUnit)}</PhoneDetailsField>
+                      <PhoneDetailsField label={t("method")}>{t(`method${paymentDetails.method as PaymentMethod}`)}</PhoneDetailsField>
+                      <PhoneDetailsField label={t("reference")}>{paymentDetails.referenceNumber ?? "—"}</PhoneDetailsField>
+                      <PhoneDetailsField label={t("noteHeader")}>{paymentDetails.note ?? "—"}</PhoneDetailsField>
+                      <PhoneDetailsField label={t("status")}>
+                        {paymentDetails.voided ? statusLabel("Voided") : t("paymentRecordedStatus")}
+                      </PhoneDetailsField>
+                      {paymentDetails.voided && <PhoneDetailsField label={t("voidReasonHeader")}>{paymentDetails.voidReason ?? "—"}</PhoneDetailsField>}
+                    </Box>}
+                  </Dialog>}
                   <p>
                     <Trans
                       ns="sales"
@@ -1779,103 +2042,65 @@ export function SalesPage() {
       {errors.page && <p className="error">{errors.page}</p>}
       {message && <p className="success">{message}</p>}
 
-      <h3>{t("ordersHeading")}</h3>
-      <FilterBar>
-        <TextField
-          select
-          label={t("status")}
-          value={statusFilter}
-          size="small"
-          // Shrink the label so it does not overlap the empty-value placeholder.
-          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="">{t("allOption")}</option>
-          <option value="Draft">{statusLabel("Draft")}</option>
-          <option value="Confirmed">{statusLabel("Confirmed")}</option>
-          <option value="Cancelled">{statusLabel("Cancelled")}</option>
-          <option value="Voided">{statusLabel("Voided")}</option>
-        </TextField>
-        <Box sx={PICKER_SX}>
-          {/* #512 US5 (T057) — `customerId` in the URL is the sole source of
-              truth (FR-046); select/clear clone the CURRENT URLSearchParams
-              and touch only `customerId` (FR-047), preserving every unrelated
-              key (`status` included, once it moves to the URL — none does
-              today, but the clone-and-set pattern costs nothing to get right
-              now). Malformed values never reach here (`requestedId` is ""),
-              so the picker shows blank/All for them, never an unavailable
-              state — a malformed id is absent, not inaccessible (FR-048). */}
-          <CustomerPicker
-            label={t("customer")}
-            required={false}
-            open={customerFilterPickerOpen}
-            requestedId={customerFilter || null}
-            onSnapshot={(snap) => {
-              setCustomerFilterSnapshot(snap);
-              if (snap.committed) setCustomerFilterEntity(snap.committed);
-            }}
-            onCommit={(c) => {
-              const next = new URLSearchParams(searchParams);
-              next.set("customerId", c.id);
-              setCustomerFilterEntity(c);
-              setSearchParams(next);
-              setCustomerFilterPickerOpen(false);
-            }}
-            onClear={() => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("customerId");
-              setCustomerFilterEntity(null);
-              setSearchParams(next);
-            }}
-            onEscape={() => setCustomerFilterPickerOpen(false)}
-            onOutsideClick={() => setCustomerFilterPickerOpen(false)}
-            trigger={
-              <button type="button" className="named-picker-trigger"
-                onClick={() => setCustomerFilterPickerOpen(true)}>
-                {customerFilter === ""
-                  ? t("allOption")
-                  : customerFilterEntity?.name
-                    ?? (customerFilterSnapshot.selectionPhase === "unavailable"
-                      ? t("filterCustomerUnavailable")
-                      : i18n.t("namedEntityPicker:loading"))}
-              </button>
-            }
-          />
-          {/* FR-049 — an unavailable filter identity must offer Clear even
-              while the picker is closed (the generic engine's own Clear only
-              renders inside the open combobox, and only once something is
-              actually committed — never during `unavailable`, where nothing
-              is). This is the page-owned affordance that closes the gap. */}
-          {customerFilterSnapshot.selectionPhase === "unavailable" && (
-            <button type="button" className="link" onClick={() => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("customerId");
-              setCustomerFilterEntity(null);
-              setSearchParams(next);
-            }}>
-              {i18n.t("namedEntityPicker:clear")}
-            </button>
-          )}
-        </Box>
-        {/* #769 — the money tier only. Same clone-and-set discipline as the
-            customer filter above: touch `unpaid` and nothing else. */}
-        {canSettle && (
-          <FormControlLabel
-            label={t("unpaidOnlyFilter")}
-            slotProps={{ typography: { color: "text.secondary" } }}
-            control={
-              <Checkbox checked={unpaidFilter}
-                onChange={(e) => {
-                  const next = new URLSearchParams(searchParams);
-                  if (e.target.checked) next.set("unpaid", "1");
-                  else next.delete("unpaid");
-                  setSearchParams(next);
-                }} />
-            }
-          />
-        )}
-        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={clearFilters}>{tc("clearFiltersButton")}</Button>
-      </FilterBar>
+      {!isDesktop && <>
+        {/* One 36px chip row in place of four stacked filter controls; each
+            chip opens the same dialog. `keepMounted` so the customer picker
+            still resolves a deep-linked `customerId` while it is closed. */}
+        <Stack direction="row" sx={{ gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+          <Button variant="outlined" color="inherit" sx={CHIP_SX} onClick={() => setFilterOpen(true)}>
+            {statusFilter ? statusLabel(statusFilter) : t("allStatusesChip")}
+          </Button>
+          <Button variant="outlined" color="inherit" sx={CHIP_SX} onClick={() => setFilterOpen(true)}>
+            {customerFilterName ?? t("allCustomersChip")}
+          </Button>
+          {canSettle && <Button variant={unpaidFilter ? "contained" : "outlined"} color={unpaidFilter ? "primary" : "inherit"}
+            sx={CHIP_SX} onClick={() => setFilterOpen(true)}>{t("unpaidOnlyFilter")}</Button>}
+        </Stack>
+        <Dialog open={filterOpen} keepMounted title={t("filtersTitle")} onClose={() => setFilterOpen(false)}
+          actions={<Stack direction="row" sx={{ justifyContent: "flex-end", alignItems: "center", gap: 1 }}>
+            <Button size="small" sx={CONSOLE_LINK_SX} onClick={clearFilters}>{tc("clearFiltersButton")}</Button>
+            <Button variant="contained" sx={{ minHeight: 44, borderRadius: "4px" }} onClick={() => setFilterOpen(false)}>{t("filtersDoneButton")}</Button>
+          </Stack>}>
+          {filters}
+        </Dialog>
+        {/* A read-only peek onto the row, carrying no action the row did not
+            already have. Every action closes it first, so a failure lands on
+            the page where it is visible rather than behind this dialog. */}
+        <Dialog open={details !== null} compactTitle
+          title={details
+            ? t("orderDetailsDialogTitle", { reference: details.referenceNumber, customer: rowCustomerName(details) })
+            : t("title")}
+          onClose={() => setDetailsId(null)}
+          actions={details && <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
+            {isAdmin && <Button component={Link} size="small" sx={CONSOLE_LINK_SX} to={`/audit?entityId=${details.id}`}>
+              {tc("recordHistory.viewHistoryLink")}
+            </Button>}
+            <Button variant="contained" sx={{ ml: "auto", borderRadius: "4px" }} disabled={busy}
+              onClick={() => {
+                const id = details.id;
+                focusAfterWrite.current = id;
+                setDetailsId(null);
+                onOpen(id);
+              }}>{t("open")}</Button>
+          </Box>}>
+          {details && <Box component="dl" sx={{ m: 0 }}>
+            <PhoneDetailsField label={t("date")}><FarmDate iso={details.orderDate} /></PhoneDetailsField>
+            <PhoneDetailsField label={t("status")}><OrderStatus status={details.status} /></PhoneDetailsField>
+            <PhoneDetailsField label={t("linesHeader")}>{fmt.count(details.items.length)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("discount")}>{detailsDiscount(details)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("total")}>{fmt.money(details.totalMinorUnits, details.currencyCode, details.currencyMinorUnit)}</PhoneDetailsField>
+            {canSettle && <PhoneDetailsField label={t("outstanding")}>
+              {details.outstandingMinorUnits === null ? "—" : settlementSegment(details)}
+            </PhoneDetailsField>}
+            <PhoneDetailsField label={tc("recordHistoryHeader")}>
+              <ProvenanceSummary history={details} official="confirmed" />
+            </PhoneDetailsField>
+          </Box>}
+        </Dialog>
+      </>}
+      {isDesktop ? <h3>{t("ordersHeading")}</h3>
+        : <ConsoleSubhead title={t("ordersHeading")} caption={t("ordersCaption")} />}
+      {isDesktop && filters}
       {/* The list's own failure, beside the workspace rather than instead of
           it — and self-healing on the next successful load (#469). */}
       {orders.error && <p className="error" role="alert">{orders.error}</p>}
@@ -1891,18 +2116,10 @@ export function SalesPage() {
           // Same condition AND same handler as the page-head New order button
           // above — a customer-less farm gets the sentence alone there too.
           : <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")}
-              action={customers.length > 0 ? {
-                label: t("newOrder"),
-                onClick: () => {
-                  setOrderDate(today);
-                  setNewOrderCustomerPickerOpen(true);
-                  openDialog("create-order"); // a new session — see #477
-                  setCreatingOrder(true);
-                },
-              } : undefined} />
+              action={customers.length > 0 ? { label: t("newOrder"), onClick: openNewOrder } : undefined} />
       ) : (
         <>
-          <LedgerTableContainer>
+          {isDesktop ? <LedgerTableContainer>
             <Table size="small" sx={{ "& .MuiTableCell-root": { whiteSpace: "nowrap", px: .75, py: .75 } }}>
               <TableHead>
                 <TableRow>
@@ -1981,7 +2198,19 @@ export function SalesPage() {
                 })}
               </TableBody>
             </Table>
-          </LedgerTableContainer>
+          </LedgerTableContainer> : <PhoneLedgerList label={t("ordersHeading")}>
+            {orders.rows.map((o) => <li key={o.id}>
+              <PhoneLedgerRow rowId={o.id} onClick={() => setDetailsId(o.id)} disabled={busy} date={<FarmDate iso={o.orderDate} />}
+                primary={rowCustomerName(o)}
+                trailing={<strong>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</strong>}
+                summary={<PhoneLedgerSummary parts={[
+                  <strong><OrderStatus status={o.status} /></strong>,
+                  canSettle && settlementSegment(o),
+                  discountSegment(o),
+                  o.referenceNumber,
+                ]} />} />
+            </li>)}
+          </PhoneLedgerList>}
           {orders.canLoadMore && (
             // A guarded READ — the hook withdraws this control for the
             // duration of any load, so it cannot mix two windows (#469).

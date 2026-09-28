@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
-  Box, List, ListItem, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Box, List, ListItem, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, getAccount,
@@ -15,14 +15,16 @@ import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "..
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
-import { FieldConsole, CONSOLE_LINK_SX, LedgerTableContainer, CONSOLE_RAIL_SX } from "../components/FieldConsole";
+import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, LedgerTableContainer, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
+import { focusPhoneRow, PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow, PhoneLedgerSummary } from "../components/PhoneLedger";
 import { usePagedList } from "../components/usePagedList";
 import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import { useFarmToday } from "../farm/useFarm";
 import { FEEDABLE_CATEGORIES } from "./FeedPage";
 import i18n from "../i18n";
@@ -51,6 +53,7 @@ const DIALOG_SCOPES = ["create", "edit", "purchase", "adjust"] as const;
 // every change. Feed usage (consumption) is the follow-up PR.
 export function InventoryPage() {
   const { t } = useTranslation("inventory");
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
   const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
@@ -88,6 +91,22 @@ export function InventoryPage() {
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
   const [editCost, setEditCost] = useState("");
+
+  // #987 — the phone row's read-only peek. It holds an ID, never a row: the
+  // item is re-read from the live list every render, so a refresh can neither
+  // leave it showing a stale status nor offering `deactivate` on an item that
+  // is already inactive (#988 review r1). Its open-lot count is not on the
+  // list response, so it takes its own ticketed read and stays null (an em
+  // dash) when that read is superseded or fails: a lot count must never take
+  // the peek down with it.
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [detailsOpenLots, setDetailsOpenLots] = useState<number | null>(null);
+  const detailsLotsRequest = useRef(0);
+  // #988 review r2 — activate/deactivate close the peek and disable its row in
+  // the same commit, so `Dialog`'s restore (one retry a frame later) lands on
+  // <body> for any request slower than a frame. The row is still the right
+  // place to be afterwards: the item stays listed, with its status flipped.
+  const focusAfterWrite = useRef<string | null>(null);
 
   // open item panel: purchase/adjust forms + ledger. Feed usage moved to its
   // own /feed page (#446) — the panel keeps only a deep link there.
@@ -156,6 +175,14 @@ export function InventoryPage() {
       })
       .catch(() => setPageError(i18n.t("inventory:loadInventoryFailed")));
   }, []);
+
+  useEffect(() => {
+    if (busy) return;
+    const rowId = focusAfterWrite.current;
+    if (rowId === null) return;
+    focusAfterWrite.current = null;
+    focusPhoneRow(rowId);
+  }, [busy]);
 
   // Dismissal is one of the two session edges (#703): it mutes the attempt
   // still out, so a late failure is not reported against a session the user
@@ -344,6 +371,19 @@ export function InventoryPage() {
     });
   }
 
+  function openDetails(i: InventoryItem) {
+    setDetailsId(i.id);
+    setDetailsOpenLots(null);
+    const req = ++detailsLotsRequest.current;
+    listInventoryLots(i.id)
+      .then((rows) => {
+        if (detailsLotsRequest.current === req) {
+          setDetailsOpenLots(rows.filter((l) => l.quantityAvailable > 0).length);
+        }
+      })
+      .catch(() => {});
+  }
+
   async function onOpen(i: InventoryItem) {
     // The purchase/adjust dialogs are bound to the ACTIVE panel — an open one
     // would otherwise REBIND in place when the item switches: its title
@@ -480,20 +520,40 @@ export function InventoryPage() {
 
   const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
 
+  // Adjusted during render, the React-documented way to reset state a refreshed
+  // list invalidates: an id the catalog no longer holds is retired, so a later
+  // load cannot silently reopen the peek on it.
+  if (detailsId !== null && !items.some((i) => i.id === detailsId)) setDetailsId(null);
+  const details = items.find((i) => i.id === detailsId) ?? null;
+
+  const intro = <Typography component="p" variant="body2" sx={{ color: "text.secondary" }}>{t("intro")}</Typography>;
+  const createItemButton = isAdmin && (
+    <Button variant="contained" startIcon={<Plus size={16} aria-hidden />} sx={{ width: { xs: "100%", md: "auto" }, minHeight: 44, my: { xs: 1, md: 0 } }}
+      onClick={() => { closeEdit(); openDialog("create"); setCreating(true); }}>
+      {t("newItemButton")}
+    </Button>
+  );
+
   return (
     <FieldConsole>
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) auto" }, gap: 1, alignItems: "start", mb: 2 }}>
-        <Box>
-          <Typography variant="h2">{t("title")}</Typography>
-          <Typography component="p" variant="body2" sx={{ color: "text.secondary" }}>{t("intro")}</Typography>
+      {isDesktop ? (
+        <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 1, alignItems: "start", mb: 2 }}>
+          <Box>
+            <Typography variant="h2">{t("title")}</Typography>
+            {intro}
+          </Box>
+          {createItemButton}
         </Box>
-        {isAdmin && (
-          <Button variant="contained" startIcon={<Plus size={16} aria-hidden />} sx={{ width: { xs: "100%", md: "auto" }, minHeight: 44 }}
-            onClick={() => { closeEdit(); openDialog("create"); setCreating(true); }}>
-            {t("newItemButton")}
-          </Button>
-        )}
-      </Box>
+      ) : (
+        // "Feed & inventory" leaves no room beside it at the h2 scale, so the
+        // create action keeps its own full-width row — above the intro, where
+        // it costs the list nothing (#987).
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h2">{t("title")}</Typography>
+          {createItemButton}
+          {intro}
+        </Box>
+      )}
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
       <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={closeCreate}
@@ -760,7 +820,8 @@ export function InventoryPage() {
         </Box>
       )}
 
-      <LedgerTableContainer>
+      {!isDesktop && <ConsoleSubhead title={t("itemsHeading")} caption={t("itemsCaption")} />}
+      {isDesktop ? <LedgerTableContainer>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -804,7 +865,65 @@ export function InventoryPage() {
             ))}
           </TableBody>
         </Table>
-      </LedgerTableContainer>
+      </LedgerTableContainer> : <>
+        <PhoneLedgerList label={t("itemsHeading")}>
+          {items.map((i) => <li key={i.id}>
+            {/* No date, so the name takes the flexible slot and stops wrapping (#987). */}
+            <PhoneLedgerRow rowId={i.id} muted={!i.active} disabled={busy} onClick={() => openDetails(i)}
+              primary={i.name}
+              trailing={<strong>{fmt.count(i.quantityOnHand)} {i.unit}</strong>}
+              summary={<PhoneLedgerSummary parts={[
+                <strong>{inventoryCategoryLabel(i.category)}</strong>,
+                i.defaultCostMinorUnits === null ? null : t("costPerUnitShort", { cost: costText(i), unit: i.unit }),
+                !i.active && <Box component="span" sx={{ color: "var(--error)" }}>{statusLabel("Inactive")}</Box>,
+              ]} />} />
+          </li>)}
+        </PhoneLedgerList>
+        {/* Every action closes the peek first, so the page's own error and
+            success lines are visible when the write answers. */}
+        <Dialog open={details !== null} compactTitle title={details ? details.name : t("title")}
+          onClose={() => setDetailsId(null)}
+          actions={details && <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
+            {isAdmin && <>
+              <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy}
+                onClick={() => { const item = details; setDetailsId(null); startEdit(item); }}>{t("editButton")}</Button>
+              {details.active ? (
+                <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${details.id}`)} disabled={busy}
+                  onClick={() => {
+                    const { id } = details;
+                    focusAfterWrite.current = id;
+                    setDetailsId(null);
+                    void run(`deactivate:${id}`, () => commit(`deactivate:${id}`, (key) => deactivateInventoryItem(id, key)));
+                  }}>{t("deactivateButton")}</BusyButton>
+              ) : (
+                <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${details.id}`)} disabled={busy}
+                  onClick={() => {
+                    const { id } = details;
+                    focusAfterWrite.current = id;
+                    setDetailsId(null);
+                    void run(`activate:${id}`, () => commit(`activate:${id}`, (key) => activateInventoryItem(id, key)));
+                  }}>{t("activateButton")}</BusyButton>
+              )}
+            </>}
+            <Button variant="contained" sx={{ ml: "auto", borderRadius: "4px" }} disabled={busy}
+              onClick={() => { const item = details; setDetailsId(null); void onOpen(item); }}>{t("openButton")}</Button>
+          </Box>}>
+          {details && <Box component="dl" sx={{ m: 0 }}>
+            <PhoneDetailsField label={t("categoryHeader")}>{inventoryCategoryLabel(details.category)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("onHandHeader")}>{fmt.count(details.quantityOnHand)} {details.unit}</PhoneDetailsField>
+            <PhoneDetailsField label={t("defaultCostHeader")}>
+              {details.defaultCostMinorUnits === null ? "—" : t("costPerUnitShort", { cost: costText(details), unit: details.unit })}
+            </PhoneDetailsField>
+            <PhoneDetailsField label={t("unitHeader")}>{details.unit}</PhoneDetailsField>
+            <PhoneDetailsField label={t("lotsHeader")}>
+              {detailsOpenLots === null ? "—" : t("lotsOpenValue", { lots: fmt.count(detailsOpenLots) })}
+            </PhoneDetailsField>
+            <PhoneDetailsField label={t("statusHeader")}>
+              <StatusBadge status={details.active ? "Active" : "Inactive"} label={statusLabel(details.active ? "Active" : "Inactive")} />
+            </PhoneDetailsField>
+          </Box>}
+        </Dialog>
+      </>}
     </FieldConsole>
   );
 }

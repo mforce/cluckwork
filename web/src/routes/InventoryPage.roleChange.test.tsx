@@ -8,6 +8,7 @@ import {
 } from "../api/cluckwork";
 import type { Account, InventoryItem, InventoryLot } from "../api/cluckwork";
 import { account } from "../test/fixtures";
+import { stubMatchMedia } from "../test/matchMedia";
 import i18n from "../i18n";
 
 // #703 review r2 (PR 2) — the create/edit/adjust dialogs are admin-gated
@@ -68,6 +69,9 @@ function deferred<T>() {
 const dialog = () => screen.getByRole("dialog");
 
 beforeEach(() => {
+  // This suite asserts the desktop table; the phone list has its own tests,
+  // which flip the stub (#987).
+  stubMatchMedia(true);
   vi.clearAllMocks();
   auth.isAdmin = true;
   localStorage.clear();

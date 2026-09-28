@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
 import { InventoryPage } from "./InventoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { stubMatchMedia } from "../test/matchMedia";
 import { getRowByCellText } from "../test/rows";
 import { account, NO_RECORD_HISTORY } from "../test/fixtures";
 import {
@@ -96,6 +97,9 @@ const MOVEMENT: InventoryMovement = {
 };
 
 beforeEach(() => {
+  // These suites assert the desktop table; the phone list has its own
+  // tests, which flip the stub (#987).
+  stubMatchMedia(true);
   vi.clearAllMocks();
   localStorage.clear();
   // Mount-load defaults; individual tests override account currency / lots / movements.
@@ -1565,4 +1569,170 @@ it("mutes inactive item cells without muting active item cells", async () => {
   for (const cell of within(active).getAllByRole("cell")) {
     expect(cell).not.toHaveStyle({ color: "var(--muted)" });
   }
+});
+
+// #987 — below 900px the six-column table becomes one two-line button per
+// item, and the columns it drops live in a Details dialog.
+describe("phone item list", () => {
+  beforeEach(() => { stubMatchMedia(false); });
+
+  const phoneRow = (name: string | RegExp) => screen.getByRole("button", { name });
+
+  it("shows two-line rows carrying name, on hand, category, cost and Inactive", async () => {
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    const feed = await screen.findByRole("button", { name: /Layer Feed/ });
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(feed).toHaveTextContent("Layer Feed");
+    expect(feed).toHaveTextContent("200 kg");
+    expect(feed).toHaveTextContent("Feed · $45.00 / kg");
+    // No default cost, so line 2 is the category alone — never "— / unit".
+    expect(phoneRow(/Egg Cartons/)).toHaveTextContent("Egg Cartons0 unitPackaging");
+    expect(phoneRow(/Egg Cartons/)).not.toHaveTextContent("/ unit");
+    expect(phoneRow(/Old Additive/)).toHaveTextContent("Additive · $45.00 / kg · Inactive");
+  });
+
+  it("opens Details with the dropped columns, the open-lot count and every admin action", async () => {
+    // One lot drained to zero, so the count is the OPEN lots and not the lots.
+    mockListLots.mockResolvedValue([LOT, { ...LOT2, quantityAvailable: 0 }]);
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    const dialog = screen.getByRole("dialog");
+    for (const label of ["Category", "On hand", "Default cost", "Unit", "Lots", "Status"]) {
+      expect(within(dialog).getByText(label)).toBeInTheDocument();
+    }
+    expect(within(dialog).getByText("$45.00 / kg")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("1 open")).toBeInTheDocument());
+    for (const action of ["edit", "deactivate", "open"]) {
+      expect(within(dialog).getByRole("button", { name: action })).toBeInTheDocument();
+    }
+  });
+
+  it("offers a Worker only open", async () => {
+    renderWithProviders(<InventoryPage />, { token: WORKER });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "open" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "edit" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "deactivate" })).toBeNull();
+  });
+
+  it("offers activate on an inactive item", async () => {
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Old Additive/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "activate" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "deactivate" })).toBeNull();
+  });
+
+  it("open closes the peek and mounts the item workspace", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    });
+    expect(await screen.findByRole("heading", { name: /Layer Feed/ })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Round 1 of #986 left a failure behind the dialog that started it. Every
+  // Details action closes the peek first, so the page's own line is on screen.
+  it("shows a failed deactivate on the page with the peek closed", async () => {
+    mockDeactivate.mockRejectedValue(new Error("Item is in use."));
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "deactivate" }));
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText("Item is in use.")).toBeVisible();
+  });
+});
+
+// #988 review r1 (Codex gpt-6-sol) — the phone row IS the action, so it must be
+// as inert during a write as the table's buttons were, and the peek behind it
+// must never keep describing a record the refresh has changed.
+describe("phone item list under a write", () => {
+  beforeEach(() => { stubMatchMedia(false); });
+
+  it("makes every row inert while a write is in flight", async () => {
+    const gate = deferred<void>();
+    mockDeactivate.mockReturnValue(gate.promise);
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "deactivate" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    for (const name of [/Layer Feed/, /Egg Cartons/, /Old Additive/]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+    // Inert, not merely styled: a tap must not raise the peek the write is
+    // about to invalidate.
+    fireEvent.click(screen.getByRole("button", { name: /Layer Feed/ }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    mockListItems.mockResolvedValue([FEED, PACKAGING, INACTIVE]);
+    await act(async () => { gate.resolve(); });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Layer Feed/ })).toBeEnabled());
+  });
+
+  // #988 review r2 (Codex gpt-6-sol) — the row that opened the peek is
+  // disabled for the whole write, so Dialog's own restore is spent before a
+  // real request settles. Held open deliberately.
+  it("puts focus back on the row when a slow deactivate settles", async () => {
+    const gate = deferred<void>();
+    mockDeactivate.mockReturnValue(gate.promise);
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "deactivate" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(document.body);
+
+    mockListItems.mockResolvedValue([{ ...FEED, active: false }, PACKAGING, INACTIVE]);
+    await act(async () => { gate.resolve(); });
+    const row = screen.getByRole("button", { name: /Layer Feed/ });
+    expect(row).toBeEnabled();
+    expect(document.activeElement).toBe(row);
+  });
+
+  it("reconciles an open peek with the refreshed catalog", async () => {
+    mockCreate.mockResolvedValue({ id: "new1" });
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "deactivate" })).toBeInTheDocument();
+
+    // A write reached from behind the peek — #480 established the backdrop
+    // stops a mouse, not a screen reader's virtual cursor.
+    mockListItems.mockResolvedValue([{ ...FEED, active: false }, PACKAGING, INACTIVE]);
+    fireEvent.click(screen.getByRole("button", { name: /New item/, hidden: true }));
+    const form = screen.getAllByRole("dialog").at(-1)!;
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Bulk Grain" } });
+    await act(async () => {
+      fireEvent.click(within(form).getByRole("button", { name: "Add item" }));
+    });
+
+    // The create dialog's exit transition keeps it mounted for a beat, and
+    // MUI's aria-hidden sweep hides the peek under it meanwhile.
+    const peek = await screen.findByRole("dialog", { name: "Layer Feed" });
+    expect(within(peek).getByRole("button", { name: "activate" })).toBeInTheDocument();
+    expect(within(peek).queryByRole("button", { name: "deactivate" })).toBeNull();
+    expect(within(peek).getByText("Inactive")).toBeInTheDocument();
+  });
+
+  it("closes an open peek when its item leaves the catalog", async () => {
+    mockCreate.mockResolvedValue({ id: "new1" });
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    mockListItems.mockResolvedValue([PACKAGING, INACTIVE]);
+    fireEvent.click(screen.getByRole("button", { name: /New item/, hidden: true }));
+    const form = screen.getAllByRole("dialog").at(-1)!;
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Bulk Grain" } });
+    await act(async () => {
+      fireEvent.click(within(form).getByRole("button", { name: "Add item" }));
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Layer Feed", hidden: true })).toBeNull());
+  });
 });

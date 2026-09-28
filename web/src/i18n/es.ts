@@ -486,6 +486,20 @@ export const es = {
     paymentRecorded: "Pago registrado.",
     paymentVoided: "Pago anulado — el monto pendiente aumentó de nuevo.",
     orderVoided: "Pedido {{ref}} anulado — existencias devueltas al inventario.",
+    // #987 — la lista en el teléfono.
+    ordersCaption: "Más recientes primero",
+    allStatusesChip: "Todos los estados",
+    allCustomersChip: "Todos los clientes",
+    filtersTitle: "Filtros",
+    filtersDoneButton: "Listo",
+    discountShort: "{{percent}}% menos",
+    dueShort: "{{amount}} pendiente",
+    linesHeader: "Líneas",
+    noteHeader: "Nota",
+    voidReasonHeader: "Motivo de anulación",
+    orderDetailsDialogTitle: "{{reference}} · {{customer}}",
+    paymentDetailsDialogTitle: "{{date}} · {{method}}",
+    paymentRecordedStatus: "Registrado",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
@@ -1066,6 +1080,13 @@ export const es = {
     editButton: "editar",
     deactivateButton: "desactivar",
     activateButton: "activar",
+    // #987 — la lista en el teléfono.
+    itemsHeading: "Artículos",
+    itemsCaption: "Orden por nombre",
+    unitHeader: "Unidad",
+    lotsHeader: "Lotes",
+    lotsOpenValue: "{{lots}} abiertos",
+    costPerUnitShort: "{{cost}} / {{unit}}",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -2579,7 +2600,10 @@ export const es = {
     inventoryItems:
       "Los <strong>artículos</strong> definen lo que rastrea (alimento, suplementos…) y la unidad en que se "
       + "mide. La unidad se bloquea una vez que se han recibido existencias — las cantidades registradas "
-      + "deben seguir significando lo que significaban.",
+      + "deben seguir significando lo que significaban. "
+      + "En el teléfono cada artículo ocupa dos líneas — nombre y disponible arriba, luego categoría, "
+      + "costo e <strong>Inactivo</strong> — y al tocar uno se abren sus detalles con "
+      + "<strong>editar</strong>, <strong>desactivar</strong> y <strong>abrir</strong>.",
     inventoryPurchaseUsage:
       "<strong>Registrar compra</strong> asienta las existencias recibidas como un lote fechado con su "
       + "costo. La alimentación de una parvada se registra en la <strong>página de Alimento</strong> — el "
@@ -2649,7 +2673,12 @@ export const es = {
       + "desapareció. Los campos sin editar adoptan los valores recibidos. Los que tienen cambios sin "
       + "guardar se conservan y bloquean guardar si la cantidad o el precio recibidos cambiaron. Elija "
       + "<strong>recargar línea</strong> para reemplazar ambos campos con los últimos valores recibidos. "
-      + "Aquí no se detectan cambios posteriores a la última consulta.",
+      + "Aquí no se detectan cambios posteriores a la última consulta. "
+      + "En el teléfono la lista de pedidos ocupa dos líneas por pedido — fecha, cliente y total arriba, "
+      + "luego estado, pendiente, descuento y referencia — y al tocar una se abren sus detalles con "
+      + "<strong>Historial de auditoría</strong> y <strong>abrir</strong>. Los filtros de Estado, Cliente "
+      + "y <strong>Solo pendientes</strong> comparten un cuadro <strong>Filtros</strong>, que se abre "
+      + "desde los chips sobre la lista.",
     salesListPrice:
       "Cada línea también muestra su <strong>Precio de lista</strong>, el precio del producto cuando se "
       + "agregó la línea, junto a un <strong>Descuento</strong> calculado a partir de él. Ese Descuento es "
@@ -2693,7 +2722,9 @@ export const es = {
       + "con pagos no se puede anular hasta que sus pagos se anulen. La pantalla de Clientes muestra el "
       + "saldo pendiente de cada cliente. La lista de pedidos lleva una columna <strong>Pendiente</strong> "
       + "por pedido, con una casilla <strong>Solo pendientes</strong> que reduce la lista entera, no solo "
-      + "las filas en pantalla, a los pedidos que aún deben algo.",
+      + "las filas en pantalla, a los pedidos que aún deben algo. "
+      + "En el teléfono el historial de liquidación ocupa dos líneas por pago, y al tocar uno se abren "
+      + "sus detalles, donde un administrador encuentra <strong>anular</strong>.",
 
     reportsHeading: "Informes",
     reportsProduction:

@@ -1,6 +1,23 @@
+import type { Page } from "@playwright/test";
 import { test, expect } from "../src/fixtures";
 import { owner } from "../src/cast";
 import { tEn } from "../src/i18n";
+
+// #987 — below 900px the orders table is one two-line button per order, and
+// its `open` moved into the Details peek that button raises. Above it, the
+// row's own `open` button is still there.
+async function openOrder(page: Page, customer: string, status: string, phone: boolean) {
+  if (!phone) {
+    const row = page.getByRole("row").filter({ hasText: customer })
+      .filter({ hasText: tEn(`enums:status.${status}` as never) }).first();
+    await row.getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+    return;
+  }
+  const peek = page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button")
+    .filter({ hasText: customer }).filter({ hasText: tEn(`enums:status.${status}` as never) }).first();
+  await peek.click();
+  await page.getByRole("dialog").getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+}
 
 test("Sales draft keeps a commercial row in the first desktop frame", async ({ page, signIn }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -45,8 +62,7 @@ test("Sales uses Field Console status, links and settlement actions", async ({ p
 test("Sales phone manifest fits without hiding price editing", { tag: "@phone" }, async ({ page, signIn }) => {
   await signIn(owner());
   await page.goto("/sales");
-  const draft = page.getByRole("row").filter({ hasText: "Sim Customer 1" }).filter({ hasText: tEn("enums:status.Draft") });
-  await draft.getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+  await openOrder(page, "Sim Customer 1", "Draft", true);
   const manifest = page.getByRole("region").getByRole("table").first();
   await expect(manifest.getByRole("columnheader", { name: tEn("sales:unitPrice"), exact: true })).toBeHidden();
   await expect(manifest.getByRole("columnheader", { name: tEn("sales:lineTotal"), exact: true })).toBeHidden();
@@ -85,9 +101,7 @@ test("Sales confirmed phone rows expose their hidden price columns", { tag: "@ph
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(owner());
   await page.goto("/sales");
-  const confirmed = page.getByRole("row").filter({ hasText: "Sim Customer 3" })
-    .filter({ hasText: tEn("enums:status.Confirmed") }).first();
-  await confirmed.getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+  await openOrder(page, "Sim Customer 3", "Confirmed", true);
   const manifest = page.getByRole("region").getByRole("table").first();
   await expect(manifest.getByRole("columnheader", { name: tEn("sales:unitPrice"), exact: true })).toBeHidden();
   await expect(manifest.getByRole("columnheader", { name: tEn("sales:lineTotal"), exact: true })).toBeHidden();
@@ -104,16 +118,22 @@ for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
     await signIn(owner());
     await page.goto("/sales");
-    const partial = page.getByRole("row").filter({ hasText: "Sim Customer 2" })
-      .filter({ hasText: tEn("enums:status.Draft") });
+    // #987 — line 2 has no room for the note, so on a phone it is the Details
+    // peek that must still show it in full rather than the row.
+    if (width === 390) {
+      await page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button")
+        .filter({ hasText: "Sim Customer 2" }).filter({ hasText: tEn("enums:status.Draft") }).first().click();
+    }
+    const partial = width === 390
+      ? page.getByRole("dialog")
+      : page.getByRole("row").filter({ hasText: "Sim Customer 2" }).filter({ hasText: tEn("enums:status.Draft") });
     const note = partial.getByText(tEn("sales:discountPartialNote"), { exact: true });
     await note.scrollIntoViewIfNeeded();
     await expect(note).toBeVisible();
     await expect(note).toHaveCSS("clip-path", "none");
     expect((await note.boundingBox())!.width).toBeGreaterThan(20);
-    const draft = page.getByRole("row").filter({ hasText: "Sim Customer 1" })
-      .filter({ hasText: tEn("enums:status.Draft") });
-    await draft.getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+    if (width === 390) await page.getByRole("dialog").getByRole("button", { name: tEn("common:close") }).click();
+    await openOrder(page, "Sim Customer 1", "Draft", width === 390);
     const row = page.getByRole("region").getByRole("row", { name: /Sim Medium Eggs/ });
     await row.getByRole("button", { name: tEn("sales:edit"), exact: true }).click();
     const muted = await page.evaluate(() => {

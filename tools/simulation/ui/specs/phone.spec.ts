@@ -114,10 +114,14 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
       // The fixture seeds two draft orders and never confirms them
       // (SimulationDataSeeder), so this opens existing state instead of minting
       // an order and drawing stock out of the fixture on every phone run.
-      const draft = page.getByRole("row").filter({ hasText: tEn("enums:status.Draft") }).first();
+      // #987 — at this width the orders list is two-line buttons, and `open`
+      // sits in the Details peek one of them raises.
+      const draft = page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button")
+        .filter({ hasText: tEn("enums:status.Draft") }).first();
       await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
         .toBeVisible();
-      await draft.getByRole("button", { name: tEn("sales:open") }).click();
+      await draft.click();
+      await page.getByRole("dialog").getByRole("button", { name: tEn("sales:open"), exact: true }).click();
       const row = page.getByRole("region").getByRole("group", { name: tEn("sales:draftActions") });
       await expect(page.getByRole("region").getByRole("button", { name: tEn("sales:close"), exact: true })).toBeVisible();
       await expect(row).toBeVisible();
@@ -554,9 +558,9 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // passes for free or arrives red and neither result says anything about
     // the route.
     //
-    // `/inventory` is the one judgement call: it renders a table and is left
-    // out because its own movement ledger is reached through `/flocks`, which
-    // IS walked. Add it if that stops being true.
+    // `/inventory` WAS left out while it rendered a table whose own movement
+    // ledger is reached through `/flocks`, which IS walked. #987 gave it a
+    // two-line phone list of its own, which is the thing measured now.
     //
     // `/` IS WALKED, and the story of why it briefly was not is worth keeping.
     //
@@ -602,7 +606,11 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // here is that list. The desktop table is still walked at 1280 by the
       // specs that measure it there.
       { path: "/history", content: `role=list[name="${tEn("history:title")}"]`, what: "the entry history list" },
-      { path: "/sales", content: "role=table", what: "the orders table" },
+      // #987 — below 900px Sales and Feed & inventory render two-line buttons
+      // instead of their nine- and six-column tables, exactly as #980 did to
+      // History. The desktop tables are still walked at 1280.
+      { path: "/sales", content: `role=list[name="${tEn("sales:ordersHeading")}"]`, what: "the orders list" },
+      { path: "/inventory", content: `role=list[name="${tEn("inventory:itemsHeading")}"]`, what: "the items list" },
     ];
 
     for (const { path: route, content, what } of ROUTES) {
@@ -878,20 +886,24 @@ test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {
   });
 });
 
-test.describe("Log ledgers at phone width", { tag: "@phone" }, () => {
+test.describe("Two-line ledgers at phone width", { tag: "@phone" }, () => {
   for (const [route, heading] of [
     ["/water", "water:recordsHeading"],
     ["/feed", "feed:recordsHeading"],
     ["/expenses", "expenses:ledgerHeading"],
+    // #987 — Sales and Feed & inventory joined the same two-line shape.
+    ["/sales", "sales:ordersHeading"],
+    ["/inventory", "inventory:itemsHeading"],
   ] as const) {
     test(`${route} shows ten complete rows above the bottom navigation`, async ({ page, signIn }) => {
       await signIn(owner());
       await page.goto(route);
       const rows = page.getByRole("list", { name: tEn(heading) }).locator("li");
       await expect(rows.first()).toBeVisible();
-      // The simulation fixture has eight Water/Feed rows and seven expenses
-      // this month. Repeat a rendered row to measure twelve row heights
-      // without adding permanent records to the shared quick-suite database.
+      // The simulation fixture has eight Water/Feed rows, seven expenses this
+      // month and two inventory items. Repeat a rendered row to measure twelve
+      // row heights without adding permanent records to the shared
+      // quick-suite database.
       await rows.evaluateAll((items) => {
         const first = items[0];
         const list = first?.parentElement;
@@ -907,4 +919,94 @@ test.describe("Log ledgers at phone width", { tag: "@phone" }, () => {
       expect(visible).toBeGreaterThanOrEqual(10);
     });
   }
+});
+
+// #988 review r1 — the settlement rail is a fixed dark panel in BOTH themes,
+// so a shared component dropped into it inherits the wrong text tokens in
+// light. Measured rather than eyeballed: the review found the second line at
+// about 2.75:1 and a voided status at about 1.12:1 there.
+test.describe("Settlement rail payment rows at phone width", { tag: "@phone" }, () => {
+  for (const theme of ["light", "dark"] as const) {
+    test(`payment row text clears AA on the rail in ${theme}`, async ({ page, signIn }) => {
+      await signIn(owner());
+      await page.emulateMedia({ colorScheme: theme });
+      await page.goto("/sales");
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      const order = page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button")
+        .filter({ hasText: "Sim Customer 3" })
+        .filter({ hasText: tEn("enums:status.Confirmed") }).first();
+      await order.click();
+      await page.getByRole("dialog").getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+      const row = page.getByRole("list", { name: tEn("sales:payments") }).getByRole("button").first();
+      await expect(row, "the fixture's confirmed order has no payment to measure").toBeVisible();
+
+      const measured = await row.evaluate((button) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d")!;
+        const rgb = (color: string) => {
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        };
+        const luminance = (color: string) => {
+          const channels = rgb(color).map((value) => {
+            const channel = value / 255;
+            return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+          });
+          return .2126 * channels[0]! + .7152 * channels[1]! + .0722 * channels[2]!;
+        };
+        const contrast = (a: string, b: string) => {
+          const [first, second] = [luminance(a), luminance(b)];
+          return (Math.max(first, second) + .05) / (Math.min(first, second) + .05);
+        };
+        // The list is deliberately transparent on the rail, so the surface the
+        // text actually sits on is an ancestor's.
+        const surface = (element: Element): string => {
+          const color = getComputedStyle(element).backgroundColor;
+          return color === "rgba(0, 0, 0, 0)" ? surface(element.parentElement!) : color;
+        };
+        const behind = surface(button);
+        const [first, second] = [...button.children] as HTMLElement[];
+        return {
+          behind,
+          primary: contrast(getComputedStyle(first!).color, behind),
+          summary: contrast(getComputedStyle(second!).color, behind),
+        };
+      });
+
+      expect.soft(
+        measured.primary,
+        `the payment row's first line is ${measured.primary.toFixed(2)}:1 on ${measured.behind}`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect.soft(
+        measured.summary,
+        `the payment row's second line is ${measured.summary.toFixed(2)}:1 on ${measured.behind}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});
+
+// #988 review r2 — the focus half of the peek→workspace path, in a real
+// browser rather than jsdom: the row that opened the peek is disabled for the
+// whole refetch, so `Dialog`'s own restore is spent before the response
+// arrives. The request is held open here deliberately; a fast one lets the
+// restore succeed and proves nothing.
+test("a slow open from an order peek lands focus in the workspace", { tag: "@phone" }, async ({ page, signIn }) => {
+  await signIn(owner());
+  await page.goto("/sales");
+  // The single-order read only. `/sales?…` is the list and
+  // `/sales/{id}/payments` is the rail; neither must be delayed.
+  await page.route(/\/api\/v1\/sales\/[0-9a-f-]+$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
+
+  const row = page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button").first();
+  await row.click();
+  await page.getByRole("dialog").getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+
+  const heading = page.getByRole("region").getByRole("heading", { level: 3 }).first();
+  await expect(heading, "the order workspace never mounted, so there is no focus to judge").toBeVisible();
+  await expect(heading).toBeFocused();
 });
