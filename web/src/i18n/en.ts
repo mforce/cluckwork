@@ -2919,7 +2919,7 @@ export const en = {
       "On a phone, Dashboard is the first of four <strong>bottom tabs</strong>. Your role decides which three "
       + "follow. Workers also see Daily entry. Sales users see Sales. Open <strong>More</strong> for the other screens.",
     gettingAroundInspector:
-      "On setup lists, select a row to see its details below the table. Use <strong>Close inspector</strong> or Escape to return to the full list. Focus returns to that row.",
+      "On setup lists, select a row to see its details below the table. On a phone, its actions are in this inspector. Use <strong>Close inspector</strong> or Escape to return to the full list. Focus returns to that row.",
     gettingAroundPageLoading:
       "The first time you open a screen after starting or updating Cluckwork, a brief page-loading "
       + "message may appear. Navigation stays available while you wait.",
@@ -3721,7 +3721,8 @@ export const en = {
       + "full details in a panel docked to the bottom of the list, instead of a popup. The table above it keeps "
       + "scrolling on its own, and the selected row stays visibly marked. "
       + "Close inspector or Escape clears the selection and returns focus to its row. "
-      + "On Users, edit and role stay in the row. Select another user's row for password, change email, "
+      + "On a phone, row actions are in the inspector; wider screens also show them in the row. "
+      + "On Users, select another user's row for password, change email, "
       + "flocks, and disable or enable in this panel.",
 
     // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),

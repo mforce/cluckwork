@@ -346,7 +346,7 @@ export function GradesPage() {
         onClearSelection={() => setSelectedId(null)}
         table={(
           <LedgerTableContainer scrollHint="columnsAndRows">
-            <Table size="small">
+            <Table size="small" sx={{ "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>

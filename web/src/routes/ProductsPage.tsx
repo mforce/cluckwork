@@ -523,7 +523,7 @@ export function ProductsPage() {
             onClearSelection={() => setSelectedProductId(null)}
             table={(
               <LedgerTableContainer scrollHint="columnsAndRows">
-                <Table size="small">
+                <Table size="small" sx={isAdmin ? { "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } } } : undefined}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>
@@ -594,7 +594,7 @@ export function ProductsPage() {
           onClearSelection={() => setSelectedConvId(null)}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
-              <Table size="small">
+              <Table size="small" sx={isAdmin ? { "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } } } : undefined}>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("unitHeader")}</TableCell>

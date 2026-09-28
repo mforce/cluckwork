@@ -382,7 +382,11 @@ export function CustomersPage() {
           onClearSelection={() => setSelectedId(null)}
           table={(
             <LedgerTableContainer scrollHint="columnsAndRows">
-              <Table size="small">
+              <Table size="small" sx={{
+                "& :is(th, td):nth-child(n+3):nth-child(-n+5), & :is(th, td):last-child": {
+                  display: { xs: "none", md: "table-cell" },
+                },
+              }}>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("nameHeader")}</TableCell>

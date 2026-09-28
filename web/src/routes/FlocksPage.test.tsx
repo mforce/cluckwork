@@ -117,6 +117,35 @@ const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New
 const dialog = () => screen.getByRole("dialog");
 
 describe("FlocksPage loading + list", () => {
+  it("hides phone row actions while the inspector keeps every flock action", async () => {
+    await renderReady(ADMIN);
+    const activeRow = screen.getByRole("row", { name: /Hen House 1/ });
+    const table = screen.getByRole("table");
+    const generatedClass = [...table.classList].find((name) => name.startsWith("css-"));
+    expect(generatedClass).toBeDefined();
+    const cssRules = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]);
+    expect(cssRules.some((rule) => rule.type === CSSRule.MEDIA_RULE
+      && rule.cssText.includes("min-width:0px")
+      && rule.cssText.includes(`.${generatedClass}`)
+      && rule.cssText.includes("last-child") && rule.cssText.includes("display: none"))).toBe(true);
+    expect(cssRules.some((rule) => rule.type === CSSRule.MEDIA_RULE
+      && rule.cssText.includes("min-width:900px")
+      && rule.cssText.includes(`.${generatedClass}`)
+      && rule.cssText.includes("last-child") && rule.cssText.includes("display: table-cell"))).toBe(true);
+
+    fireEvent.click(within(activeRow).getByRole("cell", { name: "Hen House 1" }));
+    const inspector = screen.getByRole("region", {
+      name: i18n.t("common:inspectorLabel", { entity: i18n.t("flocks:entitySingular") }),
+    });
+    for (const key of ["editButton", "openLedgerButton", "depleteButton", "archiveButton"] as const) {
+      expect(within(inspector).getByRole("button", { name: i18n.t(`flocks:${key}`) })).toBeInTheDocument();
+    }
+    expect(within(inspector).getByRole("link", { name: i18n.t("common:recordHistory.viewHistoryLink") })).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Depleted Flock/ })).getByRole("cell", { name: "Depleted Flock" }));
+    expect(within(inspector).getByRole("button", { name: i18n.t("flocks:reactivateButton") })).toBeInTheDocument();
+  });
+
   it("shows a loading state until the flocks request resolves", async () => {
     let resolve!: (f: Flock[]) => void;
     mockListFlocks.mockReturnValue(new Promise<Flock[]>((r) => (resolve = r)));
