@@ -146,3 +146,8 @@ current. Work is tracked as GitHub issues (epics + slices).
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for humans, [`AGENTS.md`](AGENTS.md) for
 coding agents and for the full rule set behind both.
+
+## License
+
+[MIT](LICENSE) — use it, change it, run it commercially; keep the copyright
+notice with any copy you pass on.
