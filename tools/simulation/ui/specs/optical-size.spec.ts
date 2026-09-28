@@ -59,6 +59,7 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
         px: parseFloat(getComputedStyle(biggest).fontSize),
         family: getComputedStyle(biggest).fontFamily,
         opticalSizing: getComputedStyle(biggest).fontOpticalSizing,
+        fontVariationSettings: getComputedStyle(biggest).fontVariationSettings,
       },
     };
   });
@@ -82,6 +83,7 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
     + "below the display range this slice is for").toBeGreaterThanOrEqual(24);
   expect(measured.figure!.family).toBe(measured.probeFamily);
   expect(measured.figure!.opticalSizing).not.toBe("none");
+  expect(measured.figure!.fontVariationSettings).toBe("normal");
 });
 
 // #948: a detached 14px probe missed real 16px phone text drifting toward

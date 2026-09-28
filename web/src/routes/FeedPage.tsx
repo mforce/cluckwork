@@ -62,7 +62,7 @@ export function FeedPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(() => searchParams.has("item"));
   const [filterOpen, setFilterOpen] = useState(false);
   const [details, setDetails] = useState<FeedUsage | null>(null);
 
@@ -364,7 +364,7 @@ export function FeedPage() {
       </Box>
 
       {error && <p className="error">{error}</p>}
-      {message && <p className="success">{message}</p>}
+      {isDesktop && message && <p className="success">{message}</p>}
 
     </>
   );
@@ -425,7 +425,7 @@ export function FeedPage() {
       {isDesktop ? captureForm : (
         <Dialog open={formOpen} title={t("logFormTitle")} onClose={() => setFormOpen(false)} closeDisabled={busy}
           actions={<Stack direction="row" sx={{ justifyContent: "flex-end", gap: 1 }}>
-            <Button size="small" sx={{ minWidth: 0 }} onClick={() => setFormOpen(false)}>{tc("cancel")}</Button>
+            <Button size="small" sx={{ minWidth: 0 }} disabled={busy} onClick={() => setFormOpen(false)}>{tc("cancel")}</Button>
             <BusyButton variant="contained" type="submit" form="feed-entry-form" busy={busy}
               disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>{t("recordFeedButton")}</BusyButton>
           </Stack>}>
@@ -440,17 +440,19 @@ export function FeedPage() {
           <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{flockFilter ? flockName(flockFilter) : t("allFlocksChip")}</Button>
           <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{from || to ? t("rangeChip", { from: from ? fmt.date(from) : "…", to: to ? fmt.date(to) : "…" }) : t("allDatesChip")}</Button>
         </Stack>
-        <Dialog open={filterOpen} title={t("filtersTitle")} onClose={() => setFilterOpen(false)}>{filters}</Dialog>
+        <Dialog open={filterOpen} keepMounted title={t("filtersTitle")} onClose={() => setFilterOpen(false)}>{filters}</Dialog>
         <Dialog open={details !== null} compactTitle
           title={details ? t("detailsDialogTitle", { date: fmt.date(details.date), flock: details.flockName ?? t("rowFlockUnavailable") }) : t("title")}
           onClose={() => setDetails(null)}>
-          {details && <Box component="dl" sx={{ m: 0 }}>
-            <PhoneDetailsField label={t("itemHeader")}>{itemName(details.inventoryItemId)}</PhoneDetailsField>
-            <PhoneDetailsField label={t("amountHeader")}>{fmt.count(details.quantity)} {details.unit}</PhoneDetailsField>
-            <PhoneDetailsField label={t("estimatedCostHeader")}>{fmt.money(details.estimatedCostMinorUnits, details.currencyCode, details.currencyMinorUnit)}</PhoneDetailsField>
-            <PhoneDetailsField label={t("noteHeader")}>{details.note ?? "—"}</PhoneDetailsField>
+          {details && <>
+            <Box component="dl" sx={{ m: 0 }}>
+              <PhoneDetailsField label={t("itemHeader")}>{itemName(details.inventoryItemId)}</PhoneDetailsField>
+              <PhoneDetailsField label={t("amountHeader")}>{fmt.count(details.quantity)} {details.unit}</PhoneDetailsField>
+              <PhoneDetailsField label={t("estimatedCostHeader")}>{fmt.money(details.estimatedCostMinorUnits, details.currencyCode, details.currencyMinorUnit)}</PhoneDetailsField>
+              <PhoneDetailsField label={t("noteHeader")}>{details.note ?? "—"}</PhoneDetailsField>
+            </Box>
             <Typography component="p" color="text.secondary" sx={{ fontSize: ".75rem", mt: 1.5 }}>{t("correctionsHint")}</Typography>
-          </Box>}
+          </>}
         </Dialog>
       </>}
 

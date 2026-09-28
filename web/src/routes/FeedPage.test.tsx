@@ -91,6 +91,22 @@ it("shows a phone feed row and details, and opens the log form", async () => {
   expect(within(screen.getByRole("dialog")).getByLabelText("Date")).toBeInTheDocument();
 });
 
+it("opens the phone form with the Inventory deep-linked item selected", async () => {
+  stubMatchMedia(false);
+  mockListItems.mockResolvedValue([item(), item({ id: "i2", name: "Supplement mix", category: "Supplement" })]);
+  renderWithProviders(<FeedPage />, { token: ADMIN, route: "/feed?item=i2" });
+  const dialog = await screen.findByRole("dialog", { name: "Record feed" });
+  expect(within(dialog).getByLabelText("Item")).toHaveValue("i2");
+});
+
+it("names an archived deep-linked flock in the phone filter chip before Filters opens", async () => {
+  stubMatchMedia(false);
+  vi.mocked(getFlock).mockResolvedValueOnce({ ...FLOCK, id: "f-late", name: "Archived North", status: "Archived" });
+  renderWithProviders(<FeedPage />, { token: ADMIN, route: "/feed?flockId=f-late" });
+  expect(await screen.findByRole("button", { name: "Archived North" })).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
 async function renderReady(route = "/feed") {
   renderWithProviders(<FeedPage />, { token: ADMIN, route });
   await screen.findByRole("button", { name: "Record feed" });

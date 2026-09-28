@@ -126,6 +126,20 @@ it("shows a phone expense row, details and actions, and opens Add expense with c
   expect(within(form).getByRole("button", { name: "Manage categories" })).toBeInTheDocument();
 });
 
+it("shows a failed phone expense write inside the open form dialog", async () => {
+  stubMatchMedia(false);
+  mockCreateExpense.mockRejectedValueOnce(new Error("Expense write failed"));
+  renderWithProviders(<ExpensesPage />, { token: ADMIN });
+  fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
+  const dialog = screen.getByRole("dialog");
+  await waitFor(() => expect(within(dialog).getByRole("button", { name: "Record expense" })).toBeEnabled());
+  fireEvent.change(within(dialog).getByLabelText("Category"), { target: { value: "cat-feed" } });
+  fireEvent.change(within(dialog).getByLabelText("Description"), { target: { value: "Feed" } });
+  fireEvent.change(within(dialog).getByLabelText(/Amount \(USD\)/), { target: { value: "1.00" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Record expense" }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("Expense write failed");
+});
+
 // The add form's Category select shares its "Category" label with the filter
 // and edit panels, so pick it by an option unique to it ("— pick —" only in
 // the add-category select; "All categories" only in the filter) rather than by

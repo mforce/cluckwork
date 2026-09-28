@@ -705,10 +705,11 @@ export function ExpensesPage() {
           {t("recordExpenseButton")}
         </BusyButton>}
       </Stack>
-      {!isDesktop && <Button size="small" sx={{ ...CONSOLE_LINK_SX, mt: 1.5 }} onClick={() => setShowCategories(true)}>{t("manageCategoriesButton")}</Button>}
+      {!isDesktop && <Button size="small" sx={{ ...CONSOLE_LINK_SX, mt: 1.5 }} disabled={busy} onClick={() => setShowCategories(true)}>{t("manageCategoriesButton")}</Button>}
       {activeCategories.length === 0 && (
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
+      {!isDesktop && errors.page && <p className="error" role="alert">{errors.page}</p>}
       </Box>
   );
 
@@ -740,7 +741,7 @@ export function ExpensesPage() {
         <Dialog open={filterOpen} title={t("filtersTitle")} onClose={() => setFilterOpen(false)}>{filters}</Dialog>
         <Dialog open={addOpen} title={t("recordExpenseHeading")} onClose={() => { setAddOpen(false); setShowCategories(false); }} closeDisabled={busy}
           actions={!showCategories && <Stack direction="row" sx={{ justifyContent: "flex-end", gap: 1 }}>
-            <Button size="small" sx={CONSOLE_LINK_SX} onClick={() => { setAddOpen(false); setShowCategories(false); }}>{tc("cancel")}</Button>
+            <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy} onClick={() => { setAddOpen(false); setShowCategories(false); }}>{tc("cancel")}</Button>
             <BusyButton variant="contained" type="submit" form="expense-entry-form" busy={isPending("add")}
               disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>{t("recordExpenseButton")}</BusyButton>
           </Stack>}>
@@ -789,9 +790,7 @@ export function ExpensesPage() {
       </Box>
       </Box>}
 
-      {/* Unconditional since #479: this slot is the page's alone now, so there
-          is nothing a dialog's own message could double up with. */}
-      {errors.page && <p className="error" role="alert">{errors.page}</p>}
+      {(isDesktop || !addOpen) && errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success" role="status">{message}</p>}
 
       <Dialog

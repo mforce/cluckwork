@@ -523,7 +523,7 @@ export function WaterPage() {
       </Box>
 
       {error && <p className="error">{error}</p>}
-      {message && <p className="success">{message}</p>}
+      {isDesktop && message && <p className="success">{message}</p>}
 
     </>
   );
@@ -586,7 +586,7 @@ export function WaterPage() {
       {isDesktop ? captureForm : (
         <Dialog open={formOpen} title={editingId ? t("correctFormTitle") : t("logFormTitle")} onClose={() => { resetForm(); setFormOpen(false); }} closeDisabled={busy}
           actions={<Stack direction="row" sx={{ justifyContent: "flex-end", gap: 1 }}>
-            <Button size="small" sx={CONSOLE_LINK_SX} onClick={() => { resetForm(); setFormOpen(false); }}>{tc("cancel")}</Button>
+            <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy} onClick={() => { resetForm(); setFormOpen(false); }}>{tc("cancel")}</Button>
             <BusyButton variant="contained" type="submit" form="water-entry-form" busy={busy}
               disabled={!captureFlock || !captureFlockSnapshot.canSubmit}>{editingId ? t("saveCorrectionButton") : t("recordWaterButton")}</BusyButton>
           </Stack>}>
