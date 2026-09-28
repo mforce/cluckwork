@@ -6,6 +6,7 @@ import { listFlocks, listInventoryItems, listFeedUsage, recordFeedUsage, getFloc
 import type { Flock, InventoryItem, FeedUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { stubMatchMedia } from "../test/matchMedia";
 
 // Network seam stubbed; everything else real (formatMoney, i18n, auth).
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -53,6 +54,7 @@ function usageRow(overrides: Partial<FeedUsage> = {}): FeedUsage {
 const ADMIN = { sub: "u1", role: "Admin" };
 
 beforeEach(() => {
+  stubMatchMedia(true);
   vi.clearAllMocks();
   // #512 — the FlockPicker's discovery uses the SAME listFlocks seam (typed
   // eligibility query). The default fixture serves the full list for any
@@ -66,6 +68,27 @@ beforeEach(() => {
     id === FLOCK.id ? FLOCK : Promise.reject(new Error(`Unknown flock: ${id}`)));
   mockListItems.mockResolvedValue([item()]);
   mockListUsage.mockResolvedValue([]);
+});
+
+it("shows a phone feed row and details, and opens the log form", async () => {
+  stubMatchMedia(false);
+  mockListUsage.mockResolvedValue([usageRow()]);
+  renderWithProviders(<FeedPage />, { token: ADMIN, route: "/feed" });
+  const row = await screen.findByRole("button", { name: /Barn A/ });
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(row).toHaveTextContent("18 kg");
+  fireEvent.click(row);
+  const details = screen.getByRole("dialog");
+  expect(within(details).getByText("Item")).toBeInTheDocument();
+  expect(within(details).getByText("Amount")).toBeInTheDocument();
+  expect(within(details).getByText("Est. cost")).toBeInTheDocument();
+  expect(within(details).getByText("Note")).toBeInTheDocument();
+  expect(within(details).getByText(/corrected with an Inventory adjustment/)).toBeInTheDocument();
+  expect(within(details).queryByRole("button", { name: "correct" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /close/i }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: /Log feed/ }));
+  expect(within(screen.getByRole("dialog")).getByLabelText("Date")).toBeInTheDocument();
 });
 
 async function renderReady(route = "/feed") {

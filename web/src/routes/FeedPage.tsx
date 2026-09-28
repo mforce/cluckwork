@@ -2,18 +2,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { FilterX, Inbox } from "lucide-react";
+import { FilterX, Inbox, Plus } from "lucide-react";
 import {
-  Box, Button, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Box, Button, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   listFeedUsage, listFlocks, listInventoryItems, recordFeedUsage,
 } from "../api/cluckwork";
-import type { Flock, InventoryItem } from "../api/cluckwork";
+import type { FeedUsage, Flock, InventoryItem } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
+import { Dialog } from "../components/Dialog";
+import { PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow } from "../components/PhoneLedger";
 import { EmptyState } from "../components/EmptyState";
 import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
@@ -23,6 +25,7 @@ import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { FieldConsole, ConsoleSubhead, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import i18n from "../i18n";
 
 const PAGE = 50;
@@ -45,6 +48,7 @@ function errText(err: unknown): string {
 // corrected with a compensating Inventory ADJUSTMENT, not an edit here.
 export function FeedPage() {
   const { t } = useTranslation("feed");
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
   const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local (#35/#123): the API judges "future date"
@@ -58,6 +62,9 @@ export function FeedPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
+  const [formOpen, setFormOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [details, setDetails] = useState<FeedUsage | null>(null);
 
   // capture form
   // #512 (T027/T038) — the capture flock is committed through FlockPicker.
@@ -240,6 +247,7 @@ export function FeedPage() {
         clearKey(scope);
         setQuantity("");
         setNote("");
+        setFormOpen(false);
       } catch (err) {
         setError(errText(err));
       }
@@ -249,18 +257,15 @@ export function FeedPage() {
   if (error && usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{error}</p></FieldConsole>;
   if (usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
 
-  return (
-    <FieldConsole>
-      <Typography variant="h2">{t("title")}</Typography>
-      <p className="muted">{t("intro")}</p>
-
-      <ConsoleSummary label={t("contextLabel")} items={[
+  const captureForm = (
+    <>
+      {isDesktop && <ConsoleSummary label={t("contextLabel")} items={[
         { label: t("flockLabel"), value: captureFlock?.name ?? "—" },
         { label: t("itemLabel"), value: selectedItem?.name ?? "—" },
         { label: t("onHand"), value: selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—" },
-      ]} />
-      <Box sx={CONSOLE_TICKET_SX}>
-        <Stack component="form" sx={{ ...CONSOLE_TICKET_FORM_SX, p: 2 }} onSubmit={onSubmit}>
+      ]} />}
+      <Box sx={isDesktop ? CONSOLE_TICKET_SX : { ...CONSOLE_TICKET_SX, border: 0, my: 0 }}>
+        <Stack component="form" id="feed-entry-form" sx={{ ...CONSOLE_TICKET_FORM_SX, p: isDesktop ? 2 : 0 }} onSubmit={onSubmit}>
           <Box sx={{ minWidth: 0, width: "100%" }}>
             <FlockPicker
               label={t("flockLabel")}
@@ -333,13 +338,13 @@ export function FeedPage() {
             slotProps={{ htmlInput: { maxLength: 500 } }}
             onChange={(e) => setNote(e.target.value)}
           />
-          <BusyButton variant="contained" type="submit" busy={busy}
+          {isDesktop && <BusyButton variant="contained" type="submit" busy={busy}
             disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
             {t("recordFeedButton")}
-          </BusyButton>
+          </BusyButton>}
         </Stack>
 
-        <Box component="aside" aria-label={t("rationCheck")} sx={CONSOLE_TICKET_CHECK_SX}>
+        <Box component="aside" aria-label={t("rationCheck")} sx={isDesktop ? CONSOLE_TICKET_CHECK_SX : { ...CONSOLE_TICKET_CHECK_SX, p: 1.5, mt: 2, border: "1px solid var(--rule)", borderRadius: "5px" }}>
           <h3>{t("rationCheck")}</h3>
           <Box component="dl" sx={{ m: 0 }}>
             {([
@@ -361,10 +366,10 @@ export function FeedPage() {
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
-      <ConsoleSubhead title={t("recordsHeading")} caption={t("recordsCaption")} />
-      {/* List failures degrade the LIST only — the capture form must stay
-          usable through a transient history read failure (review of #446). */}
-      {usage.error && <p className="error">{usage.error}</p>}
+    </>
+  );
+
+  const filters = (
       <FilterBar>
         <Box sx={FILTER_PICKER_SX}>
           <FlockPicker
@@ -405,6 +410,55 @@ export function FeedPage() {
         <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
         <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
+  );
+
+  return (
+    <FieldConsole>
+      {isDesktop ? <Typography variant="h2">{t("title")}</Typography> :
+        <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+          <Typography variant="h2">{t("title")}</Typography>
+          <Button variant="contained" startIcon={<Plus size={16} aria-hidden="true" />}
+            sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0 }} onClick={() => setFormOpen(true)}>{t("logButton")}</Button>
+        </Stack>}
+      <p className="muted">{t("intro")}</p>
+
+      {isDesktop ? captureForm : (
+        <Dialog open={formOpen} title={t("logFormTitle")} onClose={() => setFormOpen(false)} closeDisabled={busy}
+          actions={<Stack direction="row" sx={{ justifyContent: "flex-end", gap: 1 }}>
+            <Button size="small" sx={{ minWidth: 0 }} onClick={() => setFormOpen(false)}>{tc("cancel")}</Button>
+            <BusyButton variant="contained" type="submit" form="feed-entry-form" busy={busy}
+              disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>{t("recordFeedButton")}</BusyButton>
+          </Stack>}>
+          {captureForm}
+        </Dialog>
+      )}
+      {!isDesktop && !formOpen && error && <p className="error">{error}</p>}
+      {!isDesktop && message && <p className="success">{message}</p>}
+
+      {!isDesktop && <>
+        <Stack direction="row" sx={{ gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+          <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{flockFilter ? flockName(flockFilter) : t("allFlocksChip")}</Button>
+          <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{from || to ? t("rangeChip", { from: from ? fmt.date(from) : "…", to: to ? fmt.date(to) : "…" }) : t("allDatesChip")}</Button>
+        </Stack>
+        <Dialog open={filterOpen} title={t("filtersTitle")} onClose={() => setFilterOpen(false)}>{filters}</Dialog>
+        <Dialog open={details !== null} compactTitle
+          title={details ? t("detailsDialogTitle", { date: fmt.date(details.date), flock: details.flockName ?? t("rowFlockUnavailable") }) : t("title")}
+          onClose={() => setDetails(null)}>
+          {details && <Box component="dl" sx={{ m: 0 }}>
+            <PhoneDetailsField label={t("itemHeader")}>{itemName(details.inventoryItemId)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("amountHeader")}>{fmt.count(details.quantity)} {details.unit}</PhoneDetailsField>
+            <PhoneDetailsField label={t("estimatedCostHeader")}>{fmt.money(details.estimatedCostMinorUnits, details.currencyCode, details.currencyMinorUnit)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("noteHeader")}>{details.note ?? "—"}</PhoneDetailsField>
+            <Typography component="p" color="text.secondary" sx={{ fontSize: ".75rem", mt: 1.5 }}>{t("correctionsHint")}</Typography>
+          </Box>}
+        </Dialog>
+      </>}
+
+      <ConsoleSubhead title={t("recordsHeading")} caption={t("recordsCaption")} />
+      {/* List failures degrade the LIST only — the capture form must stay
+          usable through a transient history read failure (review of #446). */}
+      {usage.error && <p className="error">{usage.error}</p>}
+      {isDesktop && filters}
 
       {/* One window's rows must never sit under another window's controls,
           not even for the length of the request (#469). Only this region is
@@ -412,13 +466,12 @@ export function FeedPage() {
       {usage.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : usage.rows.length === 0 ? (
-        // No page-head create action — feed capture is the inline form above.
         (flockFilter || from || to)
           ? <EmptyState icon={FilterX} message={t("noRecordsMatch")} />
           : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
-          <LedgerTableContainer>
+          {isDesktop ? <LedgerTableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -443,7 +496,14 @@ export function FeedPage() {
                 ))}
               </TableBody>
             </Table>
-          </LedgerTableContainer>
+          </LedgerTableContainer> : <PhoneLedgerList label={t("recordsHeading")}>
+            {usage.rows.map((r) => <li key={r.id}>
+              <PhoneLedgerRow onClick={() => setDetails(r)} date={<FarmDate iso={r.date} />}
+                primary={r.flockName ?? t("rowFlockUnavailable")}
+                trailing={<strong>{fmt.count(r.quantity)} {r.unit}</strong>}
+                summary={<><strong>{itemName(r.inventoryItemId)}</strong> · {fmt.money(r.estimatedCostMinorUnits, r.currencyCode, r.currencyMinorUnit)}{r.note && ` · ${r.note}`}</>} />
+            </li>)}
+          </PhoneLedgerList>}
           {usage.canLoadMore && (
             // Two rapid clicks cannot append the same page twice: the hook
             // no-ops a load-more while one is in flight, and canLoadMore

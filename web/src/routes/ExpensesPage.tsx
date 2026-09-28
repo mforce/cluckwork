@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Plus, Receipt } from "lucide-react";
 import {
-  Box, Button, DialogActions, Divider, List, ListItem, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Box, Button, DialogActions, Divider, List, ListItem, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
@@ -17,16 +17,18 @@ import { FarmDate } from "../components/FarmDate";
 import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, CONSOLE_PAPER_HEAD_SX, LedgerTableContainer, ConsoleSummary, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX, CONSOLE_FORM_SX, CONSOLE_RAIL_SX } from "../components/FieldConsole";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow } from "../components/PhoneLedger";
 import { EmptyState } from "../components/EmptyState";
 import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
-import { ProvenanceCell } from "../components/ProvenanceCell";
+import { ProvenanceCell, ProvenanceSummary } from "../components/ProvenanceCell";
 import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import i18n from "../i18n";
 
 function errText(err: unknown): string {
@@ -47,6 +49,7 @@ const DIALOG_SCOPES = ["edit", "add-category"] as const;
 // Admin-only end to end: the route hides for workers and every endpoint
 // carries the Admin policy — money data, unlike the production screens.
 export function ExpensesPage() {
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
   const { t } = useTranslation("expenses");
   const fmt = useFormat();
   const { t: tc } = useTranslation("common");
@@ -134,6 +137,9 @@ export function ExpensesPage() {
 
   // category management
   const [showCategories, setShowCategories] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [details, setDetails] = useState<Expense | null>(null);
   const [addingCategory, setAddingCategory] = useState(false); // F131: in a dialog
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -341,6 +347,7 @@ export function ExpensesPage() {
         setAddFlockGen((g) => g + 1);
       });
       setMessage(i18n.t("expenses:expenseRecordedMessage"));
+      setAddOpen(false);
     }));
   }
 
@@ -541,23 +548,7 @@ export function ExpensesPage() {
     }));
   }
 
-  return (
-    <FieldConsole>
-      <Stack component="header" direction={{ xs: "column", md: "row" }} sx={{ justifyContent: "space-between", gap: 1, mb: 2 }}>
-        <Box><Typography variant="h2">{t("title")}</Typography>
-          <Typography component="p" sx={{ m: 0, maxWidth: 700, color: "text.secondary", fontSize: "13px", lineHeight: 1.45 }}>{t("intro")}</Typography>
-        </Box>
-        <Button variant="contained" startIcon={showCategories ? undefined : <Plus size={16} aria-hidden="true" />} sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0, alignSelf: { md: "flex-start" } }} onClick={() => setShowCategories((v) => !v)}>
-          {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
-        </Button>
-      </Stack>
-      <ConsoleSummary label={t("contextLabel")} items={[
-        { label: t("periodHeading"), value: !expenses.reloading && expenses.meta !== null ? fmt.money(expenses.meta.total, currencyCode, currencyMinor) : "—" },
-        { label: t("fromLabel"), value: from ? fmt.date(from) : "—" },
-        { label: t("toLabel"), value: to ? fmt.date(to) : "—" },
-        { label: t("categoryLabel"), value: categories.find((category) => category.id === filterCategory)?.name ?? t("allCategoriesOption") },
-      ]} />
-
+  const filters = (
       <FilterBar>
         {/* Do not cap at today: the default end date is month-end. */}
         <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -578,8 +569,8 @@ export function ExpensesPage() {
         </TextField>
         <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={resetFilters}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
-
-      {showCategories && (
+  );
+  const categoriesPanel = (
         <Box sx={{ my: 3 }}>
           <Divider />
           <Box sx={{ py: 3 }}>
@@ -633,15 +624,14 @@ export function ExpensesPage() {
           </Box>
           <Divider />
         </Box>
-      )}
-
-      <Box sx={{ ...CONSOLE_SPLIT_SX, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, .9fr) minmax(0, 1.1fr)" } }}>
-      <Box sx={CONSOLE_PANEL_SX}>
-      <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}>
+  );
+  const entryPanel = (
+      <Box sx={isDesktop ? CONSOLE_PANEL_SX : { ...CONSOLE_PANEL_SX, border: 0, p: 0, bgcolor: "transparent" }}>
+      {isDesktop && <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}>
         <h3>{t("recordExpenseHeading")}</h3>
         <Button sx={{ ...CONSOLE_LINK_SX, fontSize: ".75rem" }} onClick={() => setShowCategories(true)}>{t("manageCategoriesButton")}</Button>
-      </Box>
-      <Stack component="form" sx={CONSOLE_FORM_SX} onSubmit={onAdd}>
+      </Box>}
+      <Stack component="form" id="expense-entry-form" sx={CONSOLE_FORM_SX} onSubmit={onAdd}>
         <TextField
           type="date"
           label={t("dateLabel")}
@@ -710,15 +700,75 @@ export function ExpensesPage() {
           onChange={(e) => setNote(e.target.value)}
         />
         {/* Unknown currency precision or an unresolved flock prevents a valid write. */}
-        <BusyButton variant="contained" type="submit" busy={isPending("add")}
+        {isDesktop && <BusyButton variant="contained" type="submit" busy={isPending("add")}
           disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>
           {t("recordExpenseButton")}
-        </BusyButton>
+        </BusyButton>}
       </Stack>
+      {!isDesktop && <Button size="small" sx={{ ...CONSOLE_LINK_SX, mt: 1.5 }} onClick={() => setShowCategories(true)}>{t("manageCategoriesButton")}</Button>}
       {activeCategories.length === 0 && (
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
       </Box>
+  );
+
+  return (
+    <FieldConsole>
+      <Stack component="header" direction="row" sx={{ justifyContent: "space-between", gap: 1, mb: { xs: 1, md: 2 } }}>
+        <Box><Typography variant="h2">{t("title")}</Typography>
+          {isDesktop && <Typography component="p" sx={{ m: 0, maxWidth: 700, color: "text.secondary", fontSize: "13px", lineHeight: 1.45 }}>{t("intro")}</Typography>}
+        </Box>
+        <Button variant="contained" startIcon={!isDesktop || !showCategories ? <Plus size={16} aria-hidden="true" /> : undefined} sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0, alignSelf: "flex-start" }} onClick={isDesktop ? () => setShowCategories((v) => !v) : () => setAddOpen(true)}>
+          {isDesktop ? showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton") : t("addButton")}
+        </Button>
+      </Stack>
+      {!isDesktop && <Typography component="p" sx={{ m: 0, maxWidth: 700, color: "text.secondary", fontSize: "13px", lineHeight: 1.45 }}>{t("intro")}</Typography>}
+      {isDesktop ? <ConsoleSummary label={t("contextLabel")} items={[
+        { label: t("periodHeading"), value: !expenses.reloading && expenses.meta !== null ? fmt.money(expenses.meta.total, currencyCode, currencyMinor) : "—" },
+        { label: t("fromLabel"), value: from ? fmt.date(from) : "—" },
+        { label: t("toLabel"), value: to ? fmt.date(to) : "—" },
+        { label: t("categoryLabel"), value: categories.find((category) => category.id === filterCategory)?.name ?? t("allCategoriesOption") },
+      ]} /> : <Box component="dl" aria-label={t("contextLabel")} sx={{ display: "flex", gap: .75, py: 1, my: 1.5, borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)", fontSize: ".75rem" }}>
+        <dt>{t("periodHeading")}</dt><Box component="dd" sx={{ m: 0, fontWeight: 700 }}>{!expenses.reloading && expenses.meta !== null ? fmt.money(expenses.meta.total, currencyCode, currencyMinor) : "—"}</Box>
+      </Box>}
+
+      {!isDesktop && <>
+        <Stack direction="row" sx={{ gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+          <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{t("rangeChip", { from: from ? fmt.date(from) : "…", to: to ? fmt.date(to) : "…" })}</Button>
+          <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{categories.find((c) => c.id === filterCategory)?.name ?? t("allCategoriesOption")}</Button>
+        </Stack>
+        <Dialog open={filterOpen} title={t("filtersTitle")} onClose={() => setFilterOpen(false)}>{filters}</Dialog>
+        <Dialog open={addOpen} title={t("recordExpenseHeading")} onClose={() => { setAddOpen(false); setShowCategories(false); }} closeDisabled={busy}
+          actions={!showCategories && <Stack direction="row" sx={{ justifyContent: "flex-end", gap: 1 }}>
+            <Button size="small" sx={CONSOLE_LINK_SX} onClick={() => { setAddOpen(false); setShowCategories(false); }}>{tc("cancel")}</Button>
+            <BusyButton variant="contained" type="submit" form="expense-entry-form" busy={isPending("add")}
+              disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>{t("recordExpenseButton")}</BusyButton>
+          </Stack>}>
+          {showCategories ? <><Button size="small" sx={CONSOLE_LINK_SX} onClick={() => setShowCategories(false)}>{t("hideCategoriesButton")}</Button>{categoriesPanel}</> : entryPanel}
+        </Dialog>
+        <Dialog open={details !== null} compactTitle
+          title={details ? t("detailsDialogTitle", { date: fmt.date(details.date), description: details.description }) : t("title")}
+          onClose={() => setDetails(null)}
+          actions={details && <Box sx={{ display: "flex", gap: 1, borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
+            <Button component={Link} size="small" sx={CONSOLE_LINK_SX} to={`/audit?entityId=${details.id}`}>{tc("recordHistory.viewHistoryLink")}</Button>
+            <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy} onClick={() => { openDialog("edit"); startEdit(details); setDetails(null); }}>{t("correctButton")}</Button>
+          </Box>}>
+          {details && <Box component="dl" sx={{ m: 0 }}>
+            <PhoneDetailsField label={t("categoryHeader")}>{categoryName(details.expenseCategoryId)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("amountHeader")}>{fmt.money(details.amountMinorUnits, details.currencyCode, details.currencyMinorUnit)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("flockHeader")}>{rowFlockName(details)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("noteHeader")}>{details.note ?? "—"}</PhoneDetailsField>
+            <PhoneDetailsField label={tc("recordHistoryHeader")}><ProvenanceSummary history={details} /></PhoneDetailsField>
+          </Box>}
+        </Dialog>
+      </>}
+
+      {isDesktop && filters}
+
+      {isDesktop && showCategories && categoriesPanel}
+
+      {isDesktop && <Box sx={{ ...CONSOLE_SPLIT_SX, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, .9fr) minmax(0, 1.1fr)" } }}>
+      {entryPanel}
       <Box component="aside" sx={CONSOLE_RAIL_SX}
         aria-label={!expenses.reloading && expenses.meta !== null
           ? t("periodTotalLabel", { amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor) })
@@ -737,7 +787,7 @@ export function ExpensesPage() {
           </>
         )}
       </Box>
-      </Box>
+      </Box>}
 
       {/* Unconditional since #479: this slot is the page's alone now, so there
           is nothing a dialog's own message could double up with. */}
@@ -877,7 +927,7 @@ export function ExpensesPage() {
                 : { label: t("showAllTimeButton"), onClick: showAllTime }} />
           : <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
       ) : (
-        <LedgerTableContainer>
+        isDesktop ? <LedgerTableContainer>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -914,7 +964,14 @@ export function ExpensesPage() {
               ))}
             </TableBody>
           </Table>
-        </LedgerTableContainer>
+        </LedgerTableContainer> : <PhoneLedgerList label={t("ledgerHeading")}>
+          {expenses.rows.map((x) => <li key={x.id}>
+            <PhoneLedgerRow onClick={() => setDetails(x)} date={<FarmDate iso={x.date} />}
+              primary={x.description}
+              trailing={<strong>{fmt.money(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</strong>}
+              summary={<><strong>{categoryName(x.expenseCategoryId)}</strong>{x.flockId !== null && ` · ${rowFlockName(x)}`}{x.note && ` · ${x.note}`}</>} />
+          </li>)}
+        </PhoneLedgerList>
       )}
       {expenses.canLoadMore && (
         <button className="link" disabled={busy}

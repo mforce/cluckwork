@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { FilterX, Inbox } from "lucide-react";
+import { FilterX, Inbox, Plus } from "lucide-react";
 import {
-  Box, Button, ToggleButton, ToggleButtonGroup, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Box, Button, ToggleButton, ToggleButtonGroup, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
 } from "@mui/material";
 import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "../api/cluckwork";
 import type { Flock, WaterUsage } from "../api/cluckwork";
@@ -12,6 +12,8 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { Dialog } from "../components/Dialog";
+import { PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow } from "../components/PhoneLedger";
 import { EmptyState } from "../components/EmptyState";
 import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
 import { readLastFlockId, rememberFlockId, resolveDefaultFlock } from "../lib/flockDefault";
@@ -22,6 +24,7 @@ import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
 import { newId } from "../lib/ids";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import i18n from "../i18n";
 import { waterSourceLabel, waterUnitLabel } from "../i18n/enums";
 
@@ -43,6 +46,7 @@ function errText(err: unknown): string {
 // stock behind them); flock and date stay fixed once recorded.
 export function WaterPage() {
   const { t } = useTranslation("water");
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
   const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
@@ -54,6 +58,9 @@ export function WaterPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
+  const [formOpen, setFormOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [details, setDetails] = useState<WaterUsage | null>(null);
 
   // capture form; editingId switches it to update mode. editingVersion is the
   // base Version the row was loaded with — sent back so a concurrent edit
@@ -351,6 +358,7 @@ export function WaterPage() {
           defaultFlockRef.current = captureFlock;
         }
         resetForm();
+        setFormOpen(false);
       } catch (err) {
         setError(errText(err));
       }
@@ -360,25 +368,20 @@ export function WaterPage() {
   if (error && usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{error}</p></FieldConsole>;
   if (usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
 
-  return (
-    <FieldConsole>
-      <Typography variant="h2">{t("title")}</Typography>
-      <p className="muted">
-        {t("intro")}
-      </p>
-
-      <ConsoleSummary label={t("contextLabel")} items={[
+  const captureForm = (
+    <>
+      {isDesktop && <ConsoleSummary label={t("contextLabel")} items={[
         { label: t("entryMode"), value: t(useMeters ? "meterMode" : "directMode") },
         { label: t("sourceLabel"), value: waterSourceLabel(source) },
         { label: t("unitLabel"), value: waterUnitLabel(unit) },
-      ]} />
-      <Box sx={CONSOLE_TICKET_SX}>
-        <Box sx={{ p: 2, minWidth: 0 }}>
+      ]} />}
+      <Box sx={isDesktop ? CONSOLE_TICKET_SX : { ...CONSOLE_TICKET_SX, border: 0, my: 0 }}>
+        <Box sx={{ p: isDesktop ? 2 : 0, minWidth: 0 }}>
           <ToggleButtonGroup exclusive value={useMeters ? "meter" : "direct"} aria-label={t("entryMode")} fullWidth sx={{ mb: 2, "&& .MuiToggleButton-root.Mui-selected, && .MuiToggleButton-root.Mui-selected:hover": { bgcolor: "var(--brand)", color: "var(--on-brand)" } }}>
             <ToggleButton value="direct" onClick={() => setUseMeters(false)}>{t("directMode")}</ToggleButton>
             <ToggleButton value="meter" onClick={() => setUseMeters(true)}>{t("meterMode")}</ToggleButton>
           </ToggleButtonGroup>
-        <Stack component="form" sx={CONSOLE_TICKET_FORM_SX} onSubmit={onSubmit}>
+        <Stack component="form" id="water-entry-form" sx={CONSOLE_TICKET_FORM_SX} onSubmit={onSubmit}>
           <Box sx={{ minWidth: 0, width: "100%" }}>
             <FlockPicker
               label={t("flockLabel")}
@@ -491,16 +494,16 @@ export function WaterPage() {
             slotProps={{ htmlInput: { maxLength: 500 } }}
             onChange={(e) => setNote(e.target.value)}
           />
-          <BusyButton variant="contained" type="submit" busy={busy}
+          {isDesktop && <BusyButton variant="contained" type="submit" busy={busy}
             disabled={!captureFlock || !captureFlockSnapshot.canSubmit}>
             {editingId ? t("saveCorrectionButton") : t("recordWaterButton")}
-          </BusyButton>
-          {editingId && (
-            <button type="button" className="link" onClick={resetForm}>{t("cancelEditButton")}</button>
+          </BusyButton>}
+          {isDesktop && editingId && (
+            <button type="button" className="link" onClick={() => { resetForm(); setFormOpen(false); }}>{t("cancelEditButton")}</button>
           )}
         </Stack>
         </Box>
-        <Box component="aside" aria-label={t("readingCheck")} sx={CONSOLE_TICKET_CHECK_SX}>
+        <Box component="aside" aria-label={t("readingCheck")} sx={isDesktop ? CONSOLE_TICKET_CHECK_SX : { ...CONSOLE_TICKET_CHECK_SX, p: 1.5, mt: 2, border: "1px solid var(--rule)", borderRadius: "5px" }}>
           <h3>{t("readingCheck")}</h3>
           <Box component="dl" sx={{ m: 0 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 1.25, borderBottom: "1px solid var(--rule)" }}>
@@ -522,7 +525,10 @@ export function WaterPage() {
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
-      <ConsoleSubhead title={t("recordsHeading")} caption={t("recordsCaption")} />
+    </>
+  );
+
+  const filters = (
       <FilterBar>
         <Box sx={FILTER_PICKER_SX}>
           <FlockPicker
@@ -563,6 +569,55 @@ export function WaterPage() {
         <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
         <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
+  );
+
+  return (
+    <FieldConsole>
+      {isDesktop ? <Typography variant="h2">{t("title")}</Typography> :
+        <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+          <Typography variant="h2">{t("title")}</Typography>
+          <Button variant="contained" startIcon={<Plus size={16} aria-hidden="true" />}
+            sx={{ minHeight: 44, borderRadius: "4px", flexShrink: 0 }} onClick={() => setFormOpen(true)}>{t("logButton")}</Button>
+        </Stack>}
+      <p className="muted">
+        {t("intro")}
+      </p>
+
+      {isDesktop ? captureForm : (
+        <Dialog open={formOpen} title={editingId ? t("correctFormTitle") : t("logFormTitle")} onClose={() => { resetForm(); setFormOpen(false); }} closeDisabled={busy}
+          actions={<Stack direction="row" sx={{ justifyContent: "flex-end", gap: 1 }}>
+            <Button size="small" sx={CONSOLE_LINK_SX} onClick={() => { resetForm(); setFormOpen(false); }}>{tc("cancel")}</Button>
+            <BusyButton variant="contained" type="submit" form="water-entry-form" busy={busy}
+              disabled={!captureFlock || !captureFlockSnapshot.canSubmit}>{editingId ? t("saveCorrectionButton") : t("recordWaterButton")}</BusyButton>
+          </Stack>}>
+          {captureForm}
+        </Dialog>
+      )}
+      {!isDesktop && !formOpen && error && <p className="error">{error}</p>}
+      {!isDesktop && message && <p className="success">{message}</p>}
+
+      {!isDesktop && <>
+        <Stack direction="row" sx={{ gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+          <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{flockFilter ? flockName(flockFilter) : t("allFlocksChip")}</Button>
+          <Button variant="outlined" color="inherit" sx={{ borderRadius: "100px", minHeight: 36, fontSize: ".75rem" }} onClick={() => setFilterOpen(true)}>{from || to ? t("rangeChip", { from: from ? fmt.date(from) : "…", to: to ? fmt.date(to) : "…" }) : t("allDatesChip")}</Button>
+        </Stack>
+        <Dialog open={filterOpen} title={t("filtersTitle")} onClose={() => setFilterOpen(false)}>{filters}</Dialog>
+        <Dialog open={details !== null} compactTitle
+          title={details ? t("detailsDialogTitle", { date: fmt.date(details.date), flock: details.flockName ?? t("rowFlockUnavailable") }) : t("title")}
+          onClose={() => setDetails(null)}
+          actions={details && isAdmin && <Button size="small" sx={{ ...CONSOLE_LINK_SX, minHeight: 44 }} disabled={busy}
+            onClick={() => { startEdit(details); setDetails(null); setFormOpen(true); }}>{t("correctButton")}</Button>}>
+          {details && <Box component="dl" sx={{ m: 0 }}>
+            <PhoneDetailsField label={t("amountHeader")}>{fmt.count(details.quantity)} {waterUnitLabel(details.unit)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("sourceHeader")}>{waterSourceLabel(details.source)}</PhoneDetailsField>
+            <PhoneDetailsField label={t("metersHeader")}>{details.meterStart !== null ? `${fmt.count(details.meterStart)} → ${details.meterEnd === null ? "" : fmt.count(details.meterEnd)}` : "—"}</PhoneDetailsField>
+            <PhoneDetailsField label={t("noteHeader")}>{details.note ?? "—"}</PhoneDetailsField>
+          </Box>}
+        </Dialog>
+      </>}
+
+      <ConsoleSubhead title={t("recordsHeading")} caption={t("recordsCaption")} />
+      {isDesktop && filters}
 
       {usage.error && <p className="error">{usage.error}</p>}
 
@@ -571,13 +626,12 @@ export function WaterPage() {
       {usage.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : usage.rows.length === 0 ? (
-        // No page-head create action — water capture is the inline form above.
         (flockFilter || from || to)
           ? <EmptyState icon={FilterX} message={t("noRecordsMatch")} />
           : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
-          <LedgerTableContainer>
+          {isDesktop ? <LedgerTableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -608,7 +662,14 @@ export function WaterPage() {
                 ))}
               </TableBody>
             </Table>
-          </LedgerTableContainer>
+          </LedgerTableContainer> : <PhoneLedgerList label={t("recordsHeading")}>
+            {usage.rows.map((r) => <li key={r.id}>
+              <PhoneLedgerRow onClick={() => setDetails(r)} date={<FarmDate iso={r.date} />}
+                primary={r.flockName ?? t("rowFlockUnavailable")}
+                trailing={<strong>{fmt.count(r.quantity)} {waterUnitLabel(r.unit)}</strong>}
+                summary={<><strong>{waterSourceLabel(r.source)}</strong>{r.meterStart !== null && ` · ${fmt.count(r.meterStart)} → ${r.meterEnd === null ? "" : fmt.count(r.meterEnd)}`}{r.note && ` · ${r.note}`}</>} />
+            </li>)}
+          </PhoneLedgerList>}
           {usage.canLoadMore && (
             <button className="link" disabled={busy}
               onClick={() => void usage.loadMore()}>

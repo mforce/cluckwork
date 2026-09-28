@@ -4,7 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Inbox } from "lucide-react";
 import {
-  Box, Button, ButtonBase, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField,
+  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField,
   Tooltip, Typography, useMediaQuery,
 } from "@mui/material";
 import {
@@ -31,6 +31,7 @@ import { useConfirm } from "../components/useConfirm";
 import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
 import { GlossaryLink } from "../components/GlossaryLink";
+import { PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow } from "../components/PhoneLedger";
 import { useFarm } from "../farm/useFarm";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import { armedState, gradingState } from "../lib/grading";
@@ -45,28 +46,6 @@ const NOWRAP = { whiteSpace: "nowrap" as const };
 // #980 — below the 900px switch the ten-column ledger becomes one two-line
 // button per entry, so twelve rows fit a 390x844 screen instead of five and
 // the actions stop living off the right edge. The desktop table is untouched.
-const PHONE_LIST_SX = {
-  m: 0, p: 0, listStyle: "none",
-  bgcolor: "var(--surface)",
-  border: "1px solid var(--rule)",
-  borderTop: "2px solid var(--ink)",
-  borderRadius: "0 0 var(--r-panel) var(--r-panel)",
-  "& > li": { borderBottom: "1px solid var(--rule)" },
-  "& > li:last-of-type": { borderBottom: 0 },
-};
-const PHONE_ROW_SX = {
-  display: "block", width: "100%", minHeight: 44, textAlign: "left", px: 1.5, py: 1,
-  // The global rule offsets the ring outward, which would draw it over the
-  // rows above and below; inside the row it stays whole.
-  "&:focus-visible": { outlineOffset: "-2px" },
-};
-const DETAILS_FIELD_SX = {
-  display: "grid", gridTemplateColumns: "96px minmax(0, 1fr)", gap: 1,
-  py: "9px", fontSize: ".8125rem", borderBottom: "1px solid var(--rule)",
-  "&:last-of-type": { borderBottom: 0 },
-  "& dt": { color: "var(--muted)" },
-  "& dd": { m: 0, fontWeight: 650, overflowWrap: "anywhere" },
-};
 
 // The scope that owns a dialog (#703). `run` routes a failure by this and gates
 // a success by it; `void:<id>` from the row button reports to the page and is
@@ -699,10 +678,7 @@ export function HistoryPage() {
               [t("gradedHeader"), gradeList(details)],
               [tc("recordHistoryHeader"), <ProvenanceSummary history={details} official="submitted" />],
             ] as const).map(([label, value]) => (
-              <Box key={label} sx={DETAILS_FIELD_SX}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </Box>
+              <PhoneDetailsField key={label} label={label}>{value}</PhoneDetailsField>
             ))}
           </Box>
         )}
@@ -934,31 +910,19 @@ export function HistoryPage() {
             // #980 — one two-line button per entry. The whole row is the tap
             // target and opens Details; the mockups' ⋯ menu was dropped by the
             // owner, so there is no second control competing for the thumb.
-            <Box component="ul" aria-label={t("title")} sx={PHONE_LIST_SX}>
+            <PhoneLedgerList label={t("title")}>
               {entries.rows.map((e) => (
                 <li key={e.id}>
-                  <ButtonBase aria-haspopup="dialog" onClick={() => setDetails(e)}
-                    sx={{ ...PHONE_ROW_SX, color: e.status === "Voided" ? "var(--muted)" : "inherit" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: ".8125rem", lineHeight: 1.35, whiteSpace: "nowrap" }}>
-                      <Box component="span" sx={{ fontWeight: 700, flexShrink: 0 }}><FarmDate iso={e.date} /></Box>
-                      <Box component="span" sx={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{rowFlockName(e)}</Box>
-                      <Box component="span" sx={{ flexShrink: 0, fontSize: ".6875rem" }}>{statusCell(e)}</Box>
-                    </Box>
-                    <Box sx={{
-                      mt: "2px", fontSize: ".6875rem", lineHeight: 1.35, color: "var(--muted)",
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      // A voided row is muted whole; elsewhere the figures carry
-                      // the row's ink so they read first.
-                      "& strong": { fontWeight: 650, color: e.status === "Voided" ? "inherit" : "var(--ink)" },
-                    }}>
+                  <PhoneLedgerRow onClick={() => setDetails(e)} muted={e.status === "Voided"}
+                    date={<FarmDate iso={e.date} />} primary={rowFlockName(e)} trailing={statusCell(e)}
+                    summary={
                       <Trans ns="history" i18nKey="rowSummary" components={{ strong: <strong /> }}
                         count={e.mortalityCount}
                         values={{ total: fmt.count(e.totalEggs), losses: lossList(e), deaths: fmt.count(e.mortalityCount) }} />
-                    </Box>
-                  </ButtonBase>
+                    } />
                 </li>
               ))}
-            </Box>
+            </PhoneLedgerList>
           )}
           {entries.canLoadMore && (
             <button className="link" disabled={busy}

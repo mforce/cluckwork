@@ -779,6 +779,13 @@ export const es = {
     afterIssue: "Después del consumo",
 
     title: "Alimento",
+    logButton: "Registrar alimento",
+    logFormTitle: "Registrar alimento",
+    detailsDialogTitle: "{{date}} · {{flock}}",
+    filtersTitle: "Filtros",
+    allFlocksChip: "Todas las parvadas",
+    allDatesChip: "Todas las fechas",
+    rangeChip: "{{from}} – {{to}}",
     loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
     loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
     intro:
@@ -813,7 +820,7 @@ export const es = {
     fromLabel: "Desde",
     toLabel: "Hasta",
     noRecordsMatch: "Ningún registro de alimento coincide.",
-    noRecordsMessage: "Aún no hay registros de alimento — capture uno arriba.",
+    noRecordsMessage: "Aún no hay registros de alimento.",
     dateHeader: "Fecha",
     flockHeader: "Parvada",
     itemHeader: "Artículo",
@@ -831,6 +838,14 @@ export const es = {
     result: "Resultado",
 
     title: "Agua",
+    logButton: "Registrar agua",
+    logFormTitle: "Registrar agua",
+    correctFormTitle: "Corregir agua",
+    detailsDialogTitle: "{{date}} · {{flock}}",
+    filtersTitle: "Filtros",
+    allFlocksChip: "Todas las parvadas",
+    allDatesChip: "Todas las fechas",
+    rangeChip: "{{from}} – {{to}}",
 
     // Imperative messages
     loadFlocksFailed: "No se pudieron cargar los lotes. ¿Está la API activa?",
@@ -879,7 +894,7 @@ export const es = {
     fromLabel: "Desde",
     toLabel: "Hasta",
     noRecordsMatch: "Ningún registro de agua coincide.",
-    noRecordsMessage: "Aún no hay registros de agua — capture uno arriba.",
+    noRecordsMessage: "Aún no hay registros de agua.",
 
     // Records table
     dateHeader: "Fecha",
@@ -1582,6 +1597,10 @@ export const es = {
     ledgerHeading: "Registro de gastos",
     wholePeriod: "Todo el período filtrado, incluidas las filas aún no cargadas.",
     title: "Gastos",
+    addButton: "Agregar gasto",
+    detailsDialogTitle: "{{date}} · {{description}}",
+    filtersTitle: "Filtros",
+    rangeChip: "{{from}} – {{to}}",
 
     // Imperative messages
     expenseRecordedMessage: "Gasto registrado.",
@@ -2583,7 +2602,8 @@ export const es = {
       + "artículo (las existencias actuales se ven en el propio selector), la cantidad y la fecha. Las "
       + "existencias se descuentan de las compras más antiguas primero — solo lotes que existían en esa "
       + "fecha — y el costo estimado proviene de los lotes realmente consumidos. El historial de la página "
-      + "lista cada alimentación con su costo estimado.",
+      + "lista cada alimentación con su costo estimado. En el teléfono, pulse Registrar alimento para abrir "
+      + "el formulario y pulse una fila para ver el artículo, costo y nota.",
     feedCorrecting:
       "Los registros de alimento <strong>nunca se editan</strong>: las existencias que consumieron ya están "
       + "en el libro mayor, así que un error se corrige con un <strong>ajuste</strong> de Inventario en el "
@@ -2597,7 +2617,8 @@ export const es = {
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "
-      + "de medidor</strong> — la cantidad es entonces la diferencia del medidor (final − inicial).",
+      + "de medidor</strong> — la cantidad es entonces la diferencia del medidor (final − inicial). En el "
+      + "teléfono, pulse Registrar agua para abrir el formulario y una fila para ver Fuente, lecturas, nota y corrección.",
     waterCorrecting:
       "Los registros de agua no tienen existencias detrás, así que los errores se corrigen "
       + "<strong>corrigiendo el registro directamente</strong> (el botón \"corregir\", solo para "
@@ -2713,13 +2734,14 @@ export const es = {
       + "opcionalmente vinculado a un lote. El rango de fechas usa las fechas propias de la granja, no un "
       + "reloj del navegador en otro lugar, y muestra un total acumulado para el período elegido. Las "
       + "categorías se administran en la misma pantalla. Desactivar una la oculta de los gastos nuevos, y "
-      + "los ya registrados la conservan.",
+      + "los ya registrados la conservan. En el teléfono, pulse Agregar gasto para abrir el formulario y "
+      + "Gestionar categorías; use los filtros de período y categoría y pulse una fila para ver detalles y acciones.",
     expensesClearingFilters:
       "El rango se abre en el mes actual de la granja. <strong>Borrar filtros</strong>, junto a los controles, "
       + "lo devuelve ahí — está disponible mientras aún se ven filas, no solo cuando un filtro ya lo ocultó "
       + "todo — y cuando el mes está vacío, <strong>Ver todo el historial</strong> amplía la vista a todos los períodos.",
     expensesCorrections:
-      "Las correcciones editan el gasto en su lugar (<strong>corregir</strong> en la fila). Si alguien más "
+      "Las correcciones editan el gasto en su lugar (<strong>corregir</strong> en la fila o en sus detalles del teléfono). Si alguien más "
       + "lo corrigió primero, el formulario recarga sus valores y le pide volver a aplicar. La moneda en "
       + "que se registró un gasto nunca cambia.",
     expensesAdminOnly:
@@ -3315,12 +3337,14 @@ export const es = {
 
     glossaryWaterUsageTerm: "Uso de agua",
     glossaryWaterUsageDef:
-      "Lo que bebió un lote en un día — cantidad directa o delta de medidor. Editable en el lugar; "
-      + "lote/fecha fijos.",
+      "Lo que bebió un lote en un día — cantidad directa o delta de medidor. En el teléfono, Registrar agua abre el formulario y una fila abre sus detalles. Editable en el lugar; lote/fecha fijos.",
 
     glossaryFeedUsageTerm: "Uso de alimento",
     glossaryFeedUsageDef:
-      "Lo que comió un lote en un día; consume lotes en orden FIFO y estima el costo a partir de ellos.",
+      "Lo que comió un lote en un día; consume lotes en orden FIFO y estima el costo a partir de ellos. En el teléfono, Registrar alimento abre el formulario y una fila abre sus detalles.",
+
+    glossaryExpenseTerm: "Gasto",
+    glossaryExpenseDef: "Dinero gastado por la granja. El total del período incluye filas aún no cargadas. En el teléfono, Agregar gasto abre el formulario y Gestionar categorías; una fila abre los detalles y acciones de auditoría.",
 
     glossaryAdjustmentDiscardTerm: "Ajuste / Descarte",
     glossaryAdjustmentDiscardDef:

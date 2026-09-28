@@ -13,6 +13,7 @@ import {
 import type { Expense, ExpenseCategory, ExpenseList, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { stubMatchMedia } from "../test/matchMedia";
 
 // Keep the REAL formatMoney (renders the row amounts + the month total) via
 // importOriginal; stub only the network seam. Every network fn the screen can
@@ -85,6 +86,7 @@ const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };
 
 beforeEach(() => {
+  stubMatchMedia(true);
   vi.clearAllMocks();
   localStorage.clear();
   // jsdom has no layout engine; keep the stub so any scroll a control triggers
@@ -98,6 +100,30 @@ beforeEach(() => {
   // a row naming a listed flock still commits exactly.
   mockGetFlock.mockResolvedValue(FLOCK);
   mockListExpenses.mockResolvedValue(emptyList("USD", 2));
+});
+
+it("shows a phone expense row, details and actions, and opens Add expense with category management", async () => {
+  stubMatchMedia(false);
+  mockListExpenses.mockResolvedValue({ items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+  renderWithProviders(<ExpensesPage />, { token: ADMIN });
+  const row = await screen.findByRole("button", { name: /Layer feed/ });
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(row).toHaveTextContent("Layer feed");
+  fireEvent.click(row);
+  const details = screen.getByRole("dialog");
+  expect(within(details).getByText("Category")).toBeInTheDocument();
+  expect(within(details).getByText("Amount")).toBeInTheDocument();
+  expect(within(details).getByText("Flock")).toBeInTheDocument();
+  expect(within(details).getByText("Note")).toBeInTheDocument();
+  expect(within(details).getByText("History")).toBeInTheDocument();
+  expect(within(details).getByRole("link", { name: "Audit history" })).toBeInTheDocument();
+  expect(within(details).getByRole("button", { name: "correct" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /close/i }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: /Add expense/ }));
+  const form = screen.getByRole("dialog");
+  expect(within(form).getByLabelText("Description")).toBeInTheDocument();
+  expect(within(form).getByRole("button", { name: "Manage categories" })).toBeInTheDocument();
 });
 
 // The add form's Category select shares its "Category" label with the filter
