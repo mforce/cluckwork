@@ -920,3 +920,69 @@ test.describe("Two-line ledgers at phone width", { tag: "@phone" }, () => {
     });
   }
 });
+
+// #988 review r1 — the settlement rail is a fixed dark panel in BOTH themes,
+// so a shared component dropped into it inherits the wrong text tokens in
+// light. Measured rather than eyeballed: the review found the second line at
+// about 2.75:1 and a voided status at about 1.12:1 there.
+test.describe("Settlement rail payment rows at phone width", { tag: "@phone" }, () => {
+  for (const theme of ["light", "dark"] as const) {
+    test(`payment row text clears AA on the rail in ${theme}`, async ({ page, signIn }) => {
+      await signIn(owner());
+      await page.emulateMedia({ colorScheme: theme });
+      await page.goto("/sales");
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      const order = page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button")
+        .filter({ hasText: "Sim Customer 3" })
+        .filter({ hasText: tEn("enums:status.Confirmed") }).first();
+      await order.click();
+      await page.getByRole("dialog").getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+      const row = page.getByRole("list", { name: tEn("sales:payments") }).getByRole("button").first();
+      await expect(row, "the fixture's confirmed order has no payment to measure").toBeVisible();
+
+      const measured = await row.evaluate((button) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d")!;
+        const rgb = (color: string) => {
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        };
+        const luminance = (color: string) => {
+          const channels = rgb(color).map((value) => {
+            const channel = value / 255;
+            return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+          });
+          return .2126 * channels[0]! + .7152 * channels[1]! + .0722 * channels[2]!;
+        };
+        const contrast = (a: string, b: string) => {
+          const [first, second] = [luminance(a), luminance(b)];
+          return (Math.max(first, second) + .05) / (Math.min(first, second) + .05);
+        };
+        // The list is deliberately transparent on the rail, so the surface the
+        // text actually sits on is an ancestor's.
+        const surface = (element: Element): string => {
+          const color = getComputedStyle(element).backgroundColor;
+          return color === "rgba(0, 0, 0, 0)" ? surface(element.parentElement!) : color;
+        };
+        const behind = surface(button);
+        const [first, second] = [...button.children] as HTMLElement[];
+        return {
+          behind,
+          primary: contrast(getComputedStyle(first!).color, behind),
+          summary: contrast(getComputedStyle(second!).color, behind),
+        };
+      });
+
+      expect.soft(
+        measured.primary,
+        `the payment row's first line is ${measured.primary.toFixed(2)}:1 on ${measured.behind}`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect.soft(
+        measured.summary,
+        `the payment row's second line is ${measured.summary.toFixed(2)}:1 on ${measured.behind}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});

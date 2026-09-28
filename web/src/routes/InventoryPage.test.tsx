@@ -1648,3 +1648,72 @@ describe("phone item list", () => {
     expect(await screen.findByText("Item is in use.")).toBeVisible();
   });
 });
+
+// #988 review r1 (Codex gpt-6-sol) — the phone row IS the action, so it must be
+// as inert during a write as the table's buttons were, and the peek behind it
+// must never keep describing a record the refresh has changed.
+describe("phone item list under a write", () => {
+  beforeEach(() => { stubMatchMedia(false); });
+
+  it("makes every row inert while a write is in flight", async () => {
+    const gate = deferred<void>();
+    mockDeactivate.mockReturnValue(gate.promise);
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "deactivate" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    for (const name of [/Layer Feed/, /Egg Cartons/, /Old Additive/]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+    // Inert, not merely styled: a tap must not raise the peek the write is
+    // about to invalidate.
+    fireEvent.click(screen.getByRole("button", { name: /Layer Feed/ }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    mockListItems.mockResolvedValue([FEED, PACKAGING, INACTIVE]);
+    await act(async () => { gate.resolve(); });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Layer Feed/ })).toBeEnabled());
+  });
+
+  it("reconciles an open peek with the refreshed catalog", async () => {
+    mockCreate.mockResolvedValue({ id: "new1" });
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "deactivate" })).toBeInTheDocument();
+
+    // A write reached from behind the peek — #480 established the backdrop
+    // stops a mouse, not a screen reader's virtual cursor.
+    mockListItems.mockResolvedValue([{ ...FEED, active: false }, PACKAGING, INACTIVE]);
+    fireEvent.click(screen.getByRole("button", { name: /New item/, hidden: true }));
+    const form = screen.getAllByRole("dialog").at(-1)!;
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Bulk Grain" } });
+    await act(async () => {
+      fireEvent.click(within(form).getByRole("button", { name: "Add item" }));
+    });
+
+    // The create dialog's exit transition keeps it mounted for a beat, and
+    // MUI's aria-hidden sweep hides the peek under it meanwhile.
+    const peek = await screen.findByRole("dialog", { name: "Layer Feed" });
+    expect(within(peek).getByRole("button", { name: "activate" })).toBeInTheDocument();
+    expect(within(peek).queryByRole("button", { name: "deactivate" })).toBeNull();
+    expect(within(peek).getByText("Inactive")).toBeInTheDocument();
+  });
+
+  it("closes an open peek when its item leaves the catalog", async () => {
+    mockCreate.mockResolvedValue({ id: "new1" });
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    mockListItems.mockResolvedValue([PACKAGING, INACTIVE]);
+    fireEvent.click(screen.getByRole("button", { name: /New item/, hidden: true }));
+    const form = screen.getAllByRole("dialog").at(-1)!;
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Bulk Grain" } });
+    await act(async () => {
+      fireEvent.click(within(form).getByRole("button", { name: "Add item" }));
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Layer Feed", hidden: true })).toBeNull());
+  });
+});

@@ -29,7 +29,7 @@ export function PhoneLedgerList({ label, children }: { label: string; children: 
   return <Box component="ul" aria-label={label} sx={PHONE_LIST_SX}>{children}</Box>;
 }
 
-export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, muted = false }: {
+export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, muted = false, disabled = false }: {
   onClick: () => void;
   /** Omitted by a list with no date of its own, so `primary` leads the line (#987). */
   date?: ReactNode;
@@ -37,8 +37,13 @@ export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, mute
   trailing: ReactNode;
   summary: ReactNode;
   muted?: boolean;
+  /**
+   * The row IS the action here, so a page whose table disabled its action
+   * buttons during a write must disable the whole row (#988 review r1).
+   */
+  disabled?: boolean;
 }) {
-  return <ButtonBase aria-haspopup="dialog" onClick={onClick}
+  return <ButtonBase aria-haspopup="dialog" onClick={onClick} disabled={disabled}
     sx={{ ...PHONE_ROW_SX, color: muted ? "var(--muted)" : "inherit" }}>
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: ".8125rem", lineHeight: 1.35, whiteSpace: "nowrap" }}>
       {date !== undefined && <Box component="span" sx={{ fontWeight: 700, flexShrink: 0 }}>{date}</Box>}

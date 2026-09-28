@@ -92,11 +92,14 @@ export function InventoryPage() {
   const [editUnit, setEditUnit] = useState("");
   const [editCost, setEditCost] = useState("");
 
-  // #987 — the phone row's read-only peek. Its open-lot count is not on the
+  // #987 — the phone row's read-only peek. It holds an ID, never a row: the
+  // item is re-read from the live list every render, so a refresh can neither
+  // leave it showing a stale status nor offering `deactivate` on an item that
+  // is already inactive (#988 review r1). Its open-lot count is not on the
   // list response, so it takes its own ticketed read and stays null (an em
   // dash) when that read is superseded or fails: a lot count must never take
   // the peek down with it.
-  const [details, setDetails] = useState<InventoryItem | null>(null);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
   const [detailsOpenLots, setDetailsOpenLots] = useState<number | null>(null);
   const detailsLotsRequest = useRef(0);
 
@@ -356,7 +359,7 @@ export function InventoryPage() {
   }
 
   function openDetails(i: InventoryItem) {
-    setDetails(i);
+    setDetailsId(i.id);
     setDetailsOpenLots(null);
     const req = ++detailsLotsRequest.current;
     listInventoryLots(i.id)
@@ -503,6 +506,12 @@ export function InventoryPage() {
   }
 
   const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
+
+  // Adjusted during render, the React-documented way to reset state a refreshed
+  // list invalidates: an id the catalog no longer holds is retired, so a later
+  // load cannot silently reopen the peek on it.
+  if (detailsId !== null && !items.some((i) => i.id === detailsId)) setDetailsId(null);
+  const details = items.find((i) => i.id === detailsId) ?? null;
 
   const intro = <Typography component="p" variant="body2" sx={{ color: "text.secondary" }}>{t("intro")}</Typography>;
   const createItemButton = isAdmin && (
@@ -847,7 +856,7 @@ export function InventoryPage() {
         <PhoneLedgerList label={t("itemsHeading")}>
           {items.map((i) => <li key={i.id}>
             {/* No date, so the name takes the flexible slot and stops wrapping (#987). */}
-            <PhoneLedgerRow muted={!i.active} onClick={() => openDetails(i)}
+            <PhoneLedgerRow muted={!i.active} disabled={busy} onClick={() => openDetails(i)}
               primary={i.name}
               trailing={<strong>{fmt.count(i.quantityOnHand)} {i.unit}</strong>}
               summary={<PhoneLedgerSummary parts={[
@@ -860,29 +869,29 @@ export function InventoryPage() {
         {/* Every action closes the peek first, so the page's own error and
             success lines are visible when the write answers. */}
         <Dialog open={details !== null} compactTitle title={details ? details.name : t("title")}
-          onClose={() => setDetails(null)}
+          onClose={() => setDetailsId(null)}
           actions={details && <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
             {isAdmin && <>
               <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy}
-                onClick={() => { const item = details; setDetails(null); startEdit(item); }}>{t("editButton")}</Button>
+                onClick={() => { const item = details; setDetailsId(null); startEdit(item); }}>{t("editButton")}</Button>
               {details.active ? (
                 <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${details.id}`)} disabled={busy}
                   onClick={() => {
                     const { id } = details;
-                    setDetails(null);
+                    setDetailsId(null);
                     void run(`deactivate:${id}`, () => commit(`deactivate:${id}`, (key) => deactivateInventoryItem(id, key)));
                   }}>{t("deactivateButton")}</BusyButton>
               ) : (
                 <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${details.id}`)} disabled={busy}
                   onClick={() => {
                     const { id } = details;
-                    setDetails(null);
+                    setDetailsId(null);
                     void run(`activate:${id}`, () => commit(`activate:${id}`, (key) => activateInventoryItem(id, key)));
                   }}>{t("activateButton")}</BusyButton>
               )}
             </>}
             <Button variant="contained" sx={{ ml: "auto", borderRadius: "4px" }} disabled={busy}
-              onClick={() => { const item = details; setDetails(null); void onOpen(item); }}>{t("openButton")}</Button>
+              onClick={() => { const item = details; setDetailsId(null); void onOpen(item); }}>{t("openButton")}</Button>
           </Box>}>
           {details && <Box component="dl" sx={{ m: 0 }}>
             <PhoneDetailsField label={t("categoryHeader")}>{inventoryCategoryLabel(details.category)}</PhoneDetailsField>

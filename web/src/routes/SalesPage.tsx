@@ -11,7 +11,7 @@ import {
   listProducts, parseMoneyToMinorUnits, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, EggUnitConversion, OrderItem, OrderPayments, Payment, Product, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggUnitConversion, OrderItem, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
@@ -69,6 +69,16 @@ const PICKER_SX = { flex: "0 1 15rem", width: "15rem", minWidth: "8rem", maxWidt
 // #986's phone chip: 36px, below the 44px floor the rest of the phone UI keeps,
 // because three of these have to share one 353px line.
 const CHIP_SX = { borderRadius: "100px", minHeight: 36, fontSize: ".75rem" };
+// The settlement rail is a fixed dark panel in BOTH themes (CONSOLE_RAIL_SX
+// pins #2c2429/#fff), so the shared row's --ink and --muted resolved against
+// the wrong surface in light: 2.75:1 (#988 review r1). Derived from the rail's
+// own white, not copied from the dark palette, which #149 multiplies.
+const RAIL_PHONE_LIST_SX = {
+  "--surface": "transparent",
+  "--ink": "#fff",
+  "--muted": "rgba(255, 255, 255, .72)",
+  "--rule": "rgba(255, 255, 255, .22)",
+};
 
 function OrderStatus({ status }: { status: SalesOrder["status"] }) {
   return <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap",
@@ -291,9 +301,13 @@ export function SalesPage() {
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   // #987 — the phone list's three surfaces: the filter dialog the chips open,
   // the order row's read-only peek, and the payment row's.
+  // A peek holds an ID, never a row: the row it describes is re-read from the
+  // live list every render, so a refresh can neither leave it showing a stale
+  // status nor leave it offering an action the record no longer allows (#988
+  // review r1).
   const [filterOpen, setFilterOpen] = useState(false);
-  const [details, setDetails] = useState<SalesOrder | null>(null);
-  const [paymentDetails, setPaymentDetails] = useState<Payment | null>(null);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [paymentDetailsId, setPaymentDetailsId] = useState<string | null>(null);
   const fmt = useFormat();
   // #752 — a percent under 0.05 rounds to "0.0" and sits beside a NON-zero
   // amount, so the pair contradicts itself. Below the rendering threshold say
@@ -704,7 +718,7 @@ export function SalesPage() {
     dismissDialog("record-payment");
     // #987 — the phone peek belongs to the order that was open, for the same
     // reason the form above does: its Void targets one payment by id.
-    setPaymentDetails(null);
+    setPaymentDetailsId(null);
     if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
@@ -1147,6 +1161,15 @@ export function SalesPage() {
     setSearchParams(next);
   };
 
+  // Adjusted during render, the React-documented way to reset state a prop (or
+  // here, a refreshed list) invalidates: an id whose record left the window is
+  // retired, so a later load cannot silently reopen the peek on it.
+  if (detailsId !== null && !orders.rows.some((o) => o.id === detailsId)) setDetailsId(null);
+  if (paymentDetailsId !== null && payments !== null
+    && !payments.items.some((p) => p.id === paymentDetailsId)) setPaymentDetailsId(null);
+  const details = orders.rows.find((o) => o.id === detailsId) ?? null;
+  const paymentDetails = payments?.items.find((p) => p.id === paymentDetailsId) ?? null;
+
   // The committed filter identity's own name, or null for "no customer filter".
   // The chip and the picker trigger disagree only about how to say "all".
   const customerFilterName = customerFilter === ""
@@ -1180,9 +1203,12 @@ export function SalesPage() {
       ? listPriceBasisLabel(orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")
       : discount.partial ? t("discountPartialNote") : "";
 
+  // The badge does NOT depend on the description: an order with one discounted
+  // line and one unpriced one is `below` AND `partial`, and dropping the
+  // percentage there hid a real discount (#988 review r1). Only the note stays
+  // behind in Details, which is where the desktop cell's own note goes.
   const discountSegment = (o: SalesOrder) => {
     const discount = orderDiscount(o.items);
-    if (discountDescriptionText(o, discount)) return null;
     const badge = discountBadgeText(o, discount, true);
     return badge === null ? null
       : discount.kind === "below"
@@ -1841,9 +1867,9 @@ export function SalesPage() {
                         </TableBody>
                       </Table>
                     </LedgerTableContainer>
-                    : <PhoneLedgerList label={t("payments")}>
+                    : <Box sx={RAIL_PHONE_LIST_SX}><PhoneLedgerList label={t("payments")}>
                       {payments.items.map((p) => <li key={p.id}>
-                        <PhoneLedgerRow muted={p.voided} onClick={() => setPaymentDetails(p)}
+                        <PhoneLedgerRow muted={p.voided} disabled={busy} onClick={() => setPaymentDetailsId(p.id)}
                           date={<FarmDate iso={p.paymentDate} />}
                           primary={t(`method${p.method as PaymentMethod}`)}
                           trailing={<strong>{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</strong>}
@@ -1851,13 +1877,13 @@ export function SalesPage() {
                             ? [<strong>{statusLabel("Voided")}</strong>, p.referenceNumber, p.voidReason]
                             : [p.note]} />} />
                       </li>)}
-                    </PhoneLedgerList>
+                    </PhoneLedgerList></Box>
                   )}
                   {!isDesktop && <Dialog open={paymentDetails !== null} compactTitle
                     title={paymentDetails
                       ? t("paymentDetailsDialogTitle", { date: fmt.date(paymentDetails.paymentDate), method: t(`method${paymentDetails.method as PaymentMethod}`) })
                       : t("payments")}
-                    onClose={() => setPaymentDetails(null)}
+                    onClose={() => setPaymentDetailsId(null)}
                     actions={paymentDetails && !paymentDetails.voided && isAdmin && (
                       <Box sx={{ display: "flex", borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
                         {/* Not the rail's #ffb4a2: that salmon is picked for the
@@ -1868,7 +1894,7 @@ export function SalesPage() {
                           busy={isPending(`void-payment:${paymentDetails.id}`)}
                           onClick={() => {
                             const { id, version } = paymentDetails;
-                            setPaymentDetails(null);
+                            setPaymentDetailsId(null);
                             void onVoidPayment(id, version);
                           }}>{t("voidPaymentButton")}</BusyButton>
                       </Box>
@@ -2027,13 +2053,13 @@ export function SalesPage() {
           title={details
             ? t("orderDetailsDialogTitle", { reference: details.referenceNumber, customer: rowCustomerName(details) })
             : t("title")}
-          onClose={() => setDetails(null)}
+          onClose={() => setDetailsId(null)}
           actions={details && <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
             {isAdmin && <Button component={Link} size="small" sx={CONSOLE_LINK_SX} to={`/audit?entityId=${details.id}`}>
               {tc("recordHistory.viewHistoryLink")}
             </Button>}
             <Button variant="contained" sx={{ ml: "auto", borderRadius: "4px" }} disabled={busy}
-              onClick={() => { const id = details.id; setDetails(null); onOpen(id); }}>{t("open")}</Button>
+              onClick={() => { const id = details.id; setDetailsId(null); onOpen(id); }}>{t("open")}</Button>
           </Box>}>
           {details && <Box component="dl" sx={{ m: 0 }}>
             <PhoneDetailsField label={t("date")}><FarmDate iso={details.orderDate} /></PhoneDetailsField>
@@ -2152,7 +2178,7 @@ export function SalesPage() {
             </Table>
           </LedgerTableContainer> : <PhoneLedgerList label={t("ordersHeading")}>
             {orders.rows.map((o) => <li key={o.id}>
-              <PhoneLedgerRow onClick={() => setDetails(o)} date={<FarmDate iso={o.orderDate} />}
+              <PhoneLedgerRow onClick={() => setDetailsId(o.id)} disabled={busy} date={<FarmDate iso={o.orderDate} />}
                 primary={rowCustomerName(o)}
                 trailing={<strong>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</strong>}
                 summary={<PhoneLedgerSummary parts={[

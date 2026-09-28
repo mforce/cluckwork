@@ -4506,3 +4506,165 @@ describe("phone payments rail", () => {
     expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "void" })).toBeNull();
   });
 });
+
+// #988 review r1 (Codex gpt-6-sol) — the partial-discount badge, the inert row
+// during a write, and a peek that tracks the list it was opened from.
+describe("phone orders list under review round 1", () => {
+  // One line $2.25 under list, one line with no comparable list price: the
+  // order is `below` AND `partial`, which is the shape whose badge went
+  // missing.
+  const PARTIAL_DISCOUNT: SalesOrder = {
+    ...NO_RECORD_HISTORY,
+    id: "op3", customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-PART",
+    orderDate: "2026-07-17", status: "Confirmed", totalMinorUnits: 2900,
+    currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
+    discountReasonCode: null, discountReasonNote: null, outstandingMinorUnits: 0,
+    items: [ITEM_A, { ...ITEM_B, listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" }],
+  };
+
+  beforeEach(() => { stubMatchMedia(false); });
+
+  it("keeps the discount badge on a partially discounted order and leaves the note to Details", async () => {
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    const row = await screen.findByRole("button", { name: /SO-PART/ });
+    expect(row).toHaveTextContent("20.0% off");
+    expect(row).not.toHaveTextContent("part of this order has no list price");
+    fireEvent.click(row);
+    const peek = screen.getByRole("dialog");
+    expect(within(peek).getByText("part of this order has no list price")).toBeInTheDocument();
+    expect(within(peek).getByText(/20\.0% · \$2\.25/)).toBeInTheDocument();
+  });
+
+  it("makes every order row inert while a write is in flight", async () => {
+    const gate = deferredOrder();
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    mockGetOrder.mockReturnValue(gate.promise);
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-PART/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    const row = screen.getByRole("button", { name: /SO-PART/ });
+    expect(row).toBeDisabled();
+    fireEvent.click(row);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await act(async () => { gate.resolve(PARTIAL_DISCOUNT); });
+  });
+
+  it("reconciles an open peek with the refreshed order window", async () => {
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    mockCreateOrder.mockResolvedValue({ id: "op9" });
+    mockGetOrder.mockResolvedValue({ ...PARTIAL_DISCOUNT, id: "op9" });
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-PART/ }));
+    expect(within(screen.getByRole("dialog")).getByText("Confirmed")).toBeInTheDocument();
+
+    // A write reached from behind the peek — #480 established the backdrop
+    // stops a mouse, not a screen reader's virtual cursor.
+    mockListOrders.mockResolvedValue([{ ...PARTIAL_DISCOUNT, status: "Voided" }]);
+    fireEvent.click(screen.getByRole("button", { name: /New order/, hidden: true }));
+    await act(async () => {
+      fireEvent.click(within(screen.getAllByRole("dialog").at(-1)!)
+        .getByRole("button", { name: "New draft order" }));
+    });
+
+    const peek = await screen.findByRole("dialog", { name: "SO-PART · Acme Eggs" });
+    expect(within(peek).getByText("Voided")).toBeInTheDocument();
+  });
+
+  it("does not reopen a peek when its order returns to the window", async () => {
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    mockCreateOrder.mockResolvedValue({ id: "op9" });
+    mockGetOrder.mockResolvedValue({ ...PARTIAL_DISCOUNT, id: "op9" });
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-PART/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    const refresh = async () => {
+      fireEvent.click(screen.getByRole("button", { name: /New order/, hidden: true }));
+      await act(async () => {
+        fireEvent.click(within(screen.getAllByRole("dialog").at(-1)!)
+          .getByRole("button", { name: "New draft order" }));
+      });
+    };
+    mockListOrders.mockResolvedValue([]);
+    await refresh();
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "SO-PART · Acme Eggs", hidden: true })).toBeNull());
+
+    // The id is retired with the row, so the order coming back is not a
+    // reason to put a dialog on screen nobody asked for.
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    await refresh();
+    expect(screen.queryByRole("dialog", { name: "SO-PART · Acme Eggs", hidden: true })).toBeNull();
+  });
+
+  it("reconciles an open payment peek with the refreshed rail", async () => {
+    const LIVE = {
+      id: "pay1", salesOrderId: "op3", customerId: "c1", paymentDate: "2026-07-19",
+      amountMinorUnits: 500, currencyCode: "USD", currencyMinorUnit: 2, method: "Cash",
+      referenceNumber: "R-1", note: "part payment", voided: false, voidReason: null, version: 1,
+    };
+    const CONFIRMED = { ...PARTIAL_DISCOUNT, outstandingMinorUnits: 400 };
+    mockListOrders.mockResolvedValue([CONFIRMED]);
+    mockGetOrder.mockResolvedValue(CONFIRMED);
+    mockListOrderPayments.mockResolvedValue({
+      items: [LIVE], paidMinorUnits: 500, outstandingMinorUnits: 400,
+      totalMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    mockRecordPayment.mockResolvedValue({ id: "pay2" });
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-PART/ }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    });
+    const rail = await screen.findByRole("list", { name: "Payments" });
+    fireEvent.click(within(rail).getAllByRole("button")[0]);
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "void" })).toBeInTheDocument();
+
+    // The rail's own Record payment sits behind the peek and refreshes the
+    // settlement list under it (#480: the backdrop stops a mouse, not a
+    // screen reader's virtual cursor).
+    mockListOrderPayments.mockResolvedValue({
+      items: [{ ...LIVE, voided: true, voidReason: "cheque returned" }],
+      paidMinorUnits: 0, outstandingMinorUnits: 900,
+      totalMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Record payment", hidden: true }));
+    const form = screen.getAllByRole("dialog").at(-1)!;
+    fireEvent.change(within(form).getByLabelText(/Amount/), { target: { value: "1.00" } });
+    await act(async () => {
+      fireEvent.click(within(form).getByRole("button", { name: "Record payment" }));
+    });
+
+    const peek = await screen.findByRole("dialog", { name: /Cash/ });
+    expect(within(peek).getByText("Voided")).toBeInTheDocument();
+    expect(within(peek).queryByRole("button", { name: "void" })).toBeNull();
+  });
+
+  it("closes an open peek when its order leaves the window", async () => {
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    mockCreateOrder.mockResolvedValue({ id: "op9" });
+    mockGetOrder.mockResolvedValue({ ...PARTIAL_DISCOUNT, id: "op9" });
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-PART/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    mockListOrders.mockResolvedValue([]);
+    fireEvent.click(screen.getByRole("button", { name: /New order/, hidden: true }));
+    await act(async () => {
+      fireEvent.click(within(screen.getAllByRole("dialog").at(-1)!)
+        .getByRole("button", { name: "New draft order" }));
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "SO-PART · Acme Eggs", hidden: true })).toBeNull());
+  });
+});
+
+function deferredOrder() {
+  let resolve!: (v: SalesOrder) => void;
+  const promise = new Promise<SalesOrder>((r) => { resolve = r; });
+  return { promise, resolve };
+}
