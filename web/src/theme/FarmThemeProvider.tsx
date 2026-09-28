@@ -254,7 +254,53 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         styleOverrides: { root: { padding: 18 } },
       },
       MuiDialog: { styleOverrides: { paper: { borderRadius: cardRadius } } },
-      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: controlRadius } } },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          root: {
+            borderRadius: controlRadius,
+            "&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline": {
+              borderColor: tokens["--stat-accent"],
+            },
+          },
+        },
+      },
+      MuiFormLabel: {
+        styleOverrides: {
+          root: { "&.Mui-focused:not(.Mui-error)": { color: tokens["--stat-accent"] } },
+        },
+      },
+      MuiCheckbox: {
+        styleOverrides: {
+          root: {
+            "&.Mui-checked:not(.Mui-disabled), &.Mui-indeterminate:not(.Mui-disabled)": {
+              color: tokens["--stat-accent"],
+            },
+          },
+        },
+      },
+      MuiRadio: {
+        styleOverrides: {
+          root: { "&.Mui-checked:not(.Mui-disabled)": { color: tokens["--stat-accent"] } },
+        },
+      },
+      MuiMenuItem: {
+        styleOverrides: {
+          root: mode === "dark" ? {
+            "&.Mui-selected": {
+              backgroundColor: alpha(tokens["--stat-accent"], 0.16),
+              "&.Mui-focusVisible": {
+                backgroundColor: alpha(tokens["--stat-accent"], 0.28),
+              },
+            },
+            "&.Mui-selected:hover": {
+              backgroundColor: alpha(tokens["--stat-accent"], 0.20),
+              "@media (hover: none)": {
+                backgroundColor: alpha(tokens["--stat-accent"], 0.16),
+              },
+            },
+          } : {},
+        },
+      },
       // `Autocomplete` sets no elevation on its listbox paper, so it falls to
       // `Paper`'s default of 1 — which this scale flattens. The picker popover is
       // one of #651's floats, so it takes the dialog shadow explicitly.
