@@ -26,7 +26,7 @@ import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
 import { ProvenanceCell, ProvenanceSummary } from "../components/ProvenanceCell";
-import { PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow, PhoneLedgerSummary } from "../components/PhoneLedger";
+import { focusPhoneRow, PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow, PhoneLedgerSummary } from "../components/PhoneLedger";
 import { useDialogAction } from "../components/useDialogAction";
 import { useConfirm } from "../components/useConfirm";
 import { usePagedList } from "../components/usePagedList";
@@ -308,6 +308,12 @@ export function SalesPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [paymentDetailsId, setPaymentDetailsId] = useState<string | null>(null);
+  // #988 review r2 — a peek action closes its dialog and disables its row in
+  // the same commit, so `Dialog`'s restore (one retry a frame later) lands on
+  // <body> for any request slower than a frame. The page names the target
+  // itself: the workspace the action opened, or the row once it is live again.
+  const orderPanelHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusAfterWrite = useRef<string | null>(null);
   const fmt = useFormat();
   // #752 — a percent under 0.05 rounds to "0.0" and sits beside a NON-zero
   // amount, so the pair contradicts itself. Below the rendering threshold say
@@ -733,6 +739,17 @@ export function SalesPage() {
     // render and re-fetch the payments. There is no eslint in this package to
     // have caught either.
   }, [activeId, activeStatus, canSettle, dismissDialog, setPageError]);
+
+  useEffect(() => {
+    if (busy) return;
+    const rowId = focusAfterWrite.current;
+    if (rowId === null) return;
+    focusAfterWrite.current = null;
+    // The workspace is what the user asked for; the row is where they were
+    // when the request failed and left them nothing else.
+    if (orderPanelHeadingRef.current !== null) orderPanelHeadingRef.current.focus();
+    else focusPhoneRow(rowId);
+  }, [busy]);
 
   // Exact decimal parsing in the ORDER's denomination (no float multiply —
   // #88 review); excess decimals are rejected, not silently rounded.
@@ -1455,7 +1472,7 @@ export function SalesPage() {
               <Box component="header" sx={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: "15px", pb: 1.75, mb: 1.75, borderBottom: "1px solid var(--rule)" }}>
                 <Box>
                   <Typography variant="overline" sx={{ fontSize: ".625rem", letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 750, color: "text.secondary" }}>{active.status === "Draft" ? t("draftOrderHeading") : t("orderHeading")}</Typography>
-                  <Typography variant="h3" component="h3" id={orderPanelHeadingId} sx={{ "&&": { m: 0 } }}>
+                  <Typography variant="h3" component="h3" id={orderPanelHeadingId} ref={orderPanelHeadingRef} tabIndex={-1} sx={{ "&&": { m: 0 } }}>
                     {active.referenceNumber} — {rowCustomerName(active)}
                   </Typography>
                 </Box>
@@ -2059,7 +2076,12 @@ export function SalesPage() {
               {tc("recordHistory.viewHistoryLink")}
             </Button>}
             <Button variant="contained" sx={{ ml: "auto", borderRadius: "4px" }} disabled={busy}
-              onClick={() => { const id = details.id; setDetailsId(null); onOpen(id); }}>{t("open")}</Button>
+              onClick={() => {
+                const id = details.id;
+                focusAfterWrite.current = id;
+                setDetailsId(null);
+                onOpen(id);
+              }}>{t("open")}</Button>
           </Box>}>
           {details && <Box component="dl" sx={{ m: 0 }}>
             <PhoneDetailsField label={t("date")}><FarmDate iso={details.orderDate} /></PhoneDetailsField>
@@ -2178,7 +2200,7 @@ export function SalesPage() {
             </Table>
           </LedgerTableContainer> : <PhoneLedgerList label={t("ordersHeading")}>
             {orders.rows.map((o) => <li key={o.id}>
-              <PhoneLedgerRow onClick={() => setDetailsId(o.id)} disabled={busy} date={<FarmDate iso={o.orderDate} />}
+              <PhoneLedgerRow rowId={o.id} onClick={() => setDetailsId(o.id)} disabled={busy} date={<FarmDate iso={o.orderDate} />}
                 primary={rowCustomerName(o)}
                 trailing={<strong>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</strong>}
                 summary={<PhoneLedgerSummary parts={[

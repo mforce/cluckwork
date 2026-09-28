@@ -986,3 +986,27 @@ test.describe("Settlement rail payment rows at phone width", { tag: "@phone" }, 
     });
   }
 });
+
+// #988 review r2 — the focus half of the peek→workspace path, in a real
+// browser rather than jsdom: the row that opened the peek is disabled for the
+// whole refetch, so `Dialog`'s own restore is spent before the response
+// arrives. The request is held open here deliberately; a fast one lets the
+// restore succeed and proves nothing.
+test("a slow open from an order peek lands focus in the workspace", { tag: "@phone" }, async ({ page, signIn }) => {
+  await signIn(owner());
+  await page.goto("/sales");
+  // The single-order read only. `/sales?…` is the list and
+  // `/sales/{id}/payments` is the rail; neither must be delayed.
+  await page.route(/\/api\/v1\/sales\/[0-9a-f-]+$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
+
+  const row = page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button").first();
+  await row.click();
+  await page.getByRole("dialog").getByRole("button", { name: tEn("sales:open"), exact: true }).click();
+
+  const heading = page.getByRole("region").getByRole("heading", { level: 3 }).first();
+  await expect(heading, "the order workspace never mounted, so there is no focus to judge").toBeVisible();
+  await expect(heading).toBeFocused();
+});

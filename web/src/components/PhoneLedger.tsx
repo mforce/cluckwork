@@ -29,8 +29,17 @@ export function PhoneLedgerList({ label, children }: { label: string; children: 
   return <Box component="ul" aria-label={label} sx={PHONE_LIST_SX}>{children}</Box>;
 }
 
-export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, muted = false, disabled = false }: {
+// #988 review r2 — a page that closes a peek and disables its row in one
+// commit outlives `Dialog`'s own restore, so it has to name the focus target
+// itself. The row is addressable by the record it describes.
+export function focusPhoneRow(rowId: string) {
+  document.querySelector<HTMLElement>(`[data-phone-row="${CSS.escape(rowId)}"]`)?.focus();
+}
+
+export function PhoneLedgerRow({ onClick, rowId, date, primary, trailing, summary, muted = false, disabled = false }: {
   onClick: () => void;
+  /** The record this row describes, so a page can put focus back on it. */
+  rowId?: string;
   /** Omitted by a list with no date of its own, so `primary` leads the line (#987). */
   date?: ReactNode;
   primary: ReactNode;
@@ -43,7 +52,7 @@ export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, mute
    */
   disabled?: boolean;
 }) {
-  return <ButtonBase aria-haspopup="dialog" onClick={onClick} disabled={disabled}
+  return <ButtonBase aria-haspopup="dialog" onClick={onClick} disabled={disabled} data-phone-row={rowId}
     sx={{ ...PHONE_ROW_SX, color: muted ? "var(--muted)" : "inherit" }}>
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: ".8125rem", lineHeight: 1.35, whiteSpace: "nowrap" }}>
       {date !== undefined && <Box component="span" sx={{ fontWeight: 700, flexShrink: 0 }}>{date}</Box>}

@@ -4536,6 +4536,41 @@ describe("phone orders list under review round 1", () => {
     expect(within(peek).getByText(/20\.0% · \$2\.25/)).toBeInTheDocument();
   });
 
+  // #988 review r2 (Codex gpt-6-sol) — the action closes the peek and disables
+  // its row in one commit, so Dialog's own restore is spent long before a real
+  // request settles. Held open deliberately: a resolved promise would let the
+  // restore succeed and prove nothing.
+  it("moves focus into the order workspace when a slow open settles", async () => {
+    const gate = deferredOrder();
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    mockGetOrder.mockReturnValue(gate.promise);
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-PART/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // The row that opened the peek is disabled for the whole flight, so
+    // nothing on the page can hold focus meanwhile.
+    expect(document.activeElement).toBe(document.body);
+
+    await act(async () => { gate.resolve(PARTIAL_DISCOUNT); });
+    const heading = await screen.findByRole("heading", { name: /SO-PART — Acme Eggs/ });
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it("puts focus back on the order row when a slow open fails", async () => {
+    const gate = deferredOrder();
+    mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
+    mockGetOrder.mockReturnValue(gate.promise);
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    const row = await screen.findByRole("button", { name: /SO-PART/ });
+    fireEvent.click(row);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await act(async () => { gate.reject(new ApiError(500, "Sales.LoadFailed", "Server error.")); });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /SO-PART/ }));
+  });
+
   it("makes every order row inert while a write is in flight", async () => {
     const gate = deferredOrder();
     mockListOrders.mockResolvedValue([PARTIAL_DISCOUNT]);
@@ -4665,6 +4700,7 @@ describe("phone orders list under review round 1", () => {
 
 function deferredOrder() {
   let resolve!: (v: SalesOrder) => void;
-  const promise = new Promise<SalesOrder>((r) => { resolve = r; });
-  return { promise, resolve };
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<SalesOrder>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
 }

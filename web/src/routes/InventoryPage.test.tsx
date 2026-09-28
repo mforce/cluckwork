@@ -1676,6 +1676,25 @@ describe("phone item list under a write", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /Layer Feed/ })).toBeEnabled());
   });
 
+  // #988 review r2 (Codex gpt-6-sol) — the row that opened the peek is
+  // disabled for the whole write, so Dialog's own restore is spent before a
+  // real request settles. Held open deliberately.
+  it("puts focus back on the row when a slow deactivate settles", async () => {
+    const gate = deferred<void>();
+    mockDeactivate.mockReturnValue(gate.promise);
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /Layer Feed/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "deactivate" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(document.body);
+
+    mockListItems.mockResolvedValue([{ ...FEED, active: false }, PACKAGING, INACTIVE]);
+    await act(async () => { gate.resolve(); });
+    const row = screen.getByRole("button", { name: /Layer Feed/ });
+    expect(row).toBeEnabled();
+    expect(document.activeElement).toBe(row);
+  });
+
   it("reconciles an open peek with the refreshed catalog", async () => {
     mockCreate.mockResolvedValue({ id: "new1" });
     renderWithProviders(<InventoryPage />, { token: ADMIN });

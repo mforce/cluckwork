@@ -20,7 +20,7 @@ import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
-import { PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow, PhoneLedgerSummary } from "../components/PhoneLedger";
+import { focusPhoneRow, PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow, PhoneLedgerSummary } from "../components/PhoneLedger";
 import { usePagedList } from "../components/usePagedList";
 import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
@@ -102,6 +102,11 @@ export function InventoryPage() {
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [detailsOpenLots, setDetailsOpenLots] = useState<number | null>(null);
   const detailsLotsRequest = useRef(0);
+  // #988 review r2 — activate/deactivate close the peek and disable its row in
+  // the same commit, so `Dialog`'s restore (one retry a frame later) lands on
+  // <body> for any request slower than a frame. The row is still the right
+  // place to be afterwards: the item stays listed, with its status flipped.
+  const focusAfterWrite = useRef<string | null>(null);
 
   // open item panel: purchase/adjust forms + ledger. Feed usage moved to its
   // own /feed page (#446) — the panel keeps only a deep link there.
@@ -170,6 +175,14 @@ export function InventoryPage() {
       })
       .catch(() => setPageError(i18n.t("inventory:loadInventoryFailed")));
   }, []);
+
+  useEffect(() => {
+    if (busy) return;
+    const rowId = focusAfterWrite.current;
+    if (rowId === null) return;
+    focusAfterWrite.current = null;
+    focusPhoneRow(rowId);
+  }, [busy]);
 
   // Dismissal is one of the two session edges (#703): it mutes the attempt
   // still out, so a late failure is not reported against a session the user
@@ -856,7 +869,7 @@ export function InventoryPage() {
         <PhoneLedgerList label={t("itemsHeading")}>
           {items.map((i) => <li key={i.id}>
             {/* No date, so the name takes the flexible slot and stops wrapping (#987). */}
-            <PhoneLedgerRow muted={!i.active} disabled={busy} onClick={() => openDetails(i)}
+            <PhoneLedgerRow rowId={i.id} muted={!i.active} disabled={busy} onClick={() => openDetails(i)}
               primary={i.name}
               trailing={<strong>{fmt.count(i.quantityOnHand)} {i.unit}</strong>}
               summary={<PhoneLedgerSummary parts={[
@@ -878,6 +891,7 @@ export function InventoryPage() {
                 <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${details.id}`)} disabled={busy}
                   onClick={() => {
                     const { id } = details;
+                    focusAfterWrite.current = id;
                     setDetailsId(null);
                     void run(`deactivate:${id}`, () => commit(`deactivate:${id}`, (key) => deactivateInventoryItem(id, key)));
                   }}>{t("deactivateButton")}</BusyButton>
@@ -885,6 +899,7 @@ export function InventoryPage() {
                 <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${details.id}`)} disabled={busy}
                   onClick={() => {
                     const { id } = details;
+                    focusAfterWrite.current = id;
                     setDetailsId(null);
                     void run(`activate:${id}`, () => commit(`activate:${id}`, (key) => activateInventoryItem(id, key)));
                   }}>{t("activateButton")}</BusyButton>
