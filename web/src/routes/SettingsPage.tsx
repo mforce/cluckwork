@@ -611,7 +611,7 @@ export function SettingsPage() {
     backgroundColor: "primary.main", padding: "0.6rem 1.15rem",
     "&:hover": { backgroundColor: "primary.dark" },
     "&:has(input:disabled)": { opacity: 0.55, cursor: "default" },
-    "&:focus-within": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: "2px" },
+    "&:focus-within": { outline: "2px solid", outlineColor: "var(--focus)", outlineOffset: "2px" },
     "& input[type='file']": {
       position: "absolute", width: "1px", height: "1px", opacity: 0, pointerEvents: "none",
     },

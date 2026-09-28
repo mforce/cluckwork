@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Theme } from "@mui/material/styles";
+import { alpha, type Theme } from "@mui/material/styles";
 import { BRANDS } from "../lib/brand";
 import { contrast } from "../test/cssTokens";
 import type { Mode } from "../test/cssTokens";
@@ -121,12 +121,21 @@ describe("farm theme policy (#823 G2)", () => {
         `${brand} outlined input`);
       const outline = slot(input["&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline"],
         `${brand} focused outline`);
-      const label = slot(theme.components?.MuiInputLabel?.styleOverrides?.root,
-        `${brand} input label`);
+      const label = slot(theme.components?.MuiFormLabel?.styleOverrides?.root,
+        `${brand} form label`);
       const focusedLabel = slot(label["&.Mui-focused:not(.Mui-error)"], `${brand} focused label`);
       const checkbox = slot(theme.components?.MuiCheckbox?.styleOverrides?.root,
         `${brand} checkbox`);
-      const checked = slot(checkbox["&.Mui-checked"], `${brand} checked checkbox`);
+      const checked = slot(checkbox["&.Mui-checked:not(.Mui-disabled), &.Mui-indeterminate:not(.Mui-disabled)"], `${brand} checked checkbox`);
+      const radio = slot(theme.components?.MuiRadio?.styleOverrides?.root, `${brand} radio`);
+      const checkedRadio = slot(radio["&.Mui-checked:not(.Mui-disabled)"], `${brand} checked radio`);
+      const menu = slot(theme.components?.MuiMenuItem?.styleOverrides?.root, `${brand} menu item`);
+      const selectedMenu = slot(menu["&.Mui-selected, &.Mui-selected:hover"], `${brand} selected menu item`);
+      expect(selectedMenu.backgroundColor, `${brand} selected menu`)
+        .toBe(alpha(tokens["--stat-accent"], 0.16));
+      const lightMenu = createFarmTheme(tokensFor(brand, "light"), "light")
+        .components?.MuiMenuItem?.styleOverrides?.root;
+      expect(lightMenu, `${brand} light selected menu remains MUI default`).toEqual({});
 
       for (const surface of ["--surface", "--surface-2"] as const) {
         expect(contrast(String(outline.borderColor), tokens[surface]),
@@ -135,6 +144,8 @@ describe("farm theme policy (#823 G2)", () => {
           `${brand} label on ${surface}`).toBeGreaterThanOrEqual(3);
         expect(contrast(String(checked.color), tokens[surface]),
           `${brand} checked checkbox on ${surface}`).toBeGreaterThanOrEqual(3);
+        expect(contrast(String(checkedRadio.color), tokens[surface]),
+          `${brand} checked radio on ${surface}`).toBeGreaterThanOrEqual(3);
       }
     }
   });

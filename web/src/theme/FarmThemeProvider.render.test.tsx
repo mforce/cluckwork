@@ -4,6 +4,10 @@ import { resolve } from "node:path";
 import { fireEvent, render } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import Checkbox from "@mui/material/Checkbox";
+import Radio from "@mui/material/Radio";
+import FormLabel from "@mui/material/FormLabel";
+import MenuItem from "@mui/material/MenuItem";
+import MenuList from "@mui/material/MenuList";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import type { FormControlLabelProps } from "@mui/material/FormControlLabel";
 import Button from "@mui/material/Button";
@@ -201,6 +205,59 @@ it("keeps a focused field's validation error color (#989)", () => {
   expect(outline).not.toBeNull();
   expect(getComputedStyle(label!).color).toBe(hexToRgb(tokens["--danger"]));
   expect(getComputedStyle(outline!).borderColor).toBe(hexToRgb(tokens["--danger"]));
+});
+
+it.each(["light", "dark"] as const)("renders focused fields with the %s accent (#989)", (mode) => {
+  const tokens = tokensFor("forest", mode);
+  const { container } = render(
+    <ThemeProvider theme={createFarmTheme(tokens, mode)}>
+      <TextField label="Date" />
+    </ThemeProvider>,
+  );
+  fireEvent.focus(container.querySelector("input")!);
+  expect(getComputedStyle(container.querySelector(".MuiInputLabel-root.Mui-focused")!).color)
+    .toBe(hexToRgb(tokens["--stat-accent"]));
+  expect(getComputedStyle(container.querySelector(".MuiOutlinedInput-notchedOutline")!).borderColor)
+    .toBe(hexToRgb(tokens["--stat-accent"]));
+});
+
+it("renders a focused discount choice with a visible legend and selected radio (#989)", () => {
+  const tokens = tokensFor("forest", "dark");
+  const { container } = render(
+    <ThemeProvider theme={createFarmTheme(tokens, "dark")}>
+      <FormLabel focused>Reason</FormLabel>
+      <Radio checked />
+    </ThemeProvider>,
+  );
+  expect(getComputedStyle(container.querySelector(".MuiFormLabel-root")!).color)
+    .toBe(hexToRgb(tokens["--stat-accent"]));
+  expect(getComputedStyle(container.querySelector(".MuiRadio-root")!).color)
+    .toBe(hexToRgb(tokens["--stat-accent"]));
+});
+
+it.each(["light", "dark"] as const)("keeps disabled checkboxes grey in %s mode (#989)", (mode) => {
+  const tokens = tokensFor("forest", mode);
+  const theme = createFarmTheme(tokens, mode);
+  const { container } = render(
+    <ThemeProvider theme={theme}>
+      <Checkbox checked disabled />
+      <Checkbox indeterminate disabled />
+    </ThemeProvider>,
+  );
+  for (const checkbox of container.querySelectorAll(".MuiCheckbox-root")) {
+    expect(getComputedStyle(checkbox).color).toBe(theme.palette.action.disabled);
+  }
+});
+
+it("renders a dark selected menu item with the accent tint (#989)", () => {
+  const tokens = tokensFor("forest", "dark");
+  const { container } = render(
+    <ThemeProvider theme={createFarmTheme(tokens, "dark")}>
+      <MenuList><MenuItem selected>Reason</MenuItem></MenuList>
+    </ThemeProvider>,
+  );
+  expect(getComputedStyle(container.querySelector(".MuiMenuItem-root")!).backgroundColor)
+    .toBe("rgba(168, 220, 187, 0.16)");
 });
 
 function hexToRgb(hex: string): string {

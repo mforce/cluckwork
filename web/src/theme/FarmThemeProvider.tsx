@@ -264,14 +264,32 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
           },
         },
       },
-      MuiInputLabel: {
+      MuiFormLabel: {
         styleOverrides: {
           root: { "&.Mui-focused:not(.Mui-error)": { color: tokens["--stat-accent"] } },
         },
       },
       MuiCheckbox: {
         styleOverrides: {
-          root: { "&.Mui-checked": { color: tokens["--stat-accent"] } },
+          root: {
+            "&.Mui-checked:not(.Mui-disabled), &.Mui-indeterminate:not(.Mui-disabled)": {
+              color: tokens["--stat-accent"],
+            },
+          },
+        },
+      },
+      MuiRadio: {
+        styleOverrides: {
+          root: { "&.Mui-checked:not(.Mui-disabled)": { color: tokens["--stat-accent"] } },
+        },
+      },
+      MuiMenuItem: {
+        styleOverrides: {
+          root: mode === "dark" ? {
+            "&.Mui-selected, &.Mui-selected:hover": {
+              backgroundColor: alpha(tokens["--stat-accent"], 0.16),
+            },
+          } : {},
         },
       },
       // `Autocomplete` sets no elevation on its listbox paper, so it falls to
