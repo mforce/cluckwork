@@ -113,6 +113,32 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
+  it("keeps focused field outlines and labels visible on dark dialog and card surfaces (#989)", () => {
+    for (const brand of BRANDS) {
+      const tokens = tokensFor(brand, "dark");
+      const theme = createFarmTheme(tokens, "dark");
+      const input = slot(theme.components?.MuiOutlinedInput?.styleOverrides?.root,
+        `${brand} outlined input`);
+      const outline = slot(input["&.Mui-focused .MuiOutlinedInput-notchedOutline"],
+        `${brand} focused outline`);
+      const label = slot(theme.components?.MuiInputLabel?.styleOverrides?.root,
+        `${brand} input label`);
+      const focusedLabel = slot(label["&.Mui-focused"], `${brand} focused label`);
+      const checkbox = slot(theme.components?.MuiCheckbox?.styleOverrides?.root,
+        `${brand} checkbox`);
+      const checked = slot(checkbox["&.Mui-checked"], `${brand} checked checkbox`);
+
+      for (const surface of ["--surface", "--surface-2"] as const) {
+        expect(contrast(String(outline.borderColor), tokens[surface]),
+          `${brand} outline on ${surface}`).toBeGreaterThanOrEqual(3);
+        expect(contrast(String(focusedLabel.color), tokens[surface]),
+          `${brand} label on ${surface}`).toBeGreaterThanOrEqual(3);
+        expect(contrast(String(checked.color), tokens[surface]),
+          `${brand} checked checkbox on ${surface}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
   // MUI's own Tooltip default is a hardcoded dark grey with no farm token
   // behind it — the one float in the app that did not read from the
   // palette. It now reads like every other float instead.
