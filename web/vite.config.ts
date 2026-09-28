@@ -75,9 +75,9 @@ export default defineConfig(({ mode }) => {
         // guarded on a secure context; the plugin's auto-injected snippet has no
         // such guard.
         injectRegister: null,
-        // No `includeAssets`: the workbox globPatterns below already sweep up
-        // every png/svg in the build, and listing them twice puts duplicate
-        // entries in the precache manifest.
+        // Workbox already sweeps the manifest icons from public/. The plugin's
+        // default icon injection would put each one in the precache twice.
+        includeManifestIcons: false,
         manifest: {
           name: "Cluckwork",
           short_name: "Cluckwork",
