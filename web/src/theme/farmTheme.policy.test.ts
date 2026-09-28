@@ -119,11 +119,11 @@ describe("farm theme policy (#823 G2)", () => {
       const theme = createFarmTheme(tokens, "dark");
       const input = slot(theme.components?.MuiOutlinedInput?.styleOverrides?.root,
         `${brand} outlined input`);
-      const outline = slot(input["&.Mui-focused .MuiOutlinedInput-notchedOutline"],
+      const outline = slot(input["&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline"],
         `${brand} focused outline`);
       const label = slot(theme.components?.MuiInputLabel?.styleOverrides?.root,
         `${brand} input label`);
-      const focusedLabel = slot(label["&.Mui-focused"], `${brand} focused label`);
+      const focusedLabel = slot(label["&.Mui-focused:not(.Mui-error)"], `${brand} focused label`);
       const checkbox = slot(theme.components?.MuiCheckbox?.styleOverrides?.root,
         `${brand} checkbox`);
       const checked = slot(checkbox["&.Mui-checked"], `${brand} checked checkbox`);

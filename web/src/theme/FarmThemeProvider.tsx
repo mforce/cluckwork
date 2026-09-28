@@ -258,7 +258,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         styleOverrides: {
           root: {
             borderRadius: controlRadius,
-            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+            "&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline": {
               borderColor: tokens["--stat-accent"],
             },
           },
@@ -266,7 +266,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       },
       MuiInputLabel: {
         styleOverrides: {
-          root: { "&.Mui-focused": { color: tokens["--stat-accent"] } },
+          root: { "&.Mui-focused:not(.Mui-error)": { color: tokens["--stat-accent"] } },
         },
       },
       MuiCheckbox: {
