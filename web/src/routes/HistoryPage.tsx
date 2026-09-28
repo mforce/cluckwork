@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { FilterX, Inbox } from "lucide-react";
 import {
-  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
+  Box, Button, ButtonBase, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField,
+  Tooltip, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
@@ -25,12 +26,13 @@ import { FlockPicker } from "../components/FlockPicker";
 import { DialogError } from "../components/DialogError";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
-import { ProvenanceCell } from "../components/ProvenanceCell";
+import { ProvenanceCell, ProvenanceSummary } from "../components/ProvenanceCell";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { useFarm } from "../farm/useFarm";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
 import { resolveStepperUnit } from "../lib/stepperUnit";
@@ -39,6 +41,32 @@ import i18n from "../i18n";
 
 const PAGE = 50;
 const NOWRAP = { whiteSpace: "nowrap" as const };
+
+// #980 — below the 900px switch the ten-column ledger becomes one two-line
+// button per entry, so twelve rows fit a 390x844 screen instead of five and
+// the actions stop living off the right edge. The desktop table is untouched.
+const PHONE_LIST_SX = {
+  m: 0, p: 0, listStyle: "none",
+  bgcolor: "var(--surface)",
+  border: "1px solid var(--rule)",
+  borderTop: "2px solid var(--ink)",
+  borderRadius: "0 0 var(--r-panel) var(--r-panel)",
+  "& > li": { borderBottom: "1px solid var(--rule)" },
+  "& > li:last-of-type": { borderBottom: 0 },
+};
+const PHONE_ROW_SX = {
+  display: "block", width: "100%", minHeight: 44, textAlign: "left", px: 1.5, py: 1,
+  // The global rule offsets the ring outward, which would draw it over the
+  // rows above and below; inside the row it stays whole.
+  "&:focus-visible": { outlineOffset: "-2px" },
+};
+const DETAILS_FIELD_SX = {
+  display: "grid", gridTemplateColumns: "96px minmax(0, 1fr)", gap: 1,
+  py: "9px", fontSize: ".8125rem", borderBottom: "1px solid var(--rule)",
+  "&:last-of-type": { borderBottom: 0 },
+  "& dt": { color: "var(--muted)" },
+  "& dd": { m: 0, fontWeight: 650, overflowWrap: "anywhere" },
+};
 
 // The scope that owns a dialog (#703). `run` routes a failure by this and gates
 // a success by it; `void:<id>` from the row button reports to the page and is
@@ -102,6 +130,11 @@ export function HistoryPage() {
   // adjust panel: one entry at a time; the version it was loaded with rides
   // along so a concurrent correction surfaces as a 409, not an overwrite.
   const [adjusting, setAdjusting] = useState<DailyEntry | null>(null);
+  // #980 — the phone details dialog, held the same way `adjusting` is: one
+  // entry at a time, closed before either correction opens, so the two are
+  // never on screen together.
+  const [details, setDetails] = useState<DailyEntry | null>(null);
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
   const [total, setTotal] = useState(0);
   // NumberField owns its own input, so the labels point at it by id (#250,
   // same F134 idiom as the daily-entry screen this form mirrors).
@@ -225,6 +258,22 @@ export function HistoryPage() {
     if (e.status === "Draft") return "—";
     return fmt.count((e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0));
   };
+
+  const lossList = (e: DailyEntry) =>
+    `${fmt.count(e.crackedEggs)}/${fmt.count(e.dirtyEggs)}/${fmt.count(e.discardedEggs)}`;
+  const gradeList = (e: DailyEntry) =>
+    e.grades.length === 0
+      ? "—"
+      : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ");
+
+  // #980 — who may do what to a row, resolved once. The desktop Actions cell
+  // and the phone details dialog render different layouts from this same
+  // answer, so the two surfaces cannot drift apart on a role gate.
+  const rowActions = (e: DailyEntry) => ({
+    viewHistory: isAdmin,
+    edit: e.status === "Draft" && flockEditable(e),
+    correct: isAdmin && correctable(e),
+  });
 
   // Dismissal is one of the two session edges (#703): it mutes the attempt
   // still out, so a late failure is not reported against a session the user
@@ -595,6 +644,70 @@ export function HistoryPage() {
         <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
 
+      {/* #980 — everything the two phone lines leave out, plus the row's own
+          actions. Rendered at every width but only reachable below 900px: the
+          desktop table shows all of it in its own columns. */}
+      <Dialog
+        open={details !== null}
+        compactTitle
+        // The screen's own heading is the fallback, so the dialog is never
+        // nameless during its exit transition (same shape as the adjust
+        // dialog's `adjustDialogTitle`).
+        title={details
+          ? t("detailsDialogTitle", { date: fmt.date(details.date), flock: rowFlockName(details) })
+          : t("title")}
+        onClose={() => setDetails(null)}
+        actions={details && (
+          <Box sx={{
+            display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: .75,
+            borderTop: "1px solid var(--rule)",
+            "& .MuiButtonBase-root": { minHeight: 44 },
+          }}>
+            {rowActions(details).viewHistory && (
+              <Button component={Link} size="small" sx={CONSOLE_LINK_SX}
+                to={`/audit?entityId=${details.id}`}>
+                {tc("recordHistory.viewHistoryLink")}
+              </Button>
+            )}
+            {rowActions(details).edit && (
+              <Button component={Link} size="small" sx={CONSOLE_LINK_SX}
+                to={`/daily-entry?flockId=${details.flockId}&date=${details.date}`}>
+                {t("editButton")}
+              </Button>
+            )}
+            {rowActions(details).correct && (
+              <Box sx={{ display: "flex", alignItems: "center", columnGap: .75, borderLeft: "1px solid var(--rule)", pl: .75 }}>
+                {/* Each correction replaces this dialog rather than stacking on
+                    it: the reason prompt and the adjust form are both about the
+                    same entry, and two dialogs deep is a phone trap. */}
+                <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy}
+                  onClick={() => { setDetails(null); startAdjust(details); }}>{t("adjustButton")}</Button>
+                <Button size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)" }} disabled={busy}
+                  onClick={() => { setDetails(null); void onVoid(details); }}>{t("voidButton")}</Button>
+              </Box>
+            )}
+          </Box>
+        )}
+      >
+        {details && (
+          <Box component="dl" sx={{ m: 0 }}>
+            {([
+              [te("crackedLabel"), fmt.count(details.crackedEggs)],
+              [te("dirtyLabel"), fmt.count(details.dirtyEggs)],
+              [te("discardedLabel"), fmt.count(details.discardedEggs)],
+              [t("conditionHeader"), conditionStock(details)],
+              [t("gradedHeader"), gradeList(details)],
+              [tc("recordHistoryHeader"), <ProvenanceSummary history={details} official="submitted" />],
+            ] as const).map(([label, value]) => (
+              <Box key={label} sx={DETAILS_FIELD_SX}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Dialog>
+
       <Dialog
         open={adjusting !== null}
         title={adjusting
@@ -757,69 +870,96 @@ export function HistoryPage() {
           : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
         <>
-          <LedgerTableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>{t("dateHeader")}</TableCell>
-                  <TableCell>{t("flockHeader")}</TableCell>
-                  <TableCell>{t("statusHeader")}<GlossaryLink term="LockedEntry" /></TableCell>
-                  <TableCell align="right">{t("totalHeader")}</TableCell>
-                  <TableCell align="right">{t("lossesHeader")}</TableCell>
-                  {/* Condition counts only losses added to stock; Losses includes all recorded losses. */}
-                  <TableCell align="right">{t("conditionHeader")}</TableCell>
-                  <TableCell align="right">{t("mortalityHeader")}</TableCell>
-                  <TableCell>{t("gradedHeader")}</TableCell>
-                  <TableCell>{tc("recordHistoryHeader")}</TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {entries.rows.map((e) => (
-                  <TableRow key={e.id}
-                    // MUI cell colours override inherited row colours.
-                    sx={e.status === "Voided" ? { "& .MuiTableCell-root": { color: "var(--muted)" } } : undefined}>
-                    <TableCell sx={NOWRAP}><FarmDate iso={e.date} /></TableCell>
-                    <TableCell>{rowFlockName(e)}</TableCell>
-                    <TableCell>{statusCell(e)}</TableCell>
-                    <TableCell align="right">{fmt.count(e.totalEggs)}</TableCell>
-                    <TableCell align="right">{fmt.count(e.crackedEggs)}/{fmt.count(e.dirtyEggs)}/{fmt.count(e.discardedEggs)}</TableCell>
-                    <TableCell align="right">{conditionStock(e)}</TableCell>
-                    <TableCell align="right">{fmt.count(e.mortalityCount)}</TableCell>
-                    <TableCell>
-                      {e.grades.length === 0
-                        ? "—"
-                        : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ")}
-                    </TableCell>
-                    <ProvenanceCell history={e} official="submitted" />
-                    <TableCell sx={NOWRAP}>
-                      {/* The audit endpoint is AdminOnly, even when this ledger is readable by workers. */}
-                      {isAdmin && (
-                        <Link className="link" to={`/audit?entityId=${e.id}`}>
-                          {tc("recordHistory.viewHistoryLink")}
-                        </Link>
-                      )}
-                      {e.status === "Draft" && flockEditable(e) && (
-                        <Button component={Link} size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }}
-                          to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
-                          {t("editButton")}
-                        </Button>
-                      )}
-                      {isAdmin && correctable(e) && (
-                        <>
-                          <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }} disabled={busy}
-                            onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
-                          <BusyButton variant="text" size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)", ml: 1 }} busy={isPending(`void:${e.id}`)}
-                            disabled={busy}
-                            onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
-                        </>
-                      )}
-                    </TableCell>
+          {isDesktop ? (
+            <LedgerTableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>{t("dateHeader")}</TableCell>
+                    <TableCell>{t("flockHeader")}</TableCell>
+                    <TableCell>{t("statusHeader")}<GlossaryLink term="LockedEntry" /></TableCell>
+                    <TableCell align="right">{t("totalHeader")}</TableCell>
+                    <TableCell align="right">{t("lossesHeader")}</TableCell>
+                    {/* Condition counts only losses added to stock; Losses includes all recorded losses. */}
+                    <TableCell align="right">{t("conditionHeader")}</TableCell>
+                    <TableCell align="right">{t("mortalityHeader")}</TableCell>
+                    <TableCell>{t("gradedHeader")}</TableCell>
+                    <TableCell>{tc("recordHistoryHeader")}</TableCell>
+                    <TableCell></TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </LedgerTableContainer>
+                </TableHead>
+                <TableBody>
+                  {entries.rows.map((e) => (
+                    <TableRow key={e.id}
+                      // MUI cell colours override inherited row colours.
+                      sx={e.status === "Voided" ? { "& .MuiTableCell-root": { color: "var(--muted)" } } : undefined}>
+                      <TableCell sx={NOWRAP}><FarmDate iso={e.date} /></TableCell>
+                      <TableCell>{rowFlockName(e)}</TableCell>
+                      <TableCell>{statusCell(e)}</TableCell>
+                      <TableCell align="right">{fmt.count(e.totalEggs)}</TableCell>
+                      <TableCell align="right">{lossList(e)}</TableCell>
+                      <TableCell align="right">{conditionStock(e)}</TableCell>
+                      <TableCell align="right">{fmt.count(e.mortalityCount)}</TableCell>
+                      <TableCell>{gradeList(e)}</TableCell>
+                      <ProvenanceCell history={e} official="submitted" />
+                      <TableCell sx={NOWRAP}>
+                        {/* The audit endpoint is AdminOnly, even when this ledger is readable by workers. */}
+                        {rowActions(e).viewHistory && (
+                          <Link className="link" to={`/audit?entityId=${e.id}`}>
+                            {tc("recordHistory.viewHistoryLink")}
+                          </Link>
+                        )}
+                        {rowActions(e).edit && (
+                          <Button component={Link} size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }}
+                            to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
+                            {t("editButton")}
+                          </Button>
+                        )}
+                        {rowActions(e).correct && (
+                          <>
+                            <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }} disabled={busy}
+                              onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
+                            <BusyButton variant="text" size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)", ml: 1 }} busy={isPending(`void:${e.id}`)}
+                              disabled={busy}
+                              onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
+                          </>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </LedgerTableContainer>
+          ) : (
+            // #980 — one two-line button per entry. The whole row is the tap
+            // target and opens Details; the mockups' ⋯ menu was dropped by the
+            // owner, so there is no second control competing for the thumb.
+            <Box component="ul" aria-label={t("title")} sx={PHONE_LIST_SX}>
+              {entries.rows.map((e) => (
+                <li key={e.id}>
+                  <ButtonBase aria-haspopup="dialog" onClick={() => setDetails(e)}
+                    sx={{ ...PHONE_ROW_SX, color: e.status === "Voided" ? "var(--muted)" : "inherit" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: ".8125rem", lineHeight: 1.35, whiteSpace: "nowrap" }}>
+                      <Box component="span" sx={{ fontWeight: 700, flexShrink: 0 }}><FarmDate iso={e.date} /></Box>
+                      <Box component="span" sx={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{rowFlockName(e)}</Box>
+                      <Box component="span" sx={{ flexShrink: 0, fontSize: ".6875rem" }}>{statusCell(e)}</Box>
+                    </Box>
+                    <Box sx={{
+                      mt: "2px", fontSize: ".6875rem", lineHeight: 1.35, color: "var(--muted)",
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                      // A voided row is muted whole; elsewhere the figures carry
+                      // the row's ink so they read first.
+                      "& strong": { fontWeight: 650, color: e.status === "Voided" ? "inherit" : "var(--ink)" },
+                    }}>
+                      <Trans ns="history" i18nKey="rowSummary" components={{ strong: <strong /> }}
+                        count={e.mortalityCount}
+                        values={{ total: fmt.count(e.totalEggs), losses: lossList(e), deaths: fmt.count(e.mortalityCount) }} />
+                    </Box>
+                  </ButtonBase>
+                </li>
+              ))}
+            </Box>
+          )}
           {entries.canLoadMore && (
             <button className="link" disabled={busy}
               onClick={() => void entries.loadMore()}>

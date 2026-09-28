@@ -29,15 +29,23 @@ function actorHandle(email: string): string {
   return at === -1 ? email : email.slice(0, at);
 }
 
-// `official` names the promotion step this record HAS — submitting a daily
-// entry, confirming a sales order. Records with no such step (flocks, egg
-// grades, expenses) pass nothing and can never render the line, even if a
-// madeOfficialAtUtc somehow arrived.
-//
-// `auditHref` (#493) is optional and admin-gated by the caller, so this
-// component stays admin-agnostic. Flocks passes it to keep its Actions cell
-// narrow; the other callers keep their own audit link or pass nothing.
-export function ProvenanceCell({
+// The three underlying facts are INDEPENDENT, exactly as before #653: a
+// record predating #494 has no creation event, but it can still carry a
+// change with real attribution — so a missing creator drops one fact, not
+// the whole cell. `empty` is the record with nothing at all to say.
+function provenanceFacts(history: RecordHistory, official?: "submitted" | "confirmed") {
+  const { createdByEmail, createdAtUtc, lastChangedByEmail, lastChangedAtUtc } = history;
+  const created = createdByEmail && createdAtUtc ? { email: createdByEmail, at: createdAtUtc } : null;
+  const changed = lastChangedByEmail && lastChangedAtUtc
+    ? { email: lastChangedByEmail, at: lastChangedAtUtc }
+    : null;
+  const officialAt = official ? (history.madeOfficialAtUtc ?? null) : null;
+  return { created, changed, officialAt, empty: !created && !changed && !officialAt };
+}
+
+// #980 — the line itself, without a table cell around it, so History's phone
+// details dialog renders the same provenance its desktop column does.
+export function ProvenanceSummary({
   history,
   official,
   auditHref,
@@ -48,34 +56,21 @@ export function ProvenanceCell({
 }) {
   const { t } = useTranslation("common");
   const { farm } = useFarm();
-  const { createdByEmail, createdAtUtc, lastChangedByEmail, lastChangedAtUtc } = history;
+  const { created, changed, officialAt, empty } = provenanceFacts(history, official);
 
-  // The three underlying facts are INDEPENDENT, exactly as before #653: a
-  // record predating #494 has no creation event, but it can still carry a
-  // change with real attribution — so a missing creator drops one fact, not
-  // the whole cell. The placeholder below is for a record with nothing at
-  // all to say.
-  const created = createdByEmail && createdAtUtc ? { email: createdByEmail, at: createdAtUtc } : null;
-  const changed = lastChangedByEmail && lastChangedAtUtc
-    ? { email: lastChangedByEmail, at: lastChangedAtUtc }
-    : null;
-  const officialAt = official ? (history.madeOfficialAtUtc ?? null) : null;
-
-  if (!created && !changed && !officialAt) {
+  if (empty) {
     return (
-      <TableCell sx={{ padding: "0.6rem 1rem 0.6rem 0" }}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-          <span className="muted">—</span>
-          {auditHref && (
-            <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
-          )}
-        </Box>
-      </TableCell>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+        <span className="muted">—</span>
+        {auditHref && (
+          <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
+        )}
+      </Box>
     );
   }
 
-  // The full stamp — everything the pre-#653 three-line cell said — moves
-  // into `title` verbatim, still in UTC (#494's decision, untouched). Nothing
+  // The full stamp — everything the pre-#653 three-line cell said — lives in
+  // `title` verbatim, still in UTC (#494's decision, untouched). Nothing
   // that was visible becomes unavailable; it is just not the DEFAULT view.
   const fullStamp = [
     created && t("recordHistory.createdBy", { email: created.email, at: formatInstant(created.at) }),
@@ -98,31 +93,56 @@ export function ProvenanceCell({
   const summary = changed ?? created;
 
   return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "14rem" }}>
+      {/* The Tooltip trigger is this leaf span, not the TableCell: a table
+          cell is a structural container, not a hover target. describeChild:
+          the full stamp DESCRIBES this span, it is not its accessible
+          name — MUI's default would otherwise replace the span's own name
+          (its visible actor/date text) with the stamp. */}
+      <Tooltip title={fullStamp} describeChild>
+        <Box
+          component="span"
+          className="muted"
+          sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}
+        >
+          {relativeTime(summary ? summary.at : (officialAt as string), farm?.timeZoneId)}
+          {summary && <> · {actorHandle(summary.email)}</>}
+        </Box>
+      </Tooltip>
+      {auditHref && (
+        <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
+      )}
+    </Box>
+  );
+}
+
+// `official` names the promotion step this record HAS — submitting a daily
+// entry, confirming a sales order. Records with no such step (flocks, egg
+// grades, expenses) pass nothing and can never render the line, even if a
+// madeOfficialAtUtc somehow arrived.
+//
+// `auditHref` (#493) is optional and admin-gated by the caller, so this
+// component stays admin-agnostic. Flocks passes it to keep its Actions cell
+// narrow; the other callers keep their own audit link or pass nothing.
+export function ProvenanceCell({
+  history,
+  official,
+  auditHref,
+}: {
+  history: RecordHistory;
+  official?: "submitted" | "confirmed";
+  auditHref?: string;
+}) {
+  return (
     // Padding is pinned to `table.data td`'s value because three callers
     // (Sales, Expenses, History, until #831) still render this inside a plain
     // `table.data`. The ellipsis sits on the summary line alone so a stacked
     // audit link is never clipped.
-    <TableCell sx={{ padding: "0.6rem 1rem 0.6rem 0", whiteSpace: "nowrap" }}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "14rem" }}>
-        {/* The Tooltip trigger is this leaf span, not the TableCell: a table
-            cell is a structural container, not a hover target. describeChild:
-            the full stamp DESCRIBES this span, it is not its accessible
-            name — MUI's default would otherwise replace the span's own name
-            (its visible actor/date text) with the stamp. */}
-        <Tooltip title={fullStamp} describeChild>
-          <Box
-            component="span"
-            className="muted"
-            sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}
-          >
-            {relativeTime(summary ? summary.at : (officialAt as string), farm?.timeZoneId)}
-            {summary && <> · {actorHandle(summary.email)}</>}
-          </Box>
-        </Tooltip>
-        {auditHref && (
-          <Link className="link" to={auditHref}>{t("recordHistory.viewHistoryLink")}</Link>
-        )}
-      </Box>
+    <TableCell sx={{
+      padding: "0.6rem 1rem 0.6rem 0",
+      ...(provenanceFacts(history, official).empty ? {} : { whiteSpace: "nowrap" }),
+    }}>
+      <ProvenanceSummary history={history} official={official} auditHref={auditHref} />
     </TableCell>
   );
 }

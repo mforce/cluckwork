@@ -1809,6 +1809,7 @@ export const tl = {
     rowFlockUnavailable: "Hindi na available ang kawan na ito.",
 
     // Adjust dialog
+    detailsDialogTitle: "{{date}} · {{flock}}",
     adjustDialogTitle: "I-adjust ang entry",
     adjustDialogTitleWithEntry: "I-adjust — {{date}}, {{flock}}",
     previouslyAdjusted:
@@ -1840,6 +1841,9 @@ export const tl = {
     adjustButton: "i-adjust",
     voidButton: "i-void",
     loadMoreButton: "mag-load pa",
+    rowSummary: "<strong>{{total}}</strong> kabuuan · <strong>{{losses}}</strong> nasira · <strong>{{deaths}}</strong> namatay",
+    // Tagalog marks no number on the noun, so both forms are the same string.
+    rowSummary_one: "<strong>{{total}}</strong> kabuuan · <strong>{{losses}}</strong> nasira · <strong>{{deaths}}</strong> namatay",
 
     // Entry-status pills
     statusVoided: "Na-void",

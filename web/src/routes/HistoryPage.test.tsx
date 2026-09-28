@@ -3,6 +3,7 @@ import { screen, within, fireEvent, act, waitFor } from "@testing-library/react"
 import { HistoryPage } from "./HistoryPage";
 import { getRowByCellText } from "../test/rows";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { stubMatchMedia } from "../test/matchMedia";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
@@ -69,6 +70,12 @@ const ADMIN = { sub: "u1", role: "Admin" };
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  // #980 — every case in THIS file is about the desktop ledger (the ten-column
+  // table, its Actions cell and the adjust dialog reached from it). Left
+  // unstubbed, `useMediaQuery` answers "below 900px" and the page renders the
+  // phone list instead, so the rows these tests query stop existing. The phone
+  // surface has its own file, HistoryPage.phone.test.tsx.
+  stubMatchMedia(true);
   // jsdom has no layout engine; keep the stub so any scroll a control triggers
   // (e.g. a browser autoscroll on focus) can't throw mid-test.
   Element.prototype.scrollIntoView = vi.fn();

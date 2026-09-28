@@ -102,6 +102,16 @@ interface DialogProps {
    */
   wide?: boolean;
   /**
+   * Renders the title one step down the type scale (`h4`, not `h2`), while it
+   * stays an `<h2>` element and the dialog's accessible name.
+   *
+   * For a dialog whose title is a RECORD's identity rather than the dialog's
+   * own name: History's phone details dialog is titled "26 Sep · Sim House A",
+   * which at `h2` (1.75rem Georgia below 900px) wraps to two lines inside a
+   * 390px frame and pushes the record's own values off the first screenful.
+   */
+  compactTitle?: boolean;
+  /**
    * Whether this dialog takes the whole screen below 900px. Off by default:
    * form dialogs and confirmations alike stay a centred dialog sized to their
    * content at every width. The phone More menu (`BottomNav.tsx`) is the one
@@ -274,7 +284,7 @@ function restoreFocusOnClose(
 // `describedBy`, `wide`, `fullScreenOnPhone`) and the `anyDialogOpen`/
 // `onModalStateChange` pair #485 depends on.
 export function Dialog({
-  open, title, onClose, focusKey, describedBy, wide, closeDisabled,
+  open, title, onClose, focusKey, describedBy, wide, closeDisabled, compactTitle = false,
   fullScreenOnPhone = false, actions, formProps, children,
 }: DialogProps) {
   const { t } = useTranslation("common");
@@ -429,7 +439,7 @@ export function Dialog({
           "New order Close" (probed on the sim stack, CodeRabbit round 1 of
           #892), so an exact-name query for the title alone found nothing.
           The right padding keeps the title text clear of the button. */}
-      <DialogTitle component="h2" variant="h2" sx={{ pr: 7 }}>
+      <DialogTitle component="h2" variant={compactTitle ? "h4" : "h2"} sx={{ pr: 7 }}>
         {title}
       </DialogTitle>
       <IconButton
