@@ -151,3 +151,6 @@ coding agents and for the full rule set behind both.
 
 [MIT](LICENSE) — use it, change it, run it commercially; keep the copyright
 notice with any copy you pass on.
+
+If Cluckwork helps your farm or your product, a link back to this repository is
+appreciated. Not required by the license, just good manners.
