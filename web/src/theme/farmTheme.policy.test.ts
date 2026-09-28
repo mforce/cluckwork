@@ -113,7 +113,7 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  it("keeps focused field outlines and labels visible on dark dialog and card surfaces (#989)", () => {
+  it("keeps focused fields and checked checkboxes visible on dark dialog and card surfaces (#989)", () => {
     for (const brand of BRANDS) {
       const tokens = tokensFor(brand, "dark");
       const theme = createFarmTheme(tokens, "dark");
