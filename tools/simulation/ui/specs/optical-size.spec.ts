@@ -1,5 +1,6 @@
 import { test, expect } from "../src/fixtures";
 import { owner } from "../src/cast";
+import { tEn } from "../src/i18n";
 
 // #835 — the one assertion that needs a real font engine.
 //
@@ -58,6 +59,7 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
         px: parseFloat(getComputedStyle(biggest).fontSize),
         family: getComputedStyle(biggest).fontFamily,
         opticalSizing: getComputedStyle(biggest).fontOpticalSizing,
+        fontVariationSettings: getComputedStyle(biggest).fontVariationSettings,
       },
     };
   });
@@ -81,42 +83,18 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
     + "below the display range this slice is for").toBeGreaterThanOrEqual(24);
   expect(measured.figure!.family).toBe(measured.probeFamily);
   expect(measured.figure!.opticalSizing).not.toBe("none");
+  expect(measured.figure!.fontVariationSettings).toBe("normal");
 });
 
-// #948 review round 1 (Codex gpt-6-sol), P2: the test above proves the loaded
-// face VARIES on opsz, but its body assertion was a detached span pinned to a
-// literal 14px — a size nothing on the real page renders at. It could not see
-// that `font-optical-sizing: auto` (the CSS default #835 relies on) varies
-// CONTINUOUSLY with the element's actual font-size, so MUI body text at its
-// real 16px on phones (FarmThemeProvider.tsx) drifted toward the display cut
-// too — not just the six intended stat figures. (Expenses' own `<td>`s do NOT
-// serve this case: `FieldConsole.tsx` pins every ledger table cell to 0.75rem
-// at every breakpoint via a higher-specificity `sx` override, so this uses
-// the app-bar's real body1 farm-name label instead — same mechanism, same
-// bug, actually present on the page.)
-//
-// Two independent signals, on the SAME page:
-//
-//  1. Computed `font-variation-settings` — deterministic, no font-rendering
-//     noise. The fix is a CSS declaration and its explicit clear, and a real
-//     browser's cascade either delivers the INHERITED root pin to real body
-//     text or it does not; this reads that fact directly rather than
-//     inferring it from a glyph-width delta.
-//  2. A width comparison against the SAME text forced to opsz 14 — proves the
-//     pin (or its absence) actually changes rendering, not just the
-//     declaration. Deliberately NOT run against the figure: every stat figure
-//     this slice targets carries `font-variant-numeric: tabular-nums` (fixed
-//     digit advance by design), so a currency figure's width barely moves
-//     between opsz cuts — measured in Chromium, "$835.00" moves only 4px
-//     between opsz 14 and its real (display-cut) rendering, against a ~7px
-//     gap for ordinary letters at the same 32px (see the header comment on
-//     the test above). The body text used here is ordinary letters, so this
-//     check is safe from that trap.
-test("real display figures resolve to the display cut; real body text stays at the text cut", { tag: "@phone" }, async ({ page, signIn }) => {
+// #948: a detached 14px probe missed real 16px phone text drifting toward
+// the display cut. Check both the computed pin and the same rendered letters'
+// width against a forced opsz 14 cut. The desktop test above still covers the
+// display figure; Expenses no longer shows that large figure on phones.
+test("real body text stays at the text cut on a phone", { tag: "@phone" }, async ({ page, signIn }) => {
   await signIn(owner());
   await page.goto("/expenses");
   await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
-  await expect(page.locator('[aria-label^="Total for this period"]')).toBeVisible();
+  await expect(page.getByRole("list", { name: tEn("expenses:ledgerHeading") })).toBeVisible();
 
   const measured = await page.evaluate(() => {
     const widthAtOpsz14 = (el: HTMLElement) => {
@@ -143,7 +121,7 @@ test("real display figures resolve to the display cut; real body text stays at t
       return range.getBoundingClientRect().width;
     };
 
-    const leaves = [...document.body.querySelectorAll<HTMLElement>("p, span, strong, div, td, h3")]
+    const leaves = [...document.body.querySelectorAll<HTMLElement>("p, span, strong, div, h3")]
       .filter((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE)
       .filter((el) => (el.textContent ?? "").trim().length >= 3)
       .filter((el) => !getComputedStyle(el).fontFamily.includes("Georgia"))
@@ -152,17 +130,9 @@ test("real display figures resolve to the display cut; real body text stays at t
       // element, but it has no real layout box to measure.
       .filter((el) => el.getClientRects().length > 0);
 
-    const figure = leaves
-      .filter((el) => parseFloat(getComputedStyle(el).fontSize) >= 24)
-      .sort((a, b) => parseFloat(getComputedStyle(b).fontSize) - parseFloat(getComputedStyle(a).fontSize))[0] ?? null;
-
-    // Real MUI body1 text at its real phone size (16px, FarmThemeProvider.tsx)
-    // — deliberately not the intended figure, not a caption/label sized well
-    // below body scale, and single-line: a wrapped paragraph's Range spans
-    // multiple lines, which is not the same quantity as the synthetic
-    // single-line probe below.
+    // A wrapped paragraph's Range spans multiple lines, unlike the
+    // synthetic single-line probe below.
     const body = leaves.find((el) => {
-      if (el === figure) return false;
       const px = parseFloat(getComputedStyle(el).fontSize);
       if (px < 15 || px >= 20) return false;
       const range = document.createRange();
@@ -171,11 +141,6 @@ test("real display figures resolve to the display cut; real body text stays at t
     }) ?? null;
 
     return {
-      figure: figure === null ? null : {
-        text: (figure.textContent ?? "").trim().slice(0, 32),
-        fontSize: getComputedStyle(figure).fontSize,
-        fontVariationSettings: getComputedStyle(figure).fontVariationSettings,
-      },
       body: body === null ? null : {
         text: (body.textContent ?? "").trim().slice(0, 32),
         fontSize: getComputedStyle(body).fontSize,
@@ -186,15 +151,7 @@ test("real display figures resolve to the display cut; real body text stays at t
     };
   });
 
-  expect(measured.figure, "no display-sized (>=24px) Inter figure on /expenses").not.toBeNull();
   expect(measured.body, "no real ~16px body text on /expenses at phone width").not.toBeNull();
-
-  // The figure cleared the root's text-cut pin, so it is free to resolve to
-  // the display cut under `font-optical-sizing: auto` (proven for real
-  // letters by the test above).
-  expect(measured.figure!.fontVariationSettings,
-    `"${measured.figure!.text}" (${measured.figure!.fontSize}) still carries an explicit opsz pin`)
-    .toBe("normal");
 
   // The body text never cleared anything, so the cascade must have delivered
   // the root's pin to it by inheritance.

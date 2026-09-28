@@ -419,8 +419,9 @@ production: depleted flocks accept backfill up to their depletion date,
 archived never.
 
 Recorded on the **Feed page** (#446) — its own capture form plus the feed
-history (filterable, paginated, with per-row estimated cost); an item's
-Inventory panel deep-links there with that item preselected. Each feed and
+history (filterable, paginated, with per-row estimated cost). On phones,
+**Log feed** opens the form and tapping a two-line row opens its details;
+an item's Inventory panel deep-links there with that item preselected. Each feed and
 water record also carries a **daily-entry link**: the non-voided daily entry
 that existed for the same flock's (farm, house, flock, date) *at the moment
 of recording*, or nothing if the day's entry didn't exist yet. The link is
@@ -443,7 +444,8 @@ both quantity and meters are given they must agree). No inventory behind
 water, so records are **editable in place** (Version-guarded) rather than
 corrected via compensating rows — the one create-then-edit record type.
 Flock and date are fixed after creation. Same lifecycle gate as production
-and feed.
+and feed. On phones, **Log water** opens the form and tapping a two-line
+row opens its details and correction action.
 
 ## Sales
 
@@ -896,6 +898,9 @@ later currency change must not re-denominate recorded spending. Corrections
 edit in place under the Version token (mismatch → 409, the F16 water
 pattern); there is no delete. Expenses are **admin-only end to end**, reads
 included — the money/production split.
+On phones, **Add expense** opens the form and category management. The
+period total stays on the page; the period and category filters are compact
+controls. Tapping a two-line row opens its details and audit actions.
 
 **Expense category (#87)** — per-farm buckets ("Feed", "Vet"), name unique
 per farm case-insensitively (precheck + `lower(Name)` index, the grade

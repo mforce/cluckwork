@@ -11,6 +11,7 @@ import { todayIso } from "../lib/dates";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY } from "../test/fixtures";
 import { readLastFlockId } from "../lib/flockDefault";
+import { stubMatchMedia } from "../test/matchMedia";
 import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
 
 // WaterPage's only runtime deps on the API module are the four network fns it
@@ -57,6 +58,7 @@ const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };
 
 beforeEach(() => {
+  stubMatchMedia(true);
   // #646 — bindAccount below is module state; clear it so a bind in one
   // test cannot make a later one read another farm's remembered flock.
   clearBoundAccount();
@@ -65,6 +67,36 @@ beforeEach(() => {
   localStorage.clear();
   mockListFlocks.mockResolvedValue([FLOCK_A, FLOCK_B]);
   mockListWaterUsage.mockResolvedValue([]); // no records unless a test seeds them
+});
+
+it("shows a phone water row, its details and gated correction, and opens the log form", async () => {
+  stubMatchMedia(false);
+  mockListWaterUsage.mockResolvedValue([METER_ROW]);
+  renderWithProviders(<WaterPage />, { token: ADMIN });
+  const row = await screen.findByRole("button", { name: /Hen House 1/ });
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(row).toHaveTextContent("74.75 L");
+  fireEvent.click(row);
+  const details = screen.getByRole("dialog");
+  expect(within(details).getByText("Meters")).toBeInTheDocument();
+  expect(within(details).getByText("Amount")).toBeInTheDocument();
+  expect(within(details).getByText("Source")).toBeInTheDocument();
+  expect(within(details).getByText("Note")).toBeInTheDocument();
+  expect(within(details).getByRole("button", { name: "correct" })).toBeInTheDocument();
+  fireEvent.click(within(details).getByRole("button", { name: "correct" }));
+  expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Save correction" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /close/i }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: /Log water/ }));
+  expect(within(screen.getByRole("dialog")).getByLabelText("Date")).toBeInTheDocument();
+});
+
+it("hides phone water correction from a Worker", async () => {
+  stubMatchMedia(false);
+  mockListWaterUsage.mockResolvedValue([ROW]);
+  renderWithProviders(<WaterPage />, { token: WORKER });
+  fireEvent.click(await screen.findByRole("button", { name: /Hen House 1/ }));
+  expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "correct" })).not.toBeInTheDocument();
 });
 
 // Mounts and waits for BOTH mount loads: the "Record water" button only exists
@@ -149,7 +181,7 @@ describe("WaterPage loading + list", () => {
     mockListWaterUsage.mockResolvedValue([]);
     renderWithProviders(<WaterPage />, { token: WORKER });
 
-    expect(await screen.findByText("No water records yet — capture one above.")).toBeInTheDocument();
+    expect(await screen.findByText("No water records yet.")).toBeInTheDocument();
   });
 
   // #512 US4 (T043/T051) — a record row's own flockName is null (the flock
@@ -481,7 +513,7 @@ describe("WaterPage i18n wiring (#182, Task 13)", () => {
   it("reads the heading from the catalog, not a hardcoded literal", async () => {
     await withOverride("water", "title", "TITLE-MARKER", async () => {
       renderWithProviders(<WaterPage />, { token: WORKER });
-      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument());
       expect(screen.queryByRole("heading", { name: "Water" })).not.toBeInTheDocument();
     });
   });

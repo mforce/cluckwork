@@ -817,6 +817,13 @@ export const tl = {
     afterIssue: "Matitirang stock",
 
     title: "Pakain",
+    logButton: "Itala ang pakain",
+    logFormTitle: "Itala ang pakain",
+    detailsDialogTitle: "{{date}} · {{flock}}",
+    filtersTitle: "Mga filter",
+    allFlocksChip: "Lahat ng kawan",
+    allDatesChip: "Lahat ng petsa",
+    rangeChip: "{{from}} – {{to}}",
     loadFailed: "Hindi ma-load ang mga kawan at mga item ng pakain. Gumagana ba ang API?",
     loadRecordsFailed: "Hindi ma-load ang mga tala ng pakain.",
     intro:
@@ -851,7 +858,7 @@ export const tl = {
     fromLabel: "Mula",
     toLabel: "Hanggang",
     noRecordsMatch: "Walang tumutugmang tala ng pakain.",
-    noRecordsMessage: "Wala pang tala ng pakain — magtala ng isa sa itaas.",
+    noRecordsMessage: "Wala pang tala ng pakain.",
     dateHeader: "Petsa",
     flockHeader: "Kawan",
     itemHeader: "Item",
@@ -869,6 +876,14 @@ export const tl = {
     result: "Resulta",
 
     title: "Tubig",
+    logButton: "Itala ang tubig",
+    logFormTitle: "Itala ang tubig",
+    correctFormTitle: "Itama ang tubig",
+    detailsDialogTitle: "{{date}} · {{flock}}",
+    filtersTitle: "Mga filter",
+    allFlocksChip: "Lahat ng kawan",
+    allDatesChip: "Lahat ng petsa",
+    rangeChip: "{{from}} – {{to}}",
 
     // Imperative messages
     loadFlocksFailed: "Hindi na-load ang mga kawan. Gumagana ba ang API?",
@@ -917,7 +932,7 @@ export const tl = {
     fromLabel: "Mula",
     toLabel: "Hanggang",
     noRecordsMatch: "Walang tumugmang tala ng tubig.",
-    noRecordsMessage: "Wala pang tala ng tubig — magtala ng isa sa itaas.",
+    noRecordsMessage: "Wala pang tala ng tubig.",
 
     // Records table
     dateHeader: "Petsa",
@@ -1645,6 +1660,10 @@ export const tl = {
     ledgerHeading: "Talaan ng mga gastos",
     wholePeriod: "Buong napiling panahon, kasama ang mga row na hindi pa na-load.",
     title: "Mga Gastos",
+    addButton: "Magdagdag ng gastos",
+    detailsDialogTitle: "{{date}} · {{description}}",
+    filtersTitle: "Mga filter",
+    rangeChip: "{{from}} – {{to}}",
 
     // Imperative messages
     expenseRecordedMessage: "Naitala ang gastos.",
@@ -2688,7 +2707,8 @@ export const tl = {
       + "piliin ang kawan, ang item (makikita ang kasalukuyang stock sa mismong picker), ang dami, at ang "
       + "petsa. Ang stock ay kinukuha muna mula sa pinakalumang mga binili — mga lote lang na umiiral "
       + "noong petsang iyon — at ang tantiyang gastos ay mula sa mga aktwal na lote na nagamit. Nakalista "
-      + "sa history ng pahina ang bawat pagpapakain kasama ang tantiyang gastos nito.",
+      + "sa history ng pahina ang bawat pagpapakain kasama ang tantiyang gastos nito. Sa telepono, "
+      + "pindutin ang Itala ang pakain para buksan ang form at pindutin ang row para makita ang item, gastos, at tala.",
     feedCorrecting:
       "Ang mga tala ng pakain ay <strong>hindi kailanman ine-edit</strong>: nasa ledger na ang stock na "
       + "kinuha nila, kaya ang maling entry ay itinutuwid sa pamamagitan ng <strong>adjustment</strong> sa "
@@ -2702,10 +2722,11 @@ export const tl = {
     waterHeading: "Tubig",
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
-      + "<strong>mga reading ng metro</strong> — ang dami ay ang pagkakaiba ng metro (katapusan − simula).",
+      + "<strong>mga reading ng metro</strong> — ang dami ay ang pagkakaiba ng metro (katapusan − simula). "
+      + "Sa telepono, pindutin ang Itala ang tubig para buksan ang form at ang row para makita ang pinagmulan, pagbasa, tala, at pagtatama.",
     waterCorrecting:
       "Walang stock sa likod ng mga rekord ng tubig, kaya inaayos ang mga pagkakamali sa pamamagitan ng "
-      + "<strong>direktang pagtatama sa rekord</strong> (ang button na \"tama\", para sa admin lang) — "
+      + "<strong>direktang pagtatama sa rekord</strong> (ang button na \"itama\", para sa admin lang) — "
       + "walang compensating entry. Naka-fix ang kawan at petsa: kung mali ang napili, itala ito ulit sa "
       + "tamang isa.",
     waterLifecycle:
@@ -2823,12 +2844,14 @@ export const tl = {
       + "opsyonal na naka-link sa isang kawan. Gumagamit ang hanay ng petsa ng sariling petsa ng bukid, "
       + "hindi ng orasan ng browser sa ibang lugar, at ipinapakita nito ang tumatakbong total para sa "
       + "panahong pinili mo. Pinapamahalaan ang mga kategorya sa parehong screen. Ang pag-deactivate ng isa "
-      + "ay nagtatago nito mula sa mga bagong gastos, at pinapanatili ito ng mga naitala na.",
+      + "ay nagtatago nito mula sa mga bagong gastos, at pinapanatili ito ng mga naitala na. Sa telepono, "
+      + "pindutin ang Magdagdag ng gastos para sa form at Pamahalaan ang mga kategorya; gamitin ang mga filter "
+      + "para sa panahon at kategorya at pindutin ang row para sa detalye at mga aksyon.",
     expensesClearingFilters:
       "Bumubukas ang range sa kasalukuyang buwan ng bukid. Ibinabalik ito roon ng <strong>I-clear ang mga filter</strong> na katabi ng mga kontrol — naroon ito habang may nakalistang mga row pa, hindi lang kapag "
       + "may filter nang nagtago ng lahat — at kapag walang laman ang buwan, pinapalawak ng <strong>Ipakita ang lahat ng panahon</strong> ang view sa lahat ng panahon.",
     expensesCorrections:
-      "Ine-edit ng mga pagtatama ang gastos sa lugar nito (<strong>tama</strong> sa row). Kung may ibang "
+      "Ine-edit ng mga pagtatama ang gastos sa lugar nito (<strong>itama</strong> sa row o sa detalye sa telepono). Kung may ibang "
       + "tao na nagtama nito muna, nire-reload ng form ang mga value nila at hinihiling sa iyong mag-apply "
       + "ulit. Hindi kailanman nagbabago ang currency na kinatalaan ng isang gastos.",
     expensesAdminOnly:
@@ -3442,13 +3465,14 @@ export const tl = {
 
     glossaryWaterUsageTerm: "Paggamit ng tubig",
     glossaryWaterUsageDef:
-      "Ang ininom ng isang kawan sa isang araw — direktang dami o meter delta. Editable sa lugar; naka-fix "
-      + "ang kawan/petsa.",
+      "Ang ininom ng isang kawan sa isang araw — direktang dami o meter delta. Sa telepono, binubuksan ng Itala ang tubig ang form at binubuksan ng row ang detalye. Editable sa lugar; naka-fix ang kawan/petsa.",
 
     glossaryFeedUsageTerm: "Paggamit ng feed",
     glossaryFeedUsageDef:
-      "Ang kinain ng isang kawan sa isang araw; ina-drain ang mga lote nang FIFO at tinatantiya ang cost "
-      + "mula rito.",
+      "Ang kinain ng isang kawan sa isang araw; ina-drain ang mga lote nang FIFO at tinatantiya ang cost mula rito. Sa telepono, binubuksan ng Itala ang pakain ang form at binubuksan ng row ang detalye.",
+
+    glossaryExpenseTerm: "Gastos",
+    glossaryExpenseDef: "Perang ginastos ng bukid. Kasama sa kabuuan ng panahon ang mga row na hindi pa na-load. Sa telepono, binubuksan ng Magdagdag ng gastos ang form at Pamahalaan ang mga kategorya; binubuksan ng row ang detalye at mga aksyon sa audit.",
 
     glossaryAdjustmentDiscardTerm: "Adjustment / Discard",
     glossaryAdjustmentDiscardDef:

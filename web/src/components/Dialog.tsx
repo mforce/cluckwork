@@ -69,6 +69,8 @@ interface DialogProps {
    * with the one handler, and #609 rests on that plus the disabled button.
    */
   closeDisabled?: boolean;
+  /** Mounts closed content when it must resolve a deep-linked selection. */
+  keepMounted?: boolean;
   /**
    * Identifies WHAT the dialog is editing. When it changes while the dialog
    * stays open — a 409 rebind swaps in the server's newer record — focus moves
@@ -284,7 +286,7 @@ function restoreFocusOnClose(
 // `describedBy`, `wide`, `fullScreenOnPhone`) and the `anyDialogOpen`/
 // `onModalStateChange` pair #485 depends on.
 export function Dialog({
-  open, title, onClose, focusKey, describedBy, wide, closeDisabled, compactTitle = false,
+  open, title, onClose, focusKey, describedBy, wide, closeDisabled, keepMounted, compactTitle = false,
   fullScreenOnPhone = false, actions, formProps, children,
 }: DialogProps) {
   const { t } = useTranslation("common");
@@ -389,6 +391,7 @@ export function Dialog({
   return (
     <MuiDialog
       open={open}
+      keepMounted={keepMounted}
       onClose={handleClose}
       // Both guarded on `entered`: reopening during the exit transition
       // fires `onTransitionEnter` again with no `onTransitionExited` for the

@@ -1106,6 +1106,13 @@ export const en = {
     afterIssue: "After issue",
 
     title: "Feed",
+    logButton: "Log feed",
+    logFormTitle: "Record feed",
+    detailsDialogTitle: "{{date}} · {{flock}}",
+    filtersTitle: "Filters",
+    allFlocksChip: "All flocks",
+    allDatesChip: "All dates",
+    rangeChip: "{{from}} – {{to}}",
 
     // Imperative messages (event handlers / promise callbacks).
     loadFailed: "Could not load flocks and feed items. Is the API up?",
@@ -1162,7 +1169,7 @@ export const en = {
     fromLabel: "From",
     toLabel: "To",
     noRecordsMatch: "No feed records match.",
-    noRecordsMessage: "No feed records yet — capture one above.",
+    noRecordsMessage: "No feed records yet.",
 
     // Records table
     dateHeader: "Date",
@@ -1182,6 +1189,14 @@ export const en = {
     result: "Result",
 
     title: "Water",
+    logButton: "Log water",
+    logFormTitle: "Record water",
+    correctFormTitle: "Correct water",
+    detailsDialogTitle: "{{date}} · {{flock}}",
+    filtersTitle: "Filters",
+    allFlocksChip: "All flocks",
+    allDatesChip: "All dates",
+    rangeChip: "{{from}} – {{to}}",
 
     // Imperative messages (event handlers / promise callbacks — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
@@ -1240,7 +1255,7 @@ export const en = {
     fromLabel: "From",
     toLabel: "To",
     noRecordsMatch: "No water records match.",
-    noRecordsMessage: "No water records yet — capture one above.",
+    noRecordsMessage: "No water records yet.",
 
     // Records table
     dateHeader: "Date",
@@ -2132,6 +2147,10 @@ export const en = {
     ledgerHeading: "Expense ledger",
     wholePeriod: "Whole filtered period, including rows not yet loaded.",
     title: "Expenses",
+    addButton: "Add expense",
+    detailsDialogTitle: "{{date}} · {{description}}",
+    filtersTitle: "Filters",
+    rangeChip: "{{from}} – {{to}}",
 
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern).
@@ -3295,7 +3314,8 @@ export const en = {
       "<strong>Record feed</strong> logs what a flock ate on a day: pick the flock, the item (current "
       + "stock shows right in the picker), the amount, and the date. Stock drains from the oldest "
       + "purchases first — only lots that existed on that date — and the cost estimate comes from the "
-      + "actual lots consumed. The page's history lists every feeding with its estimated cost.",
+      + "actual lots consumed. The page's history lists every feeding with its estimated cost. "
+      + "On a phone, tap Log feed to open the form and tap a row for its item, cost, and note.",
     feedCorrecting:
       "Feed records are <strong>never edited</strong>: the stock they drew is already in the ledger, so a "
       + "mis-entry is fixed with an Inventory <strong>adjustment</strong> on the affected lot (reason "
@@ -3311,7 +3331,8 @@ export const en = {
     waterHeading: "Water",
     waterRecording:
       "Record what each flock drank per day: either a direct amount (liters or gallons) or <strong>meter "
-      + "readings</strong> — the amount is then the meter delta (end − start).",
+      + "readings</strong> — the amount is then the meter delta (end − start). On a phone, tap Log water "
+      + "to open the form, then tap a row for its source, meter readings, note, and correction action.",
     waterCorrecting:
       "Water records have no stock behind them, so mistakes are fixed by <strong>correcting the record "
       + "directly</strong> (the \"correct\" button, admin-only) — no compensating entries. The flock and date "
@@ -3421,14 +3442,16 @@ export const en = {
       "Record money going out: date, category, description, and amount in the farm's currency, optionally "
       + "tied to a flock. The date range uses the farm's own dates, not a browser clock elsewhere, and "
       + "shows a running total for the period you pick. Categories are managed on the same screen. "
-      + "Deactivating one hides it from new expenses, and recorded ones keep it.",
+      + "Deactivating one hides it from new expenses, and recorded ones keep it. On a phone, tap Add expense "
+      + "for the form and Manage categories, use the filter chips for the period and category, and tap a row "
+      + "for its details and actions.",
     // #679 — the two filter-row controls, named exactly as they are labelled.
     expensesClearingFilters:
       "The range opens on the current farm month. <strong>Clear filters</strong> beside the controls puts it "
       + "back there — it is there while rows are still listed, not only when a filter has hidden everything — "
       + "and when the month itself is empty, <strong>Show all time</strong> widens the view to every period.",
     expensesCorrections:
-      "Corrections edit the expense in place (<strong>correct</strong> on the row). If someone else "
+      "Corrections edit the expense in place (<strong>correct</strong> on the row or in its phone details). If someone else "
       + "corrected it first, the form reloads their values and asks you to re-apply. The currency an expense "
       + "was recorded in never changes.",
     expensesAdminOnly:
@@ -3980,10 +4003,13 @@ export const en = {
 
     glossaryWaterUsageTerm: "Water usage",
     glossaryWaterUsageDef:
-      "What a flock drank on a day — direct amount or meter delta. Editable in place; flock/date fixed.",
+      "What a flock drank on a day — direct amount or meter delta. On a phone, Log water opens the form and a row opens its details. Editable in place; flock/date fixed.",
 
     glossaryFeedUsageTerm: "Feed usage",
-    glossaryFeedUsageDef: "What a flock ate on a day; drains lots FIFO and estimates cost from them.",
+    glossaryFeedUsageDef: "What a flock ate on a day; drains lots FIFO and estimates cost from them. On a phone, Log feed opens the form and a row opens its details.",
+
+    glossaryExpenseTerm: "Expense",
+    glossaryExpenseDef: "Money spent by the farm. The period total includes unloaded rows. On a phone, Add expense opens the form and category management; a row opens its details and audit actions.",
 
     glossaryAdjustmentDiscardTerm: "Adjustment / Discard",
     glossaryAdjustmentDiscardDef:

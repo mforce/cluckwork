@@ -877,3 +877,34 @@ test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {
     expect.soft(box.height, "the Forget control is too short to hit").toBeGreaterThanOrEqual(MIN_TARGET_PX);
   });
 });
+
+test.describe("Log ledgers at phone width", { tag: "@phone" }, () => {
+  for (const [route, heading] of [
+    ["/water", "water:recordsHeading"],
+    ["/feed", "feed:recordsHeading"],
+    ["/expenses", "expenses:ledgerHeading"],
+  ] as const) {
+    test(`${route} shows ten complete rows above the bottom navigation`, async ({ page, signIn }) => {
+      await signIn(owner());
+      await page.goto(route);
+      const rows = page.getByRole("list", { name: tEn(heading) }).locator("li");
+      await expect(rows.first()).toBeVisible();
+      // The simulation fixture has eight Water/Feed rows and seven expenses
+      // this month. Repeat a rendered row to measure twelve row heights
+      // without adding permanent records to the shared quick-suite database.
+      await rows.evaluateAll((items) => {
+        const first = items[0];
+        const list = first?.parentElement;
+        if (!first || !list) throw new Error("Ledger list has no first row");
+        for (let i = items.length; i < 12; i++) list.appendChild(first.cloneNode(true));
+      });
+      const nav = await rectOf(page.locator(".MuiBottomNavigation-root"), "phone bottom navigation");
+      const visible = await rows.evaluateAll((items, navTop) =>
+        items.filter((item) => {
+          const box = item.getBoundingClientRect();
+          return box.top >= 0 && box.bottom <= navTop;
+        }).length, nav.y);
+      expect(visible).toBeGreaterThanOrEqual(10);
+    });
+  }
+});
