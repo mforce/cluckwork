@@ -130,8 +130,14 @@ describe("farm theme policy (#823 G2)", () => {
       const radio = slot(theme.components?.MuiRadio?.styleOverrides?.root, `${brand} radio`);
       const checkedRadio = slot(radio["&.Mui-checked:not(.Mui-disabled)"], `${brand} checked radio`);
       const menu = slot(theme.components?.MuiMenuItem?.styleOverrides?.root, `${brand} menu item`);
-      const selectedMenu = slot(menu["&.Mui-selected, &.Mui-selected:hover"], `${brand} selected menu item`);
+      const selectedMenu = slot(menu["&.Mui-selected"], `${brand} selected menu item`);
       expect(selectedMenu.backgroundColor, `${brand} selected menu`)
+        .toBe(alpha(tokens["--stat-accent"], 0.16));
+      const focusedMenu = slot(selectedMenu["&.Mui-focusVisible"], `${brand} focused selected menu`);
+      expect(focusedMenu.backgroundColor).toBe(alpha(tokens["--stat-accent"], 0.28));
+      const hoveredMenu = slot(menu["&.Mui-selected:hover"], `${brand} hovered selected menu`);
+      expect(hoveredMenu.backgroundColor).toBe(alpha(tokens["--stat-accent"], 0.20));
+      expect(slot(hoveredMenu["@media (hover: none)"], `${brand} touch selected menu`).backgroundColor)
         .toBe(alpha(tokens["--stat-accent"], 0.16));
       const lightMenu = createFarmTheme(tokensFor(brand, "light"), "light")
         .components?.MuiMenuItem?.styleOverrides?.root;

@@ -256,8 +256,12 @@ it("renders a dark selected menu item with the accent tint (#989)", () => {
       <MenuList><MenuItem selected>Reason</MenuItem></MenuList>
     </ThemeProvider>,
   );
-  expect(getComputedStyle(container.querySelector(".MuiMenuItem-root")!).backgroundColor)
+  const selected = container.querySelector(".MuiMenuItem-root")!;
+  expect(getComputedStyle(selected).backgroundColor)
     .toBe("rgba(168, 220, 187, 0.16)");
+  selected.classList.add("Mui-focusVisible");
+  expect(getComputedStyle(selected).backgroundColor)
+    .toBe("rgba(168, 220, 187, 0.28)");
 });
 
 function hexToRgb(hex: string): string {

@@ -286,8 +286,17 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       MuiMenuItem: {
         styleOverrides: {
           root: mode === "dark" ? {
-            "&.Mui-selected, &.Mui-selected:hover": {
+            "&.Mui-selected": {
               backgroundColor: alpha(tokens["--stat-accent"], 0.16),
+              "&.Mui-focusVisible": {
+                backgroundColor: alpha(tokens["--stat-accent"], 0.28),
+              },
+            },
+            "&.Mui-selected:hover": {
+              backgroundColor: alpha(tokens["--stat-accent"], 0.20),
+              "@media (hover: none)": {
+                backgroundColor: alpha(tokens["--stat-accent"], 0.16),
+              },
             },
           } : {},
         },
