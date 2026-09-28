@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.4](https://github.com/mforce/cluckwork/compare/v0.1.3...v0.1.4) (2026-09-28)
+
+
+### Features
+
+* **web:** compact Sales and Feed & inventory lists on phones ([#988](https://github.com/mforce/cluckwork/issues/988)) ([5d55cec](https://github.com/mforce/cluckwork/commit/5d55cec2b371c388a194714da83dd5771caf69fe))
+* **web:** compact two-line History rows on phones ([#983](https://github.com/mforce/cluckwork/issues/983)) ([2bcbbd5](https://github.com/mforce/cluckwork/commit/2bcbbd5d14b101961c2dfeff2f303e6bba65f426))
+* **web:** compact Water, Feed and Expenses on phones ([#986](https://github.com/mforce/cluckwork/issues/986)) ([25cc7fa](https://github.com/mforce/cluckwork/commit/25cc7fa1f81da02e255138fff8abf5e62691bbae))
+* **web:** live-preview the farm palette before saving ([#979](https://github.com/mforce/cluckwork/issues/979)) ([a5f159c](https://github.com/mforce/cluckwork/commit/a5f159c1b1b12f6d75d47fd6b12f02c6713fb0cc))
+
+
+### Bug fixes
+
+* **web:** close setup inspectors, prioritize Dashboard, and align shell colors ([#975](https://github.com/mforce/cluckwork/issues/975)) ([fcb43ee](https://github.com/mforce/cluckwork/commit/fcb43ee45bfe876bf3b9955cf9a6baa93aeb742b))
+* **web:** keep focused fields readable in dark mode ([#990](https://github.com/mforce/cluckwork/issues/990)) ([f4c2b47](https://github.com/mforce/cluckwork/commit/f4c2b47793845fe9336e9603c1b6cacc0d7cd549))
+* **web:** keep setup-list rows one line tall on phones ([#984](https://github.com/mforce/cluckwork/issues/984)) ([eebbdd8](https://github.com/mforce/cluckwork/commit/eebbdd84575ea805fab31bcea7219ed7cf3a81b8))
+* **web:** keep the PWA theme-color in step with the app theme ([#976](https://github.com/mforce/cluckwork/issues/976)) ([e19d6f8](https://github.com/mforce/cluckwork/commit/e19d6f88f228e9faedd917efa2515e8cf5be890d))
+
 ## [0.1.3](https://github.com/mforce/cluckwork/compare/v0.1.2...v0.1.3) (2026-09-26)
 
 
