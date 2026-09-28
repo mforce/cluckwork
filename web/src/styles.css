@@ -564,7 +564,7 @@ button.link:focus-visible {
 }
 
 :where(input[type="checkbox"]) {
-  accent-color: var(--brand);
+  accent-color: var(--stat-accent);
   width: 1rem;
   height: 1rem;
 }

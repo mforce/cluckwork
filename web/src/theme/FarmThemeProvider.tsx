@@ -254,7 +254,26 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         styleOverrides: { root: { padding: 18 } },
       },
       MuiDialog: { styleOverrides: { paper: { borderRadius: cardRadius } } },
-      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: controlRadius } } },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          root: {
+            borderRadius: controlRadius,
+            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: tokens["--stat-accent"],
+            },
+          },
+        },
+      },
+      MuiInputLabel: {
+        styleOverrides: {
+          root: { "&.Mui-focused": { color: tokens["--stat-accent"] } },
+        },
+      },
+      MuiCheckbox: {
+        styleOverrides: {
+          root: { "&.Mui-checked": { color: tokens["--stat-accent"] } },
+        },
+      },
       // `Autocomplete` sets no elevation on its listbox paper, so it falls to
       // `Paper`'s default of 1 — which this scale flattens. The picker popover is
       // one of #651's floats, so it takes the dialog shadow explicitly.
