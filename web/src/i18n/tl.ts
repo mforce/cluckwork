@@ -506,6 +506,20 @@ export const tl = {
     paymentRecorded: "Naitala ang bayad.",
     paymentVoided: "Na-void ang bayad — tumaas muli ang nakabinbin na halaga.",
     orderVoided: "Na-void ang order {{ref}} — naibalik ang stock sa imbentaryo.",
+    // #987 — ang listahan sa telepono.
+    ordersCaption: "Pinakabago muna",
+    allStatusesChip: "Lahat ng katayuan",
+    allCustomersChip: "Lahat ng kustomer",
+    filtersTitle: "Mga filter",
+    filtersDoneButton: "Tapos",
+    discountShort: "{{percent}}% bawas",
+    dueShort: "{{amount}} nakabinbin",
+    linesHeader: "Mga linya",
+    noteHeader: "Tala",
+    voidReasonHeader: "Dahilan ng pag-void",
+    orderDetailsDialogTitle: "{{reference}} · {{customer}}",
+    paymentDetailsDialogTitle: "{{date}} · {{method}}",
+    paymentRecordedStatus: "Naitala",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
@@ -1106,6 +1120,13 @@ export const tl = {
     editButton: "i-edit",
     deactivateButton: "i-deactivate",
     activateButton: "i-activate",
+    // #987 — ang listahan sa telepono.
+    itemsHeading: "Mga item",
+    itemsCaption: "Ayon sa pangalan",
+    unitHeader: "Yunit",
+    lotsHeader: "Mga lote",
+    lotsOpenValue: "{{lots}} bukas",
+    costPerUnitShort: "{{cost}} / {{unit}}",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -2683,7 +2704,10 @@ export const tl = {
     inventoryItems:
       "Tinutukoy ng <strong>mga item</strong> kung ano ang tinatrack mo (feed, supplement…) at ang unit na "
       + "sinusukat dito. Naka-lock ang unit sa sandaling natanggap na ang stock — dapat manatiling ang ibig "
-      + "sabihin ng mga nakatalang dami ang dating ibig sabihin nito.",
+      + "sabihin ng mga nakatalang dami ang dating ibig sabihin nito. "
+      + "Sa telepono, dalawang linya bawat item — pangalan at available sa itaas, tapos kategorya, halaga "
+      + "at <strong>Hindi Aktibo</strong> — at kapag na-tap ang isa, bubukas ang detalye nito na may "
+      + "<strong>i-edit</strong>, <strong>i-deactivate</strong> at <strong>buksan</strong>.",
     inventoryPurchaseUsage:
       "Ang <strong>Itala ang pagbili</strong> ay nagtatala ng natanggap na stock bilang isang may petsang "
       + "lote na may kasamang gastos. Ang pagpapakain sa kawan ay itinatala sa <strong>pahina ng "
@@ -2723,7 +2747,8 @@ export const tl = {
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
       + "<strong>mga reading ng metro</strong> — ang dami ay ang pagkakaiba ng metro (katapusan − simula). "
-      + "Sa telepono, pindutin ang Itala ang tubig para buksan ang form at ang row para makita ang pinagmulan, pagbasa, tala, at pagtatama.",
+      + "Sa telepono, pindutin ang Itala ang tubig para buksan ang form at ang row para makita ang "
+      + "pinagmulan, pagbasa, tala, at pagtatama.",
     waterCorrecting:
       "Walang stock sa likod ng mga rekord ng tubig, kaya inaayos ang mga pagkakamali sa pamamagitan ng "
       + "<strong>direktang pagtatama sa rekord</strong> (ang button na \"itama\", para sa admin lang) — "
@@ -2755,7 +2780,12 @@ export const tl = {
       + "na hindi mo binago. Mananatili ang mga hindi pa nai-save at hindi muna magagamit ang i-save kung "
       + "nagbago ang dami o presyong natanggap. Piliin ang <strong>i-load muli ang linya</strong> upang "
       + "palitan ang parehong field ng pinakahuling natanggap na halaga. Hindi nito nakikita ang mga "
-      + "pagbabagong ginawa matapos ang huling pagkuha ng datos.",
+      + "pagbabagong ginawa matapos ang huling pagkuha ng datos. "
+      + "Sa telepono, dalawang linya bawat order ang listahan — petsa, kustomer at kabuuan sa itaas, "
+      + "tapos katayuan, nakabinbin, bawas at reference — at kapag na-tap ang isa, bubukas ang detalye "
+      + "nito na may <strong>Kasaysayan ng audit</strong> at <strong>buksan</strong>. Magkasama sa isang "
+      + "<strong>Mga filter</strong> na dialog ang Katayuan, Kustomer at <strong>May nakabinbin "
+      + "lang</strong>, na bubukas mula sa mga chip sa itaas ng listahan.",
     salesListPrice:
       "Ipinapakita rin ng bawat linya ang <strong>Presyo sa listahan</strong> nito, ang presyo ng "
       + "produkto noong idinagdag ang linya, katabi ng <strong>Diskwento</strong> na kinalkula mula rito. "
@@ -2802,7 +2832,9 @@ export const tl = {
       + "hangga't hindi na-void ang mga bayad nito. Ipinapakita ng Customers page ang nakabinbin na balanse "
       + "ng bawat customer. May kolum na <strong>Nakabinbin</strong> kada order ang listahan ng mga order, "
       + "kasama ang kahon na <strong>May nakabinbin lang</strong> na pinapaliit ang buong listahan, hindi "
-      + "lang ang mga hilerang nasa screen, sa mga order na may utang pa.",
+      + "lang ang mga hilerang nasa screen, sa mga order na may utang pa. "
+      + "Sa telepono, dalawang linya bawat bayad ang kasaysayan ng pagbabayad, at kapag na-tap ang isa, "
+      + "bubukas ang detalye nito kung saan makikita ng admin ang <strong>i-void</strong>.",
 
     reportsHeading: "Mga Report",
     reportsProduction:

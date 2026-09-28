@@ -398,7 +398,10 @@ measure**. All categories support purchases, stock, and corrections; only
 once stock has been received — recorded quantities must never be silently
 reinterpreted in a different unit. Names are unique per farm,
 case-insensitively; items deactivate rather than delete (deactivation blocks
-new purchases; remaining stock can still be used up).
+new purchases; remaining stock can still be used up). On phones the six-column
+table becomes two lines per item, name and on hand over category, cost and
+`Inactive`; tapping one opens its details, which carry the item's open-lot
+count and its **edit**, **deactivate** and **open** actions.
 
 **Inventory lot** — a received batch of an item: received date, quantity,
 per-lot unit cost, optional supplier lot number/expiry. Created by recording
@@ -468,6 +471,13 @@ exist in the status enum for later phases; nothing sets them yet, and only
 Closing the order panel only hides it; it does not cancel the order. The panel
 stays closed even if an earlier open finishes loading. Use **open** again to
 view the order (#712).
+
+On phones the nine-column Orders list becomes two lines per order — date,
+customer and total over status, outstanding, discount and reference — and the
+filter bar becomes three chips opening one **Filters** dialog. Tapping a row
+opens a read-only peek carrying the columns the two lines drop, plus **Audit
+history** and **open**. The order workspace behind **open** is the same one a
+desktop reaches, Confirm, Cancel, Void and Record payment included.
 
 A live line editor belongs to an existing line on the open Draft order. Fresh
 order data ends editing when the order changes, leaves Draft, or loses the line.
@@ -860,7 +870,9 @@ with a reason — never deleted — and the outstanding grows back. An order
 with non-voided payments refuses to void ("void the payments first").
 Recording and viewing payments is the Sales tier (Owner/Manager/Sales,
 spec §5.1); voiding a payment is corrective (Owner/Manager only), like every
-other undo.
+other undo. On phones the settlement rail is two lines per payment, and
+tapping one opens its details, where a live payment carries **void** and a
+voided one its reason.
 
 **Outstanding balance (#89, #769)** — per order: confirmed total − non-voided
 payments; per customer: the same summed across their confirmed orders

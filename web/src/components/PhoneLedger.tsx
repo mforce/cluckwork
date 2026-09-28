@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { ReactNode } from "react";
 import { Box, ButtonBase } from "@mui/material";
 
@@ -30,7 +31,8 @@ export function PhoneLedgerList({ label, children }: { label: string; children: 
 
 export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, muted = false }: {
   onClick: () => void;
-  date: ReactNode;
+  /** Omitted by a list with no date of its own, so `primary` leads the line (#987). */
+  date?: ReactNode;
   primary: ReactNode;
   trailing: ReactNode;
   summary: ReactNode;
@@ -39,7 +41,7 @@ export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, mute
   return <ButtonBase aria-haspopup="dialog" onClick={onClick}
     sx={{ ...PHONE_ROW_SX, color: muted ? "var(--muted)" : "inherit" }}>
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: ".8125rem", lineHeight: 1.35, whiteSpace: "nowrap" }}>
-      <Box component="span" sx={{ fontWeight: 700, flexShrink: 0 }}>{date}</Box>
+      {date !== undefined && <Box component="span" sx={{ fontWeight: 700, flexShrink: 0 }}>{date}</Box>}
       <Box component="span" sx={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{primary}</Box>
       <Box component="span" sx={{ flexShrink: 0, fontSize: ".6875rem" }}>{trailing}</Box>
     </Box>
@@ -49,6 +51,13 @@ export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, mute
       "& strong": { fontWeight: 650, color: muted ? "inherit" : "var(--ink)" },
     }}>{summary}</Box>
   </ButtonBase>;
+}
+
+// A row's second line, as the facts that survived their own conditions. The
+// separator belongs to the join, so a dropped fact takes its dot with it.
+export function PhoneLedgerSummary({ parts }: { parts: ReactNode[] }) {
+  const shown = parts.filter((part) => part !== null && part !== false && part !== undefined && part !== "");
+  return <>{shown.map((part, index) => <Fragment key={index}>{index > 0 && " · "}{part}</Fragment>)}</>;
 }
 
 export function PhoneDetailsField({ label, children }: { label: string; children: ReactNode }) {

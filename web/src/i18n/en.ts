@@ -654,6 +654,23 @@ export const en = {
     paymentRecorded: "Payment recorded.",
     paymentVoided: "Payment voided — the outstanding amount grew back.",
     orderVoided: "Order {{ref}} voided — stock returned to inventory.",
+    // #987 — the phone list. Chips stand in for the filter bar, rows carry
+    // two lines, and Details holds what neither line has room for.
+    ordersCaption: "Newest first",
+    allStatusesChip: "All statuses",
+    allCustomersChip: "All customers",
+    filtersTitle: "Filters",
+    filtersDoneButton: "Done",
+    // Line 2 has no room for the desktop cell's percent-and-amount pair; the
+    // amount stays in the Details dialog.
+    discountShort: "{{percent}}% off",
+    dueShort: "{{amount}} due",
+    linesHeader: "Lines",
+    noteHeader: "Note",
+    voidReasonHeader: "Void reason",
+    orderDetailsDialogTitle: "{{reference}} · {{customer}}",
+    paymentDetailsDialogTitle: "{{date}} · {{method}}",
+    paymentRecordedStatus: "Recorded",
   },
   // Daily entry capture screen (Task 11, #182, batch B2). `dailyEntry` is in
   // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
@@ -1463,6 +1480,14 @@ export const en = {
     editButton: "edit",
     deactivateButton: "deactivate",
     activateButton: "activate",
+    // #987 — the phone list. The item name leads line 1, so the row carries
+    // no date and Details holds the columns the two lines drop.
+    itemsHeading: "Items",
+    itemsCaption: "Name order",
+    unitHeader: "Unit",
+    lotsHeader: "Lots",
+    lotsOpenValue: "{{lots}} open",
+    costPerUnitShort: "{{cost}} / {{unit}}",
   },
   // Product catalog — what the farm sells — + packed-unit (egg-unit)
   // conversions admin screen (Task 17, #182, batch B3 — second B3 screen).
@@ -3291,7 +3316,10 @@ export const en = {
     inventoryHeading: "Feed & inventory",
     inventoryItems:
       "<strong>Items</strong> define what you track (feed, supplements…) and the unit it's measured in. The "
-      + "unit locks once stock has been received — quantities on record must keep meaning what they meant.",
+      + "unit locks once stock has been received — quantities on record must keep meaning what they meant. "
+      + "On a phone each item is two lines — name and on hand above, then category, cost and "
+      + "<strong>Inactive</strong> — and tapping one opens its details with <strong>edit</strong>, "
+      + "<strong>deactivate</strong> and <strong>open</strong>.",
     inventoryPurchaseUsage:
       "<strong>Record purchase</strong> books received stock as a dated lot with its cost. Feeding a flock "
       + "is recorded on the <strong>Feed page</strong> — a feedable item's panel links straight there with "
@@ -3362,7 +3390,12 @@ export const en = {
       + "the order is no longer a draft or the line is gone. Unedited inputs follow the refreshed line. "
       + "Unsaved ones stay visible and block save if the fetched quantity or price changed. Choose "
       + "<strong>reload line</strong> to replace both inputs with the latest fetched values. Changes made "
-      + "after the last fetch are not detected here.",
+      + "after the last fetch are not detected here. "
+      + "On a phone the Orders list is two lines per order — date, customer and total above, then status, "
+      + "outstanding, discount and reference — and tapping one opens its details with <strong>Audit "
+      + "history</strong> and <strong>open</strong>. The Status, Customer and <strong>Unpaid "
+      + "only</strong> filters share one <strong>Filters</strong> dialog, reached from the chips above "
+      + "the list.",
     salesListPrice:
       "Each line also shows its <strong>List price</strong>, the product's price when the line was added, "
       + "next to a <strong>Discount</strong> worked out from it. That Discount is an amount and a percent "
@@ -3401,7 +3434,9 @@ export const en = {
       + "payments are voided. The Customers page shows each customer's outstanding balance. The Orders list "
       + "carries an <strong>Outstanding</strong> column per order, with an <strong>Unpaid only</strong> "
       + "tick box that narrows the whole list, not just the rows on screen, to the orders still owing "
-      + "something.",
+      + "something. "
+      + "On a phone the settlement history is two lines per payment, and tapping one opens its details, "
+      + "where an admin finds <strong>void</strong>.",
 
     // Reports
     reportsHeading: "Reports",

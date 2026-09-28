@@ -3,6 +3,7 @@ import { screen, within, fireEvent, act, waitFor } from "@testing-library/react"
 import { useLocation, useNavigate } from "react-router";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { stubMatchMedia } from "../test/matchMedia";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import i18n from "../i18n";
 import type { DiscountReasonValue } from "../i18n/enums";
@@ -168,6 +169,9 @@ const CONVERSIONS: EggUnitConversion[] = [
 const ADMIN = { sub: "u1", role: "Admin" };
 
 beforeEach(() => {
+  // These suites assert the desktop table; the phone list has its own
+  // tests, which flip the stub (#987).
+  stubMatchMedia(true);
   vi.clearAllMocks();
   localStorage.clear();
   mockListCustomers.mockResolvedValue([CUSTOMER]);
@@ -4319,5 +4323,186 @@ describe("Sales Field Console context and settlement", () => {
     expect(context).toHaveTextContent("SO-2 · Confirmed");
     expect(context).not.toHaveTextContent("Outstanding");
     expect(mockListOrderPayments).not.toHaveBeenCalled();
+  });
+});
+
+// #987 — below 900px the nine-column orders table becomes one two-line button
+// per order, the filter bar becomes three chips, and the payments rail gets
+// the same two-line rows.
+describe("phone orders list", () => {
+  const CONFIRMED_DUE: SalesOrder = {
+    ...NO_RECORD_HISTORY,
+    id: "op1", customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-DUE",
+    orderDate: "2026-07-18", status: "Confirmed", totalMinorUnits: 900,
+    currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
+    discountReasonCode: null, discountReasonNote: null, outstandingMinorUnits: 810,
+    // list 375 against a 300 unit price over 3 units: $2.25 off, 20% of list.
+    items: [ITEM_A],
+  };
+  const SETTLED_AT_LIST: SalesOrder = {
+    ...CONFIRMED_DUE, id: "op2", referenceNumber: "SO-PAID", outstandingMinorUnits: 0,
+    items: [{ ...ITEM_A, listUnitPriceMinorUnits: ITEM_A.unitPriceMinorUnits }],
+  };
+
+  beforeEach(() => {
+    stubMatchMedia(false);
+    mockListOrders.mockResolvedValue([CONFIRMED_DUE, SETTLED_AT_LIST]);
+  });
+
+  const phoneRow = (name: string | RegExp) => screen.getByRole("button", { name });
+
+  it("shows two-line rows carrying customer, total, status, settlement, discount and reference", async () => {
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    const due = await screen.findByRole("button", { name: /SO-DUE/ });
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(due).toHaveTextContent("Acme Eggs");
+    expect(due).toHaveTextContent("$9.00");
+    expect(due).toHaveTextContent("Confirmed · $8.10 due · 20.0% off · SO-DUE");
+    expect(phoneRow(/SO-PAID/)).toHaveTextContent("Confirmed · Settled · At list · SO-PAID");
+  });
+
+  it("opens order Details with the columns the two lines drop, plus both actions", async () => {
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-DUE/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "SO-DUE · Acme Eggs" })).toBeInTheDocument();
+    for (const label of ["Date", "Status", "Lines", "Discount", "Total", "Outstanding", "History"]) {
+      expect(within(dialog).getByText(label)).toBeInTheDocument();
+    }
+    // The Details discount keeps the amount the row's short form drops.
+    expect(within(dialog).getByText("20.0% · $2.25")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Audit history" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "open" })).toBeInTheDocument();
+  });
+
+  it("withholds settlement and the audit link from a Worker, and keeps open", async () => {
+    renderWithProviders(<SalesPage />, { token: { sub: "w1" } });
+    const due = await screen.findByRole("button", { name: /SO-DUE/ });
+    expect(due).not.toHaveTextContent("$8.10 due");
+    fireEvent.click(due);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByText("Outstanding")).toBeNull();
+    expect(within(dialog).queryByRole("link", { name: "Audit history" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "open" })).toBeInTheDocument();
+  });
+
+  it("open closes the peek and mounts the order workspace", async () => {
+    mockGetOrder.mockResolvedValue(CONFIRMED_DUE);
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-DUE/ }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockGetOrder).toHaveBeenCalledWith("op1");
+    expect(await screen.findByRole("heading", { name: /SO-DUE — Acme Eggs/ })).toBeInTheDocument();
+  });
+
+  // Round 1 of #986 left a failure behind the dialog that started it.
+  it("shows a failed open on the page with the peek closed", async () => {
+    mockGetOrder.mockRejectedValue(new Error("Order is gone."));
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-DUE/ }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText("Order is gone.")).toBeVisible();
+  });
+
+  it("collapses the filter bar into three chips that open one dialog", async () => {
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    await screen.findByRole("button", { name: /SO-DUE/ });
+    expect(screen.getByRole("button", { name: "All statuses" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unpaid only" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "All customers" }));
+    const dialog = screen.getByRole("dialog", { name: "Filters" });
+    expect(within(dialog).getByLabelText("Status")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Unpaid only")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("names the chosen status on its chip", async () => {
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    await screen.findByRole("button", { name: /SO-DUE/ });
+    fireEvent.click(screen.getByRole("button", { name: "All statuses" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Status"), { target: { value: "Draft" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Draft" })).toBeInTheDocument());
+  });
+
+  it("gives a Worker no Unpaid-only chip", async () => {
+    renderWithProviders(<SalesPage />, { token: { sub: "w1" } });
+    await screen.findByRole("button", { name: /SO-DUE/ });
+    expect(screen.queryByRole("button", { name: "Unpaid only" })).toBeNull();
+  });
+});
+
+describe("phone payments rail", () => {
+  const CONFIRMED: SalesOrder = {
+    ...NO_RECORD_HISTORY,
+    id: "op1", customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-DUE",
+    orderDate: "2026-07-18", status: "Confirmed", totalMinorUnits: 900,
+    currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
+    discountReasonCode: null, discountReasonNote: null, outstandingMinorUnits: 400, items: [ITEM_A],
+  };
+  const LIVE = {
+    id: "pay1", salesOrderId: "op1", customerId: "c1", paymentDate: "2026-07-19",
+    amountMinorUnits: 500, currencyCode: "USD", currencyMinorUnit: 2, method: "Cash",
+    referenceNumber: "R-1", note: "part payment", voided: false, voidReason: null, version: 1,
+  };
+  const VOIDED = { ...LIVE, id: "pay2", method: "Check", amountMinorUnits: 200, voided: true, voidReason: "bounced" };
+
+  beforeEach(() => {
+    stubMatchMedia(false);
+    mockListOrders.mockResolvedValue([CONFIRMED]);
+    mockGetOrder.mockResolvedValue(CONFIRMED);
+    mockListOrderPayments.mockResolvedValue({
+      items: [LIVE, VOIDED], paidMinorUnits: 500, outstandingMinorUnits: 400,
+      totalMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+  });
+
+  async function openRail(token: Record<string, unknown>) {
+    renderWithProviders(<SalesPage />, { token });
+    fireEvent.click(await screen.findByRole("button", { name: /SO-DUE/ }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "open" }));
+    });
+    return screen.findByRole("list", { name: "Payments" });
+  }
+
+  it("shows two-line payment rows, with the voided one carrying its reference and reason", async () => {
+    const rail = await openRail(ADMIN);
+    const rows = within(rail).getAllByRole("button");
+    expect(rows[0]).toHaveTextContent("Cash$5.00part payment");
+    expect(rows[1]).toHaveTextContent("Check$2.00Voided · R-1 · bounced");
+  });
+
+  it("opens payment Details and offers void on a live payment only", async () => {
+    const rail = await openRail(ADMIN);
+    fireEvent.click(within(rail).getAllByRole("button")[0]);
+    const dialog = screen.getByRole("dialog");
+    for (const label of ["Amount", "Method", "Reference", "Note", "Status"]) {
+      expect(within(dialog).getByText(label)).toBeInTheDocument();
+    }
+    expect(within(dialog).getByText("Recorded")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "void" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /close/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(within(rail).getAllByRole("button")[1]);
+    const voided = screen.getByRole("dialog");
+    expect(within(voided).getByText("Void reason")).toBeInTheDocument();
+    expect(within(voided).getByText("bounced")).toBeInTheDocument();
+    expect(within(voided).queryByRole("button", { name: "void" })).toBeNull();
+  });
+
+  it("withholds void from a non-admin settler", async () => {
+    const rail = await openRail({ sub: "s1", role: "Sales" });
+    fireEvent.click(within(rail).getAllByRole("button")[0]);
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "void" })).toBeNull();
   });
 });

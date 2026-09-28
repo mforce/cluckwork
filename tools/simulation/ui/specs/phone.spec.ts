@@ -554,9 +554,9 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // passes for free or arrives red and neither result says anything about
     // the route.
     //
-    // `/inventory` is the one judgement call: it renders a table and is left
-    // out because its own movement ledger is reached through `/flocks`, which
-    // IS walked. Add it if that stops being true.
+    // `/inventory` WAS left out while it rendered a table whose own movement
+    // ledger is reached through `/flocks`, which IS walked. #987 gave it a
+    // two-line phone list of its own, which is the thing measured now.
     //
     // `/` IS WALKED, and the story of why it briefly was not is worth keeping.
     //
@@ -602,7 +602,11 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // here is that list. The desktop table is still walked at 1280 by the
       // specs that measure it there.
       { path: "/history", content: `role=list[name="${tEn("history:title")}"]`, what: "the entry history list" },
-      { path: "/sales", content: "role=table", what: "the orders table" },
+      // #987 — below 900px Sales and Feed & inventory render two-line buttons
+      // instead of their nine- and six-column tables, exactly as #980 did to
+      // History. The desktop tables are still walked at 1280.
+      { path: "/sales", content: `role=list[name="${tEn("sales:ordersHeading")}"]`, what: "the orders list" },
+      { path: "/inventory", content: `role=list[name="${tEn("inventory:itemsHeading")}"]`, what: "the items list" },
     ];
 
     for (const { path: route, content, what } of ROUTES) {
@@ -878,20 +882,24 @@ test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {
   });
 });
 
-test.describe("Log ledgers at phone width", { tag: "@phone" }, () => {
+test.describe("Two-line ledgers at phone width", { tag: "@phone" }, () => {
   for (const [route, heading] of [
     ["/water", "water:recordsHeading"],
     ["/feed", "feed:recordsHeading"],
     ["/expenses", "expenses:ledgerHeading"],
+    // #987 — Sales and Feed & inventory joined the same two-line shape.
+    ["/sales", "sales:ordersHeading"],
+    ["/inventory", "inventory:itemsHeading"],
   ] as const) {
     test(`${route} shows ten complete rows above the bottom navigation`, async ({ page, signIn }) => {
       await signIn(owner());
       await page.goto(route);
       const rows = page.getByRole("list", { name: tEn(heading) }).locator("li");
       await expect(rows.first()).toBeVisible();
-      // The simulation fixture has eight Water/Feed rows and seven expenses
-      // this month. Repeat a rendered row to measure twelve row heights
-      // without adding permanent records to the shared quick-suite database.
+      // The simulation fixture has eight Water/Feed rows, seven expenses this
+      // month and two inventory items. Repeat a rendered row to measure twelve
+      // row heights without adding permanent records to the shared
+      // quick-suite database.
       await rows.evaluateAll((items) => {
         const first = items[0];
         const list = first?.parentElement;
