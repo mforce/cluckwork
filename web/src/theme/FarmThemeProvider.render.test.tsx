@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import type { FormControlLabelProps } from "@mui/material/FormControlLabel";
 import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import { Egg } from "lucide-react";
@@ -183,6 +184,23 @@ describe("a text or outlined primary Button's own ink (#914)", () => {
       }
     });
   }
+});
+
+it("keeps a focused field's validation error color (#989)", () => {
+  const tokens = tokensFor("forest", "dark");
+  const { container } = render(
+    <ThemeProvider theme={createFarmTheme(tokens, "dark")}>
+      <TextField error label="Date" />
+    </ThemeProvider>,
+  );
+  fireEvent.focus(container.querySelector("input")!);
+
+  const label = container.querySelector(".MuiInputLabel-root.Mui-focused");
+  const outline = container.querySelector(".MuiOutlinedInput-notchedOutline");
+  expect(label).not.toBeNull();
+  expect(outline).not.toBeNull();
+  expect(getComputedStyle(label!).color).toBe(hexToRgb(tokens["--danger"]));
+  expect(getComputedStyle(outline!).borderColor).toBe(hexToRgb(tokens["--danger"]));
 });
 
 function hexToRgb(hex: string): string {
