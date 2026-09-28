@@ -114,10 +114,14 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
       // The fixture seeds two draft orders and never confirms them
       // (SimulationDataSeeder), so this opens existing state instead of minting
       // an order and drawing stock out of the fixture on every phone run.
-      const draft = page.getByRole("row").filter({ hasText: tEn("enums:status.Draft") }).first();
+      // #987 — at this width the orders list is two-line buttons, and `open`
+      // sits in the Details peek one of them raises.
+      const draft = page.getByRole("list", { name: tEn("sales:ordersHeading") }).getByRole("button")
+        .filter({ hasText: tEn("enums:status.Draft") }).first();
       await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
         .toBeVisible();
-      await draft.getByRole("button", { name: tEn("sales:open") }).click();
+      await draft.click();
+      await page.getByRole("dialog").getByRole("button", { name: tEn("sales:open"), exact: true }).click();
       const row = page.getByRole("region").getByRole("group", { name: tEn("sales:draftActions") });
       await expect(page.getByRole("region").getByRole("button", { name: tEn("sales:close"), exact: true })).toBeVisible();
       await expect(row).toBeVisible();
