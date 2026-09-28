@@ -709,7 +709,6 @@ export function ExpensesPage() {
       {activeCategories.length === 0 && (
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
-      {!isDesktop && errors.page && <p className="error" role="alert">{errors.page}</p>}
       </Box>
   );
 
@@ -745,6 +744,8 @@ export function ExpensesPage() {
             <BusyButton variant="contained" type="submit" form="expense-entry-form" busy={isPending("add")}
               disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>{t("recordExpenseButton")}</BusyButton>
           </Stack>}>
+          {errors.page && <p className="error" role="alert">{errors.page}</p>}
+          {message && <p className="success" role="status">{message}</p>}
           {showCategories ? <><Button size="small" sx={CONSOLE_LINK_SX} onClick={() => setShowCategories(false)}>{t("hideCategoriesButton")}</Button>{categoriesPanel}</> : entryPanel}
         </Dialog>
         <Dialog open={details !== null} compactTitle
@@ -791,7 +792,7 @@ export function ExpensesPage() {
       </Box>}
 
       {(isDesktop || !addOpen) && errors.page && <p className="error" role="alert">{errors.page}</p>}
-      {message && <p className="success" role="status">{message}</p>}
+      {(isDesktop || !addOpen) && message && <p className="success" role="status">{message}</p>}
 
       <Dialog
         open={editing !== null}

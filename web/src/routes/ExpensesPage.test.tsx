@@ -140,6 +140,23 @@ it("shows a failed phone expense write inside the open form dialog", async () =>
   expect(await within(dialog).findByRole("alert")).toHaveTextContent("Expense write failed");
 });
 
+it("shows category toggle failure and success inside the phone Add expense dialog", async () => {
+  stubMatchMedia(false);
+  mockUpdateCategory.mockRejectedValueOnce(new Error("Category toggle failed"))
+    .mockResolvedValueOnce(undefined);
+  renderWithProviders(<ExpensesPage />, { token: ADMIN });
+  fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
+  const dialog = screen.getByRole("dialog");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Manage categories" }));
+  const toggle = (await within(dialog).findAllByRole("button", { name: "deactivate" }))[0];
+  fireEvent.click(toggle);
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("Category toggle failed");
+  await waitFor(() => expect(toggle).toBeEnabled());
+  fireEvent.click(toggle);
+  expect(await within(dialog).findByText('Category "Feed" deactivated.')).toHaveAttribute("role", "status");
+  expect(screen.getAllByText('Category "Feed" deactivated.')).toHaveLength(1);
+});
+
 // The add form's Category select shares its "Category" label with the filter
 // and edit panels, so pick it by an option unique to it ("— pick —" only in
 // the add-category select; "All categories" only in the filter) rather than by
