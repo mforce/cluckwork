@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Box, ButtonBase } from "@mui/material";
 
-export const PHONE_LIST_SX = {
+const PHONE_LIST_SX = {
   m: 0, p: 0, listStyle: "none",
   bgcolor: "var(--surface)",
   border: "1px solid var(--rule)",
@@ -11,12 +11,12 @@ export const PHONE_LIST_SX = {
   "& > li:last-of-type": { borderBottom: 0 },
 };
 
-export const PHONE_ROW_SX = {
+const PHONE_ROW_SX = {
   display: "block", width: "100%", minHeight: 44, textAlign: "left", px: 1.5, py: 1,
   "&:focus-visible": { outlineOffset: "-2px" },
 };
 
-export const DETAILS_FIELD_SX = {
+const DETAILS_FIELD_SX = {
   display: "grid", gridTemplateColumns: "96px minmax(0, 1fr)", gap: 1,
   py: "9px", fontSize: ".8125rem", borderBottom: "1px solid var(--rule)",
   "&:last-of-type": { borderBottom: 0 },
