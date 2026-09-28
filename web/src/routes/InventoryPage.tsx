@@ -92,11 +92,10 @@ export function InventoryPage() {
   const [editUnit, setEditUnit] = useState("");
   const [editCost, setEditCost] = useState("");
 
-  // #987 — the phone row's read-only peek. `detailsOpenLots` is its one extra
-  // fact: how many of the item's lots still hold stock. It is not on the list
-  // response, so it arrives from its own read, ticketed like `loadLots`, and
-  // stays null (rendered as an em dash) when that read is superseded or fails
-  // — a lot count must never take a peek down.
+  // #987 — the phone row's read-only peek. Its open-lot count is not on the
+  // list response, so it takes its own ticketed read and stays null (an em
+  // dash) when that read is superseded or fails: a lot count must never take
+  // the peek down with it.
   const [details, setDetails] = useState<InventoryItem | null>(null);
   const [detailsOpenLots, setDetailsOpenLots] = useState<number | null>(null);
   const detailsLotsRequest = useRef(0);
@@ -847,8 +846,7 @@ export function InventoryPage() {
       </LedgerTableContainer> : <>
         <PhoneLedgerList label={t("itemsHeading")}>
           {items.map((i) => <li key={i.id}>
-            {/* No date to lead with, so the item name takes the flexible slot
-                and stops wrapping to two and three lines (#987). */}
+            {/* No date, so the name takes the flexible slot and stops wrapping (#987). */}
             <PhoneLedgerRow muted={!i.active} onClick={() => openDetails(i)}
               primary={i.name}
               trailing={<strong>{fmt.count(i.quantityOnHand)} {i.unit}</strong>}

@@ -53,10 +53,10 @@ export function PhoneLedgerRow({ onClick, date, primary, trailing, summary, mute
   </ButtonBase>;
 }
 
-// A row's second line, as the facts that survived their own conditions. The
-// separator belongs to the join, so a dropped fact takes its dot with it.
+// A row's second line. The separator belongs to the join, so a fact that
+// failed its own condition takes its dot with it.
 export function PhoneLedgerSummary({ parts }: { parts: ReactNode[] }) {
-  const shown = parts.filter((part) => part !== null && part !== false && part !== undefined && part !== "");
+  const shown = parts.filter(Boolean);
   return <>{shown.map((part, index) => <Fragment key={index}>{index > 0 && " · "}{part}</Fragment>)}</>;
 }
 

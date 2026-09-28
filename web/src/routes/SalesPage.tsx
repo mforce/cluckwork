@@ -1860,7 +1860,11 @@ export function SalesPage() {
                     onClose={() => setPaymentDetails(null)}
                     actions={paymentDetails && !paymentDetails.voided && isAdmin && (
                       <Box sx={{ display: "flex", borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
-                        <BusyButton variant="text" size="small" sx={{ color: "#ffb4a2" }} disabled={busy}
+                        {/* Not the rail's #ffb4a2: that salmon is picked for the
+                            dark settlement panel and measures far under AA on
+                            the dialog's own paper. --error carries a value per
+                            theme. */}
+                        <BusyButton variant="text" size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)" }} disabled={busy}
                           busy={isPending(`void-payment:${paymentDetails.id}`)}
                           onClick={() => {
                             const { id, version } = paymentDetails;
