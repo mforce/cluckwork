@@ -9,9 +9,9 @@ production, track egg lots from the hen through to the sale with full
 traceability, block medication-restricted lots, manage sales and customers, and
 see the numbers that matter (hen-day rate, saleable %, stock on hand).
 
-The egg loop in 25 seconds: the Dashboard flags a house that has not reported,
-the day is counted and graded, submitting it creates the egg lots, and the same
-Dashboard shows the house recorded with collection and stock moved.
+Recording a day closes the loop: a house the Dashboard flagged as unreported is
+counted, graded and submitted, which creates its egg lots and moves the
+Dashboard's totals.
 
 ![Recording a day of egg production in Cluckwork: a house flagged as not recorded, its eggs counted and graded, submitted into egg lots, and the Dashboard totals updating](https://github.com/user-attachments/assets/1ecd57e8-991c-424e-a330-be315682ba7c)
 
@@ -155,8 +155,8 @@ coding agents and for the full rule set behind both.
 
 ## License
 
-[MIT](LICENSE) — use it, change it, run it commercially; keep the copyright
-notice with any copy you pass on.
+[MIT](LICENSE) — commercial use allowed; keep the copyright notice with any copy
+you pass on.
 
 If Cluckwork helps your farm or your product, a link back to this repository is
-appreciated. Not required by the license, just good manners.
+appreciated. The license does not require it.
