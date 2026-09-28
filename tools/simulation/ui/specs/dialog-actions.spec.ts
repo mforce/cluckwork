@@ -7,9 +7,15 @@ for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
     await signIn(owner());
     await page.goto("/expenses");
-    await page.getByRole("row").filter({ hasText: "Sim Feeder Replacement Part" })
-      .getByRole("button", { name: tEn("expenses:correctButton"), exact: true }).click();
-    const dialog = page.getByRole("dialog");
+    if (width === 390) {
+      await page.getByRole("list", { name: tEn("expenses:ledgerHeading") }).locator("li")
+        .filter({ hasText: "Sim Feeder Replacement Part" }).getByRole("button").click();
+      await page.getByRole("dialog").getByRole("button", { name: tEn("expenses:correctButton"), exact: true }).click();
+    } else {
+      await page.getByRole("row").filter({ hasText: "Sim Feeder Replacement Part" })
+        .getByRole("button", { name: tEn("expenses:correctButton"), exact: true }).click();
+    }
+    const dialog = page.getByRole("dialog").last();
     const flock = () => dialog.locator("input").and(dialog.getByLabel(tEn("expenses:flockOptionalLabel"), { exact: true }));
     await expect(flock()).toHaveValue("Sim House B");
     await expect(dialog.getByRole("listbox")).toHaveCount(0);

@@ -890,12 +890,13 @@ test.describe("Log ledgers at phone width", { tag: "@phone" }, () => {
       const rows = page.getByRole("list", { name: tEn(heading) }).locator("li");
       await expect(rows.first()).toBeVisible();
       // The simulation fixture has eight Water/Feed rows and seven expenses
-      // this month. Repeat real rendered rows to measure twelve row heights
+      // this month. Repeat a rendered row to measure twelve row heights
       // without adding permanent records to the shared quick-suite database.
       await rows.evaluateAll((items) => {
-        const list = items[0].parentElement;
-        if (!list) throw new Error("Ledger list has no parent");
-        for (let i = items.length; i < 12; i++) list.appendChild(items[i % items.length].cloneNode(true));
+        const first = items[0];
+        const list = first?.parentElement;
+        if (!first || !list) throw new Error("Ledger list has no first row");
+        for (let i = items.length; i < 12; i++) list.appendChild(first.cloneNode(true));
       });
       const nav = await rectOf(page.locator(".MuiBottomNavigation-root"), "phone bottom navigation");
       const visible = await rows.evaluateAll((items, navTop) =>
