@@ -486,7 +486,7 @@ jobs:
             cache_prefix: image-layers-
           - arch: arm64
             runner: ubuntu-24.04-arm
-            cache_prefix: image-layers-arm64-
+            cache_prefix: arm64-image-layers-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -503,8 +503,9 @@ jobs:
       # Per-commit keys make the second job of a commit a full hit; the
       # restore-keys ladder gives a fresh commit the newest same-dependency
       # cache (base images + restore layers + unchanged source layers), then
-      # anything. The amd64 prefix matches e2e-smoke.yml byte for byte; arm64
-      # has a separate prefix so neither runner restores the other's layers.
+      # anything. The amd64 prefix matches e2e-smoke.yml byte for byte. The
+      # arm64 prefix must not start with `image-layers-`: that is amd64's broad
+      # fallback key, and prefix matching would restore arm64 layers there.
       - name: Restore image layer cache
         uses: actions/cache@v6
         with:
@@ -849,29 +850,53 @@ jobs:
           # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
 
-          # Keep the architecture tags. The index refers to their manifests,
-          # and GHCR cleanup must not collect those manifests as untagged.
+          # Keep digest-keyed architecture tags so a repair build of this commit
+          # cannot orphan an older release's child manifests. The plain arch
+          # tags are convenient, but move when that same commit is republished.
+          # Build the index from digests: a registry writer can move either tag
+          # after its push, but cannot change the manifest this run pushed.
+          declare -A child_digest=()
           for arch in amd64 arm64; do
-            docker tag "cluckwork-api:ci-$arch" "$image:sha-$SHA-$arch"
-            docker push "$image:sha-$SHA-$arch"
+            arch_tag="sha-$SHA-$arch"
+            docker tag "cluckwork-api:ci-$arch" "$image:$arch_tag"
+            push_log="$(docker push "$image:$arch_tag")"
+            printf '%s\n' "$push_log"
+            # Docker reports the pushed manifest digest. RepoDigests can still
+            # name a source index when a single platform was pushed from it.
+            child_digest[$arch]="$(printf '%s\n' "$push_log" |
+              sed -nE "s/^$arch_tag: digest: (sha256:[0-9a-f]{64}) size: [0-9]+$/\1/p")"
+            if ! [[ ${child_digest[$arch]} =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::no $arch manifest digest after push"
+              exit 1
+            fi
+            durable_tag="$image:sha-$SHA-$arch-${child_digest[$arch]#sha256:}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "$durable_tag" "$image@${child_digest[$arch]}"
           done
-          docker buildx imagetools create --tag "$image:sha-$SHA" \
-            "$image:sha-$SHA-amd64" "$image:sha-$SHA-arm64"
 
-          # Record the index digest, which the release workflow promotes and
-          # which the provenance attestation names.
-          digest="$(docker buildx imagetools inspect "$image:sha-$SHA" \
-            --format '{{json .Manifest.Digest}}' | tr -d '"')"
-          if ! printf '%s' "$digest" | grep -qE '^sha256:[0-9a-f]{64}$'; then
-            echo "::error::no index digest after push"
-            exit 1
-          fi
-          docker buildx imagetools inspect "$image:sha-$SHA" --raw | jq -e '
-            .mediaType | endswith("image.index.v1+json") or endswith("manifest.list.v2+json")
-          ' >/dev/null
-          docker buildx imagetools inspect "$image:sha-$SHA" --raw | jq -e '
-            [.manifests[] | select(.platform.os == "linux") | .platform.architecture] |
-            sort == ["amd64", "arm64"]
+          # --dry-run prints the exact index JSON with one trailing newline.
+          # Command substitution removes that newline, leaving the bytes buildx
+          # pushes. Compute the digest before publishing; never resolve a tag
+          # to decide what to attest.
+          index_json="$(docker buildx imagetools create --dry-run \
+            "$image@${child_digest[amd64]}" "$image@${child_digest[arm64]}")"
+          digest="sha256:$(printf '%s' "$index_json" | sha256sum | cut -d ' ' -f1)"
+          docker buildx imagetools create --tag "$image:sha-$SHA" \
+            "$image@${child_digest[amd64]}" "$image@${child_digest[arm64]}"
+
+          # Fetch by the locally computed digest. One immutable read supplies
+          # every assertion; extra platforms or substituted children fail.
+          index_json="$(docker buildx imagetools inspect "$image@$digest" --raw)"
+          printf '%s' "$index_json" | jq -e \
+            --arg amd64 "${child_digest[amd64]}" --arg arm64 "${child_digest[arm64]}" '
+            (.mediaType | endswith("image.index.v1+json") or endswith("manifest.list.v2+json")) and
+            ([.manifests[] | .platform.os + "/" + .platform.architecture] |
+              sort == ["linux/amd64", "linux/arm64"]) and
+            ([.manifests[] | {architecture: .platform.architecture, digest: .digest}] |
+              sort_by(.architecture) == [
+                {architecture: "amd64", digest: $amd64},
+                {architecture: "arm64", digest: $arm64}
+              ])
           ' >/dev/null
 
           printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"

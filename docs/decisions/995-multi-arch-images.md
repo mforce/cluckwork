@@ -16,13 +16,17 @@ its native runner until `/health/ready` and the image's health check pass.
 The smoke test's existing database image already supports both runners. Each
 leg saves its image and local image Id in a distinct artifact. `publish` loads
 both artifacts, checks each Id and architecture, pushes
-two platform manifests, then assembles the `:sha-<commit>` index. It records and
-attests the index digest. `release-please.yml` retags that digest to the version
-without rebuilding.
+two platform manifests, and captures their pushed digests. It assembles the
+`:sha-<commit>` index from those digest references, then checks that the index
+contains exactly those two children. It computes the index digest locally from
+`imagetools create --dry-run` and verifies the pushed index by that immutable
+reference before recording and attesting it.
+`release-please.yml` retags that digest to the version without rebuilding.
 
 The amd64 cache prefix remains `image-layers-`, which matches
-`e2e-smoke.yml`. The arm64 prefix is `image-layers-arm64-`; its restore keys
-cannot import amd64 layers. The #315 lock-drift check runs on amd64 only. It
+`e2e-smoke.yml`. The arm64 prefix is `arm64-image-layers-`. It must not start
+with `image-layers-`, because that is amd64's broadest restore key and cache
+lookup matches prefixes. The #315 lock-drift check runs on amd64 only. It
 changes a NuGet pin and asks whether locked restore fails, which has the same
 answer on either architecture. The #782 job condition stays
 `!cancelled() && needs.changes.outputs.docs_only != 'true'`. GitHub waits for
@@ -36,16 +40,28 @@ says a dependent job waits for every matrix leg and warns
 that colliding matrix outputs have no guaranteed winner. The image Id therefore
 travels inside each leg's artifact, beside the image it identifies.
 
-I pushed two single-platform manifests and an index to a local `registry:2`.
-The index digest was
-`sha256:10b8bde9d6f8f815ee07a096ff0654a0147187d54c4006e57f3302e2967fa812`.
-Retagging that digest with both the default `imagetools create` setting and
-`--prefer-index=false` returned the same digest. The existing flag remains for
-older single-manifest releases. In the same registry, the default changed a
-single manifest's digest from `sha256:b7f3d86d6e84fc17718c48bcde1450807faa2d56704205c697b4bd5df7b9e29f`
-to `sha256:25ffb45ca14c6c27357848f581af91665a7b953ebe5a5a9f41edfe12306ddfe2`,
-while `--prefer-index=false` preserved the source digest. The
-post-retag digest comparison remains the release gate.
+With a local `registry:2`, I retagged a two-platform index by digest with both
+the default `imagetools create` setting and `--prefer-index=false`; both kept
+its digest. A single-manifest source changed digest with the default and kept
+it with `--prefer-index=false`. The [buildx v0.31.1 implementation](https://github.com/docker/buildx/blob/v0.31.1/util/imagetools/create.go)
+returns an index source's original bytes regardless of `preferIndex`, which
+explains both observations. The existing flag remains for older
+single-manifest releases, and the post-retag digest comparison stays a gate.
+
+In the same registry, the SHA-256 of `imagetools create --dry-run` JSON, with
+its CLI newline removed, matched the digest of the pushed index. Buildx
+v0.37.1 emitted the same JSON for both operations. A tag-built index after I
+moved the amd64 tag failed the exact-child assertion; the index built from
+digest references still passed. Adding a third child with `platform.os` set to
+`windows` passed the former Linux-filtered architecture predicate and failed
+the exact-child assertion. An index pushed with different bytes would fail the
+immutable digest lookup before any digest is recorded.
+
+I used `docker push`'s digest line for each platform manifest. In the local
+test, `docker image inspect`'s `RepoDigests` still named the source index after
+pushing its loaded amd64 child; that value did not name the manifest just
+pushed. Parsing the push result and checking its digest shape avoids that
+stale local metadata.
 
 I also saved an arm64 image to a tarball, removed its local tag, and loaded the
 tarball on an amd64 Docker daemon. Its image Id and `arm64` architecture were
@@ -61,10 +77,24 @@ unscanned bytes reach the registry. The two native legs run concurrently, but
 each consumes runner time, cache storage, and an image artifact. Build timings
 from this branch are recorded below.
 
-The per-architecture `:sha-<commit>-<arch>` tags remain in GHCR. The index
-references their manifests; keeping tags avoids relying on retention of
-untagged manifests. These tags are registry implementation details. Operators
-use the attested index reference from `image.json`.
+Each platform manifest has a durable tag containing its full manifest digest,
+`:sha-<commit>-<arch>-<manifest-hex>`. The workflow creates it from the pushed
+digest, so a repair build of the same commit creates a new tag if its bytes
+change. These tags protect released index children from untagged-manifest
+cleanup. The plain `:sha-<commit>-<arch>` tags are convenience names used for
+the initial push. They can move on a repair and do not protect retention. The
+index uses digest references, not either tag. Operators use the attested index
+reference from `image.json`.
+
+Both matrix legs must pass before `publish` runs: `needs: image` causes this
+coupling even without `fail-fast`. An arm64 failure can leave a merge without a
+`:sha-<commit>` image, where the former amd64-only pipeline might have
+published one. `fail-fast: true` also cancels an unfinished sibling after a
+failure; runner shortage delays publication. Publishing a half-architecture
+index would break the promised platform set, so the release stays blocked.
+For a transient failure, dispatch CI from `main` for that exact commit after
+the problem clears. A real pinned-image CVE needs a fix commit; rebuilding the
+same source cannot clear it.
 
 The workflow attests the index digest once. Docker selects a platform child
 when pulling, so the child's digest differs from the attestation subject.
