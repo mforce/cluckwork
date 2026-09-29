@@ -41,8 +41,16 @@ The index digest was
 `sha256:10b8bde9d6f8f815ee07a096ff0654a0147187d54c4006e57f3302e2967fa812`.
 Retagging that digest with both the default `imagetools create` setting and
 `--prefer-index=false` returned the same digest. The existing flag remains for
-older single-manifest releases, where it prevents an extra index wrapper. The
+older single-manifest releases. In the same registry, the default changed a
+single manifest's digest from `sha256:b7f3d86d6e84fc17718c48bcde1450807faa2d56704205c697b4bd5df7b9e29f`
+to `sha256:25ffb45ca14c6c27357848f581af91665a7b953ebe5a5a9f41edfe12306ddfe2`,
+while `--prefer-index=false` preserved the source digest. The
 post-retag digest comparison remains the release gate.
+
+I also saved an arm64 image to a tarball, removed its local tag, and loaded the
+tarball on an amd64 Docker daemon. Its image Id and `arm64` architecture were
+unchanged. Pushing that loaded image to the local registry produced the same
+arm64 manifest digest.
 
 ## Alternatives and accepted costs
 
@@ -60,10 +68,10 @@ use the attested index reference from `image.json`.
 
 The workflow attests the index digest once. Docker selects a platform child
 when pulling, so the child's digest differs from the attestation subject.
-With `gh` 2.101.0, I verified a public index-only attestation by its index
-digest (`sha256:96b80ae141000adde27cf3dedb27935b5f5d0085d69025cffb4bbb63276d5929`):
-`gh attestation verify --bundle-from-oci` exited 0. The same command against
-its amd64 child
+With `gh` 2.101.0, I ran `gh attestation verify` with `--repo soit-ai/soit`
+and `--bundle-from-oci` against the public index-only attestation at
+`oci://ghcr.io/soit-ai/soit/server@sha256:96b80ae141000adde27cf3dedb27935b5f5d0085d69025cffb4bbb63276d5929`.
+It exited 0. The same command against its amd64 child
 (`sha256:84e7f539421515654b83f1d2c8fe00eaa3f291bc86a476d93e35e52409c1d32f`)
 exited 1 with `no attestations found in the OCI registry`. This tests the CLI's
 digest-specific behavior on the same attestation shape the new workflow uses.
@@ -77,5 +85,14 @@ runtime remains the full glibc image with tzdata and ICU (#264, #267).
 
 ## Build time
 
-Measurements from the branch's native CI runs will be added after the first
-amd64 and arm64 jobs complete.
+The `Build runtime image` step includes the build and local cache rotation.
+The [cold run](https://github.com/mforce/cluckwork/actions/runs/36510334345) used
+`--no-cache` on both native runners. The
+[warm run](https://github.com/mforce/cluckwork/actions/runs/36510573616) removed
+that temporary flag and restored the previous run's architecture-specific
+cache through the shared dependency-hash prefix. All four builds passed.
+
+| Runner | Cold | Warm |
+| --- | ---: | ---: |
+| amd64 | 63 s | 33 s |
+| arm64 | 66 s | 32 s |
