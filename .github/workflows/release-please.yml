@@ -418,14 +418,10 @@ jobs:
           # Server-side retag: adds a name to an EXISTING manifest. Nothing is
           # pulled and nothing is rebuilt.
           #
-          # `--prefer-index=false` is load-bearing, not a tidy-up. It defaults to
-          # TRUE, and with a single source that is not already a list the default
-          # wraps the manifest in a NEW image index — which has a different
-          # top-level digest. The whole point here is that the version tag
-          # resolves to the digest CI scanned, so the carbon copy is the only
-          # correct behaviour. (`docker buildx imagetools create --help`:
-          # "prefer outputting an image index or manifest list instead of
-          # performing a carbon copy (default true)".)
+          # CI now supplies an index (#995). A local registry test found that
+          # both settings copy an index source with the same digest. Keep
+          # `--prefer-index=false` for older single-manifest releases: the
+          # default wraps one of those in a new index and changes its digest.
           docker buildx imagetools create --prefer-index=false \
             --tag "$image:$TAG" "$image@$digest"
 

@@ -18,10 +18,11 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   imagetools create`), never a rebuild. **Do not "simplify" it into a build step**:
   a second `docker build` yields different bytes and a different digest, so the
   image carrying a version would be one no scan or smoke test ever examined. That
-  is the whole point of #351. **`--prefer-index=false` is load-bearing** — that flag
-  defaults to *true*, and with a single source the default wraps the manifest in a
-  new image index with a **different top-level digest**, which silently defeats the
-  guarantee. Do not drop it.
+  is the whole point of #351. **Keep `--prefer-index=false` for older
+  single-manifest releases.** With one manifest source, the default wraps it in a
+  new index with a different top-level digest. Since #995, CI publishes an index;
+  a local registry test found that either setting copies an index source with
+  the same digest. The post-retag digest comparison remains mandatory.
 - **The release stays a draft until its image is promoted**, and GitHub withholds
   the git tag for a draft. So a failed promotion leaves no tag and no public
   release, instead of a version pointing at nothing. Publishing (`--draft=false`)
