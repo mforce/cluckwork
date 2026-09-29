@@ -762,7 +762,9 @@ jobs:
   # dependency on `image` waits for both native architecture legs (#995).
   publish:
     name: Publish the commit image
-    runs-on: ubuntu-latest
+    # Pin the publisher's OS: the push-output digest parser and dry-run index
+    # hashing depend on its Docker and buildx versions. ubuntu-latest can move.
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [tests, build-and-test, web, image]
     if: |

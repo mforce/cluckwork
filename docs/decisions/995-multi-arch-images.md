@@ -23,6 +23,9 @@ contains exactly those two children. It computes the index digest locally from
 `imagetools create --dry-run` and verifies the pushed index by that immutable
 reference before recording and attesting it.
 `release-please.yml` retags that digest to the version without rebuilding.
+The separate `publish` job is pinned to `ubuntu-26.04`: its Docker push output
+supplies both child digests, and its buildx dry-run JSON supplies the index
+digest. Those tool versions are part of the publication check.
 
 The amd64 cache prefix remains `image-layers-`, which matches
 `e2e-smoke.yml`. The arm64 prefix is `arm64-image-layers-`. It must not start
@@ -60,7 +63,12 @@ digest references still passed. Adding a third child with `platform.os` set to
 the exact-child assertion. An index pushed with different bytes would fail the
 immutable digest lookup before any digest is recorded.
 
-I used `docker push`'s digest line for each platform manifest. Docker 29.4.2
+The [current Ubuntu 26.04 runner image](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Readme.md)
+lists Docker client/server 29.4.2 and buildx 0.37.1; `publish` is the job
+whose tool versions matter for these digest operations. The OS label still
+receives image updates, so the immutable-digest lookup remains a fail-closed
+check if buildx output changes. I used `docker push`'s digest line for each
+platform manifest; Docker 29.4.2
 emits `tag: digest: <digest> size: <bytes>` from both its
 [containerd image store](https://github.com/moby/moby/blob/docker-v29.4.2/daemon/containerd/image_push.go#L138)
 and [legacy store](https://github.com/moby/moby/blob/docker-v29.4.2/daemon/internal/distribution/push_v2.go#L207).
@@ -132,9 +140,12 @@ On Ubuntu 26.04, same-commit reruns restored exact cache keys and BuildKit
 marked all build layers cached: [amd64](https://github.com/mforce/cluckwork/actions/runs/36610454419/attempts/3)
 and [arm64](https://github.com/mforce/cluckwork/actions/runs/36610454419/attempts/2).
 The first 26.04 run rebuilt the API layer, so the reruns are the comparable
-warm measurement. No cache-cold 26.04 build was measured. The amd64 warm
-step increased from 33 to 57 seconds; these runs do not isolate the runner OS
-as the cause.
+warm measurement. No cache-cold 26.04 build was measured. One further
+same-commit rerun of each leg took [35 seconds on amd64](https://github.com/mforce/cluckwork/actions/runs/36612407360/attempts/2)
+and [34 seconds on arm64](https://github.com/mforce/cluckwork/actions/runs/36612407360/attempts/3),
+with exact cache hits. The amd64 57-second sample did not repeat. These
+measurements show run-to-run variation and do not isolate the runner OS as a
+cause.
 
 | Runner image | Architecture | Cold | Warm |
 | --- | --- | ---: | ---: |
