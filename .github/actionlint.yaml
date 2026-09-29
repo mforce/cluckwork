@@ -1,0 +1,10 @@
+self-hosted-runner:
+  # actionlint v1.7.12's bundled runner-label list predates the ubuntu-26.04
+  # GA (2026-09-17, actions/runner-images#14747); these are GitHub-hosted
+  # labels, not self-hosted runners, but this is the field actionlint uses to
+  # extend its known-label set. Drop the arm entry once #996 lands it for
+  # real, and drop this whole file once a released actionlint knows the
+  # label natively (rhysd/actionlint#682).
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm

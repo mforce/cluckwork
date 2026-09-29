@@ -37,7 +37,7 @@ concurrency:
 jobs:
   compute:
     name: Regenerate lock files (no credentials)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Provenance gate. Requires BOTH actor and triggering_actor to be Dependabot
     # (a re-run keeps actor but changes triggering_actor), run_attempt == 1, the
     # nuget branch prefix, and a numeric repo-id match (never a fork).
@@ -99,7 +99,7 @@ jobs:
   commit:
     name: Commit and push the refreshed locks
     needs: compute
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
