@@ -2,10 +2,9 @@ self-hosted-runner:
   # actionlint v1.7.12's bundled runner-label list predates the ubuntu-26.04
   # GA (2026-09-17, actions/runner-images#14747); these are GitHub-hosted
   # labels, not self-hosted runners, but this is the field actionlint uses to
-  # extend its known-label set. ubuntu-26.04-arm has no caller in this repo
-  # yet, but keep it: #996 is expected to add one, and removing it before a
-  # released actionlint knows the label natively would just reopen the same
-  # unknown-label error it lands to fix. Drop this whole file once that
+  # extend its known-label set. The arm64 image leg in ci.yml now uses
+  # ubuntu-26.04-arm. Keep both entries until a released actionlint knows
+  # these labels natively. Drop this whole file once that
   # happens (rhysd/actionlint#682).
   labels:
     - ubuntu-26.04

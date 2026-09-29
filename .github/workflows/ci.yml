@@ -479,9 +479,8 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     strategy:
       fail-fast: true
-      # Both native image legs must use the same pinned runner OS. This job is
-      # the exception to our ubuntu-latest jobs: a latest-label move would
-      # change one build environment without changing the other.
+      # Both native image legs must use the same pinned runner OS. A floating
+      # label on either leg could change one build host without the other.
       matrix:
         include:
           - arch: amd64
@@ -763,7 +762,8 @@ jobs:
   publish:
     name: Publish the commit image
     # Pin the publisher's OS: the push-output digest parser and dry-run index
-    # hashing depend on its Docker and buildx versions. ubuntu-latest can move.
+    # hashing depend on its Docker and buildx versions. A floating label can
+    # change both without a workflow edit.
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [tests, build-and-test, web, image]
