@@ -1,6 +1,6 @@
 # Cluckwork
 
-Poultry farm management — starting with egg-producing layer operations, with
+Poultry farm management, starting with egg-producing layer operations. It has
 architectural headroom for broilers, pullets, breeders, live bird sales, meat
 products, and hatchery modules.
 
@@ -29,7 +29,8 @@ shows the sellable target and whether the graded count balances.
 - **Frontend:** React 19 + Vite (TypeScript), served by the API in production
 
 The API and the built SPA ship as a **single container**: one origin serves both
-the SPA and the JSON API — no CORS, no version skew between a bundle and its API.
+the SPA and the JSON API. No CORS, and no version skew between a bundle and
+its API.
 
 ## Run it
 
@@ -60,8 +61,8 @@ cp deploy/.env.example deploy/.env
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-The app comes up on **http://localhost:8080**. Base data — the default account,
-roles, default egg grades — ships inside the EF migrations, so it is already
+The app comes up on **http://localhost:8080**. Base data (the default account,
+roles, default egg grades) ships inside the EF migrations, so it is already
 there. **No credential is ever baked into the repo**, so there is no admin user
 yet:
 
@@ -78,18 +79,18 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 
 | Path | What |
 |---|---|
-| [`src/`](src/) | .NET solution — `Domain` (no deps) → `Application` → `Infrastructure` / `Api` |
+| [`src/`](src/) | .NET solution: `Domain` (no deps) → `Application` → `Infrastructure` / `Api` |
 | [`web/`](web/) | React + Vite SPA ([`web/README.md`](web/README.md)) |
 | [`tests/`](tests/) | Domain, application, and API integration tests (Testcontainers) |
 | [`deploy/`](deploy/) | Compose stacks, Traefik, `.env.example` ([`deploy/README.md`](deploy/README.md)) |
 | [`specs/`](specs/) | Product & technical spec, wireframes, phase plan |
 | [`tools/`](tools/) | Simulation, k6 load, Playwright E2E, schema-doc generation |
-| [`docs/`](docs/) | Runbooks, decision records, generated schema docs — [map](docs/README.md) |
+| [`docs/`](docs/) | Runbooks, decision records, generated schema docs ([map](docs/README.md)) |
 
 | Document | For |
 |---|---|
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Local development, tests, branches, commit messages |
-| [`AGENTS.md`](AGENTS.md) | The canonical rule set — every invariant, for humans and coding agents |
+| [`AGENTS.md`](AGENTS.md) | The canonical rule set: every invariant, for humans and coding agents |
 | [`SECURITY.md`](SECURITY.md) | Reporting a vulnerability; what CI enforces |
 | [`docs/releasing.md`](docs/releasing.md) | Cutting a release; deploying by digest |
 | [`docs/architecture.md`](docs/architecture.md) | The request pipeline and the egg-loop state machine, drawn |
@@ -130,20 +131,20 @@ Flock classification is extensible: `species` (chicken, duck, quail…),
 `production_purpose` (layer, broiler, pullet, breeder…), and `production_model`
 (egg, meat, raising, breeding, mixed).
 
-Dependencies point inward — `Api` → `Application`/`Infrastructure` → `Domain`,
+Dependencies point inward: `Api` → `Application`/`Infrastructure` → `Domain`,
 and `Domain` depends on nothing. Tenant isolation is enforced in the data layer
 (EF global query filters plus an insert-time tenant stamp), never by remembering
 to add a `WHERE` clause.
 
-The database as actually built — every column, constraint and index — is
+The database as actually built (every column, constraint and index) is
 generated into [`docs/schema/`](docs/schema/) on every migration.
 
 ## Specs & roadmap
 
-The canonical product and technical specification — data model, business rules,
-transaction boundaries, KPI formulas, and the **phase plan (Phase 1.0 MVP through
-Phase 5)** — is [`specs/product/specs.md`](specs/product/specs.md). New to the
-domain? Start with the [glossary](specs/product/GLOSSARY.md).
+[`specs/product/specs.md`](specs/product/specs.md) is the canonical product and
+technical specification. It covers the data model, business rules, transaction
+boundaries, KPI formulas, and the **phase plan (Phase 1.0 MVP through Phase 5)**.
+New to the domain? Start with the [glossary](specs/product/GLOSSARY.md).
 
 Phase 1.0 (MVP) and Phase 1.1 (operational fill) are shipped; **Phase 1.5** is
 current. Work is tracked as GitHub issues (epics + slices).
@@ -155,7 +156,7 @@ coding agents and for the full rule set behind both.
 
 ## License
 
-[MIT](LICENSE) — commercial use allowed; keep the copyright notice with any copy
+[MIT](LICENSE). Commercial use allowed; keep the copyright notice with any copy
 you pass on.
 
 If Cluckwork helps your farm or your product, a link back to this repository is
