@@ -465,8 +465,8 @@ jobs:
   # tree (NuGet/npm); this scores the assembled image — the OS packages of the
   # base image plus the published binaries — which nothing else covers.
   image:
-    name: Image build + Trivy scan
-    runs-on: ubuntu-latest
+    name: Image build + Trivy scan (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     needs: [changes]
     # #782 — skipped only when the pull request changed nothing but documentation.
@@ -477,10 +477,16 @@ jobs:
     # main would skip `publish` with it. Do not "simplify" either half; together
     # they are the difference between fail-closed and fail-open.
     if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
-    outputs:
-      # Local image Id of the scanned image, so the publish job can verify the
-      # artifact handoff carried exactly these bytes (#351).
-      image_id: ${{ steps.export.outputs.image_id }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            cache_prefix: image-layers-
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            cache_prefix: image-layers-arm64-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -497,15 +503,16 @@ jobs:
       # Per-commit keys make the second job of a commit a full hit; the
       # restore-keys ladder gives a fresh commit the newest same-dependency
       # cache (base images + restore layers + unchanged source layers), then
-      # anything.
+      # anything. The amd64 prefix matches e2e-smoke.yml byte for byte; arm64
+      # has a separate prefix so neither runner restores the other's layers.
       - name: Restore image layer cache
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
+          key: ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
-            image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-
-            image-layers-
+            ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-
+            ${{ matrix.cache_prefix }}
 
       # Build the exact image the container ships: the multi-stage Dockerfile
       # compiles the SPA, publishes the API, and runs as the non-root `app` user
@@ -519,6 +526,7 @@ jobs:
           set -euo pipefail
           docker buildx create --driver docker-container --name ci-builder --use
           docker buildx build \
+            --no-cache \
             --cache-from type=local,src=/tmp/.buildx-cache \
             --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
             --load -f src/Cluckwork.Api/Dockerfile -t cluckwork-api:ci .
@@ -529,8 +537,10 @@ jobs:
       # exact-pinned PackageVersion WITHOUT refreshing its lock and assert the
       # build fails (NU1004). `--target build` stops at the restore/publish stage
       # (skips the SPA/web stage), so this is a fast negative check on a throwaway
-      # copy of the committed tree — the real build above is untouched.
+      # copy of the committed tree — the real build above is untouched. The
+      # lock-file verdict is identical on both architectures, so run it once.
       - name: Stale lock fails the Docker restore (--locked-mode drift guard)
+        if: matrix.arch == 'amd64'
         run: |
           set -euo pipefail
           work="$(mktemp -d)"
@@ -706,15 +716,14 @@ jobs:
       #
       # Only on a merge into main, so PR runs pay none of this.
       - name: Export the verified image for publishing
-        id: export
         if: |
           (github.event_name == 'push' && github.ref == 'refs/heads/main')
           || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
-          docker save cluckwork-api:ci | gzip > image.tar.gz
-          printf 'image_id=%s\n' \
-            "$(docker image inspect -f '{{.Id}}' cluckwork-api:ci)" >> "$GITHUB_OUTPUT"
+          docker tag cluckwork-api:ci "cluckwork-api:ci-${{ matrix.arch }}"
+          docker save "cluckwork-api:ci-${{ matrix.arch }}" | gzip > "image-${{ matrix.arch }}.tar.gz"
+          docker image inspect -f '{{.Id}}' cluckwork-api:ci > "image-${{ matrix.arch }}.id"
 
       - name: Upload the verified image
         if: |
@@ -722,8 +731,10 @@ jobs:
           || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
-          name: runtime-image
-          path: image.tar.gz
+          name: runtime-image-${{ matrix.arch }}
+          path: |
+            image-${{ matrix.arch }}.tar.gz
+            image-${{ matrix.arch }}.id
           # Already gzipped — re-zipping it would burn a minute for nothing.
           compression-level: 0
           # Purely an intra-run handoff; the registry is the durable copy.
@@ -744,7 +755,8 @@ jobs:
   # and per #351 a job that should gate a release belongs in this `needs`, because
   # this list is exactly what the digest artifact proves. Naming the matrix job
   # once covers all of its legs: `needs` is satisfied only when every leg
-  # succeeded, and a leg cancelled by `fail-fast` is not a success.
+  # succeeded, and a leg cancelled by `fail-fast` is not a success. The same
+  # dependency on `image` waits for both native architecture legs (#995).
   publish:
     name: Publish the commit image
     runs-on: ubuntu-latest
@@ -796,27 +808,30 @@ jobs:
 
           printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
 
-      - name: Download the verified image
+      - name: Download the verified images
         uses: actions/download-artifact@v8
         with:
-          name: runtime-image
+          pattern: runtime-image-*
+          merge-multiple: true
 
       # Assert the loaded bytes are the SCANNED bytes, by local image Id.
       # Artifact substitution is not reachable today (artifacts are run-scoped,
       # only one step uploads that name, `overwrite` is unset) — but the whole
       # promise here is "what shipped is what CI gated", and a promise resting on
       # an argument rather than a check is the one that quietly stops being true.
-      - name: Load and verify the image
-        env:
-          EXPECTED_ID: ${{ needs.image.outputs.image_id }}
+      - name: Load and verify the images
         run: |
           set -euo pipefail
-          gunzip -c image.tar.gz | docker load
-          loaded="$(docker image inspect -f '{{.Id}}' cluckwork-api:ci)"
-          if [ -z "$EXPECTED_ID" ] || [ "$loaded" != "$EXPECTED_ID" ]; then
-            echo "::error::loaded image ${loaded} is not the scanned image ${EXPECTED_ID:-(unset)}"
-            exit 1
-          fi
+          for arch in amd64 arm64; do
+            expected="$(cat "image-$arch.id")"
+            gunzip -c "image-$arch.tar.gz" | docker load
+            loaded="$(docker image inspect -f '{{.Id}}' "cluckwork-api:ci-$arch")"
+            platform="$(docker image inspect -f '{{.Architecture}}' "cluckwork-api:ci-$arch")"
+            if [ -z "$expected" ] || [ "$loaded" != "$expected" ] || [ "$platform" != "$arch" ]; then
+              echo "::error::loaded $arch image does not match its scanned image Id or architecture"
+              exit 1
+            fi
+          done
 
       # `x-access-token` rather than `${{ github.actor }}`: GHCR authenticates
       # the token, not the username, so interpolating run-triggered metadata into
@@ -835,29 +850,30 @@ jobs:
           # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
 
-          # Named by commit, so this can only ever be rewritten by a re-run of
-          # this same commit — with bytes that passed the same gates. There is
-          # no version tag to collide over and nothing to overwrite.
-          docker tag cluckwork-api:ci "$image:sha-$SHA"
-          docker push "$image:sha-$SHA"
+          # Keep the architecture tags. The index refers to their manifests,
+          # and GHCR cleanup must not collect those manifests as untagged.
+          for arch in amd64 arm64; do
+            docker tag "cluckwork-api:ci-$arch" "$image:sha-$SHA-$arch"
+            docker push "$image:sha-$SHA-$arch"
+          done
+          docker buildx imagetools create --tag "$image:sha-$SHA" \
+            "$image:sha-$SHA-amd64" "$image:sha-$SHA-arm64"
 
-          # The MANIFEST digest — what `image@sha256:...` resolves to — exists
-          # only once the image is in a registry; before the push RepoDigests is
-          # empty. (The local image Id is a different hash: the config blob.)
-          #
-          # `|| true` inside the substitution: a non-matching grep exits 1, and
-          # under `pipefail` that status would kill the script at the assignment,
-          # before the -z branch below could report anything useful.
-          # Filter to THIS repository's entry rather than taking the first line:
-          # RepoDigests holds one entry per repository the image has been pushed
-          # to, so a bare `head -1` would be picking arbitrarily if that ever
-          # became more than one.
-          digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:sha-$SHA" \
-            | grep -F "$image@" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)"
-          if [ -z "$digest" ]; then
-            echo "::error::no manifest digest after push — refusing to report an unpinnable image"
+          # Record the index digest, which the release workflow promotes and
+          # which the provenance attestation names.
+          digest="$(docker buildx imagetools inspect "$image:sha-$SHA" \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          if ! printf '%s' "$digest" | grep -qE '^sha256:[0-9a-f]{64}$'; then
+            echo "::error::no index digest after push"
             exit 1
           fi
+          docker buildx imagetools inspect "$image:sha-$SHA" --raw | jq -e '
+            .mediaType | endswith("image.index.v1+json") or endswith("manifest.list.v2+json")
+          ' >/dev/null
+          docker buildx imagetools inspect "$image:sha-$SHA" --raw | jq -e '
+            [.manifests[] | select(.platform.os == "linux") | .platform.architecture] |
+            sort == ["amd64", "arm64"]
+          ' >/dev/null
 
           printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"

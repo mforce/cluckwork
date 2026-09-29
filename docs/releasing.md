@@ -11,8 +11,9 @@ those become a version.**
 
 ## 1. Merging a PR into `main`
 
-CI builds the image, scans it for vulnerabilities, boots it against a throwaway
-database — and if all of that passes, publishes it under the commit it came from:
+CI builds amd64 and arm64 images on native runners. Each build passes Trivy and
+boots against a throwaway database before CI publishes one two-platform index
+under the commit it came from:
 
 ```
 ghcr.io/mforce/cluckwork:sha-<commit>
@@ -32,7 +33,7 @@ release and creates the tag:
 
 ```
 ghcr.io/mforce/cluckwork:v0.4.0          # same image, now with a version
-ghcr.io/mforce/cluckwork@sha256:…        # the digest — what you deploy
+ghcr.io/mforce/cluckwork@sha256:…        # the index digest — what you deploy
 ```
 
 Promotion adds a name to an image that already exists in the registry. Nothing is
@@ -72,7 +73,12 @@ commit from the changelog — are in
 
 ## Deploying
 
-**Deploy by digest, never by tag.** Tags can be moved; a digest cannot.
+**Deploy by the index digest, never by tag.** Tags can be moved; a digest cannot.
+Docker selects the amd64 or arm64 manifest from that index on the target host.
+The image attestation names the index digest, so pass the release's full index
+reference to `gh attestation verify`, even when deploying on arm64. A platform
+manifest digest identifies only one child and is not the subject this workflow
+attests.
 
 Two steps, answering two different questions — *which* image, and whether it is
 really ours:
@@ -83,7 +89,7 @@ really ours:
 #    the token and ignores the username, so any username value works.
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
-# 1. Obtain the digest (machine-readable; no prose to parse)
+# 1. Obtain the index digest (machine-readable; no prose to parse)
 gh release download vX.Y.Z -p image.json -R mforce/cluckwork
 REF=$(jq -r .reference image.json)
 
