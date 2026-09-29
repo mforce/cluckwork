@@ -123,15 +123,22 @@ runtime remains the full glibc image with tzdata and ICU (#264, #267).
 ## Build time
 
 The `Build runtime image` step includes the build and local cache rotation.
-The original measurements used Ubuntu 24.04 on both architectures; the
-workflow now pins both legs to Ubuntu 26.04.
-The [cold run](https://github.com/mforce/cluckwork/actions/runs/36510334345) used
+The [Ubuntu 24.04 cold run](https://github.com/mforce/cluckwork/actions/runs/36510334345) used
 `--no-cache` on both native runners. The
-[warm run](https://github.com/mforce/cluckwork/actions/runs/36510573616) removed
+[Ubuntu 24.04 warm run](https://github.com/mforce/cluckwork/actions/runs/36510573616) removed
 that temporary flag and restored the previous run's architecture-specific
 cache through the shared dependency-hash prefix. All four builds passed.
+On Ubuntu 26.04, same-commit reruns restored exact cache keys and BuildKit
+marked all build layers cached: [amd64](https://github.com/mforce/cluckwork/actions/runs/36610454419/attempts/3)
+and [arm64](https://github.com/mforce/cluckwork/actions/runs/36610454419/attempts/2).
+The first 26.04 run rebuilt the API layer, so the reruns are the comparable
+warm measurement. No cache-cold 26.04 build was measured. The amd64 warm
+step increased from 33 to 57 seconds; these runs do not isolate the runner OS
+as the cause.
 
 | Runner image | Architecture | Cold | Warm |
 | --- | --- | ---: | ---: |
 | Ubuntu 24.04 | amd64 | 63 s | 33 s |
 | Ubuntu 24.04 Arm64 | arm64 | 66 s | 32 s |
+| Ubuntu 26.04 | amd64 | — | 57 s |
+| Ubuntu 26.04 Arm64 | arm64 | — | 28 s |
