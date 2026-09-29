@@ -4,6 +4,14 @@ using Cluckwork.Domain.Sales;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
+internal static class CommerceBusinessRecords
+{
+    public static readonly BusinessRecordContribution Contribution = new(
+        "Commerce",
+        [typeof(SalesOrder), typeof(SalesOrderItem), typeof(Payment)],
+        []);
+}
+
 public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrder>
 {
     public void Configure(EntityTypeBuilder<SalesOrder> builder)

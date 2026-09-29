@@ -4,6 +4,14 @@ using Cluckwork.Domain.Expenses;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
+internal static class FinanceBusinessRecords
+{
+    public static readonly BusinessRecordContribution Contribution = new(
+        "Finance",
+        [typeof(Expense)],
+        []);
+}
+
 public sealed class ExpenseCategoryConfiguration : IEntityTypeConfiguration<ExpenseCategory>
 {
     public void Configure(EntityTypeBuilder<ExpenseCategory> builder)

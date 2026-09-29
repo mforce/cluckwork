@@ -4,6 +4,14 @@ using Cluckwork.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
+internal static class GeneralInventoryBusinessRecords
+{
+    public static readonly BusinessRecordContribution Contribution = new(
+        "GeneralInventory",
+        [typeof(InventoryLot), typeof(FeedUsage), typeof(WaterUsage), typeof(InventoryMovement)],
+        []);
+}
+
 public sealed class InventoryItemConfiguration : IEntityTypeConfiguration<InventoryItem>
 {
     public void Configure(EntityTypeBuilder<InventoryItem> builder)
