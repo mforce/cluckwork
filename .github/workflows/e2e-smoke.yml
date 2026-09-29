@@ -105,7 +105,7 @@ concurrency:
 jobs:
   e2e:
     name: Playwright smoke over the simulation fixture (${{ matrix.shard }}/${{ strategy.job-total }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # A red shard says nothing about the other two, and cancelling them buys
     # back a couple of minutes at the cost of a full re-run to learn what else
     # is red, so every shard reports.

@@ -62,7 +62,7 @@ env:
 jobs:
   baseline:
     name: k6 baseline over the simulation fixture
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # codex review, PR #432: sized for tools/simulation/README.md's own
     # documented "real run" example — REPS=3 (the default, if `reps` is left
     # blank), CAPACITY_DURATION=40m — not for the short dev-cycle durations

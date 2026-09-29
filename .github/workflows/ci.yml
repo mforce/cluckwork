@@ -79,7 +79,7 @@ jobs:
   # avoid. A red run here is a red PR, which is the whole job.
   classifier-self-test:
     name: Test the changed-path classifier
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Check out repository
@@ -90,7 +90,7 @@ jobs:
 
   changes:
     name: Classify the changed paths
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     # THIS JOB MUST NEVER REPORT A FAILURE, and `continue-on-error` is how that is
     # guaranteed rather than hoped for. `web` and `image` are ancestors of
@@ -174,7 +174,7 @@ jobs:
   # Infrastructure. Measured cold: Domain 5s, Application 10s, AppHost 5.5s.
   tests:
     name: Tests (${{ matrix.group }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: true
@@ -228,7 +228,7 @@ jobs:
   # load-bearing on a markdown-only change.
   build-and-test:
     name: Build, audit and schema docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
 
     steps:
@@ -282,7 +282,7 @@ jobs:
 
   web:
     name: Web typecheck, test, and build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [changes]
     # #782 — skipped only when the pull request changed nothing but documentation.
     # `!= 'true'` and not `== 'false'` is load-bearing: if `changes` fails, its
@@ -405,7 +405,7 @@ jobs:
   # scoring the DIFF, so a newly introduced bad dep is named in the PR itself.
   dependency-review:
     name: Dependency review
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: github.event_name == 'pull_request'
     steps:
       - name: Check out repository

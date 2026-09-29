@@ -61,7 +61,7 @@ jobs:
     name: Cut the release
     # On a dispatch there is nothing to cut — go straight to promotion.
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     # Scoped to THIS job only: every write it performs goes through the App
     # token minted below, so its GITHUB_TOKEN keeps read. The `promote` job
@@ -190,7 +190,7 @@ jobs:
         needs.release-please.outputs.release_created == 'true'
         || github.event_name == 'workflow_dispatch'
       )
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Headroom over the wait loop below (up to 40 min) plus the retag and the
     # release edit — so a slow-but-successful CI is not killed by the job timeout
     # just as its digest appears.
@@ -602,7 +602,7 @@ jobs:
       always() && !cancelled()
       && needs.release-please.result == 'success'
       && needs.promote.result != 'failure'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     # Same posture as the cut job: every write goes through the App token, so
     # GITHUB_TOKEN stays read.
