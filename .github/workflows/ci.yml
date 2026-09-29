@@ -526,7 +526,6 @@ jobs:
           set -euo pipefail
           docker buildx create --driver docker-container --name ci-builder --use
           docker buildx build \
-            --no-cache \
             --cache-from type=local,src=/tmp/.buildx-cache \
             --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
             --load -f src/Cluckwork.Api/Dockerfile -t cluckwork-api:ci .
