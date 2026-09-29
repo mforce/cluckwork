@@ -10,8 +10,9 @@
 
 ## Decision
 
-Run `image` as a two-leg matrix on native amd64 and arm64 GitHub runners. Each
-leg builds one local image, scans those bytes with Trivy, and boots the app on
+Run `image` as a two-leg matrix on native `ubuntu-26.04` and
+`ubuntu-26.04-arm` GitHub runners. Each leg builds one local image, scans those
+bytes with Trivy, and boots the app on
 its native runner until `/health/ready` and the image's health check pass.
 The smoke test's existing database image already supports both runners. Each
 leg saves its image and local image Id in a distinct artifact. `publish` loads
@@ -34,8 +35,10 @@ every successful matrix leg before satisfying `publish.needs: image`.
 
 ## Evidence
 
-GitHub [documents `ubuntu-24.04-arm`](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
-as an arm64 runner for public repositories. Its [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+GitHub [made both Ubuntu 26.04 runner labels generally available](https://github.com/actions/runner-images/issues/14747)
+in September 2026. It [plans to move `ubuntu-latest` to 26.04](https://github.com/actions/runner-images/issues/14748)
+in November 2026. Pinning both legs prevents that alias move from changing
+only amd64's build host. GitHub's [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
 says a dependent job waits for every matrix leg and warns
 that colliding matrix outputs have no guaranteed winner. The image Id therefore
 travels inside each leg's artifact, beside the image it identifies.
@@ -57,11 +60,15 @@ digest references still passed. Adding a third child with `platform.os` set to
 the exact-child assertion. An index pushed with different bytes would fail the
 immutable digest lookup before any digest is recorded.
 
-I used `docker push`'s digest line for each platform manifest. In the local
-test, `docker image inspect`'s `RepoDigests` still named the source index after
-pushing its loaded amd64 child; that value did not name the manifest just
-pushed. Parsing the push result and checking its digest shape avoids that
-stale local metadata.
+I used `docker push`'s digest line for each platform manifest. Docker 29.4.2
+emits `tag: digest: <digest> size: <bytes>` from both its
+[containerd image store](https://github.com/moby/moby/blob/docker-v29.4.2/daemon/containerd/image_push.go#L138)
+and [legacy store](https://github.com/moby/moby/blob/docker-v29.4.2/daemon/internal/distribution/push_v2.go#L207).
+On a local Docker 29.8.1 client and daemon using the containerd store, I pushed
+an amd64 image to `registry:2`; the workflow's anchored parser extracted the
+pushed manifest digest. The CLI also printed a multi-platform notice after the
+digest line. `docker image inspect`'s `RepoDigests` still named the source
+index, so local image inspection would have supplied the wrong child digest.
 
 I also saved an arm64 image to a tarball, removed its local tag, and loaded the
 tarball on an amd64 Docker daemon. Its image Id and `arm64` architecture were
@@ -116,13 +123,15 @@ runtime remains the full glibc image with tzdata and ICU (#264, #267).
 ## Build time
 
 The `Build runtime image` step includes the build and local cache rotation.
+The original measurements used Ubuntu 24.04 on both architectures; the
+workflow now pins both legs to Ubuntu 26.04.
 The [cold run](https://github.com/mforce/cluckwork/actions/runs/36510334345) used
 `--no-cache` on both native runners. The
 [warm run](https://github.com/mforce/cluckwork/actions/runs/36510573616) removed
 that temporary flag and restored the previous run's architecture-specific
 cache through the shared dependency-hash prefix. All four builds passed.
 
-| Runner | Cold | Warm |
-| --- | ---: | ---: |
-| amd64 | 63 s | 33 s |
-| arm64 | 66 s | 32 s |
+| Runner image | Architecture | Cold | Warm |
+| --- | --- | ---: | ---: |
+| Ubuntu 24.04 | amd64 | 63 s | 33 s |
+| Ubuntu 24.04 Arm64 | arm64 | 66 s | 32 s |
