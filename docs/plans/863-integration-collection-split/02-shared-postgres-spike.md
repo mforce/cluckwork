@@ -50,6 +50,17 @@ The separate spike moved the farm-clock fact into its own class and factory. Bot
 
 All twelve full runs passed 1,873 tests. In every run the shared collection was the last substantive test work; its end was within a second of the process wall. With A, the unsplit `DemoSeedTests` finished at 204.7–206.7 seconds. With A+B, the two split classes both finished by 204 seconds. The split shortened that class queue a little, but the shared collection still ran until 347–352 seconds. A+B's median was 6.8 seconds **slower** than A's. The B-only median was 1.3 seconds faster than base, far inside its 24.9-second spread. These observations do not support a wall-clock saving from B on this host.
 
+## S5: CI replication
+
+The earlier [#1000 measurement](01-measurement.md#d7-repair-and-post-repair-measurement) recorded four integration `Test` steps on unchanged test code. I ran the integration job three times on this PR's code commit, [run 36683785345](https://github.com/mforce/cluckwork/actions/runs/36683785345), attempts 1–3. Every attempt passed 1,873 tests and created 11 containers. The jobs used the current Ubuntu 26.04 runner image. Step timestamps are rounded to seconds; VSTest reports its own interval.
+
+| Code | CI `Test` step times, s | Median, s | Range, s | VSTest times, s |
+|---|---|---:|---:|---|
+| #1000, before A | 605, 606, 390, 596 | 600.5 | 390–606 | 559.8, 559.0, 363.9, 552.9 |
+| This PR, A only | 535, 487, 424 | 487 | 424–535 | 483.3, 442.4, 385.7 |
+
+The observed CI median is about 114 seconds lower, but the ranges overlap. These are small, unpaired samples on shared runners, so they support a likely improvement rather than a precise CI saving. They do establish that the one-server topology passed repeatedly on CI. The unsplit `DemoSeedTests` result appeared well before the shared collection's last result in the first two attempts, consistent with the local finding that B would not move the wall.
+
 ## Recommendation
 
-**Ship A; leave `DemoSeedTests` together.** One Postgres server with a migrated template and a distinct database per fixture cut the local median wall by 44.5 seconds, or 11.5%, with non-overlapping three-run ranges and all tests green. The class split had no reliable wall benefit by itself and made the combined median slower, so its extra fixture does not belong in the change. This recommendation has high confidence for the local host and limited confidence for CI until repeated runs there test the shared CPU and buffer contention. The code does not squash migrations, delete tests, raise worker counts, or alter the single-database concurrency races described in [the prior measurement](01-measurement.md#d6-correctness-boundary-for-a-future-split).
+**Ship A; leave `DemoSeedTests` together.** One Postgres server with a migrated template and a distinct database per fixture cut the local median wall by 44.5 seconds, or 11.5%, with non-overlapping three-run ranges and all tests green. Three CI passes show a lower median, with overlapping ranges and therefore less certainty about the amount saved there. The class split had no reliable wall benefit by itself and made the combined median slower, so its extra fixture does not belong in the change. Confidence is high in the local win and correctness boundary, moderate in a CI win, and low in any exact CI saving. The code does not squash migrations, delete tests, raise worker counts, or alter the single-database concurrency races described in [the prior measurement](01-measurement.md#d6-correctness-boundary-for-a-future-split).
