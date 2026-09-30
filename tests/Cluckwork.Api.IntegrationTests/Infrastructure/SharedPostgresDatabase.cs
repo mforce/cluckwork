@@ -42,7 +42,12 @@ internal sealed class SharedPostgresDatabase : IAsyncDisposable
     private static async Task<Cluster> StartClusterAsync()
     {
         const string image = "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
-        var container = new PostgreSqlBuilder(image).Build();
+        // One server carries every fixture pool. The default 100 connections is now a
+        // cluster-wide budget; exhaustion would fail whichever unrelated fixture connects next.
+        // The sampled peak was 39 on 12 cores: 39 / 12 * 32 cores * 2 headroom = 208.
+        var container = new PostgreSqlBuilder(image)
+            .WithCommand("-c", "max_connections=208")
+            .Build();
         await container.StartAsync();
         var cluster = new Cluster(container);
         await cluster.PrepareTemplateAsync();

@@ -29,7 +29,7 @@ The earlier 390–606 second spread in `01-measurement.md` came from CI, not thi
 
 The test process starts one pinned Postgres Testcontainer. It migrates a template database once and closes that migration connection. Each factory then clones a GUID-named database from the template. A `MigrateSchemaOnInitialize == false` factory and direct migration tests instead get a virgin database copied from the built-in empty template; the #263 focused test passed. Each factory still has its own database and connection string. `DetachedTenantWriteTests` keeps both farms in its one database, and each `Version` race keeps its contenders together. `StealLossConnectionReleaseTests` retains its dedicated factory and one-slot app pool; its focused tests passed. The backing server is shared, but every test still executes real Postgres SQL through Testcontainers.
 
-The server reported `max_connections = 100`. During the first full one-server run, a five-second sampler observed at most 39 client sessions across 13 simultaneously active databases. That is a sampled peak, not a hard upper bound; all three full runs passed without connection exhaustion at the default limit. No worker count or connection limit was raised.
+The initial spike used the server's `max_connections = 100` default. During its first full one-server run, a five-second sampler observed at most 39 client sessions across 13 simultaneously active databases. That is a sampled peak, not a hard upper bound; all three initial full runs passed without connection exhaustion. The final setting and its cost are recorded in S6. No worker count was raised.
 
 The remaining server-wide test state was checked separately. `DmlOnlyRole` creates roles in the cluster, but each name has a new GUID; it grants privileges only in its own database. The other `pg_locks` checks filter by backend PID, and the `pg_stat_activity` blocking probes follow a specific holder PID. Those PIDs are unique within the server, so another database cannot satisfy their predicates. No test changes the server configuration.
 
@@ -60,6 +60,14 @@ The earlier [#1000 measurement](01-measurement.md#d7-repair-and-post-repair-meas
 | This PR, A only | 535, 487, 424 | 487 | 424–535 | 483.3, 442.4, 385.7 |
 
 The observed CI median is about 114 seconds lower, but the ranges overlap. These are small, unpaired samples on shared runners, so they support a likely improvement rather than a precise CI saving. They do establish that the one-server topology passed repeatedly on CI. The unsplit `DemoSeedTests` result appeared well before the shared collection's last result in the first two attempts, consistent with the local finding that B would not move the wall.
+
+## S6: shared-server connection budget
+
+The final container starts with `max_connections = 208`. The sampled 39 clients on 12 cores correspond to 3.25 clients per core. At 32 cores, that rate projects 104 clients; doubling it gives 208, including room for the administrative connection used to create and drop databases. This is a capacity allowance based on one observed peak, not a measured ceiling. The old 128-server design had a separate 100-connection budget for each Postgres container. With one server, the default 100 would be shared by every fixture pool, and exhaustion could appear in whichever unrelated test requests a connection next.
+
+On two otherwise idle containers of the pinned image, Postgres reported 150 MiB of allocated shared memory at 100 connections and 158 MiB at 208. The exact `pg_shmem_allocations` sums increased from 157,040,640 to 164,683,776 bytes, a 7.3 MiB increase. `shared_buffers` remained 128 MiB. One `docker stats` sample showed 25.25 MiB versus 29.22 MiB of container memory, but that process-level sample is less stable than the server's allocation report. The added shared memory is small beside the unchanged buffers and the host's memory; the limit is not free.
+
+The full integration suite on this final setting passed all 1,873 tests in 336.1 seconds with 11 containers. That is 1.5 seconds below the prior 337.6-second validation run and below all three initial one-server runs (343.8–346.7 seconds). It shows no wall regression at this setting. This single follow-up run does not replace the three-run comparison in S2 or establish a new performance spread.
 
 ## Recommendation
 
