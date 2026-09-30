@@ -48,6 +48,7 @@ public sealed class DemoSeedNoOwnerTests(DemoSeedNoOwnerFactory factory)
 
 public sealed class DemoSeedAttributionFactory : CluckworkWebApplicationFactory;
 
+[Collection(DemoSeedCollection.Name)]
 public sealed class DemoSeedAttributionTests(DemoSeedAttributionFactory factory)
     : IClassFixture<DemoSeedAttributionFactory>
 {
@@ -100,6 +101,7 @@ public sealed class DemoSeedAttributionTests(DemoSeedAttributionFactory factory)
 // Own factory/database, same reasoning as the two classes above.
 public sealed class DemoSeedDisabledOwnerFactory : CluckworkWebApplicationFactory;
 
+[Collection(DemoSeedCollection.Name)]
 public sealed class DemoSeedDisabledOwnerTests(DemoSeedDisabledOwnerFactory factory)
     : IClassFixture<DemoSeedDisabledOwnerFactory>
 {
