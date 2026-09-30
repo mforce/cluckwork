@@ -183,26 +183,26 @@ The post-repair full Release integration run passed all 1,873 tests. It used the
 
 For the repaired 94-class collection, I kept the three default-account classes together and the two global-purge classes together. I placed the other 89 classes by descending post-repair local work onto the least-loaded group. The whole-class grouping, including the generated-tenant races, remains as in D4. These are test-work sums, not wall-time forecasts.
 
-| Width | Post-repair local work per group, s | Largest local group, s | Same groups on PR CI, s |
-|---:|---|---:|---|
-| 1, observed | 381.8 | 381.8 | 496.4 |
-| 2 | 190.9, 190.9 | 190.9 | 229.5, 266.9 |
-| 3 | 127.2, 127.3, 127.3 | 127.3 | 158.1, 151.3, 187.0 |
-| 4 | 95.4, 95.5, 95.4, 95.4 | 95.5 | 107.0, 123.3, 153.1, 113.0 |
+| Width | Post-repair local work per group, s | Largest local group, s | Same groups on PR CI 1, s | Same groups on PR CI 2, s |
+|---:|---|---:|---|---|
+| 1, observed | 381.8 | 381.8 | 496.4 | 499.8 |
+| 2 | 190.9, 190.9 | 190.9 | 229.5, 266.9 | 228.9, 270.9 |
+| 3 | 127.2, 127.3, 127.3 | 127.3 | 158.1, 151.3, 187.0 | 162.3, 153.7, 183.8 |
+| 4 | 95.4, 95.5, 95.4, 95.4 | 95.5 | 107.0, 123.3, 153.1, 113.0 | 108.3, 121.6, 143.4, 126.5 |
 
 The local nonshared schedule now finishes at 279.1 s, after `SeedCommandTests`; its tallest single class is the population class at 230.1 s. A width-two shared load would already fall below that observed schedule before another fixture's startup cost. Holding the nonshared schedule fixed gives a local ceiling of 395.3 / 279.1 = 1.42×. This is conditional: class durations and worker scheduling changed substantially even without a collection split.
 
-The [PR CI run at the repair commit](https://github.com/mforce/cluckwork/actions/runs/36663186072) passed all 1,873 tests on `ubuntu-26.04`. Its integration test step took 604.6 s and its VSTest summary was 559.8 s. The timestamped pass lines give a 522.8 s shared span, 496.4 s of shared test work, and 1,015.4 s of nonshared test work. The tallest nonshared class was `SeedCommandTests` at 148.1 s; its last pass came **9.2 s after** the shared collection's last pass. That is the opposite of the 45.3–86.8 s shared-only tail in the two pre-repair main runs. The repaired population fact took 34 s on CI, versus 0.512–0.594 s in those broken runs. Its 34 s is real seed work; the fresh single-fact local run took 18.550 s and the post-repair full local run took 31.4 s.
+Two PR CI runs passed all 1,873 tests on `ubuntu-26.04`: the [repair commit](https://github.com/mforce/cluckwork/actions/runs/36663186072) and the [final documentation commit](https://github.com/mforce/cluckwork/actions/runs/36664157109). Their integration test steps took 604.6 s and 605.9 s, with VSTest summaries of 559.8 s and 559.0 s. Timestamped pass lines give shared spans of 522.8 s and 530.4 s, shared test work of 496.4 s and 499.8 s, and nonshared test work of 1,015.4 s and 1,022.2 s. `SeedCommandTests` was the tallest nonshared class at 148.1 s and 180.2 s; it ended last among substantive nonshared classes in the first run, **9.2 s after** the shared collection. In the second run, `ProcessRoleGuardTests` ended last, **12.5 s before** the shared collection. Both gaps are far smaller than the 45.3–86.8 s shared-only tails in the two pre-repair main runs. The repaired population fact took 34 s on the first PR run and 26 s on the second, versus 0.512–0.594 s in the broken runs. It performed real seed work; the fresh single-fact local run took 18.550 s and the post-repair full local run took 31.4 s.
 
-| CI measure | Pre-repair main #997 | Pre-repair main #996 | PR after repair |
-|---|---:|---:|---:|
-| Integration test step | 564.0 s | 613.8 s | 604.6 s |
-| VSTest summary | 523.3 s | 568.2 s | 559.8 s |
-| Shared span from pass lines | 496.5 s | 539.4 s | 522.8 s |
-| Shared end minus last substantive nonshared pass | 86.8 s | 45.3 s | −9.2 s |
+| CI measure | Pre-repair main #997 | Pre-repair main #996 | PR after repair 1 | PR after repair 2 |
+|---|---:|---:|---:|---:|
+| Integration test step | 564.0 s | 613.8 s | 604.6 s | 605.9 s |
+| VSTest summary | 523.3 s | 568.2 s | 559.8 s | 559.0 s |
+| Shared span from pass lines | 496.5 s | 539.4 s | 522.8 s | 530.4 s |
+| Shared end minus last substantive nonshared pass | 86.8 s | 45.3 s | −9.2 s | 12.5 s |
 
-The CI group loads use the same post-repair local assignments as the table above. At width two the larger group is 266.9 s of tests, but the nonshared schedule already reaches beyond the unsplit shared collection. Under the explicit fixed-schedule assumption, widths two, three, and four all save **0 s** of the observed CI VSTest interval; the conditional speedup is 1.00×. New fixture startup and worker contention could make them slower. A split might alter scheduling in either direction, so this is a bound under that assumption, not a measured split-run time. The issue's older claim that 852 s of parallel work fits within the shared block's shadow is false for current CI: the nonshared side now finishes 9.2 s after that block.
+The CI group loads use the same post-repair local assignments as the table above. At width two the larger group has 266.9–270.9 s of tests. The observed nonshared schedule leaves no shared-only tail in the first PR run and only 12.5 s in the second. Under the explicit fixed-schedule assumption, widths two, three, and four save **0–12.5 s** of VSTest time, at most about **1.02×**. New fixture startup and worker contention could consume that margin. A split might alter scheduling in either direction, so this is a conditional ceiling, not a measured split-run time. The issue's older claim that 852 s of parallel work fits within the shared block's shadow is false for current CI: the nonshared side either ends after the block or within 12.5 s of it.
 
 ## Recommendation
 
-**Do not split #863 now.** The repair made the demo population test exercise its seed path and removed order and global-count dependencies by giving three classes their own databases. On the PR's CI run, the nonshared side finished after the shared side. Even a perfectly balanced two-way division of the remaining shared work cannot shorten that observed schedule if the nonshared side stays fixed; widths three and four have still less reason to pay for new fixtures. The recommendation changed in strength, not direction: the pre-repair CI runs left 45–87 s of possible shared-only tail, while the repaired run leaves none. Confidence is high that the false pass is fixed (observed red then green, full local and CI passes), high in the database sharing map, and moderate in the timing decision because only one repaired CI run exists and no actual split ran. Reopen the split decision only if several future CI runs show a persistent shared-only tail larger than the extra fixture cost.
+**Do not split #863 now.** The repair made the demo population test exercise its seed path and removed order and global-count dependencies by giving three classes their own databases. The two PR CI runs leave between zero and 12.5 s of shared-only tail, for a conditional width-two ceiling of about 2%; widths three and four have no further modeled payoff. The recommendation changed in strength, not direction: the pre-repair CI runs left 45–87 s of possible tail. Confidence is high that the false pass is fixed (observed red then green, full local and two CI passes), high in the database sharing map, and moderate in the timing decision because no actual split ran. Reopen the split decision only if several future CI runs show a persistent shared-only tail larger than the extra fixture cost.
