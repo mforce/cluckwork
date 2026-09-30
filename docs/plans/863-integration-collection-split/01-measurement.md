@@ -1,8 +1,8 @@
-# #863: measure the integration collection before splitting it
+# #863: measure the integration collection and repair its false pass
 
-**Mode:** measurement. **Base commit:** `ce4a4ab6845c987dbeafe9152fee55a122400d1a` (`origin/main`, checked against the worktree HEAD before either run). **Date:** 2026-09-30.
+**Mode:** measurement, followed by test repair. **Pre-repair base commit:** `ce4a4ab6845c987dbeafe9152fee55a122400d1a` (`origin/main`, checked against the worktree HEAD before either run). **Date:** 2026-09-30. The post-repair local run used the same backend source after an unrelated web test change on main; the PR branch was then rebased over an unrelated web dependency update.
 
-## D1: current baseline
+## D1: pre-repair baseline
 
 I ran the full integration project twice on the 12-core local host with real Postgres Testcontainers. The first Release run included restore and build; its VSTest interval is the comparable wall time. The second used the repo's `tools/test-timing/measure.py` after the build. Both passed all 1,873 tests. The local timing files remain in `/tmp/cluckwork-863-measurement/`; the repo's timing tool deliberately keeps raw logs out of Git.
 
@@ -21,15 +21,15 @@ The checked-out tree has seven more classes and 58 more tests than the issue's #
 
 Current CI gives a different scale. The `Test` steps in the [#997 main run](https://github.com/mforce/cluckwork/actions/runs/36616986439) and [#996 main run](https://github.com/mforce/cluckwork/actions/runs/36618971183) took 564 s and 614 s on `ubuntu-26.04`; their VSTest summaries were 523.3 s and 568.2 s. Parsing the timestamped pass lines gives approximate shared spans of 496.5 s and 539.4 s. Pass-line durations round to milliseconds or whole seconds, and five result lines lack the ordinary class pattern, so these CI figures are corroboration rather than a substitute for TRX. The current runner is slower than this 12-core host and CI timing varies across the two adjacent main runs. The issue's 331.5 s is historical, not today's CI baseline.
 
-Reproduce the local measurement after a Release build with `sg docker -c 'python3 tools/test-timing/measure.py /tmp/cluckwork-863-repeat --configuration Release'`. The committed source has no collection or test change in this pass.
+Reproduce a local measurement after a Release build with `sg docker -c 'python3 tools/test-timing/measure.py /tmp/cluckwork-863-repeat --configuration Release'`. These baseline numbers precede the repair in D7.
 
-## D2: what the collection shares
+## D2: what the collection shared before repair
 
 `IntegrationCollection` gives every member one `CluckworkWebApplicationFactory`, one migrated Postgres database, and serial execution. The migration supplies the default account, four roles, default grades, and packed-unit conversions. `TestHarness.SeedAccountWithUserAsync` normally creates a new random account and its conversions; its users and feature rows have new IDs. Those generated tenants explain why most classes can move to a different collection with its own database without a row collision. A new collection must get a distinct factory instance and database. Reusing one connection string across concurrent collections changes the test's isolation contract.
 
 The actual shared-state exceptions are narrow. `DemoSeedTests` writes the migration's default account and its demo fixture. `SeedAndFlockTests` adds an Owner to that account. `AuditActorTests` reads it for two guard tests. `ListAccountsCommandTests` reads it through an unscoped CLI query. `AccountProvisioningTests` compares database-wide row counts before and after failed commands. `IdempotencyRecordPurgeSweepTests` and `RefreshTokenPurgeSweepTests` delete eligible rows across accounts. These seven classes need a serial database or their own database. The other 85 writing classes use generated tenants and IDs, with any deliberate race contained inside the class. Four classes only read live metadata or health. No shared test sets `Simulation:*` configuration. No shared test explicitly probes an advisory lock, but every test host registers `DurableJobWorker`, whose `PostgresLeaderLease` takes a session advisory lock before running the global sweeps. Distinct Postgres containers prevent the new hosts from competing for that lease. Several shared members test row locks, which are keyed to their generated rows.
 
-The table names each class's material reads and writes. `I` means generated tenant and row IDs isolate its data from the other shared classes. `C` adds an intentional race within that class; all its racing actors must keep one database. `B` touches the default account. `G` scans or purges across accounts. `R` writes no database row. All classes that log in read the migrated role reference rows. The table lists feature data rather than repeating that common lookup. Durations are summed test seconds from local run 2; they exclude fixture initialization.
+The table is the pre-repair census. It names each class's material reads and writes. `I` means generated tenant and row IDs isolate its data from the other shared classes. `C` adds an intentional race within that class; all its racing actors must keep one database. `B` touches the default account. `G` scans or purges across accounts. `R` writes no database row. All classes that log in read the migrated role reference rows. The table lists feature data rather than repeating that common lookup. Durations are summed test seconds from local run 2; they exclude fixture initialization. D7 records the three classes removed from this collection.
 
 | Class | Reads | Writes | Collision | Tests | Work, s |
 |---|---|---|---|---:|---:|
@@ -132,11 +132,11 @@ The table names each class's material reads and writes. `I` means generated tena
 
 ## D3: a false pass the serialization already hides
 
-`DemoSeedTests.Boot_NeverAutoSeedsDemo_OnlyExplicitSeedAsyncDoes` asserts that the default account starts with zero flocks, then calls `DemoDataSeeder.SeedAsync()` and creates three. `DemoSeedTests.DemoSeed_PopulatesEveryScreen_AndIsIdempotent` calls the same seeder but checks only `IsSuccess` on its first call, not `SeedStatus.Seeded`. The test can therefore pass after another fact populated its entire fixture. In both full local runs, the boot fact ran first and the population fact passed in 0.250 s and 0.234 s. The same order and 0.594 s and 0.512 s population passes appear in the two cited CI runs. On a fresh database, the population fact alone passed but took 18.550 s. Its full-suite pass did not exercise the seeding path that its name claims. There is no `ITestCaseOrderer` for facts in this project. Reversing their order would instead make the boot fact's zero-flock assertion fail. Fix this class's isolation and first-call status assertion before any split.
+`DemoSeedTests.Boot_NeverAutoSeedsDemo_OnlyExplicitSeedAsyncDoes` asserts that the default account starts with zero flocks, then calls `DemoDataSeeder.SeedAsync()` and creates three. `DemoSeedTests.DemoSeed_PopulatesEveryScreen_AndIsIdempotent` calls the same seeder but checks only `IsSuccess` on its first call, not `SeedStatus.Seeded`. The test can therefore pass after another fact populated its entire fixture. In both full local runs, the boot fact ran first and the population fact passed in 0.250 s and 0.234 s. The same order and 0.594 s and 0.512 s population passes appear in the two cited CI runs. On a fresh database, the population fact alone passed but took 18.550 s. Its full-suite pass did not exercise the seeding path that its name claims. There is no `ITestCaseOrderer` for facts in this project. Reversing their order would instead make the boot fact's zero-flock assertion fail. D7 records the repair and its red-then-green check.
 
 `AccountProvisioningTests` also gets a pass only under a quiet shared database. Three tests compare unfiltered counts of accounts, grades, conversions, users, and audit rows before and after a rejected command. Concurrent writes by another class would change those counts even if provisioning correctly rolled back. `ListAccountsCommandTests` observes all accounts, and the two purge classes run cross-account deletion; these are additional shared-database interference paths. A per-collection database avoids cross-collection interference, while serialization within each collection preserves the current assumptions. `TestHarness.SeedUserAsync` has an exists-then-create role path, but the migration already supplies the four roles used here, so that branch does not establish a current race.
 
-## D4: modeled collection floors
+## D4: pre-repair modeled collection floors
 
 I kept four default-account readers and writers together and three global count or purge classes together. For each width, I placed the remaining 89 classes by descending local measured work onto the least-loaded collection. This is possible because the 85 generated-tenant writers and four read-only classes have no identified cross-class row dependency. The grouping is a concrete packing of whole classes, not an equal split of test counts. At width two it produces 47 and 49 classes, with 497 and 559 tests. At width three it produces 34, 33, and 29 classes. At width four it produces 25, 26, 23, and 22 classes.
 
@@ -149,7 +149,7 @@ I kept four default-account readers and writers together and three global count 
 
 These are sums of class test durations assigned to each proposed collection. They are not split-run wall times. Another collection requires another Postgres container, migration, host initialization, and an xUnit worker slot; test durations can change under that load. The timing harness observed 135 containers in the second local run. The existing shared fixture's first test began 12.3 s after test-process start. Additional fixtures can initialize concurrently, but their cost is not zero. The uneven CI columns show why a locally balanced partition is not a timing guarantee.
 
-## D5: the second floor
+## D5: the pre-repair second floor
 
 The other 148 classes account for 817 tests and 1,450.9 s of summed work in local run 2. The six largest were `DemoSeedDisabledOwnerTests` at 190.9 s for one test, `DemoSeedAttributionTests` at 182.8 s for one, `SeedCommandTests` at 151.9 s for eight, `ProcessRoleGuardTests` at 81.4 s, `OtlpSubprocessExporterTests` at 69.5 s for 11, and `AccountScopedIdentityMigrationTests` at 59.0 s. `OneShotVerbMinimalConfigTests`, named in the issue, was next at 58.6 s. The two single-test demo classes are the missing large blocks in the issue's older picture. The seed and guard classes also launch subprocesses or create databases. None can be shortened by moving a different class out of `integration`.
 
@@ -163,6 +163,46 @@ Each proposed collection needs its own migrated Postgres database. `Version` rac
 
 `StealLossConnectionReleaseTests` already has `SmallPoolIdempotencyFactory` and a one-slot pool. It stays outside every proposed group. No test deletion or higher worker count enters this model.
 
+## D7: repair and post-repair measurement
+
+`DemoSeed_PopulatesEveryScreen_AndIsIdempotent` now requires `SeedStatus.Seeded` on its first call and `SeedStatus.AlreadySeeded` on its second. With that first assertion added but the old shared fixture still in place, the three-fact `DemoSeedTests` run failed: expected `Seeded`, actual `AlreadySeeded` at the first call. The boot fact had seeded the same default account. The red run's TRX is `863-demo-red.trx` in the test project's local `TestResults` directory. After isolation, the focused run passed all 21 demo and provisioning tests.
+
+`DemoSeedBootTests` and the population class each have a distinct `CluckworkWebApplicationFactory` subclass and therefore a distinct migrated Postgres database. A fact's start state no longer depends on the other fact's order, and `SeedAndFlockTests` cannot add an Owner to either database. The farm-clock fact remains with the population class but provisions a new account before seeding it. `AccountProvisioningTests` also gets its own factory: its unfiltered before/after counts now have a database that other classes cannot write. This costs three additional Postgres containers in the full local run (135 before, 138 after). The shared collection now has 94 classes and 1,035 tests. Its remaining default-account members are `SeedAndFlockTests`, `AuditActorTests`, and `ListAccountsCommandTests`; the two cross-account purge classes remain serial there.
+
+The post-repair full Release integration run passed all 1,873 tests. It used the same timing harness and host as local pre-repair run 2. Test times changed markedly under overlapping seeder work: the population class took 230.1 s across its two facts, versus 34.7 s across three facts before repair; `DemoSeedBootTests` took another 160.1 s outside the shared collection. Its population fact itself took 31.4 s, versus 0.234 s in the broken full run and 18.550 s when run alone before repair. These durations include contention, so adding them to the old wall time would be invalid.
+
+| Local measure | Pre-repair run 2 | Post-repair run |
+|---|---:|---:|
+| Full integration process wall | 416.7 s | 395.3 s |
+| Shared class / test count | 96 / 1,056 | 94 / 1,035 |
+| Shared test work | 402.4 s | 381.8 s |
+| Shared first-test to last-test span | 403.5 s | 383.0 s |
+| Nonshared test work | 1,450.9 s | 1,650.0 s |
+| Last substantive nonshared finish, after process start | 222.2 s | 279.1 s |
+| Shared end minus nonshared finish | 193.6 s | 115.3 s |
+
+For the repaired 94-class collection, I kept the three default-account classes together and the two global-purge classes together. I placed the other 89 classes by descending post-repair local work onto the least-loaded group. The whole-class grouping, including the generated-tenant races, remains as in D4. These are test-work sums, not wall-time forecasts.
+
+| Width | Post-repair local work per group, s | Largest local group, s | Same groups on PR CI, s |
+|---:|---|---:|---|
+| 1, observed | 381.8 | 381.8 | 496.4 |
+| 2 | 190.9, 190.9 | 190.9 | 229.5, 266.9 |
+| 3 | 127.2, 127.3, 127.3 | 127.3 | 158.1, 151.3, 187.0 |
+| 4 | 95.4, 95.5, 95.4, 95.4 | 95.5 | 107.0, 123.3, 153.1, 113.0 |
+
+The local nonshared schedule now finishes at 279.1 s, after `SeedCommandTests`; its tallest single class is the population class at 230.1 s. A width-two shared load would already fall below that observed schedule before another fixture's startup cost. Holding the nonshared schedule fixed gives a local ceiling of 395.3 / 279.1 = 1.42×. This is conditional: class durations and worker scheduling changed substantially even without a collection split.
+
+The [PR CI run at the repair commit](https://github.com/mforce/cluckwork/actions/runs/36663186072) passed all 1,873 tests on `ubuntu-26.04`. Its integration test step took 604.6 s and its VSTest summary was 559.8 s. The timestamped pass lines give a 522.8 s shared span, 496.4 s of shared test work, and 1,015.4 s of nonshared test work. The tallest nonshared class was `SeedCommandTests` at 148.1 s; its last pass came **9.2 s after** the shared collection's last pass. That is the opposite of the 45.3–86.8 s shared-only tail in the two pre-repair main runs. The repaired population fact took 34 s on CI, versus 0.512–0.594 s in those broken runs. Its 34 s is real seed work; the fresh single-fact local run took 18.550 s and the post-repair full local run took 31.4 s.
+
+| CI measure | Pre-repair main #997 | Pre-repair main #996 | PR after repair |
+|---|---:|---:|---:|
+| Integration test step | 564.0 s | 613.8 s | 604.6 s |
+| VSTest summary | 523.3 s | 568.2 s | 559.8 s |
+| Shared span from pass lines | 496.5 s | 539.4 s | 522.8 s |
+| Shared end minus last substantive nonshared pass | 86.8 s | 45.3 s | −9.2 s |
+
+The CI group loads use the same post-repair local assignments as the table above. At width two the larger group is 266.9 s of tests, but the nonshared schedule already reaches beyond the unsplit shared collection. Under the explicit fixed-schedule assumption, widths two, three, and four all save **0 s** of the observed CI VSTest interval; the conditional speedup is 1.00×. New fixture startup and worker contention could make them slower. A split might alter scheduling in either direction, so this is a bound under that assumption, not a measured split-run time. The issue's older claim that 852 s of parallel work fits within the shared block's shadow is false for current CI: the nonshared side now finishes 9.2 s after that block.
+
 ## Recommendation
 
-**Do not split #863 now.** This measurement found a reproducible false pass in `DemoSeedTests`, and the current CI parallel side finishes within 45 to 87 seconds of the serialized side. The local host suggests a twofold speedup, but the two actual CI runs support only a conditional 1.09x to 1.20x gain before extra fixture and worker-slot costs. Confidence is high in the source sharing map and local measurements, and moderate in the CI timing limit because no split ran on the runner. Repair the demo test and measure CI's nonshared schedule again before changing collections. If that work restores a large shared-only tail, use two isolated collections first; widths three and four have no demonstrated payoff.
+**Do not split #863 now.** The repair made the demo population test exercise its seed path and removed order and global-count dependencies by giving three classes their own databases. On the PR's CI run, the nonshared side finished after the shared side. Even a perfectly balanced two-way division of the remaining shared work cannot shorten that observed schedule if the nonshared side stays fixed; widths three and four have still less reason to pay for new fixtures. The recommendation changed in strength, not direction: the pre-repair CI runs left 45–87 s of possible shared-only tail, while the repaired run leaves none. Confidence is high that the false pass is fixed (observed red then green, full local and CI passes), high in the database sharing map, and moderate in the timing decision because only one repaired CI run exists and no actual split ran. Reopen the split decision only if several future CI runs show a persistent shared-only tail larger than the extra fixture cost.
