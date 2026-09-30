@@ -7,7 +7,6 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 // #279 review Fix 5 (codex) — the `simulation` profile of the `seed --profile
 // <name>` CLI dispatch, exercised end-to-end as a SUBPROCESS (the real built
@@ -173,7 +172,7 @@ public sealed class SimulationSeedCommandTests : IClassFixture<SimulationSeedCom
     [Fact]
     public async Task SeedCommand_Simulation_BaseDataMissing_ExitsNonZeroWithClearMessage()
     {
-        await using var freshDb = new PostgreSqlBuilder("postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+        await using var freshDb = new SharedPostgresDatabase();
         await freshDb.StartAsync();
 
         var (exitCode, stdout, stderr) = await RunSeedCommandAsync(

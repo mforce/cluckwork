@@ -295,7 +295,7 @@ public sealed class SimulationSeedDefinitionChangeTests(SimulationMutableClockFa
 // RestrictOneWorkerAsync's IDEMPOTENT branch.
 //
 // Its own factory instance (xUnit gives every test class its own IClassFixture
-// instance, hence its own Postgres container), which is required rather than
+// instance, hence its own database), which is required rather than
 // tidy: this test DELETES a seeded row and re-seeds, and a mutating test
 // sharing a fixture with assertions about that fixture's contents is
 // order-dependent by construction.
@@ -433,7 +433,7 @@ public sealed class SimulationPartialRerunTests(SimulationMutableClockFactory fa
 // The seed would keep going, write durable rows, and only fail much later on an
 // exact-count mismatch whose message points at counts rather than at the cause.
 //
-// Own factory instance (own container): this test mutates a seeded user.
+// Own factory instance (own database): this test mutates a seeded user.
 public sealed class SimulationReconfiguredCastTests(SimulationMutableClockFactory factory)
     : IClassFixture<SimulationMutableClockFactory>
 {
@@ -684,7 +684,7 @@ public sealed class SimulationMissingOwnerRoleTests(SimulationMutableClockFactor
 // remaining shapes. Both are re-run-only: a first run creates the personas
 // itself, so nothing can be wrong with them yet. Both mutate the fixture
 // destructively, so each takes its own factory instance — hence its own
-// Postgres container — rather than sharing one with a neighbour.
+// database — rather than sharing one with a neighbour.
 public sealed class SimulationDisabledCastMemberTests(SimulationMutableClockFactory factory)
     : IClassFixture<SimulationMutableClockFactory>
 {

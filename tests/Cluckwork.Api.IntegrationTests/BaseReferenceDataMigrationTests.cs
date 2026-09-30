@@ -9,7 +9,6 @@ using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
-using Testcontainers.PostgreSql;
 
 // #245 — what survives of MigrationUpgradePathTests after the InitialCreate
 // squash.
@@ -33,14 +32,12 @@ using Testcontainers.PostgreSql;
 // exactly one of each.
 //
 // No WebApplicationFactory: this drives EF's migrator directly against its
-// own throwaway Testcontainers Postgres (the same pattern
-// AppDbContextDesignTimeFactory uses to build an AppDbContext outside ASP.NET
+// fresh database on the shared Testcontainers Postgres server. It uses the
+// same pattern AppDbContextDesignTimeFactory uses outside ASP.NET
 // DI), so the database is genuinely untouched — nothing has booted the app
 // against it, which is the whole point.
 public sealed class BaseReferenceDataMigrationTests
 {
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     private static AppDbContext BuildContext(string connectionString)
     {
@@ -53,7 +50,7 @@ public sealed class BaseReferenceDataMigrationTests
     [Fact]
     public async Task MigratingAVirginDatabase_ProducesExactlyOneOfEachReferenceRow()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -170,7 +167,7 @@ public sealed class BaseReferenceDataMigrationTests
     [Fact]
     public async Task MigratingAVirginDatabase_CreatesTheCaseInsensitiveUniqueIndexes()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -204,7 +201,7 @@ public sealed class BaseReferenceDataMigrationTests
     [Fact]
     public async Task MigratingAVirginDatabase_MakesTheTwoConditionGradesSaleableAndBound()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -240,7 +237,7 @@ public sealed class BaseReferenceDataMigrationTests
     [Fact]
     public async Task MigratingAVirginDatabase_AllowsManyManualGradesButOnlyOneOfEachCondition()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 

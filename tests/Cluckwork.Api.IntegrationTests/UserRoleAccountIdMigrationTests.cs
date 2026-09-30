@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -8,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 // #670 — the migration that adds AspNetUserRoles.AccountId runs against a
 // database that ALREADY holds role rows (every real one). EF's generated
@@ -21,8 +21,6 @@ using Testcontainers.PostgreSql;
 // the database. Shape: AccountScopedIdentityMigrationTests (#532).
 public sealed class UserRoleAccountIdMigrationTests
 {
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     // Base reference data the migrations themselves seed (#283): the default
     // account and the Owner role.
@@ -64,7 +62,7 @@ public sealed class UserRoleAccountIdMigrationTests
     [Fact]
     public async Task TheUserRolesMigration_BackfillsAccountIdFromTheUser_AndLeavesNoColumnDefault()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 

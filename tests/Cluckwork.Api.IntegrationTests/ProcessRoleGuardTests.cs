@@ -3,7 +3,6 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Diagnostics;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Testcontainers.PostgreSql;
 
 // #347 — a SERVING-process boot guard must never abort a ONE-SHOT verb.
 //
@@ -41,9 +40,7 @@ using Testcontainers.PostgreSql;
 // is another chance to hit Docker flake on CI.
 public sealed class ServingGuardDatabaseFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder(
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a")
-        .Build();
+    private readonly SharedPostgresDatabase _container = new SharedPostgresDatabase();
 
     public string ConnectionString => _container.GetConnectionString();
 

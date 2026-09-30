@@ -5,7 +5,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Testcontainers.PostgreSql;
 // StackExchange.Redis exports its own TestHarness, which collides with the
 // suite's; alias the one this file needs.
 using TestHarness = Cluckwork.Api.IntegrationTests.Infrastructure.TestHarness;
@@ -37,8 +36,7 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
     // crosses the budget and the report shows where the 429s start.
     private const int PermitBurst = 14;
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+    private readonly SharedPostgresDatabase _postgres = new SharedPostgresDatabase();
 
     private readonly RedisContainer _redis =
         new RedisBuilder("redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2").Build();

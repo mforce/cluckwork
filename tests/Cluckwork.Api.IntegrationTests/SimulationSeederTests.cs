@@ -24,10 +24,10 @@ using Microsoft.Extensions.DependencyInjection;
 // 2-flock topology with exactly one flock-restricted worker, the primary
 // account's configured (non-UTC) timezone, and a second pristine account.
 //
-// Own factory (own Postgres container), not the shared IntegrationCollection:
+// Own factory (own database), not the shared IntegrationCollection:
 // both this and BaselineSeedCurrencyTests write to the fixed
 // SeedDefaults.AccountId, and other seeders running against the shared
-// container would pollute the cast/flock/timezone counts asserted here.
+// database would pollute the cast/flock/timezone counts asserted here.
 public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsyncLifetime
 {
     public const string TimeZoneId = "America/Chicago";
@@ -1352,7 +1352,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     // #500 — nothing the simulation seeder writes is unattributed.
     //
     // No BEFORE snapshot, deliberately, and worth stating so it is not "fixed"
-    // into one later: this fixture owns its own Postgres container and seeds
+    // into one later: this fixture owns its own database and seeds
     // once in InitializeAsync, so a [Fact] cannot observe a before state at
     // all. Nor is one needed — the only user this fixture creates outside the
     // seeder is its Owner, via TestHarness.SeedUserAsync, which calls

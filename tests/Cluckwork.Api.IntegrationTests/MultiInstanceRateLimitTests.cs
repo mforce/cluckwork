@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 
 // #544 acceptance proof: the IP-keyed auth rate limiters now enforce ONE
@@ -30,8 +29,7 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
     // #544 — small, fast budget: 5 logins per 900s window per IP.
     private const int PermitLimit = 5;
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+    private readonly SharedPostgresDatabase _postgres = new SharedPostgresDatabase();
 
     // The SAME pinned image string SharedState/RedisFixture.cs uses, verbatim.
     private readonly RedisContainer _redis =
