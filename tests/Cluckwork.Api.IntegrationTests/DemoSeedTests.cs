@@ -20,19 +20,13 @@ using Microsoft.Extensions.DependencyInjection;
 // data (no Seed:* config, no runtime seeder); only the login user itself is
 // seeded here, standing in for a real `bootstrap-admin` run.
 //
-// #500 — DO NOT ADD AN ATTRIBUTION ASSERTION TO THIS FILE. It would be flaky by
-// construction, and the reason is not obvious from here: this class shares the
-// IntegrationCollection container, and SeedAndFlockTests seeds its OWN Owner
-// into the same SeedDefaults.AccountId. DemoDataSeeder.FindOwnerAsync picks the
-// lowest Id among every Owner in the account, so WHICH Owner signs the demo
-// fixture here depends on which sibling class ran first and on random GUID
-// ordering — xUnit guarantees neither. Nothing in this file reads the author, so
-// nothing is wrong today.
-//
-// The tests that DO assert attribution live in DemoSeedActorTests, each with its
-// own factory and its own Postgres container, precisely to escape this.
-[Collection(IntegrationCollection.Name)]
-public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
+// The population and boot facts each need a virgin default account. Distinct
+// factories give them distinct migrated Postgres databases, independent of fact
+// order and of SeedAndFlockTests in the shared collection.
+public sealed class DemoSeedPopulationFactory : CluckworkWebApplicationFactory;
+
+public sealed class DemoSeedTests(DemoSeedPopulationFactory factory)
+    : IClassFixture<DemoSeedPopulationFactory>
 {
     private sealed record FlockDto(Guid Id, string Name, int InitialCount, long CurrentBirds, string Status);
     private sealed record StockDto(Guid EggGradeId, string GradeName, int Available, int Restricted);
@@ -53,6 +47,7 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         {
             var result = await seedScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
+            Assert.Equal(SeedStatus.Seeded, result.Status);
         }
         var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         login.EnsureSuccessStatusCode();
@@ -184,20 +179,15 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         var draftDate = Assert.Single(drafts);
         Assert.Equal(farmToday, draftDate);
     }
+}
 
-    // #284 review — a real "demo is OFF the boot path" regression test. The
-    // idempotency test above always calls SeedAsync() explicitly before
-    // checking flock counts, so it would still pass even if boot-time demo
-    // seeding were reintroduced by mistake. This test instead boots a host
-    // with ONLY the base seed configured, asserts zero demo rows exist yet
-    // (proving boot alone never seeds demo), and only then seeds explicitly.
-    // #283 review — this asserts against the SAME shared-container account
-    // DemoSeed_PopulatesEveryScreen_AndIsIdempotent also seeds, so it must
-    // run its own "before" check strictly before that test's SeedAsync call
-    // lands. Both are [Collection(IntegrationCollection.Name)] on the same
-    // container; xUnit runs [Fact]s within one class sequentially by default
-    // (no [Collection]-level parallelism override here), which is what makes
-    // the zero-count assertion below meaningful rather than a race.
+public sealed class DemoSeedBootFactory : CluckworkWebApplicationFactory;
+
+public sealed class DemoSeedBootTests(DemoSeedBootFactory factory)
+    : IClassFixture<DemoSeedBootFactory>
+{
+    // Boot must leave a virgin default account with no demo flocks. The test
+    // then seeds explicitly and verifies that the three flocks appear.
     [Fact]
     public async Task Boot_NeverAutoSeedsDemo_OnlyExplicitSeedAsyncDoes()
     {
@@ -214,8 +204,8 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         // and refuses to run without one, so provisioning it is part of the
         // "explicit seed" step this test is about. It stands in for a real
         // `bootstrap-admin` run, exactly as the sibling test's own Owner does.
-        // The zero-flock assertion above still runs strictly first, so what the
-        // test proves — boot alone seeds nothing — is unchanged.
+        // Its own database makes the zero-flock assertion independent of the
+        // population fact's execution order.
         await factory.SeedUserAsync(SeedDefaults.AccountId, $"boot-{Guid.NewGuid():N}@test.local", Roles.Owner);
 
         using (var seedScope = factory.Services.CreateScope())
