@@ -28,6 +28,7 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
   // 2rem, where `auto` resolves to Inter's opsz 32 display cut.
   await page.goto("/expenses");
   await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
+  await expect(page.locator("aside[aria-label] p").nth(1)).toBeVisible();
 
   const measured = await page.evaluate(() => {
     const probe = (px: number, mode: string) => {
