@@ -12,8 +12,12 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[Collection(IntegrationCollection.Name)]
-public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory factory)
+// Several failure checks compare database-wide counts. Give the class its own
+// database so unrelated integration tests cannot change those counts.
+public sealed class AccountProvisioningFactory : CluckworkWebApplicationFactory;
+
+public sealed class AccountProvisioningTests(AccountProvisioningFactory factory)
+    : IClassFixture<AccountProvisioningFactory>
 {
     [Fact]
     public async Task Provision_CreatesAFarmWithReferenceDataAndAnOwner()
