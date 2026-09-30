@@ -215,8 +215,7 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
     [Fact]
     public async Task AgainstAFreshlyMigratedDatabase_BaseReferenceDataAlreadyExists_NoBootstrapNeededForIt()
     {
-        await using var freshDb = new Testcontainers.PostgreSql.PostgreSqlBuilder(
-            "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+        await using var freshDb = new SharedPostgresDatabase();
         await freshDb.StartAsync();
 
         var email = $"bootstrap-fresh-{Guid.NewGuid():N}@test.local";
@@ -238,8 +237,7 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
     [Fact]
     public async Task ConcurrentInvocations_OnlyOneCreatesAnOwner_TheOtherIsACleanNoOp()
     {
-        await using var freshDb = new Testcontainers.PostgreSql.PostgreSqlBuilder(
-            "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+        await using var freshDb = new SharedPostgresDatabase();
         await freshDb.StartAsync();
         var connectionString = freshDb.GetConnectionString();
 

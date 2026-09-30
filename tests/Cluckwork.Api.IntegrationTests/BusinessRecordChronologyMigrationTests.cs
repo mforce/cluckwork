@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
@@ -12,18 +13,15 @@ using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Testcontainers.PostgreSql;
 
 public sealed class BusinessRecordChronologyMigrationTests
 {
     private const string PreviousMigration = "20260911135948_AddAccountMaxDiscountBasisPoints";
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     [Fact]
     public async Task Upgrade_uses_exact_audits_and_marks_unknown_legacy_times()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         var migrator = db.Database.GetService<IMigrator>();

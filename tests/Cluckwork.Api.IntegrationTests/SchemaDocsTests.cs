@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -8,7 +9,6 @@ using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
-using Testcontainers.PostgreSql;
 
 // #417 — guards for the generated schema documentation under docs/schema/
 // (produced by tools/schema-docs/generate.sh via tbls against an ephemeral
@@ -982,7 +982,7 @@ public sealed class SchemaDocsTests
         Assert.True(Directory.Exists(DocsDir),
             "docs/schema/ does not exist — run tools/schema-docs/generate.sh");
 
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();

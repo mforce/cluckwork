@@ -11,10 +11,8 @@ using Cluckwork.Domain.Accounts;
 // product or a default-cost item ever sneaks into the base InsertData, every
 // deployment ships currency-locked from first boot.
 //
-// Own factory (own container) rather than the shared IntegrationCollection:
-// DemoSeedTests seeds priced products + sales orders into the SAME
-// SeedDefaults.AccountId on the shared container — the flag there depends on
-// test order.
+// Its own database keeps the default account free of priced products and sales
+// orders seeded by other tests.
 public sealed class BaselineSeedCurrencyTests : IClassFixture<CluckworkWebApplicationFactory>
 {
     private readonly CluckworkWebApplicationFactory _factory;

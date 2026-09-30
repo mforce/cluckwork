@@ -10,24 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 // #500 — who signs the demo fixture.
 //
-// Both facts below need a database in a state the shared IntegrationCollection
-// cannot promise: one with NO Owner, and one with EXACTLY ONE Owner and no
-// prior demo seed. `DemoSeedTests` shares a container and SeedDefaults.AccountId
-// across its facts and already documents its reliance on xUnit's default
-// sequencing — there is no ITestCaseOrderer anywhere in this project. Two more
-// order-dependent facts in that file would be a coin flip:
-//
-//   * the no-Owner fact would find an Owner a sibling had provisioned, and the
-//     seeder would answer AlreadySeeded instead of PrerequisitesMissing;
-//   * the attribution fact would either find the demo data already seeded (so
-//     its own SeedAsync writes nothing and every Assert.All passes vacuously),
-//     or find several Owners — and FindOwnerAsync deterministically takes the
-//     lowest Id, which need not be the one the test created.
-//
-// So each gets its own factory, hence its own Postgres container
-// (CluckworkWebApplicationFactory holds a per-instance PostgreSqlContainer),
-// the same isolation SimulationSeedFactory already uses. Correctness here does
-// not depend on execution order at all.
+// The no-Owner fact and the attribution fact need different starting states.
+// Each factory gets its own migrated database, so another demo test cannot
+// supply an Owner or seed the fixture before either assertion runs.
 public sealed class DemoSeedNoOwnerFactory : CluckworkWebApplicationFactory;
 
 public sealed class DemoSeedNoOwnerTests(DemoSeedNoOwnerFactory factory)
@@ -112,7 +97,7 @@ public sealed class DemoSeedAttributionTests(DemoSeedAttributionFactory factory)
 // fixture with an account that login rejects: every History line naming somebody
 // nobody can sign in as, to look at the fixture they supposedly created.
 //
-// Own factory/container, same reasoning as the two classes above.
+// Own factory/database, same reasoning as the two classes above.
 public sealed class DemoSeedDisabledOwnerFactory : CluckworkWebApplicationFactory;
 
 public sealed class DemoSeedDisabledOwnerTests(DemoSeedDisabledOwnerFactory factory)
@@ -175,7 +160,7 @@ public sealed class DemoSeedDisabledOwnerTests(DemoSeedDisabledOwnerFactory fact
     }
 }
 
-// A separate container again, because the fact above needs an enabled Owner to
+// A separate database again, because the fact above needs an enabled Owner to
 // exist and this one needs there to be none.
 public sealed class DemoSeedOnlyDisabledOwnerFactory : CluckworkWebApplicationFactory;
 

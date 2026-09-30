@@ -208,9 +208,21 @@ public sealed class HappyPathStillReleasesTheLockTests : IClassFixture<FirstRunA
         await using var probe = new NpgsqlConnection(_factory.ConnectionString);
         await probe.OpenAsync();
         await using var cmd = new NpgsqlCommand(
-            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = 283 AND objid = 1",
+            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = 283 AND objid = 1 " +
+            "AND objsubid = 2 AND granted " +
+            "AND database = (SELECT oid FROM pg_database WHERE datname = current_database())",
             probe);
         var held = (long)(await cmd.ExecuteScalarAsync())!;
         Assert.Equal(0, held);
+
+        // A lock on another backend in this database must make the same query nonzero.
+        await using var control = new NpgsqlConnection(_factory.ConnectionString);
+        await control.OpenAsync();
+        await using (var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(283, 1)", control))
+            await acquire.ExecuteNonQueryAsync();
+        Assert.Equal(1, (long)(await cmd.ExecuteScalarAsync())!);
+        await using (var release = new NpgsqlCommand("SELECT pg_advisory_unlock(283, 1)", control))
+            Assert.True((bool)(await release.ExecuteScalarAsync())!);
+        Assert.Equal(0, (long)(await cmd.ExecuteScalarAsync())!);
     }
 }

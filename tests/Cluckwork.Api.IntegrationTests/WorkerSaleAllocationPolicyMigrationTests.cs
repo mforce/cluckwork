@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -7,7 +8,6 @@ using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Testcontainers.PostgreSql;
 
 // #612 — the AddWorkerSaleAllocationPolicy migration. Same throwaway-Postgres,
 // no-WebApplicationFactory pattern as FarmBannerMigrationDowngradeTests: drives
@@ -15,8 +15,6 @@ using Testcontainers.PostgreSql;
 // verified against a real database, not assumed from the C# source.
 public sealed class WorkerSaleAllocationPolicyMigrationTests
 {
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     private const string PreviousMigrationId = "20260819202301_RequireUserIdentityColumns";
 
@@ -31,7 +29,7 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
     [Fact]
     public async Task MigratingUp_BackfillsTheDefaultAccountToAssignedFlocksOnly()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -50,7 +48,7 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
     [Fact]
     public async Task DowngradingPastAddWorkerSaleAllocationPolicy_DropsTheColumn_AndUpgradesCleanlyAgain()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();

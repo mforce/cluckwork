@@ -8,7 +8,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 // #307 acceptance criterion: "Two independently hosted API instances sharing
 // one Postgres database receive the same authenticated write concurrently and
@@ -32,8 +31,7 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
     private static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan SubprocessExitTimeout = TimeSpan.FromSeconds(30);
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+    private readonly SharedPostgresDatabase _postgres = new SharedPostgresDatabase();
 
     public async Task InitializeAsync()
     {

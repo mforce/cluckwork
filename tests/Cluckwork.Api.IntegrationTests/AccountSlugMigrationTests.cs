@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using System.Text.RegularExpressions;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
@@ -9,7 +10,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 // #531/#407 — the AddAccountSlug backfill. The migration adds Slug nullable,
 // backfills a deterministic per-row value, tightens to NOT NULL, then adds a
@@ -19,8 +19,6 @@ using Testcontainers.PostgreSql;
 // normal WebApplicationFactory boot never reproduces.
 public sealed class AccountSlugMigrationTests
 {
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     // The migration immediately before AddAccountSlug. Migrating here leaves the
     // Accounts table WITHOUT a Slug column but WITH the default account
@@ -52,7 +50,7 @@ public sealed class AccountSlugMigrationTests
     [Fact]
     public async Task MigratedDatabase_BackfillsTheDefaultAccountToDefaultFarm()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -64,7 +62,7 @@ public sealed class AccountSlugMigrationTests
     [Fact]
     public async Task Backfill_GivesAPreExistingSecondAccount_ADistinctValidSlug()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -99,7 +97,7 @@ public sealed class AccountSlugMigrationTests
     [Fact]
     public async Task UniqueIndex_RejectsADuplicateSlug()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();

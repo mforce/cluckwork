@@ -6,7 +6,6 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 // #280 — `dotnet Cluckwork.Api.dll seed --profile demo` is a real CLI dispatch
 // branch in Program.cs (args[0] == "seed"), never exercised by
@@ -175,7 +174,7 @@ public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFact
     [Fact]
     public async Task SeedCommand_Demo_AgainstAnUntouchedDatabase_MigratesAndSeedsInOneStep()
     {
-        await using var freshDb = new PostgreSqlBuilder("postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+        await using var freshDb = new SharedPostgresDatabase();
         await freshDb.StartAsync();
 
         var withoutOwner = await RunSeedCommandAsync(
@@ -211,7 +210,7 @@ public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFact
     [Fact]
     public async Task SeedCommand_Demo_WithFarmCode_SeedsThatFarmAndLeavesTheDefaultEmpty()
     {
-        await using var freshDb = new PostgreSqlBuilder("postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+        await using var freshDb = new SharedPostgresDatabase();
         await freshDb.StartAsync();
         var connectionString = freshDb.GetConnectionString();
 

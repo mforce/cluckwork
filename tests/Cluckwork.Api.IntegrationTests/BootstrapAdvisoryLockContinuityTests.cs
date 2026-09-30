@@ -301,7 +301,7 @@ public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionSt
 // FirstRunAdminService provisions the single fixed SeedDefaults.AccountId, so
 // every class below needs its OWN throwaway database — two tests sharing one
 // could never both observe "no Owner yet". xUnit builds a separate
-// IClassFixture instance (and therefore a separate container) per test class.
+// IClassFixture instance (and therefore a separate database) per test class.
 public sealed class BootstrapBackendLossFailsClosedTests
     : IClassFixture<BootstrapLockContinuityFactory>
 {

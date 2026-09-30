@@ -566,7 +566,7 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
     }
 }
 
-// Own collection (not "integration"): this class uses its own factory/container
+// Own collection (not "integration"): this class uses its own factory/database
 // so its log tap only sees this class's traffic.
 [CollectionDefinition(Name)]
 public sealed class RequestLoggingCollection : ICollectionFixture<RequestLoggingFactory>

@@ -23,8 +23,8 @@ using Microsoft.Extensions.DependencyInjection;
 // drain landed the seed could not validate here on any database, however
 // clean.
 //
-// Own factory (own Postgres container), same reasoning as SimulationSeedFactory:
-// it writes to the fixed SeedDefaults.AccountId, so it cannot share a container
+// Own factory (own database), same reasoning as SimulationSeedFactory:
+// it writes to the fixed SeedDefaults.AccountId, so it cannot share a database
 // with another seeder.
 public sealed class DeepSimulationSeedFactory : CluckworkWebApplicationFactory, IAsyncLifetime
 {

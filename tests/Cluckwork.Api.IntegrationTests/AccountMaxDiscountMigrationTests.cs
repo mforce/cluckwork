@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -7,7 +8,6 @@ using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Testcontainers.PostgreSql;
 
 // #727 — the AddAccountMaxDiscountBasisPoints migration, same
 // throwaway-Postgres, no-WebApplicationFactory pattern as
@@ -16,8 +16,6 @@ using Testcontainers.PostgreSql;
 // default and a defaultValue of 0 would mean the opposite — give nothing away.
 public sealed class AccountMaxDiscountMigrationTests
 {
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     private const string PreviousMigrationId = "20260910222552_AddSalesOrderDiscountReason";
 
@@ -41,7 +39,7 @@ public sealed class AccountMaxDiscountMigrationTests
     [Fact]
     public async Task MigratingUp_LeavesTheDefaultAccountWithNoCeiling()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -66,7 +64,7 @@ public sealed class AccountMaxDiscountMigrationTests
     [InlineData(10_001)]
     public async Task TheDatabaseRefusesABasisPointValueOutsideTheRange(int basisPoints)
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
@@ -90,7 +88,7 @@ public sealed class AccountMaxDiscountMigrationTests
     [InlineData(10_000)]
     public async Task TheDatabaseAcceptsEveryValueTheApplicationCanWrite(int? basisPoints)
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
@@ -104,7 +102,7 @@ public sealed class AccountMaxDiscountMigrationTests
     [Fact]
     public async Task DowngradingPastAddAccountMaxDiscountBasisPoints_DropsTheColumn_AndUpgradesCleanlyAgain()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();

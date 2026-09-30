@@ -6,16 +6,13 @@ using System.Net.Http.Json;
 using System.Net.Sockets;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Testcontainers.PostgreSql;
 
 // The OTel SDK reads standard OTLP variables when its exporter options object is
 // constructed. These cases run each exporter in a real child process so an
 // ambient process variable cannot leak between xUnit tests or factories.
 public sealed class OtlpSubprocessDatabaseFixture : IAsyncLifetime
 {
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(PostgresImage).Build();
+    private readonly SharedPostgresDatabase _postgres = new SharedPostgresDatabase();
 
     public string ConnectionString => _postgres.GetConnectionString();
 

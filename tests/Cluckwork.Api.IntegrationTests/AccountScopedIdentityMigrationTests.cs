@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -8,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 // #532 — THE GUARANTEE that ApplicationUserIndexModelTests points to: it runs
 // EF's migrator to completion against a throwaway Postgres (same shape as
@@ -26,8 +26,6 @@ using Testcontainers.PostgreSql;
 // unique index deleted from the migration and prove nothing.
 public sealed class AccountScopedIdentityMigrationTests
 {
-    private const string PostgresImage =
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     private const string DefaultAccountId = "0000000a-0000-0000-0000-000000000001";
     private const string SecondAccountId = "0000000a-0000-0000-0000-000000000002";
@@ -128,7 +126,7 @@ public sealed class AccountScopedIdentityMigrationTests
     [Fact]
     public async Task MigratedDatabase_AcceptsTheSameEmail_InTwoAccounts()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
@@ -151,7 +149,7 @@ public sealed class AccountScopedIdentityMigrationTests
     [Fact]
     public async Task MigratedDatabase_TheEmailIndex_RejectsADuplicateWithinOneAccount()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
@@ -176,7 +174,7 @@ public sealed class AccountScopedIdentityMigrationTests
     [Fact]
     public async Task MigratedDatabase_TheUserNameIndex_RejectsADuplicateWithinOneAccount()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
@@ -200,7 +198,7 @@ public sealed class AccountScopedIdentityMigrationTests
     [Fact]
     public async Task MigratedDatabase_TheForeignKey_RejectsAnOrphanAccountId()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
@@ -232,7 +230,7 @@ public sealed class AccountScopedIdentityMigrationTests
     [InlineData("NormalizedUserName", "0000000a-0000-0000-0000-00000000010c")]
     public async Task MigratedDatabase_RejectsAnInsertWithANullIdentityColumn(string nullColumn, string userId)
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
@@ -260,7 +258,7 @@ public sealed class AccountScopedIdentityMigrationTests
     [Fact]
     public async Task TheIdentityIndexMigration_RefusesToRun_OverAnOrphanUserId()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 
@@ -287,7 +285,7 @@ public sealed class AccountScopedIdentityMigrationTests
     [Fact]
     public async Task TheRequireColumnsMigration_RefusesToRun_OverANullIdentityColumn()
     {
-        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await using var postgres = new SharedPostgresDatabase();
         await postgres.StartAsync();
         await using var db = BuildContext(postgres.GetConnectionString());
 

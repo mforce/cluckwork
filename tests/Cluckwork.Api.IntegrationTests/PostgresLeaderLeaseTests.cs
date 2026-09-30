@@ -1,19 +1,17 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 // #271 — direct proof of the leader lease's contract: AT MOST ONE ACTIVE LEADER,
-// with crash recovery and transaction-pooling backend-affinity. A dedicated Postgres
-// container (advisory locks are lock-manager state, not tables — no schema is needed)
-// keeps these tests isolated from the shared integration factory, whose own worker
-// now holds the (271, 1) lock.
+// with crash recovery and transaction-pooling backend-affinity. Both competing
+// leases use this class's dedicated database. Advisory locks in other databases
+// on the shared server cannot contend for its (271, 1) lock.
 public sealed class PostgresLeaderLeaseTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
-        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+    private readonly SharedPostgresDatabase _postgres = new SharedPostgresDatabase();
 
     public Task InitializeAsync() => _postgres.StartAsync();
 

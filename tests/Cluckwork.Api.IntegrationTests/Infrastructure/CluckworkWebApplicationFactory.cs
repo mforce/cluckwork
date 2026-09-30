@@ -7,25 +7,20 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 // Full-stack integration tests run against a real Postgres container (tech spec §5.4).
 // SQLite is deliberately NOT used — EF Core SQL semantics differ too much.
 public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    // Must match the image pinned in deploy/docker-compose.yml and docker-compose.dev.yml —
-    // tests have to validate against the same Postgres version prod runs.
-    private const string PostgresImage = "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
-
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(PostgresImage)
-        .Build();
+    private SharedPostgresDatabase? _postgres;
 
     // Factories can share Redis when a test configures it, but their rate-limit
     // counters must not. The window stays open for the whole status loop (#840),
     // so a shared namespace would carry another host's login attempts into it.
     private readonly string _sharedStateKeyNamespace = $"cluckwork-test-{Guid.NewGuid():N}";
 
-    public string ConnectionString => _postgres.GetConnectionString();
+    public string ConnectionString => _postgres?.GetConnectionString()
+        ?? throw new InvalidOperationException("The test database has not started.");
 
     // Default true: the suite runs against a migrated schema. A factory can
     // override to false to observe a host booting against an UNMIGRATED database
@@ -35,9 +30,10 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
     public async Task InitializeAsync()
     {
         var started = Stopwatch.GetTimestamp();
+        _postgres = new SharedPostgresDatabase(MigrateSchemaOnInitialize);
         await _postgres.StartAsync();
         var ready = Stopwatch.GetTimestamp();
-        LogInitializationTiming("container", Stopwatch.GetElapsedTime(started, ready));
+        LogInitializationTiming("database", Stopwatch.GetElapsedTime(started, ready));
         if (!MigrateSchemaOnInitialize) return;
 
         using var scope = Services.CreateScope();
@@ -55,8 +51,9 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
 
     public new async Task DisposeAsync()
     {
-        await _postgres.DisposeAsync();
         await base.DisposeAsync();
+        if (_postgres is not null)
+            await _postgres.DisposeAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -66,7 +63,7 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // into the test database — tests must be hermetic.
         builder.UseEnvironment("Testing");
         builder.UseSetting("Database:Provider", "Postgres");
-        builder.UseSetting("ConnectionStrings:Default", _postgres.GetConnectionString());
+        builder.UseSetting("ConnectionStrings:Default", ConnectionString);
         builder.UseSetting("Jwt:PrivateKeyPem", TestJwtKeys.PrivateKeyPem);
         builder.UseSetting("Jwt:PublicKeyPem", TestJwtKeys.PublicKeyPem);
         builder.UseSetting("Jwt:Issuer", "cluckwork-test");
