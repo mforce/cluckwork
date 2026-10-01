@@ -370,6 +370,38 @@ namespace Cluckwork.Application.Tests.Architecture
             Assert.Empty(Evaluate<MoneyReturnFixtures.IMoneyReturnFixture>());
         }
 
+        private static IReadOnlyList<string> EvaluateContract<T>() =>
+            SeamSurfaceScanner.Evaluate(SeamSurfaceScanner.ScanContracts([typeof(T)], minimumInterfaceFloor: 1));
+
+        [Fact]
+        public void Contract_ConcreteAggregateReturn_IsAViolation()
+        {
+            var failure = Assert.Single(EvaluateContract<ConcreteAggregateReturnFixtures.IConcreteAggregateReturnFixture>());
+            Assert.Contains("IConcreteAggregateReturnFixture.List", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+        }
+
+        [Fact]
+        public void Contract_AggregateNestedInAPagedResult_IsAViolation()
+        {
+            var failure = Assert.Single(EvaluateContract<PagedResultReturnFixtures.IPagedResultReturnFixture>());
+            Assert.Contains("IPagedResultReturnFixture.Page", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+        }
+
+        [Fact]
+        public void Contract_KeepsThePersistenceRules()
+        {
+            var failure = Assert.Single(EvaluateContract<DbSetReturnFixtures.IDbSetReturnFixture>());
+            Assert.Contains("DbSet", failure);
+        }
+
+        [Fact]
+        public void Contract_ValueObjectReturn_IsGreen()
+        {
+            Assert.Empty(EvaluateContract<MoneyReturnFixtures.IMoneyReturnFixture>());
+        }
+
         [Fact]
         public void InheritedGenericBaseInterface_SubstitutedArgumentIsAViolation()
         {

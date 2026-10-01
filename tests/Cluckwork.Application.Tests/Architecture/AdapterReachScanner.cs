@@ -21,6 +21,7 @@ public sealed record AdapterReachReport(
 {
     public int TopLevelProgramAdapterCount { get; init; }
     public IReadOnlyList<string> RouteErrors { get; init; } = [];
+    public IReadOnlyList<AdapterReach> ContractBypasses { get; init; } = [];
 }
 
 public static class AdapterReachScanner
@@ -67,6 +68,22 @@ public static class AdapterReachScanner
         var declaredTypes = roots.SelectMany(root => root.DescendantNodes())
             .Where(n => n is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax)
             .Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
+        var contracts = ledger.Owners.Where(o => o.Contract.Count > 0)
+            .ToDictionary(o => o.Name, o => o.Contract.ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        foreach (var (owner, types) in contracts)
+        {
+            foreach (var type in types.Order(StringComparer.Ordinal))
+            {
+                if (!declaredTypes.Contains(type))
+                {
+                    errors.Add($"owner '{owner}' contract type '{type}' is not declared under src/");
+                }
+                else if (ModuleLedgerScanner.Resolve(claims, type, declared: false)?.Owner != owner)
+                {
+                    errors.Add($"owner '{owner}' contract type '{type}' is not in a namespace '{owner}' owns");
+                }
+            }
+        }
         var live = new List<AdapterReach>();
         var persistence = new List<string>();
         var unresolved = new SortedSet<string>(StringComparer.Ordinal);
@@ -202,6 +219,7 @@ public static class AdapterReachScanner
         {
             TopLevelProgramAdapterCount = programCount,
             RouteErrors = routeErrors,
+            ContractBypasses = ordered.Where(r => contracts.TryGetValue(r.Owner, out var types) && !types.Contains(r.Type)).ToList(),
         };
     }
 
@@ -218,6 +236,11 @@ public static class AdapterReachScanner
         }
         failures.AddRange(report.RouteErrors);
         failures.AddRange(report.PersistenceViolations);
+        foreach (var bypass in report.ContractBypasses)
+        {
+            failures.Add($"contract bypass {bypass.Symbol} -> {bypass.Owner} through {bypass.Type} at " +
+                $"{bypass.File}:{bypass.Line}; {bypass.Owner} declares a contract, so call one of its contract types");
+        }
         foreach (var reach in report.Undeclared)
         {
             failures.Add($"undeclared adapter reach {reach.Symbol} -> {reach.Owner} through {reach.Type} " +
