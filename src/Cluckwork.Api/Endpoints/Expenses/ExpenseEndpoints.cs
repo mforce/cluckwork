@@ -6,7 +6,6 @@ using Cluckwork.Application.Features.Expenses.AdjustExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
-using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -61,19 +60,17 @@ public static class ExpenseEndpoints
     // --- categories ---
 
     private static async Task<IResult> ListCategories(
-        IExpenseCategoryRepository categories, TenantContext tenant, CancellationToken ct,
+        IFinanceModule finance, TenantContext tenant, CancellationToken ct,
         bool includeInactive = false)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = includeInactive
-            ? await categories.ListAllAsync(ct)
-            : await categories.ListActiveAsync(Cluckwork.Domain.Accounts.SeedDefaults.FarmId, ct);
+        var list = await finance.ListCategoriesAsync(includeInactive, ct);
         return Results.Ok(list.Select(ToResponse));
     }
 
     private static async Task<IResult> CreateCategory(
         CreateExpenseCategoryRequest request,
-        CreateExpenseCategoryHandler handler,
+        IFinanceModule finance,
         IValidator<CreateExpenseCategoryCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -85,7 +82,7 @@ public static class ExpenseEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await finance.CreateCategoryAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/expense-categories/{result.Value}", new { Id = result.Value })
             : MapFailure(result.Error);
@@ -94,7 +91,7 @@ public static class ExpenseEndpoints
     private static async Task<IResult> UpdateCategory(
         Guid id,
         UpdateExpenseCategoryRequest request,
-        UpdateExpenseCategoryHandler handler,
+        IFinanceModule finance,
         IValidator<UpdateExpenseCategoryCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -106,14 +103,14 @@ public static class ExpenseEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await finance.UpdateCategoryAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     // --- expenses ---
 
     private static async Task<IResult> ListExpenses(
-        IExpenseRepository expenses,
+        IFinanceModule finance,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         IAccountRepository accounts,
         IAuditEventRepository audit,
@@ -130,13 +127,13 @@ public static class ExpenseEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await expenses.ListAsync(from, to, categoryId, take, skip, ct);
-        var total = await expenses.SumAsync(from, to, categoryId, ct);
+        var page = await finance.ListExpensesAsync(from, to, categoryId, take, skip, ct);
+        var list = page.Items;
         // Single-farm MVP: every expense carries the account currency, so one
         // label fits the total. Multi-currency totals arrive with multi-farm.
         var account = await accounts.GetCurrentAsync(ct);
         var provenance = await audit.GetProvenanceAsync(
-            nameof(Expense), list.Select(e => e.Id).ToList(), ct);
+            IFinanceModule.ExpenseAuditEntityType, list.Select(e => e.Id).ToList(), ct);
         // #512 T048 — one scoped bulk read for the page's flock references. A
         // nullable reference needs the map, not a First(): a naive per-row
         // projection throws on the (common) null-flock row, and a First() per row
@@ -148,27 +145,27 @@ public static class ExpenseEndpoints
         return Results.Ok(new ExpenseListResponse(
             list.Select(e => ToResponse(e, provenance.GetValueOrDefault(e.Id),
                 e.FlockId is null ? null : names.GetValueOrDefault(e.FlockId.Value)?.Name)).ToList(),
-            total,
+            page.TotalMinorUnits,
             account?.DefaultCurrencyCode ?? "",
             account?.DefaultCurrencyMinorUnit ?? 2));
     }
 
     private static async Task<IResult> GetExpense(
-        Guid id, IExpenseRepository expenses,
+        Guid id, IFinanceModule finance,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         IAuditEventRepository audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var expense = await expenses.GetByIdAsync(id, ct);
+        var expense = await finance.GetExpenseAsync(id, ct);
         if (expense is null) return Results.NotFound();
-        var provenance = await audit.GetProvenanceAsync(nameof(Expense), [id], ct);
+        var provenance = await audit.GetProvenanceAsync(IFinanceModule.ExpenseAuditEntityType, [id], ct);
         return Results.Ok(ToResponse(expense, provenance.GetValueOrDefault(id),
             await FlockNameAsync(flocks, expense.FlockId, ct)));
     }
 
     private static async Task<IResult> CreateExpense(
         CreateExpenseRequest request,
-        CreateExpenseHandler handler,
+        IFinanceModule finance,
         IValidator<CreateExpenseCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -183,7 +180,7 @@ public static class ExpenseEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await finance.CreateExpenseAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/expenses/{result.Value}", new { Id = result.Value })
             : MapFailure(result.Error);
@@ -192,9 +189,8 @@ public static class ExpenseEndpoints
     private static async Task<IResult> AdjustExpense(
         Guid id,
         AdjustExpenseRequest request,
-        AdjustExpenseHandler handler,
+        IFinanceModule finance,
         IValidator<AdjustExpenseCommand> validator,
-        IExpenseRepository expenses,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         IAuditEventRepository audit,
         TenantContext tenant,
@@ -210,15 +206,15 @@ public static class ExpenseEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await finance.AdjustExpenseAsync(command, ct);
         if (result.IsFailure) return MapFailure(result.Error);
 
         // The corrected row (fresh version) so the client can rebind its edit
         // state without a second round trip. The adjust just wrote its own
         // audit event, so this read reports the correction as the last change.
-        var updated = await expenses.GetByIdAsync(id, ct);
+        var updated = await finance.GetExpenseAsync(id, ct);
         if (updated is null) return Results.NotFound();
-        var provenance = await audit.GetProvenanceAsync(nameof(Expense), [id], ct);
+        var provenance = await audit.GetProvenanceAsync(IFinanceModule.ExpenseAuditEntityType, [id], ct);
         // The corrected row is rebound by the SPA, so it carries the name too — a
         // response missing it would put the edit form back on a nameless row.
         return Results.Ok(ToResponse(updated, provenance.GetValueOrDefault(id),
@@ -235,7 +231,7 @@ public static class ExpenseEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static ExpenseCategoryResponse ToResponse(ExpenseCategory c) =>
+    private static ExpenseCategoryResponse ToResponse(ExpenseCategoryDetails c) =>
         new(c.Id, c.FarmId, c.Name, c.Active);
 
     // FlockName is null for BOTH "this expense is not flock-attributed" (FlockId
@@ -254,7 +250,7 @@ public static class ExpenseEndpoints
                 .GetValueOrDefault(flockId.Value)?.Name;
 
     private static ExpenseResponse ToResponse(
-        Expense e, EntityProvenance? p, string? flockName = null) =>
+        ExpenseDetails e, EntityProvenance? p, string? flockName = null) =>
         new(e.Id, e.FarmId, e.ExpenseCategoryId, e.Date, e.Description,
             e.AmountMinorUnits, e.CurrencyCode, e.CurrencyMinorUnit,
             e.FlockId, e.Note, e.Version,

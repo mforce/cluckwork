@@ -311,6 +311,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<UpdateExpenseCategoryHandler>();
         services.AddScoped<CreateExpenseHandler>();
         services.AddScoped<AdjustExpenseHandler>();
+        services.AddScoped<IFinanceModule, FinanceModule>();
         services.AddScoped<UpdateFlockHandler>();
         services.AddScoped<ArchiveFlockHandler>();
         services.AddScoped<RecordBirdMovementHandler>();
