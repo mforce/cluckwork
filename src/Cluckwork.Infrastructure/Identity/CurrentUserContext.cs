@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Application.Common;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // The acting actor for the current unit of work. Scoped.
 //

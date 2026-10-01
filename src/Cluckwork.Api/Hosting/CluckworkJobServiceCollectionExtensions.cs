@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkJobServiceCollectionExtensions
 {

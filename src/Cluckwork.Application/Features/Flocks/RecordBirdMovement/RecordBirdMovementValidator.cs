@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Flocks.RecordBirdMovement;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Flocks;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 
 public sealed class RecordBirdMovementValidator : AbstractValidator<RecordBirdMovementCommand>
 {

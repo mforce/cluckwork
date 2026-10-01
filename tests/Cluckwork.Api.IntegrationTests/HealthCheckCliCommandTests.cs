@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.Cli;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #266 — the `healthcheck` verb's probe logic. No Docker: each test stands up a
 // tiny REAL Kestrel returning a chosen status, so it exercises a real socket +

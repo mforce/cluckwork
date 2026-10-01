@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Flocks;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Flocks;
@@ -12,6 +10,8 @@ using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Flocks;
 
 public static class FlockEndpoints
 {

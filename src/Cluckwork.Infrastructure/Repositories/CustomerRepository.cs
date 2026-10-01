@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 public sealed class CustomerRepository(AppDbContext db) : ICustomerRepository
 {

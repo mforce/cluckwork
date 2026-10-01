@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Customers;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Customers;
 
 public interface ICustomerRepository : IRepository<Customer, Guid>
 {

@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using Microsoft.EntityFrameworkCore.Metadata;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 internal static class ReferenceDataComparison
 {

@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Persistence.Configurations;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Persistence.Configurations;
 
 // #123, #179 — the farm logo AND banner's shared table. See FarmLogo for why
 // it is not a column on accounts, and for the name discrepancy (this row also

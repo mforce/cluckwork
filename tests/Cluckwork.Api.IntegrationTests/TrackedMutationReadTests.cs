@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Flocks;
@@ -7,6 +5,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.RegularExpressions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #561 review — the write guard's Modified/Deleted checks compare AccountId's
 // ORIGINAL value against the resolved tenant, and that is only meaningful while

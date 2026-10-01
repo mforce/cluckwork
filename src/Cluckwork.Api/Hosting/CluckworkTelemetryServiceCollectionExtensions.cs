@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Logging;
 using OpenTelemetry.Exporter;
@@ -7,6 +5,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkTelemetryServiceCollectionExtensions
 {

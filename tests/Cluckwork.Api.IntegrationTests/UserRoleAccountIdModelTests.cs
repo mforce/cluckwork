@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #670 — pins the seam in AppDbContext.OnModelCreating that gives
 // IdentityUserRole<Guid> a tenant column the two existing write-side layers

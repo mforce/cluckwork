@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Sales;
-
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Domain.Sales;
 
 // MVP customer (issue #10): reference-app shape — name + phone required,
 // email/address/note optional. Balances, credit terms, and payments are

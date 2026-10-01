@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Hosting;
-
 using System.Security.Cryptography;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Middleware;
@@ -10,6 +8,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkIdentityServiceCollectionExtensions
 {

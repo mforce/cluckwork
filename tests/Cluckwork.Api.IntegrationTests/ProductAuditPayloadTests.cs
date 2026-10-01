@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #746 — CreateProductHandler and UpdateProductHandler stored ProductType and
 // DefaultUnit as bare enums in their audit payloads. AuditWriter serialises

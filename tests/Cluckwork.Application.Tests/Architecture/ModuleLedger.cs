@@ -1,9 +1,10 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
 namespace Cluckwork.Application.Tests.Architecture;
 
 // #842 — the committed module ledger: owners by namespace, one cell per cross-owner dependency.
 
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 public sealed record OwnerDefinition(
     string Name,

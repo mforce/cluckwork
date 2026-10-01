@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Users.SetStepperUnit;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.SetStepperUnit;
 
 // The user id comes from the token (the endpoint), never the body: a caller can
 // only ever set their OWN stepper-unit preference. Account-scoped inside the

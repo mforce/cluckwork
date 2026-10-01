@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Reports;
@@ -8,6 +6,8 @@ using Cluckwork.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #311 — end-to-end proof that ReportConcurrencyLimitFilter is actually wired
 // onto the reports route group (ReportConcurrencyLimiterTests covers the

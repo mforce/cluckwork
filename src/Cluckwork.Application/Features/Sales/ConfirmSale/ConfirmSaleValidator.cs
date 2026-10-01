@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Sales.ConfirmSale;
-
 using Cluckwork.Domain.Sales;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 
 // #721 — mirrors only the SYNTACTIC half of SalesOrder.Confirm's discount rule,
 // the way VoidSaleValidator mirrors Void's. Whether a reason is REQUIRED depends

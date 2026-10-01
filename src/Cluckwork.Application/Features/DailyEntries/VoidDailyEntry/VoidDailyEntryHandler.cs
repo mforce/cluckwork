@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.EggGrades;
@@ -10,6 +8,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
 
 // #69 (spec §8.1/§9.5) — void reverses everything the entry's submit created:
 // each egg lot is emptied (blocked if any of its eggs were already sold), the

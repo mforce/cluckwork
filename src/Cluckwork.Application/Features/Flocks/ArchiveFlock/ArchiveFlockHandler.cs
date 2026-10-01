@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Flocks.ArchiveFlock;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
+
+namespace Cluckwork.Application.Features.Flocks.ArchiveFlock;
 
 public sealed class ArchiveFlockHandler(
     IFlockRepository flocks,

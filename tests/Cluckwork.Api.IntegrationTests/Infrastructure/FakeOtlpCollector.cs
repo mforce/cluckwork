@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Channels;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 internal sealed record CapturedOtlpRequest(
     string Path,

@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Persistence.Configurations;
-
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Eggs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Persistence.Configurations;
 
 public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 {

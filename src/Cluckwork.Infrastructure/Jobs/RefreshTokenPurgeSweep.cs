@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Jobs;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Jobs;
 
 // #270 — refresh_tokens grows without bound: every login/refresh inserts a
 // row and rotation keeps inserting, but nothing ever deletes an

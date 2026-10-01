@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.IO.Compression;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #95 — manual backup: admin-only CSV export per dataset + full-account zip.
 // The CSVs must be tenant-scoped, RFC 4180-escaped, and formula-guarded.

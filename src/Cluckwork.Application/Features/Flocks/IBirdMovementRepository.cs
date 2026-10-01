@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Flocks;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Flocks;
+
+namespace Cluckwork.Application.Features.Flocks;
 
 public interface IBirdMovementRepository : IRepository<BirdMovement, Guid>
 {

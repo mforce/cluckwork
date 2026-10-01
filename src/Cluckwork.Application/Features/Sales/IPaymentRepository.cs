@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Sales;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Sales;
 
 public interface IPaymentRepository : IRepository<Payment, Guid>
 {

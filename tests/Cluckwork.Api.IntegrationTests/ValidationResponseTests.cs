@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Validation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // Pure-function tests: no server, no Testcontainers collection.
 public sealed class ValidationResponseTests

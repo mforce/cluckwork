@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Sales.RecordPayment;
-
 using Cluckwork.Domain.Sales;
 using Cluckwork.Application.Common;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Sales.RecordPayment;
 
 public sealed class RecordPaymentValidator : AbstractValidator<RecordPaymentCommand>
 {

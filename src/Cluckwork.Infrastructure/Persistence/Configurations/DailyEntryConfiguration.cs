@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Persistence.Configurations;
-
 using Cluckwork.Domain.Eggs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Persistence.Configurations;
 
 internal static class EggOperationsBusinessRecords
 {

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.IntegrationTests.SharedState;
 using Cluckwork.Infrastructure.Identity;
@@ -8,6 +6,8 @@ using Cluckwork.Infrastructure.SharedState;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #308 / PR #336 review (3rd round) — the step-up registry's own contract, at
 // the unit level. #338 (rework) moved both tables out of the process: replay

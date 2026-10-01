@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
 public sealed class MeEndpointsTests(CluckworkWebApplicationFactory factory)

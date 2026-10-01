@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
 
 public sealed class UpdateExpenseCategoryHandler(
     IExpenseCategoryRepository categories,

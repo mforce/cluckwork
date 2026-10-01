@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
@@ -17,6 +15,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #308/#360 — step-up authentication for durable user access. A stolen but
 // still-valid Owner access token must not be enough, on its own, to create any

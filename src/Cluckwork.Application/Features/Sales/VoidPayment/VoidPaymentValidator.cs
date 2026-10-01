@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Sales.VoidPayment;
-
 using Cluckwork.Domain.Sales;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Sales.VoidPayment;
 
 public sealed class VoidPaymentValidator : AbstractValidator<VoidPaymentCommand>
 {

@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Common;
-
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Common;
 
 // #308/#360/#606 — recent-authentication proof required for every interactive
 // user creation, administrative password reset, role change (#355),

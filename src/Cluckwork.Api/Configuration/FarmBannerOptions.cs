@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Configuration;
-
 using Cluckwork.Domain.Media;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Configuration;
 
 // #179 — the OPERATIONAL cap on a farm-banner upload, tunable per deployment
 // under the domain's hard ceiling (ImageSanitizer.MaxBannerByteLengthCeiling).

@@ -1,8 +1,8 @@
-namespace Cluckwork.Domain.Accounts;
-
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
+
+namespace Cluckwork.Domain.Accounts;
 
 // Spec §4.6 "Currency derivation fallback": Phase 1 ships a static ISO 4217
 // lookup. Symbol and minor unit come from deliberately DIFFERENT sources:

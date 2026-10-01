@@ -1,10 +1,10 @@
-namespace Cluckwork.Infrastructure.Jobs;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Jobs;
 
 public sealed class DurableJob
 {

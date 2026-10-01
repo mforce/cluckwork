@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Catalog.UpdateProduct;
-
 using Cluckwork.Domain.Catalog;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Catalog.UpdateProduct;
 
 public sealed class UpdateProductValidator : AbstractValidator<UpdateProductCommand>
 {

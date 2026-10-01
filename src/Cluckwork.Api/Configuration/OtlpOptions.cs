@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Configuration;
-
 using OpenTelemetry.Exporter;
+
+namespace Cluckwork.Api.Configuration;
 
 // OTLP export settings (#214). Bound from the "Otlp" section and validated
 // eagerly at boot (repo convention): a malformed protocol or endpoint fails

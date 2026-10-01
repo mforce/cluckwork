@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // This factory deliberately remains on the canonical disabled profile inherited
 // from CluckworkWebApplicationFactory. Every case below fails during telemetry

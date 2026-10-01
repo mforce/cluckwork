@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
@@ -8,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #307 acceptance criterion: "Two independently hosted API instances sharing
 // one Postgres database receive the same authenticated write concurrently and

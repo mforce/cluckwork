@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
@@ -16,6 +14,8 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 public sealed class IdentityProvider(
     UserManager<ApplicationUser> userManager,

@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
-
 using Cluckwork.Domain.Inventory;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 
 public sealed class UpdateInventoryItemValidator : AbstractValidator<UpdateInventoryItemCommand>
 {

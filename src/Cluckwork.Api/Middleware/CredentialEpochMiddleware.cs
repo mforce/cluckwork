@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.Middleware;
-
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.Middleware;
 
 // #364 — server-side access-token revocation. Every authenticated request is
 // bound to the credential epoch held by its exact (user, account) row. Missing

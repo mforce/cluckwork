@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #5: the app is usable end-to-end, and flock CRUD is the first setup
 // surface. Covers a provisioned-admin login + create/list/get/deplete.

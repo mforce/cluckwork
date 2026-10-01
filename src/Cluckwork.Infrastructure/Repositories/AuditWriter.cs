@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using System.Text.Json;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 // Appends to the handler's OWN unit of work — no SaveChanges here, so the
 // event commits or rolls back with the change it records (tech spec: audit is

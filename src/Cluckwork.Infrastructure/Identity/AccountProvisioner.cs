@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
@@ -9,6 +7,8 @@ using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 public sealed class AccountProvisioner(
     AppDbContext db,

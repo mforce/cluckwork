@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Providers.Postgres;
-
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Providers.Postgres;
 
 public sealed class PostgresDbContextConfigurator : IDbProviderConfigurator
 {

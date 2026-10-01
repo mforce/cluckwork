@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Persistence.Configurations;
-
 using Cluckwork.Domain.Accounts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Persistence.Configurations;
 
 // The account row carries the farm's §4.5 localization settings until a farms
 // aggregate exists (#123). Everything the settings screen writes is length- and

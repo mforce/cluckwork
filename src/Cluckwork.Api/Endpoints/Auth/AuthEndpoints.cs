@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Auth;
-
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
@@ -12,6 +10,8 @@ using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Endpoints.Auth;
 
 public static class AuthEndpoints
 {

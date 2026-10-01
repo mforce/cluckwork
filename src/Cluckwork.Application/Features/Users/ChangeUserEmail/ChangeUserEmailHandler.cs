@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.ChangeUserEmail;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.ChangeUserEmail;
 
 public sealed class ChangeUserEmailHandler(IIdentityProvider identity, IStepUpGrantService stepUp)
 {

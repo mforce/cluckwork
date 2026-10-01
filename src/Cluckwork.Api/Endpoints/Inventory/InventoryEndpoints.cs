@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Inventory;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
@@ -10,6 +8,8 @@ using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Inventory;
 
 public static class InventoryEndpoints
 {

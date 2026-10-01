@@ -1,7 +1,7 @@
-namespace Cluckwork.Domain.Tests.Accounts;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Media;
+
+namespace Cluckwork.Domain.Tests.Accounts;
 
 // #179 — the farm banner shares FarmLogo's row (see FarmLogo.cs for why: two
 // independent branding images, one shared Version token, accepted as a rare

@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.Documentation;
-
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+
+namespace Cluckwork.Application.Tests.Documentation;
 
 public sealed class TenancyDocsFreshnessTests
 {

@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #338 — the shared-store implementation of the two step-up-grant guarantees,
 // replacing InMemoryStepUpGrantRegistry now that both tables have left the

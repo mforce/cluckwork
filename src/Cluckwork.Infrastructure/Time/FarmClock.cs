@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Time;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Time;
 
 // Scoped: a tenant's timezone cannot change inside one request, so the account
 // is read at most once and reused by every boundary check in that request —

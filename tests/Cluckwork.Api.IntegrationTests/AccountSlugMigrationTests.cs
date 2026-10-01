@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using System.Text.RegularExpressions;
 using Cluckwork.Infrastructure.Persistence;
@@ -10,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #531/#407 — the AddAccountSlug backfill. The migration adds Slug nullable,
 // backfills a deterministic per-row value, tightens to NOT NULL, then adds a

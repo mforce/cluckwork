@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Middleware;
-
 using System.Security.Claims;
+
+namespace Cluckwork.Api.Middleware;
 
 // #532 — /auth/login is AllowAnonymous, but AllowAnonymous does NOT stop
 // UseAuthentication from populating context.User when a bearer happens to be

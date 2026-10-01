@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Tests.TenantBypass;
-
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Application.Tests.TenantBypass;
 
 // #536 Part 1 — the real-tree gate. This is the guard that runs in the
 // pre-commit hook and CI: it scans the ACTUAL src/ tree, and fails the build

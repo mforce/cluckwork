@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Text.RegularExpressions;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #769 — the SQL the orders list emits, read directly. Model-only, no database
 // (AccountIdConcurrencyTokenModelTests precedent): what is pinned here is the

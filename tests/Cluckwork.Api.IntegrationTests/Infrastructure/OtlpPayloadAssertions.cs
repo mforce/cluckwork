@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Text;
 using Google.Protobuf;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 internal static class OtlpPayloadAssertions
 {

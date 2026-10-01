@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Endpoints.Auth;
-
 using Cluckwork.Application.Features.Users;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Auth;
 
 // #308 — MAX-length-only, matching LoginRequestValidator's rationale: an
 // empty/short password must still flow to IStepUpGrantService.IssueAsync and

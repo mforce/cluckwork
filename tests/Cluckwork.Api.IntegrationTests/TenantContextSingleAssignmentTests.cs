@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Persistence;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #546 — TenantContext is single-assignment: one DI scope serves exactly one
 // account. See TenantContext for why re-pointing a live scope is never

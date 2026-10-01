@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Accounts.SetFarmBanner;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
+
+namespace Cluckwork.Application.Features.Accounts.SetFarmBanner;
 
 // #179 — upload or replace the farm banner. Mirrors SetFarmLogoHandler exactly;
 // the only difference is which side of the shared FarmLogo row it writes and

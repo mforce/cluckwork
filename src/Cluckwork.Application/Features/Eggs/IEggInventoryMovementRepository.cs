@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Eggs;
-
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Application.Features.Eggs;
 
 public interface IEggInventoryMovementRepository
 {

@@ -1,10 +1,10 @@
-namespace Cluckwork.Infrastructure.RateLimiting;
-
 using System.Threading.RateLimiting;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Infrastructure.RateLimiting;
 
 // #544 — the public IRateLimiterPolicy the Api layer registers for each IP-keyed auth
 // policy (login / refresh / client-errors). It is the ONLY bridge across the assembly

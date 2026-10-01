@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory.RecordAdjustment;
-
 using Cluckwork.Domain.Inventory;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Inventory.RecordAdjustment;
 
 public sealed class RecordAdjustmentValidator : AbstractValidator<RecordAdjustmentCommand>
 {

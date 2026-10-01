@@ -1,7 +1,7 @@
-namespace Cluckwork.Infrastructure.RateLimiting;
-
 using System.Net;
 using System.Net.Sockets;
+
+namespace Cluckwork.Infrastructure.RateLimiting;
 
 // Derives the rate-limit partition key from the resolved client IP. The IP
 // itself is resolved by the framework ForwardedHeaders middleware; this only

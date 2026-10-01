@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #532 — a CHEAP FAST-FAIL on the built EF model. It is deliberately NOT the
 // guarantee: it cannot catch "model changed, migration never added", because

@@ -9,6 +9,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Runs the two .editorconfig warning-severity C# style rules
+         (file-scoped namespaces, using-directive placement) at build time.
+         Combined with TreatWarningsAsErrors above, a violation is a build
+         error, not just an IDE squiggle. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <PropertyGroup>

@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Hosting;
-
 using Microsoft.Net.Http.Headers;
+
+namespace Cluckwork.Api.Hosting;
 
 // #312 — origin-side safe cache default. The app previously emitted no
 // Cache-Control on API responses at all, so a browser cache, a misconfigured

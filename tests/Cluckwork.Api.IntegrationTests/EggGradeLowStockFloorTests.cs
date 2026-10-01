@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #911 — the per-grade low-stock floor over the API: who may move it, what
 // GET /stock reports about it, and the Version-token race the aggregate-mutation

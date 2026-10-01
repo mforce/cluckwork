@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.Cli;
 
 // Creates one farm, its canonical reference data, and its first Owner in one
 // transaction. It deliberately does not migrate: production runs this through

@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Infrastructure.SharedState;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #543 — contract: single-use claim with TTL.
 //

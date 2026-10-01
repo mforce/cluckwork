@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Media;
@@ -10,6 +8,8 @@ using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // Codex review of #496 (AddFarmBannerColumns): the pre-banner schema required
 // every FarmLogos row to carry a real logo, so a banner-only row (Content

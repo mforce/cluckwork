@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Inventory;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory;
 
 public sealed class SetInventoryItemActiveHandler(
     IInventoryItemRepository items,

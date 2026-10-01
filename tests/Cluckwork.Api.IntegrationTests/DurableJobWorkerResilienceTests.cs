@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #65 — a transient failure inside one poll iteration must never escape into
 // ExecuteAsync, where the host default (StopHost) would take the API down.

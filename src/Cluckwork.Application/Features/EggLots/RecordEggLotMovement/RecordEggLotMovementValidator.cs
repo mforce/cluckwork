@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
-
 using Cluckwork.Domain.Eggs;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
 
 public sealed class RecordEggLotMovementValidator : AbstractValidator<RecordEggLotMovementCommand>
 {

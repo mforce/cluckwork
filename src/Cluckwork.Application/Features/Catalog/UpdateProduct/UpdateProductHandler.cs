@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Catalog.UpdateProduct;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Catalog.UpdateProduct;
 
 public sealed class UpdateProductHandler(
     IProductRepository products,

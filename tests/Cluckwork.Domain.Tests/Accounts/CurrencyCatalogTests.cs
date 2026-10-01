@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Accounts;
-
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Domain.Tests.Accounts;
 
 // §4.6 currency derivation. The minor unit follows ISO 4217, NOT the locale's
 // display habit — it decides how a stored integer amount is read back, so a

@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Cli;
-
 using Microsoft.AspNetCore.Builder;
+
+namespace Cluckwork.Api.Cli;
 
 // A one-off, run-then-exit operator command on the API binary. Dispatched from
 // Program.cs immediately after Build() and

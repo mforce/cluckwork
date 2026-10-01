@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Accounts;
-
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Domain.Tests.Accounts;
 
 // #612 — the one effective-role resolver FlockScopeGuard/Middleware and
 // assignment admission all share, so "which roles are Worker-scoped" has one

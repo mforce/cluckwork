@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #318 — `dotnet ef` design-time tooling fails closed: no predictable postgres/postgres
 // fallback, and every target is held to the SAME Production TLS floor (#261/#262) as a real

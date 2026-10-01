@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #261/#262 — pure unit coverage of the connection-string normalize+validate step
 // (no Docker). Mirrors TimeZoneAvailabilityTests: the LOGIC is proven here; the

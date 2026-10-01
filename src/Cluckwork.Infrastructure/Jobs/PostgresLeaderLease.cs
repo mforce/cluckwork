@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Jobs;
-
 using System.Data;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+
+namespace Cluckwork.Infrastructure.Jobs;
 
 // #271 — the background worker's single-runner gate. Exactly one API instance may
 // run the durable-job poll and the three recurring sweeps; a session-scoped

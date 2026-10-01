@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 public sealed class AccountRepository(AppDbContext db, TenantContext tenant) : IAccountRepository
 {

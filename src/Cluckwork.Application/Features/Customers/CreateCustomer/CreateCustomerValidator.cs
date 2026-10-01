@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Customers.CreateCustomer;
-
 using Cluckwork.Domain.Sales;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Customers.CreateCustomer;
 
 public sealed class CreateCustomerValidator : AbstractValidator<CreateCustomerCommand>
 {

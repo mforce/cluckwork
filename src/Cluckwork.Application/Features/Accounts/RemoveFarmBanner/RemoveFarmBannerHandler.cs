@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Accounts.RemoveFarmBanner;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Accounts.RemoveFarmBanner;
 
 // #179 — clear the farm banner. Mirrors RemoveFarmLogoHandler: clears only the
 // banner's own columns, and deletes the shared row only once the logo is also

@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Features.Sales.VoidSale;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.Eggs;
@@ -7,6 +5,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Sales.VoidSale;
 
 // Undo of a mistaken confirm (#60): Confirmed → Voided, returning every
 // allocated quantity to the exact lot it was drawn from and marking the

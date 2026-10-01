@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -7,6 +5,8 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #279 review Fix 5 (codex) — the `simulation` profile of the `seed --profile
 // <name>` CLI dispatch, exercised end-to-end as a SUBPROCESS (the real built

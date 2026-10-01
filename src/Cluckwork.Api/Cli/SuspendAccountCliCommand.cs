@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.Cli;
 
 // `suspend-account --slug <s> [--reason <text>]` (#534) — takes a farm offline.
 // Enforcement is already live (#532): Account.IsActive is read by

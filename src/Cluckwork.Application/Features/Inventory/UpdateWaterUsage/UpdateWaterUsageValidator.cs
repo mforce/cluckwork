@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
-
 using Cluckwork.Domain.Inventory;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
 
 public sealed class UpdateWaterUsageValidator : AbstractValidator<UpdateWaterUsageCommand>
 {

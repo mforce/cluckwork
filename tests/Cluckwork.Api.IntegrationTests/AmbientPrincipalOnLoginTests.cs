@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Reflection;
@@ -7,6 +5,8 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #532 — /auth/login must behave IDENTICALLY whether or not the caller happens
 // to send a bearer. AllowAnonymous does not deliver that: UseAuthentication

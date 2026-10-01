@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Sales.VoidPayment;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Sales.VoidPayment;
 
 // Undo of a mistaken payment (#89): status flip + reason, never a delete —
 // the row stays for the ledger, and the order's outstanding grows back.

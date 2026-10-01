@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 
 public sealed class UpdateInventoryItemHandler(
     IInventoryItemRepository items,

@@ -1,6 +1,6 @@
-namespace Cluckwork.Api;
-
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Api;
 
 // #103 — the role → capability map (spec §5.1/§5.3), replacing #73's binary
 // Admin/other split. One policy per capability tier; endpoint groups pick a

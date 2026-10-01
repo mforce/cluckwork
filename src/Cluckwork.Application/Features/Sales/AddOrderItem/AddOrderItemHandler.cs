@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Features.Sales.AddOrderItem;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Application.Features.EggGrades;
@@ -7,6 +5,8 @@ using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Sales.AddOrderItem;
 
 public sealed class AddOrderItemHandler(
     ISalesOrderRepository orders,

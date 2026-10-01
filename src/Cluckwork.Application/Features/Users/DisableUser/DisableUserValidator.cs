@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Users.DisableUser;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.DisableUser;
 
 public sealed class DisableUserValidator : AbstractValidator<DisableUserCommand>
 {

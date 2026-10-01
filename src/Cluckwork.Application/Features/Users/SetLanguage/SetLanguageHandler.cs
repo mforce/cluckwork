@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.SetLanguage;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.SetLanguage;
 
 // The user id comes from the token (the endpoint), never the body: a caller can
 // only ever set their OWN language. Account-scoped inside the provider.

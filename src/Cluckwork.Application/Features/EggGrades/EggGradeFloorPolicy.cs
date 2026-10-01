@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggGrades;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Application.Features.EggGrades;
 
 // #911 — who may put a low-stock floor on a grade. One place, because two
 // handlers ask it and a screen asks the same question from the token: a second

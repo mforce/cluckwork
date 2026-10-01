@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
-
 using Cluckwork.Domain.Eggs;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 
 public sealed class AdjustDailyEntryValidator : AbstractValidator<AdjustDailyEntryCommand>
 {

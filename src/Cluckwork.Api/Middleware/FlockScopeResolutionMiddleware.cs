@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Middleware;
-
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.Middleware;
 
 // #388 — resolves FlockScope per request from UserRoleAssignment rows.
 // Runs AFTER TenantResolutionMiddleware (which resolves AccountId from the JWT

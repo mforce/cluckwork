@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // #307 — IdempotencyMiddleware wraps a whole write request in one transaction
 // on the request's scoped AppDbContext, so the domain mutation and the

@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using System.Security.Cryptography;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #265 — generates a strong random password for break-glass account recovery.
 // It satisfies the Identity policy configured in Program.cs (RequiredLength = 12

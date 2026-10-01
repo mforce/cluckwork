@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.SharedState; // FakeTimeProvider (local test clock)
 using Cluckwork.Infrastructure.RateLimiting;
 using Cluckwork.Infrastructure.SharedState;
 using System.Threading.RateLimiting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #544 — direct unit tests for the distributed per-IP limiter (no Docker: a
 // hand-written counter stub + FakeTimeProvider). The integration wiring tests

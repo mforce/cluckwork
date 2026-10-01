@@ -1,10 +1,10 @@
-namespace Cluckwork.Infrastructure.SharedState;
-
 using System.Threading;
 using System.Threading.Tasks;
 using Cluckwork.Application.Common;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+
+namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — resilient decorator over <see cref="IFixedWindowCounter"/> (auth
 // limiter, #544). FALLS BACK to the in-process implementation when Redis

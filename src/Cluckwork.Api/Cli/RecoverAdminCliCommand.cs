@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.Cli;
 
 // `recover-admin --email <e> [--account <guid>] [--reason <t>]` (#265) — offline
 // break-glass recovery for a locked-out account (a sole Owner with a lost

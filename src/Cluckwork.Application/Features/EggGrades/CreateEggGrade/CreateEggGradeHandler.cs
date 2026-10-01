@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.EggGrades.CreateEggGrade;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 
 public sealed class CreateEggGradeHandler(
     IEggGradeRepository grades,

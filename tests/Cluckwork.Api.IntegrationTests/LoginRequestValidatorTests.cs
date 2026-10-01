@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Application.Features.Users;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #309 — the login validator is MAX-length only: an oversized email/password is
 // rejected (so it never reaches the PBKDF2 verify), but an EMPTY credential must

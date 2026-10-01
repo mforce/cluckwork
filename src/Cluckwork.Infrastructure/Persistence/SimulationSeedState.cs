@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // #279 review (codex re-check) — a durable bookmark for the simulation seed, so
 // idempotency never depends on INFERRING state from the fixture rows themselves.

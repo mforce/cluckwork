@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Catalog;
-
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Domain.Catalog;
 
 // Spec §10.2 — egg products map to egg grades; part 2 allocates a sold line's
 // eggs from lots of the mapped grade. Phase 1 enforces exactly ONE mapping per

@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #101 — the egg movement ledger. Every lot mutation writes an explicit
 // signed row in the same transaction, and the cached QuantityAvailable must

@@ -1,11 +1,11 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using System.Data;
 using System.Runtime.CompilerServices;
 using Cluckwork.Application.Features.Export;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 // #95 — flattens every tenant-owned dataset for CSV export. Rows come through
 // the global tenant query filters, so an export only ever contains the calling

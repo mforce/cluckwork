@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
@@ -8,6 +6,8 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #547 (slice T4) — the refresh endpoint compares the tab's expected farm
 // (the X-Cluckwork-Account header) against the STORED token's AccountId before

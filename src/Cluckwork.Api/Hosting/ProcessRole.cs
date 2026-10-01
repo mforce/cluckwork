@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Cli;
+
+namespace Cluckwork.Api.Hosting;
 
 // #347 — what this process was started to BE, decided once from args before
 // anything is registered or built.

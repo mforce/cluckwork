@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Sales.CreateSalesOrder;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Sales.CreateSalesOrder;
 
 public sealed class CreateSalesOrderValidator : AbstractValidator<CreateSalesOrderCommand>
 {

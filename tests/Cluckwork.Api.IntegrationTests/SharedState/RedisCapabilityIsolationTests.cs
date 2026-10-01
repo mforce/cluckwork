@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Infrastructure.SharedState;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #543 — claim-once and lease must NOT collide when a caller uses the same
 // logical key and namespace for both. Before the per-capability infix

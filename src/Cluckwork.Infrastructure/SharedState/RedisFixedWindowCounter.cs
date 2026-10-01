@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.SharedState;
-
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis;
+
+namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — Redis <see cref="IFixedWindowCounter"/> (shared, multi-replica).
 //

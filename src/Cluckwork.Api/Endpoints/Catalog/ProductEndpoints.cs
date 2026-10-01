@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Catalog;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
@@ -9,6 +7,8 @@ using Cluckwork.Application.Features.Catalog.UpdateProduct;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Catalog;
 
 // #97 — product catalog (part 1: egg products only). Writes are configuration
 // → admin-only (F19 principle); reads stay open so sales screens can render

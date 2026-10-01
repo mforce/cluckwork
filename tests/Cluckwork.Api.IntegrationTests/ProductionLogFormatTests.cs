@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
@@ -8,6 +6,8 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting;
 using Serilog.Parsing;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #404 — Production emits compact JSON to stdout so a log collector can index
 // structured fields instead of grepping prose. Development keeps the human

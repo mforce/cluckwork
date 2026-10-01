@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #319 — appsettings.json defaults AllowedHosts to "*"; a Production deploy that
 // omits or misnames the host variable (a blank ${CLUCKWORK_HOST} substitution was

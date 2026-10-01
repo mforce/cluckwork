@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Expenses.AdjustExpense;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Expenses.AdjustExpense;
 
 public sealed class AdjustExpenseHandler(
     IExpenseRepository expenses,

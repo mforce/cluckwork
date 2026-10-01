@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Logging;
-
 using System.Text;
 using System.Text.RegularExpressions;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.Logging;
 
 // #273 — redact credentials, tokens, cookies, connection strings, and emails
 // BEFORE any log line leaves the process, regardless of sink: RedactingLoggerPipeline

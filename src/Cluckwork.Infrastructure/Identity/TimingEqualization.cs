@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Microsoft.AspNetCore.Identity;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // Shared PBKDF2 timing-equalization hash (#128 / #308): verifying an
 // incoming password against this costs the same as a real password check, so

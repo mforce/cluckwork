@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Time;
-
 using Cluckwork.Application.Common;
+
+namespace Cluckwork.Infrastructure.Time;
 
 public sealed class SystemClock : IClock
 {

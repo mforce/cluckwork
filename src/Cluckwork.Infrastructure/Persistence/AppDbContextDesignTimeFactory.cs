@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using System.Net;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -7,6 +5,8 @@ using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Npgsql;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // #318 — `dotnet ef` design-time tooling fails closed. There is no default connection: an
 // unset/blank CLUCKWORK_MIGRATIONS_CONNECTION used to fall back to a predictable

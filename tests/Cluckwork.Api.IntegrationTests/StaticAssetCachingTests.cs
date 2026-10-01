@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #141 — static-asset cache policy. The suite normally runs with no wwwroot (the
 // built SPA only exists in the Docker image), so this factory writes a throwaway

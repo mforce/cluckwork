@@ -1,11 +1,11 @@
-namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
-
 using System.Globalization;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Sales;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 
 public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSettingsCommand>
 {

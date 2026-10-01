@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 // Everything that has snapshotted the farm currency, scoped to the current
 // tenant by the query filters. Short-circuits: on a working farm the first

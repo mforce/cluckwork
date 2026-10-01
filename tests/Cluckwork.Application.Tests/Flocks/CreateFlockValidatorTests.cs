@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.Flocks;
-
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Tests.Common;
+
+namespace Cluckwork.Application.Tests.Flocks;
 
 public sealed class CreateFlockValidatorTests
 {

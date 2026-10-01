@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Users.SetUserPassword;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.SetUserPassword;
 
 public sealed class SetUserPasswordValidator : AbstractValidator<SetUserPasswordCommand>
 {

@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Linq;
 using Cluckwork.Infrastructure.Identity;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #265 review — the break-glass temp-password generator (internal; visible via
 // InternalsVisibleTo). Policy compliance is enforced indirectly too (a

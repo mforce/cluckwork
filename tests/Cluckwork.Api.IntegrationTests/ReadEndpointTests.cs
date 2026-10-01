@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #7 / #9 / #12 — the read tier: daily-entry get/list, stock by grade, sales
 // order get/list. All tenant-scoped via the global query filter.

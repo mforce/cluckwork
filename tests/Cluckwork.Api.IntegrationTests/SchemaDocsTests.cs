@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using System.Diagnostics;
 using System.Text;
@@ -9,6 +7,8 @@ using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #417 — guards for the generated schema documentation under docs/schema/
 // (produced by tools/schema-docs/generate.sh via tbls against an ephemeral

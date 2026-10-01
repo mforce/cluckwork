@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Testcontainers.Redis;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #544 acceptance proof: the IP-keyed auth rate limiters now enforce ONE
 // COMBINED per-IP budget across replicas via the shared IFixedWindowCounter

@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Linq;
 using Cluckwork.Api.Cli;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #288 — the extracted CLI dispatcher. Each command is covered end-to-end by its
 // own subprocess test (SeedCommandTests, MigrateCommandTests,

@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Users.CreateUser;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.CreateUser;
 
 // #103 — users are created with any assignable role (spec §5.1), or as a
 // plain worker ("Worker" = no role row at all).

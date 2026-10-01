@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
@@ -9,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #532 — THE GUARANTEE that ApplicationUserIndexModelTests points to: it runs
 // EF's migrator to completion against a throwaway Postgres (same shape as

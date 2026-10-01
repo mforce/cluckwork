@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Configuration;
+
+namespace Cluckwork.Api.Hosting;
 
 internal enum OtlpTransportProfileSource
 {

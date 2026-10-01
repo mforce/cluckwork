@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Flocks.ReactivateFlock;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
+
+namespace Cluckwork.Application.Features.Flocks.ReactivateFlock;
 
 public sealed class ReactivateFlockHandler(
     IFlockRepository flocks,

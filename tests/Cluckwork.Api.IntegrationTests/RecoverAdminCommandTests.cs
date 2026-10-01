@@ -1,13 +1,12 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Domain.Accounts;
-
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #265 — the `recover-admin` break-glass command is a real CLI dispatch branch
 // in Program.cs (args[0] == "recover-admin"), never exercised by

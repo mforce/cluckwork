@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.DisableUser;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.DisableUser;
 
 // #356 — disable a user. Step-up (#308) is required UNCONDITIONALLY, in both
 // directions: unlike a role change, where demoting a Sales user to ReadOnly is

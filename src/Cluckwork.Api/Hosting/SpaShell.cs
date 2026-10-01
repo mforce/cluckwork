@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.Hosting;
-
 using System.Text;
 using Cluckwork.Api.Security;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
+
+namespace Cluckwork.Api.Hosting;
 
 // #873 — the built SPA's index.html, served as a TEMPLATED response rather than
 // as a static file, because one value in it has to match the response's own

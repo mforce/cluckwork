@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.EggGrades;
@@ -8,6 +6,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 
 public sealed class RecordDailyEntryHandler(
     IDailyEntryRepository repository,

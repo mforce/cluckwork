@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggLots;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Application.Features.EggLots;
 
 public interface IEggLotRepository : IRepository<EggLot, Guid>
 {

@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Tests.TenantBypass;
-
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Cluckwork.Application.Tests.TenantBypass;
 
 // #536 Part 1 — the scanner. Walks every .cs under src/ with Roslyn and
 // reports every tenant-bypass occurrence. A GREEN result from this scanner is

@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.TenantBypass;
-
 using System.Text;
 using System.Text.Json;
+
+namespace Cluckwork.Application.Tests.TenantBypass;
 
 // #536 Part 1 — allow-list semantics. Each behaviour gets its OWN named
 // assertion against a temp source tree (never the repo), so the mutation

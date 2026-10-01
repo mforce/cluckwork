@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Sales;
-
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Sales;
 
 // Deliberately not IRepository: allocations are written as a batch inside the
 // confirm transaction and only ever mutated by marking them released inside
