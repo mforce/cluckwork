@@ -25,6 +25,7 @@ using Microsoft.Extensions.DependencyInjection;
 // order and of SeedAndFlockTests in the shared collection.
 public sealed class DemoSeedPopulationFactory : CluckworkWebApplicationFactory;
 
+[Collection(DemoSeedCollection.Name)]
 public sealed class DemoSeedTests(DemoSeedPopulationFactory factory)
     : IClassFixture<DemoSeedPopulationFactory>
 {
@@ -183,6 +184,7 @@ public sealed class DemoSeedTests(DemoSeedPopulationFactory factory)
 
 public sealed class DemoSeedBootFactory : CluckworkWebApplicationFactory;
 
+[Collection(DemoSeedCollection.Name)]
 public sealed class DemoSeedBootTests(DemoSeedBootFactory factory)
     : IClassFixture<DemoSeedBootFactory>
 {

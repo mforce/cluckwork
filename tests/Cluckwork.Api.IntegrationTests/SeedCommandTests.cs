@@ -18,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 // Own factory/container (own database), same reasoning as DemoSeedTests:
 // DemoDataSeeder writes to the fixed SeedDefaults.AccountId, so this must not
 // share a database with anything else that seeds it.
+[Collection(DemoSeedCollection.Name)]
 public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFactory>
 {
     private readonly CluckworkWebApplicationFactory _factory;
