@@ -81,6 +81,7 @@ public sealed class InsightsReadOnlyTests
     [InlineData("await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(db.Database, \"DELETE FROM expenses\");")]
     [InlineData("await db.AuditEvents.FromSqlInterpolated($\"WITH removed AS (DELETE FROM audit_events RETURNING *) SELECT * FROM removed\").ToListAsync();")]
     [InlineData("await ((Cluckwork.Application.Common.IUnitOfWork)null!).SaveChangesAsync();")]
+    [InlineData("await new UnitOfWork(db).SaveChangesAsync(ct);")]
     [InlineData("await ((Cluckwork.Application.Common.IAuditWriter)null!).WriteAsync(\"Probe.Create\", \"Probe\", Guid.NewGuid());")]
     public void ReadSession_RejectsWritesIncludingAliasesAndStaticCalls(string write)
     {
@@ -89,7 +90,7 @@ public sealed class InsightsReadOnlyTests
             using Microsoft.EntityFrameworkCore;
             internal class Probe(AppDbContext db)
             {
-                public async Task Write() { {{write}} await Task.CompletedTask; }
+                public async Task Write(CancellationToken ct) { {{write}} await Task.CompletedTask; }
             }
             """;
         Assert.NotEmpty(FindUnapprovedOperations([source]));
@@ -122,6 +123,10 @@ public sealed class InsightsReadOnlyTests
                 var method = model.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
                 Assert.NotNull(method);
                 var ns = method.ContainingNamespace.ToDisplayString();
+                if (ns.StartsWith("Cluckwork.Infrastructure", StringComparison.Ordinal)
+                    && !(method.ReducedFrom ?? method).DeclaringSyntaxReferences
+                        .Any(reference => trees.Contains(reference.SyntaxTree)))
+                    violations.Add(method.ToDisplayString());
                 if (ns.StartsWith("Cluckwork.Application", StringComparison.Ordinal)
                     && !ReadPorts.Any(p => p.FullName == method.ContainingType.ToDisplayString()))
                     violations.Add(method.ToDisplayString());
