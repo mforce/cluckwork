@@ -2,7 +2,7 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Reports;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Repositories;
+using Cluckwork.Infrastructure.Insights;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;

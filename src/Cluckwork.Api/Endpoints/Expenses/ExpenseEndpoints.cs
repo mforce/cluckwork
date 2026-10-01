@@ -6,6 +6,7 @@ using Cluckwork.Application.Features.Expenses.AdjustExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -116,7 +117,7 @@ public static class ExpenseEndpoints
         IExpenseRepository expenses,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         IAccountRepository accounts,
-        IAuditEventRepository audit,
+        IInsightsModule audit,
         TenantContext tenant,
         CancellationToken ct,
         DateOnly? from = null,
@@ -156,7 +157,7 @@ public static class ExpenseEndpoints
     private static async Task<IResult> GetExpense(
         Guid id, IExpenseRepository expenses,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
-        IAuditEventRepository audit, TenantContext tenant, CancellationToken ct)
+        IInsightsModule audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var expense = await expenses.GetByIdAsync(id, ct);
@@ -196,7 +197,7 @@ public static class ExpenseEndpoints
         IValidator<AdjustExpenseCommand> validator,
         IExpenseRepository expenses,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
-        IAuditEventRepository audit,
+        IInsightsModule audit,
         TenantContext tenant,
         CancellationToken ct)
     {

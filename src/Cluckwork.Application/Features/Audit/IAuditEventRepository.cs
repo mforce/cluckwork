@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Auditing;
+using Cluckwork.Application.Features.Insights;
 
 namespace Cluckwork.Application.Features.Audit;
 
@@ -11,7 +11,7 @@ public interface IAuditEventRepository
     // fixed cap eventually; a larger input is chunked, never refused.
     public const int MaxBatchIds = 500;
 
-    Task<IReadOnlyList<AuditEvent>> ListAsync(
+    Task<IReadOnlyList<AuditEventRead>> ListAsync(
         string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
         int limit, int offset, CancellationToken ct = default);
 

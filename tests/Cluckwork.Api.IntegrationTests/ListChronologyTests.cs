@@ -8,6 +8,7 @@ using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Repositories;
 
 namespace Cluckwork.Api.IntegrationTests;

@@ -5,7 +5,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
-namespace Cluckwork.Infrastructure.Repositories;
+namespace Cluckwork.Infrastructure.Insights;
 
 // #95 — flattens every tenant-owned dataset for CSV export. Rows come through
 // the global tenant query filters, so an export only ever contains the calling
@@ -106,19 +106,19 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
     public ExportDataset? GetDataset(string dataset)
         => dataset switch
         {
-            "flocks" => Rows(activeDb.Flocks.AsNoTracking()
+            "flocks" => Rows<Cluckwork.Domain.Flocks.Flock>(activeDb.Flocks.AsNoTracking()
                     .OrderBy(x => x.PlacementDate).ThenBy(x => x.Id),
                 ["id", "farmId", "houseId", "name", "breed", "placementDate",
                  "initialCount", "status", "depletedOn", "archivedOn", "version"],
                 x => [x.Id, x.FarmId, x.HouseId, x.Name, x.Breed, x.PlacementDate,
                       x.InitialCount, x.Status, x.DepletedOn, x.ArchivedOn, x.Version]),
 
-            "bird-movements" => Rows(activeDb.BirdMovements.AsNoTracking()
+            "bird-movements" => Rows<Cluckwork.Domain.Flocks.BirdMovement>(activeDb.BirdMovements.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "date", "type", "quantity", "note", "dailyEntryId"],
                 x => [x.Id, x.FlockId, x.Date, x.Type, x.Quantity, x.Note, x.DailyEntryId]),
 
-            "daily-entries" => Rows(activeDb.DailyEntries.AsNoTracking()
+            "daily-entries" => Rows<Cluckwork.Domain.Eggs.DailyEntry>(activeDb.DailyEntries.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 // #396 — the two snapshot ids ride next to the counters they
                 // explain. Without them an export records that a day had 40
@@ -135,12 +135,12 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.CrackedGradeId, x.DirtyGradeId,
                       x.AdjustReason, x.AdjustedFromJson, x.VoidReason, x.LockedAtUtc, x.Version]),
 
-            "daily-entry-grades" => Rows(activeDb.DailyEntryGrades.AsNoTracking()
+            "daily-entry-grades" => Rows<Cluckwork.Domain.Eggs.DailyEntryGrade>(activeDb.DailyEntryGrades.AsNoTracking()
                     .OrderBy(x => x.DailyEntryId).ThenBy(x => x.Id),
                 ["id", "dailyEntryId", "eggGradeId", "quantity"],
                 x => [x.Id, x.DailyEntryId, x.EggGradeId, x.Quantity]),
 
-            "egg-grades" => Rows(activeDb.EggGrades.AsNoTracking()
+            "egg-grades" => Rows<Cluckwork.Domain.Eggs.EggGrade>(activeDb.EggGrades.AsNoTracking()
                     .OrderBy(x => x.SortOrder).ThenBy(x => x.Id),
                 // #396 — dailyEntryKind is what makes the snapshot ids above
                 // interpretable: it is the only field saying WHICH counter a
@@ -150,14 +150,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 x => [x.Id, x.FarmId, x.Name, x.GradeType, x.SortOrder, x.IsSaleable,
                       x.DailyEntryKind, x.Active, x.Version]),
 
-            "egg-lots" => Rows(activeDb.EggLots.AsNoTracking()
+            "egg-lots" => Rows<Cluckwork.Domain.Eggs.EggLot>(activeDb.EggLots.AsNoTracking()
                     .OrderByBusinessChronology(x => x.ProductionDate),
                 ["id", "flockId", "productionDate", "eggGradeId", "quantityProduced",
                  "quantityAvailable", "dailyEntryId", "restrictedUntil", "version"],
                 x => [x.Id, x.FlockId, x.ProductionDate, x.EggGradeId, x.QuantityProduced,
                       x.QuantityAvailable, x.DailyEntryId, x.RestrictedUntil, x.Version]),
 
-            "customers" => Rows(activeDb.Customers.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
+            "customers" => Rows<Cluckwork.Domain.Sales.Customer>(activeDb.Customers.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
                 ["id", "name", "phone", "email", "address", "note"],
                 x => [x.Id, x.Name, x.Phone, x.Email, x.Address, x.Note]),
 
@@ -165,7 +165,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
             // ListPriceBasis joined the line below: this is the full-fidelity
             // export of the table, and the reason is a column on it. The
             // discount TOTALS a report would show stay with #725.
-            "sales-orders" => Rows(activeDb.SalesOrders.AsNoTracking()
+            "sales-orders" => Rows<Cluckwork.Domain.Sales.SalesOrder>(activeDb.SalesOrders.AsNoTracking()
                     .OrderByBusinessChronology(x => x.OrderDate),
                 ["id", "referenceNumber", "customerId", "status", "orderDate",
                  "totalMinorUnits", "currencyCode", "currencyMinorUnit", "voidReason",
@@ -179,7 +179,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
             // full-fidelity export of the table this column turned into a permanent
             // money record, for an auditor or a #727 approver. Not #725's scope —
             // that owns discount TOTALS in reports, not raw column fidelity here.
-            "sales-order-items" => Rows(activeDb.SalesOrderItems.AsNoTracking()
+            "sales-order-items" => Rows<Cluckwork.Domain.Sales.SalesOrderItem>(activeDb.SalesOrderItems.AsNoTracking()
                     .OrderBy(x => x.SalesOrderId).ThenBy(x => x.Id),
                 ["id", "salesOrderId", "productId", "productTypeSnapshot", "eggGradeId",
                  "unit", "baseUnitFactor", "quantity", "quantityBase",
@@ -190,12 +190,12 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.UnitPrice.MinorUnits, x.UnitPrice.CurrencyCode, x.UnitPrice.CurrencyMinorUnit,
                       x.ListUnitPriceMinorUnits, x.ListPriceBasis]),
 
-            "sales-order-allocations" => Rows(activeDb.SalesOrderAllocations.AsNoTracking()
+            "sales-order-allocations" => Rows<Cluckwork.Domain.Sales.SalesOrderAllocation>(activeDb.SalesOrderAllocations.AsNoTracking()
                     .OrderBy(x => x.SalesOrderId).ThenBy(x => x.Id),
                 ["id", "salesOrderId", "salesOrderItemId", "eggLotId", "quantity", "releasedOnUtc"],
                 x => [x.Id, x.SalesOrderId, x.SalesOrderItemId, x.EggLotId, x.Quantity, x.ReleasedOnUtc]),
 
-            "payments" => Rows(activeDb.Payments.AsNoTracking()
+            "payments" => Rows<Cluckwork.Domain.Sales.Payment>(activeDb.Payments.AsNoTracking()
                     .OrderByBusinessChronology(x => x.PaymentDate),
                 ["id", "salesOrderId", "customerId", "paymentDate", "amountMinorUnits",
                  "currencyCode", "currencyMinorUnit", "method", "referenceNumber",
@@ -204,14 +204,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.CurrencyCode, x.CurrencyMinorUnit, x.Method, x.ReferenceNumber,
                       x.Note, x.Voided, x.VoidReason, x.Version]),
 
-            "inventory-items" => Rows(activeDb.InventoryItems.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
+            "inventory-items" => Rows<Cluckwork.Domain.Inventory.InventoryItem>(activeDb.InventoryItems.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
                 ["id", "farmId", "name", "category", "unit", "defaultUnitCostMinorUnits",
                  "currencyCode", "currencyMinorUnit", "active", "version"],
                 x => [x.Id, x.FarmId, x.Name, x.Category, x.Unit, x.DefaultUnitCost?.MinorUnits,
                       x.DefaultUnitCost?.CurrencyCode, x.DefaultUnitCost?.CurrencyMinorUnit,
                       x.Active, x.Version]),
 
-            "inventory-lots" => Rows(activeDb.InventoryLots.AsNoTracking()
+            "inventory-lots" => Rows<Cluckwork.Domain.Inventory.InventoryLot>(activeDb.InventoryLots.AsNoTracking()
                     .OrderByBusinessChronology(x => x.ReceivedDate),
                 ["id", "inventoryItemId", "receivedDate", "lotNumber", "expiryDate",
                  "quantityReceived", "quantityAvailable", "unitCostMinorUnits",
@@ -220,14 +220,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.QuantityReceived, x.QuantityAvailable, x.UnitCost.MinorUnits,
                       x.UnitCost.CurrencyCode, x.UnitCost.CurrencyMinorUnit, x.Version]),
 
-            "inventory-movements" => Rows(activeDb.InventoryMovements.AsNoTracking()
+            "inventory-movements" => Rows<Cluckwork.Domain.Inventory.InventoryMovement>(activeDb.InventoryMovements.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "inventoryItemId", "inventoryLotId", "date", "type", "quantityDelta",
                  "unit", "flockId", "note", "createdAtUtc", "referenceType", "referenceId"],
                 x => [x.Id, x.InventoryItemId, x.InventoryLotId, x.Date, x.Type, x.QuantityDelta,
                       x.Unit, x.FlockId, x.Note, x.CreatedAtUtc, x.ReferenceType, x.ReferenceId]),
 
-            "feed-usages" => Rows(activeDb.FeedUsages.AsNoTracking()
+            "feed-usages" => Rows<Cluckwork.Domain.Inventory.FeedUsage>(activeDb.FeedUsages.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "inventoryItemId", "date", "quantity", "unit",
                  "estimatedCostMinorUnits", "currencyCode", "currencyMinorUnit",
@@ -237,19 +237,19 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.EstimatedCost.CurrencyMinorUnit, x.DailyEntryId, x.Note,
                       x.CreatedAtUtc, x.Version]),
 
-            "water-usages" => Rows(activeDb.WaterUsages.AsNoTracking()
+            "water-usages" => Rows<Cluckwork.Domain.Inventory.WaterUsage>(activeDb.WaterUsages.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "date", "quantity", "unit", "source", "meterStart",
                  "meterEnd", "note", "dailyEntryId", "createdAtUtc", "version"],
                 x => [x.Id, x.FlockId, x.Date, x.Quantity, x.Unit, x.Source, x.MeterStart,
                       x.MeterEnd, x.Note, x.DailyEntryId, x.CreatedAtUtc, x.Version]),
 
-            "expense-categories" => Rows(activeDb.ExpenseCategories.AsNoTracking()
+            "expense-categories" => Rows<Cluckwork.Domain.Expenses.ExpenseCategory>(activeDb.ExpenseCategories.AsNoTracking()
                     .OrderBy(x => x.Name).ThenBy(x => x.Id),
                 ["id", "farmId", "name", "active", "version"],
                 x => [x.Id, x.FarmId, x.Name, x.Active, x.Version]),
 
-            "expenses" => Rows(activeDb.Expenses.AsNoTracking()
+            "expenses" => Rows<Cluckwork.Domain.Expenses.Expense>(activeDb.Expenses.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "farmId", "expenseCategoryId", "date", "description",
                  "amountMinorUnits", "currencyCode", "currencyMinorUnit",
@@ -258,14 +258,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.AmountMinorUnits, x.CurrencyCode, x.CurrencyMinorUnit,
                       x.FlockId, x.Note, x.Version]),
 
-            "egg-inventory-movements" => Rows(activeDb.EggInventoryMovements.AsNoTracking()
+            "egg-inventory-movements" => Rows<Cluckwork.Domain.Eggs.EggInventoryMovement>(activeDb.EggInventoryMovements.AsNoTracking()
                     .OrderByCreationChronology(),
                 ["id", "eggLotId", "movementType", "quantityDelta",
                  "referenceType", "referenceId", "reason", "createdAtUtc"],
                 x => [x.Id, x.EggLotId, x.MovementType, x.QuantityDelta,
                       x.ReferenceType, x.ReferenceId, x.Reason, x.CreatedAtUtc]),
 
-            "audit-events" => Rows(activeDb.AuditEvents.AsNoTracking()
+            "audit-events" => Rows<Cluckwork.Domain.Auditing.AuditEvent>(activeDb.AuditEvents.AsNoTracking()
                     .OrderBy(x => x.OccurredAtUtc)
                     .ThenBy(x => EF.Property<long>(x, "Sequence")),
                 ["id", "occurredAtUtc", "actorUserId", "actorEmail", "action",

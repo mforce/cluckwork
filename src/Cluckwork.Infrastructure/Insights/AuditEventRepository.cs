@@ -1,14 +1,15 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cluckwork.Infrastructure.Repositories;
+namespace Cluckwork.Infrastructure.Insights;
 
 public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) : IAuditEventRepository
 {
-    public async Task<IReadOnlyList<AuditEvent>> ListAsync(
+    public async Task<IReadOnlyList<AuditEventRead>> ListAsync(
         string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
         int limit, int offset, CancellationToken ct = default)
     {
@@ -23,7 +24,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
                 : new DateTimeOffset(t.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
             : (DateTimeOffset?)null;
 
-        return await db.AuditEvents
+        var events = await db.AuditEvents
             .AsNoTracking()
             .Where(e => (action == null || e.Action == action)
                      && (entityType == null || e.EntityType == entityType)
@@ -37,6 +38,10 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);
+
+        return events.Select(e => new AuditEventRead(
+            e.Id, e.OccurredAtUtc, e.ActorEmail, e.Action, e.EntityType, e.EntityId,
+            e.Reason, e.DetailsJson)).ToList();
     }
 
     // #494 — who created a record and who last changed it, read out of the

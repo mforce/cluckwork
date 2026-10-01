@@ -7,7 +7,7 @@
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"] },
     "Finance":          { "kind": "module",   "namespaces": ["Cluckwork.Domain.Expenses", "Cluckwork.Application.Features.Expenses"] },
-    "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export"] },
+    "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export", "Cluckwork.Application.Features.Insights", "Cluckwork.Infrastructure.Insights"] },
     "Platform":         { "kind": "platform", "namespaces": ["Cluckwork.Domain.Common", "Cluckwork.Domain.Auditing", "Cluckwork.Application.Common", "Cluckwork.Infrastructure", "Cluckwork.Api", "Cluckwork.AppHost"], "exactNamespaces": ["Cluckwork.Domain", "Cluckwork.Application"] }
   },
   "edges": [
@@ -172,6 +172,52 @@
         "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageHandler",
         "Cluckwork.Application.Features.Inventory.RecordWaterUsage.RecordWaterUsageHandler",
         "Cluckwork.Application.Features.Inventory.UpdateWaterUsage.UpdateWaterUsageHandler"
+      ]
+    },
+    {
+      "from": "Insights", "to": "Commerce", "kind": "R",
+      "reason": "ReportQueries reads confirmed SalesOrders and Payments for sales and profit totals; ExportQueries streams Customers, SalesOrders, SalesOrderItems, SalesOrderAllocations and Payments. Reads compose in C# and never mutate Commerce rows.",
+      "symbols": [
+        "Cluckwork.Infrastructure.Insights.ExportQueries",
+        "Cluckwork.Infrastructure.Insights.ReportQueries"
+      ]
+    },
+    {
+      "from": "Insights", "to": "EggOperations", "kind": "R",
+      "reason": "ReportQueries reads DailyEntries, DailyEntryGrades and EggGrades for production and grading totals; ExportQueries streams those records, EggLots and EggInventoryMovements with their existing filters and ordering.",
+      "symbols": [
+        "Cluckwork.Infrastructure.Insights.ExportQueries",
+        "Cluckwork.Infrastructure.Insights.ReportQueries"
+      ]
+    },
+    {
+      "from": "Insights", "to": "Farm", "kind": "R",
+      "reason": "ReportQueries.AccountCurrencyAsync reads the current Account currency for report DTOs. The account query remains tenant-filtered and AsNoTracking.",
+      "symbols": [
+        "Cluckwork.Infrastructure.Insights.ReportQueries"
+      ]
+    },
+    {
+      "from": "Insights", "to": "Finance", "kind": "R",
+      "reason": "ReportQueries aggregates Expenses for expense and profit totals; ExportQueries streams ExpenseCategories and Expenses as typed CSV rows. Neither query writes Finance data.",
+      "symbols": [
+        "Cluckwork.Infrastructure.Insights.ExportQueries",
+        "Cluckwork.Infrastructure.Insights.ReportQueries"
+      ]
+    },
+    {
+      "from": "Insights", "to": "FlockManagement", "kind": "R",
+      "reason": "ExportQueries streams Flock and BirdMovement records; ReportQueries reads flock lifecycle and bird movements to calculate hen-day exposure. These are read-only owner-table queries composed in C#.",
+      "symbols": [
+        "Cluckwork.Infrastructure.Insights.ExportQueries",
+        "Cluckwork.Infrastructure.Insights.ReportQueries"
+      ]
+    },
+    {
+      "from": "Insights", "to": "GeneralInventory", "kind": "R",
+      "reason": "ExportQueries streams InventoryItems, InventoryLots, InventoryMovements and FeedUsages as typed CSV rows. No inventory mutation or cross-owner SQL join is introduced.",
+      "symbols": [
+        "Cluckwork.Infrastructure.Insights.ExportQueries"
       ]
     }
   ],

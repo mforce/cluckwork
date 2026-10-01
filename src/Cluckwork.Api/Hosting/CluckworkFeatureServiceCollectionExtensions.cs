@@ -50,6 +50,7 @@ using Cluckwork.Application.Features.Users.SetLanguage;
 using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Providers;
+using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Repositories;
 using Cluckwork.Infrastructure.Time;
 using FluentValidation;
