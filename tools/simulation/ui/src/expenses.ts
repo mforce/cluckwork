@@ -12,6 +12,7 @@ export async function openSeededExpenses({ page, farm, shellLayout }: Pick<Fixtu
     return response.request().method() === "GET" && url.pathname === "/api/v1/expenses"
       && url.searchParams.get("from") === from && url.searchParams.get("to") === to;
   });
+  loaded.catch(() => undefined);
   await page.goto("/expenses");
   if (shellLayout === "phone") {
     await page.getByRole("button", { name: tEn("expenses:allCategoriesOption"), exact: true }).click();
