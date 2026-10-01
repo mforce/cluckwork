@@ -1,6 +1,7 @@
 import { test, expect } from "../src/fixtures";
 import { owner } from "../src/cast";
 import { tEn } from "../src/i18n";
+import { showAllExpenseDates } from "../src/dom";
 
 // #835 — the one assertion that needs a real font engine.
 //
@@ -94,6 +95,7 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
 test("real body text stays at the text cut on a phone", { tag: "@phone" }, async ({ page, signIn }) => {
   await signIn(owner());
   await page.goto("/expenses");
+  await showAllExpenseDates(page);
   await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
   await expect(page.getByRole("list", { name: tEn("expenses:ledgerHeading") })).toBeVisible();
 
