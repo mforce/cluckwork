@@ -38,6 +38,9 @@ public static class SeamSurfaceScanner
 
     // #849: a module contract carries ids, values and versions, so it also
     // refuses the concrete aggregates and entities that repository seams return.
+    private const BindingFlags PublicMembers =
+        BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+
     private static readonly (Func<Type, bool> Matches, string Reason)[] ContractRules =
     [
         .. ForbiddenRules,
@@ -166,31 +169,22 @@ public static class SeamSurfaceScanner
         }
     }
 
+    // One visited set per method, so a type parameter reached both as a
+    // return type and as a declared generic parameter reports once.
     private static void CheckMethod(MethodInfo method, string interfaceName, List<SeamSurfaceViolation> violations,
+        (Func<Type, bool> Matches, string Reason)[] rules) =>
+        WalkSignature(method, [], new HashSet<Type>(), interfaceName, method.Name, violations, rules);
+
+    private static void WalkSignature(MethodInfo method, List<string> path, HashSet<Type> visited,
+        string interfaceName, string member, List<SeamSurfaceViolation> violations,
         (Func<Type, bool> Matches, string Reason)[] rules)
     {
-        // One visited set per method, so a type parameter reached both as a
-        // return type and as a declared generic parameter reports once.
-        var visited = new HashSet<Type>();
-        void Check(Type type) =>
-            Walk(type, [FormatShort(type)], visited, interfaceName, method.Name, violations, rules);
-
-        if (method.IsGenericMethodDefinition)
+        var types = (method.IsGenericMethodDefinition ? method.GetGenericArguments() : [])
+            .Concat(method.GetParameters().Select(p => p.ParameterType))
+            .Concat(method.ReturnType == typeof(void) ? [] : [method.ReturnType]);
+        foreach (var type in types)
         {
-            foreach (var parameter in method.GetGenericArguments())
-            {
-                Check(parameter);
-            }
-        }
-
-        foreach (var parameter in method.GetParameters())
-        {
-            Check(parameter.ParameterType);
-        }
-
-        if (method.ReturnType != typeof(void))
-        {
-            Check(method.ReturnType);
+            Walk(type, [.. path, FormatShort(type)], visited, interfaceName, member, violations, rules);
         }
     }
 
@@ -277,13 +271,13 @@ public static class SeamSurfaceScanner
         if (assemblyName is not null && assemblyName.StartsWith("Cluckwork.", StringComparison.Ordinal)
             && (definition == resolved || visited.Add(definition)))
         {
-            foreach (var property in resolved.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var property in resolved.GetProperties(PublicMembers))
             {
                 Walk(property.PropertyType, [.. path, $"{FormatShort(resolved)}.{property.Name}"], visited,
                     interfaceName, member, violations, rules);
             }
 
-            foreach (var field in resolved.GetFields(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var field in resolved.GetFields(PublicMembers))
             {
                 Walk(field.FieldType, [.. path, $"{FormatShort(resolved)}.{field.Name}"], visited,
                     interfaceName, member, violations, rules);
@@ -293,13 +287,15 @@ public static class SeamSurfaceScanner
             // every seam interface at the root already and keeps its single-report behaviour.
             if (resolved.IsInterface && ReferenceEquals(rules, ContractRules))
             {
-                foreach (var method in resolved.GetMethods().Concat(resolved.GetInterfaces().SelectMany(i => i.GetMethods())))
+                foreach (var inherited in resolved.GetInterfaces())
                 {
-                    foreach (var signatureType in method.GetParameters().Select(p => p.ParameterType).Append(method.ReturnType))
-                    {
-                        Walk(signatureType, [.. path, $"{FormatShort(resolved)}.{method.Name}", FormatShort(signatureType)],
-                            visited, interfaceName, member, violations, rules);
-                    }
+                    Walk(inherited, [.. path, FormatShort(inherited)], visited, interfaceName, member, violations, rules);
+                }
+
+                foreach (var method in resolved.GetMethods())
+                {
+                    WalkSignature(method, [.. path, $"{FormatShort(resolved)}.{method.Name}"], visited,
+                        interfaceName, member, violations, rules);
                 }
             }
         }

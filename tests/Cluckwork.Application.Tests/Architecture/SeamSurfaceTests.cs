@@ -130,6 +130,51 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMe
 
     public sealed record LookupEnvelope(IFlockLookup Lookup);
 
+    public sealed record StaticFieldEnvelope
+    {
+        public static Flock? Entity;
+    }
+
+    public class StaticFieldBase
+    {
+        public static Flock? Shared;
+    }
+
+    public sealed class InheritedStaticFieldEnvelope : StaticFieldBase;
+
+    public interface IFlockRegistry
+    {
+        void Register<T>() where T : IFlockStore;
+    }
+
+    public sealed record RegistryEnvelope(IFlockRegistry Registry);
+
+    public interface IMarker<T>;
+
+    public interface IFlockTag : IMarker<Flock>;
+
+    public sealed record TagEnvelope(IFlockTag Tag);
+
+    public interface IStaticFieldContractFixture
+    {
+        StaticFieldEnvelope Get();
+    }
+
+    public interface IInheritedStaticFieldContractFixture
+    {
+        InheritedStaticFieldEnvelope Get();
+    }
+
+    public interface IRegistryContractFixture
+    {
+        RegistryEnvelope Get();
+    }
+
+    public interface ITagContractFixture
+    {
+        TagEnvelope Get();
+    }
+
     public interface IFieldContractFixture
     {
         FieldEnvelope Get();
@@ -462,7 +507,8 @@ namespace Cluckwork.Application.Tests.Architecture
         public void Contract_RepositoryInAResult_IsAViolation()
         {
             var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.IRepositoryContractFixture>());
-            Assert.Contains("IFlockStore", failure);
+            Assert.Contains("RepositoryEnvelope.Repository", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
         }
 
         [Fact]
@@ -470,6 +516,17 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.ILookupContractFixture>());
             Assert.Contains("IFlockLookup", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+        }
+
+        [Theory]
+        [InlineData(typeof(ContractNestedMemberFixtures.IStaticFieldContractFixture))]
+        [InlineData(typeof(ContractNestedMemberFixtures.IInheritedStaticFieldContractFixture))]
+        [InlineData(typeof(ContractNestedMemberFixtures.IRegistryContractFixture))]
+        [InlineData(typeof(ContractNestedMemberFixtures.ITagContractFixture))]
+        public void Contract_AggregateBehindAStaticFieldConstraintOrInheritedInterface_IsAViolation(Type fixture)
+        {
+            var failure = Assert.Single(SeamSurfaceScanner.Evaluate(SeamSurfaceScanner.ScanContracts([fixture], 1)));
             Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
         }
 

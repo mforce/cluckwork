@@ -806,5 +806,48 @@ public sealed class AdapterReachTests : IDisposable
         var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
         Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> FlockManagement", failure);
     }
+
+    [Fact]
+    public void NamespaceAliasPrefixOnTheActivatorReceiver_IsReach()
+    {
+        WriteSource("Cli.cs", """
+            using DI = Microsoft.Extensions.DependencyInjection;
+            namespace Cluckwork.Temp.Cli;
+            public static class Verb
+            {
+                private static void Run(System.IServiceProvider services) =>
+                    DI.ActivatorUtilities.CreateInstance<Cluckwork.Temp.Flocks.CreateFlockHandler>(services);
+            }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> FlockManagement", failure);
+    }
+
+    [Fact]
+    public void AliasQualifiedParameter_IsReach()
+    {
+        WriteSource("Endpoint.cs", """
+            using FarmNs = Cluckwork.Temp.Farm;
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(FarmNs::IAccountRepository accounts) { } }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains(Symbol + " -> Farm through Cluckwork.Temp.Farm.IAccountRepository", failure);
+    }
+
+    [Fact]
+    public void UnresolvableAliasQualifier_FailsClosed()
+    {
+        WriteSource("Endpoint.cs", """
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(Unknown::IAccountRepository accounts) { } }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains("cannot resolve the alias qualifier", failure);
+        Assert.Contains("Unknown::IAccountRepository", failure);
+    }
 }
 
