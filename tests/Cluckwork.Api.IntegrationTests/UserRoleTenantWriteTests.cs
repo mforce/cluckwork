@@ -33,7 +33,7 @@ using Npgsql;
 //
 // Each test asserts the refusal AND that the target row is untouched, because
 // a refusal that still mutated the row would pass a throws-only assertion.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class UserRoleTenantWriteTests(CluckworkWebApplicationFactory factory)
 {
     private const string ProbeRole = "UserRoleTenantWriteProbe";

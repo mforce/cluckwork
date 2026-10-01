@@ -7,7 +7,7 @@ using Cluckwork.Domain.Auditing;
 // #93 — the audit trail is domain data: written in the same transaction as
 // the change (a failed action leaves nothing), actor captured from the JWT,
 // viewer admin-only.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class AuditTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

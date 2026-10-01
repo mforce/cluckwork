@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 // #54 — bird movement ledger: mortality generated at submit, manual
 // culls/adjustments, current-count math, and lifecycle gating.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class BirdMovementTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

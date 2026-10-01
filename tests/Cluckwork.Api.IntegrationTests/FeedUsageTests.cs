@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // #66 (PR 2) — feed usage + corrections: FIFO lot consumption under the
 // canonical lock, per-lot Usage ledger rows with lot-cost estimates, and the
 // compensating Adjustment/Discard path that makes typo'd purchases fixable.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class FeedUsageTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

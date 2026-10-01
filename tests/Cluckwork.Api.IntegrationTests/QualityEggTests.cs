@@ -17,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 // counter-backed one: two lots for one grade on one day, double-counting the
 // day's stock and breaking the one-lot-per-grade assumption reconciliation
 // depends on.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class QualityEggTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record RecordedDto(Guid Id);

@@ -24,7 +24,7 @@ using Microsoft.Extensions.DependencyInjection;
 //   * an absent header still works — the load-time bootstrap path;
 //   * an unparseable header is refused (fail closed), never a 500 and never
 //     silently read as "no expectation".
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class RefreshAccountBindingTests(CluckworkWebApplicationFactory factory)
 {
     private static async Task<Guid> SeedAsync(CluckworkWebApplicationFactory factory, string email)
@@ -176,7 +176,7 @@ public sealed class RefreshAccountBindingTests(CluckworkWebApplicationFactory fa
 // #532 — per-farm cookie names make cross-farm selection structural: the
 // X-Cluckwork-Account header chooses one cookie, while a headerless bootstrap
 // is accepted only when the browser holds exactly one farm session.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory factory)
 {
     // The API emits Secure cookies in the integration environment, while the

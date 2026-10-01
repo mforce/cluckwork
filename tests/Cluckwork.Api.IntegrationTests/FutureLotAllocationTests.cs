@@ -9,7 +9,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 // the allocation query did not, so a lot dated ahead of today was invisible in
 // stock yet sellable. Such lots can be in real data already — the +1-day
 // validator slack removed in #35 is exactly what let an entry be dated tomorrow.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class FutureLotAllocationTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

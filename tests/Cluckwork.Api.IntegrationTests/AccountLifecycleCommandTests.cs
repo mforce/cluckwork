@@ -8,7 +8,7 @@ using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly string ApiDllPath = typeof(Program).Assembly.Location;

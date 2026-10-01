@@ -17,7 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 // callers could reach it (auth precedes tenant resolution on every route), so
 // in practice it was the seeders — and once #494 rendered provenance on five
 // screens, ~256 demo rows read "Created by (unresolved)".
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class AuditActorTests(CluckworkWebApplicationFactory factory)
 {
     private const string Action = "Flock.Create";

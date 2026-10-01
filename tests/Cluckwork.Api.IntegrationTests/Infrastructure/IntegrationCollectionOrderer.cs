@@ -7,12 +7,15 @@ using Xunit.Sdk;
 
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
-// #839: this collection contains most of the suite's tests and runs serially.
-// Start it first so its work overlaps the smaller, independent collections.
+// #839: these two collections hold most of the suite's tests and each runs
+// serially within itself. Start both first so their work overlaps the
+// smaller, independent collections instead of running after them.
 public sealed class IntegrationCollectionOrderer : ITestCollectionOrderer
 {
+    private static readonly HashSet<string> SharedHalves = [IntegrationCollectionA.Name, IntegrationCollectionB.Name];
+
     public IEnumerable<ITestCollection> OrderTestCollections(IEnumerable<ITestCollection> testCollections) =>
         new DefaultTestCollectionOrderer()
             .OrderTestCollections(testCollections)
-            .OrderBy(collection => collection.DisplayName == IntegrationCollection.Name ? 0 : 1);
+            .OrderBy(collection => SharedHalves.Contains(collection.DisplayName) ? 0 : 1);
 }

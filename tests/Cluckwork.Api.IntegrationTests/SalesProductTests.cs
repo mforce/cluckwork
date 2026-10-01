@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // #99 — sales lines sell products in packed units. The line snapshots the
 // grade mapping and the eggs-per-unit factor at creation; allocation runs on
 // quantity_base (individual eggs).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

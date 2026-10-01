@@ -16,7 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 // #144 — every response carries the static security headers (CSP, nosniff,
 // Referrer-Policy, frame protection), regardless of role, auth, or whether the
 // route even exists. Uses the shared collection factory (no special config).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
 {
     // #873 — the one token in the policy that changes per response. Pulled out

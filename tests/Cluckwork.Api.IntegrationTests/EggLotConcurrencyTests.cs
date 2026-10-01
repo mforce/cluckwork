@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // tech spec §3.3 / §10.9.1 / §11: concurrent confirmation against the same egg lot must
 // serialize on the FOR UPDATE lock — exactly one sale allocates, the other is rejected,
 // and the lot is never oversold.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class EggLotConcurrencyTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

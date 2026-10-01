@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // #42 — egg grade management: CRUD over the API, case-insensitive name
 // uniqueness, deactivation semantics, and the Version-token race required by
 // the aggregate-mutation rule (AGENTS.md).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class EggGradeManagementTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

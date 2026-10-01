@@ -15,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 // tenant resolved, so without IgnoreQueryFilters() the account query filter
 // would return ZERO rows. Seeing BOTH the default account and a freshly-seeded
 // second account proves the read reaches across the filter.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class ListAccountsCommandTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly string ApiDllPath = typeof(Program).Assembly.Location;

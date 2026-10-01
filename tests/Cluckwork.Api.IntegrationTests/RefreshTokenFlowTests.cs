@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 // tech spec §7.4: refresh tokens are durable and rotating. Refresh issues a new
 // pair, the old token is single-use, reuse is rejected, and logout revokes.
 // Since #145 the refresh token travels in an HttpOnly cookie, never the body.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly WebApplicationFactoryClientOptions Cookieless =

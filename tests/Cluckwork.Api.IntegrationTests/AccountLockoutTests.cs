@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 // resets the counter, and lockout is per-account. The shared factory disables
 // the #143 per-IP rate limiter, so these multi-attempt loops exercise lockout
 // in isolation.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class AccountLockoutTests(CluckworkWebApplicationFactory factory)
 {
     private const int MaxAttempts = 5; // opts.Lockout.MaxFailedAccessAttempts

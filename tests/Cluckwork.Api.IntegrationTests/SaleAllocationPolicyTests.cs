@@ -20,7 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 // distinct 422 codes without ever mutating on a failed attempt. Every other
 // caller shape (elevated role, farm-wide policy, unrestricted Worker) keeps
 // today's plain farm-wide behavior and today's specific error message.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);

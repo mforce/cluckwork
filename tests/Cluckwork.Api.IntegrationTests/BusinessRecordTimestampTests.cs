@@ -4,7 +4,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Sales;
 using Microsoft.EntityFrameworkCore;
 
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class BusinessRecordTimestampTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

@@ -27,7 +27,7 @@ using Microsoft.Extensions.DependencyInjection;
 // that context carries EnableRetryOnFailure, incompatible with this file's
 // need for precise, hand-held control of a transaction across several
 // separate steps), with REAL handlers resolved from DI on the other side.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);

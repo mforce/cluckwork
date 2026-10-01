@@ -39,7 +39,7 @@ using Microsoft.Extensions.DependencyInjection;
 // rejected the request and the account clause never had to work.
 // DeactivateWithoutEpochBumpAsync below is the fixture that breaks that
 // coupling.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record UserState(int CredentialEpoch, string? SecurityStamp, string? ConcurrencyStamp);

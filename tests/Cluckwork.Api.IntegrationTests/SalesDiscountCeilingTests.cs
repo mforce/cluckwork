@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 // bound by it; Owner and Manager are not. The refusal is a 422 and the order
 // stays Draft, so the seller can take it to a manager rather than retrying
 // blindly.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory factory)
 {
     // A 10% ceiling against a list price of 100 minor units: 90 is exactly on

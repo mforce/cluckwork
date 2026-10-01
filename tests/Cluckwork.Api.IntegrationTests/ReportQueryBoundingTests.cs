@@ -17,7 +17,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 // wiring here) so a DbCommandInterceptor can capture the exact SQL sent — a
 // non-flaky way to prove the fix pushes the date bound into SQL, rather than
 // inferring it from timing.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class ReportQueryBoundingTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 // #911 — the per-grade low-stock floor over the API: who may move it, what
 // GET /stock reports about it, and the Version-token race the aggregate-mutation
 // rule requires of a new mutation (AGENTS.md).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class EggGradeLowStockFloorTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

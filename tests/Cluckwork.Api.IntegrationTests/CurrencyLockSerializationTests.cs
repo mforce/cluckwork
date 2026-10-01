@@ -22,7 +22,7 @@ using Microsoft.EntityFrameworkCore;
 // settings write use, because no test that goes through HTTP can interleave two
 // transactions on purpose. Kept as executable evidence: anyone reaching for
 // SERIALIZABLE here again will see it fail to help before they ship it.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactory factory)
 {
     private async Task<Guid> SeedFarmAsync()

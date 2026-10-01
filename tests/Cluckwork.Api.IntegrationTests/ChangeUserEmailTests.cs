@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class ChangeUserEmailTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role, DateTimeOffset? DisabledAt);

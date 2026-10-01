@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 // #66 (PR 1) — inventory foundation: item catalog, receiving stock as lots,
 // and the append-only movement ledger. Consumption (feed usage) is PR 2.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class InventoryTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record ItemDto(

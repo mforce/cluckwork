@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 // #69 — adjusting/voiding submitted entries must keep the entry, its egg lots,
 // and the bird ledger consistent in one transaction, and must never touch
 // eggs that already left the farm (sold/allocated).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

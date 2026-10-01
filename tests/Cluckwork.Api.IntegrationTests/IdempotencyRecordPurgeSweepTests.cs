@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 // sweep modeled on RefreshTokenPurgeSweep) purges rows whose CreatedAt is older
 // than IdempotencyRecordPurgeSweep.PurgeRetention, across every account in one
 // global batched delete (the table is not tenant-query-filtered).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFactory factory)
 {
     private static IdempotencyRecord NewRecord(

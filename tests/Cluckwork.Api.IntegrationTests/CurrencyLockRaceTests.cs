@@ -25,7 +25,7 @@ using Microsoft.Extensions.DependencyInjection;
 // handler on the other side, so they pin the handlers' participation in the
 // protocol — not a re-simulation of it. Blocking is detected via
 // pg_blocking_pids against the holder's backend pid, never a timing guess.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory)
 {
     private async Task<Guid> SeedFarmAsync()

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 // #67 — water usage: direct or meter-derived quantities, editable records
 // (Version-guarded), same flock lifecycle gate as production/feed.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class WaterUsageTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

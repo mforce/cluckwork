@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 // #145 — the refresh token is delivered only as an HttpOnly cookie; the body
 // carries just the access token. CSRF posture: refresh/logout require the custom
 // header. These assert the wire contract.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class AuthCookieContractTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly WebApplicationFactoryClientOptions Cookieless =

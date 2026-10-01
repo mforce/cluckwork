@@ -7,7 +7,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #163 — a user's display name can be set at creation and edited afterwards.
 // The update is Owner-only (covered by AdminGatingTests) and account-scoped.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class UserNameTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);

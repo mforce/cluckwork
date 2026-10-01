@@ -20,7 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 // #388 — the read scoping itself (INV-1): a Worker scoped to one flock sees
 // only that flock's rows + farm-wide rows; unassigned flock detail is 404
 // (symmetric filtering — the row simply is not there, not 403).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);

@@ -19,7 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 // its full remaining nominal lifetime, exactly as long as
 // IdentityProvider.RefreshAsync's reuse-detection (the RevokedAt-set branch,
 // which never itself consults ExpiresAt) needs the row to survive a replay.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class RefreshTokenPurgeSweepTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly WebApplicationFactoryClientOptions Cookieless =

@@ -31,7 +31,7 @@ using Microsoft.EntityFrameworkCore;
 //
 // Each test asserts the refusal AND that the row is untouched, because a
 // refusal that still mutated the row would pass a throws-only assertion.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class DetachedTenantWriteTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);

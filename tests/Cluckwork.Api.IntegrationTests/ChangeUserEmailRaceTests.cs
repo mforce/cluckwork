@@ -64,7 +64,7 @@ public sealed class ChangeUserEmailFinalSaveInterceptor : DbCommandInterceptor
     }
 }
 
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);

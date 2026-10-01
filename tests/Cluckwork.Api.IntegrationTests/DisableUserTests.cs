@@ -23,7 +23,7 @@ using Microsoft.Extensions.DependencyInjection;
 // OwnerOnly route plus this file's self-target guard make Users.LastOwner
 // unreachable through a legitimate, non-racing, distinct HTTP actor, exactly
 // as ChangeUserRoleRaceTests documents for #355.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class DisableUserTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role, DateTimeOffset? DisabledAt);

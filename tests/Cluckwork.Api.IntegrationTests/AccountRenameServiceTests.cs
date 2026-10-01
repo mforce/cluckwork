@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 // schedule: a transaction holds the source row, the service resolves the old slug and
 // queues on FOR UPDATE, then the holder renames and commits. The service must inspect the
 // freshly locked row and refuse rather than overwrite that committed rename.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class AccountRenameServiceTests(CluckworkWebApplicationFactory factory)
 {
     private static string Unique(string label) => $"{label}-{Guid.NewGuid():N}@test.local";

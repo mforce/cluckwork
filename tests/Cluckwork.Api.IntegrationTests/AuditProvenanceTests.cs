@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 // The lookup is raw SQL (DISTINCT ON), so it bypasses the EF tenant query
 // filter: the AccountId predicate in that SQL is the only thing scoping it,
 // which is what Provenance_IsScopedToTheTenant exists to hold in place.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateTimeOffset Base =

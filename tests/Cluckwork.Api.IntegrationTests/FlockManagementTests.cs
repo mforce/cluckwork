@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // #47 — flock management: update/deplete/archive over the API, archived
 // exclusion from default lists, capture gating on flock status, and the
 // Version-token race (AGENTS.md aggregate-mutation rule).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

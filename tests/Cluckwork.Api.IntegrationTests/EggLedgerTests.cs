@@ -6,7 +6,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 // #101 — the egg movement ledger. Every lot mutation writes an explicit
 // signed row in the same transaction, and the cached QuantityAvailable must
 // always equal the sum of the lot's movements (tech-spec §212 rule).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class EggLedgerTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

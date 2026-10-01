@@ -5,7 +5,7 @@ using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class IdempotencyUserScopeTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record MeRow(Guid Id, string Email, string? Name, string Role, string? Language);

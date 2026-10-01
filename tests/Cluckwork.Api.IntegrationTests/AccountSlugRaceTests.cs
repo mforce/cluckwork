@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 // has shipped three times in this repo, so every new aggregate mutation gets a
 // real parallel-race test. Same held-open-snapshot shape as FarmBannerTests
 // (two contexts, not two HTTP calls — the test host would serialise those).
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class AccountSlugRaceTests(CluckworkWebApplicationFactory factory)
 {
     private static string Unique(string label) => $"{label}-{Guid.NewGuid():N}@test.local";

@@ -39,7 +39,7 @@ using System.Text.RegularExpressions;
 //
 // The detached-write behaviour itself is asserted in DetachedTenantWriteTests
 // (refused, since #562), not here.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

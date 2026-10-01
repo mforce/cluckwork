@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 // #8 — the production -> stock bridge. Submitting a daily entry generates one
 // egg lot per grade line; the whole MVP loop hangs off this.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record RecordedDto(Guid Id);

@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 // via pg_blocking_pids against the holder's backend pid — the same technique
 // CurrencyLockRaceTests uses — so this is a positive assertion that A's request never even
 // attempts B's row lock, not a timing guess.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

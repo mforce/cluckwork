@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 //
 // Asserting the COUNT is what catches that: a type-only assertion passes with
 // two validators registered.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionA.Name)]
 public sealed class AccountScopedUserValidatorRegistrationTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

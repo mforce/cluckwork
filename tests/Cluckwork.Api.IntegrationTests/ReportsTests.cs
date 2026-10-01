@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 // #91 — core reports: production math (hen-days from the bird ledger, official
 // entries only), money summaries, the role split, and range guards.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

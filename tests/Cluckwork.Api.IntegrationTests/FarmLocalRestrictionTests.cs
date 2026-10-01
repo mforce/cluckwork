@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 // July 16 in UTC, so a lot restricted through the 15th — eggs still inside a
 // medication withdrawal period — would read as available a day early on the UTC
 // boundary, and a sale would be allowed to draw on it.
-[Collection(IntegrationCollection.Name)]
+[Collection(IntegrationCollectionB.Name)]
 public sealed class FarmLocalRestrictionTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateTime UtcInstant = new(2026, 7, 16, 1, 0, 0, DateTimeKind.Utc);
