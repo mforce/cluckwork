@@ -1,4 +1,4 @@
-namespace Cluckwork.Application.Tests.FlockScope;
+namespace Cluckwork.Application.Tests.FlockScoping;
 
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Identity;
