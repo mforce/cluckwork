@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Accounts;
-
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Application.Features.Accounts;
 
 // The logo/banner bytes are the largest thing this application stores, so the
 // port is split by how much of the row each caller actually needs (#123), and

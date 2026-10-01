@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Catalog.SetProductActive;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Catalog.SetProductActive;
 
 public sealed class SetProductActiveHandler(
     IProductRepository products,

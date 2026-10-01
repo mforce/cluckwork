@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.SharedState;
-
 using StackExchange.Redis;
+
+namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — Redis <see cref="IClaimOnceStore"/> (shared, multi-replica).
 //

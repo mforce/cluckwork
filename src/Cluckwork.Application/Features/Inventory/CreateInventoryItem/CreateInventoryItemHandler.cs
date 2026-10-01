@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Inventory.CreateInventoryItem;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory.CreateInventoryItem;
 
 public sealed class CreateInventoryItemHandler(
     IInventoryItemRepository items,

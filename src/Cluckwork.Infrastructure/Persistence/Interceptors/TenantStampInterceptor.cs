@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Persistence.Interceptors;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +5,8 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Cluckwork.Infrastructure.Persistence.Interceptors;
 
 // Stamps AccountId on every newly inserted entity so writes can't be mis-tagged
 // even if a handler forgets to pass it (tech spec §4.2, point 3), AND refuses

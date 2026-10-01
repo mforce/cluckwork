@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -7,6 +5,8 @@ using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 internal sealed class SharedPostgresDatabase : IAsyncDisposable
 {

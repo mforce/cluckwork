@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.DailyEntries;
-
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Tests.Common;
+
+namespace Cluckwork.Application.Tests.DailyEntries;
 
 public sealed class RecordDailyEntryValidatorTests
 {

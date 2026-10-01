@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Inventory.RecordWaterUsage;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Inventory.RecordWaterUsage;
 
 // Water consumed by a flock on a day (spec §12.5). No inventory behind it —
 // a plain insert; corrections are Version-guarded updates.

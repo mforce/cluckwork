@@ -1,11 +1,11 @@
-namespace Cluckwork.Application.Tests.EggGrades;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Application.Tests.EggGrades;
 
 // #911 — the two rules the low-stock floor adds: who may move one, and what
 // "below the floor" measures.

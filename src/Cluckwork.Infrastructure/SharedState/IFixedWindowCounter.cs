@@ -1,7 +1,7 @@
-namespace Cluckwork.Infrastructure.SharedState;
-
 using System.Threading;
 using System.Threading.Tasks;
+
+namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — atomic increment within a fixed time window (port for the auth
 // limiters, #544, and the report concurrency cap, #545).

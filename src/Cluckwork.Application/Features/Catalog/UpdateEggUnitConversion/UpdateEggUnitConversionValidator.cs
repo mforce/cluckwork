@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion;
 
 public sealed class UpdateEggUnitConversionValidator : AbstractValidator<UpdateEggUnitConversionCommand>
 {

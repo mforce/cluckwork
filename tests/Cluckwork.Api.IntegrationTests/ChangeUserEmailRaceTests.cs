@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
@@ -21,6 +19,8 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 public sealed class ChangeUserEmailFinalSaveFactory : CluckworkWebApplicationFactory
 {

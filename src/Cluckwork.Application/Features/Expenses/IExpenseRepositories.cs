@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Expenses;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Expenses;
+
+namespace Cluckwork.Application.Features.Expenses;
 
 public interface IExpenseCategoryRepository : IRepository<ExpenseCategory, Guid>
 {

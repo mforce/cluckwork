@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Endpoints.ClientErrors;
-
 using System.Text.Json;
 using Cluckwork.Api.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Cluckwork.Api.Hosting;
+
+namespace Cluckwork.Api.Endpoints.ClientErrors;
 
 // #217 — the SPA's ErrorBoundary reports render crashes here so the operator
 // learns a screen is crashing without a support screenshot. The report is

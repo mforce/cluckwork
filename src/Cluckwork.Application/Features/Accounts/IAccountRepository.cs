@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Accounts;
-
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Application.Features.Accounts;
 
 public interface IAccountRepository
 {

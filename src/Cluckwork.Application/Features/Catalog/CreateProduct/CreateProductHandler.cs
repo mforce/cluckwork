@@ -1,11 +1,11 @@
-namespace Cluckwork.Application.Features.Catalog.CreateProduct;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Catalog.CreateProduct;
 
 public sealed class CreateProductHandler(
     IProductRepository products,

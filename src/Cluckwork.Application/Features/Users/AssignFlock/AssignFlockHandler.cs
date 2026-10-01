@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Users.AssignFlock;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.AssignFlock;
 
 // #103 (spec §5.2/§5.3) — narrow a worker to assigned flocks. The FIRST
 // assignment flips the user from account-wide (grandfathered) to scoped.

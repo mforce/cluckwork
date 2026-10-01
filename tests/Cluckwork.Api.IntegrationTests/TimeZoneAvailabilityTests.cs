@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Time;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #264 — unit-level coverage of the tz-availability guard (no Docker). Mirrors
 // RateLimitingOptionsTests: the guard's LOGIC is proven here; SeedTimeZoneTests

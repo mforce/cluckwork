@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory;
 
 // Editable records (unlike feed usage): water has no lots/ledger behind it,
 // so corrections are plain updates guarded by the Version token.

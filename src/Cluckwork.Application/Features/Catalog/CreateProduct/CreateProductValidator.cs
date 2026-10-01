@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Catalog.CreateProduct;
-
 using Cluckwork.Domain.Catalog;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Catalog.CreateProduct;
 
 public sealed class CreateProductValidator : AbstractValidator<CreateProductCommand>
 {

@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.DailyEntries;
-
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Application.Features.DailyEntries;
 
 // #396 — a condition grade is fed by its Daily Entry COUNTER and never by a
 // manual grade line.

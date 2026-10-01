@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Api.Cli;
 
 // `migrate` (#263) — applies EF migrations then EXITS: the pre-deploy-job
 // entrypoint that lets a production deploy run schema DDL under a dedicated

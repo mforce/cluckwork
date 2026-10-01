@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.SharedState;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+
+namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — registers the three shared-state ports. Blank connection string =>
 // in-process implementations (Option B). A configured connection string =>

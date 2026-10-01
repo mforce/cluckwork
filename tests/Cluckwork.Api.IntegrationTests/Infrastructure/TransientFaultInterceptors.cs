@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #269 review — deterministic stand-ins for the two failure shapes the retry
 // boundary has to be reasoned about, neither of which can be produced reliably

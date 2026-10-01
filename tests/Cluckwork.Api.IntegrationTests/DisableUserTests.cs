@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.Endpoints.Auth;
@@ -7,6 +5,8 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #356 — disable / re-enable a user. HTTP-driven scenarios exercising the full
 // pipeline (self-target guard, step-up header, idempotency, body cap).

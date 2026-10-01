@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
-
 using Cluckwork.Domain.Expenses;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 
 public sealed class CreateExpenseCategoryValidator : AbstractValidator<CreateExpenseCategoryCommand>
 {

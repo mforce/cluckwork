@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -45,6 +43,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // #243 load-test simulation seeder: the additional cast (Managers/Sales/
 // Workers/ReadOnly beyond the seeded admin), a minimal flock topology, one

@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Tests.FlockScoping;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Application.Tests.FlockScoping;
 
 public sealed class FlockScopeGuardTests
 {

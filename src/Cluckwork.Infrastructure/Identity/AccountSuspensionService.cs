@@ -1,10 +1,10 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #532 — takes a farm offline and brings it back. #534 ships the operator verbs
 // (`suspend-account` / `reactivate-account`) that call this. Shipping it

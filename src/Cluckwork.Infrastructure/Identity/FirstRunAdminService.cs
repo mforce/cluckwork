@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
@@ -7,6 +5,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #283 Part 2 — first-run admin provisioning. Invoked ONLY by the
 // `bootstrap-admin` CLI command (Cli/BootstrapAdminCliCommand.cs), a one-shot

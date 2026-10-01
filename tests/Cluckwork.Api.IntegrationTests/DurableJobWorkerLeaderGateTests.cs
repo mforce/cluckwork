@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #271 — the worker's leadership gate. The poll (and therefore the sweeps) runs only
 // while this instance is the leader; a follower does no work but stays healthy; a

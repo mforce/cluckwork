@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #532 — the ONE place production code resolves a user by an ambiguous
 // identifier. Once an email can exist in several farms, every globally scoped

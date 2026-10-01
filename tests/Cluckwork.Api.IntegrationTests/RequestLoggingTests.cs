@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -10,6 +8,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #398 review (Codex) — a genuine unhandled fault for
 // Unhandled_exception_logs_one_completion_for_the_real_path_only below. That

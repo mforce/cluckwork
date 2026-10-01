@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.Endpoints.Audit;
-
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
+
+namespace Cluckwork.Api.Endpoints.Audit;
 
 // #93 — read-only audit viewer. There is deliberately NO mutation surface:
 // events append inside the transactions that create them and never change.

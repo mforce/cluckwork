@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.Extensions.Configuration;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #243 load-test simulation seeder. #279: there is deliberately NO Seed:Simulation
 // gate anymore — the seeder is invoked only by the explicit `seed --profile

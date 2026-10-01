@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Endpoints.Accounts;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Hosting;
 
 // #442 — the farm-logo upload cap, moved from INSIDE the SetLogo handler to a
 // middleware registered before IdempotencyMiddleware (mirroring

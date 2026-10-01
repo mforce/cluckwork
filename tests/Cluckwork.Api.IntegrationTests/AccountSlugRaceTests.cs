@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #531 — Suspend()/Reactivate() each bump the account's Version concurrency
 // token, so two writers racing the SAME row cannot both win: the loser's

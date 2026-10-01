@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Cluckwork.Api.Logging;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #273 — SensitiveDataRedactionEnricher, exercised directly against a tiny
 // throwaway Serilog pipeline (no HTTP, no Postgres): fast and deterministic,

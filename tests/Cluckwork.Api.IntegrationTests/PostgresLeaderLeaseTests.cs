@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #271 — direct proof of the leader lease's contract: AT MOST ONE ACTIVE LEADER,
 // with crash recovery and transaction-pooling backend-affinity. Both competing

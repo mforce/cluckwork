@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Sales.UpdateOrderItem;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Sales.UpdateOrderItem;
 
 public sealed class UpdateOrderItemHandler(
     ISalesOrderRepository orders,

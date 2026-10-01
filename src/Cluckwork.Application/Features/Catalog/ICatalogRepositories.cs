@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Catalog;
-
 using Cluckwork.Domain.Catalog;
+
+namespace Cluckwork.Application.Features.Catalog;
 
 public interface IProductRepository
 {

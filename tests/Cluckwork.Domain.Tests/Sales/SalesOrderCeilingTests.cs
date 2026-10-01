@@ -1,9 +1,9 @@
-namespace Cluckwork.Domain.Tests.Sales;
-
 using System.Reflection;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Domain.Tests.Sales;
 
 // #727 — the pure aggregate query. Driven entirely through FindCeilingBreach,
 // the public surface ConfirmSaleHandler actually calls, so the basis routing is

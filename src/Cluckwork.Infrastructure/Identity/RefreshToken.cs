@@ -1,7 +1,7 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // Durable, rotating refresh token (tech spec §7.4). The raw token is never stored;
 // only its SHA-256 hash. Rotation revokes the presented token and issues a new one,

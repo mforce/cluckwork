@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #344 — a server certificate for the real-TLS Kestrel listener, generated at
 // test-process startup and never persisted. Same rule as TestJwtKeys: no key

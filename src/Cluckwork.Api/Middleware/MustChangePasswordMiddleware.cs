@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Middleware;
-
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+
+namespace Cluckwork.Api.Middleware;
 
 // #283 — the server-side half of the first-run "you must set a new password"
 // gate. TenantResolutionMiddleware (immediately before this in Program.cs's

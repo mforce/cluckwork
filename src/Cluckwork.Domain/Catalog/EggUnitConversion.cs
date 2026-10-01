@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Catalog;
-
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Domain.Catalog;
 
 // Spec §9.7 — eggs are stored as individual eggs, but products sell in packed
 // units, and there is NO implicit fixed factor: a carton is 12, 18, or 30 eggs

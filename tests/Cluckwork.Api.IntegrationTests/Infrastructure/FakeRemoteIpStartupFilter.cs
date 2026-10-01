@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // The in-process TestServer has no socket peer, so per-IP behavior (rate
 // limiting, forwarded-header trust) has nothing to key on. This filter sets

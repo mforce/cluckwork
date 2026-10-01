@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Eggs;
-
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Domain.Tests.Eggs;
 
 public sealed class EggGradeDefaultsTests
 {

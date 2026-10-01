@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Middleware;
-
 using System.Security.Cryptography;
 using System.Text;
 using Cluckwork.Infrastructure.Identity;
@@ -7,6 +5,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Middleware;
 
 // #307 — a database-coordinated claim/lease protocol, replacing the old
 // process-local-lock + execute + insert flow (#289's stripe, kept only as a

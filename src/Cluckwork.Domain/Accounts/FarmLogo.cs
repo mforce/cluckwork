@@ -1,8 +1,8 @@
-namespace Cluckwork.Domain.Accounts;
-
 using System.Security.Cryptography;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
+
+namespace Cluckwork.Domain.Accounts;
 
 // The farm's logo AND banner (#123, #179). Spec §3.2 has no logo field — this
 // slice adds one, and the spec is updated alongside.

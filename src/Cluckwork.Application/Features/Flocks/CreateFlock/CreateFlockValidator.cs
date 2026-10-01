@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Flocks.CreateFlock;
-
 using Cluckwork.Application.Common;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Flocks.CreateFlock;
 
 public sealed class CreateFlockValidator : AbstractValidator<CreateFlockCommand>
 {

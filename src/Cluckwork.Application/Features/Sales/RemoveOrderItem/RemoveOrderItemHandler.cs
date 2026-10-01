@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Sales.RemoveOrderItem;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Sales.RemoveOrderItem;
 
 public sealed class RemoveOrderItemHandler(
     ISalesOrderRepository orders,

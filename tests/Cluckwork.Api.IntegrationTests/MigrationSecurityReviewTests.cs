@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections;
 using System.Globalization;
 using System.Reflection;
@@ -8,6 +6,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #283 — "the `SecurityReviewed`-style assertion the issue calls for": no EF
 // migration may EVER embed a credential (or anything credential-shaped). Part

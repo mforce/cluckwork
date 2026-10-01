@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.RateLimiting;
-
 using System.Net;
+
+namespace Cluckwork.Api.RateLimiting;
 
 public sealed class RateLimitingOptions
 {

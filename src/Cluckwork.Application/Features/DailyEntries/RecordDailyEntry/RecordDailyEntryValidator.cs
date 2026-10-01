@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
-
 using Cluckwork.Application.Common;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 
 public sealed class RecordDailyEntryValidator : AbstractValidator<RecordDailyEntryCommand>
 {

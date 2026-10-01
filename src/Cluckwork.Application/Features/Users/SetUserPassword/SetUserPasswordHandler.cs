@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.SetUserPassword;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.SetUserPassword;
 
 // #165 base behaviour; #308/#360 — every administrative reset replaces an
 // authenticator and can turn a short-lived stolen Owner token into an

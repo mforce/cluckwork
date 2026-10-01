@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.HealthChecks;
-
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+
+namespace Cluckwork.Api.HealthChecks;
 
 // A silently stalled job worker (stuck handler, loop death) would otherwise be
 // invisible until entries stop locking (#69). Degraded — never Unhealthy — so

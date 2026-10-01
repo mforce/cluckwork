@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Users;
-
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
@@ -16,6 +14,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+
+namespace Cluckwork.Api.Endpoints.Users;
 
 // #73 — minimal user management: enough for an admin to create a worker (or
 // another admin) and see who exists. Full user administration is the RBAC slice.

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Concurrent;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -14,6 +12,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog.Core;
 using Serilog.Events;
 using StackExchange.Redis;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #544 — the WIRING of the distributed limiter, driven through the real
 // rate-limiting middleware on a CluckworkWebApplicationFactory with the

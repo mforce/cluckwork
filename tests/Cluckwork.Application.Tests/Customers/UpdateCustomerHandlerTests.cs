@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Tests.Customers;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Tests.Customers;
 
 public sealed class UpdateCustomerHandlerTests
 {

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Security.Claims;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Domain.Accounts;
@@ -11,6 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Serilog;
 using Serilog.Extensions.Hosting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 public sealed class TenantResolutionMiddlewareTests
 {

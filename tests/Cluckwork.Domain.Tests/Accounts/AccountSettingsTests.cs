@@ -1,9 +1,9 @@
-namespace Cluckwork.Domain.Tests.Accounts;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Domain.Tests.Accounts;
 
 // #123 — the settings block and the two rules that guard it: §4.6's currency
 // lock and the derivation that runs when the lock is open.

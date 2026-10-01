@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Application.Common;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #273 codex review (P1b) — single emission point for the LoginFailed /
 // AccountLockedOut security events, shared by EVERY password-verification

@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Users.UpdateUser;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.UpdateUser;
 
 public sealed class UpdateUserValidator : AbstractValidator<UpdateUserCommand>
 {

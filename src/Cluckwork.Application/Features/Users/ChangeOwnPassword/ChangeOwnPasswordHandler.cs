@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.ChangeOwnPassword;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.ChangeOwnPassword;
 
 public sealed class ChangeOwnPasswordHandler(IIdentityProvider identity)
 {

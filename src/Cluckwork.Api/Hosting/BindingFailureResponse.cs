@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Validation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Metadata;
+
+namespace Cluckwork.Api.Hosting;
 
 // #398 review (Codex) — RouteHandlerOptions.ThrowOnBadRequest is forced true
 // in every environment (see Program.cs), so a JSON-binding failure (a

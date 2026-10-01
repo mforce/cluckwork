@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Middleware;
-
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
+
+namespace Cluckwork.Api.Middleware;
 
 // Reads account_id claim from the authenticated principal and populates TenantContext
 // before any endpoint handler runs (tech spec §4.2 point 1). Also resolves the

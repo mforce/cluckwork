@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
-
 using Cluckwork.Domain.Eggs;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 
 public sealed class UpdateEggGradeValidator : AbstractValidator<UpdateEggGradeCommand>
 {

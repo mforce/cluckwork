@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
 using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed record AdapterReach(string Symbol, string Owner, string Type, string File, int Line);
 

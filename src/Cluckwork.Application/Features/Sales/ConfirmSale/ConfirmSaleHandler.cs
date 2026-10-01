@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Features.Sales.ConfirmSale;
-
 using System.Globalization;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
@@ -12,6 +10,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 
 public sealed class ConfirmSaleHandler(
     IAccountRepository accounts,

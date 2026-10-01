@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.EggGrades;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.EggGrades;
@@ -9,6 +7,8 @@ using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.EggGrades;
 
 public static class EggGradeEndpoints
 {

@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 public sealed class SharedStateRegistrationTests
 {

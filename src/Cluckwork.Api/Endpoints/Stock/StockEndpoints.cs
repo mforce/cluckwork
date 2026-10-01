@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.Endpoints.Stock;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Stock;
 
 public static class StockEndpoints
 {

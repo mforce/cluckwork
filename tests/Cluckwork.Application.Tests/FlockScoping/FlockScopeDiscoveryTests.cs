@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Tests.FlockScoping;
-
 using System.Linq.Expressions;
 using System.Reflection;
 using Cluckwork.Domain.Accounts;
@@ -7,6 +5,8 @@ using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+
+namespace Cluckwork.Application.Tests.FlockScoping;
 
 // #613 — derive flock-filter coverage from the EF model. A mapped scalar
 // FlockId is scoped by default; exclusions are deliberate and reviewable.

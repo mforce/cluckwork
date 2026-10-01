@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Hosting;
-
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Net.Http.Headers;
+
+namespace Cluckwork.Api.Hosting;
 
 // #141 — cache policy for the SPA served from wwwroot. Vite emits content-hashed
 // files under /assets/ (e.g. index-4af3c1.js): the name changes whenever the

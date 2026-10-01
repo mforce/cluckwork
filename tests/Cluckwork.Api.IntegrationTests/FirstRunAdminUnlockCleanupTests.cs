@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
@@ -12,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // PR #339 review — a session-scoped pg_advisory_unlock that fails AFTER
 // FirstRunAdminService.ProvisionUnderLockAsync already committed the first

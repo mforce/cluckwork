@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Tests.Common;
-
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Cluckwork.Application.Common;
+
+namespace Cluckwork.Application.Tests.Common;
 
 // #258 root-cause fix (symptom fixed by #247): the SPA's audit-log action
 // filter and entity-type labels are driven by two hand-maintained lists in

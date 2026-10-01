@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using Cluckwork.Api.Cli;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #531 — `list-accounts` is a real CLI dispatch branch, never exercised by
 // WebApplicationFactory (which passes empty args). This spawns the actual built

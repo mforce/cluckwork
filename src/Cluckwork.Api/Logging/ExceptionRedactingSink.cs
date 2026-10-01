@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Logging;
-
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.Logging;
 
 // The structural gap a property-mutating ILogEventEnricher cannot close, split
 // out of #273's log-redaction work as its own reviewable unit (codex review

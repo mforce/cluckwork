@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Users.CreateUser;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.CreateUser;
 
 public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
 {

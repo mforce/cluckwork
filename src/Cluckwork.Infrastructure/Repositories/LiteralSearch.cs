@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 // #512 — literal name search, shared by the flock and customer discovery
 // queries because the two routes must not drift on the one thing the picker

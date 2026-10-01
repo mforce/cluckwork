@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Catalog;
@@ -14,6 +12,8 @@ using Cluckwork.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext tenant, FlockScope flockScope)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)

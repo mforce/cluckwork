@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Customers;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
@@ -7,6 +5,8 @@ using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Customers;
 
 public static class CustomerEndpoints
 {

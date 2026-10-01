@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Catalog;
-
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Domain.Catalog;
 
 // Product catalog (spec §10.1) — what the farm sells. Phase 1 only egg
 // products are creatable (they map to an egg grade via

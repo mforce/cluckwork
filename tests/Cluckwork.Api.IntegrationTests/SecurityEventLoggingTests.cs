@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Net;
@@ -18,6 +16,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #273 — the five stable structured security events the amendment to #273
 // requires: failed login, account lockout, refresh-token replay detection,

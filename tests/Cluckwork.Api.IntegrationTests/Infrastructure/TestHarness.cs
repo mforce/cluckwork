@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.Http.Headers;
@@ -13,6 +11,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // Seeding + auth helpers shared by the integration tests. Each helper that touches the
 // database opens its own DI scope with a resolved TenantContext, mirroring how the

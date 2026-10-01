@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.IntegrationTests.SharedState;
 using Cluckwork.Infrastructure.Identity;
@@ -9,6 +7,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #338 — the point of the shared-store move, at the unit level: ONE Redis
 // claim store and ONE Postgres shared by TWO independent registry instances

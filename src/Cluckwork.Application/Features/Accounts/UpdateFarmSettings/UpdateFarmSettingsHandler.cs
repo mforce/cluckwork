@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 
 public sealed class UpdateFarmSettingsHandler(
     IAccountRepository accounts,

@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.SetStepperUnit;
-
 using Cluckwork.Domain.Catalog;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.SetStepperUnit;
 
 public sealed class SetStepperUnitValidator : AbstractValidator<SetStepperUnitCommand>
 {

@@ -1,9 +1,9 @@
 // #847 — the real-assembly gate; the mutation matrix reds here.
 
-namespace Cluckwork.Application.Tests.Architecture;
-
 using System.Reflection;
 using Cluckwork.Application.Common;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class SeamSurfaceRealAssemblyTests
 {

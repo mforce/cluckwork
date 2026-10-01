@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
 using Cluckwork.Application.Tests.TenantBypass;
 using Xunit.Abstractions;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class AdapterReachRealTreeTests(ITestOutputHelper output)
 {

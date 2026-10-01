@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.Customers;
-
 using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Tests.Customers;
 
 public sealed class UpdateCustomerValidatorTests
 {

@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggGrades;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Application.Features.EggGrades;
 
 public interface IEggGradeRepository : IRepository<EggGrade, Guid>
 {

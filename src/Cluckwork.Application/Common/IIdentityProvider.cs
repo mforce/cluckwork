@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Common;
-
 using Cluckwork.Domain.Catalog;
+
+namespace Cluckwork.Application.Common;
 
 public enum RefreshTokenRevocationOutcome
 {

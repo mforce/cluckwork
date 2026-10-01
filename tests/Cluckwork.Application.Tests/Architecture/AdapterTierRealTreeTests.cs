@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
 using Cluckwork.Application.Tests.TenantBypass;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class AdapterTierRealTreeTests
 {

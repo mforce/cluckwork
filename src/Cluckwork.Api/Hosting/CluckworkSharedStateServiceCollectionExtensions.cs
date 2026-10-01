@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Configuration;
 using Cluckwork.Infrastructure.SharedState;
+
+namespace Cluckwork.Api.Hosting;
 
 // #543 — binds SharedStateOptions, runs the serving-only connection-string
 // guard, then delegates registration to Infrastructure.

@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #313 — SalesOrderRepository.GetByIdLockedAsync and InventoryItemRepository.GetByIdLockedAsync
 // select by Id alone and only check AccountId AFTER the row loads, because the raw FOR UPDATE

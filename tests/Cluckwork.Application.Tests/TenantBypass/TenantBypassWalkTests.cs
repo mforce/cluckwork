@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.TenantBypass;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Application.Tests.TenantBypass;
 
 // #536 Part 1 — the walk. These tests prove the scanner actually sees the
 // tree (a zero-occurrence result is a scan failure, not a clean bill — review

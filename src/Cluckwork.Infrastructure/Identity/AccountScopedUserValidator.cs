@@ -1,10 +1,10 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using System.ComponentModel.DataAnnotations;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #532 — REPLACES Identity's stock UserValidator<ApplicationUser>. It does not
 // run beside it, and that distinction is the whole point: UserManager runs

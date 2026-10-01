@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -7,6 +5,8 @@ using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #722 — the sales-line audit events carry the PRICES, so a discount given in
 // the past is reconstructible from stored data. #720 put

@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
 
 // Correcting a water record (#67; corrections join the admin-gated surface
 // with #73). Optimistic concurrency is end-to-end: the client sends the base

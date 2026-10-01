@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -10,6 +8,8 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using TestHarness = Cluckwork.Api.IntegrationTests.Infrastructure.TestHarness;
 using StackExchange.Redis;
 using Testcontainers.Redis;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #840 — the census reproduced "expected 429, got 401" once in 36 runs and got
 // 0 failures in 80 instrumented runs. It recorded what the counter was asked to

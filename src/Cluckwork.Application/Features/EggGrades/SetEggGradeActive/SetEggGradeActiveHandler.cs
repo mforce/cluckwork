@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
 
 // Backs both POST /egg-grades/{id}/activate and /deactivate. Deactivation only
 // stops NEW grading/order lines (capture flows filter to active grades); live

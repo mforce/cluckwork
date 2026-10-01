@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
@@ -56,6 +54,8 @@ using Cluckwork.Infrastructure.Repositories;
 using Cluckwork.Infrastructure.Time;
 using FluentValidation;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkFeatureServiceCollectionExtensions
 {

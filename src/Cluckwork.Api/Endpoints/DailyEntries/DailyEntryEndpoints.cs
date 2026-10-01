@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.DailyEntries;
-
 using System.Text.Json;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
@@ -9,6 +7,8 @@ using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.DailyEntries;
 
 public static class DailyEntryEndpoints
 {

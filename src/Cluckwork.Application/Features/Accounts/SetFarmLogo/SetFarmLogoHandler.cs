@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Accounts.SetFarmLogo;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
+
+namespace Cluckwork.Application.Features.Accounts.SetFarmLogo;
 
 // #123 — upload or replace the farm logo.
 //

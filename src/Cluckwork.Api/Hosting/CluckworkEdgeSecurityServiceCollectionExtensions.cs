@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.Hosting;
-
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.HttpOverrides;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkEdgeSecurityServiceCollectionExtensions
 {

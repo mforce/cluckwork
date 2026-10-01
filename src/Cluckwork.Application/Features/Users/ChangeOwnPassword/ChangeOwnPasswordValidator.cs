@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Users.ChangeOwnPassword;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.ChangeOwnPassword;
 
 public sealed class ChangeOwnPasswordValidator : AbstractValidator<ChangeOwnPasswordCommand>
 {

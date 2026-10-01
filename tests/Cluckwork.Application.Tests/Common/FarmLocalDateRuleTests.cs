@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Tests.Common;
-
 using Cluckwork.Application.Features.Expenses.AdjustExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Application.Features.Sales.RecordPayment;
+
+namespace Cluckwork.Application.Tests.Common;
 
 // #155 — the four validators the sweep moved onto the farm clock that had no
 // unit tests of their own. Each one gets the same pair: the farm's today is

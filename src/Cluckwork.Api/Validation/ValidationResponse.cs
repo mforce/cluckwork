@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Validation;
-
 using FluentValidation.Results;
+
+namespace Cluckwork.Api.Validation;
 
 // Additive `errorCodes` companion to the standard `errors` dictionary (#45).
 //

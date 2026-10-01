@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Tests.Sales;
-
 using System.Linq;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Cluckwork.Application.Tests.Sales;
 
 // #743 — a syntax guard, not a behavioural one. The hazard: a handler that
 // calls unitOfWork.SaveChangesAsync(...) INSIDE its ExecuteInTransactionAsync

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Concurrent;
 using Cluckwork.Api.Logging;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #273 codex review (round 2, P1b) — RedactingLoggerPipeline, exercised as the
 // real host builds it: a sink declared in `Serilog:WriteTo` (the app's own sink

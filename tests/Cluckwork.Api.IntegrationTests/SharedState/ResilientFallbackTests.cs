@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using System.Threading.Tasks;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #543 — the resilient decorators' fallback POLICY, unit-tested against
 // hand-written stubs (no Redis, no Docker, no fake clock):

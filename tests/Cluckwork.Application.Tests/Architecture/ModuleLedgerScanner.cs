@@ -1,13 +1,14 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
-// #842 (epic #514 slice 1) — the cross-owner edge ratchet over src/, read against Data/module-ledger.json.
-
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Cluckwork.Application.Tests.Architecture;
+
+// #842 (epic #514 slice 1) — the cross-owner edge ratchet over src/, read against Data/module-ledger.json.
+
 
 public sealed record CrossOwnerEdge(
     string From,

@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Infrastructure.RateLimiting;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #545 — the two-instance guarantee against a REAL shared store (Testcontainers
 // Redis, mirrors RedisLeaseContractTests): two limiter instances sharing one

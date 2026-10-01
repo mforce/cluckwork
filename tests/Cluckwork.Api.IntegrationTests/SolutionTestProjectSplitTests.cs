@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Text.RegularExpressions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #775 — the four test projects are legs of ci.yml's `tests` matrix. One
 // `dotnet test Cluckwork.sln` could not leave a project unrun; a matrix CAN, and it fails

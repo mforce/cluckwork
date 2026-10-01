@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
@@ -8,6 +6,8 @@ using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #128 — the configured account lockout must actually fire: repeated failed
 // logins lock the account (rejecting even the correct password), a success

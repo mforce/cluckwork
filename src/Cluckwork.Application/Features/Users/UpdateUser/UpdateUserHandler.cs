@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Users.UpdateUser;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.UpdateUser;
 
 // #163 — the update is scoped to the caller's account inside the provider, so a
 // user id from another tenant resolves to NotFound, never a cross-account edit.

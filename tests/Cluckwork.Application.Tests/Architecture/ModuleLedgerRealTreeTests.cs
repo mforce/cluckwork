@@ -1,8 +1,9 @@
+using Cluckwork.Application.Tests.TenantBypass;
+
 namespace Cluckwork.Application.Tests.Architecture;
 
 // #842 — the real-tree gate; the mutation matrix reds here.
 
-using Cluckwork.Application.Tests.TenantBypass;
 
 public sealed class ModuleLedgerRealTreeTests
 {

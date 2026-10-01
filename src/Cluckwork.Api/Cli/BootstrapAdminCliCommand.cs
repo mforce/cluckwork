@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.Cli;
 
 // `bootstrap-admin --email <e>` (#283) — first-run admin provisioning. Same
 // run-then-exit, fail-loud shape as seed/migrate/recover-admin: migrates the

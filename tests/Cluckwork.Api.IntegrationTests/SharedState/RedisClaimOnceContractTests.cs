@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Infrastructure.SharedState;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #543 — Redis contract: single-use claim with TTL, against a REAL Redis
 // (Testcontainers) with REAL short TTLs. The impls honour Redis's server

@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // #307 — the claim/result states of the database-coordinated idempotency
 // protocol. InProgress means a lease is held (LeaseOwner/LeaseExpiresAt are

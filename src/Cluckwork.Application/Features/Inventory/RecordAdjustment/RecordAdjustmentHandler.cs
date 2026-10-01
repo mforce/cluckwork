@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Inventory.RecordAdjustment;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Inventory.RecordAdjustment;
 
 // Stock correction (#66 part 2): fixes a typo'd purchase or writes off
 // spoiled feed via a compensating ledger row — the original movement is never

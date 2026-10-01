@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.IO.Pipelines;
 using System.Reflection;
 using Cluckwork.Api.Hosting;
@@ -8,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #398 review rounds 7-8 — BindingFailureResponse.ConcernsRequestBody decides
 // whether a 400 binding failure is reported under `body` or `query`, and it

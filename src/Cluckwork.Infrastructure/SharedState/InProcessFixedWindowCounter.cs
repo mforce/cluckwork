@@ -1,7 +1,7 @@
-namespace Cluckwork.Infrastructure.SharedState;
-
 using System.Threading;
 using System.Threading.Tasks;
+
+namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — in-process <see cref="IFixedWindowCounter"/> fallback (Option B: a
 // deliberately single-instance deploy runs without Redis).

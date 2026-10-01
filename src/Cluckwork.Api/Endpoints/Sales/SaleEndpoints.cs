@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Sales;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
@@ -18,6 +16,8 @@ using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.EggGrades;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+
+namespace Cluckwork.Api.Endpoints.Sales;
 
 public static class SaleEndpoints
 {

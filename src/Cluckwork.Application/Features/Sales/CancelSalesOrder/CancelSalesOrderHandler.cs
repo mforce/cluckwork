@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Sales.CancelSalesOrder;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Sales.CancelSalesOrder;
 
 public sealed class CancelSalesOrderHandler(
     ISalesOrderRepository orders,

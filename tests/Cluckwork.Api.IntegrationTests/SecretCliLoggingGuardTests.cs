@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Text.RegularExpressions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #273 codex review (round 5) — BootstrapAdminCommandTests and
 // RecoverAdminCommandTests prove the "never the logger" invariant by scanning

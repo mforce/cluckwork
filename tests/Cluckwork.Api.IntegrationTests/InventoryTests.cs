@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #66 (PR 1) — inventory foundation: item catalog, receiving stock as lots,
 // and the append-only movement ledger. Consumption (feed usage) is PR 2.

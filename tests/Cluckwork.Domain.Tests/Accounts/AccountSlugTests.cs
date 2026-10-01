@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Accounts;
-
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Domain.Tests.Accounts;
 
 // #531 — the farm code and the suspend/reactivate lifecycle. Slug validity is an
 // INVARIANT (Account.Create throws, like Flock.Create), not a Result failure;

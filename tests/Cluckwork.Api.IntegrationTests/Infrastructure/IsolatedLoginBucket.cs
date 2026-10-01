@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #840 — the login rate-limit bucket is keyed on the client address ALONE
 // (RateLimitKey.ForClient, reached from DistributedIpFixedWindowPolicy), and every

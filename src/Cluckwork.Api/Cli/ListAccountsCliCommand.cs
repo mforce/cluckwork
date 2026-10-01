@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.Cli;
 
 // `list-accounts` (#531) — a read-only operator verb that prints every farm's
 // code, name and active state. Moved forward from #533 deliberately: #532 makes

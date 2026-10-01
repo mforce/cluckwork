@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Microsoft.AspNetCore.Identity;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 public sealed class ApplicationRole : IdentityRole<Guid>
 {

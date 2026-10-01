@@ -1,10 +1,10 @@
 // #847 (epic #514 slice 5) — no persistence type crosses a module seam.
 
-namespace Cluckwork.Application.Tests.Architecture;
-
 using System.Reflection;
 using Cluckwork.Domain.Common;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed record SeamSurfaceViolation(
     string Interface,

@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Tests.Common;
-
 using Cluckwork.Application.Common;
+
+namespace Cluckwork.Application.Tests.Common;
 
 // A frozen farm-local "today" for the date-boundary rules (#35 / #155). Shared
 // so validator tests pin an explicit date instead of riding on the build

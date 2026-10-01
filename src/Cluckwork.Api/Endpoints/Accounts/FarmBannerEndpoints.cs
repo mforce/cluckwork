@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Accounts;
-
 using System.Buffers;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Features.Accounts;
@@ -11,6 +9,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using Cluckwork.Api.Hosting;
+
+namespace Cluckwork.Api.Endpoints.Accounts;
 
 // #179 — the farm banner: upload, serve, remove. Mirrors FarmLogoEndpoints.cs
 // exactly, including the raw-body-PUT and ETag/304 reasoning documented there;

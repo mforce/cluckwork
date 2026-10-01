@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #89 — customer payments: order-attached, currency copied from the order,
 // no-overpay under the order row lock, void-not-delete, and the order-void

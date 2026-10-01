@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -7,6 +5,8 @@ using Cluckwork.Application.Common;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #155, the other direction. FarmLocalBoundarySweepTests uses a farm AHEAD of
 // UTC (Auckland), where the old code REFUSED legitimate work. Here the farm is

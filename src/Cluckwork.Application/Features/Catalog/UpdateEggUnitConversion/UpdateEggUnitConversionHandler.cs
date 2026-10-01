@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion;
 
 public sealed record UpdateEggUnitConversionCommand(Guid ConversionId, int EggsPerUnit, bool Active);
 

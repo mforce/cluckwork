@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
@@ -9,6 +7,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 
 // The production -> stock bridge (#8): submitting a daily entry turns its grade
 // lines into egg lots, one lot per grade, dated by the entry, and its mortality

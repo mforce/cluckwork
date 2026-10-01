@@ -1,11 +1,11 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 public interface IJwtTokenService
 {

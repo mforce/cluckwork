@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // tech spec §11 / functional §10.10, §13.3: a lot under medication withdrawal must be
 // hard-blocked from sale. With no other stock, confirmation fails and the lot is untouched.

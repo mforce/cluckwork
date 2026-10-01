@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Water;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
@@ -7,6 +5,8 @@ using Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Water;
 
 public static class WaterUsageEndpoints
 {

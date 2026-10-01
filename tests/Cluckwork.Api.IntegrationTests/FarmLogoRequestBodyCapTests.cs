@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Text.Json;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Endpoints.Accounts;
@@ -9,6 +7,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #442 review (codex) — KestrelRequestBodyLimitTests' Kestrel-backed tests
 // prove the observable RESPONSE SHAPE for an oversized logo upload, but

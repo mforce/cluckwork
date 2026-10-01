@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.RateLimiting;
-
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+
+namespace Cluckwork.Infrastructure.RateLimiting;
 
 // #545 — registers the distributed report-concurrency cap. Factory-deferred so
 // IConnectionMultiplexer/TimeProvider resolve on first use (after Build),

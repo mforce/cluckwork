@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #128 per-account lockout, shared by EVERY password-verification oracle rather
 // than living inside one of them.

@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #145 — the refresh token is delivered only as an HttpOnly cookie; the body
 // carries just the access token. CSRF posture: refresh/logout require the custom

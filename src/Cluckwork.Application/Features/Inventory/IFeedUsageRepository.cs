@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory;
 
 // Create-only like the movement ledger: corrections happen through
 // compensating inventory adjustments, never by editing the usage record.

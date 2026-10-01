@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Infrastructure.SharedState;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #543 — Redis contract: fixed-window counter, against a REAL Redis
 // (Testcontainers) with a REAL short window. The window is bucketed on

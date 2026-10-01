@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory.RecordFeedUsage;
-
 using Cluckwork.Domain.Inventory;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 
 public sealed class RecordFeedUsageValidator : AbstractValidator<RecordFeedUsageCommand>
 {

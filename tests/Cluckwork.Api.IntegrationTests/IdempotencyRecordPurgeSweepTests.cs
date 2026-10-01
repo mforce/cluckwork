@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
@@ -8,6 +6,8 @@ using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #259 — idempotency_records grows without bound: IdempotencyMiddleware inserts a
 // claim per idempotent write and marks it Completed with the replay payload, but

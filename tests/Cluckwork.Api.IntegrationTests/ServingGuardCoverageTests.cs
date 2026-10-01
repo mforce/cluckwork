@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Cluckwork.Api.Hosting;
@@ -7,6 +5,8 @@ using Cluckwork.Api.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #347 review round 3 — makes ProcessRoleGuardTests' table track the source.
 //

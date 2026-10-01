@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Accounts;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
@@ -10,6 +8,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Endpoints.Accounts;
 
 public static class AccountEndpoints
 {
