@@ -157,9 +157,10 @@ public static class AdapterReachScanner
                 var firstDot = dotted.IndexOf('.');
                 var aliasName = firstDot < 0 ? dotted : dotted[..firstDot];
                 var alias = imports.FirstOrDefault(u => u.Alias?.Name.Identifier.ValueText == aliasName);
-                if (alias?.Name is { } aliasedType && expandedAliases.Add(aliasName))
+                // NamespaceOrType, not Name: a tuple alias has no Name, and its element types must still be walked.
+                if (alias?.NamespaceOrType is { } aliasedType && expandedAliases.Add(aliasName))
                 {
-                    if (firstDot >= 0)
+                    if (firstDot >= 0 && aliasedType is NameSyntax)
                     {
                         Record(SyntaxFactory.ParseName(ModuleLedgerScanner.DottedText(aliasedType) + dotted[firstDot..]),
                             location, expandedAliases);
@@ -379,6 +380,11 @@ public static class AdapterReachScanner
             var qualifiedReceiver = "Microsoft.Extensions.DependencyInjection." + requiredReceiver;
             var receiver = call.Expression is MemberAccessExpressionSyntax access
                 ? ModuleLedgerScanner.DottedText(access.Expression) : null;
+            if (ImportsOf(call).FirstOrDefault(u => receiver is not null && u.Alias?.Name.Identifier.ValueText == receiver)
+                ?.NamespaceOrType is NameSyntax aliasedReceiver)
+            {
+                receiver = ModuleLedgerScanner.DottedText(aliasedReceiver);
+            }
             var staticImport = call.Expression is SimpleNameSyntax && ImportsOf(call)
                 .Any(import => import.StaticKeyword != default
                     && ModuleLedgerScanner.DottedText(import.Name) == qualifiedReceiver);

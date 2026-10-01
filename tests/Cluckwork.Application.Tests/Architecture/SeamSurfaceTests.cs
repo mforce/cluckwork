@@ -100,6 +100,57 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.PagedResultRetur
     }
 }
 
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMember
+{
+    using Cluckwork.Application.Common;
+    using Cluckwork.Domain.Flocks;
+
+    public sealed class FieldPayload
+    {
+        public Flock? Entity;
+    }
+
+    public sealed class PropertyPayload
+    {
+        public Flock? Entity { get; init; }
+    }
+
+    public sealed record FieldEnvelope(FieldPayload Payload);
+
+    public sealed record PropertyEnvelope(PropertyPayload Payload);
+
+    public interface IFlockStore : IRepository<Flock, Guid>;
+
+    public sealed record RepositoryEnvelope(IFlockStore Repository);
+
+    public interface IFlockLookup
+    {
+        Task<Flock?> Find(Guid id);
+    }
+
+    public sealed record LookupEnvelope(IFlockLookup Lookup);
+
+    public interface IFieldContractFixture
+    {
+        FieldEnvelope Get();
+    }
+
+    public interface IPropertyContractFixture
+    {
+        PropertyEnvelope Get();
+    }
+
+    public interface IRepositoryContractFixture
+    {
+        RepositoryEnvelope Get();
+    }
+
+    public interface ILookupContractFixture
+    {
+        LookupEnvelope Get();
+    }
+}
+
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.MoneyReturn
 {
     using Cluckwork.Domain.Common;
@@ -274,6 +325,7 @@ namespace Cluckwork.Application.Tests.Architecture
     using ConcreteAggregateReturnFixtures = SeamFixtures.ConcreteAggregateReturn;
     using PagedResultReturnFixtures = SeamFixtures.PagedResultReturn;
     using MoneyReturnFixtures = SeamFixtures.MoneyReturn;
+    using ContractNestedMemberFixtures = SeamFixtures.ContractNestedMember;
     using InheritedGenericBaseFixtures = SeamFixtures.InheritedGenericBase;
     using NestedPublicInterfaceFixtures = SeamFixtures.NestedPublicInterface;
     using IndexerParameterFixtures = SeamFixtures.IndexerParameter;
@@ -394,6 +446,31 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<DbSetReturnFixtures.IDbSetReturnFixture>());
             Assert.Contains("DbSet", failure);
+        }
+
+        [Theory]
+        [InlineData(typeof(ContractNestedMemberFixtures.IFieldContractFixture))]
+        [InlineData(typeof(ContractNestedMemberFixtures.IPropertyContractFixture))]
+        public void Contract_AggregateBehindANestedFieldOrProperty_IsAViolation(Type fixture)
+        {
+            var failure = Assert.Single(SeamSurfaceScanner.Evaluate(SeamSurfaceScanner.ScanContracts([fixture], 1)));
+            Assert.Contains("Payload -> ", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+        }
+
+        [Fact]
+        public void Contract_RepositoryInAResult_IsAViolation()
+        {
+            var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.IRepositoryContractFixture>());
+            Assert.Contains("IFlockStore", failure);
+        }
+
+        [Fact]
+        public void Contract_NestedInterfaceSignature_IsWalked()
+        {
+            var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.ILookupContractFixture>());
+            Assert.Contains("IFlockLookup", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
         }
 
         [Fact]

@@ -282,6 +282,26 @@ public static class SeamSurfaceScanner
                 Walk(property.PropertyType, [.. path, $"{FormatShort(resolved)}.{property.Name}"], visited,
                     interfaceName, member, violations, rules);
             }
+
+            foreach (var field in resolved.GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                Walk(field.FieldType, [.. path, $"{FormatShort(resolved)}.{field.Name}"], visited,
+                    interfaceName, member, violations, rules);
+            }
+
+            // A contract result can hand out a nested interface, so its signatures are walked too. #847 scans
+            // every seam interface at the root already and keeps its single-report behaviour.
+            if (resolved.IsInterface && ReferenceEquals(rules, ContractRules))
+            {
+                foreach (var method in resolved.GetMethods().Concat(resolved.GetInterfaces().SelectMany(i => i.GetMethods())))
+                {
+                    foreach (var signatureType in method.GetParameters().Select(p => p.ParameterType).Append(method.ReturnType))
+                    {
+                        Walk(signatureType, [.. path, $"{FormatShort(resolved)}.{method.Name}", FormatShort(signatureType)],
+                            visited, interfaceName, member, violations, rules);
+                    }
+                }
+            }
         }
     }
 

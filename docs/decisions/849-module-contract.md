@@ -64,6 +64,11 @@ DI. Moving validation behind the contract changes both.
 - The adapter walk reads parameter types and service resolutions, not method
   bodies. `nameof(Expense)` or an object creation inside a body is invisible, which
   is why `IFinanceModule.ExpenseAuditEntityType` exists for the provenance reads.
+  Parameter types are read through aliases, tuple aliases included, and an aliased
+  `ActivatorUtilities` receiver still counts as a service resolution.
+- The contract walk finds a repository through its signatures. A repository that
+  exposes an entity, as every `IRepository<T, TId>` does, fails. An interface that
+  only returns DTOs passes, because nothing structural marks it as a repository.
 - `SimulationDataSeeder` now calls `IFinanceModule`, but its existence and count
   reads still query `db.Expenses` and `db.ExpenseCategories`. #846 does not count
   persistence types as seeder reach, and #850 tracks that exception.
@@ -82,7 +87,9 @@ DI. Moving validation behind the contract changes both.
   05d7e7a7, the check reports all 12 crossings above.
 - `ModuleContractRealAssemblyTests` loads every contract type by reflection and
   walks it with `SeamSurfaceScanner.ScanContracts`, which adds the
-  entity-or-aggregate rule to #847's persistence rules. Adding
+  entity-or-aggregate rule to #847's persistence rules. It follows public
+  properties and fields at any depth, and the method signatures of any interface a
+  contract type exposes. The field walk applies to #847's scan too. Adding
   `Task<Expense?> LeakAsync(Guid id)` to `IFinanceModule` turns it red. The fixture
   tests are `SeamSurfaceTests.Contract_*`.
 - `FinanceModuleTests` pins the read paths' field-by-field copy against literals.

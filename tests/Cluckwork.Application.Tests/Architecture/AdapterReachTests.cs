@@ -775,4 +775,36 @@ public sealed class AdapterReachTests : IDisposable
             """);
         Assert.Contains("owner 'Hub' is a platform owner and cannot declare a contract", ModuleLedger.Load(path).RegistryErrors);
     }
+
+    [Fact]
+    public void ContractedOwner_TupleAliasParameterIsWalkedForBypasses()
+    {
+        WriteFarmModule();
+        WriteSource("Endpoint.cs", """
+            using Repos = (Cluckwork.Temp.Farm.IFarmModule Farm, Cluckwork.Temp.Farm.IAccountRepository Accounts);
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(Repos repos) { } }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row(), farmContract: FarmModuleContract)));
+        Assert.Contains("contract bypass " + Symbol + " -> Farm through Cluckwork.Temp.Farm.IAccountRepository", failure);
+    }
+
+    [Fact]
+    public void AliasedActivatorUtilitiesReceiver_IsReach()
+    {
+        WriteSource("Cli.cs", """
+            using Activator = Microsoft.Extensions.DependencyInjection.ActivatorUtilities;
+            namespace Cluckwork.Temp.Cli;
+            public static class Verb
+            {
+                private static void Run(System.IServiceProvider services) =>
+                    Activator.CreateInstance<Cluckwork.Temp.Flocks.CreateFlockHandler>(services);
+            }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> FlockManagement", failure);
+    }
 }
+
