@@ -9,6 +9,7 @@ using Cluckwork.Domain.Common;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
@@ -68,6 +69,11 @@ public sealed class InsightsReadOnlyTests
     }
 
     [Theory]
+    [InlineData("Func<CancellationToken, Task<int>> save = db.SaveChangesAsync; await save(ct);")]
+    [InlineData("await Task.Run(db.SaveChanges, ct);")]
+    [InlineData("_ = new Cluckwork.Application.Tests.Architecture.InsightsReadOnlyTests.ExternalWriteProbe(db);")]
+    [InlineData("Func<FormattableString, IQueryable<Cluckwork.Domain.Auditing.AuditEvent>> sql = db.AuditEvents.FromSqlInterpolated; await sql($\"DELETE FROM audit_events\").ToListAsync();")]
+    [InlineData("dynamic alias = db; alias.SaveChanges();")]
     [InlineData("db.SaveChanges();")]
     [InlineData("await db.SaveChangesAsync();")]
     [InlineData("db.Expenses.Add(null!);")]
@@ -96,6 +102,11 @@ public sealed class InsightsReadOnlyTests
         Assert.NotEmpty(FindUnapprovedOperations([source]));
     }
 
+    public sealed class ExternalWriteProbe
+    {
+        public ExternalWriteProbe(Cluckwork.Infrastructure.Persistence.AppDbContext db) => db.SaveChanges();
+    }
+
     private static IReadOnlyList<string> FindUnapprovedOperations(IEnumerable<string> sources)
     {
         var trees = sources.Append(File.ReadAllText(Path.Combine(RepoRoot, "src",
@@ -114,39 +125,91 @@ public sealed class InsightsReadOnlyTests
         var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
         Assert.True(errors.Length == 0, string.Join("\n", errors.Select(e => e.ToString())));
 
+        var readData = new HashSet<Type>();
+        foreach (var port in ReadPorts)
+            foreach (var method in port.GetMethods().Concat(port.GetInterfaces().SelectMany(i => i.GetMethods())))
+            {
+                AssertDto(method.ReturnType, readData);
+                foreach (var parameter in method.GetParameters()) AssertDto(parameter.ParameterType, readData);
+            }
+        var readDataNames = readData.Select(type => type.FullName).ToHashSet();
         var violations = new List<string>();
         foreach (var tree in trees)
         {
             var model = compilation.GetSemanticModel(tree);
-            foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
+            var roots = tree.GetRoot().DescendantNodesAndSelf().Select(node => model.GetOperation(node))
+                .Where(operation => operation is not null && operation.Parent is null).Distinct();
+            foreach (var operation in roots.SelectMany(root => root!.DescendantsAndSelf()))
             {
-                var method = model.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
-                Assert.NotNull(method);
+                if (operation is IDynamicInvocationOperation or IDynamicObjectCreationOperation or IDynamicIndexerAccessOperation)
+                {
+                    violations.Add("unresolved operation in " + operation.Syntax);
+                    continue;
+                }
+                var method = operation switch
+                {
+                    IInvocationOperation invocation => invocation.TargetMethod,
+                    IMethodReferenceOperation reference => reference.Method,
+                    IObjectCreationOperation creation => creation.Constructor,
+                    IPropertyReferenceOperation property => (property.Parent is IAssignmentOperation assignment
+                        && assignment.Target == property) || property.Parent is IIncrementOrDecrementOperation
+                        ? property.Property.SetMethod : property.Property.GetMethod,
+                    IConversionOperation conversion => conversion.OperatorMethod,
+                    IBinaryOperation binary => binary.OperatorMethod,
+                    IUnaryOperation unary => unary.OperatorMethod,
+                    IIncrementOrDecrementOperation increment => increment.OperatorMethod,
+                    ICompoundAssignmentOperation assignment => assignment.OperatorMethod,
+                    _ => null,
+                };
+                if (method is null) continue;
                 var ns = method.ContainingNamespace.ToDisplayString();
-                if (ns.StartsWith("Cluckwork.Infrastructure", StringComparison.Ordinal)
+                if (ns.StartsWith("Cluckwork.", StringComparison.Ordinal)
                     && !(method.ReducedFrom ?? method).DeclaringSyntaxReferences
-                        .Any(reference => trees.Contains(reference.SyntaxTree)))
-                    violations.Add(method.ToDisplayString());
-                if (ns.StartsWith("Cluckwork.Application", StringComparison.Ordinal)
-                    && !ReadPorts.Any(p => p.FullName == method.ContainingType.ToDisplayString()))
+                        .Any(reference => trees.Contains(reference.SyntaxTree))
+                    && !IsApprovedRead(method, readDataNames))
                     violations.Add(method.ToDisplayString());
                 if ((ns.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
                         || ns.StartsWith("Npgsql", StringComparison.Ordinal)
                         || ns.StartsWith("System.Data", StringComparison.Ordinal))
-                    && !ReadOperations.Contains(method.Name))
+                    && !ReadOperations.Contains(method.Name) && !IsApprovedRead(method, readDataNames))
                     violations.Add(method.ToDisplayString());
                 if (method.Name == "FromSqlInterpolated")
                 {
-                    var sql = invocation.ArgumentList.Arguments[0].Expression as InterpolatedStringExpressionSyntax;
+                    var sql = operation is IInvocationOperation call
+                        ? call.Arguments.Single(argument => argument.Parameter!.Name == "sql").Value.Syntax
+                            as InterpolatedStringExpressionSyntax
+                        : null;
                     var text = sql is null ? null : string.Concat(sql.Contents
                         .OfType<InterpolatedStringTextSyntax>().Select(t => t.TextToken.ValueText));
                     if (text is null || Regex.IsMatch(text, @"\b(INSERT|UPDATE|DELETE|MERGE|CALL)\b",
                             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
-                        violations.Add("unreviewed or write SQL in " + invocation);
+                        violations.Add("unreviewed or write SQL in " + operation.Syntax);
                 }
             }
         }
         return violations;
+    }
+
+    private static bool IsApprovedRead(IMethodSymbol method, HashSet<string?> readDataNames)
+    {
+        var type = method.ContainingType.OriginalDefinition.ToDisplayString();
+        if (ReadPorts.Any(port => port.FullName == type)) return true;
+        if (method.MethodKind is MethodKind.Constructor or MethodKind.PropertyGet && readDataNames.Contains(type))
+            return true;
+        if (method.MethodKind == MethodKind.PropertyGet)
+        {
+            if (method.ContainingAssembly.Name == "Cluckwork.Domain") return true;
+            if (type == "Cluckwork.Infrastructure.Persistence.AppDbContext"
+                && method.ReturnType.OriginalDefinition.ToDisplayString() == "Microsoft.EntityFrameworkCore.DbSet<TEntity>")
+                return true;
+        }
+        return method.ToDisplayString() is
+            "Cluckwork.Infrastructure.Persistence.TenantContext.AccountId.get"
+            or "Cluckwork.Infrastructure.Persistence.FlockScope.IsUnrestricted.get"
+            or "Cluckwork.Infrastructure.Persistence.AppDbContext.AppDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<Cluckwork.Infrastructure.Persistence.AppDbContext>, Cluckwork.Infrastructure.Persistence.TenantContext, Cluckwork.Infrastructure.Persistence.FlockScope)"
+            or "Microsoft.EntityFrameworkCore.DbContext.Database.get"
+            or "Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Cluckwork.Infrastructure.Persistence.AppDbContext>.Options.get"
+            or "Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Cluckwork.Infrastructure.Persistence.AppDbContext>.DbContextOptionsBuilder()";
     }
 
     private static void AssertDto(Type type, HashSet<Type> seen)
