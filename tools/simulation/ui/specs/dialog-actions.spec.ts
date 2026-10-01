@@ -1,14 +1,12 @@
 import { test, expect } from "../src/fixtures";
 import { owner } from "../src/cast";
 import { tEn } from "../src/i18n";
-import { showAllExpenseDates } from "../src/dom";
 
 for (const width of [1280, 390]) {
   test(`Expenses correction keeps Save reachable ${width === 390 ? "@phone" : ""}`, async ({ page, signIn }) => {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
     await signIn(owner());
     await page.goto("/expenses");
-    await showAllExpenseDates(page);
     if (width === 390) {
       await page.getByRole("list", { name: tEn("expenses:ledgerHeading") }).locator("li")
         .filter({ hasText: "Sim Feeder Replacement Part" }).getByRole("button").click();

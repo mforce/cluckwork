@@ -1,7 +1,6 @@
 // tools/simulation/ui/src/dom.ts — small locator helpers.
 
 import { expect, type Locator, type Page } from "@playwright/test";
-import { tEn } from "./i18n";
 
 /**
  * Pick a `<select>` option by a SUBSTRING of its visible text, and return the
@@ -94,17 +93,4 @@ export async function commitNamedPicker(root: Locator | Page, labelText: string,
   ).toHaveCount(1);
   await option.click();
   return row.id;
-}
-
-export async function showAllExpenseDates(page: Page): Promise<void> {
-  await expect(page.getByRole("heading", { name: tEn("expenses:title"), exact: true })).toBeVisible();
-  const from = page.getByLabel(tEn("expenses:fromLabel"), { exact: true });
-  const compact = !(await from.isVisible());
-  if (compact) await page.getByRole("button", { name: tEn("expenses:allCategoriesOption"), exact: true }).click();
-  await from.fill("");
-  await page.getByLabel(tEn("expenses:toLabel"), { exact: true }).fill("");
-  if (compact) {
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: tEn("expenses:filtersTitle"), exact: true })).not.toBeVisible();
-  }
 }

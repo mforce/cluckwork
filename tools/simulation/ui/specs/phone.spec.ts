@@ -25,7 +25,6 @@ import { expect, type Locator, type Page } from "../src/fixtures";
 import { test } from "../src/dashboard-fixtures";
 import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
-import { showAllExpenseDates } from "../src/dom";
 
 /** Owner's four thumb tabs, in the order `tabEntries` picks them (nav.tsx TAB_PRIORITY). */
 const OWNER_TABS = ["nav:dashboard", "nav:dailyEntry", "nav:stock", "nav:sales"];
@@ -899,11 +898,11 @@ test.describe("Two-line ledgers at phone width", { tag: "@phone" }, () => {
     test(`${route} shows ten complete rows above the bottom navigation`, async ({ page, signIn }) => {
       await signIn(owner());
       await page.goto(route);
-      if (route === "/expenses") await showAllExpenseDates(page);
       const rows = page.getByRole("list", { name: tEn(heading) }).locator("li");
       await expect(rows.first()).toBeVisible();
-      // The simulation fixture has eight Water/Feed rows and two inventory items.
-      // Repeat a rendered row to measure twelve row heights without adding permanent records to the shared
+      // The simulation fixture has eight Water/Feed rows, seven expenses this
+      // month and two inventory items. Repeat a rendered row to measure twelve
+      // row heights without adding permanent records to the shared
       // quick-suite database.
       await rows.evaluateAll((items) => {
         const first = items[0];
