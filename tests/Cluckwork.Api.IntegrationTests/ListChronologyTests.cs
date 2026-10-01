@@ -14,7 +14,7 @@ using Cluckwork.Infrastructure.Repositories;
 
 // #819 — these lists lead with a business date and row-creation time. Sequence
 // completes the insertion order without relying on a random v4 Guid.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ListChronologyTests(CluckworkWebApplicationFactory factory)
 {
     // Deliberately oppose Guid-descending order: the earlier row has the larger

@@ -6,7 +6,7 @@ using Cluckwork.Domain.Accounts;
 
 // #5: the app is usable end-to-end, and flock CRUD is the first setup
 // surface. Covers a provisioned-admin login + create/list/get/deplete.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class SeedAndFlockTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

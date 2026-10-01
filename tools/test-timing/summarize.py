@@ -55,21 +55,13 @@ def summarize(directory):
          for name, tests in groups.items()),
         key=lambda row: row[2], reverse=True,
     )
-    half_classes = {"a": set(), "b": set()}
+    shared_classes = set()
     for source in pathlib.Path("tests/Cluckwork.Api.IntegrationTests").rglob("*.cs"):
-        text = source.read_text()
-        half_classes["a"].update(re.findall(
-            r"\[Collection\(IntegrationCollectionA.Name\)\]\s*public (?:sealed )?class (\w+)", text,
+        shared_classes.update(re.findall(
+            r"\[Collection\(IntegrationCollection.Name\)\]\s*public (?:sealed )?class (\w+)",
+            source.read_text(),
         ))
-        half_classes["b"].update(re.findall(
-            r"\[Collection\(IntegrationCollectionB.Name\)\]\s*public (?:sealed )?class (\w+)", text,
-        ))
-    shared_classes = half_classes["a"] | half_classes["b"]
     shared = [row for row in rows if row[0].rsplit(".", 1)[-1] in shared_classes]
-    halves = {
-        half: [row for row in rows if row[0].rsplit(".", 1)[-1] in classes]
-        for half, classes in half_classes.items()
-    }
     with (directory / "classes.csv").open("w") as output:
         writer = csv.writer(output)
         writer.writerow(["class", "tests", "test_seconds", "first_start", "last_end"])
@@ -113,16 +105,6 @@ def summarize(directory):
             "test_seconds": sum(row[2] for row in shared),
             "first_start": min((row[3] for row in shared), default=None),
             "last_end": max((row[4] for row in shared), default=None),
-        },
-        "shared_collection_halves": {
-            half: {
-                "classes": len(group),
-                "tests": sum(row[1] for row in group),
-                "test_seconds": sum(row[2] for row in group),
-                "first_start": min((row[3] for row in group), default=None),
-                "last_end": max((row[4] for row in group), default=None),
-            }
-            for half, group in halves.items()
         },
         "containers_created": len(lifecycle),
         "containers_missing_ready": sum("ready" not in t for t in lifecycle.values()),

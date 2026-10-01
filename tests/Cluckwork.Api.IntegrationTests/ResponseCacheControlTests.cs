@@ -18,7 +18,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 // throwaway repro: parsing "private, no-store" round-trips as "no-store,
 // private"), so a literal string comparison here would be testing .NET's
 // canonicalization, not this app's wire format.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ResponseCacheControlTests(CluckworkWebApplicationFactory factory)
 {
     private static CacheControlHeaderValue? CacheControl(HttpResponseMessage res) => res.Headers.CacheControl;

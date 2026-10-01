@@ -5,7 +5,7 @@ using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class MeEndpointsTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record MeRow(

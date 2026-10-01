@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 // #388 — FlockScopeResolutionMiddleware: resolution outcomes per persona, and
 // the single-assignment contract. Scoping itself (filtered reads) is asserted
 // in FlockScopeTests (Increment 2).
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory factory)
 {
     // Fixture: one farm, flocks A + B, an Owner, a Manager, a worker with 0

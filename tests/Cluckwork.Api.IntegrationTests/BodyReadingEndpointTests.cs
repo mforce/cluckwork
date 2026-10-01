@@ -28,7 +28,7 @@ using Microsoft.Extensions.DependencyInjection;
 // must either declare a typed body, carry the marker, or be named below with a
 // reason. A new endpoint taking HttpContext/HttpRequest/Stream/PipeReader fails
 // this test until someone decides which it is.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory factory)
 {
     // Parameter types through which a handler can reach the request body. A

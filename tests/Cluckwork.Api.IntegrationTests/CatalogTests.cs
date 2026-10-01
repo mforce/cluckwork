@@ -5,7 +5,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #97 (part 1) — product catalog: egg products mapped to grades, packed-unit
 // conversions, admin-gated writes, seeded defaults, audit trail.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class CatalogTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

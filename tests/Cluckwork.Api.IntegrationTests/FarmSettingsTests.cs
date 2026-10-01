@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 // for §4.5 formatting, the owner-only settings screen, §4.6's currency lock,
 // and the two guards that keep the settings themselves trustworthy (version
 // token, timezone validation).
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record AccountDto(

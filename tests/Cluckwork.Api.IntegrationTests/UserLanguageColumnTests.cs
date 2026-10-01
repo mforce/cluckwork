@@ -3,7 +3,7 @@ namespace Cluckwork.Api.IntegrationTests;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class UserLanguageColumnTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

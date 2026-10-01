@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 //
 // Every test drives a REAL AppDbContext through a resolved TenantContext, so
 // the interceptor runs exactly as it does in a request.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class TenantWriteGuardTests(CluckworkWebApplicationFactory factory)
 {
     private static DailyEntry NewEntry(Guid accountId) =>

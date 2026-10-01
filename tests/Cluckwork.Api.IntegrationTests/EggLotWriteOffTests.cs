@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 // #406 — standalone stock write-off / reconciliation against a single egg
 // lot: available moves, production never restates, the ledger stays the
 // source of truth for the cached balance.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class EggLotWriteOffTests(CluckworkWebApplicationFactory factory)
 {
     private static object Body(string type = "Discard", int delta = -10, string reason = "cooler breakage") =>

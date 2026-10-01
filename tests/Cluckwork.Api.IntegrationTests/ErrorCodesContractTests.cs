@@ -4,7 +4,7 @@ using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ErrorCodesContractTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

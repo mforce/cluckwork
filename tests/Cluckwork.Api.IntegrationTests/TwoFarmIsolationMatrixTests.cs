@@ -27,7 +27,7 @@ using Microsoft.Extensions.DependencyInjection;
 // This is the end-to-end proof the guard (Part 1) protects: the guard fails the
 // build on a bypass, and this matrix proves the pipeline actually scopes at
 // runtime, with real ids crossing the tenant boundary.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class TwoFarmIsolationMatrixTests(CluckworkWebApplicationFactory factory)
 {
     // Provision a farm through the real AccountProvisioner and return the

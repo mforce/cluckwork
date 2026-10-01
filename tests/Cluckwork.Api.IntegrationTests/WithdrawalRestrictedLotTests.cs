@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 // tech spec §11 / functional §10.10, §13.3: a lot under medication withdrawal must be
 // hard-blocked from sale. With no other stock, confirmation fails and the lot is untouched.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class WithdrawalRestrictedLotTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

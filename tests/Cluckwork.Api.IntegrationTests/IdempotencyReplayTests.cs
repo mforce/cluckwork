@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 // tech spec §11 / functional §23: replaying a write with the same Idempotency-Key must
 // return the original response and never duplicate the side effect.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class IdempotencyReplayTests(CluckworkWebApplicationFactory factory)
 {
     private static object DailyEntryBody(Guid farmId, Guid houseId, Guid flockId) => new

@@ -18,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 // live for the first time over rows nothing ever validated: EmailIndex was
 // non-unique on main and the stock email checks never ran. These tests pin that
 // such a row still increments its counter.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class AccountScopedUserValidatorTests(CluckworkWebApplicationFactory factory)
 {
     // Writes a value Identity would refuse, WITHOUT going through Identity —

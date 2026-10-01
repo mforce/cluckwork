@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 // another user's password without the current one, and any signed-in user
 // changes their OWN by proving the current one. Both revoke every refresh token
 // for that user, so the change actually evicts other sessions.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);

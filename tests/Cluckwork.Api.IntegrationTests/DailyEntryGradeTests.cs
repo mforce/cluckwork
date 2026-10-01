@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 // rows (spec §9.1/9.2). Covers the HTTP round-trip, full-replace semantics on
 // re-record (in-place reconcile, unique (DailyEntryId, EggGradeId) index), and
 // grade-reference validation, against real Postgres.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
 {
     private static object Body(Guid farmId, Guid houseId, Guid flockId, object[] grades, int total = 1000) => new

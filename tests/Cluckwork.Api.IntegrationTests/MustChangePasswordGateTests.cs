@@ -18,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 // password" gate (MustChangePasswordMiddleware). This is the API half of the
 // guarantee: claims.ts's UI gate is voluntary, this is not — a caller that
 // skips the SPA and hits the API directly gets the SAME refusal.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

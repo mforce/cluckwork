@@ -6,7 +6,7 @@ using Cluckwork.Domain.Eggs;
 using Microsoft.EntityFrameworkCore;
 
 // tech spec §4.2 / §11: a token for account A can never read or write account B's data.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class TenantIsolationTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

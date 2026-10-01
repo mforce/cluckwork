@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 // ListUnitPriceMinorUnits and ListPriceBasis on the line itself; this pins what
 // the AUDIT PAYLOAD records, which is the half that survives a line being
 // edited or removed.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class SalesOrderAuditPayloadTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

@@ -5,7 +5,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #7 / #9 / #12 — the read tier: daily-entry get/list, stock by grade, sales
 // order get/list. All tenant-scoped via the global query filter.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

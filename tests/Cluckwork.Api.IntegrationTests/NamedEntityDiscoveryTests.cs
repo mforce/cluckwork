@@ -33,7 +33,7 @@ using Microsoft.EntityFrameworkCore;
 //   * Search-semantics cases are each a POSITIVE row (its name contains the
 //     query verbatim) paired with a NEGATIVE row that only the WILDCARD reading
 //     would match, so the assertion names both.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class NamedEntityDiscoveryTests(CluckworkWebApplicationFactory factory)
 {
     // --- fixture ---------------------------------------------------------------

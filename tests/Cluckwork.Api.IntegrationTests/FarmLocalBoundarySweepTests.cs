@@ -19,7 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 // direction, the inventory/water handlers, the archive stamp and the report
 // default window are in FarmLocalBoundaryBehindUtcTests, and the remaining
 // validators in Cluckwork.Application.Tests' FarmLocalDateRuleTests.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class FarmLocalBoundarySweepTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateTime UtcInstant = new(2026, 7, 15, 22, 0, 0, DateTimeKind.Utc);

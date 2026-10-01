@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 // corrects, or reconfigures is admin-only; recording the day's work is open
 // to any authenticated user. The SPA hides gated controls, but these tests
 // prove the API refuses regardless.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

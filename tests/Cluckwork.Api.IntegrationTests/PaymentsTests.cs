@@ -6,7 +6,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 // #89 — customer payments: order-attached, currency copied from the order,
 // no-overpay under the order row lock, void-not-delete, and the order-void
 // guard ("void the payments first").
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

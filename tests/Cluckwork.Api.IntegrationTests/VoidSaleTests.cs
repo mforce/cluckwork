@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 // egg lots they were drawn from (allocation provenance recorded at confirm),
 // FIFO order is preserved for the next sale, and racing mutations serialize on
 // the FOR UPDATE lot locks + the order's Version concurrency token.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class VoidSaleTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);

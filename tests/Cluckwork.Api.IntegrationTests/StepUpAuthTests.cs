@@ -24,7 +24,7 @@ using Microsoft.Extensions.Options;
 // Every role and target needs a fresh step-up grant obtained by re-confirming
 // the CURRENT password (POST /auth/step-up). See StepUpGrantService for the
 // full threat model.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);

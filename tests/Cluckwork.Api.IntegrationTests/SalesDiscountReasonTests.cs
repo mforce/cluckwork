@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 // #721 — a discount reason is required at confirm, and only when a line is
 // priced strictly below the list price snapshotted onto it when it was added.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class SalesDiscountReasonTests(CluckworkWebApplicationFactory factory)
 {
     private const long ListPrice = 45;

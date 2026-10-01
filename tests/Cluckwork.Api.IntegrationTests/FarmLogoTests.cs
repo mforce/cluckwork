@@ -18,7 +18,7 @@ using Microsoft.Extensions.Options;
 // survive the round trip through Postgres and back through the serve endpoint.
 // A unit test proves the rewrite drops EXIF; these prove nobody stored the
 // original alongside it.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
 {
     private const string LogoPath = "/api/v1/account/logo";

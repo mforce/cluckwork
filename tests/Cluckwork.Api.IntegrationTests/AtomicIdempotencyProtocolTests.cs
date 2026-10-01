@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 //   - a LIVE (unexpired) competing claim's bounded give-up, never invoking
 //     the handler a second time;
 //   - tenant scoping of the claim lookup itself (not just the cached body).
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class AtomicIdempotencyProtocolTests(CluckworkWebApplicationFactory factory)
 {
     private static object ExpenseBody(Guid categoryId, string description) => new

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // #10 + #11 — customers and the order create/add-item surface. The final test
 // drives the whole MVP loop through the public API alone (no harness seeding
 // beyond the account/user/grades).
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

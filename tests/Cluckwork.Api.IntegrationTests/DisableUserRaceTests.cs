@@ -30,7 +30,7 @@ using Microsoft.Extensions.DependencyInjection;
 // plus the endpoint's self-target guard make Users.LastOwner unreachable over
 // HTTP with a distinct actor, so the boundary cases below resolve the handler
 // directly and pass actingUserId == userId on purpose.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);

@@ -47,9 +47,7 @@ includes discovery, teardown, fixture work, scheduling, and log delivery delays;
 it is not a measurement of migrations alone. TRX timestamp spans include
 per-test `IAsyncLifetime` setup and cleanup that the reported durations exclude.
 Class spans omit class-fixture initialization and disposal. Shared-collection membership comes from the
-current checkout's `Collection(IntegrationCollectionA.Name)` and `Collection(IntegrationCollectionB.Name)`
-attributes; `summary.json`'s `shared_collection` combines both halves and `shared_collection_halves`
-reports each one separately.
+current checkout's `Collection(IntegrationCollection.Name)` attributes.
 
 Compare runs on the same machine, with the same configuration and image cache.
 Repeat measurements because the default xUnit collection order varies by run.

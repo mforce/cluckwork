@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // #87 — basic expenses: farm-scoped category catalog (grade pattern) and
 // money-out records with a snapshotted currency, server-side period totals,
 // and version-guarded admin corrections.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ExpensesTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

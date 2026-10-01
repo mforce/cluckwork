@@ -20,7 +20,7 @@ using Microsoft.EntityFrameworkCore;
 // AccessFailedCount UNCHANGED. That is an unlimited-guessing bypass of the #128
 // account lockout against any other farm's users, so the counter assertion
 // below is the point of this file, not the status code.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class AmbientPrincipalOnLoginTests(CluckworkWebApplicationFactory factory)
 {
     private static HttpClient WithBearer(CluckworkWebApplicationFactory factory, string token)

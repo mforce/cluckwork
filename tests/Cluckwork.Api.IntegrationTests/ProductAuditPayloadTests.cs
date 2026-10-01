@@ -9,7 +9,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 // `details` with no JsonStringEnumConverter, so a bare enum stores as its
 // underlying ordinal — meaningful only against the member order at write
 // time, and silently re-read as a different member after any reorder.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ProductAuditPayloadTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record IdDto(Guid Id);

@@ -140,7 +140,7 @@ public sealed class DurableJobWorkerHealthCheckTests
 // migrated and reachable. The unhealthy side is covered by the outage drill
 // documented on PR #79 (stopping a container inside a test is prohibitively
 // slow for the suite).
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class HealthEndpointTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]

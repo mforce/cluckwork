@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 // header comment — the OwnerOnly route + this file's self-target guard make
 // several guard branches unreachable through a legitimate, non-racing,
 // distinct HTTP actor (see that file).
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);

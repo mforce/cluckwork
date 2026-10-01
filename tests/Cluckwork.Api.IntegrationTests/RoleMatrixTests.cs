@@ -8,7 +8,7 @@ using Cluckwork.Domain.Accounts;
 
 // #103 — the role → capability matrix (spec §5.1/§5.3) and worker flock
 // scoping. The SPA hides controls; these tests prove the API refuses anyway.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);

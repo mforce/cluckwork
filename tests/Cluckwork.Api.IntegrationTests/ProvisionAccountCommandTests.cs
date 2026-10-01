@@ -7,7 +7,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ProvisionAccountCommandTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly string ApiDllPath = typeof(Program).Assembly.Location;

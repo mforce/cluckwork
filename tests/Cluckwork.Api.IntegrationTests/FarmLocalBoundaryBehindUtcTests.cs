@@ -19,7 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 // tomorrow, so it must now be refused, and each handler is asserted on its own
 // FutureDate code so an unrelated rejection (no stock, bad lot) cannot pass for
 // the boundary working.
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class FarmLocalBoundaryBehindUtcTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateTime UtcInstant = new(2026, 7, 16, 1, 0, 0, DateTimeKind.Utc);

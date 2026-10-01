@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 // cover what's NEW here — the banner's own route, its own size/error-code
 // namespace, and that it is genuinely independent of the logo sharing its row
 // (FarmLogo.cs's "own table vs shared row" tradeoff).
-[Collection(IntegrationCollectionB.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class FarmBannerTests(CluckworkWebApplicationFactory factory)
 {
     private const string BannerPath = "/api/v1/account/banner";

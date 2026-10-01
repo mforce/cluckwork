@@ -9,7 +9,7 @@ using Cluckwork.Domain.Accounts;
 
 // #95 — manual backup: admin-only CSV export per dataset + full-account zip.
 // The CSVs must be tenant-scoped, RFC 4180-escaped, and formula-guarded.
-[Collection(IntegrationCollectionA.Name)]
+[Collection(IntegrationCollection.Name)]
 public sealed class ExportTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);
