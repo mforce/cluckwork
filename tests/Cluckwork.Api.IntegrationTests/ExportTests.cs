@@ -1,11 +1,16 @@
 using System.IO.Compression;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Export;
 using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
@@ -260,13 +265,13 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.True(datasets.GetProperty("audit-events").GetInt32() >= 1);
     }
 
-    // #269 — the full backup reads every dataset inside one REPEATABLE READ
-    // snapshot, so a write committed mid-export must stay invisible until the
-    // snapshot closes. The zip path cannot interleave a write between two
-    // datasets deterministically, so this drives the same IInsightsModule
-    // WriteZipAsync uses, resolved from real DI.
+    // #269 — a write committed after the snapshot's first read stays invisible
+    // until the snapshot closes. Real Postgres, one dataset (expense
+    // categories), through IInsightsModule from real DI. That every dataset
+    // reads through the snapshot context is ExportSnapshotSourceTests; that
+    // the endpoint opens the snapshot around every read is the next test.
     [Fact]
-    public async Task FullBackup_ReadsEveryDatasetInsideOneSnapshot()
+    public async Task ConsistentRead_HidesAWriteCommittedInsideTheSnapshot()
     {
         var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
         var farmId = Guid.NewGuid();
@@ -308,6 +313,65 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.DoesNotContain(during, second);
         Assert.Contains(during, outside);
         Assert.Contains(after, outside);
+    }
+
+    // #269 — GET /export/all opens exactly one snapshot, enumerates every
+    // dataset's rows inside it, and only then closes it. The real facade and
+    // ExportQueries run behind a recorder; rows are recorded at enumeration
+    // because GetDataset only builds a deferred query.
+    [Fact]
+    public async Task FullBackup_EnumeratesEveryDatasetBetweenSnapshotOpenAndClose()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var events = new List<string>();
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddScoped<IExportQueries>(sp =>
+                new RecordingExportQueries(ActivatorUtilities.CreateInstance<ExportQueries>(sp), events))));
+        using var client = host.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await factory.LoginForAccessTokenAsync(email));
+
+        using var res = await client.GetAsync("/api/v1/export/all");
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        await res.Content.ReadAsByteArrayAsync();
+
+        string[] expected =
+            ["begin", .. AllDatasets.SelectMany(d => new[] { $"rows:{d}", $"rows-end:{d}" }), "end"];
+        Assert.Equal(expected, events);
+    }
+
+    private sealed class RecordingExportQueries(IExportQueries inner, List<string> events) : IExportQueries
+    {
+        public IReadOnlyList<string> Datasets => inner.Datasets;
+
+        public ExportDataset? GetDataset(string dataset) =>
+            inner.GetDataset(dataset) is { } table ? table with { Rows = RecordRows(dataset, table.Rows) } : null;
+
+        public async Task<IAsyncDisposable> BeginConsistentReadAsync(CancellationToken ct = default)
+        {
+            var snapshot = await inner.BeginConsistentReadAsync(ct);
+            events.Add("begin");
+            return new RecordingSnapshot(snapshot, events);
+        }
+
+        private async IAsyncEnumerable<object?[]> RecordRows(
+            string dataset, IAsyncEnumerable<object?[]> rows, [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            events.Add($"rows:{dataset}");
+            await foreach (var row in rows.WithCancellation(ct))
+                yield return row;
+            events.Add($"rows-end:{dataset}");
+        }
+    }
+
+    private sealed class RecordingSnapshot(IAsyncDisposable inner, List<string> events) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await inner.DisposeAsync();
+            events.Add("end");
+        }
     }
 
     // Spec §18: export is an auditable action — the trail must show WHO bulk-
