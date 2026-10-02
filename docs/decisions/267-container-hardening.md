@@ -52,11 +52,15 @@ weekly (Mondays 07:00 UTC) and on `workflow_dispatch`:
   is commented on and closed. A failed or partial scan changes no issue and no label.
 - **Closing a scanner issue ignores that CVE; reopening it un-ignores.** An id
   whose only matching issue is closed is left alone: no new issue, no reopen, no
-  comment. The scan adds an `ignored` label (created if missing) once, so the
-  list shows which CVEs are still present but deliberately ignored. Reopening the
-  issue makes the next scan remove the label and resume commenting. When an
+  comment on later runs. The scan adds an `ignored` label (created if missing) once,
+  so the list shows which CVEs are still present but deliberately ignored. It
+  posts one comment in the same step that adds the label (the CVE is still present
+  at which commit, digests, architectures and severity; the issue is closed so the
+  CVE is ignored; reopen to un-ignore) and never on a run where the label is
+  already there. Removing the label posts nothing. Reopening the issue makes the
+  next scan remove the label and resume commenting. When an
   ignored CVE no longer appears, the label is removed, since it means "still
-  present". If an open and a closed issue both match, the open one wins. Any
+  present"; if it later returns, the label and its comment are added again. If an open and a closed issue both match, the open one wins. Any
   closed issue counts, including one the scan closed itself because the CVE
   cleared.
   An issue is closed only when it has the scanner's title shape, both labels and
@@ -74,9 +78,10 @@ weekly (Mondays 07:00 UTC) and on `workflow_dispatch`:
   yet.
 - **`publish.needs` no longer proves "scanned".** The digest artifact proves the
   image was built and boot-tested ([#351](351-releases.md)).
-- **An ignore has no expiry, and a returning CVE is not re-reported.** A CVE that
-  is fixed (issue closed by the scan) and later returns is not reopened or filed
-  again; the `ignored` label is the only sign, and nothing notifies anyone.
+- **An ignore has no expiry, and a returning CVE is not re-filed.** A CVE that is
+  fixed (issue closed by the scan) and later returns is not reopened and gets no
+  new issue. The scan re-adds `ignored` with a comment on the closed issue, which
+  is the only notification it produces.
 - The weekly scan is the only coverage of OS packages in the image. The #146 NuGet
   and npm gates still block PRs that add a vulnerable library.
 

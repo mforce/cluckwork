@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -136,6 +136,31 @@ test("closed and present: label it ignored once, never reopen, comment or create
   assert.deepEqual(kinds(plan(openCve, [labelled], CTX)), [["skip", 20]]);
 });
 
+test("the ignored comment fires only on the run that adds the label", () => {
+  const [add] = plan(openCve, [closedIssue(20, TITLE_1111)], CTX);
+  assert.equal(add.kind, "label");
+  assert.match(add.body, /CVE-2026-1111 \(HIGH\) is still present as of `sha-a+` on linux\/amd64, linux\/arm64/);
+  assert.match(add.body, new RegExp(`linux/amd64: \`${DIGEST.amd64}\``));
+  assert.match(add.body, /Reopen this issue to stop ignoring it/);
+  const second = plan(openCve, [closedIssue(20, TITLE_1111, IGN)], CTX);
+  assert.deepEqual(kinds(second), [["skip", 20]]);
+  assert.equal(second[0].body, undefined);
+});
+
+test("a CVE that cleared and then returns is re-labelled with a new comment", () => {
+  assert.deepEqual(kinds(plan(clean, [closedIssue(22, TITLE_1111, IGN)], CTX)), [["unlabel", 22]]);
+  assert.equal(plan(clean, [closedIssue(22, TITLE_1111, IGN)], CTX)[0].body, undefined);
+  const back = plan(openCve, [closedIssue(22, TITLE_1111)], CTX);
+  assert.deepEqual(kinds(back), [["label", 22]]);
+  assert.ok(back[0].body.includes("still present"));
+});
+
+test("removing the label on reopen posts no ignored comment", () => {
+  const actions = plan(openCve, [issue(21, TITLE_1111, IGN)], CTX);
+  assert.deepEqual(actions.filter((a) => a.kind === "unlabel").map((a) => a.body), [undefined]);
+  assert.ok(actions.every((a) => a.kind !== "label"));
+});
+
 test("a closed issue is matched by title only, so a closed human issue without the CVE in its title does not hide it", () => {
   const closed1006 = closedIssue(1006, "ci: move image vulnerability scanning out of CI to a weekly scan", []);
   assert.deepEqual(plan(openCve, [closed1006], CTX).map((a) => a.kind), ["create"]);
@@ -191,4 +216,25 @@ test("end to end: a failed or partial scan closes nothing and exits 1", () => {
   const missing = cli({ amd64: report("amd64", []) }, open);
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /no arm64 report/);
+});
+
+test("live run: the label is ensured, then comment and label land once, and a second run touches nothing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "image-scan-live-"));
+  const log = join(dir, "gh.log");
+  mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\necho "$*" >> "${log}"\ncat > /dev/null\n`, { mode: 0o755 });
+  const run = (issues) => {
+    writeFileSync(join(dir, "issues.json"), JSON.stringify(issues));
+    const args = ["--repo", "o/r", "--sha", SHA, "--image", IMAGE, "--run-url", "u", "--issues", join(dir, "issues.json")];
+    for (const arch of ["amd64", "arm64"]) {
+      writeFileSync(join(dir, arch), report(arch, [vuln("CVE-2026-1111", "openssl")]));
+      args.push("--report", `${arch}=${join(dir, arch)}`);
+    }
+    const r = spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}` } });
+    assert.equal(r.status, 0, r.stderr);
+    return existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((l) => l.split(" ").slice(0, 3).join(" ")) : [];
+  };
+  assert.deepEqual(run([closedIssue(20, TITLE_1111)]), ["label create ignored", "issue comment 20", "issue edit 20"]);
+  rmSync(log);
+  assert.deepEqual(run([closedIssue(20, TITLE_1111, IGN)]), []);
 });

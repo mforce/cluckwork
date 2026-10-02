@@ -8,9 +8,11 @@
 // Per vulnerability found:
 //   - an open issue for the id gets a comment (and loses the `ignored` label if it
 //     has one, because reopening is how an owner un-ignores it);
-//   - else a closed issue for the id is left alone apart from getting the
-//     `ignored` label once; it is neither reopened nor commented on, so a CVE
-//     that returns after being fixed is not re-reported;
+//   - else a closed issue for the id is neither reopened nor given a new sibling.
+//     It gets the `ignored` label, with one comment saying so, only on the run that
+//     adds the label; a run that finds the label already there says nothing, so an
+//     ignored CVE does not ping anyone weekly. A CVE returning after being fixed
+//     is re-labelled with that comment, not re-filed;
 //   - else a new issue is created.
 // Per scanner issue whose id is NOT found: an open one is commented on and closed
 // because the image no longer carries it, and a closed one loses `ignored`, which
@@ -148,6 +150,16 @@ const foundComment = (f, ctx) =>
     marker("found", ctx.sha),
   ].join("\n");
 
+const ignoredComment = (f, ctx) =>
+  [
+    `Weekly image scan: ${f.id} (${f.severity}) is still present as of \`sha-${ctx.sha}\` on ${archsOf(f).map((a) => `linux/${a}`).join(", ")}:`,
+    ...archsOf(f).map((a) => `- linux/${a}: \`${ctx.digests[a]}\``),
+    "",
+    `This issue is closed, so the scan treats ${f.id} as ignored (label \`${IGNORED}\`) and files no new issue. Reopen this issue to stop ignoring it.`,
+    "",
+    `Scan run: ${ctx.runUrl}`,
+  ].join("\n");
+
 const clearedComment = (id, ctx) =>
   [
     `Weekly image scan: ${id} is no longer reported as a fixable HIGH or CRITICAL finding on linux/amd64 or linux/arm64 as of \`sha-${ctx.sha}\`. Closing.`,
@@ -184,7 +196,7 @@ export function plan(findings, issues, ctx) {
         actions.push(
           c.labels.includes(IGNORED)
             ? { kind: "skip", id: f.id, number: c.number, why: `#${c.number} is closed and already ignored` }
-            : { kind: "label", id: f.id, number: c.number },
+            : { kind: "label", id: f.id, number: c.number, body: ignoredComment(f, ctx) },
         );
       }
     } else {
@@ -226,9 +238,13 @@ function ensureIgnoredLabel(repo) {
 }
 
 function apply(repo, a) {
-  if (a.kind === "label" || a.kind === "unlabel") {
-    return gh(["issue", "edit", String(a.number), "-R", repo, a.kind === "label" ? "--add-label" : "--remove-label", IGNORED]).trim();
+  if (a.kind === "label") {
+    // Comment first: if the label call then fails, the next run comments again
+    // rather than labelling silently.
+    gh(["issue", "comment", String(a.number), "-R", repo, "--body-file", "-"], a.body);
+    return gh(["issue", "edit", String(a.number), "-R", repo, "--add-label", IGNORED]).trim();
   }
+  if (a.kind === "unlabel") return gh(["issue", "edit", String(a.number), "-R", repo, "--remove-label", IGNORED]).trim();
   if (a.kind === "create") {
     const args = ["issue", "create", "-R", repo, "--title", a.title, "--body-file", "-"];
     for (const l of a.labels) args.push("--label", l);
@@ -243,7 +259,7 @@ const describe = (a, dry) => {
   if (a.kind === "create") return `${v("create", "would create")} a new issue for ${a.id}: ${a.title}`;
   if (a.kind === "comment") return `${v("update", "would update")} #${a.number} for ${a.id} with a comment`;
   if (a.kind === "close") return `${v("close", "would close")} #${a.number} (${a.id} no longer found)`;
-  if (a.kind === "label") return `${v("add", "would add")} the ${IGNORED} label to closed #${a.number} (${a.id} still present, ignored)`;
+  if (a.kind === "label") return `${v("add", "would add")} the ${IGNORED} label and a comment to closed #${a.number} (${a.id} still present, ignored)`;
   if (a.kind === "unlabel") return `${v("remove", "would remove")} the ${IGNORED} label from #${a.number} (${a.id})`;
   return `skip ${a.id}: ${a.why}`;
 };
