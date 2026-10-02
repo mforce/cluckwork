@@ -26,6 +26,13 @@ The issue named five exceptions. At `origin/main` 7ce95cf4 they stand as follows
 | `SimulationDataSeeder` | Three rows, owner Platform, deleted by #858 |
 | `CurrencyBoundRowProbe` | One row, owner Farm, deleted by #855 |
 
+Farm declared its contract in #851 (PR #1015) while this slice was in review. Farm lists
+`AccountRepository` and `FarmLogoRepository` as implementations, and eight readers of the
+`Accounts` table are registered. The credential-epoch middleware's read belongs to the
+Access slice (#857), owner Access. The lock sweep, both seeders and the two CLI readers
+belong to the Platform composition slice (#858), owner Platform. Per #851, none moves
+behind `IFarmModule`.
+
 ## The rule
 
 A read is any member that obtains a `DbSet<T>`. The real EF model maps `T` to the
@@ -113,9 +120,7 @@ audit kept the contract narrow, and the seeder's conversion belongs to #858.
   no ledger edit. The edge's `kind` is not checked against what the read does; review
   still owns `W` versus `R`.
 - When the next module declares a contract, its Platform readers become exceptions at
-  once. That slice lists its implementations and registers or moves the rest. With a
-  Farm contract and `AccountRepository` and `FarmLogoRepository` listed, this tree
-  needs eight rows, five in Infrastructure and three in Api.
+  once. That slice lists its implementations and registers or moves the rest.
 
 ## How it is enforced
 
