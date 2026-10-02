@@ -16,7 +16,7 @@ General Inventory and Egg Operations all read flocks, and Egg Operations writes
 the bird ledger.
 
 Before this change, adapters reached Flock Management through 34 parameter
-crossings of 15 non-contract types across 24 adapter rows. The count comes from
+crossings of 15 non-contract types across 23 adapter rows. The count comes from
 running the #849 adapter check against `main` at 4c429f08 with a placeholder
 Flock contract. After it, the count is 0. Peer modules injected
 `IFlockRepository` or `IBirdMovementRepository` 13 times across 10 handlers.
