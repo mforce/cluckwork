@@ -53,4 +53,13 @@ public interface IFlockRepository : IRepository<Flock, Guid>
     // state to an unassigned caller or crossing tenants.
     Task<Flock?> GetByIdForFlockScopedWriteAsync(
         Guid id, Guid accountId, CancellationToken ct = default);
+
+    // #1022 — untracked twins of GetByIdAsync and GetByIdForFlockScopedWriteAsync,
+    // for IFlockLookup. A tracked read hands back the instance the change tracker
+    // already holds, with the state it had when first loaded, so a second read in
+    // the same request would miss a lifecycle change committed in between.
+    Task<Flock?> GetReadOnlyAsync(Guid id, CancellationToken ct = default);
+
+    Task<Flock?> GetReadOnlyForFlockScopedWriteAsync(
+        Guid id, Guid accountId, CancellationToken ct = default);
 }

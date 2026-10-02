@@ -20,6 +20,17 @@ public sealed class FlockRepository(AppDbContext db) : IFlockRepository
             .Where(f => f.AccountId == accountId)
             .FirstOrDefaultAsync(f => f.Id == id, ct);
 
+    public Task<Flock?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
+        db.Flocks.AsNoTracking().FirstOrDefaultAsync(f => f.Id == id, ct);
+
+    public Task<Flock?> GetReadOnlyForFlockScopedWriteAsync(
+        Guid id, Guid accountId, CancellationToken ct = default) =>
+        db.Flocks
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(f => f.AccountId == accountId)
+            .FirstOrDefaultAsync(f => f.Id == id, ct);
+
     // Read-only, paged. Archived flocks only surface in the management view.
     public async Task<IReadOnlyList<Flock>> ListAsync(
         int limit, int offset, bool includeArchived = false, CancellationToken ct = default) =>

@@ -44,8 +44,8 @@ commands they carry, and the `FlockStatus` and `BirdMovementType` enums.
 `FlockRepository` and `BirdMovementRepository` are its listed implementations
 under #850.
 
-Each port method calls the repository method its caller used before, so the SQL,
-the tracking and the filters do not change. In particular:
+Each port method runs the query its caller ran before, so the SQL and the
+filters do not change. In particular:
 
 - The flock-scope read filter (#613) composes in every lookup, and
   `GetForFlockScopedWriteAsync` still reinstates `AccountId` itself (#388).
@@ -53,10 +53,12 @@ the tracking and the filters do not change. In particular:
   `FlockScopeGuard`, which the handlers still call first.
 - `RecordFeedUsageHandler` still locks the item, then reads eligibility, then
   reads lots, inside one transaction. The flock row stays unlocked.
-- The lookup reads stay tracked where they were tracked. `RecordFeedUsageHandler`
-  reads the same flock before and inside its transaction, and EF returns the
-  instance tracked by the first read. A no-tracking port would change what the
-  second read sees.
+- The lookup's two flock reads are untracked (#1022). `RecordFeedUsageHandler`
+  reads the same flock before and inside its transaction. While the first read
+  was tracked, EF handed the second read that same instance with its earlier
+  state, so a flock archived while the request waited on the item lock went
+  unseen. The tracked repository reads stay for the lifecycle handlers that
+  mutate the flock.
 
 ## Why three interfaces, not one
 
