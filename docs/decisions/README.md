@@ -34,6 +34,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Reach a contracted module only through its contract (#849)](849-module-contract.md) | AGENTS · Application shape |
 | [Farm settings behind a contract; identity and the account seam outside it (#851)](851-farm-contract.md) | AGENTS · Application shape |
 | [Flock lifecycle behind a contract, with read and mortality ports for peers (#852)](852-flock-contract.md) | AGENTS · Application shape |
+| [General Inventory behind a contract, keeping the feed-usage lock order (#855)](855-inventory-contract.md) | AGENTS · Application shape |
 | [Table-owner completeness from the EF model (#845)](845-table-owners.md) | AGENTS · Data and correctness |
 | [Credential epoch revocation (#364)](364-credential-epoch-revocation.md) | AGENTS · Conventions |
 | [Base reference data via guarded raw-SQL migrations (#283)](283-migrations-base-provisioning.md) | AGENTS · Conventions |
