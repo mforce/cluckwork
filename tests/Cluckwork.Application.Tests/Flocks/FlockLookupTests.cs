@@ -78,14 +78,17 @@ public sealed class FlockLookupTests
 
     private sealed class StubFlocks(Flock? flock, IReadOnlyList<FlockReference>? byName = null) : IFlockRepository
     {
-        public Task<Flock?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult(flock);
+        public Task<Flock?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) => Task.FromResult(flock);
 
-        public Task<Flock?> GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct = default) =>
+        public Task<Flock?> GetReadOnlyForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct = default) =>
             Task.FromResult(flock);
 
         public Task<IReadOnlyList<FlockReference>> ListByNameAsync(string name, CancellationToken ct = default) =>
             Task.FromResult(byName ?? throw new NotSupportedException());
 
+        public Task<Flock?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Flock?> GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct = default) =>
+            throw new NotSupportedException();
         public Task<IReadOnlyList<Flock>> ListAsync(int limit, int offset, bool includeArchived = false, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task<IReadOnlyList<Flock>> SearchAsync(string? search, FlockEligibility eligibility, int limit, int offset, CancellationToken ct = default) =>

@@ -10,7 +10,8 @@ public interface IFlockLookup
     Task<FlockDetails?> GetAsync(Guid id, CancellationToken ct);
 
     // For a write that has already passed IFlockScopeGuard; see
-    // IFlockRepository.GetByIdForFlockScopedWriteAsync. Takes no lock.
+    // IFlockRepository.GetByIdForFlockScopedWriteAsync. Takes no lock and tracks
+    // nothing, so a second call sees a change committed after the first (#1022).
     Task<FlockDetails?> GetForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct);
 
     // See IFlockRepository.GetDisplayNamesAsync: a missing key is not "unnamed".

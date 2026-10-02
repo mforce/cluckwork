@@ -5,10 +5,10 @@ namespace Cluckwork.Application.Features.Flocks;
 public sealed class FlockLookup(IFlockRepository flocks) : IFlockLookup
 {
     public async Task<FlockDetails?> GetAsync(Guid id, CancellationToken ct) =>
-        await flocks.GetByIdAsync(id, ct) is { } flock ? ToDetails(flock) : null;
+        await flocks.GetReadOnlyAsync(id, ct) is { } flock ? ToDetails(flock) : null;
 
     public async Task<FlockDetails?> GetForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct) =>
-        await flocks.GetByIdForFlockScopedWriteAsync(id, accountId, ct) is { } flock ? ToDetails(flock) : null;
+        await flocks.GetReadOnlyForFlockScopedWriteAsync(id, accountId, ct) is { } flock ? ToDetails(flock) : null;
 
     public Task<IReadOnlyDictionary<Guid, FlockReference>> GetDisplayNamesAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
