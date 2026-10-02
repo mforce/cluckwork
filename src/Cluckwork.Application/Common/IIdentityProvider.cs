@@ -2,6 +2,8 @@ using Cluckwork.Domain.Catalog;
 
 namespace Cluckwork.Application.Common;
 
+public sealed record FarmSignIn(Guid AccountId, bool IsActive);
+
 public enum RefreshTokenRevocationOutcome
 {
     OutOfScope,
@@ -12,6 +14,12 @@ public enum RefreshTokenRevocationOutcome
 // in a future IIdentityProvider implementation without touching Application.
 public interface IIdentityProvider
 {
+    // #532/#851 — the farm a sign-in names, found by its farm code with NO
+    // ambient tenant (login is anonymous). Null when no farm has that code.
+    // Lives on this port, not the Farm contract: it establishes identity, and
+    // IFarmModule runs only after TenantContext is resolved.
+    Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default);
+
     // #532 — the account is resolved from the farm code BEFORE this call, and
     // is an INPUT, not something login discovers. Previously the account fell
     // out of whichever row a global email lookup happened to return, so nothing

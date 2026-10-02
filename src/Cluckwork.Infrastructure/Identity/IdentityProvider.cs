@@ -32,6 +32,11 @@ public sealed class IdentityProvider(
     Cluckwork.Application.Features.Accounts.IAccountRepository accounts,
     IAccountUserDirectory directory) : IIdentityProvider
 {
+    public async Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) =>
+        await accounts.FindBySlugAsync(farmCode, ct) is { } account
+            ? new FarmSignIn(account.Id, account.IsActive)
+            : null;
+
     public async Task<Result<TokenPair>> LoginAsync(
         Guid accountId, string email, string password, CancellationToken ct = default)
     {

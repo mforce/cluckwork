@@ -642,6 +642,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     // and only the ONE call this finding is about is faulted.
     private sealed class RevokeRefreshTokenThrowsDecorator(IdentityProvider inner) : IIdentityProvider
     {
+        public Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) => inner.ResolveFarmCodeAsync(farmCode, ct);
+
         public Task<Result<TokenPair>> LoginAsync(
             Guid accountId, string email, string password, CancellationToken ct = default) =>
             inner.LoginAsync(accountId, email, password, ct);
