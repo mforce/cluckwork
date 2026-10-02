@@ -315,12 +315,13 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(after, outside);
     }
 
-    // #269 — GET /export/all opens exactly one snapshot, enumerates every
-    // dataset's rows inside it, and only then closes it. The real facade and
-    // ExportQueries run behind a recorder; rows are recorded at enumeration
-    // because GetDataset only builds a deferred query.
+    // #269 — GET /export/all opens exactly one snapshot, and every dataset's
+    // GetDataset call and row enumeration happen after it opens and before it
+    // closes. Both are recorded: GetDataset binds the query to the context
+    // active at that moment, and the SQL runs only at enumeration. The real
+    // facade and ExportQueries run behind the recorder.
     [Fact]
-    public async Task FullBackup_EnumeratesEveryDatasetBetweenSnapshotOpenAndClose()
+    public async Task FullBackup_BuildsAndEnumeratesEveryDatasetInsideTheSnapshot()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
@@ -336,17 +337,28 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         await res.Content.ReadAsByteArrayAsync();
 
-        string[] expected =
-            ["begin", .. AllDatasets.SelectMany(d => new[] { $"rows:{d}", $"rows-end:{d}" }), "end"];
-        Assert.Equal(expected, events);
+        Assert.Equal("begin", events[0]);
+        Assert.Equal("end", events[^1]);
+        var inside = events[1..^1];
+        Assert.Equal(
+            AllDatasets.SelectMany(d => new[] { $"query:{d}", $"rows:{d}", $"rows-end:{d}" }).Order(),
+            inside.Order());
+        foreach (var d in AllDatasets)
+        {
+            Assert.True(inside.IndexOf($"query:{d}") < inside.IndexOf($"rows:{d}"), d);
+            Assert.True(inside.IndexOf($"rows:{d}") < inside.IndexOf($"rows-end:{d}"), d);
+        }
     }
 
     private sealed class RecordingExportQueries(IExportQueries inner, List<string> events) : IExportQueries
     {
         public IReadOnlyList<string> Datasets => inner.Datasets;
 
-        public ExportDataset? GetDataset(string dataset) =>
-            inner.GetDataset(dataset) is { } table ? table with { Rows = RecordRows(dataset, table.Rows) } : null;
+        public ExportDataset? GetDataset(string dataset)
+        {
+            events.Add($"query:{dataset}");
+            return inner.GetDataset(dataset) is { } table ? table with { Rows = RecordRows(dataset, table.Rows) } : null;
+        }
 
         public async Task<IAsyncDisposable> BeginConsistentReadAsync(CancellationToken ct = default)
         {
