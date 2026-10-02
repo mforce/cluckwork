@@ -2,7 +2,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
-using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
@@ -42,10 +42,8 @@ public sealed class DemoDataSeeder(
     CurrentUserContext currentUser,
     UserManager<ApplicationUser> users,
     IAccountUserDirectory directory,
-    IEggGradeRepository eggGrades,
+    IEggOperationsModule eggs,
     IFlockModule flocks,
-    RecordDailyEntryHandler recordEntry,
-    SubmitDailyEntryHandler submitEntry,
     CreateProductHandler createProduct,
     CreateCustomerHandler createCustomer,
     CreateSalesOrderHandler createOrder,
@@ -308,7 +306,7 @@ public sealed class DemoDataSeeder(
         // above, so the clock reads this farm's TimeZoneId.
         var today = await farmClock.TodayAsync(ct);
 
-        var grades = (await eggGrades.ListActiveAsync(SeedDefaults.FarmId, ct))
+        var grades = (await eggs.ListActiveGradesAsync(SeedDefaults.FarmId, ct))
             .Where(g => g.IsSaleable)
             .ToDictionary(g => g.Name, g => g.Id);
         if (grades.Count == 0)
@@ -349,7 +347,7 @@ public sealed class DemoDataSeeder(
                 var medium = sellable * 30 / 100;
                 var small = sellable - large - medium;
 
-                var entry = Require(await recordEntry.HandleAsync(new RecordDailyEntryCommand(
+                var entry = Require(await eggs.RecordDailyEntryAsync(new RecordDailyEntryCommand(
                     SeedDefaults.FarmId, SeedDefaults.HouseId, flockId, date,
                     total, cracked, dirty, DiscardedEggs: 1, mortality,
                     [
@@ -361,7 +359,7 @@ public sealed class DemoDataSeeder(
                 // Leave today's House 1 entry as a Draft so both entry states
                 // are visible; everything older is submitted (lots + movements).
                 if (d > 0)
-                    Require(await submitEntry.HandleAsync(entry, accountId, ct));
+                    Require(await eggs.SubmitDailyEntryAsync(entry, accountId, ct));
             }
         }
 

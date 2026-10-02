@@ -12,7 +12,7 @@ public sealed class RecordWaterUsageHandler(
     IWaterUsageRepository waterUsages,
     IFlockLookup flocks,
     IFlockScopeGuard flockScope,
-    Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
+    Cluckwork.Application.Features.DailyEntries.IDailyEntryLookup dailyEntries,
     IUnitOfWork unitOfWork,
     IFarmClock farmClock,
     ILogger<RecordWaterUsageHandler> logger)
@@ -49,8 +49,8 @@ public sealed class RecordWaterUsageHandler(
         // flock's own (farm, house, flock, date) right now, or null. Never
         // backfilled; Update never touches it. Same contract as feed — see
         // RecordFeedUsageHandler's comment for the full reasoning.
-        var dailyEntryId = (await dailyEntries.FindByNaturalKeyForFlockScopedWriteAsync(
-            accountId, flock.FarmId, flock.HouseId, command.FlockId, command.Date, ct))?.Id;
+        var dailyEntryId = await dailyEntries.FindIdForFlockScopedWriteAsync(
+            accountId, flock.FarmId, flock.HouseId, command.FlockId, command.Date, ct);
 
         var usage = WaterUsage.Create(
             Guid.NewGuid(), accountId, flock.Id, command.Date,

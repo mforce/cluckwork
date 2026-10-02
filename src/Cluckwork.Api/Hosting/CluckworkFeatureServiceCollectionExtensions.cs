@@ -354,6 +354,13 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Accounts.FarmModule>();
         services.AddScoped<VoidDailyEntryHandler>();
         services.AddScoped<
+            Cluckwork.Application.Features.DailyEntries.LockDueDailyEntries.LockDueDailyEntriesHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Eggs.IEggOperationsModule,
+            Cluckwork.Application.Features.Eggs.EggOperationsModule>();
+        services.AddScoped<IEggGradeLookup, EggGradeLookup>();
+        services.AddScoped<IDailyEntryLookup, DailyEntryLookup>();
+        services.AddScoped<
             Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler>();

@@ -1,5 +1,5 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -85,52 +85,37 @@ public sealed class DailyEntryLockSweep(
         using var scope = scopeFactory.CreateScope();
         var tenant = scope.ServiceProvider.GetRequiredService<TenantContext>();
         tenant.Resolve(accountId);
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var eggs = scope.ServiceProvider.GetRequiredService<IEggOperationsModule>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
         // Strictly OLDER than 7 days: an entry exactly 7 days old keeps its
         // final editable day (codex review of PR #80).
         var cutoff = clock.TodayInZone(timeZoneId).AddDays(-LockAfterDays);
-        var due = await db.DailyEntries
-            .Where(e => e.Status == DailyEntryStatus.Submitted && e.Date < cutoff)
-            .OrderBy(e => e.Date)
-            .Take(BatchSize)
-            .ToListAsync(ct);
-        if (due.Count == 0) return 0;
+        var pass = await eggs.LockSubmittedEntriesAsync(cutoff, BatchSize, ct);
+        if (pass.Locked.Count == 0 && pass.Refused.Count == 0) return 0;
 
-        var lockedCount = 0;
-        foreach (var entry in due)
-        {
-            var locked = entry.Lock(clock.UtcNow);
-            if (locked.IsFailure)
-                // Unreachable given the Submitted filter; loud if it ever
-                // isn't. Property names follow the #216 canonical failure
-                // shape so one query spans handlers and jobs.
-                logger.LogWarning(
-                    "LockDailyEntry failed for entry {DailyEntryId}: {ErrorCode} — {ErrorDescription}",
-                    entry.Id, locked.Error.Code, locked.Error.Description);
-            else
-                lockedCount++;
-        }
-
-        // A concurrent adjust on one of these entries wins the Version token
-        // race; the whole batch retries on the next poll minus that entry.
-        await db.SaveChangesAsync(ct);
+        // Unreachable given the Submitted filter; loud if it ever isn't.
+        // Property names follow the #216 canonical failure shape so one query
+        // spans handlers and jobs. Logged after the save since #853.
+        foreach (var refused in pass.Refused)
+            logger.LogWarning(
+                "LockDailyEntry failed for entry {DailyEntryId}: {ErrorCode} — {ErrorDescription}",
+                refused.Id, refused.Error.Code, refused.Error.Description);
         // Per-entry AFTER the save (#216 AC: lock is a state transition too;
         // logging before commit would narrate locks that never happened).
         // Background job — no request scope, so AccountId rides explicitly.
-        foreach (var entry in due.Where(e => e.Status == DailyEntryStatus.Locked))
+        foreach (var entry in pass.Locked)
             logger.LogInformation(
                 "Daily entry {DailyEntryId} locked for flock {FlockId} on {EntryDate} (account {AccountId})",
                 entry.Id, entry.FlockId, entry.Date, accountId);
         logger.LogInformation(
             "Locked {Count} submitted entries older than {Days} days for account {AccountId}.",
-            lockedCount, LockAfterDays, accountId);
+            pass.Locked.Count, LockAfterDays, accountId);
         // Deliberately the count that was actually LOCKED, not due.Count: a
         // batch that came back due but locked nothing (every Lock() failed, or
         // a concurrent adjust won every Version race) has made no progress, and
         // reporting it as progress would let a draining caller spin forever on
         // the same batch.
-        return lockedCount;
+        return pass.Locked.Count;
     }
 }

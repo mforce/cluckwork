@@ -1,11 +1,9 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Audit;
-using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
-using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Insights;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -35,12 +33,12 @@ public static class EggGradeEndpoints
             .WithSummary("Rename a grade or change its sort order / saleability / low-stock floor. Grade type is immutable; the floor is Owner-only.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
-        group.MapPost("/{id:guid}/deactivate", (Guid id, SetEggGradeActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, false, h, t, ct))
+        group.MapPost("/{id:guid}/deactivate", (Guid id, IEggOperationsModule eggs, TenantContext t, CancellationToken ct) => SetActive(id, false, eggs, t, ct))
             .WithName("DeactivateEggGrade")
             .WithSummary("Deactivate a grade: it leaves capture/order pickers; existing stock and history are unaffected.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
-        group.MapPost("/{id:guid}/activate", (Guid id, SetEggGradeActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, true, h, t, ct))
+        group.MapPost("/{id:guid}/activate", (Guid id, IEggOperationsModule eggs, TenantContext t, CancellationToken ct) => SetActive(id, true, eggs, t, ct))
             .WithName("ActivateEggGrade")
             .WithSummary("Reactivate a previously deactivated grade.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
@@ -49,35 +47,35 @@ public static class EggGradeEndpoints
     }
 
     private static async Task<IResult> ListEggGrades(
-        IEggGradeRepository grades, IInsightsModule audit,
+        IEggOperationsModule eggs, IInsightsModule audit,
         TenantContext tenant, CancellationToken ct,
         bool includeInactive = false)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var list = includeInactive
-            ? await grades.ListAllAsync(ct)
-            : await grades.ListActiveAsync(farmId: null, ct);
+            ? await eggs.ListAllGradesAsync(ct)
+            : await eggs.ListActiveGradesAsync(farmId: null, ct);
         // This list is unpaginated, so the batch is however many grades the
         // farm has; the lookup chunks internally rather than refusing a big one.
         var provenance = await audit.GetProvenanceAsync(
-            nameof(EggGrade), list.Select(g => g.Id).ToList(), ct);
+            IEggOperationsModule.EggGradeAuditEntityType, list.Select(g => g.Id).ToList(), ct);
         return Results.Ok(list.Select(g => ToResponse(g, provenance.GetValueOrDefault(g.Id))));
     }
 
     private static async Task<IResult> GetEggGrade(
-        Guid id, IEggGradeRepository grades, IInsightsModule audit,
+        Guid id, IEggOperationsModule eggs, IInsightsModule audit,
         TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var grade = await grades.GetByIdAsync(id, ct);
+        var grade = await eggs.GetGradeAsync(id, ct);
         if (grade is null) return Results.NotFound();
-        var provenance = await audit.GetProvenanceAsync(nameof(EggGrade), [id], ct);
+        var provenance = await audit.GetProvenanceAsync(IEggOperationsModule.EggGradeAuditEntityType, [id], ct);
         return Results.Ok(ToResponse(grade, provenance.GetValueOrDefault(id)));
     }
 
     private static async Task<IResult> CreateEggGrade(
         CreateEggGradeRequest request,
-        CreateEggGradeHandler handler,
+        IEggOperationsModule eggs,
         IValidator<CreateEggGradeCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -92,7 +90,7 @@ public static class EggGradeEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await eggs.CreateGradeAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/egg-grades/{result.Value}", new { Id = result.Value })
             : MapFailure(result.Error);
@@ -101,7 +99,7 @@ public static class EggGradeEndpoints
     private static async Task<IResult> UpdateEggGrade(
         Guid id,
         UpdateEggGradeRequest request,
-        UpdateEggGradeHandler handler,
+        IEggOperationsModule eggs,
         IValidator<UpdateEggGradeCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -115,15 +113,15 @@ public static class EggGradeEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await eggs.UpdateGradeAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> SetActive(
-        Guid id, bool active, SetEggGradeActiveHandler handler, TenantContext tenant, CancellationToken ct)
+        Guid id, bool active, IEggOperationsModule eggs, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, active, ct);
+        var result = await eggs.SetGradeActiveAsync(id, active, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
@@ -144,7 +142,7 @@ public static class EggGradeEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static EggGradeResponse ToResponse(EggGrade g, EntityProvenance? p) =>
+    private static EggGradeResponse ToResponse(EggGradeDetails g, EntityProvenance? p) =>
         new(g.Id, g.FarmId, g.Name, g.GradeType.ToString(), g.SortOrder, g.IsSaleable,
             g.DailyEntryKind.ToString(), g.Active, g.LowStockFloor,
             p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);

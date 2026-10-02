@@ -77,6 +77,14 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
             .Take(limit)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<DailyEntry>> ListSubmittedBeforeAsync(
+        DateOnly before, int limit, CancellationToken ct = default) =>
+        await db.DailyEntries
+            .Where(e => e.Status == DailyEntryStatus.Submitted && e.Date < before)
+            .OrderBy(e => e.Date)
+            .Take(limit)
+            .ToListAsync(ct);
+
     public async Task AddAsync(DailyEntry entity, CancellationToken ct = default) =>
         await db.DailyEntries.AddAsync(entity, ct);
 

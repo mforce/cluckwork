@@ -20,7 +20,7 @@ public sealed class RecordFeedUsageHandler(
     IFeedUsageRepository usages,
     IFlockLookup flocks,
     IFlockScopeGuard flockScope,
-    Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
+    Cluckwork.Application.Features.DailyEntries.IDailyEntryLookup dailyEntries,
     IUnitOfWork unitOfWork,
     IFarmClock farmClock,
     ILogger<RecordFeedUsageHandler> logger)
@@ -54,9 +54,9 @@ public sealed class RecordFeedUsageHandler(
         Guid? dailyEntryId = null;
         var flockForLink = await flocks.GetForFlockScopedWriteAsync(command.FlockId, accountId, ct);
         if (flockForLink is not null)
-            dailyEntryId = (await dailyEntries.FindByNaturalKeyForFlockScopedWriteAsync(
+            dailyEntryId = await dailyEntries.FindIdForFlockScopedWriteAsync(
                 accountId, flockForLink.FarmId, flockForLink.HouseId,
-                command.FlockId, command.Date, ct))?.Id;
+                command.FlockId, command.Date, ct);
 
         Result<RecordFeedUsageResponse>? outcome = null;
 

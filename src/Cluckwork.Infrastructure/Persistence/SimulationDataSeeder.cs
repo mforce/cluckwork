@@ -6,10 +6,9 @@ using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
-using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
-using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
@@ -100,10 +99,7 @@ public sealed class SimulationDataSeeder(
     IAuditWriter audit,
     IUserRoleAssignmentRepository assignments,
     IFarmModule farm,
-    IEggGradeRepository eggGrades,
-    IDailyEntryRepository dailyEntries,
-    RecordDailyEntryHandler recordEntry,
-    SubmitDailyEntryHandler submitEntry,
+    IEggOperationsModule eggs,
     CreateProductHandler createProduct,
     CreateCustomerHandler createCustomer,
     CreateSalesOrderHandler createSalesOrder,
@@ -1116,7 +1112,7 @@ public sealed class SimulationDataSeeder(
     // 3b) — both need the same saleable-grade lookup, keyed by name.
     private async Task<IReadOnlyDictionary<string, Guid>> LoadSaleableGradesAsync(CancellationToken ct)
     {
-        var grades = (await eggGrades.ListActiveAsync(SeedDefaults.FarmId, ct))
+        var grades = (await eggs.ListActiveGradesAsync(SeedDefaults.FarmId, ct))
             .Where(g => g.IsSaleable)
             .ToDictionary(g => g.Name, g => g.Id);
         if (grades.Count == 0)
@@ -1137,9 +1133,14 @@ public sealed class SimulationDataSeeder(
             // edits to Draft entries, so a plain re-call would throw once the
             // sentinel is Submitted/Locked — skip on existence instead
             // (mirrors EnsureUserAsync/EnsureFlockAsync above).
-            var existing = await dailyEntries.FindByNaturalKeyAsync(
-                accountId, SeedDefaults.FarmId, SeedDefaults.HouseId, flockId, date, ct);
-            if (existing is not null) continue;
+            if (await db.DailyEntries.AnyAsync(e =>
+                    e.AccountId == accountId &&
+                    e.FarmId == SeedDefaults.FarmId &&
+                    e.HouseId == SeedDefaults.HouseId &&
+                    e.FlockId == flockId &&
+                    e.Date == date &&
+                    e.Status != DailyEntryStatus.Voided, ct))
+                continue;
 
             var total = EggsOnDay(LiveBirdsOnDay(initialCount, d, historyDays, carriesExplicitAdjustments), d);
             var cracked = 4 + d % 3;
@@ -1156,7 +1157,7 @@ public sealed class SimulationDataSeeder(
             // resolves anyone.
             ActAs(WorkerFor(cast, flockId, d));
 
-            var recorded = await recordEntry.HandleAsync(new RecordDailyEntryCommand(
+            var recorded = await eggs.RecordDailyEntryAsync(new RecordDailyEntryCommand(
                 SeedDefaults.FarmId, SeedDefaults.HouseId, flockId, date,
                 total, cracked, dirty, discarded, mortality,
                 [
@@ -1179,7 +1180,7 @@ public sealed class SimulationDataSeeder(
                 if (d % SubmittedByManagerEvery == 0)
                     ActAs(Pick(cast.Managers, d, cast.Owner, "Managers"));
 
-                var submitted = await submitEntry.HandleAsync(entryId, accountId, ct);
+                var submitted = await eggs.SubmitDailyEntryAsync(entryId, accountId, ct);
                 Require(submitted, $"submit daily entry {entryId} for flock {flockId} on {date:yyyy-MM-dd}");
             }
         }

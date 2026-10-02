@@ -1,7 +1,7 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -39,29 +39,27 @@ public static class StockEndpoints
     private const int MaxPageSize = 200;
 
     private static async Task<IResult> ListLots(
-        IEggLotRepository eggLots, TenantContext tenant, CancellationToken ct,
+        IEggOperationsModule eggs, TenantContext tenant, CancellationToken ct,
         Guid? gradeId = null, DateOnly? from = null, DateOnly? to = null,
         int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
-        var lots = await eggLots.ListAsync(gradeId, from, to, take, skip, ct);
+        var lots = await eggs.ListLotsAsync(gradeId, from, to, take, skip, ct);
         return Results.Ok(lots.Select(l => new EggLotResponse(
             l.Id, l.EggGradeId, l.ProductionDate, l.QuantityProduced,
             l.QuantityAvailable, l.RestrictedUntil, l.DailyEntryId)));
     }
 
     private static async Task<IResult> ListLotMovements(
-        Guid id, IEggLotRepository eggLots,
-        Cluckwork.Application.Features.Eggs.IEggInventoryMovementRepository movements,
-        TenantContext tenant, CancellationToken ct)
+        Guid id, IEggOperationsModule eggs, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         // Foreign lots read as null through the tenant filter — same 404 as
         // nonexistent, no existence oracle.
-        if (await eggLots.GetByIdAsync(id, ct) is null) return Results.NotFound();
-        var list = await movements.ListByLotAsync(id, ct);
+        var list = await eggs.ListLotMovementsAsync(id, ct);
+        if (list is null) return Results.NotFound();
         return Results.Ok(list.Select(m => new EggMovementResponse(
             m.Id, m.MovementType.ToString(), m.QuantityDelta,
             m.ReferenceType, m.ReferenceId, m.Reason, m.CreatedAtUtc)));
@@ -69,7 +67,7 @@ public static class StockEndpoints
 
     private static async Task<IResult> RecordLotMovement(
         Guid id, RecordEggLotMovementRequest request,
-        RecordEggLotMovementHandler handler,
+        IEggOperationsModule eggs,
         IValidator<RecordEggLotMovementCommand> validator,
         TenantContext tenant, CancellationToken ct)
     {
@@ -80,7 +78,7 @@ public static class StockEndpoints
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid) return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await eggs.RecordLotMovementAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess) return Results.Ok(new RecordEggLotMovementResponse(
             result.Value.MovementId, result.Value.EggLotId, result.Value.MovementType,
             result.Value.QuantityDelta, result.Value.Reason, result.Value.CreatedAtUtc,
@@ -96,13 +94,13 @@ public static class StockEndpoints
     }
 
     private static async Task<IResult> GetStock(
-        IEggLotRepository eggLots, TenantContext tenant, IFarmClock farmClock, CancellationToken ct)
+        IEggOperationsModule eggs, TenantContext tenant, IFarmClock farmClock, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         // #35: the restriction boundary is the FARM-local date, not UTC — the
         // same boundary the allocation path (ConfirmSale) now uses, so a lot
         // can never read available here and restricted there.
-        var rows = await eggLots.GetStockByGradeAsync(await farmClock.TodayAsync(ct), ct);
+        var rows = await eggs.GetStockByGradeAsync(await farmClock.TodayAsync(ct), ct);
         return Results.Ok(rows.Select(r => new StockResponse(
             r.EggGradeId, r.GradeName, r.Available, r.Restricted,
             r.LowStockFloor, r.BelowFloor)));

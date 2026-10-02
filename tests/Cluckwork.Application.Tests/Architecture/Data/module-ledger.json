@@ -34,7 +34,41 @@
                             "Cluckwork.Infrastructure.Repositories.BirdMovementRepository",
                             "Cluckwork.Infrastructure.Repositories.FlockRepository"
                           ] },
-    "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"] },
+    "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Eggs.IEggOperationsModule",
+                            "Cluckwork.Application.Features.EggGrades.IEggGradeLookup",
+                            "Cluckwork.Application.Features.DailyEntries.IDailyEntryLookup",
+                            "Cluckwork.Application.Features.Eggs.DailyEntryDetails",
+                            "Cluckwork.Application.Features.Eggs.EggGradeDetails",
+                            "Cluckwork.Application.Features.Eggs.EggLotDetails",
+                            "Cluckwork.Application.Features.Eggs.EggLotMovementDetails",
+                            "Cluckwork.Application.Features.EggLots.StockByGrade",
+                            "Cluckwork.Application.Features.DailyEntries.LockDueDailyEntries.DailyEntryLockPass",
+                            "Cluckwork.Application.Features.DailyEntries.LockDueDailyEntries.LockedDailyEntry",
+                            "Cluckwork.Application.Features.DailyEntries.LockDueDailyEntries.RefusedDailyEntryLock",
+                            "Cluckwork.Application.Features.DailyEntries.RecordDailyEntry.RecordDailyEntryCommand",
+                            "Cluckwork.Application.Features.DailyEntries.RecordDailyEntry.GradeQuantityDto",
+                            "Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry.SubmitDailyEntryResponse",
+                            "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryCommand",
+                            "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryResponse",
+                            "Cluckwork.Application.Features.DailyEntries.VoidDailyEntry.VoidDailyEntryCommand",
+                            "Cluckwork.Application.Features.DailyEntries.VoidDailyEntry.VoidDailyEntryResponse",
+                            "Cluckwork.Application.Features.EggGrades.CreateEggGrade.CreateEggGradeCommand",
+                            "Cluckwork.Application.Features.EggGrades.UpdateEggGrade.UpdateEggGradeCommand",
+                            "Cluckwork.Application.Features.EggLots.RecordEggLotMovement.RecordEggLotMovementCommand",
+                            "Cluckwork.Application.Features.EggLots.RecordEggLotMovement.RecordEggLotMovementResult",
+                            "Cluckwork.Domain.Eggs.DailyEntryStatus",
+                            "Cluckwork.Domain.Eggs.DailyEntryKind",
+                            "Cluckwork.Domain.Eggs.EggGradeType",
+                            "Cluckwork.Domain.Eggs.EggMovementType"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.DailyEntryRepository",
+                            "Cluckwork.Infrastructure.Repositories.EggGradeRepository",
+                            "Cluckwork.Infrastructure.Repositories.EggInventoryMovementRepository",
+                            "Cluckwork.Infrastructure.Repositories.EggLotRepository"
+                          ] },
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"],
                           "contract": [
@@ -221,7 +255,7 @@
     },
     {
       "from": "GeneralInventory", "to": "EggOperations", "kind": "R",
-      "reason": "RecordFeedUsageHandler and RecordWaterUsageHandler inject Egg Operations' IDailyEntryRepository by fully qualified name and call FindByNaturalKeyForFlockScopedWriteAsync, so a feed or water record carries the day's daily-entry provenance. Design 3.4 shows Inventory -> Egg Ops as none; this is live coupling the target design has still to remove.",
+      "reason": "RecordFeedUsageHandler and RecordWaterUsageHandler inject Egg Operations' IDailyEntryLookup port by fully qualified name and call FindIdForFlockScopedWriteAsync (#853), so a feed or water record carries the day's daily-entry provenance. Design 3.4 shows Inventory -> Egg Ops as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageHandler",
         "Cluckwork.Application.Features.Inventory.RecordWaterUsage.RecordWaterUsageHandler"
@@ -360,7 +394,7 @@
       "name": "FK_BirdMovements_DailyEntries_DailyEntryId",
       "from": "FlockManagement",
       "to": "EggOperations",
-      "reason": "mortality movements retain daily-entry provenance; daily-entry handlers append through IBirdMovementRepository (design 3.3)"
+      "reason": "mortality movements retain daily-entry provenance; daily-entry handlers append through Flock Management's IMortalityLedger port (#852), and no Flock Management code references Egg Operations, so this constraint is schema-only (design 3.3)"
     },
     {
       "table": "Expenses",
@@ -374,7 +408,7 @@
       "name": "FK_FeedUsages_DailyEntries_DailyEntryId",
       "from": "GeneralInventory",
       "to": "EggOperations",
-      "reason": "feed usage retains daily-entry provenance; resolved through IDailyEntryRepository (design 3.3)"
+      "reason": "feed usage retains daily-entry provenance; resolved through IDailyEntryLookup (#853, design 3.3)"
     },
     {
       "table": "FeedUsages",
@@ -416,7 +450,7 @@
       "name": "FK_WaterUsages_DailyEntries_DailyEntryId",
       "from": "GeneralInventory",
       "to": "EggOperations",
-      "reason": "water usage retains daily-entry provenance; resolved through IDailyEntryRepository (design 3.3)"
+      "reason": "water usage retains daily-entry provenance; resolved through IDailyEntryLookup (#853, design 3.3)"
     },
     {
       "table": "WaterUsages",
@@ -1246,6 +1280,12 @@
       ]
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.LockDueEntriesAsync",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.Require",
       "reaches": [
         "EggOperations"
@@ -1451,10 +1491,26 @@
     },
     {
       "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
+      "reaches": "EggOperations",
+      "tables": ["DailyEntries", "DailyEntryGrades", "EggInventoryMovements", "EggLots"],
+      "owner": "Platform",
+      "reason": "Deletes a partial demo seed's EggInventoryMovements, EggLots, DailyEntryGrades and DailyEntries for one farm, children before parents, in the same transaction as every other module's demo rows. IEggOperationsModule has no delete: entries are voided and lots emptied, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
       "reaches": "FlockManagement",
       "tables": ["BirdMovements", "Flocks"],
       "owner": "Platform",
       "reason": "Deletes a partial demo seed's BirdMovements and Flocks for one farm, children before parents, in the same transaction as every other module's demo rows. IFlockModule has no delete: flocks are archived, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
+      "reaches": "EggOperations",
+      "tables": ["EggGrades"],
+      "owner": "Platform",
+      "reason": "Checks that the target farm has egg grades before the tenant is resolved, so the verb fails loud on a database without base data. IEggOperationsModule reads only the current farm. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1479,6 +1535,14 @@
       "tables": ["Flocks"],
       "owner": "Platform",
       "reason": "Loads the demo's historical flock to deplete it on a backdated day, because DepleteFlockHandler stamps the farm's today and that would block the historical entries the demo records next. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "EggOperations",
+      "tables": ["DailyEntries", "EggLots"],
+      "owner": "Platform",
+      "reason": "Counts DailyEntries by status and EggLots for the simulation manifest check, beside every other module's counts. IEggOperationsModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1555,6 +1619,14 @@
     },
     {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync",
+      "reaches": "EggOperations",
+      "tables": ["EggGrades"],
+      "owner": "Platform",
+      "reason": "Checks that the target farm has the saleable egg grades the simulation records against, before the tenant is resolved, so the verb fails loud on a database without base data. IEggOperationsModule reads only the current farm. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync",
       "reaches": "Farm",
       "tables": ["Accounts"],
       "owner": "Platform",
@@ -1583,6 +1655,14 @@
       "tables": ["FeedUsages"],
       "owner": "Platform",
       "reason": "Checks FeedUsages for a fixture row per flock, item and date before calling IInventoryModule.RecordFeedUsageAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFlockHistoryAsync",
+      "reaches": "EggOperations",
+      "tables": ["DailyEntries"],
+      "owner": "Platform",
+      "reason": "Checks for a live daily entry on the flock's day before calling IEggOperationsModule.RecordDailyEntryAsync, so a re-run converges instead of failing on an entry that is no longer a draft. IEggOperationsModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
