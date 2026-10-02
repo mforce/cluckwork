@@ -110,12 +110,7 @@ public sealed class SimulationDataSeeder(
     AddOrderItemHandler addOrderItem,
     ConfirmSaleHandler confirmSale,
     RecordPaymentHandler recordPayment,
-    IInventoryItemRepository inventoryItems,
-    CreateInventoryItemHandler createInventoryItem,
-    RecordPurchaseHandler recordPurchase,
-    RecordAdjustmentHandler recordAdjustment,
-    RecordFeedUsageHandler recordFeedUsage,
-    RecordWaterUsageHandler recordWaterUsage,
+    IInventoryModule inventory,
     IFinanceModule finance,
     DailyEntryLockSweep lockSweep,
     IClock clock,
@@ -1658,7 +1653,7 @@ public sealed class SimulationDataSeeder(
                 m => m.InventoryLotId == feedLotId && m.Date == date, ct);
             if (!exists)
             {
-                var result = await recordAdjustment.HandleAsync(new RecordAdjustmentCommand(
+                var result = await inventory.RecordAdjustmentAsync(new RecordAdjustmentCommand(
                     feedItemId, feedLotId, date, "Adjustment", 1m, reason), accountId, ct);
                 Require(result, $"record feed adjustment for lot {feedLotId} on {date:yyyy-MM-dd}");
             }
@@ -1735,7 +1730,7 @@ public sealed class SimulationDataSeeder(
         if (existing is not null) return existing.Id;
 
         ActAs(actor);
-        var result = await createInventoryItem.HandleAsync(
+        var result = await inventory.CreateItemAsync(
             new CreateInventoryItemCommand(name, category, unit, defaultUnitCostMinorUnits), accountId, ct);
         Require(result, $"create inventory item {name}");
         return result.Value;
@@ -1745,16 +1740,16 @@ public sealed class SimulationDataSeeder(
         Guid accountId, Guid itemId, DateOnly receivedDate, decimal quantity, SimActor actor,
         CancellationToken ct)
     {
-        // HasLotsAsync doubles as the idempotency probe: this seeder only
+        // The lot check doubles as the idempotency probe: this seeder only
         // ever creates ONE opening lot per item, so "any lot exists" is
         // equivalent to "the opening purchase already ran".
-        if (await inventoryItems.HasLotsAsync(itemId, ct))
+        if (await db.InventoryLots.AnyAsync(l => l.InventoryItemId == itemId, ct))
             return (await db.InventoryLots.FirstAsync(l => l.InventoryItemId == itemId, ct)).Id;
 
         ActAs(actor);
         // UnitCostMinorUnits omitted: falls back to the item's default cost
         // set above.
-        var result = await recordPurchase.HandleAsync(new RecordPurchaseCommand(
+        var result = await inventory.RecordPurchaseAsync(new RecordPurchaseCommand(
             itemId, receivedDate, quantity, UnitCostMinorUnits: null, LotNumber: "SIM-OPEN-1",
             ExpiryDate: null, Note: "Simulation fixture opening stock"), accountId, ct);
         Require(result, $"record opening purchase for inventory item {itemId}");
@@ -1771,7 +1766,7 @@ public sealed class SimulationDataSeeder(
         if (hasAdjustment) return;
 
         ActAs(actor);
-        var result = await recordAdjustment.HandleAsync(new RecordAdjustmentCommand(
+        var result = await inventory.RecordAdjustmentAsync(new RecordAdjustmentCommand(
             itemId, lotId, date, type, quantityDelta, reason), accountId, ct);
         Require(result, $"record inventory adjustment for lot {lotId}");
     }
@@ -1795,7 +1790,7 @@ public sealed class SimulationDataSeeder(
                     u => u.FlockId == flockId && u.InventoryItemId == feedItemId && u.Date == date, ct);
                 if (exists) continue;
 
-                var result = await recordFeedUsage.HandleAsync(new RecordFeedUsageCommand(
+                var result = await inventory.RecordFeedUsageAsync(new RecordFeedUsageCommand(
                     flockId, feedItemId, date, FeedUsagePerFlockPerDay,
                     "Simulation fixture daily feeding"), accountId, ct);
                 Require(result, $"record feed usage for flock {flockId} on {date:yyyy-MM-dd}");
@@ -1815,7 +1810,7 @@ public sealed class SimulationDataSeeder(
                 var exists = await db.WaterUsages.AnyAsync(u => u.FlockId == flockId && u.Date == date, ct);
                 if (exists) continue;
 
-                var result = await recordWaterUsage.HandleAsync(new RecordWaterUsageCommand(
+                var result = await inventory.RecordWaterUsageAsync(new RecordWaterUsageCommand(
                     flockId, date, WaterUsagePerFlockPerDay, Unit: "L", Source: "Well",
                     MeterStart: null, MeterEnd: null, Note: "Simulation fixture daily water"), accountId, ct);
                 Require(result, $"record water usage for flock {flockId} on {date:yyyy-MM-dd}");

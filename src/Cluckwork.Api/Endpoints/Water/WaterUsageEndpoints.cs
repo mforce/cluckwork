@@ -36,7 +36,7 @@ public static class WaterUsageEndpoints
 
     private static async Task<IResult> RecordWaterUsage(
         RecordWaterUsageRequest request,
-        RecordWaterUsageHandler handler,
+        IInventoryModule inventory,
         IValidator<RecordWaterUsageCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -50,7 +50,7 @@ public static class WaterUsageEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await inventory.RecordWaterUsageAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created("/api/v1/water-usage", new { Id = result.Value })
             : MapFailure(result.Error);
@@ -59,7 +59,7 @@ public static class WaterUsageEndpoints
     private static async Task<IResult> UpdateWaterUsage(
         Guid id,
         UpdateWaterUsageRequest request,
-        UpdateWaterUsageHandler handler,
+        IInventoryModule inventory,
         IValidator<UpdateWaterUsageCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -73,12 +73,12 @@ public static class WaterUsageEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await inventory.UpdateWaterUsageAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> ListWaterUsage(
-        IWaterUsageRepository waterUsages,
+        IInventoryModule inventory,
         Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
         TenantContext tenant, CancellationToken ct,
         Guid? flockId = null, DateOnly? from = null, DateOnly? to = null,
@@ -87,7 +87,7 @@ public static class WaterUsageEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
-        var list = await waterUsages.ListAsync(flockId, from, to, take, skip, ct);
+        var list = await inventory.ListWaterUsageAsync(flockId, from, to, take, skip, ct);
         // #512 T046 — one scoped bulk flock read for the page; null name only when
         // the flock left the caller's scope, never an id fragment.
         var names = await flocks.GetDisplayNamesAsync(list.Select(u => u.FlockId).ToList(), ct);

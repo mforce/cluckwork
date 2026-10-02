@@ -5,7 +5,6 @@ using Cluckwork.Application.Features.Inventory.RecordAdjustment;
 using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 using Cluckwork.Application.Features.Inventory.RecordPurchase;
 using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
-using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -38,12 +37,12 @@ public static class InventoryEndpoints
             .WithSummary("Rename an item or change its unit/default cost. Unit locks once stock has been received.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
-        group.MapPost("/items/{id:guid}/deactivate", (Guid id, SetInventoryItemActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, false, h, t, ct))
+        group.MapPost("/items/{id:guid}/deactivate", (Guid id, IInventoryModule inventory, TenantContext t, CancellationToken ct) => SetActive(id, false, inventory, t, ct))
             .WithName("DeactivateInventoryItem")
             .WithSummary("Deactivate an item: it leaves pickers; lots, stock, and history are unaffected.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
-        group.MapPost("/items/{id:guid}/activate", (Guid id, SetInventoryItemActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, true, h, t, ct))
+        group.MapPost("/items/{id:guid}/activate", (Guid id, IInventoryModule inventory, TenantContext t, CancellationToken ct) => SetActive(id, true, inventory, t, ct))
             .WithName("ActivateInventoryItem")
             .WithSummary("Reactivate a previously deactivated item.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
@@ -81,30 +80,28 @@ public static class InventoryEndpoints
     }
 
     private static async Task<IResult> ListItems(
-        IInventoryItemRepository items, IInventoryLotRepository lots,
+        IInventoryModule inventory,
         TenantContext tenant, CancellationToken ct,
         bool includeInactive = false)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = await items.ListAsync(includeInactive, ct);
-        var stock = await lots.StockByItemAsync(ct);
-        return Results.Ok(list.Select(i => ToResponse(i, stock.GetValueOrDefault(i.Id))));
+        var list = await inventory.ListItemsAsync(includeInactive, ct);
+        return Results.Ok(list.Select(ToResponse));
     }
 
     private static async Task<IResult> GetItem(
-        Guid id, IInventoryItemRepository items, IInventoryLotRepository lots,
+        Guid id, IInventoryModule inventory,
         TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var item = await items.GetByIdAsync(id, ct);
+        var item = await inventory.GetItemAsync(id, ct);
         if (item is null) return Results.NotFound();
-        var stock = await lots.StockByItemAsync(ct);
-        return Results.Ok(ToResponse(item, stock.GetValueOrDefault(item.Id)));
+        return Results.Ok(ToResponse(item));
     }
 
     private static async Task<IResult> CreateItem(
         CreateInventoryItemRequest request,
-        CreateInventoryItemHandler handler,
+        IInventoryModule inventory,
         IValidator<CreateInventoryItemCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -117,7 +114,7 @@ public static class InventoryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await inventory.CreateItemAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/inventory/items/{result.Value}", new { Id = result.Value })
             : MapFailure(result.Error);
@@ -126,7 +123,7 @@ public static class InventoryEndpoints
     private static async Task<IResult> UpdateItem(
         Guid id,
         UpdateInventoryItemRequest request,
-        UpdateInventoryItemHandler handler,
+        IInventoryModule inventory,
         IValidator<UpdateInventoryItemCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -139,22 +136,22 @@ public static class InventoryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await inventory.UpdateItemAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> SetActive(
-        Guid id, bool active, SetInventoryItemActiveHandler handler, TenantContext tenant, CancellationToken ct)
+        Guid id, bool active, IInventoryModule inventory, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, active, ct);
+        var result = await inventory.SetItemActiveAsync(id, active, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> RecordPurchase(
         Guid id,
         RecordPurchaseRequest request,
-        RecordPurchaseHandler handler,
+        IInventoryModule inventory,
         IValidator<RecordPurchaseCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -168,17 +165,17 @@ public static class InventoryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await inventory.RecordPurchaseAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/inventory/items/{id}/lots", new { LotId = result.Value })
             : MapFailure(result.Error);
     }
 
     private static async Task<IResult> ListLots(
-        Guid id, IInventoryLotRepository lots, TenantContext tenant, CancellationToken ct)
+        Guid id, IInventoryModule inventory, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = await lots.ListByItemAsync(id, ct);
+        var list = await inventory.ListLotsAsync(id, ct);
         return Results.Ok(list.Select(l => new InventoryLotResponse(
             l.Id, l.InventoryItemId, l.ReceivedDate, l.LotNumber, l.ExpiryDate,
             l.QuantityReceived, l.QuantityAvailable,
@@ -186,13 +183,13 @@ public static class InventoryEndpoints
     }
 
     private static async Task<IResult> ListMovements(
-        Guid id, IInventoryMovementRepository movements, TenantContext tenant, CancellationToken ct,
+        Guid id, IInventoryModule inventory, TenantContext tenant, CancellationToken ct,
         int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
-        var list = await movements.ListByItemAsync(id, take, skip, ct);
+        var list = await inventory.ListMovementsAsync(id, take, skip, ct);
         return Results.Ok(list.Select(m => new InventoryMovementResponse(
             m.Id, m.InventoryItemId, m.InventoryLotId, m.Date, m.Type.ToString(),
             m.QuantityDelta, m.Unit, m.FlockId, m.Note, m.ReferenceType, m.ReferenceId)));
@@ -201,7 +198,7 @@ public static class InventoryEndpoints
     private static async Task<IResult> RecordFeedUsage(
         Guid id,
         RecordFeedUsageRequest request,
-        RecordFeedUsageHandler handler,
+        IInventoryModule inventory,
         IValidator<RecordFeedUsageCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -214,14 +211,14 @@ public static class InventoryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await inventory.RecordFeedUsageAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.Ok(result.Value) : MapFailure(result.Error);
     }
 
     private static async Task<IResult> RecordAdjustment(
         Guid id,
         RecordAdjustmentRequest request,
-        RecordAdjustmentHandler handler,
+        IInventoryModule inventory,
         IValidator<RecordAdjustmentCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -235,14 +232,14 @@ public static class InventoryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await inventory.RecordAdjustmentAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/inventory/items/{id}/movements", new { MovementId = result.Value })
             : MapFailure(result.Error);
     }
 
     private static async Task<IResult> ListFeedUsage(
-        IFeedUsageRepository usages, Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        IInventoryModule inventory, Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
         TenantContext tenant, CancellationToken ct,
         Guid? flockId = null, DateOnly? from = null, DateOnly? to = null,
         int? limit = null, int? offset = null)
@@ -250,7 +247,7 @@ public static class InventoryEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
-        var list = await usages.ListAsync(flockId, from, to, take, skip, ct);
+        var list = await inventory.ListFeedUsageAsync(flockId, from, to, take, skip, ct);
         // #512 T046 — one scoped bulk flock read for the page. Null name only if
         // the flock left the caller's scope; never an id fragment.
         var names = await flocks.GetDisplayNamesAsync(list.Select(u => u.FlockId).ToList(), ct);
@@ -270,10 +267,10 @@ public static class InventoryEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static InventoryItemResponse ToResponse(InventoryItem i, decimal onHand) => new(
+    private static InventoryItemResponse ToResponse(InventoryItemDetails i) => new(
         i.Id, i.FarmId, i.Name, i.Category.ToString(), i.Unit,
         i.DefaultUnitCost?.MinorUnits, i.DefaultUnitCost?.CurrencyCode, i.DefaultUnitCost?.CurrencyMinorUnit,
-        onHand, i.Active);
+        i.QuantityOnHand, i.Active);
 }
 
 public sealed record InventoryItemResponse(

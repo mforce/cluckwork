@@ -43,6 +43,29 @@ public sealed class FeedUsageLockOrderTests(CluckworkWebApplicationFactory facto
         Assert.Equal((100m, 0), await LotAndUsagesAsync(accountId, lotId, flockId));
     }
 
+    // #855: eligibility is read before the lots are locked, and the flock row is
+    // deliberately left unlocked, so an archive committing after that read does
+    // not refuse the usage.
+    [Fact]
+    public async Task FlockArchivedWhileUsageWaitsForTheLotLock_StillRecords()
+    {
+        var (client, accountId, flockId, itemId, lotId) = await SetupAsync();
+
+        await using var holder = await HoldAsync(accountId,
+            db => db.Database.ExecuteSqlInterpolatedAsync(
+                $"""SELECT 1 FROM "InventoryLots" WHERE "Id" = {lotId} FOR UPDATE"""));
+        var usage = RecordUsageAsync(client, flockId, itemId);
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(usage, holder.Pid),
+            "the usage request must park on the lot lock");
+
+        await ArchiveAsync(accountId, flockId);
+        await holder.Transaction.CommitAsync();
+
+        var response = await usage;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal((95m, 1), await LotAndUsagesAsync(accountId, lotId, flockId));
+    }
+
     private async Task<(HttpClient Client, Guid AccountId, Guid FlockId, Guid ItemId, Guid LotId)> SetupAsync()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";

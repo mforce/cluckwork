@@ -295,6 +295,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<RecordEggLotMovementHandler>();
         services.AddScoped<RecordWaterUsageHandler>();
         services.AddScoped<UpdateWaterUsageHandler>();
+        services.AddScoped<IInventoryModule, InventoryModule>();
         services.AddScoped<CreateFlockHandler>();
         services.AddScoped<DepleteFlockHandler>();
         services.AddScoped<CreateEggGradeHandler>();
