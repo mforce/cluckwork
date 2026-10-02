@@ -7,7 +7,6 @@ using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 
 namespace Cluckwork.Application.Features.Eggs;

@@ -96,7 +96,7 @@ public sealed class DailyEntryLockSweep(
 
         // Unreachable given the Submitted filter; loud if it ever isn't.
         // Property names follow the #216 canonical failure shape so one query
-        // spans handlers and jobs. Logged after the save since #853.
+        // spans handlers and jobs.
         foreach (var refused in pass.Refused)
             logger.LogWarning(
                 "LockDailyEntry failed for entry {DailyEntryId}: {ErrorCode} — {ErrorDescription}",

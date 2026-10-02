@@ -21,8 +21,7 @@ public interface IDailyEntryRepository : IRepository<DailyEntry, Guid>
         Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset,
         CancellationToken ct = default);
 
-    // Tracked, for the lock sweep (#69): Submitted entries dated before the
-    // cutoff, oldest first, at most limit of them.
+    // Tracked: the lock sweep (#69) locks what this returns.
     Task<IReadOnlyList<DailyEntry>> ListSubmittedBeforeAsync(
         DateOnly before, int limit, CancellationToken ct = default);
 
