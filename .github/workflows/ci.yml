@@ -87,6 +87,8 @@ jobs:
       # Pure Node, no toolchain setup needed.
       - name: Run the classifier self-tests
         run: node --test .github/scripts/changed-paths.test.mjs
+      - name: Run the image-scan issue logic self-tests
+        run: node --test .github/scripts/image-scan-issues.test.mjs
 
   changes:
     name: Classify the changed paths
@@ -459,13 +461,14 @@ jobs:
           fail-on-severity: high
           allow-ghsas: ${{ steps.allow.outputs.ghsas }}
 
-  # #267 — build the container image and scan it with Trivy. This is also the
-  # app-side of #266: CI now produces the runtime image, so the same bytes that
-  # ship are what gets scanned here. The dependency gates above score the source
-  # tree (NuGet/npm); this scores the assembled image — the OS packages of the
-  # base image plus the published binaries — which nothing else covers.
+  # #267 — build the container image and boot-test it. This is also the app-side
+  # of #266: CI produces the runtime image, so the bytes that ship are the bytes
+  # booted here. It does NOT scan the image for vulnerabilities: a base-image CVE
+  # with no fix cannot be cleared by any PR and stalled every PR and all
+  # publishing (#1006), so the scan moved to the weekly image-scan.yml, which
+  # reports on the published image after the fact.
   image:
-    name: Image build + Trivy scan (${{ matrix.arch }})
+    name: Image build + smoke test (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     needs: [changes]
@@ -521,8 +524,8 @@ jobs:
       # compiles the SPA, publishes the API, and runs as the non-root `app` user
       # on the digest-pinned base image (#267). buildx with a docker-container
       # driver (the daemon's default builder can't export a local cache);
-      # `--load` puts the result in the local daemon so Trivy scans these
-      # freshly built bytes, not a re-pull. The rm/mv rotation replaces the
+      # `--load` puts the result in the local daemon so the smoke test boots
+      # these freshly built bytes, not a re-pull. The rm/mv rotation replaces the
       # cache instead of accreting layers into it forever.
       - name: Build runtime image
         run: |
@@ -563,41 +566,8 @@ jobs:
           fi
           echo "OK: a stale lock correctly failed the Docker --locked-mode restore"
 
-      # BLOCKING gate: fail the build on a HIGH or CRITICAL CVE — but only one that
-      # HAS a fix (`ignore-unfixed: true`). That mirrors the #146 dependency-gate
-      # philosophy: the actionable response to an advisory is "move to a fixed
-      # version", so a base-OS CVE with no upstream fix yet can't be actioned by a
-      # bump and must not wedge every unrelated PR. `ignore-unfixed: true` drops
-      # those from the report entirely — the gate blocks only on FIXABLE
-      # HIGH/CRITICAL; when a fix ships, Dependabot's `docker` ecosystem bumps the
-      # pinned base digest and this gate confirms it cleared. Trivy's vuln DB is
-      # cached across runs (the action's `cache` default), the primary defence
-      # against the GHCR anonymous-pull TOOMANYREQUESTS that can transiently
-      # false-fail a PR; the GITHUB_TOKEN env (below) authenticates the pull on a
-      # cache miss. The action is pinned to a release tag (Dependabot keeps it current).
-      - name: Scan image for HIGH/CRITICAL vulnerabilities
-        # Supply-chain: pin the immutable commit, not the re-pointable tag —
-        # trivy-action was compromised 2026-03 (a repeat incident), so a tag could
-        # be re-pointed to a malicious release. Dependabot's github-actions
-        # ecosystem reads the trailing `# v0.36.0` to bump both SHA and comment.
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: cluckwork-api:ci
-          scan-type: image
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-          format: table
-        env:
-          # Trivy reads GITHUB_TOKEN to authenticate its vuln-DB pull from GHCR,
-          # lifting the anonymous rate limit that would otherwise TOOMANYREQUESTS
-          # a cache miss. (This action has no token INPUT for the DB — `github-pat`
-          # is SBOM-submission only — so it goes through the env, which Trivy reads.)
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       # #266 — smoke test: prove the freshly built image actually BOOTS and SERVES,
-      # not merely that it builds and scans clean. Runs the real run-then-exit
+      # not merely that it builds. Runs the real run-then-exit
       # `migrate` verb against a throwaway Postgres, boots the serving container,
       # and asserts /health/ready goes green AND the in-container `healthcheck`
       # verb (exactly what the Dockerfile HEALTHCHECK invokes) exits 0 on a ready
@@ -714,7 +684,7 @@ jobs:
       # Deliberately NOT a rebuild in the publish job: a second `docker build`
       # produces different bytes (fresh restore timestamps, layer metadata) and
       # therefore a different digest, so what got published would be an image
-      # this job's Trivy scan and boot smoke test never examined.
+      # this job's boot smoke test never examined.
       #
       # Only on a merge into main, so PR runs pay none of this.
       - name: Export the verified image for publishing
@@ -747,9 +717,10 @@ jobs:
   # No version is decided here, and no git tag is cut. That is the release
   # workflow's job, and it happens later, behind a human merging the release PR.
   # This job's only claim is "the image for commit X is these exact bytes, and
-  # they passed every gate" — which makes it idempotent per commit, free of
-  # ordering hazards, and impossible to race: two merges publish two different
-  # names.
+  # they were built and boot-tested". It does NOT claim they were scanned for
+  # vulnerabilities: image-scan.yml does that weekly, after publish. The claim is
+  # idempotent per commit, free of ordering hazards, and impossible to race: two
+  # merges publish two different names.
   #
   # Gated on tests, build-and-test, web AND image: those run in parallel, so only
   # a job downstream of all four knows the run was green. `tests` joined that list
@@ -819,10 +790,10 @@ jobs:
           pattern: runtime-image-*
           merge-multiple: true
 
-      # Assert the loaded bytes are the SCANNED bytes, by local image Id.
+      # Assert the loaded bytes are the BOOT-TESTED bytes, by local image Id.
       # Artifact substitution is not reachable today (artifacts are run-scoped,
       # only one step uploads that name, `overwrite` is unset) — but the whole
-      # promise here is "what shipped is what CI gated", and a promise resting on
+      # promise here is "what shipped is what CI boot-tested", and a promise resting on
       # an argument rather than a check is the one that quietly stops being true.
       - name: Load and verify the images
         run: |
@@ -833,7 +804,7 @@ jobs:
             loaded="$(docker image inspect -f '{{.Id}}' "cluckwork-api:ci-$arch")"
             platform="$(docker image inspect -f '{{.Architecture}}' "cluckwork-api:ci-$arch")"
             if [ -z "$expected" ] || [ "$loaded" != "$expected" ] || [ "$platform" != "$arch" ]; then
-              echo "::error::loaded $arch image does not match its scanned image Id or architecture"
+              echo "::error::loaded $arch image does not match its boot-tested image Id or architecture"
               exit 1
             fi
           done

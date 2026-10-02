@@ -1,0 +1,251 @@
+// Turns the weekly image scan's Trivy JSON reports into GitHub issues: one open
+// issue per vulnerability id, ever.
+//
+//   node image-scan-issues.mjs --repo o/r --sha <40 hex> --image <ref> \
+//     --run-url <url> --report amd64=<json> --report arm64=<json> [--dry-run]
+//
+// Per vulnerability found, an open scanner issue for that id gets a comment and
+// none gets created; with no such issue, one is created. Per open scanner issue
+// whose id is NOT found, the issue is commented on and closed, because the image
+// no longer carries it.
+//
+// "Not found" is only trustworthy if the scan ran. Both architecture reports must
+// parse and name the image they were asked to scan, or this exits 1 before it
+// reads or writes any issue.
+//
+// An issue is the scanner's when its title has the exact shape buildTitle writes
+// and it carries both labels. Issue bodies are never matched: a human issue that
+// merely mentions an id must not be taken for its tracking issue.
+//
+// --dry-run reads the live issue list and prints what it would do. --open-issues
+// substitutes a JSON array of {number,title,labels:[name],comments:[body]} for
+// that list, to exercise the decision logic without the live tracker.
+
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+
+export const ARCHS = ["amd64", "arm64"];
+export const LABELS = ["dependencies", "docker"];
+
+const RANK = { HIGH: 1, CRITICAL: 2 };
+const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/;
+const TITLE = /^\[(CRITICAL|HIGH)\] (\S+) in .+ \(container image\)$/;
+
+export function parseReport(text, { image, arch }) {
+  let report;
+  try {
+    report = JSON.parse(text);
+  } catch (err) {
+    throw new Error(`${arch} report is not JSON: ${err.message}`);
+  }
+  const meta = report?.Metadata;
+  if (report?.SchemaVersion !== 2 || report.ArtifactType !== "container_image") {
+    throw new Error(`${arch} report is not a Trivy container-image report`);
+  }
+  if (report.ArtifactName !== image) {
+    throw new Error(`${arch} report scanned ${report.ArtifactName}, not ${image}`);
+  }
+  if (meta?.ImageConfig?.architecture !== arch) {
+    throw new Error(`${arch} report scanned a ${meta?.ImageConfig?.architecture} image`);
+  }
+  if (!meta.OS?.Family) {
+    throw new Error(`${arch} report detected no operating system, so the scan did not run`);
+  }
+  const vulns = [];
+  for (const result of report.Results ?? []) {
+    for (const v of result.Vulnerabilities ?? []) {
+      if (!ID.test(v.VulnerabilityID ?? "") || !(v.Severity in RANK)) continue;
+      vulns.push({
+        id: v.VulnerabilityID,
+        severity: v.Severity,
+        pkg: v.PkgName,
+        installed: v.InstalledVersion,
+        fixed: v.FixedVersion ?? "",
+        summary: String(v.Title ?? "").replace(/\s+/g, " ").trim(),
+        url: v.PrimaryURL ?? "",
+      });
+    }
+  }
+  return { digest: meta.RepoDigests?.[0] ?? meta.ImageID ?? "unknown", vulns };
+}
+
+export function collect(parsed) {
+  const findings = new Map();
+  for (const [arch, { vulns }] of Object.entries(parsed)) {
+    for (const v of vulns) {
+      const f = findings.get(v.id) ?? { id: v.id, severity: v.severity, summary: v.summary, url: v.url, rows: new Map() };
+      if (RANK[v.severity] > RANK[f.severity]) f.severity = v.severity;
+      const key = `${v.pkg}|${v.installed}|${v.fixed}`;
+      const row = f.rows.get(key) ?? { pkg: v.pkg, installed: v.installed, fixed: v.fixed, archs: new Set() };
+      row.archs.add(arch);
+      f.rows.set(key, row);
+      findings.set(v.id, f);
+    }
+  }
+  return findings;
+}
+
+const packages = (f) => [...new Set([...f.rows.values()].map((r) => r.pkg))].sort();
+const archsOf = (f) => ARCHS.filter((a) => [...f.rows.values()].some((r) => r.archs.has(a)));
+
+export const buildTitle = (f) => `[${f.severity}] ${f.id} in ${packages(f).join(", ")} (container image)`;
+
+export const scannerIssueId = (title) => TITLE.exec(title)?.[2] ?? null;
+
+const isScanner = (issue) =>
+  scannerIssueId(issue.title) !== null && LABELS.every((l) => issue.labels.includes(l));
+
+const marker = (kind, sha) => `<!-- image-scan ${kind} sha=${sha} -->`;
+const cell = (s) => String(s).replace(/\|/g, "\\|");
+
+function createBody(f, ctx) {
+  const rows = [...f.rows.values()]
+    .sort((a, b) => a.pkg.localeCompare(b.pkg))
+    .map((r) => `| ${cell(r.pkg)} | ${cell(r.installed)} | ${cell(r.fixed)} | ${ARCHS.filter((a) => r.archs.has(a)).join(", ")} |`);
+  return [
+    `The weekly image scan found **${f.id}** (${f.severity}) in \`${ctx.image}\`.`,
+    "",
+    `${f.summary}${f.url ? ` ([advisory](${f.url}))` : ""}`,
+    "",
+    "| Package | Installed | Fixed | Architectures |",
+    "| --- | --- | --- | --- |",
+    ...rows,
+    "",
+    `Scan run: ${ctx.runUrl}`,
+    "",
+    `This is the single issue for ${f.id}. The scan comments here while the image still carries it and closes this issue once a scan no longer finds it. Close it by hand and the next scan that still finds the id files a new one.`,
+    "",
+    marker("found", ctx.sha),
+  ].join("\n");
+}
+
+const foundComment = (f, ctx) =>
+  [
+    `Weekly image scan: ${f.id} is still present in \`sha-${ctx.sha}\` on ${archsOf(f).map((a) => `linux/${a}`).join(", ")}.`,
+    "",
+    `Scan run: ${ctx.runUrl}`,
+    "",
+    marker("found", ctx.sha),
+  ].join("\n");
+
+const clearedComment = (id, ctx) =>
+  [
+    `Weekly image scan: ${id} is no longer found. Closing.`,
+    "",
+    `Scanned \`sha-${ctx.sha}\` on both architectures, with no ${id} in either:`,
+    ...ARCHS.map((a) => `- linux/${a}: \`${ctx.digests[a]}\``),
+    "",
+    `Scan run: ${ctx.runUrl}`,
+  ].join("\n");
+
+// Pure decision logic. `issues` are the open issues, each `{number, title, labels,
+// comments}`; the caller has already refused to get here unless both scans completed.
+export function plan(findings, issues, ctx) {
+  const scanner = issues.filter((i) => scannerIssueId(i.title) !== null);
+  const actions = [];
+  const sorted = [...findings.values()].sort(
+    (a, b) => RANK[b.severity] - RANK[a.severity] || a.id.localeCompare(b.id),
+  );
+  for (const f of sorted) {
+    const existing = scanner
+      .filter((i) => scannerIssueId(i.title) === f.id)
+      .sort((a, b) => a.number - b.number)[0];
+    if (!existing) {
+      actions.push({ kind: "create", id: f.id, title: buildTitle(f), body: createBody(f, ctx), labels: LABELS });
+    } else if ((existing.comments ?? []).some((c) => c.includes(marker("found", ctx.sha)))) {
+      actions.push({ kind: "skip", id: f.id, number: existing.number, why: `#${existing.number} already notes sha-${ctx.sha}` });
+    } else {
+      actions.push({ kind: "comment", id: f.id, number: existing.number, body: foundComment(f, ctx) });
+    }
+  }
+  for (const i of scanner.filter(isScanner)) {
+    const id = scannerIssueId(i.title);
+    if (!findings.has(id)) actions.push({ kind: "close", id, number: i.number, body: clearedComment(id, ctx) });
+  }
+  return actions;
+}
+
+function gh(args, input) {
+  return execFileSync("gh", args, { encoding: "utf8", input, stdio: ["pipe", "pipe", "inherit"] });
+}
+
+function openIssues(repo) {
+  const list = JSON.parse(
+    gh(["issue", "list", "-R", repo, "--state", "open", "--limit", "5000", "--json", "number,title,labels"]),
+  );
+  return list.map((i) => ({ number: i.number, title: i.title, labels: i.labels.map((l) => l.name) }));
+}
+
+function commentsOf(repo, number) {
+  return JSON.parse(gh(["issue", "view", String(number), "-R", repo, "--json", "comments"])).comments.map((c) => c.body);
+}
+
+function apply(repo, a) {
+  if (a.kind === "create") {
+    const args = ["issue", "create", "-R", repo, "--title", a.title, "--body-file", "-"];
+    for (const l of a.labels) args.push("--label", l);
+    return gh(args, a.body).trim();
+  }
+  if (a.kind === "comment") return gh(["issue", "comment", String(a.number), "-R", repo, "--body-file", "-"], a.body).trim();
+  return gh(["issue", "close", String(a.number), "-R", repo, "--reason", "completed", "--comment", a.body]).trim();
+}
+
+const describe = (a, dry) => {
+  const v = (live, would) => (dry ? would : live);
+  if (a.kind === "create") return `${v("create", "would create")} a new issue for ${a.id}: ${a.title}`;
+  if (a.kind === "comment") return `${v("update", "would update")} #${a.number} for ${a.id} with a comment`;
+  if (a.kind === "close") return `${v("close", "would close")} #${a.number} (${a.id} no longer found)`;
+  return `skip ${a.id}: ${a.why}`;
+};
+
+function parseArgs(argv) {
+  const o = { reports: {}, dryRun: false };
+  for (let i = 0; i < argv.length; i++) {
+    const k = argv[i];
+    if (k === "--dry-run") o.dryRun = true;
+    else if (k === "--report") {
+      const [arch, path] = argv[++i].split("=");
+      o.reports[arch] = path;
+    } else if (["--repo", "--sha", "--image", "--run-url", "--open-issues"].includes(k)) {
+      o[k.slice(2).replace(/-(\w)/g, (_, c) => c.toUpperCase())] = argv[++i];
+    } else throw new Error(`unknown argument ${k}`);
+  }
+  for (const k of ["repo", "sha", "image", "runUrl"]) if (!o[k]) throw new Error(`--${k} is required`);
+  if (!/^[0-9a-f]{40}$/.test(o.sha)) throw new Error("--sha must be a full commit sha");
+  return o;
+}
+
+function main() {
+  const o = parseArgs(process.argv.slice(2));
+  const parsed = {};
+  for (const arch of ARCHS) {
+    if (!o.reports[arch]) throw new Error(`no ${arch} report: refusing to act on a partial scan`);
+    parsed[arch] = parseReport(readFileSync(o.reports[arch], "utf8"), { image: o.image, arch });
+  }
+  const ctx = {
+    sha: o.sha,
+    image: o.image,
+    runUrl: o.runUrl,
+    digests: Object.fromEntries(ARCHS.map((a) => [a, parsed[a].digest])),
+  };
+  const issues = o.openIssues ? JSON.parse(readFileSync(o.openIssues, "utf8")) : openIssues(o.repo);
+  for (const i of issues) {
+    if (scannerIssueId(i.title) !== null && !i.comments) i.comments = o.openIssues ? [] : commentsOf(o.repo, i.number);
+  }
+  const actions = plan(collect(parsed), issues, ctx);
+  console.log(`image-scan: ${ctx.image} scanned on ${ARCHS.join(" and ")}; ${actions.length} action(s)${o.dryRun ? " (dry run)" : ""}`);
+  for (const a of actions) {
+    console.log(describe(a, o.dryRun));
+    if (!o.dryRun && a.kind !== "skip") console.log(`  ${apply(o.repo, a)}`);
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    main();
+  } catch (err) {
+    console.error(`image-scan-issues: ${err.message}`);
+    process.exit(1);
+  }
+}
