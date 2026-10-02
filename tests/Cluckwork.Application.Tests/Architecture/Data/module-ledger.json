@@ -36,7 +36,30 @@
                           ] },
     "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"] },
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
-    "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"] },
+    "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Inventory.IInventoryModule",
+                            "Cluckwork.Application.Features.Inventory.InventoryItemDetails",
+                            "Cluckwork.Application.Features.Inventory.InventoryLotDetails",
+                            "Cluckwork.Application.Features.Inventory.InventoryMovementDetails",
+                            "Cluckwork.Application.Features.Inventory.FeedUsageDetails",
+                            "Cluckwork.Application.Features.Inventory.WaterUsageDetails",
+                            "Cluckwork.Application.Features.Inventory.CreateInventoryItem.CreateInventoryItemCommand",
+                            "Cluckwork.Application.Features.Inventory.UpdateInventoryItem.UpdateInventoryItemCommand",
+                            "Cluckwork.Application.Features.Inventory.RecordPurchase.RecordPurchaseCommand",
+                            "Cluckwork.Application.Features.Inventory.RecordAdjustment.RecordAdjustmentCommand",
+                            "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageCommand",
+                            "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageResponse",
+                            "Cluckwork.Application.Features.Inventory.RecordWaterUsage.RecordWaterUsageCommand",
+                            "Cluckwork.Application.Features.Inventory.UpdateWaterUsage.UpdateWaterUsageCommand"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.FeedUsageRepository",
+                            "Cluckwork.Infrastructure.Repositories.InventoryItemRepository",
+                            "Cluckwork.Infrastructure.Repositories.InventoryLotRepository",
+                            "Cluckwork.Infrastructure.Repositories.InventoryMovementRepository",
+                            "Cluckwork.Infrastructure.Repositories.WaterUsageRepository"
+                          ] },
     "Finance":          { "kind": "module",   "namespaces": ["Cluckwork.Domain.Expenses", "Cluckwork.Application.Features.Expenses"],
                           "contract": [
                             "Cluckwork.Application.Features.Expenses.IFinanceModule",
@@ -1483,6 +1506,22 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["FeedUsages", "InventoryItems", "InventoryLots", "InventoryMovements", "WaterUsages"],
+      "owner": "Platform",
+      "reason": "Counts InventoryItems, InventoryLots, InventoryMovements by type, FeedUsages and WaterUsages for the simulation manifest check, beside every other module's counts. IInventoryModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureAdjustmentAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["InventoryMovements"],
+      "owner": "Platform",
+      "reason": "Checks InventoryMovements for an Adjustment or Discard on the lot before calling IInventoryModule.RecordAdjustmentAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseAsync",
       "reaches": "Finance",
       "tables": ["Expenses"],
@@ -1496,6 +1535,22 @@
       "tables": ["ExpenseCategories"],
       "owner": "Platform",
       "reason": "Looks up ExpenseCategories by name before calling IFinanceModule.CreateCategoryAsync, so a re-run converges and reuses the existing id. IFinanceModule has no lookup by name: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureInventoryItemAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["InventoryItems"],
+      "owner": "Platform",
+      "reason": "Looks up InventoryItems by name before calling IInventoryModule.CreateItemAsync, so a re-run converges and reuses the existing id. IInventoryModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureOpeningPurchaseAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["InventoryLots"],
+      "owner": "Platform",
+      "reason": "Checks InventoryLots for the item's opening lot, and reads its id, before calling IInventoryModule.RecordPurchaseAsync, so a re-run converges and reuses the lot. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1515,6 +1570,22 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFeedAdjustmentsAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["InventoryMovements"],
+      "owner": "Platform",
+      "reason": "Checks InventoryMovements for a fixture adjustment on each date before calling IInventoryModule.RecordAdjustmentAsync, then counts the band so a short one fails the seed. IInventoryModule has no existence or count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFeedUsageAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["FeedUsages"],
+      "owner": "Platform",
+      "reason": "Checks FeedUsages for a fixture row per flock, item and date before calling IInventoryModule.RecordFeedUsageAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSecondAccountAsync",
       "reaches": "Farm",
       "tables": ["Accounts"],
@@ -1523,12 +1594,28 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedWaterUsageAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["WaterUsages"],
+      "owner": "Platform",
+      "reason": "Checks WaterUsages for a fixture row per flock and date before calling IInventoryModule.RecordWaterUsageAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
       "reaches": "Finance",
       "tables": ["Expenses"],
       "owner": "Farm",
-      "reason": "Farm's currency lock: any expense carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce and General Inventory tables, so it can only move behind module contracts once the last of them has one, the General Inventory contract slice.",
-      "deleteWhen": "#855"
+      "reason": "Farm's currency lock: any expense carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce and General Inventory tables, so it can only move behind module contracts once the last of them has one, the Commerce contract slice.",
+      "deleteWhen": "#854"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
+      "reaches": "GeneralInventory",
+      "tables": ["FeedUsages", "InventoryItems", "InventoryLots"],
+      "owner": "Farm",
+      "reason": "Farm's currency lock: every lot and feed usage, and any item with a default cost, carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce, which has no contract yet, so it moves behind module contracts with the last of them, the Commerce contract slice.",
+      "deleteWhen": "#854"
     },
     {
       "symbol": "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository.ListByNameByUserAsync",
