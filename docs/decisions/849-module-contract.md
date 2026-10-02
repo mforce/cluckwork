@@ -75,8 +75,10 @@ DI. Moving validation behind the contract changes both.
 - `ReportQueries`, `ExportQueries` and `CurrencyBoundRowProbe` read Finance tables
   through EF from the Platform hub. #850 tracks them.
 - Finance's own handlers still inject Farm's `IAccountRepository` and Flock
-  Management's `IFlockRepository`. Those ports belong to the Farm and Flock
-  Management contract slices.
+  Management's `IFlockRepository`. The Farm slice kept `IAccountRepository` as the
+  stable account seam peer modules call directly
+  ([`851-farm-contract.md`](851-farm-contract.md)); `IFlockRepository` belongs to
+  the Flock Management contract slice.
 
 ## How it is enforced
 

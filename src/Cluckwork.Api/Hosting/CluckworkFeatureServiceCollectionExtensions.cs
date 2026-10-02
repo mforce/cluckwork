@@ -345,6 +345,9 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Accounts.SetFarmBanner.SetFarmBannerHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.RemoveFarmBanner.RemoveFarmBannerHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Accounts.IFarmModule,
+            Cluckwork.Application.Features.Accounts.FarmModule>();
         services.AddScoped<VoidDailyEntryHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();

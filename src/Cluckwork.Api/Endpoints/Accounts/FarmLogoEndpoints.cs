@@ -1,8 +1,6 @@
 using System.Buffers;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Accounts.RemoveFarmLogo;
-using Cluckwork.Application.Features.Accounts.SetFarmLogo;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
 using Cluckwork.Infrastructure.Persistence;
@@ -57,12 +55,12 @@ public static class FarmLogoEndpoints
     }
 
     private static async Task<IResult> GetLogo(
-        IFarmLogoRepository logos, TenantContext tenant, HttpContext http, CancellationToken ct)
+        IFarmModule farm, TenantContext tenant, HttpContext http, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         // Metadata first: the projection leaves the bytes in the database.
-        var metadata = await logos.GetLogoMetadataAsync(ct);
+        var metadata = await farm.GetLogoMetadataAsync(ct);
         if (metadata is null) return Results.NotFound();
 
         var etag = new EntityTagHeaderValue($"\"{metadata.ContentHash}\"");
@@ -87,7 +85,7 @@ public static class FarmLogoEndpoints
             return Results.StatusCode(StatusCodes.Status304NotModified);
         }
 
-        var logo = await logos.GetLogoContentAsync(ct);
+        var logo = await farm.GetLogoContentAsync(ct);
         // Removed between the two reads.
         if (logo is null) return Results.NotFound();
 
@@ -138,7 +136,7 @@ public static class FarmLogoEndpoints
     }
 
     private static async Task<IResult> SetLogo(
-        SetFarmLogoHandler handler, IOptionsSnapshot<FarmLogoOptions> logoOptions,
+        IFarmModule farm, IOptionsSnapshot<FarmLogoOptions> logoOptions,
         TenantContext tenant, HttpContext http, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -190,7 +188,7 @@ public static class FarmLogoEndpoints
                     return MapFailure(ImageSanitizer.TooLarge(maxBytes));
             }
 
-            var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
+            var result = await farm.SetLogoAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
             return result.IsSuccess
                 ? Results.Ok(ToResponse(result.Value))
                 : MapFailure(result.Error);
@@ -202,13 +200,13 @@ public static class FarmLogoEndpoints
     }
 
     private static async Task<IResult> RemoveLogo(
-        RemoveFarmLogoHandler handler, TenantContext tenant, CancellationToken ct)
+        IFarmModule farm, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var result = await handler.HandleAsync(ct);
+        var result = await farm.RemoveLogoAsync(ct);
         if (result.IsSuccess) return Results.NoContent();
-        return result.Error == RemoveFarmLogoHandler.NotSet
+        return result.Error == IFarmModule.LogoNotSet
             ? Results.NotFound()
             : MapFailure(result.Error);
     }

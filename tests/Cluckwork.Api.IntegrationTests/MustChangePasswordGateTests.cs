@@ -209,6 +209,8 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
 // reliably, without depending on framework body-binding exception behavior.
 internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider inner) : IIdentityProvider
 {
+    public Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) => inner.ResolveFarmCodeAsync(farmCode, ct);
+
     public Task<Result<TokenPair>> LoginAsync(
         Guid accountId, string email, string password, CancellationToken ct = default) =>
         inner.LoginAsync(accountId, email, password, ct);

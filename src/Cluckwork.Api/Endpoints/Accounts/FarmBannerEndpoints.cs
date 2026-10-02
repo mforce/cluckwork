@@ -1,8 +1,6 @@
 using System.Buffers;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Accounts.RemoveFarmBanner;
-using Cluckwork.Application.Features.Accounts.SetFarmBanner;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
 using Cluckwork.Infrastructure.Persistence;
@@ -42,11 +40,11 @@ public static class FarmBannerEndpoints
     }
 
     private static async Task<IResult> GetBanner(
-        IFarmLogoRepository logos, TenantContext tenant, HttpContext http, CancellationToken ct)
+        IFarmModule farm, TenantContext tenant, HttpContext http, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var metadata = await logos.GetBannerMetadataAsync(ct);
+        var metadata = await farm.GetBannerMetadataAsync(ct);
         if (metadata is null) return Results.NotFound();
 
         var etag = new EntityTagHeaderValue($"\"{metadata.ContentHash}\"");
@@ -59,7 +57,7 @@ public static class FarmBannerEndpoints
             return Results.StatusCode(StatusCodes.Status304NotModified);
         }
 
-        var banner = await logos.GetBannerContentAsync(ct);
+        var banner = await farm.GetBannerContentAsync(ct);
         if (banner is null) return Results.NotFound();
 
         return Results.Bytes(
@@ -71,7 +69,7 @@ public static class FarmBannerEndpoints
     }
 
     private static async Task<IResult> SetBanner(
-        SetFarmBannerHandler handler, IOptionsSnapshot<FarmBannerOptions> bannerOptions,
+        IFarmModule farm, IOptionsSnapshot<FarmBannerOptions> bannerOptions,
         TenantContext tenant, HttpContext http, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -95,7 +93,7 @@ public static class FarmBannerEndpoints
                     return MapFailure(ImageSanitizer.TooLarge(maxBytes, ImageSanitizer.ImageAssetKind.Banner));
             }
 
-            var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
+            var result = await farm.SetBannerAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
             return result.IsSuccess
                 ? Results.Ok(ToResponse(result.Value))
                 : MapFailure(result.Error);
@@ -107,13 +105,13 @@ public static class FarmBannerEndpoints
     }
 
     private static async Task<IResult> RemoveBanner(
-        RemoveFarmBannerHandler handler, TenantContext tenant, CancellationToken ct)
+        IFarmModule farm, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var result = await handler.HandleAsync(ct);
+        var result = await farm.RemoveBannerAsync(ct);
         if (result.IsSuccess) return Results.NoContent();
-        return result.Error == RemoveFarmBannerHandler.NotSet
+        return result.Error == IFarmModule.BannerNotSet
             ? Results.NotFound()
             : MapFailure(result.Error);
     }
