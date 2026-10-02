@@ -103,7 +103,7 @@
     },
     {
       "from": "Access", "to": "FlockManagement", "kind": "R",
-      "reason": "AssignFlockHandler and UnassignFlockHandler inject Flock Management's IFlockRepository to prove the flock exists before narrowing a worker to it (#103, spec 5.2/5.3). Design 3.4 row Access -> Flock = R.",
+      "reason": "AssignFlockHandler injects Flock Management's IFlockLookup port to prove the flock exists before narrowing a worker to it and to name it in the audit row (#103, spec 5.2/5.3); UnassignFlockHandler shares its file and namespace imports. Design 3.4 row Access -> Flock = R.",
       "symbols": [
         "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
         "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler"
@@ -150,7 +150,7 @@
     },
     {
       "from": "EggOperations", "to": "FlockManagement", "kind": "W",
-      "reason": "Daily entry is the mortality writer: SubmitDailyEntryHandler, AdjustDailyEntryHandler and VoidDailyEntryHandler append Domain.Flocks bird-movement rows through Flock Management's IBirdMovementRepository in the same transaction as the entry itself (#54, #69), and every daily-entry handler loads the flock through IFlockRepository to check Flock.CanRecordProductionOn for the entry's date. Design 3.4 row Egg Ops -> Flock = W.",
+      "reason": "Daily entry is the mortality writer: SubmitDailyEntryHandler, AdjustDailyEntryHandler and VoidDailyEntryHandler append bird-movement rows through Flock Management's IMortalityLedger port, which adds the row to the caller's unit of work and never saves, so it commits with the entry itself (#54, #69, #852). Every daily-entry handler reads the flock through the IFlockLookup port to check CanRecordProductionOn for the entry's date. Design 3.4 row Egg Ops -> Flock = W.",
       "symbols": [
         "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryHandler",
         "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryResponse",
@@ -183,7 +183,7 @@
     },
     {
       "from": "Finance", "to": "FlockManagement", "kind": "R",
-      "reason": "CreateExpenseHandler and AdjustExpenseHandler inject Flock Management's IFlockRepository to validate the optional flock an expense is attributed to. Design 3.4 row Finance -> Flock = R.",
+      "reason": "CreateExpenseHandler and AdjustExpenseHandler inject Flock Management's IFlockLookup port to validate the optional flock an expense is attributed to. Design 3.4 row Finance -> Flock = R.",
       "symbols": [
         "Cluckwork.Application.Features.Expenses.AdjustExpense.AdjustExpenseHandler",
         "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseHandler"
@@ -215,7 +215,7 @@
     },
     {
       "from": "GeneralInventory", "to": "FlockManagement", "kind": "R",
-      "reason": "RecordFeedUsageHandler, RecordWaterUsageHandler and UpdateWaterUsageHandler inject Flock Management's IFlockRepository to prove the flock being fed or watered exists and is eligible for the usage date. Design 3.4 row Inventory -> Flock = R.",
+      "reason": "RecordFeedUsageHandler, RecordWaterUsageHandler and UpdateWaterUsageHandler inject Flock Management's IFlockLookup port to prove the flock being fed or watered exists and is eligible for the usage date. Design 3.4 row Inventory -> Flock = R.",
       "symbols": [
         "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageHandler",
         "Cluckwork.Application.Features.Inventory.RecordWaterUsage.RecordWaterUsageHandler",
