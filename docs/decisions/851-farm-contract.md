@@ -72,8 +72,13 @@ the contract's callers.
   resolutions. Endpoints still name `Roles`, `WorkerSaleAllocationPolicy`,
   `ImageSanitizer.TooLarge` and `SeedDefaults` inside bodies. All are
   `Domain.Accounts` or `Domain.Media` vocabulary inside the account seam.
-- `ReportQueries`, `ExportQueries` and `CurrencyBoundRowProbe` read the account
-  row through EF. They belong to Insights and #850.
+- Direct EF reads of the account row outside Farm. Insights reads the report
+  currency in `ReportQueries.AccountCurrencyAsync`. The other readers are
+  `DailyEntryLockSweep.RunAsync`, `MissingBaseDataAsync` in both seeders,
+  `SimulationDataSeeder.SeedSecondAccountAsync` and `ComputeCountsAsync`, and in
+  Api `AccountSlugLookup.ResolveAsync`, `ListAccountsCliCommand.RunAsync` and
+  `CredentialEpochMiddleware.InvokeAsync`. #850 registers them as compatibility
+  exceptions.
 
 ## How it is enforced
 
