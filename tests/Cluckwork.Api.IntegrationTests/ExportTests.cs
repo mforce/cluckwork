@@ -3,7 +3,10 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -255,6 +258,56 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
 
         // The movement audit event (Flock.BirdMovement) rides along too.
         Assert.True(datasets.GetProperty("audit-events").GetInt32() >= 1);
+    }
+
+    // #269 — the full backup reads every dataset inside one REPEATABLE READ
+    // snapshot, so a write committed mid-export must stay invisible until the
+    // snapshot closes. The zip path cannot interleave a write between two
+    // datasets deterministically, so this drives the same IInsightsModule
+    // WriteZipAsync uses, resolved from real DI.
+    [Fact]
+    public async Task FullBackup_ReadsEveryDatasetInsideOneSnapshot()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var farmId = Guid.NewGuid();
+        Guid before = Guid.NewGuid(), during = Guid.NewGuid(), after = Guid.NewGuid();
+
+        Task InsertCategoryAsync(Guid id) => factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Add(Domain.Expenses.ExpenseCategory.Create(id, accountId, farmId, $"snapshot-{id:N}"));
+            await db.SaveChangesAsync();
+        });
+
+        async Task<HashSet<Guid>> ReadCategoryIdsAsync(IInsightsModule module)
+        {
+            var ids = new HashSet<Guid>();
+            await foreach (var row in module.GetDataset("expense-categories")!.Rows)
+                ids.Add((Guid)row[0]!);
+            return ids;
+        }
+
+        await InsertCategoryAsync(before);
+
+        using var scope = factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var module = scope.ServiceProvider.GetRequiredService<IInsightsModule>();
+
+        HashSet<Guid> first, second;
+        await using (await module.BeginConsistentReadAsync())
+        {
+            // The first statement fixes the snapshot; the insert commits from
+            // another scope after it.
+            first = await ReadCategoryIdsAsync(module);
+            await InsertCategoryAsync(during);
+            second = await ReadCategoryIdsAsync(module);
+        }
+        await InsertCategoryAsync(after);
+        var outside = await ReadCategoryIdsAsync(module);
+
+        Assert.Contains(before, first);
+        Assert.DoesNotContain(during, second);
+        Assert.Contains(during, outside);
+        Assert.Contains(after, outside);
     }
 
     // Spec §18: export is an auditable action — the trail must show WHO bulk-
