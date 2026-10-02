@@ -107,7 +107,7 @@
   {
     "symbol": "Cluckwork.Infrastructure.Repositories.FlockRepository.GetReadOnlyForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs",
-    "justification": "#1022 untracked twin of GetByIdForFlockScopedWriteAsync, same query plus AsNoTracking, for IFlockLookup's snapshot reads: after live FlockScopeGuard succeeds, bypasses the request-start flock snapshot and explicitly reinstates AccountId so foreign ids remain null. Only the record-daily-entry, submit-daily-entry, record-feed-usage and record-water-usage handlers call it; read endpoints never do."
+    "justification": "#1022 untracked twin of GetByIdForFlockScopedWriteAsync, same query plus AsNoTracking, for IFlockLookup's snapshot reads: after live FlockScopeGuard succeeds, bypasses the request-start flock snapshot and explicitly reinstates AccountId so foreign ids remain null. Read endpoints never call it."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Repositories.DailyEntryRepository.FindByNaturalKeyForFlockScopedWriteAsync(Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date, CancellationToken ct)",
