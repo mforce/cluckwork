@@ -1356,5 +1356,35 @@
       "reason": "MCP tool classes inject repositories by design (docs/plans/770-mcp-server/01-design.md:112); the contract-first shape is Track C (#514)",
       "reviewBy": "#806"
     }
+  ],
+  "compatibilityExceptions": [
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "Finance",
+      "owner": "Platform",
+      "reason": "Counts ExpenseCategories and Expenses for the simulation manifest check, beside every other module's counts. IFinanceModule has no count read: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseAsync",
+      "reaches": "Finance",
+      "owner": "Platform",
+      "reason": "Checks Expenses for the fixture description before calling IFinanceModule.CreateExpenseAsync, so a re-run converges instead of duplicating. IFinanceModule has no existence read: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseCategoryAsync",
+      "reaches": "Finance",
+      "owner": "Platform",
+      "reason": "Looks up ExpenseCategories by name before calling IFinanceModule.CreateCategoryAsync, so a re-run converges and reuses the existing id. IFinanceModule has no lookup by name: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
+      "reaches": "Finance",
+      "owner": "Farm",
+      "reason": "Farm's currency lock: any expense carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce and General Inventory tables, so it can only move behind module contracts once the last of them has one, the General Inventory contract slice.",
+      "deleteWhen": "#855"
+    }
   ]
 }

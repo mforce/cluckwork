@@ -71,9 +71,9 @@ DI. Moving validation behind the contract changes both.
   exposes only DTOs and values passes, because nothing structural marks it as a repository.
 - `SimulationDataSeeder` now calls `IFinanceModule`, but its existence and count
   reads still query `db.Expenses` and `db.ExpenseCategories`. #846 does not count
-  persistence types as seeder reach, and #850 tracks that exception.
-- `ReportQueries`, `ExportQueries` and `CurrencyBoundRowProbe` read Finance tables
-  through EF from the Platform hub. #850 tracks them.
+  persistence types as seeder reach. Those reads, and `CurrencyBoundRowProbe`'s, are
+  `compatibilityExceptions` rows guarded by #850. `ReportQueries` and `ExportQueries`
+  moved to Insights in #856 and read Finance through a declared edge.
 - Finance's own handlers still inject Farm's `IAccountRepository` and Flock
   Management's `IFlockRepository`. Those ports belong to the Farm and Flock
   Management contract slices.

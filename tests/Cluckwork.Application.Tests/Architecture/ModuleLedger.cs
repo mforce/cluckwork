@@ -46,6 +46,9 @@ public sealed record AdapterTier(string Namespace, string Privilege, string Surf
         };
 }
 
+// #850: a member outside a contracted module that reads the module's tables through a DbSet.
+public sealed record CompatibilityException(string Symbol, string Reaches, string Owner, string Reason, string DeleteWhen);
+
 public sealed record ModuleLedger(
     IReadOnlyList<OwnerDefinition> Owners,
     IReadOnlyList<EdgeCell> Edges,
@@ -58,6 +61,7 @@ public sealed record ModuleLedger(
     public AdapterRoots AdapterRoots { get; init; } = new([], []);
     public IReadOnlyList<AdapterClaim> Adapters { get; init; } = [];
     public IReadOnlyList<AdapterTier> AdapterTiers { get; init; } = [];
+    public IReadOnlyList<CompatibilityException> CompatibilityExceptions { get; init; } = [];
 
     public IEnumerable<string> AdapterNamespaces =>
         AdapterRoots.Namespaces.Concat(AdapterTiers.Select(t => t.Namespace));
@@ -74,7 +78,7 @@ public sealed record ModuleLedger(
         AllowTrailingCommas = true,
     };
 
-    private static readonly Regex ReviewByPattern = new("^#[0-9]+$", RegexOptions.Compiled);
+    private static readonly Regex IssuePattern = new("^#[0-9]+$", RegexOptions.Compiled);
 
     public static ModuleLedger Load(string path)
     {
@@ -195,11 +199,20 @@ public sealed record ModuleLedger(
                 errors.Add($"duplicate adapterTiers surface '{duplicate.Key}'");
             }
 
+            var compatibilityExceptions = ReadRows(root, "compatibilityExceptions", errors,
+                (row, label) => ReadCompatibilityException(row, label, errors));
+            foreach (var duplicate in compatibilityExceptions.GroupBy(e => (e.Symbol, e.Reaches))
+                         .Where(g => g.Count() > 1 && !string.IsNullOrWhiteSpace(g.Key.Symbol)))
+            {
+                errors.Add($"duplicate compatibilityExceptions row '{duplicate.Key.Symbol}' -> {duplicate.Key.Reaches}");
+            }
+
             return new ModuleLedger(owners, edges, errors)
             {
                 AdapterRoots = adapterRoots,
                 Adapters = adapters,
                 AdapterTiers = adapterTiers,
+                CompatibilityExceptions = compatibilityExceptions,
                 Tables = tables,
                 ForeignKeys = foreignKeys,
                 TableOwnerOverrides = overrides,
@@ -267,12 +280,26 @@ public sealed record ModuleLedger(
                 $"'{expectedPrivilege}' — a row's privilege must equal AdapterTier.KnownSurfaces['{surface}']");
         }
 
-        if (!string.IsNullOrWhiteSpace(reviewBy) && !ReviewByPattern.IsMatch(reviewBy))
+        if (!string.IsNullOrWhiteSpace(reviewBy) && !IssuePattern.IsMatch(reviewBy))
         {
             errors.Add($"{label} has reviewBy '{reviewBy}', which must match ^#[0-9]+$ — an exemption needs an end date");
         }
 
         return new AdapterTier(ns, privilege, surface, reason, reviewBy);
+    }
+
+    private static CompatibilityException ReadCompatibilityException(JsonElement row, string label, List<string> errors)
+    {
+        var deleteWhen = RequiredString(row, "deleteWhen", label, errors);
+        if (!string.IsNullOrWhiteSpace(deleteWhen) && !IssuePattern.IsMatch(deleteWhen))
+        {
+            errors.Add($"{label} has deleteWhen '{deleteWhen}', which must match ^#[0-9]+$ — " +
+                "the trigger is the slice issue that deletes the exception, never a date");
+        }
+
+        return new CompatibilityException(RequiredString(row, "symbol", label, errors),
+            RequiredString(row, "reaches", label, errors), RequiredString(row, "owner", label, errors),
+            RequiredString(row, "reason", label, errors), deleteWhen);
     }
 
     private static OwnerDefinition ReadOwner(JsonProperty property, List<string> errors)
