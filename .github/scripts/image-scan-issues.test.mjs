@@ -19,7 +19,7 @@ const SHA = "a".repeat(40);
 const REPO = "ghcr.io/o/r";
 const IMAGE = `${REPO}:sha-${SHA}`;
 const DIGEST = { amd64: `sha256:${"a".repeat(64)}`, arm64: `sha256:${"b".repeat(64)}` };
-const CTX = { sha: SHA, image: IMAGE, runUrl: "https://example.invalid/run", digests: DIGEST };
+const CTX = { sha: SHA, ref: IMAGE, runUrl: "https://example.invalid/run", digests: DIGEST };
 const CLI = fileURLToPath(new URL("./image-scan-issues.mjs", import.meta.url));
 
 const vuln = (id, pkg, severity = "HIGH") => ({

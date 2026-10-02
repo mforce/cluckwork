@@ -114,7 +114,7 @@ function createBody(f, ctx) {
     .sort((a, b) => a.pkg.localeCompare(b.pkg))
     .map((r) => `| ${md(r.pkg)} | ${md(r.installed)} | ${md(r.fixed)} | ${ARCHS.filter((a) => r.archs.has(a)).join(", ")} |`);
   return [
-    `The weekly image scan found **${f.id}** (${f.severity}) in \`${ctx.image}\`.`,
+    `The weekly image scan found **${f.id}** (${f.severity}) in \`${ctx.ref}\`.`,
     "",
     `${md(f.summary)}${/^https:\/\/[^\s<>]+$/.test(f.url) ? ` (<${f.url}>)` : ""}`,
     "",
@@ -235,7 +235,7 @@ function main() {
   }
   const ctx = {
     sha: o.sha,
-    image: o.image,
+    ref: o.image,
     runUrl: o.runUrl,
     digests: Object.fromEntries(ARCHS.map((a) => [a, parsed[a].digest])),
   };
@@ -244,7 +244,7 @@ function main() {
     if (scannerIssueId(i.title) !== null && !i.comments) i.comments = o.openIssues ? [] : commentsOf(o.repo, i.number);
   }
   const actions = plan(collect(parsed), issues, ctx);
-  console.log(`image-scan: ${ctx.image} scanned on ${ARCHS.join(" and ")}; ${actions.length} action(s)${o.dryRun ? " (dry run)" : ""}`);
+  console.log(`image-scan: ${ctx.ref} scanned on ${ARCHS.join(" and ")}; ${actions.length} action(s)${o.dryRun ? " (dry run)" : ""}`);
   for (const a of actions) {
     console.log(describe(a, o.dryRun));
     if (!o.dryRun && a.kind !== "skip") console.log(`  ${apply(o.repo, a)}`);
