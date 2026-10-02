@@ -156,7 +156,7 @@ public sealed class PostgresConnectionStringTests
     // UNSTRUCTURED lines to stderr — before Serilog exists, so they bypass the log
     // pipeline entirely and read like a failure during every deploy. Cluckwork never
     // authenticates via Kerberos, so the negotiation is disabled by default rather
-    // than adding a package to the Trivy-scanned image.
+    // than adding a package to the image.
 
     [Fact]
     public void Uri_GssEncMode_IsMapped_NotSkippedAsUnknown()
