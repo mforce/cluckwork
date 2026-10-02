@@ -85,10 +85,11 @@ a second connection, waits until the request is parked on it
 must fail, because the request already holds that lot. The confirm and sale-void
 tests run twice: with lots on different dates, and with lots on one date, so both
 parts of the order are covered. A daily entry's lots always share a date. The
-canonical order comes from PostgreSQL, whose uuid order differs from
-`System.Guid`'s. Reversing a whole `ORDER BY`, or only its `Id` part, turns the
-matching test red. The tenant-bypass allow-list does not catch either change,
-because it keys raw-SQL reads by signature rather than by SQL text.
+tests ask PostgreSQL, the database that applies the lock order, which lot is
+earlier, rather than relying on a C# comparison. Reversing a whole `ORDER BY`,
+or only its `Id` part, turns the matching test red. The tenant-bypass allow-list
+does not catch either change, because it keys raw-SQL reads by signature rather
+than by SQL text.
 
 ## The stock seam waits for Commerce
 

@@ -105,8 +105,8 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    // Two 30-egg lots, so a 50-egg sale draws from both. PostgreSQL decides
-    // which is earlier: its uuid order differs from System.Guid's.
+    // Two 30-egg lots, so a 50-egg sale draws from both. Which one is earlier
+    // is asked of the database that applies the lock order, not of C#.
     private async Task<(Guid Earlier, Guid Later)> SeedTwoLotsAsync(Guid accountId, Guid gradeId, int daysApart)
     {
         var first = await factory.SeedEggLotAsync(accountId, gradeId, 30, productionDate: Today.AddDays(-5));
