@@ -58,9 +58,11 @@ DI. Moving validation behind the contract changes both.
 
 - Only adapters are checked: the endpoint, CLI and job namespaces, the two seeder
   types and tier namespaces. A peer module that reaches Finance's internals shows
-  up only as a new edge in the module ledger. Finance has no incoming edges today.
-  The edge walk records namespaces, not types, so a contract check for peer modules
-  has to arrive with the first contracted module that has incoming edges.
+  up only as a new edge in the module ledger. Finance's one incoming edge,
+  `Insights -> Finance` from #856, is an accepted read: `ReportQueries` and
+  `ExportQueries` query Finance tables directly, and #850 admits only the types the
+  edge names. The edge walk records namespaces, not types, so peer modules' type
+  references are still not checked against the contract.
 - The adapter walk reads parameter types and service resolutions, not method
   bodies. `nameof(Expense)` or an object creation inside a body is invisible, which
   is why `IFinanceModule.ExpenseAuditEntityType` exists for the provenance reads.
@@ -71,9 +73,9 @@ DI. Moving validation behind the contract changes both.
   exposes only DTOs and values passes, because nothing structural marks it as a repository.
 - `SimulationDataSeeder` now calls `IFinanceModule`, but its existence and count
   reads still query `db.Expenses` and `db.ExpenseCategories`. #846 does not count
-  persistence types as seeder reach, and #850 tracks that exception.
-- `ReportQueries`, `ExportQueries` and `CurrencyBoundRowProbe` read Finance tables
-  through EF from the Platform hub. #850 tracks them.
+  persistence types as seeder reach. Those reads, and `CurrencyBoundRowProbe`'s, are
+  `compatibilityExceptions` rows guarded by #850. `ReportQueries` and `ExportQueries`
+  moved to Insights in #856 and read Finance through a declared edge.
 - Finance's own handlers still inject Farm's `IAccountRepository` and Flock
   Management's `IFlockRepository`. The Farm slice kept `IAccountRepository` as the
   stable account seam peer modules call directly
