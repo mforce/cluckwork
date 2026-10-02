@@ -6,7 +6,7 @@
 Two stages, deliberately separate: **CI publishes, the release PR versions.**
 
 1. **Every merge into main** → the `publish` job in `ci.yml` pushes the image that
-   run just built, Trivy-scanned and boot-tested, named by commit:
+   run just built and boot-tested, named by commit:
    `ghcr.io/<owner>/<repo>:sha-<commit>`. No version, no git tag. Idempotent per
    commit, so there is no ordering hazard and nothing to race — two merges publish
    two different names.
@@ -17,7 +17,7 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
 - **Promotion is a server-side retag of an existing digest** (`docker buildx
   imagetools create`), never a rebuild. **Do not "simplify" it into a build step**:
   a second `docker build` yields different bytes and a different digest, so the
-  image carrying a version would be one no scan or smoke test ever examined. That
+  image carrying a version would be one no smoke test ever examined. That
   is the whole point of #351. **Keep `--prefer-index=false` for older
   single-manifest releases.** With one manifest source, the default wraps it in a
   new index with a different top-level digest. Since #995, CI publishes an index;
@@ -349,7 +349,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   provenance half — proving the digest is CI's — is the attestation above, #354.)
 - **Adding a CI job that should gate a release? Add it to `publish.needs`.** The
   digest artifact is what promotion accepts as proof, and it proves exactly what
-  `publish.needs` in `ci.yml` covers — no more. A job outside that list can be
+  `publish.needs` in `ci.yml` covers — no more. Since 2026-10-02 that is **built
+  and boot-tested**: CI runs no vulnerability scan, so the artifact does not prove
+  the image was scanned ([#267](267-container-hardening.md)). A job outside that list can be
   **red while publish still records a digest**, and promotion will then certify
   bytes that failed it. Nothing enforces the list: `needs` is hand-kept, and a new
   job defaults to *not* gating, which is the dangerous default. Treat "is it in
@@ -435,7 +437,7 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   2. GitHub does not trigger workflows for anything `GITHUB_TOKEN` opens or
      pushes (recursion prevention), so a `GITHUB_TOKEN` release PR carries no
      `pull_request` checks. An App identity is exempt, so the release PR is
-     built, tested and scanned like any other.
+     built and tested like any other.
 
      **Do not inflate this into "the version commit would ship unverified".** It
      would not, and the gate that prevents it is elsewhere in this design:

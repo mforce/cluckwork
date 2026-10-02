@@ -11,9 +11,10 @@ those become a version.**
 
 ## 1. Merging a PR into `main`
 
-CI builds amd64 and arm64 images on native runners. Each build passes Trivy and
-boots against a throwaway database before CI publishes one two-platform index
-under the commit it came from:
+CI builds amd64 and arm64 images on native runners. Each build boots against a throwaway database before CI publishes one two-platform index
+under the commit it came from. CI runs no vulnerability scan; a weekly scan of the
+published image (`image-scan.yml`) reports afterwards, so a published image is
+built and boot-tested, not scanned:
 
 ```
 ghcr.io/mforce/cluckwork:sha-<commit>
