@@ -13,13 +13,15 @@
 // parse and name the image they were asked to scan, or this exits 1 before it
 // reads or writes any issue.
 //
-// An issue is the scanner's when its title has the exact shape buildTitle writes
-// and it carries both labels. Issue bodies are never matched: a human issue that
-// merely mentions an id must not be taken for its tracking issue.
+// A comment goes to any open issue whose title has the exact shape buildTitle
+// writes. An issue is only CLOSED when it is also authored by the workflow's bot
+// and carries both labels, so a human-filed issue is never closed. Issue bodies
+// are never matched: a human issue that merely mentions an id must not be taken
+// for its tracking issue.
 //
 // --dry-run reads the live issue list and prints what it would do. --open-issues
-// substitutes a JSON array of {number,title,labels:[name],comments:[body]} for
-// that list, to exercise the decision logic without the live tracker.
+// substitutes a JSON array of {number,title,labels:[name],author,comments:[body]}
+// for that list, to exercise the decision logic without the live tracker.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -32,7 +34,9 @@ const RANK = { HIGH: 1, CRITICAL: 2 };
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/;
 const TITLE = /^\[(CRITICAL|HIGH)\] (\S+) in .+ \(container image\)$/;
 
-export function parseReport(text, { image, arch }) {
+// Each architecture is scanned by its own manifest digest, so the report's
+// ArtifactName is `<repo>@sha256:<child digest>` and names exactly what was scanned.
+export function parseReport(text, { repo, arch }) {
   let report;
   try {
     report = JSON.parse(text);
@@ -43,8 +47,9 @@ export function parseReport(text, { image, arch }) {
   if (report?.SchemaVersion !== 2 || report.ArtifactType !== "container_image") {
     throw new Error(`${arch} report is not a Trivy container-image report`);
   }
-  if (report.ArtifactName !== image) {
-    throw new Error(`${arch} report scanned ${report.ArtifactName}, not ${image}`);
+  const digest = report.ArtifactName?.startsWith(`${repo}@`) ? report.ArtifactName.slice(repo.length + 1) : "";
+  if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
+    throw new Error(`${arch} report scanned ${report.ArtifactName}, not a digest of ${repo}`);
   }
   if (meta?.ImageConfig?.architecture !== arch) {
     throw new Error(`${arch} report scanned a ${meta?.ImageConfig?.architecture} image`);
@@ -67,7 +72,7 @@ export function parseReport(text, { image, arch }) {
       });
     }
   }
-  return { digest: meta.RepoDigests?.[0] ?? meta.ImageID ?? "unknown", vulns };
+  return { digest, vulns };
 }
 
 export function collect(parsed) {
@@ -93,20 +98,25 @@ export const buildTitle = (f) => `[${f.severity}] ${f.id} in ${packages(f).join(
 
 export const scannerIssueId = (title) => TITLE.exec(title)?.[2] ?? null;
 
+const SCANNER_AUTHOR = "github-actions";
 const isScanner = (issue) =>
-  scannerIssueId(issue.title) !== null && LABELS.every((l) => issue.labels.includes(l));
+  scannerIssueId(issue.title) !== null &&
+  LABELS.every((l) => issue.labels.includes(l)) &&
+  issue.author?.replace(/^app\//, "").replace(/\[bot\]$/, "") === SCANNER_AUTHOR;
 
 const marker = (kind, sha) => `<!-- image-scan ${kind} sha=${sha} -->`;
-const cell = (s) => String(s).replace(/\|/g, "\\|");
+// Text from the vulnerability database goes into issue bodies. Escape the table
+// delimiters (backslash first) and break @mentions so it cannot ping anyone.
+const md = (s) => String(s).replace(/\s+/g, " ").replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/@/g, "@\u200b");
 
 function createBody(f, ctx) {
   const rows = [...f.rows.values()]
     .sort((a, b) => a.pkg.localeCompare(b.pkg))
-    .map((r) => `| ${cell(r.pkg)} | ${cell(r.installed)} | ${cell(r.fixed)} | ${ARCHS.filter((a) => r.archs.has(a)).join(", ")} |`);
+    .map((r) => `| ${md(r.pkg)} | ${md(r.installed)} | ${md(r.fixed)} | ${ARCHS.filter((a) => r.archs.has(a)).join(", ")} |`);
   return [
     `The weekly image scan found **${f.id}** (${f.severity}) in \`${ctx.image}\`.`,
     "",
-    `${f.summary}${f.url ? ` ([advisory](${f.url}))` : ""}`,
+    `${md(f.summary)}${/^https:\/\/[^\s<>]+$/.test(f.url) ? ` (<${f.url}>)` : ""}`,
     "",
     "| Package | Installed | Fixed | Architectures |",
     "| --- | --- | --- | --- |",
@@ -131,9 +141,9 @@ const foundComment = (f, ctx) =>
 
 const clearedComment = (id, ctx) =>
   [
-    `Weekly image scan: ${id} is no longer found. Closing.`,
+    `Weekly image scan: ${id} is no longer reported as a fixable HIGH or CRITICAL finding on linux/amd64 or linux/arm64 as of \`sha-${ctx.sha}\`. Closing.`,
     "",
-    `Scanned \`sha-${ctx.sha}\` on both architectures, with no ${id} in either:`,
+    "Scanned manifests:",
     ...ARCHS.map((a) => `- linux/${a}: \`${ctx.digests[a]}\``),
     "",
     `Scan run: ${ctx.runUrl}`,
@@ -172,9 +182,9 @@ function gh(args, input) {
 
 function openIssues(repo) {
   const list = JSON.parse(
-    gh(["issue", "list", "-R", repo, "--state", "open", "--limit", "5000", "--json", "number,title,labels"]),
+    gh(["issue", "list", "-R", repo, "--state", "open", "--limit", "5000", "--json", "number,title,labels,author"]),
   );
-  return list.map((i) => ({ number: i.number, title: i.title, labels: i.labels.map((l) => l.name) }));
+  return list.map((i) => ({ number: i.number, title: i.title, labels: i.labels.map((l) => l.name), author: i.author?.login }));
 }
 
 function commentsOf(repo, number) {
@@ -221,7 +231,7 @@ function main() {
   const parsed = {};
   for (const arch of ARCHS) {
     if (!o.reports[arch]) throw new Error(`no ${arch} report: refusing to act on a partial scan`);
-    parsed[arch] = parseReport(readFileSync(o.reports[arch], "utf8"), { image: o.image, arch });
+    parsed[arch] = parseReport(readFileSync(o.reports[arch], "utf8"), { repo: o.image.replace(/:[^:/]+$/, ""), arch });
   }
   const ctx = {
     sha: o.sha,

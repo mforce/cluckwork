@@ -65,10 +65,17 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "$GH_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
           picked=""
+          # Only "not found" means this commit has no image. Any other failure
+          # (auth, network, rate limit) fails the step, so a transient error on
+          # the newest commit cannot silently scan an older one.
           for sha in $(gh api "repos/$GITHUB_REPOSITORY/commits?sha=main&per_page=30" --jq '.[].sha'); do
-            if docker buildx imagetools inspect "$image:sha-$sha" >/dev/null 2>&1; then
+            if out="$(docker buildx imagetools inspect "$image:sha-$sha" 2>&1)"; then
               picked="$sha"
               break
+            fi
+            if ! grep -qiE 'not found|manifest unknown' <<<"$out"; then
+              echo "::error::could not inspect $image:sha-$sha: $out"
+              exit 1
             fi
           done
           docker logout ghcr.io >/dev/null 2>&1 || true
@@ -100,9 +107,13 @@ jobs:
 
       # Third-party action: pinned to a commit, not a tag (the 2026-03
       # aquasecurity/trivy-action compromise retargeted tags). This is the same
-      # setup-trivy commit that trivy-action v0.36.0 pins.
+      # setup-trivy commit that trivy-action v0.36.0 pins. The action's `version`
+      # input defaults to `latest`, so Trivy itself is pinned here too.
+      # Dependabot does not bump this input: raise it by hand (#267).
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+        with:
+          version: v0.75.0
 
       - name: Log in to GHCR
         env:
@@ -112,17 +123,24 @@ jobs:
       # Trivy reads the registry credential from the docker login above. The scan
       # fails the step on any error: a broken pull or database load must not
       # produce an empty report, because an empty report closes issues.
-      # --platform picks one manifest of the published index.
+      # Each architecture is scanned by its own manifest digest, taken from the
+      # published index, so the report names exactly the bytes it covers.
       - name: Scan the published image
         env:
           IMAGE: ${{ needs.resolve.outputs.image }}
           ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          trivy image --image-src remote --platform "linux/$ARCH" \
+          child="$(docker buildx imagetools inspect --raw "$IMAGE" |
+            jq -r --arg arch "$ARCH" '[.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest] | if length == 1 then .[0] else empty end')"
+          if ! [[ $child =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::$IMAGE has no single linux/$ARCH manifest"
+            exit 1
+          fi
+          trivy image --image-src remote \
             --scanners vuln --pkg-types os,library \
             --severity HIGH,CRITICAL --ignore-unfixed \
-            --format json --output "trivy-$ARCH.json" "$IMAGE"
+            --format json --output "trivy-$ARCH.json" "${IMAGE%:*}@$child"
           trivy convert --format sarif --output "trivy-$ARCH.sarif" "trivy-$ARCH.json"
           {
             echo "### linux/$ARCH"
@@ -162,6 +180,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Download the reports
         uses: actions/download-artifact@v8

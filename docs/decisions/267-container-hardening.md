@@ -38,12 +38,21 @@ weekly (Mondays 07:00 UTC) and on `workflow_dispatch`:
 
 - It scans the published `:sha-<commit>` image of the newest `main` commit that
   has one, on `linux/amd64` and `linux/arm64`, for fixable HIGH/CRITICAL findings.
+  Each architecture is scanned by its own manifest digest, resolved from the index.
+- **Trivy is pinned by hand.** `aquasecurity/setup-trivy` is SHA-pinned and its
+  `version` input is set (`v0.75.0`), because the input defaults to `latest`.
+  Dependabot's `github-actions` ecosystem bumps the action SHA, **not** this
+  input; raise it manually, or the scan runs an old Trivy and an old vulnerability
+  database format.
 - It uploads SARIF to the Security tab, one category per architecture.
 - It keeps one open issue per vulnerability id
   (`.github/scripts/image-scan-issues.mjs`). A new id opens an issue; a known one
   gets a comment. When a scan of **both** architectures completes without the id,
   the issue is commented on and closed. A failed or partial scan changes no issue.
-  Only issues in the scanner's own title shape carrying its labels are touched.
+  An issue is closed only when it has the scanner's title shape, both labels and
+  the workflow's bot as author; a human-filed issue is never closed. Because the
+  scan is limited to fixable HIGH/CRITICAL, "no longer found" means no longer
+  reported as such, not that the package is clean.
 - Fixes arrive as Dependabot base-image bumps (`docker` ecosystem), after which the
   next scan closes the issue.
 
