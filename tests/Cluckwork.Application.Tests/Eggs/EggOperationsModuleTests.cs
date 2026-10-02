@@ -1,3 +1,4 @@
+using System.Reflection;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
@@ -27,6 +28,7 @@ public sealed class EggOperationsModuleTests
     private static readonly Guid OrderId = Guid.Parse("00000000-0000-0000-0000-0000000000d3");
     private static readonly DateOnly Day = new(2026, 9, 20);
     private static readonly DateTimeOffset LockedAt = new(2026, 9, 28, 1, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset MovedAt = new(2026, 9, 21, 8, 30, 0, TimeSpan.Zero);
 
     private readonly FakeEntries _entries = new();
     private readonly FakeGrades _grades = new();
@@ -66,8 +68,13 @@ public sealed class EggOperationsModuleTests
         Assert.True(lot.SetWithdrawalRestriction(Day.AddDays(3)).IsSuccess);
         _lots.Rows.Add(lot);
 
-        _movements.Rows.Add(EggInventoryMovement.Create(
-            MovementId, AccountId, LotId, EggMovementType.Void, 25, "SalesOrder", OrderId, "returned"));
+        var movement = EggInventoryMovement.Create(
+            MovementId, AccountId, LotId, EggMovementType.Void, 25, "SalesOrder", OrderId, "returned");
+        // PostgreSQL stamps CreatedAtUtc (#819); set it the way a read hands it back.
+        typeof(EggInventoryMovement)
+            .GetProperty(nameof(EggInventoryMovement.CreatedAtUtc), BindingFlags.Public | BindingFlags.Instance)!
+            .SetValue(movement, MovedAt);
+        _movements.Rows.Add(movement);
     }
 
     private static readonly DailyEntryDetails ExpectedAdjusted = new(
@@ -127,7 +134,7 @@ public sealed class EggOperationsModuleTests
     public async Task ListLotMovements_CopiesEveryField_UnknownLotIsNullWithoutAMovementRead()
     {
         Assert.Equal(
-            [new EggLotMovementDetails(MovementId, EggMovementType.Void, 25, "SalesOrder", OrderId, "returned", default)],
+            [new EggLotMovementDetails(MovementId, EggMovementType.Void, 25, "SalesOrder", OrderId, "returned", MovedAt)],
             await Module().ListLotMovementsAsync(LotId, default));
         Assert.Equal([$"movements {LotId}"], _movements.Calls);
 

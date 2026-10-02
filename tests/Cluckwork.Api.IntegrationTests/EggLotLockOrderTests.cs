@@ -20,29 +20,33 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
-    [Fact]
-    public async Task ConfirmSale_HoldsTheOlderLotWhileWaitingOnTheNewer()
+    // daysApart 0 puts both lots on one production date, where Id alone orders them.
+    [Theory]
+    [InlineData(5)]
+    [InlineData(0)]
+    public async Task ConfirmSale_HoldsTheEarlierLotWhileWaitingOnTheLater(int daysApart)
     {
         var (client, accountId, grades) = await SetupAsync(Guid.NewGuid(), "Large");
-        var olderLot = await factory.SeedEggLotAsync(accountId, grades["Large"], 30, productionDate: Today.AddDays(-5));
-        var newerLot = await factory.SeedEggLotAsync(accountId, grades["Large"], 100, productionDate: Today);
+        var (earlierLot, laterLot) = await SeedTwoLotsAsync(accountId, grades["Large"], daysApart);
         var order = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 50);
 
-        await AssertLockedInOrderAsync(accountId, olderLot, newerLot,
+        await AssertLockedInOrderAsync(accountId, earlierLot, laterLot,
             () => client.PostWithKeyAsync($"/api/v1/sales/{order}/confirm", Guid.NewGuid().ToString()));
     }
 
-    [Fact]
-    public async Task VoidSale_HoldsTheOlderSourceLotWhileWaitingOnTheNewer()
+    [Theory]
+    [InlineData(5)]
+    [InlineData(0)]
+    public async Task VoidSale_HoldsTheEarlierSourceLotWhileWaitingOnTheLater(int daysApart)
     {
         var (client, accountId, grades) = await SetupAsync(Guid.NewGuid(), "Large");
-        var olderLot = await factory.SeedEggLotAsync(accountId, grades["Large"], 30, productionDate: Today.AddDays(-5));
-        var newerLot = await factory.SeedEggLotAsync(accountId, grades["Large"], 100, productionDate: Today);
+        var (earlierLot, laterLot) = await SeedTwoLotsAsync(accountId, grades["Large"], daysApart);
         var order = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 50);
         (await client.PostWithKeyAsync($"/api/v1/sales/{order}/confirm", Guid.NewGuid().ToString()))
             .EnsureSuccessStatusCode();
+        Assert.Equal((0, 10), await AvailableAsync(accountId, earlierLot, laterLot));
 
-        await AssertLockedInOrderAsync(accountId, olderLot, newerLot,
+        await AssertLockedInOrderAsync(accountId, earlierLot, laterLot,
             () => client.PostWithKeyAsync($"/api/v1/sales/{order}/void", Guid.NewGuid().ToString(),
                 new { reason = "Confirmed by mistake" }));
     }
@@ -100,6 +104,25 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
         }
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    // Two 30-egg lots, so a 50-egg sale draws from both. PostgreSQL decides
+    // which is earlier: its uuid order differs from System.Guid's.
+    private async Task<(Guid Earlier, Guid Later)> SeedTwoLotsAsync(Guid accountId, Guid gradeId, int daysApart)
+    {
+        var first = await factory.SeedEggLotAsync(accountId, gradeId, 30, productionDate: Today.AddDays(-5));
+        var second = await factory.SeedEggLotAsync(accountId, gradeId, 30, productionDate: Today.AddDays(daysApart - 5));
+        var ordered = await factory.WithTenantScopeAsync(accountId, db => db.EggLots
+            .Where(l => l.Id == first || l.Id == second)
+            .OrderBy(l => l.ProductionDate).ThenBy(l => l.Id)
+            .Select(l => l.Id)
+            .ToListAsync());
+        return (ordered[0], ordered[1]);
+    }
+
+    private Task<(int Earlier, int Later)> AvailableAsync(Guid accountId, Guid earlierLot, Guid laterLot) =>
+        factory.WithTenantScopeAsync(accountId, async db => (
+            (await db.EggLots.SingleAsync(l => l.Id == earlierLot)).QuantityAvailable,
+            (await db.EggLots.SingleAsync(l => l.Id == laterLot)).QuantityAvailable));
 
     private async Task<bool> IsLockedElsewhereAsync(Guid accountId, Guid lotId)
     {
