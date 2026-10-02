@@ -114,6 +114,12 @@ holds for code only.
   are #850 compatibility exceptions that #858 and #857 delete.
 - `ReportQueries` and `ExportQueries` read flock tables through the declared
   Insights to Flock Management edge.
+- **The contract walk checks declared and statically discoverable types only.** It
+  sees a signature's declared types and every public subclass of a walked class in
+  the searched assemblies. A generic constructed at runtime, such as
+  `Result<Flock>` returned through a non-generic `Result` signature, never appears
+  in any declaration the walk can enumerate, and neither does a subclass in an
+  assembly outside the search, such as Api. Only review catches those.
 
 ## How it is enforced
 
@@ -123,9 +129,12 @@ holds for code only.
   `SeamSurfaceScanner.ScanContracts` to also walk every public type deriving from
   a walked class, because `FlockNameResolution`'s cases are separate types. It
   searches the contract types' own assemblies, the base type's assembly and the
-  assemblies the caller names, Application and Domain for the real test, because a
-  case can sit in another assembly than its base: an Application subclass of
-  Domain's `Result` that carries a `Flock` is returned as a plain `Result`.
+  assemblies the caller names, because a case can sit in another assembly than its
+  base: an Application subclass of Domain's `Result` that carries a `Flock` is
+  returned as a plain `Result`. The real test names Application, Domain and
+  Infrastructure, which implements Application's ports and can hand such a subclass
+  back through one. Api is not named, because the test project does not reference
+  it.
   Before the extension, adding a `Flock` property to
   `FlockNameResolution.NotFound` passed, and so did returning that `Result`
   subclass from `FlockModule.DepleteAsync`. Both now fail, as does a
