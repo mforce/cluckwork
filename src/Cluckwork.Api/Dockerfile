@@ -1,6 +1,6 @@
 # --- Web build: compile the React/Vite SPA to static assets ---
 # #267 — base images are pinned to an immutable @sha256 digest (the multi-arch
-# index digest) so a rebuild resolves the SAME bytes CI scanned, never a silently
+# index digest) so a rebuild resolves the SAME base bytes CI built and boot-tested, never a silently
 # re-tagged "latest 10.0". Dependabot's `docker` ecosystem opens the bump PR when
 # a newer digest ships a security fix; refresh with
 #   docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'

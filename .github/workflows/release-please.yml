@@ -17,8 +17,10 @@
 #
 # Promotion is a server-side retag of an existing DIGEST — not a rebuild. The
 # bytes carrying a version are therefore, by construction, bytes CI already
-# built, Trivy-scanned and boot-tested. A rebuild here would produce a different
-# digest and break exactly the guarantee #351 exists to provide.
+# built and boot-tested. They are NOT vulnerability-scanned before release:
+# image-scan.yml scans published images weekly, after the fact. A rebuild here
+# would produce a different digest and break exactly the guarantee #351 exists
+# to provide.
 #
 # The release is a DRAFT until promotion succeeds, and GitHub does not create the
 # git tag for a draft. So a run that cannot find a verified image leaves NO tag
@@ -128,7 +130,7 @@ jobs:
       #   2. GitHub does not trigger workflows for anything GITHUB_TOKEN pushes
       #      or opens (recursion prevention), so a GITHUB_TOKEN release PR would
       #      carry no `pull_request` checks. An App identity is not subject to
-      #      that suppression, so the release PR is built, tested and scanned
+      #      that suppression, so the release PR is built and tested
       #      like any other.
       #      Do NOT inflate this into "the version commit would ship
       #      unverified" — it would not, and the gate that prevents it is
@@ -312,7 +314,7 @@ jobs:
           # into the release notes as the thing to deploy, and CI's later push
           # would quietly overwrite the evidence. Reading the digest from the
           # run's artifact closes the window entirely: it is bound to the run
-          # that built and scanned those bytes.
+          # that built and boot-tested those bytes.
           #
           # Found by ARTIFACT NAME rather than by run, so a run dispatched to
           # repair this commit is found too — a dispatched run reports the branch

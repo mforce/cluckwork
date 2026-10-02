@@ -11,8 +11,7 @@
 ## Decision
 
 Run `image` as a two-leg matrix on native `ubuntu-26.04` and
-`ubuntu-26.04-arm` GitHub runners. Each leg builds one local image, scans those
-bytes with Trivy, and boots the app on
+`ubuntu-26.04-arm` GitHub runners. Each leg builds one local image and boots the app on
 its native runner until `/health/ready` and the image's health check pass.
 The smoke test's existing database image already supports both runners. Each
 leg saves its image and local image Id in a distinct artifact. `publish` loads
@@ -85,10 +84,11 @@ arm64 manifest digest.
 
 ## Alternatives and accepted costs
 
-QEMU builds were rejected. Native runners let Trivy examine each architecture's
-locally loaded bytes and let the arm64 smoke test execute on arm64. Scanning
-only amd64 would miss arm64-specific packages; scanning after a push would let
-unscanned bytes reach the registry. The two native legs run concurrently, but
+QEMU builds were rejected. Native runners let the arm64 smoke test execute on arm64.
+(Amended 2026-10-02, [#267](267-container-hardening.md): the legs also ran a
+per-architecture Trivy gate on the locally loaded bytes. It is gone; the weekly
+`image-scan.yml` scans both published architectures after the push, so
+unscanned bytes can reach the registry.) The two native legs run concurrently, but
 each consumes runner time, cache storage, and an image artifact. Build timings
 from this branch are recorded below.
 
@@ -122,7 +122,7 @@ exited 1 with `no attestations found in the OCI registry`. This tests the CLI's
 digest-specific behavior on the same attestation shape the new workflow uses.
 Deployers verify the index reference, compare the version tag to that index,
 and deploy the index reference. This does not add a separate attestation to
-each child. The scan and smoke gates cover both children before publication.
+each child. The smoke gate covers both children before publication. No scan does (#267).
 
 No required configuration key changes. The #370 simulation harness and #565
 AppHost config do not need changes. Base pins stay multi-platform indexes; the

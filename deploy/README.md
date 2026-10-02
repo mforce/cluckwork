@@ -89,8 +89,7 @@ path, wait-for-CI gate, and post-deploy smoke test live in the deployment repo.
 
 **GSS/Kerberos negotiation is off by default (#332).** Npgsql's `GssEncryptionMode`
 defaults to `Prefer`, so every connector probes the GSSAPI stack before authenticating.
-The runtime image deliberately carries no `libgssapi-krb5-2` (#267 keeps it minimal and
-Trivy-scanned), so that probe made .NET's native security shim print two **unstructured**
+The runtime image deliberately carries no `libgssapi-krb5-2` (#267 keeps it minimal), so that probe made .NET's native security shim print two **unstructured**
 lines to stderr — emitted before Serilog exists, so they cannot be filtered or shipped as
 structured events — on every connecting process, reading like a failure during deploys:
 
