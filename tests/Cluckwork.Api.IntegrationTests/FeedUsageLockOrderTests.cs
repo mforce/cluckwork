@@ -19,9 +19,8 @@ public sealed class FeedUsageLockOrderTests(CluckworkWebApplicationFactory facto
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
-    // #1022: the read before the transaction used to leave the flock tracked, so
-    // the read after the item lock got that stale instance back and missed the
-    // archive.
+    // #1022: the eligibility read after the item lock must not reuse the flock
+    // instance loaded by the read before the transaction.
     [Fact]
     public async Task FlockArchivedWhileUsageWaitsForTheItemLock_IsRefused()
     {
