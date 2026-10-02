@@ -90,9 +90,11 @@ for #854.
   reads: the contract does not grow reads only the seeder needs. The seeder's one
   `HasLotsAsync` call became the identical `db.InventoryLots.AnyAsync` inside a
   method that already needed a row.
-- The three handlers' peer calls. They keep Farm's `IAccountRepository` for the
-  #162 `FOR SHARE` currency snapshot (#851), Egg Operations' `IDailyEntryRepository`
-  for daily-entry provenance, and `IFlockLookup`.
+- The handlers' peer calls. Item create, item update and purchase keep Farm's
+  `IAccountRepository` for the #162 `FOR SHARE` currency snapshot (#851). Feed
+  usage, water usage and the water correction keep `IFlockLookup`, and the two
+  record handlers keep Egg Operations' `IDailyEntryRepository` for daily-entry
+  provenance.
 - Method bodies. Endpoints still name `InventoryItem.*` error codes in strings.
 - Peer modules are not checked (#849, #852).
 
