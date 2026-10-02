@@ -1,9 +1,17 @@
 using System.IO.Compression;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Export;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Infrastructure.Insights;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -255,6 +263,127 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
 
         // The movement audit event (Flock.BirdMovement) rides along too.
         Assert.True(datasets.GetProperty("audit-events").GetInt32() >= 1);
+    }
+
+    // #269 — a write committed after the snapshot's first read stays invisible
+    // until the snapshot closes. Real Postgres, one dataset (expense
+    // categories), through IInsightsModule from real DI. That every dataset
+    // reads through the snapshot context is ExportSnapshotSourceTests; that
+    // the endpoint opens the snapshot around every read is the next test.
+    [Fact]
+    public async Task ConsistentRead_HidesAWriteCommittedInsideTheSnapshot()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var farmId = Guid.NewGuid();
+        Guid before = Guid.NewGuid(), during = Guid.NewGuid(), after = Guid.NewGuid();
+
+        Task InsertCategoryAsync(Guid id) => factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Add(Domain.Expenses.ExpenseCategory.Create(id, accountId, farmId, $"snapshot-{id:N}"));
+            await db.SaveChangesAsync();
+        });
+
+        async Task<HashSet<Guid>> ReadCategoryIdsAsync(IInsightsModule module)
+        {
+            var ids = new HashSet<Guid>();
+            await foreach (var row in module.GetDataset("expense-categories")!.Rows)
+                ids.Add((Guid)row[0]!);
+            return ids;
+        }
+
+        await InsertCategoryAsync(before);
+
+        using var scope = factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var module = scope.ServiceProvider.GetRequiredService<IInsightsModule>();
+
+        HashSet<Guid> first, second;
+        await using (await module.BeginConsistentReadAsync())
+        {
+            // The first statement fixes the snapshot; the insert commits from
+            // another scope after it.
+            first = await ReadCategoryIdsAsync(module);
+            await InsertCategoryAsync(during);
+            second = await ReadCategoryIdsAsync(module);
+        }
+        await InsertCategoryAsync(after);
+        var outside = await ReadCategoryIdsAsync(module);
+
+        Assert.Contains(before, first);
+        Assert.DoesNotContain(during, second);
+        Assert.Contains(during, outside);
+        Assert.Contains(after, outside);
+    }
+
+    // #269 — GET /export/all opens exactly one snapshot, and every dataset's
+    // GetDataset call and row enumeration happen after it opens and before it
+    // closes. Both are recorded: GetDataset binds the query to the context
+    // active at that moment, and the SQL runs only at enumeration. The real
+    // facade and ExportQueries run behind the recorder.
+    [Fact]
+    public async Task FullBackup_BuildsAndEnumeratesEveryDatasetInsideTheSnapshot()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var events = new List<string>();
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddScoped<IExportQueries>(sp =>
+                new RecordingExportQueries(ActivatorUtilities.CreateInstance<ExportQueries>(sp), events))));
+        using var client = host.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await factory.LoginForAccessTokenAsync(email));
+
+        using var res = await client.GetAsync("/api/v1/export/all");
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        await res.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal("begin", events[0]);
+        Assert.Equal("end", events[^1]);
+        var inside = events[1..^1];
+        Assert.Equal(
+            AllDatasets.SelectMany(d => new[] { $"query:{d}", $"rows:{d}", $"rows-end:{d}" }).Order(),
+            inside.Order());
+        foreach (var d in AllDatasets)
+        {
+            Assert.True(inside.IndexOf($"query:{d}") < inside.IndexOf($"rows:{d}"), d);
+            Assert.True(inside.IndexOf($"rows:{d}") < inside.IndexOf($"rows-end:{d}"), d);
+        }
+    }
+
+    private sealed class RecordingExportQueries(IExportQueries inner, List<string> events) : IExportQueries
+    {
+        public IReadOnlyList<string> Datasets => inner.Datasets;
+
+        public ExportDataset? GetDataset(string dataset)
+        {
+            events.Add($"query:{dataset}");
+            return inner.GetDataset(dataset) is { } table ? table with { Rows = RecordRows(dataset, table.Rows) } : null;
+        }
+
+        public async Task<IAsyncDisposable> BeginConsistentReadAsync(CancellationToken ct = default)
+        {
+            var snapshot = await inner.BeginConsistentReadAsync(ct);
+            events.Add("begin");
+            return new RecordingSnapshot(snapshot, events);
+        }
+
+        private async IAsyncEnumerable<object?[]> RecordRows(
+            string dataset, IAsyncEnumerable<object?[]> rows, [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            events.Add($"rows:{dataset}");
+            await foreach (var row in rows.WithCancellation(ct))
+                yield return row;
+            events.Add($"rows-end:{dataset}");
+        }
+    }
+
+    private sealed class RecordingSnapshot(IAsyncDisposable inner, List<string> events) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await inner.DisposeAsync();
+            events.Add("end");
+        }
     }
 
     // Spec §18: export is an auditable action — the trail must show WHO bulk-
