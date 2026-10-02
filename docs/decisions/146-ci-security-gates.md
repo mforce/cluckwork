@@ -116,5 +116,5 @@ that exfiltrates CI secrets; both the 2026-03 `aquasecurity/trivy-action` and th
 and the comment on a new release, so a SHA pin stays current. GitHub-owned
 `actions/*` and `github/*` may keep major-version tags (GitHub-controlled, lower
 risk). Currently SHA-pinned: `actions/create-github-app-token`,
-`aquasecurity/trivy-action`, and
+`aquasecurity/setup-trivy`, and
 `advanced-security/component-detection-dependency-submission-action`.

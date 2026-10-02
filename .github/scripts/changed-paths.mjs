@@ -18,7 +18,7 @@
 // Everything here fails closed, meaning `false`, meaning "run everything". There
 // is no input — empty, quoted, absolute, unreadable, malformed — that answers
 // `true` by accident. A wrong `false` costs four minutes of runner time; a wrong
-// `true` skips the image build and the Trivy scan on a change that needed them.
+// `true` skips the image build and smoke test on a change that needed them.
 
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
