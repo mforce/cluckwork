@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #562 — pins the model walk at the end of AppDbContext.OnModelCreating that
 // makes AccountId a concurrency token on every entity carrying one.

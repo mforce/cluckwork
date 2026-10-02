@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #262 — proves the Production TLS floor is WIRED into startup (Program.cs calls
 // PostgresConnectionString.NormalizeAndValidate once, before Build, with isProduction and

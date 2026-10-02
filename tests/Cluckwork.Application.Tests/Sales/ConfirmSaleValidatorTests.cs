@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.Sales;
-
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Tests.Sales;
 
 // #721 — the boundary half of the discount rule. It exists so a malformed
 // confirm is a 400 before any lock is taken; the rules that decide whether a

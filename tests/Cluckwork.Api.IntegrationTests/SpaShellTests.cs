@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Text.RegularExpressions;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Security;
 using Microsoft.Extensions.FileProviders;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #873 — the SPA's index.html is served as a templated response so the document
 // and its own Content-Security-Policy header name the SAME style nonce. If they

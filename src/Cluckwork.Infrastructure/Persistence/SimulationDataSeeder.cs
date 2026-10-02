@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,6 +10,7 @@ using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Flocks;
@@ -45,6 +44,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // #243 load-test simulation seeder: the additional cast (Managers/Sales/
 // Workers/ReadOnly beyond the seeded admin), a minimal flock topology, one
@@ -121,8 +122,7 @@ public sealed class SimulationDataSeeder(
     RecordBirdMovementHandler recordBirdMovement,
     DepleteFlockHandler depleteFlock,
     ArchiveFlockHandler archiveFlock,
-    CreateExpenseCategoryHandler createExpenseCategory,
-    CreateExpenseHandler createExpense,
+    IFinanceModule finance,
     DailyEntryLockSweep lockSweep,
     IClock clock,
     IServiceScopeFactory scopeFactory,
@@ -1895,7 +1895,7 @@ public sealed class SimulationDataSeeder(
         if (existing is not null) return existing.Id;
 
         ActAs(actor);
-        var result = await createExpenseCategory.HandleAsync(new CreateExpenseCategoryCommand(name), accountId, ct);
+        var result = await finance.CreateCategoryAsync(new CreateExpenseCategoryCommand(name), accountId, ct);
         Require(result, $"create expense category {name}");
         return result.Value;
     }
@@ -1911,7 +1911,7 @@ public sealed class SimulationDataSeeder(
         if (exists) return;
 
         ActAs(actor);
-        var result = await createExpense.HandleAsync(new CreateExpenseCommand(
+        var result = await finance.CreateExpenseAsync(new CreateExpenseCommand(
             categoryId, date, description, amountMinorUnits, flockId,
             Note: "Simulation fixture expense"), accountId, ct);
         Require(result, $"create expense {description}");

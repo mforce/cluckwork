@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Auditing;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #93 — the audit trail is domain data: written in the same transaction as
 // the change (a failed action leaves nothing), actor captured from the JWT,

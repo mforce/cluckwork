@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Diagnostics;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // Shared subprocess runner for the `seed --profile <name>` CLI tests
 // (SeedCommandTests + SimulationSeedCommandTests). Extracted (#279 review) so

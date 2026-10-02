@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.Endpoints.Auth;
@@ -8,6 +6,8 @@ using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #512 US1 — discovery over the EXISTING list routes: literal case-insensitive
 // name search, stable `Name, Id` paging, and explicit flock eligibility applied

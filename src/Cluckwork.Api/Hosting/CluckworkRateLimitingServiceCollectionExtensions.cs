@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Hosting;
-
 using System.Globalization;
 using System.Net;
 using System.Threading.RateLimiting;
@@ -9,6 +7,8 @@ using Cluckwork.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkRateLimitingServiceCollectionExtensions
 {

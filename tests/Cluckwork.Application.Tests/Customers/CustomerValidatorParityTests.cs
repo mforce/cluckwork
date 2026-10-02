@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Tests.Customers;
-
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Domain.Sales;
 using FluentValidation.Results;
+
+namespace Cluckwork.Application.Tests.Customers;
 
 // #625 review round 2/3 — Create and Update accept the same five customer
 // fields, and the design's own invariant is that the update validator

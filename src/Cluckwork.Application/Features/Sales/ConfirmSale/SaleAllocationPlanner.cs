@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Sales.ConfirmSale;
-
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 
 public sealed record PlannedEggLotDraw(Guid SalesOrderItemId, Guid EggLotId, int Quantity);
 

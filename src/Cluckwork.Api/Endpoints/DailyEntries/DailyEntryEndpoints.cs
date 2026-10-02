@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.DailyEntries;
-
 using System.Text.Json;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
@@ -9,6 +7,8 @@ using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.DailyEntries;
 
 public static class DailyEntryEndpoints
 {
@@ -55,7 +55,7 @@ public static class DailyEntryEndpoints
     private static async Task<IResult> GetDailyEntry(
         Guid id,
         Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
-        Cluckwork.Application.Features.Audit.IAuditEventRepository audit,
+        Cluckwork.Application.Features.Insights.IInsightsModule audit,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         TenantContext tenant,
         CancellationToken ct)
@@ -75,7 +75,7 @@ public static class DailyEntryEndpoints
 
     private static async Task<IResult> ListDailyEntries(
         Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
-        Cluckwork.Application.Features.Audit.IAuditEventRepository audit,
+        Cluckwork.Application.Features.Insights.IInsightsModule audit,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         TenantContext tenant,
         CancellationToken ct,

@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Tests.Sales;
-
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Tests.Sales;
 
 // #612 — the pure whole-order FIFO planner. Never mutates a lot or the order;
 // ConfirmSaleHandler decides which candidate lot list to plan against and

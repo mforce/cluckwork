@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Customers.CreateCustomer;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Customers.CreateCustomer;
 
 public sealed class CreateCustomerHandler(
     ICustomerRepository customers,

@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Expenses.CreateExpense;
-
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Application.Common;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Expenses.CreateExpense;
 
 public sealed class CreateExpenseValidator : AbstractValidator<CreateExpenseCommand>
 {

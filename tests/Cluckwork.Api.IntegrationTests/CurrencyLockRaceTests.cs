@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
@@ -8,6 +6,8 @@ using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #162 — the ACTUAL close of §4.6's read-then-write window, the one
 // CurrencyLockSerializationTests proves SERIALIZABLE cannot deliver: every

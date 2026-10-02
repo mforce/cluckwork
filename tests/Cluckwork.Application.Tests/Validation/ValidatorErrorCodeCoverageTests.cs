@@ -1,11 +1,11 @@
-namespace Cluckwork.Application.Tests.Validation;
-
 using System.Reflection;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Tests.Common;
 using FluentValidation;
 using FluentValidation.Validators;
+
+namespace Cluckwork.Application.Tests.Validation;
 
 // #231 — every validation rule must carry an EXPLICIT error code (one that
 // contains a '.'), the same discriminator ValidationResponse (#45) uses to tell

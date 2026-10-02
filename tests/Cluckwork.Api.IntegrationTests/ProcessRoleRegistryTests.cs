@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.Cli;
 using Cluckwork.Api.Hosting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #347 — the verb registry ProcessRoles.From reads. Fast, no host, no container.
 //

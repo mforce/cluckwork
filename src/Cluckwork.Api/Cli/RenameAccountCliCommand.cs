@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.Cli;
 
 // `rename-account --slug <current> --new-slug <new> [--reason <text>]` (#732) — changes a
 // farm's code. The reason it exists: a database upgraded from before multi-farm tenancy

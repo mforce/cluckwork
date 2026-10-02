@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -10,6 +8,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #388 — FlockScopeResolutionMiddleware: resolution outcomes per persona, and
 // the single-assignment contract. Scoping itself (filtered reads) is asserted

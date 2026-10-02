@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Common;
-
 using Cluckwork.Domain.Common;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Common;
 
 // #216 — expected failures surface as Warning with the failure reason, one
 // consistent shape across every money-path handler (ErrorCode is the stable

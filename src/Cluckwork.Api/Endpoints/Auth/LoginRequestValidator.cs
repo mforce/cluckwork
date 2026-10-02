@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.Endpoints.Auth;
-
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Auth;
 
 // #309 — MAX-length-only guard on the login credentials, plus a not-null guard
 // (see below). Deliberately NO NotEmpty / MinLength: an empty ("") or short

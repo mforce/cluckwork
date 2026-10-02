@@ -1,11 +1,11 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed record ToolType(string Name, string File, int Line);
 

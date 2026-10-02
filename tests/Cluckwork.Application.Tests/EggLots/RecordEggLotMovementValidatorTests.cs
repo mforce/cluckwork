@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Tests.EggLots;
-
 using Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
+
+namespace Cluckwork.Application.Tests.EggLots;
 
 public sealed class RecordEggLotMovementValidatorTests
 {

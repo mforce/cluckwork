@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Sales;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.RecordPayment;
@@ -7,6 +5,8 @@ using Cluckwork.Application.Features.Sales.VoidPayment;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Sales;
 
 // Customer payments (#89/#104). Settlement is the Sales tier
 // (Owner/Manager/Sales — spec §5.1); voiding a payment is the corrective

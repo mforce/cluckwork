@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Security;
-
 using System.Security.Cryptography;
+
+namespace Cluckwork.Api.Security;
 
 // #144 — a handful of response headers, hand-rolled rather than pulling in an
 // external security-headers package. Applied via Response.OnStarting so they

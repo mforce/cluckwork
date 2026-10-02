@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #163 — a user's display name can be set at creation and edited afterwards.
 // The update is Owner-only (covered by AdminGatingTests) and account-scoped.

@@ -1,11 +1,11 @@
-namespace Cluckwork.Infrastructure.Jobs;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Jobs;
 
 // #69 — spec §8.1 default: submitted entries lock automatically once they are
 // older than 7 farm-local days, counted in the account's own timezone (the

@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.RateLimiting;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #143 — bad limiter config must fail at boot (Validate), not throw a 500 from
 // inside the partition factory on the first login request.

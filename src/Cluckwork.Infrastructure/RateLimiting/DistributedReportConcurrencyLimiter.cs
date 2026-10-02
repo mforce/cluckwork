@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.RateLimiting;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+
+namespace Cluckwork.Infrastructure.RateLimiting;
 
 // #545 — per-account report concurrency cap enforced through the shared lease
 // backends (#543), replacing the process-local PartitionedRateLimiter (#311).

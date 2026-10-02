@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Tests.Documentation;
-
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Tests.TenantBypass;
+
+namespace Cluckwork.Application.Tests.Documentation;
 
 // #732 — the rename's prose is not enforced by anything else, and review round 2 found
 // five separate places where it said something the shipped code does not do. Each

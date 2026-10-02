@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Sales;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
@@ -12,12 +10,15 @@ using Cluckwork.Application.Features.Sales.RemoveOrderItem;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Application.Features.Sales.VoidSale;
 using FluentValidation;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.EggGrades;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+
+namespace Cluckwork.Api.Endpoints.Sales;
 
 public static class SaleEndpoints
 {
@@ -197,7 +198,7 @@ public static class SaleEndpoints
 
     private static async Task<IResult> GetSalesOrder(
         Guid id, ISalesOrderRepository orders, ICustomerRepository customers, IEggGradeRepository grades,
-        IAuditEventRepository audit, IPaymentRepository payments,
+        IInsightsModule audit, IPaymentRepository payments,
         IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct)
     {
@@ -245,7 +246,7 @@ public static class SaleEndpoints
         ISalesOrderRepository orders,
         Cluckwork.Application.Features.Customers.ICustomerRepository customers,
         IEggGradeRepository grades,
-        IAuditEventRepository audit,
+        IInsightsModule audit,
         IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct,
         string? status = null, Guid? customerId = null,

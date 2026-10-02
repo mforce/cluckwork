@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Users.ChangeUserRole;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.ChangeUserRole;
 
 // #355/#360 — every role change mutates a durable authorization set. The role
 // capability sets are not totally ordered (Worker and Sales grant different

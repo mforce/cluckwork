@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
@@ -11,6 +9,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #273 — Auth.RateLimitRejected: a 429 against the login/refresh policies is a
 // brute-force/credential-stuffing signal worth its own stable event; a 429

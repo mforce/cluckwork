@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
 using System.Text;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public static class CouplingMatrix
 {

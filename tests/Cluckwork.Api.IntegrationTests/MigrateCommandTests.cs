@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #263 — `dotnet Cluckwork.Api.dll migrate` is a real CLI dispatch branch in
 // Program.cs (args[0] == "migrate"), never exercised by WebApplicationFactory

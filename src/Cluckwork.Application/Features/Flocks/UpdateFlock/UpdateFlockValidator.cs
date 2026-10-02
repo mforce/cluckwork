@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Flocks.UpdateFlock;
-
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Application.Common;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Flocks.UpdateFlock;
 
 public sealed class UpdateFlockValidator : AbstractValidator<UpdateFlockCommand>
 {

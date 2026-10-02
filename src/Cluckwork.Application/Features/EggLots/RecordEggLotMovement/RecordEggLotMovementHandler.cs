@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
 
 // Standalone stock write-off / reconciliation (#406): removes lost stock
 // (breakage, spoilage, internal use) or applies a recount via a compensating

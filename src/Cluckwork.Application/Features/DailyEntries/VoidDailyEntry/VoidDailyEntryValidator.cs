@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
-
 using Cluckwork.Domain.Eggs;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
 
 public sealed class VoidDailyEntryValidator : AbstractValidator<VoidDailyEntryCommand>
 {

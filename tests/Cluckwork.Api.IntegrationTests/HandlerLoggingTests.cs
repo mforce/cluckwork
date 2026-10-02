@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #216 — money-path handlers narrate state transitions: Information on
 // success with stable ids, Warning with the failure reason on a failed

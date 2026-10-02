@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Security.Cryptography;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 internal static class DmlOnlyRole
 {

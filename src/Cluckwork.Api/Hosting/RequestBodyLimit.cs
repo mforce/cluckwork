@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.Hosting;
-
 using Microsoft.AspNetCore.Http.Features;
+
+namespace Cluckwork.Api.Hosting;
 
 // #309 — a per-endpoint request-body byte cap that rejects an oversized body
 // BEFORE the framework binds it (and, for the auth endpoints, before the

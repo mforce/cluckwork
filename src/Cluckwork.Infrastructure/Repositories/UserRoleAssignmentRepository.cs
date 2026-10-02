@@ -1,11 +1,11 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 public sealed class UserRoleAssignmentRepository(AppDbContext db) : IUserRoleAssignmentRepository
 {

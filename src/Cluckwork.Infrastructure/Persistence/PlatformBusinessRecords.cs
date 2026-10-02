@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Identity;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 internal static class PlatformBusinessRecords
 {

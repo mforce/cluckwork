@@ -1,7 +1,7 @@
-namespace Cluckwork.Domain.Tests.Inventory;
-
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Domain.Tests.Inventory;
 
 public sealed class InventoryTests
 {

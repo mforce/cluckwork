@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #307 — the database-coordinated claim/lease idempotency protocol. Covers
 // what IdempotencyReplayTests / IdempotencyUserScopeTests don't:

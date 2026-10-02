@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #283 follow-up — first-run DISCOVERABILITY. The provisioning mechanism itself
 // (FirstRunAdminService, the `bootstrap-admin` verb) is unchanged; the gap this

@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Flocks.RecordBirdMovement;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 
 public sealed class RecordBirdMovementHandler(
     IFlockRepository flocks,

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
@@ -11,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #562 — the database-side refusal is logged as a security event.
 //

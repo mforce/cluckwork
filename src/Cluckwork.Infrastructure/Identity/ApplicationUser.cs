@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Microsoft.AspNetCore.Identity;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 public sealed class ApplicationUser : IdentityUser<Guid>, IMutableRecord
 {

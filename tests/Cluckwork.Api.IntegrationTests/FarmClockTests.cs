@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Time;
 using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #35. Plain unit tests (no container): FarmClock is the single date boundary
 // the stock read, the FIFO allocation and the future-date validators all share,

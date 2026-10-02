@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Jobs;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Jobs;
 
 // #259 — idempotency_records grows without bound: IdempotencyMiddleware inserts
 // a claim per idempotent write and marks it Completed with the replay payload,

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.IO;
 using System.Net.Http.Json;
 using System.Text;
@@ -18,6 +16,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #243 — the SimulationDataSeeder that builds the load-test cast (Managers /
 // Sales / Workers / ReadOnly beyond the reused seeded admin), a minimal

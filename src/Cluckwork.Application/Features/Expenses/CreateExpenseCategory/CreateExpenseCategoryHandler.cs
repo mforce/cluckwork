@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Expenses;
+
+namespace Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 
 public sealed class CreateExpenseCategoryHandler(
     IExpenseCategoryRepository categories,

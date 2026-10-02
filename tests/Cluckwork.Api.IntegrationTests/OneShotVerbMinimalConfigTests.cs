@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Reflection;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #347 — every one-shot verb must run under a Production environment containing
 // ONLY the configuration that verb genuinely needs.

@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Common;
-
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Domain.Tests.Common;
 
 public sealed class MoneyTests
 {

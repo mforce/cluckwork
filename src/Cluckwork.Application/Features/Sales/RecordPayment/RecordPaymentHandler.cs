@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Features.Sales.RecordPayment;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Sales.RecordPayment;
 
 // Records a customer payment against a confirmed order (spec §10.11).
 //

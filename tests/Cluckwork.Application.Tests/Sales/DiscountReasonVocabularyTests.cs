@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.Sales;
-
 using System.Text.RegularExpressions;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Tests.Sales;
 
 // #721 — DiscountReasonCode is mirrored by hand into web/src/i18n/enums.ts's
 // DISCOUNT_REASON_VALUES, which is what the confirm dialog's picklist renders.

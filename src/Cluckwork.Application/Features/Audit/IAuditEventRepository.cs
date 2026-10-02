@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Audit;
+using Cluckwork.Application.Features.Insights;
 
-using Cluckwork.Domain.Auditing;
+namespace Cluckwork.Application.Features.Audit;
 
 // Read side of the audit trail (#93). Append happens through IAuditWriter;
 // there is intentionally no update/remove surface anywhere.
@@ -11,7 +11,7 @@ public interface IAuditEventRepository
     // fixed cap eventually; a larger input is chunked, never refused.
     public const int MaxBatchIds = 500;
 
-    Task<IReadOnlyList<AuditEvent>> ListAsync(
+    Task<IReadOnlyList<AuditEventRead>> ListAsync(
         string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
         int limit, int offset, CancellationToken ct = default);
 

@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Endpoints.Accounts;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Hosting;
 
 // #179 — the farm-banner upload cap, mirroring FarmLogoRequestBodyCap.cs
 // exactly (see that file for the full reasoning: why a middleware ahead of

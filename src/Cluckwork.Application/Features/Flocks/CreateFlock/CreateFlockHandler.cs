@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Flocks.CreateFlock;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
+
+namespace Cluckwork.Application.Features.Flocks.CreateFlock;
 
 public sealed class CreateFlockHandler(
     IFlockRepository flocks,

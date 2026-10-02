@@ -31,6 +31,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Adapter module reach may shrink without a ledger edit (#846)](846-adapter-reach-ratchet.md) | AGENTS · Application shape |
 | [Declare adapter tiers before the surfaces that need them exist (#843)](843-adapter-tiers.md) | AGENTS · Application shape |
 | [Generate the coupling matrix from live evidence (#848)](848-generated-coupling-matrix.md) | AGENTS · Application shape |
+| [Reach a contracted module only through its contract (#849)](849-module-contract.md) | AGENTS · Application shape |
 | [Table-owner completeness from the EF model (#845)](845-table-owners.md) | AGENTS · Data and correctness |
 | [Credential epoch revocation (#364)](364-credential-epoch-revocation.md) | AGENTS · Conventions |
 | [Base reference data via guarded raw-SQL migrations (#283)](283-migrations-base-provisioning.md) | AGENTS · Conventions |
@@ -68,6 +69,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Backend test coverage measurement, report only (#776)](776-backend-coverage.md) | AGENTS · Build / test / run |
 | [Skip the web and image jobs on documentation-only pull requests (#782)](782-ci-job-gating.md) | AGENTS · CI security gates |
 | [Adopt a UI component library, and which one: MUI (#674)](674-ui-component-library.md) | `web/README.md` · Stack · and `specs/technical/tech_spec.md` §8.1 |
+| [Gate two C# style rules at build time (#985)](985-csharp-style-gate.md) | AGENTS · Conventions |
 | [Cross-module references are declared in the module ledger (#514, #842)](514-module-ledger.md) | AGENTS · Conventions |
 | [No persistence type crosses an Application seam (#514, #847)](847-seam-surface-guard.md) | AGENTS · Conventions |
 

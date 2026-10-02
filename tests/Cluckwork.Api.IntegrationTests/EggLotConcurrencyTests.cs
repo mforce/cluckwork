@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // tech spec §3.3 / §10.9.1 / §11: concurrent confirmation against the same egg lot must
 // serialize on the FOR UPDATE lock — exactly one sale allocates, the other is rejected,

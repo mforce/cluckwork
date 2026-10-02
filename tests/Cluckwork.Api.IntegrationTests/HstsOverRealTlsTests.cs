@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Security;
@@ -10,6 +8,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #344 — HSTS and HTTPS redirection, asserted over a REAL TLS connection.
 //

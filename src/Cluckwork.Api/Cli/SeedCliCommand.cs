@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Api.Cli;
 
 // `seed --profile <name> [--farm-code <slug>]` (#280) — a one-off command on the
 // same binary, not a serving-process code path: it migrates the schema, runs the

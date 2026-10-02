@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #178 — the #283 migration-baked default account writes none of the
 // currency-binding row types (§4.6), so a freshly provisioned farm must boot

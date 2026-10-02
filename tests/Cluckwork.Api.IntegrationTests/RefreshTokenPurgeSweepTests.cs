@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Identity;
@@ -8,6 +6,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #270 — refresh_tokens grows without bound: every login/refresh inserts a row
 // and rotation keeps inserting, but nothing ever deletes an expired/revoked

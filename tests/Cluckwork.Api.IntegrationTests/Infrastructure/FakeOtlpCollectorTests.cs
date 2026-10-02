@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Net;
 using System.Net.Sockets;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 public sealed class FakeOtlpCollectorTests
 {

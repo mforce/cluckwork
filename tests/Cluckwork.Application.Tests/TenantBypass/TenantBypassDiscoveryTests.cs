@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Tests.TenantBypass;
-
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Application.Tests.TenantBypass;
 
 // #536 Part 1 — the discovery floor: the guard's banned surface is DERIVED from
 // the EF model (walk everything, exclude deliberately — docs/decisions/407-writing-a-guard.md),

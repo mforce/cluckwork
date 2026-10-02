@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.EnableUser;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Users.EnableUser;
 
 // #356 — re-enable a disabled user. There is deliberately no validator: the
 // command carries no free-text field, only the route's id and the step-up

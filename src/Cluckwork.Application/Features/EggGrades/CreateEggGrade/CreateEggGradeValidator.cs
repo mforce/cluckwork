@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggGrades.CreateEggGrade;
-
 using Cluckwork.Domain.Eggs;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 
 public sealed class CreateEggGradeValidator : AbstractValidator<CreateEggGradeCommand>
 {

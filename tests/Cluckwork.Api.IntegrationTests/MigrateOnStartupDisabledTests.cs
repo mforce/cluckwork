@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
@@ -7,6 +5,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #263 — the PR's CENTRAL guarantee: with Database:MigrateOnStartup=false the
 // request-serving process never runs schema DDL at boot; a forgotten migrate job

@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #673 — tenant isolation's two write-side layers both key on AccountId being a
 // non-nullable Guid, and both used to walk PAST any other shape: no concurrency

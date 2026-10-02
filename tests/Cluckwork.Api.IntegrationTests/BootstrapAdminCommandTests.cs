@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
@@ -9,6 +7,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #283 — `dotnet Cluckwork.Api.dll bootstrap-admin --email <e>` end to end, as
 // a real SUBPROCESS (same binary/entry point an operator runs), exactly like

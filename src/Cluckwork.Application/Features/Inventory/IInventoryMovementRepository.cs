@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory;
 
 // Append-only ledger: the infrastructure implementation throws
 // NotSupportedException from Update/Remove (BirdMovement pattern) — mistakes

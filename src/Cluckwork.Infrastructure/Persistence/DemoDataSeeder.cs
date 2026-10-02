@@ -1,7 +1,4 @@
 using Cluckwork.Application.Common;
-
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
@@ -19,6 +16,8 @@ using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // SeedStatus / SeedResult moved to SeedResult.cs (#279) — shared by both this
 // seeder and SimulationDataSeeder.

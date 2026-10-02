@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.SharedState;
-
 using Cluckwork.Application.Common;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+
+namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — resilient decorator over <see cref="IClaimOnceStore"/> (grant
 // replay, #338). FAILS CLOSED: when Redis throws, the claim is DENIED.

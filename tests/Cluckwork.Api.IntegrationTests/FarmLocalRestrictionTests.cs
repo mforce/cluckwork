@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #35 end-to-end. The FarmClock unit tests prove the conversion; these prove the
 // STOCK READ and the SALE actually use it — reverting either call site to

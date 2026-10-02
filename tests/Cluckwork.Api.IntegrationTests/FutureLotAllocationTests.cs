@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #35: the stock read and FIFO allocation must agree about what exists. The
 // stock query has always hidden future-dated production ("if it ever slips in");

@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 public sealed class ExpenseCategoryRepository(AppDbContext db) : IExpenseCategoryRepository
 {

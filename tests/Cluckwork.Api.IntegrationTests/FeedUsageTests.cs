@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #66 (PR 2) — feed usage + corrections: FIFO lot consumption under the
 // canonical lock, per-lot Usage ledger rows with lot-cost estimates, and the

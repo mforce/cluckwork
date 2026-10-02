@@ -1,9 +1,9 @@
-namespace Cluckwork.Application.Tests.Validation;
-
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Application.Features.Users.SetUserPassword;
+
+namespace Cluckwork.Application.Tests.Validation;
 
 // #309 — every credential validator caps its password field at
 // PasswordRules.MaxLength so an attacker-controlled oversized password can't be

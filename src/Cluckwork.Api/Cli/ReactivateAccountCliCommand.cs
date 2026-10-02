@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.Cli;
-
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.Cli;
 
 // `reactivate-account --slug <s> [--reason <text>]` (#534) — brings a suspended
 // farm back. Suspension deletes nothing, so reactivation restores the farm

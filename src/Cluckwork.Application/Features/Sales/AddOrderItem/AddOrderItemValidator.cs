@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Sales.AddOrderItem;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Sales.AddOrderItem;
 
 public sealed class AddOrderItemValidator : AbstractValidator<AddOrderItemCommand>
 {

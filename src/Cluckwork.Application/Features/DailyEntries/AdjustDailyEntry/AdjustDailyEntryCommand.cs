@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
-
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+
+namespace Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 
 // Version = the base the client loaded the entry at; a stale one gets a
 // deterministic 409 instead of silently overwriting another admin's

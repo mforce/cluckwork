@@ -1,8 +1,8 @@
-namespace Cluckwork.Domain.Tests.Sales;
-
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Domain.Tests.Sales;
 
 public sealed class SalesOrderTests
 {

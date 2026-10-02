@@ -1,15 +1,20 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
 namespace Cluckwork.Application.Tests.Architecture;
 
 // #842 — the committed module ledger: owners by namespace, one cell per cross-owner dependency.
 
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 public sealed record OwnerDefinition(
     string Name,
     string Kind,
     IReadOnlyList<string> Namespaces,
-    IReadOnlyList<string> ExactNamespaces);
+    IReadOnlyList<string> ExactNamespaces)
+{
+    // #849: when non-empty, adapters may reach this owner only through these types.
+    public IReadOnlyList<string> Contract { get; init; } = [];
+}
 
 public sealed record EdgeCell(string From, string To, string Kind, string Reason, IReadOnlyList<string> Symbols);
 
@@ -299,7 +304,15 @@ public sealed record ModuleLedger(
             errors.Add($"owner '{name}' claims no namespaces");
         }
 
-        return new OwnerDefinition(name, kind ?? string.Empty, namespaces, exact);
+        var contract = property.Value.TryGetProperty("contract", out _)
+            ? ReadStringArray(property.Value, "contract", $"owner '{name}'", errors)
+            : [];
+        if (contract.Count > 0 && kind == PlatformKind)
+        {
+            errors.Add($"owner '{name}' is a platform owner and cannot declare a contract");
+        }
+
+        return new OwnerDefinition(name, kind ?? string.Empty, namespaces, exact) { Contract = contract };
     }
 
     private static EdgeCell ReadEdge(JsonElement element, int index, List<string> errors)

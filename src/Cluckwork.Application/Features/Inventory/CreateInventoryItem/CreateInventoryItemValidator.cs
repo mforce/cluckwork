@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory.CreateInventoryItem;
-
 using Cluckwork.Domain.Inventory;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Inventory.CreateInventoryItem;
 
 public sealed class CreateInventoryItemValidator : AbstractValidator<CreateInventoryItemCommand>
 {

@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Expenses;
-
 using Cluckwork.Domain.Expenses;
+
+namespace Cluckwork.Domain.Tests.Expenses;
 
 public sealed class ExpenseTests
 {

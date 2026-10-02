@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Infrastructure.SharedState;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #543 — Redis contract: owned, renewable lease with compare-and-delete
 // release, against a REAL Redis (Testcontainers) with REAL short TTLs.

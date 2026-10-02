@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Users.ChangeUserEmail;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.ChangeUserEmail;
 
 public sealed class ChangeUserEmailValidator : AbstractValidator<ChangeUserEmailCommand>
 {

@@ -1,8 +1,8 @@
-namespace Cluckwork.Domain.Accounts;
-
 using System.Text.RegularExpressions;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Domain.Accounts;
 
 // The farm's own settings row. Spec §3.2 models `farms` as a table under the
 // account; there is no farms aggregate yet (SeedDefaults.FarmId is a stand-in),

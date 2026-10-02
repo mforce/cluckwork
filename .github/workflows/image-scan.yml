@@ -1,0 +1,217 @@
+name: Weekly image scan
+
+# #267/#1006 — scan the PUBLISHED image for vulnerabilities, after the fact.
+#
+# CI no longer scans the image. A base-image CVE with no fix cannot be cleared by
+# any PR, so a blocking scan stalled every PR and all publishing on one
+# unexploitable vendor CVE (#1006). This workflow reports instead, and it is not
+# a gate: nothing here can stop a PR, a publish or a release.
+#
+# What it does, for the newest commit on main that has a published image:
+#   - scans both linux/amd64 and linux/arm64 for fixable HIGH/CRITICAL findings;
+#   - uploads SARIF to the Security tab, one category per architecture;
+#   - files one issue per vulnerability id, comments on it while it persists, and
+#     closes it once a scan of both architectures no longer finds it. Closing an
+#     issue by hand IGNORES that vulnerability (it gets an `ignored` label and the
+#     scan leaves it alone); reopening it stops ignoring. The logic and its rules
+#     live in .github/scripts/image-scan-issues.mjs.
+#
+# There is no suppression file. A finding is acted on or its issue is closed.
+#
+# Fixes arrive as Dependabot base-image bumps (.github/dependabot.yml); the next
+# scan after one merges closes the issue.
+#
+# Run it by hand with workflow_dispatch to check whether a base-image bump cleared
+# a CVE, or before merging a release PR. `dry_run` prints what the issue step
+# would do and changes no issue; the SARIF upload still happens.
+
+on:
+  schedule:
+    # Mondays 07:00 UTC, after security-audit.yml (06:00) and CodeQL.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the issue actions without creating, commenting on or closing any issue"
+        type: boolean
+        default: false
+
+# Every job names its own permissions; none are granted here.
+permissions: {}
+
+concurrency:
+  group: image-scan
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Find the latest published image
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      sha: ${{ steps.pick.outputs.sha }}
+      image: ${{ steps.pick.outputs.image }}
+      index: ${{ steps.pick.outputs.index }}
+    steps:
+      # Newest of main's last 30 commits with a published `:sha-<commit>` image.
+      # The head commit may not have one yet (CI still running, or publish failed),
+      # and scanning an older published commit beats scanning nothing.
+      - name: Pick the newest main commit that has a published image
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "$GH_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+          picked=""
+          # Only "not found" means this commit has no image. Any other failure
+          # (auth, network, rate limit) fails the step, so a transient error on
+          # the newest commit cannot silently scan an older one.
+          for sha in $(gh api "repos/$GITHUB_REPOSITORY/commits?sha=main&per_page=30" --jq '.[].sha'); do
+            if out="$(docker buildx imagetools inspect "$image:sha-$sha" 2>&1)"; then
+              picked="$sha"
+              break
+            fi
+            if ! grep -qiE 'not found|manifest unknown' <<<"$out"; then
+              echo "::error::could not inspect $image:sha-$sha: $out"
+              exit 1
+            fi
+          done
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          if [ -z "$picked" ]; then
+            echo "::error::none of main's last 30 commits has a published $image:sha-<commit> image"
+            exit 1
+          fi
+          # Resolve the tag to its index digest once, so both architecture legs
+          # scan children of the same index even if the tag is re-pointed.
+          index="$(docker buildx imagetools inspect "$image:sha-$picked" --format '{{.Manifest.Digest}}')"
+          if ! [[ $index =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::could not resolve $image:sha-$picked to an index digest"
+            exit 1
+          fi
+          printf 'sha=%s\nimage=%s:sha-%s\nindex=%s@%s\n' "$picked" "$image" "$picked" "$image" "$index" >> "$GITHUB_OUTPUT"
+          echo "Scanning \`$image:sha-$picked\` (index \`$index\`)" >> "$GITHUB_STEP_SUMMARY"
+
+  scan:
+    name: Scan ${{ matrix.arch }}
+    needs: [resolve]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Third-party action: pinned to a commit, not a tag (the 2026-03
+      # aquasecurity/trivy-action compromise retargeted tags). This is the same
+      # setup-trivy commit that trivy-action v0.36.0 pins. The action's `version`
+      # input defaults to `latest`, so Trivy itself is pinned here too.
+      # Dependabot does not bump this input: raise it by hand (#267).
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+        with:
+          version: v0.75.0
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+
+      # Trivy reads the registry credential from the docker login above. The scan
+      # fails the step on any error: a broken pull or database load must not
+      # produce an empty report, because an empty report closes issues.
+      # Each architecture is scanned by its own manifest digest, taken from the
+      # one index digest `resolve` pinned, so the report names exactly the bytes
+      # it covers.
+      - name: Scan the published image
+        env:
+          INDEX: ${{ needs.resolve.outputs.index }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          child="$(docker buildx imagetools inspect --raw "$INDEX" |
+            jq -r --arg arch "$ARCH" '[.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest] | if length == 1 then .[0] else empty end')"
+          if ! [[ $child =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::$INDEX has no single linux/$ARCH manifest"
+            exit 1
+          fi
+          trivy image --image-src remote \
+            --scanners vuln --pkg-types os,library \
+            --severity HIGH,CRITICAL --ignore-unfixed \
+            --format json --output "trivy-$ARCH.json" "${INDEX%@*}@$child"
+          trivy convert --format sarif --output "trivy-$ARCH.sarif" "trivy-$ARCH.json"
+          {
+            echo "### linux/$ARCH"
+            echo '```'
+            trivy convert --format table "trivy-$ARCH.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Drop the registry credential
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true
+
+      - name: Upload SARIF to the Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-${{ matrix.arch }}.sarif
+          category: image-scan-${{ matrix.arch }}
+
+      - name: Keep the report for the issue step
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-${{ matrix.arch }}
+          path: trivy-${{ matrix.arch }}.json
+          retention-days: 7
+
+  issues:
+    name: File, update and close issues
+    # Runs only when BOTH scans succeeded. A failed scan leaves this job skipped,
+    # so it can never close an issue on the strength of a report that is empty
+    # because the scan broke.
+    needs: [resolve, scan]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download the reports
+        uses: actions/download-artifact@v8
+        with:
+          pattern: trivy-*
+          merge-multiple: true
+
+      - name: Sync issues with the scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          IMAGE: ${{ needs.resolve.outputs.image }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || '' }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "$DRY_RUN" ]; then args+=(--dry-run); fi
+          node .github/scripts/image-scan-issues.mjs \
+            --repo "$GITHUB_REPOSITORY" --sha "$SHA" --image "$IMAGE" --run-url "$RUN_URL" \
+            --report amd64=trivy-amd64.json --report arm64=trivy-arm64.json \
+            "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"

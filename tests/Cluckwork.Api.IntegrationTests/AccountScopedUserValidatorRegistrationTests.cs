@@ -1,9 +1,9 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #532 — the ORDER guard. AddIdentityCore registers the stock validator with
 // TryAddScoped, so registering ours BEFORE it makes that a no-op. Registering

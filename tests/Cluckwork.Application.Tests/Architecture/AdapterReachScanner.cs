@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
 using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed record AdapterReach(string Symbol, string Owner, string Type, string File, int Line);
 
@@ -21,6 +21,8 @@ public sealed record AdapterReachReport(
 {
     public int TopLevelProgramAdapterCount { get; init; }
     public IReadOnlyList<string> RouteErrors { get; init; } = [];
+    public IReadOnlyList<AdapterReach> ContractBypasses { get; init; } = [];
+    public IReadOnlyList<string> AliasErrors { get; init; } = [];
 }
 
 public static class AdapterReachScanner
@@ -67,12 +69,29 @@ public static class AdapterReachScanner
         var declaredTypes = roots.SelectMany(root => root.DescendantNodes())
             .Where(n => n is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax)
             .Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
+        var contracts = ledger.Owners.Where(o => o.Contract.Count > 0)
+            .ToDictionary(o => o.Name, o => o.Contract.ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        foreach (var (owner, types) in contracts)
+        {
+            foreach (var type in types.Order(StringComparer.Ordinal))
+            {
+                if (!declaredTypes.Contains(type))
+                {
+                    errors.Add($"owner '{owner}' contract type '{type}' is not declared under src/");
+                }
+                else if (ModuleLedgerScanner.Resolve(claims, type, declared: false)?.Owner != owner)
+                {
+                    errors.Add($"owner '{owner}' contract type '{type}' is not in a namespace '{owner}' owns");
+                }
+            }
+        }
         var live = new List<AdapterReach>();
         var persistence = new List<string>();
         var unresolved = new SortedSet<string>(StringComparer.Ordinal);
         var count = 0;
         var programCount = 0;
         var routeErrors = new List<string>();
+        var aliasErrors = new List<string>();
 
         foreach (var root in roots)
         {
@@ -136,28 +155,25 @@ public static class AdapterReachScanner
 
             void Record(NameSyntax named, SyntaxNode location, HashSet<string> expandedAliases)
             {
-                var dotted = ModuleLedgerScanner.DottedText(named)!;
-                var firstDot = dotted.IndexOf('.');
-                var aliasName = firstDot < 0 ? dotted : dotted[..firstDot];
-                var alias = imports.FirstOrDefault(u => u.Alias?.Name.Identifier.ValueText == aliasName);
-                if (alias?.Name is { } aliasedType && expandedAliases.Add(aliasName))
+                var line = location.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                // A whole-name alias may target a generic or tuple type, so the named types inside it are walked in turn.
+                if (named is SimpleNameSyntax simple
+                    && AliasTarget(simple.Identifier.ValueText, imports) is { } aliasedType
+                    && expandedAliases.Add(simple.Identifier.ValueText))
                 {
-                    if (firstDot >= 0)
+                    foreach (var aliasedName in NamedTypes(aliasedType))
                     {
-                        Record(SyntaxFactory.ParseName(ModuleLedgerScanner.DottedText(aliasedType) + dotted[firstDot..]),
-                            location, expandedAliases);
-                    }
-                    else
-                    {
-                        foreach (var aliasedName in NamedTypes(aliasedType))
-                        {
-                            Record(aliasedName, location, expandedAliases);
-                        }
+                        Record(aliasedName, location, expandedAliases);
                     }
                     return;
                 }
 
-                var line = location.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                if (ExpandAlias(named, imports) is not { } dotted)
+                {
+                    aliasErrors.Add($"cannot resolve the alias qualifier in {named} in {symbol} at {file}:{line}; " +
+                        "the walk cannot be trusted with a name it cannot qualify");
+                    return;
+                }
                 if (IsPersistence(dotted))
                 {
                     if (banPersistence)
@@ -202,6 +218,8 @@ public static class AdapterReachScanner
         {
             TopLevelProgramAdapterCount = programCount,
             RouteErrors = routeErrors,
+            AliasErrors = aliasErrors,
+            ContractBypasses = ordered.Where(r => contracts.TryGetValue(r.Owner, out var types) && !types.Contains(r.Type)).ToList(),
         };
     }
 
@@ -217,7 +235,13 @@ public static class AdapterReachScanner
             failures.Add($"walked {report.WalkedAdapterCount} adapters, expected at least {report.ExpectedAdapterCountFloor}");
         }
         failures.AddRange(report.RouteErrors);
+        failures.AddRange(report.AliasErrors);
         failures.AddRange(report.PersistenceViolations);
+        foreach (var bypass in report.ContractBypasses)
+        {
+            failures.Add($"contract bypass {bypass.Symbol} -> {bypass.Owner} through {bypass.Type} at " +
+                $"{bypass.File}:{bypass.Line}; {bypass.Owner} declares a contract, so call one of its contract types");
+        }
         foreach (var reach in report.Undeclared)
         {
             failures.Add($"undeclared adapter reach {reach.Symbol} -> {reach.Owner} through {reach.Type} " +
@@ -355,7 +379,7 @@ public static class AdapterReachScanner
         {
             var qualifiedReceiver = "Microsoft.Extensions.DependencyInjection." + requiredReceiver;
             var receiver = call.Expression is MemberAccessExpressionSyntax access
-                ? ModuleLedgerScanner.DottedText(access.Expression) : null;
+                ? ExpandAlias(access.Expression, ImportsOf(call)) : null;
             var staticImport = call.Expression is SimpleNameSyntax && ImportsOf(call)
                 .Any(import => import.StaticKeyword != default
                     && ModuleLedgerScanner.DottedText(import.Name) == qualifiedReceiver);
@@ -368,6 +392,39 @@ public static class AdapterReachScanner
             ? generic.TypeArgumentList.Arguments
             : call.ArgumentList.Arguments.Select(argument => argument.Expression)
                 .OfType<TypeOfExpressionSyntax>().Select(typeOf => typeOf.Type);
+    }
+
+    // NamespaceOrType, not Name: a tuple alias has no Name.
+    private static TypeSyntax? AliasTarget(string? alias, IReadOnlyList<UsingDirectiveSyntax> imports) =>
+        imports.FirstOrDefault(u => u.Alias?.Name.Identifier.ValueText == alias)?.NamespaceOrType;
+
+    // The one place a written name becomes a qualified one: a leftmost import alias, written Alias.X or
+    // Alias::X, is replaced by its target, and global:: is already fully qualified. Null means a qualifier
+    // the walk cannot resolve.
+    private static string? ExpandAlias(SyntaxNode name, IReadOnlyList<UsingDirectiveSyntax> imports)
+    {
+        if (ModuleLedgerScanner.DottedText(name) is not { } dotted)
+        {
+            return null;
+        }
+        var leftmost = name;
+        while (leftmost is QualifiedNameSyntax or MemberAccessExpressionSyntax)
+        {
+            leftmost = leftmost is QualifiedNameSyntax qualified ? qualified.Left : ((MemberAccessExpressionSyntax)leftmost).Expression;
+        }
+        if (leftmost is AliasQualifiedNameSyntax aliasQualified)
+        {
+            var qualifier = aliasQualified.Alias.Identifier.ValueText;
+            if (qualifier == "global")
+            {
+                return dotted;
+            }
+            return AliasTarget(qualifier, imports) is NameSyntax target ? $"{ModuleLedgerScanner.DottedText(target)}.{dotted}" : null;
+        }
+        return leftmost is IdentifierNameSyntax identifier
+            && AliasTarget(identifier.Identifier.ValueText, imports) is NameSyntax prefix
+            ? ModuleLedgerScanner.DottedText(prefix) + dotted[identifier.Identifier.ValueText.Length..]
+            : dotted;
     }
 
     private static IReadOnlyList<UsingDirectiveSyntax> ImportsOf(SyntaxNode node) =>

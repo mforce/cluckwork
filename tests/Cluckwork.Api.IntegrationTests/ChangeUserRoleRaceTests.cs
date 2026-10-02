@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.ChangeUserRole;
@@ -7,6 +5,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #355 — the Users.LastOwner guard and the actor-still-Owner re-check are both
 // evaluated inside IdentityProvider.ChangeUserRoleAsync's account-locked

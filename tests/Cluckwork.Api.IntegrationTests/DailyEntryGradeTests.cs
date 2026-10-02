@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #6: daily entry captures sellable production by grade, referencing EggGrade
 // rows (spec §9.1/9.2). Covers the HTTP round-trip, full-replace semantics on

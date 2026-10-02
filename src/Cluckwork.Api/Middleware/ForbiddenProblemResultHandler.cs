@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.Middleware;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Mvc;
+
+namespace Cluckwork.Api.Middleware;
 
 // Role-denied requests get a problem body naming the missing role (#73) —
 // the framework default is an empty 403.

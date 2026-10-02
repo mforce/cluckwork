@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Persistence.Configurations;
-
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Persistence.Configurations;
 
 // ApplicationUser is otherwise mapped by IdentityDbContext's conventions; this
 // only bounds the #45 language column. base.OnModelCreating runs before

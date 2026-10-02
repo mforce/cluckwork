@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -7,6 +5,8 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Media;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #179 — the farm banner over the wire. FarmLogoTests.cs already proves
 // ImageSanitizer's format/security guarantees survive the round trip; these

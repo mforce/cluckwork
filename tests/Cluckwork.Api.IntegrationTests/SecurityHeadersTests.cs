@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Generic;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -12,6 +10,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #144 — every response carries the static security headers (CSP, nosniff,
 // Referrer-Policy, frame protection), regardless of role, auth, or whether the

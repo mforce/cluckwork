@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #512 US4 — the instrument behind the query-shape guards: a DbCommandInterceptor
 // that COUNTS the SQL the production reads already carry, and does nothing else.

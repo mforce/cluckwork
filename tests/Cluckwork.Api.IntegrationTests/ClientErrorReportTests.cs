@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #217 — the SPA's ErrorBoundary reports render crashes to the API, which
 // writes them to the server log at Error level with structured fields. The

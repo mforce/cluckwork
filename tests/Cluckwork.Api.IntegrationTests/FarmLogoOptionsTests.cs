@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.Configuration;
 using Cluckwork.Domain.Media;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #123 — the operational upload cap is config, validated at boot so a
 // misconfigured value fails the start rather than the first upload. A value

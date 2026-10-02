@@ -1,11 +1,11 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #265 — offline break-glass account recovery. Motivating case: a single-Owner
 // farm loses its password and there is no email/SMTP reset path, so the only

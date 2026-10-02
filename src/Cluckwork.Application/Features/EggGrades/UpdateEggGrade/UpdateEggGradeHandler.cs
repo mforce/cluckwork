@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 
 public sealed class UpdateEggGradeHandler(
     IEggGradeRepository grades,

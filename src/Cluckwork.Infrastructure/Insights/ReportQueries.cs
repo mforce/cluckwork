@@ -1,10 +1,10 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Cluckwork.Application.Features.Reports;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Insights;
 
 public sealed class ReportQueries(AppDbContext db) : IReportQueries
 {
@@ -150,7 +150,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         // keeps this query's cost tied to the report's range and flock count
         // rather than to the farm's full history.
         var flocks = await db.Flocks
-            .Where(f => f.PlacementDate <= to
+            .Where<Cluckwork.Domain.Flocks.Flock>(f => f.PlacementDate <= to
                      && (f.DepletedOn == null || f.DepletedOn >= from)
                      && (f.ArchivedOn == null || f.ArchivedOn >= from)
                      && (flockId == null || f.Id == flockId.Value))
@@ -360,7 +360,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         DateOnly from, DateOnly to, CancellationToken ct = default)
     {
         var perCategory = await db.Expenses
-            .Where(e => e.Date >= from && e.Date <= to)
+            .Where<Cluckwork.Domain.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
             .GroupBy(e => e.ExpenseCategoryId)
             .Select(g => new { CategoryId = g.Key, Total = g.Sum(e => e.AmountMinorUnits) })
             .ToListAsync(ct);
@@ -387,7 +387,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                      && o.OrderDate >= from && o.OrderDate <= to)
             .SumAsync(o => o.TotalAmount.MinorUnits, ct);
         var expenses = await db.Expenses
-            .Where(e => e.Date >= from && e.Date <= to)
+            .Where<Cluckwork.Domain.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
             .SumAsync(e => e.AmountMinorUnits, ct);
 
         var (code, minor) = await AccountCurrencyAsync(ct);
@@ -396,7 +396,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
 
     private async Task<(string Code, int Minor)> AccountCurrencyAsync(CancellationToken ct)
     {
-        var account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(ct);
+        Cluckwork.Domain.Accounts.Account? account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(ct);
         return (account?.DefaultCurrencyCode ?? "", account?.DefaultCurrencyMinorUnit ?? 2);
     }
 }

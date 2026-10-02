@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
@@ -8,6 +6,8 @@ using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #612 — the AddWorkerSaleAllocationPolicy migration. Same throwaway-Postgres,
 // no-WebApplicationFactory pattern as FarmBannerMigrationDowngradeTests: drives

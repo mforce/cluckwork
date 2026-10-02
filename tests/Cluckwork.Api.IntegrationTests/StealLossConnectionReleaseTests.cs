@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -9,6 +7,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #307 PR review — two defects in the steal-loss branch of IdempotencyMiddleware
 // (reached after OUR own PUBLISH loses its guard because our lease was stolen

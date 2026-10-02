@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.IO;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #532 — a globally-scoped Identity user lookup is a tenant-isolation defect
 // once one email can belong to several farms:

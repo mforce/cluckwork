@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using Google.Protobuf;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 public sealed class OtlpPayloadAssertionsTests
 {

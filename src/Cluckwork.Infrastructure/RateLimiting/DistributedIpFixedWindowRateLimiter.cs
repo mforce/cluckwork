@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.RateLimiting;
-
 using System.Threading;
 using System.Threading.RateLimiting;
 using Cluckwork.Infrastructure.SharedState;
+
+namespace Cluckwork.Infrastructure.RateLimiting;
 
 // #544 — the per-IP fixed-window RateLimiter that enforces its budget through the
 // SHARED IFixedWindowCounter (Redis-backed with in-process fallback, #543) instead of

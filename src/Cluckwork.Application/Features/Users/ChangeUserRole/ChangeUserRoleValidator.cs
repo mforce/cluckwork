@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.ChangeUserRole;
-
 using Cluckwork.Application.Features.Users.CreateUser;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.ChangeUserRole;
 
 public sealed class ChangeUserRoleValidator : AbstractValidator<ChangeUserRoleCommand>
 {

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
@@ -7,6 +5,8 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
 public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory factory)

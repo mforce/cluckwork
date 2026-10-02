@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Customers.UpdateCustomer;
-
 using Cluckwork.Domain.Sales;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Customers.UpdateCustomer;
 
 public sealed class UpdateCustomerValidator : AbstractValidator<UpdateCustomerCommand>
 {

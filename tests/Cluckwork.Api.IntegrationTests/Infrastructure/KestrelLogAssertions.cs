@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // Shared by every Kestrel-backed test class that needs to prove a request
 // completed cleanly server-side even when the client-visible status code

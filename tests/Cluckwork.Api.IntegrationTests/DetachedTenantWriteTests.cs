@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #562 — the write guard's provenance gap, closed at the database.
 //

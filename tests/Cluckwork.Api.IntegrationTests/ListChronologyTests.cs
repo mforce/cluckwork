@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Export;
 using Cluckwork.Application.Features.Sales;
@@ -10,7 +8,10 @@ using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Repositories;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #819 — these lists lead with a business date and row-creation time. Sequence
 // completes the insertion order without relying on a random v4 Guid.

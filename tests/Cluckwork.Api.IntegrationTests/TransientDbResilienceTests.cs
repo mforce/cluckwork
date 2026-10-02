@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Threading;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -11,6 +9,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #269 — the request path used to have no resilience to a transient DB
 // failure: UseNpgsql carried no execution strategy, so a managed-Postgres

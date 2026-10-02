@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Http;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #342 — follow-up to #340/#341. IHttpMaxRequestBodySizeFeature (the transport-
 // level cutoff RequestBodyLimit.cs, FarmLogoEndpoints and ClientErrorEndpoints

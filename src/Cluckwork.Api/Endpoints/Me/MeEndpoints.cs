@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Endpoints.Me;
-
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.SetLanguage;
@@ -7,6 +5,8 @@ using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+
+namespace Cluckwork.Api.Endpoints.Me;
 
 // #45 — the user-scoped counterpart to the farm-scoped /account group. Identity
 // comes from the JWT (sub), not the body. Mounted on the DEFAULT auth policy so

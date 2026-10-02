@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Eggs;
-
 using System.Text.Json;
+
+namespace Cluckwork.Domain.Eggs;
 
 public sealed class DailyEntry : AggregateRoot<Guid>, IMutableRecord
 {

@@ -1,5 +1,3 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -11,6 +9,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #308/#360 — THREAT MODEL + MECHANISM (owner-decided; see issues #308 and
 // #360).

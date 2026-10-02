@@ -1,6 +1,6 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Testcontainers.Redis;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #543 — real Redis (Testcontainers) for the shared-state contract suites.
 //

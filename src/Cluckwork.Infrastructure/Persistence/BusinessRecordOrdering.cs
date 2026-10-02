@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using System.Linq.Expressions;
 using Cluckwork.Domain.Common;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 internal static class BusinessRecordOrdering
 {

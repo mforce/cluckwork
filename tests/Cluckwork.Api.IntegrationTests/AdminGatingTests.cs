@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.Endpoints.Auth;
@@ -9,6 +7,8 @@ using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #73 — Admin vs not-Admin. The principle under test: anything that undoes,
 // corrects, or reconfigures is admin-only; recording the day's work is open

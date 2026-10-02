@@ -1,11 +1,11 @@
-namespace Cluckwork.Infrastructure.Identity;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Identity;
 
 // #732 — changes a farm's code. The operator surface is the `rename-account` verb; this is
 // the domain path that replaces the guarded raw UPDATE #731 documented, which bumped

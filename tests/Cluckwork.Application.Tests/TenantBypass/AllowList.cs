@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Tests.TenantBypass;
-
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
+namespace Cluckwork.Application.Tests.TenantBypass;
 
 // #536 Part 1 — the allow-list. One committed, reviewable line per excused
 // bypass (design M5/M7): the exemption is a SEPARATE artifact from the code it

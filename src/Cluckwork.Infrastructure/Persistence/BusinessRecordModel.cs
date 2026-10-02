@@ -1,10 +1,10 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 internal static class BusinessRecordModel
 {

@@ -1,6 +1,6 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using Cluckwork.Application.Common;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 public sealed class UnitOfWork(AppDbContext db) : IUnitOfWork
 {

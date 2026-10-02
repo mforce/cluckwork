@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Users;
-
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Application.Features.Users;
 
 public interface IUserRoleAssignmentRepository
 {

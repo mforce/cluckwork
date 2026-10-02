@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory.RecordPurchase;
-
 using Cluckwork.Domain.Inventory;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Inventory.RecordPurchase;
 
 public sealed class RecordPurchaseValidator : AbstractValidator<RecordPurchaseCommand>
 {

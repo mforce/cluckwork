@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #97 (part 1) — product catalog: egg products mapped to grades, packed-unit
 // conversions, admin-gated writes, seeded defaults, audit trail.

@@ -1,9 +1,9 @@
-namespace Cluckwork.Infrastructure.Repositories;
-
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Repositories;
 
 public sealed class BirdMovementRepository(AppDbContext db) : IBirdMovementRepository
 {

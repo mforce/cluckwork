@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Flocks;
-
 using Cluckwork.Domain.Flocks;
+
+namespace Cluckwork.Application.Features.Flocks;
 
 // Current display data for one flock, read out of the tenant's own visible
 // flocks so a returned page of rows can name its flocks in one grouped lookup

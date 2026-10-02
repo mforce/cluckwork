@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Sales.CreateSalesOrder;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Application.Features.Sales.CreateSalesOrder;
 
 public sealed class CreateSalesOrderHandler(
     ICustomerRepository customers,

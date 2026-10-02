@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.Logging;
-
 using Microsoft.Extensions.Primitives;
 using Serilog;
 using Serilog.Configuration;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.Logging;
 
 // #273 codex review (round 2, P1b) — builds this host's Serilog pipeline so
 // that NO sink can be reached except through ExceptionRedactingSink.

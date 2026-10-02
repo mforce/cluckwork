@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Http.Headers;
@@ -10,6 +8,8 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #123 slice 2 — the farm logo over the wire: who may upload one, what a stored
 // image is allowed to be, and what comes back out.

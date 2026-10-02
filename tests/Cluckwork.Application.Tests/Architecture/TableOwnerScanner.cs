@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Tests.Architecture;
-
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+
+namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed record CrossOwnerForeignKey(string Table, string Name, string From, string To);
 

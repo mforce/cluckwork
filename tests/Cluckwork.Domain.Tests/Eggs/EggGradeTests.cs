@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Eggs;
-
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Domain.Tests.Eggs;
 
 // #396 — a Daily Entry's Cracked and Dirty counters feed a specific grade, and
 // which grade that is must survive the farm renaming it. `DailyEntryKind` is

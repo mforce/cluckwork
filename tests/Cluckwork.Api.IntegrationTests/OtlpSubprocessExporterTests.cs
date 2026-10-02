@@ -1,11 +1,11 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // The OTel SDK reads standard OTLP variables when its exporter options object is
 // constructed. These cases run each exporter in a real child process so an

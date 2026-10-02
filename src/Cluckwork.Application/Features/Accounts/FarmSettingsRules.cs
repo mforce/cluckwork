@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Accounts;
-
 using System.Globalization;
+
+namespace Cluckwork.Application.Features.Accounts;
 
 public static class FarmSettingsRules
 {

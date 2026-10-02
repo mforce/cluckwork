@@ -1,8 +1,8 @@
-namespace Cluckwork.Application.Features.Accounts.RemoveFarmLogo;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+
+namespace Cluckwork.Application.Features.Accounts.RemoveFarmLogo;
 
 // #123 — clear the farm logo, falling the SPA chrome back to app branding.
 public sealed class RemoveFarmLogoHandler(

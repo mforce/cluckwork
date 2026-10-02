@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.Persistence;
-
 using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+
+namespace Cluckwork.Infrastructure.Persistence;
 
 // #269 — the retry BOUNDARY.
 //

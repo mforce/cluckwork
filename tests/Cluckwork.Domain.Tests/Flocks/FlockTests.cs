@@ -1,6 +1,6 @@
-namespace Cluckwork.Domain.Tests.Flocks;
-
 using Cluckwork.Domain.Flocks;
+
+namespace Cluckwork.Domain.Tests.Flocks;
 
 public sealed class FlockTests
 {

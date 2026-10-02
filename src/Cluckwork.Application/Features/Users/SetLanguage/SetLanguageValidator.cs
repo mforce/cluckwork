@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Users.SetLanguage;
-
 using System.Text.RegularExpressions;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Users.SetLanguage;
 
 public sealed partial class SetLanguageValidator : AbstractValidator<SetLanguageCommand>
 {

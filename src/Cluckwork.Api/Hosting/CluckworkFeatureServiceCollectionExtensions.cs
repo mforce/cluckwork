@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
@@ -52,10 +50,13 @@ using Cluckwork.Application.Features.Users.SetLanguage;
 using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Providers;
+using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Repositories;
 using Cluckwork.Infrastructure.Time;
 using FluentValidation;
 using Microsoft.Extensions.Options;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkFeatureServiceCollectionExtensions
 {
@@ -311,6 +312,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<UpdateExpenseCategoryHandler>();
         services.AddScoped<CreateExpenseHandler>();
         services.AddScoped<AdjustExpenseHandler>();
+        services.AddScoped<IFinanceModule, FinanceModule>();
         services.AddScoped<UpdateFlockHandler>();
         services.AddScoped<ArchiveFlockHandler>();
         services.AddScoped<RecordBirdMovementHandler>();

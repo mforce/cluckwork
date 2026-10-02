@@ -1,8 +1,8 @@
-namespace Cluckwork.Domain.Tests.Media;
-
 using System.Buffers.Binary;
 using System.Text;
 using Cluckwork.Domain.Media;
+
+namespace Cluckwork.Domain.Tests.Media;
 
 // #123 — what a farm logo upload is allowed to be.
 //

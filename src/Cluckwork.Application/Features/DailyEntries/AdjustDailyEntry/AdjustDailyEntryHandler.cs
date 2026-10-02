@@ -1,5 +1,3 @@
-namespace Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.EggGrades;
@@ -10,6 +8,8 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 
 // #69 — the corrective half of the production → stock bridge. Adjusting a
 // submitted/locked entry must keep three things consistent in ONE transaction:

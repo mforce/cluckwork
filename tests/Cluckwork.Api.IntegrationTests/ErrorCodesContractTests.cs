@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
 public sealed class ErrorCodesContractTests(CluckworkWebApplicationFactory factory)

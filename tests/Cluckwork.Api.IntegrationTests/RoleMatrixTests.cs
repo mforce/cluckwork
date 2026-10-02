@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #103 — the role → capability matrix (spec §5.1/§5.3) and worker flock
 // scoping. The SPA hides controls; these tests prove the API refuses anyway.

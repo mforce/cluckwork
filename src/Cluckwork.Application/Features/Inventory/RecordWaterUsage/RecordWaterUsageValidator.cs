@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory.RecordWaterUsage;
-
 using Cluckwork.Domain.Inventory;
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Inventory.RecordWaterUsage;
 
 public sealed class RecordWaterUsageValidator : AbstractValidator<RecordWaterUsageCommand>
 {

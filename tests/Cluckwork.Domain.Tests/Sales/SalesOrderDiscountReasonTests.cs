@@ -1,8 +1,8 @@
-namespace Cluckwork.Domain.Tests.Sales;
-
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Domain.Tests.Sales;
 
 // #721 — the discount-reason rule lives on the aggregate, not in a validator,
 // because the seeders reach Confirm through the handler and never see one

@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // A real Cluckwork.Api.dll child on its own ephemeral loopback port, with both pipes drained for its
 // whole life (an unread pipe fills its OS buffer and the child blocks on write) and kept, so a child

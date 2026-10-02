@@ -1,7 +1,7 @@
-namespace Cluckwork.Infrastructure.Providers.Postgres;
-
 using System.Data.Common;
 using Npgsql;
+
+namespace Cluckwork.Infrastructure.Providers.Postgres;
 
 // Normalizes a Postgres connection string and enforces the production TLS floor.
 // Call this ONCE at startup (composition root); the result is a plain Npgsql key-value

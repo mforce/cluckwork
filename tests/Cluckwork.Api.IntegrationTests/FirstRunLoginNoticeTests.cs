@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.Endpoints.Auth;
@@ -10,6 +8,8 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #283 follow-up — how a sign-in on an instance with NO administrator reports
 // itself, so the login screen can explain the dead end instead of showing the

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests.Infrastructure;
-
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Cluckwork.Infrastructure.Persistence;
@@ -7,6 +5,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // Full-stack integration tests run against a real Postgres container (tech spec §5.4).
 // SQLite is deliberately NOT used — EF Core SQL semantics differ too much.

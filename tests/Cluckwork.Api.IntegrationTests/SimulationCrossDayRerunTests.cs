@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.IO;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -15,6 +13,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #279 review (codex, BLOCKER + re-check) — idempotency of the simulation seed
 // under a controllable clock. The seeder writes date-relative natural keys

@@ -1,8 +1,7 @@
-namespace Cluckwork.Api.Endpoints.Audit;
-
-using Cluckwork.Application.Features.Audit;
-using Cluckwork.Domain.Auditing;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Infrastructure.Persistence;
+
+namespace Cluckwork.Api.Endpoints.Audit;
 
 // #93 — read-only audit viewer. There is deliberately NO mutation surface:
 // events append inside the transactions that create them and never change.
@@ -21,7 +20,7 @@ public static class AuditEndpoints
     }
 
     private static async Task<IResult> ListAuditEvents(
-        IAuditEventRepository events,
+        IInsightsModule events,
         TenantContext tenant,
         CancellationToken ct,
         string? action = null,
@@ -37,17 +36,8 @@ public static class AuditEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await events.ListAsync(action, entityType,
+        var list = await events.ListAuditEventsAsync(action, entityType,
             entityId, from, to, take, skip, ct);
-        return Results.Ok(list.Select(ToResponse));
+        return Results.Ok(list);
     }
-
-    private static AuditEventResponse ToResponse(AuditEvent e) =>
-        new(e.Id, e.OccurredAtUtc, e.ActorEmail, e.Action, e.EntityType, e.EntityId,
-            e.Reason, e.DetailsJson);
 }
-
-public sealed record AuditEventResponse(
-    Guid Id, DateTimeOffset OccurredAtUtc, string ActorEmail,
-    string Action, string EntityType, Guid EntityId,
-    string? Reason, string? DetailsJson);

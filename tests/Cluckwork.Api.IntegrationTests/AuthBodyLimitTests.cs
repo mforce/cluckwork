@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -11,6 +9,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #309 — an oversized credential must be rejected BEFORE JSON binding and BEFORE
 // the PBKDF2 hasher (including the unknown-user timing-equalization hash), while

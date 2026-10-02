@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.SharedState;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.RateLimiting;
@@ -7,6 +5,8 @@ using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #545 — the per-account report concurrency cap on the shared lease backends.
 // Deterministic (FakeTimeProvider drives the LEASE expiry clock; renewal is

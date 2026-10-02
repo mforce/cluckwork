@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Inventory.RecordFeedUsage;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 
 // Feeding a flock (spec §12.4): consumes the item's lots FIFO under the
 // canonical (ReceivedDate, Id) FOR UPDATE lock, appends one Usage ledger row

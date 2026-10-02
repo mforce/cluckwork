@@ -1,6 +1,6 @@
-namespace Cluckwork.Application.Features.Sales.UpdateOrderItem;
-
 using FluentValidation;
+
+namespace Cluckwork.Application.Features.Sales.UpdateOrderItem;
 
 public sealed class UpdateOrderItemValidator : AbstractValidator<UpdateOrderItemCommand>
 {

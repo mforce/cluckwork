@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.Inventory;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Inventory;
+
+namespace Cluckwork.Application.Features.Inventory;
 
 public interface IInventoryItemRepository : IRepository<InventoryItem, Guid>
 {

@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
@@ -11,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #269 review round 2 (codex 3696740950, P1) — "reacquire the bootstrap lock
 // after read retries".

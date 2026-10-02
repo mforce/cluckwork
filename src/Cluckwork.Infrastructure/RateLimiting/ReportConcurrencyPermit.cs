@@ -1,8 +1,8 @@
-namespace Cluckwork.Infrastructure.RateLimiting;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Infrastructure.RateLimiting;
 
 // #545 — the outcome of a single renewal, which drives re-accounting.
 // Renewed: the slot is still ours. Lost: a REACHABLE backend rejected the renewal

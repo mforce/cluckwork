@@ -1,7 +1,7 @@
-namespace Cluckwork.Application.Features.DailyEntries;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
+
+namespace Cluckwork.Application.Features.DailyEntries;
 
 public interface IDailyEntryRepository : IRepository<DailyEntry, Guid>
 {

@@ -1,7 +1,7 @@
-namespace Cluckwork.Domain.Tests.Sales;
-
 using System.Globalization;
 using Cluckwork.Domain.Sales;
+
+namespace Cluckwork.Domain.Tests.Sales;
 
 // #727 — the shared vector set. These exact numbers are the table the SPA's own
 // TypeScript mirror is held to, so the two implementations cannot disagree

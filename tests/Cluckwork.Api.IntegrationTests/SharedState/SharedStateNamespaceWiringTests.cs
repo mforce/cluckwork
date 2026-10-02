@@ -1,10 +1,10 @@
-namespace Cluckwork.Api.IntegrationTests.SharedState;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.RateLimiting;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests.SharedState;
 
 // #545 — Program must use the same bound SharedStateOptions namespace for both
 // the auth counter and report cap. Each backing store has its own key shape, so

@@ -1,10 +1,10 @@
-namespace Cluckwork.Application.Features.Inventory.RecordPurchase;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
 using Microsoft.Extensions.Logging;
+
+namespace Cluckwork.Application.Features.Inventory.RecordPurchase;
 
 // Receiving stock (spec §12.2): creates the lot AND its Purchase ledger row
 // atomically. Runs under a FOR UPDATE lock on the item row so the unit read

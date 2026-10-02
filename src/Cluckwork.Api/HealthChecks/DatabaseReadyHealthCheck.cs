@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.HealthChecks;
-
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+
+namespace Cluckwork.Api.HealthChecks;
 
 // Readiness = the database is reachable AND the schema is current (tech spec:
 // "DB connectivity, migrations applied"). A connectivity-only check would

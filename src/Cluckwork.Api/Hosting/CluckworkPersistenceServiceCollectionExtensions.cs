@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.Hosting;
-
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
@@ -9,6 +7,8 @@ using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Cluckwork.Infrastructure.Time;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkPersistenceServiceCollectionExtensions
 {

@@ -1,7 +1,7 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
 public sealed class UserLanguageColumnTests(CluckworkWebApplicationFactory factory)

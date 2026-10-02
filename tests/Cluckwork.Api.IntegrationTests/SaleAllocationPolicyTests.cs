@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.Endpoints.Auth;
@@ -13,6 +11,8 @@ using Cluckwork.Infrastructure.Repositories;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #612 — the confirmation-time policy application: whole-order planning tries
 // a restricted plain Worker's assigned flocks first under AssignedFlocksOnly,

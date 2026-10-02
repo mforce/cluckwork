@@ -1,8 +1,8 @@
-namespace Cluckwork.Api.Endpoints.Export;
-
 using System.Globalization;
 using System.Text;
 using Cluckwork.Application.Features.Export;
+
+namespace Cluckwork.Api.Endpoints.Export;
 
 // #95 — RFC 4180 CSV: CRLF rows, quote-doubling, UTF-8 with BOM (Excel needs
 // the BOM to detect the encoding). Rows stream straight from the source

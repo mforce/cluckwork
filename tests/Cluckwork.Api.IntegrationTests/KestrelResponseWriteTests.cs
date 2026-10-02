@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Collections.Concurrent;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -8,6 +6,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using Serilog.Events;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #340 — every write endpoint returning 204 threw under a real server:
 //

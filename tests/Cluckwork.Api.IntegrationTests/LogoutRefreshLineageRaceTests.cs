@@ -1,5 +1,3 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Data.Common;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -9,6 +7,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 public sealed class LogoutRefreshLineageRaceFactory : CluckworkWebApplicationFactory
 {

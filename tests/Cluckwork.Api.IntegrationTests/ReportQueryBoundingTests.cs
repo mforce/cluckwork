@@ -1,12 +1,12 @@
-namespace Cluckwork.Api.IntegrationTests;
-
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Repositories;
+using Cluckwork.Infrastructure.Insights;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+
+namespace Cluckwork.Api.IntegrationTests;
 
 // #311 — GetProductionAsync's hen-day calculation used to load the account's
 // ENTIRE bird-movement ledger (db.BirdMovements.GroupBy(...).ToListAsync()
