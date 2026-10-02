@@ -113,7 +113,7 @@ public static class ExpenseEndpoints
     private static async Task<IResult> ListExpenses(
         IFinanceModule finance,
         Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
-        IAccountRepository accounts,
+        IFarmModule farm,
         IInsightsModule audit,
         TenantContext tenant,
         CancellationToken ct,
@@ -132,7 +132,7 @@ public static class ExpenseEndpoints
         var list = page.Items;
         // Single-farm MVP: every expense carries the account currency, so one
         // label fits the total. Multi-currency totals arrive with multi-farm.
-        var account = await accounts.GetCurrentAsync(ct);
+        var settings = await farm.GetSettingsAsync(ct);
         var provenance = await audit.GetProvenanceAsync(
             IFinanceModule.ExpenseAuditEntityType, list.Select(e => e.Id).ToList(), ct);
         // #512 T048 — one scoped bulk read for the page's flock references. A
@@ -147,8 +147,8 @@ public static class ExpenseEndpoints
             list.Select(e => ToResponse(e, provenance.GetValueOrDefault(e.Id),
                 e.FlockId is null ? null : names.GetValueOrDefault(e.FlockId.Value)?.Name)).ToList(),
             page.TotalMinorUnits,
-            account?.DefaultCurrencyCode ?? "",
-            account?.DefaultCurrencyMinorUnit ?? 2));
+            settings?.CurrencyCode ?? "",
+            settings?.CurrencyMinorUnit ?? 2));
     }
 
     private static async Task<IResult> GetExpense(

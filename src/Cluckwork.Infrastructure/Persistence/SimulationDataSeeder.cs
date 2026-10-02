@@ -101,8 +101,7 @@ public sealed class SimulationDataSeeder(
     IFlockRepository flocks,
     IAuditWriter audit,
     IUserRoleAssignmentRepository assignments,
-    IAccountRepository accounts,
-    UpdateFarmSettingsHandler updateFarmSettings,
+    IFarmModule farm,
     IEggGradeRepository eggGrades,
     IDailyEntryRepository dailyEntries,
     RecordDailyEntryHandler recordEntry,
@@ -1030,7 +1029,7 @@ public sealed class SimulationDataSeeder(
         // the row instead of doing nothing.
         ActAs(cast.Owner);
 
-        var account = await accounts.GetCurrentTrackedAsync(ct)
+        var account = await farm.GetSettingsAsync(ct)
             ?? throw new InvalidOperationException("Simulation seed: the primary account was not found.");
 
         if (string.Equals(account.TimeZoneId, sim.TimeZoneId, StringComparison.Ordinal))
@@ -1040,7 +1039,7 @@ public sealed class SimulationDataSeeder(
             account.Name,
             sim.TimeZoneId,
             account.Locale,
-            account.DefaultCurrencyCode,
+            account.CurrencyCode,
             account.UnitSystem.ToString(),
             account.FirstDayOfWeek?.ToString(),
             account.DateFormatOverride,
@@ -1053,9 +1052,9 @@ public sealed class SimulationDataSeeder(
             // carry the farm's current ceiling forward or it would silently
             // clear one (#727). The fixture sets none today; that is not a
             // reason to hard-code null here.
-            account.MaxDiscount?.Percent);
+            account.MaxDiscountPercent);
 
-        var result = await updateFarmSettings.HandleAsync(command, ct);
+        var result = await farm.UpdateSettingsAsync(command, ct);
         Require(result, $"set primary account timezone to {sim.TimeZoneId}");
     }
 

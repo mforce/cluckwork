@@ -3,7 +3,6 @@ using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Identity;
@@ -174,7 +173,7 @@ public static class AuthEndpoints
     private static async Task<IResult> Login(
         LoginRequest request, IIdentityProvider identity, IValidator<LoginRequest> validator,
         HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
-        FirstRunStatusService firstRun, IAccountRepository accounts,
+        FirstRunStatusService firstRun,
         AuthSecurityEventLogger securityEvents, CancellationToken ct)
     {
         // #309 — reject an OVERSIZED email/password (400) before the hasher. An
@@ -184,14 +183,14 @@ public static class AuthEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        // #532 — resolve the FARM before the credential. FindBySlugAsync folds the
+        // #532 — resolve the FARM before the credential. The lookup folds the
         // code to lowercase and ignores the tenant query filter; both are
         // mandatory, not tidiness. Login is AllowAnonymous, so TenantContext is
         // unresolved and the Account filter (AccountId == Guid.Empty) matches
         // zero rows — a lookup written the obvious way reports every farm code as
         // unknown, silently.
-        var account = await accounts.FindBySlugAsync(request.FarmCode, ct);
-        if (account is null)
+        var farm = await identity.ResolveFarmCodeAsync(request.FarmCode, ct);
+        if (farm is null)
         {
             // Identity-free, exactly like every other unsuccessful branch, and
             // carrying NO slug: this stream must not become the enumeration
@@ -205,7 +204,7 @@ public static class AuthEndpoints
                 statusCode: 401, title: UnknownFarmCodeCode);
         }
 
-        if (!account.IsActive)
+        if (!farm.IsActive)
         {
             // BEFORE the credential check and before the first-run notice below:
             // a suspended farm must answer the same way whether or not the
@@ -217,7 +216,7 @@ public static class AuthEndpoints
                 statusCode: 401, title: FarmSuspendedCode);
         }
 
-        var result = await identity.LoginAsync(account.Id, request.Email, request.Password, ct);
+        var result = await identity.LoginAsync(farm.AccountId, request.Email, request.Password, ct);
         if (!result.IsSuccess)
         {
             // #283 follow-up (#361) — first-run discoverability, reported HERE
@@ -272,7 +271,7 @@ public static class AuthEndpoints
             // farm code an attacker can guess, and would re-open the DoS the
             // latch closed, since a farm that is never provisioned never latches
             // and every failed login re-runs the triple-nested query.
-            if (account.Id == SeedDefaults.AccountId && !await firstRun.IsProvisionedAsync(ct))
+            if (farm.AccountId == SeedDefaults.AccountId && !await firstRun.IsProvisionedAsync(ct))
                 // Says ADMINISTRATOR, not "no accounts" and not "no sign-in can
                 // succeed" (PR #363 review). The predicate is specifically "the
                 // default account has no Owner", which is #283's provisioning
@@ -294,7 +293,7 @@ public static class AuthEndpoints
         // that was just authenticated and can no longer disturb any other
         // farm's cookie. The old last-login-wins-over-every-tab behaviour is
         // gone by construction, not by a guard.
-        AuthCookies.SetRefreshCookie(response, account.Id, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        AuthCookies.SetRefreshCookie(response, farm.AccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 

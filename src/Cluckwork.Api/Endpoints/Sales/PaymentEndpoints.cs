@@ -126,20 +126,20 @@ public static class PaymentEndpoints
 
     private static async Task<IResult> ListCustomerBalances(
         IPaymentRepository payments,
-        Cluckwork.Application.Features.Accounts.IAccountRepository accounts,
+        Cluckwork.Application.Features.Accounts.IFarmModule farm,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         var rows = await payments.ListCustomerBalancesAsync(ct);
-        var account = await accounts.GetCurrentAsync(ct);
+        var settings = await farm.GetSettingsAsync(ct);
         return Results.Ok(new CustomerBalancesResponse(
             rows.Select(r => new CustomerBalanceResponse(
                 r.CustomerId, r.ConfirmedTotalMinorUnits, r.PaidMinorUnits,
                 r.ConfirmedTotalMinorUnits - r.PaidMinorUnits)).ToList(),
-            account?.DefaultCurrencyCode ?? "",
-            account?.DefaultCurrencyMinorUnit ?? 2));
+            settings?.CurrencyCode ?? "",
+            settings?.CurrencyMinorUnit ?? 2));
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)

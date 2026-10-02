@@ -1,7 +1,15 @@
 {
   "owners": {
     "Access":           { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Users", "Cluckwork.Infrastructure.Identity"] },
-    "Farm":             { "kind": "module",   "namespaces": ["Cluckwork.Domain.Accounts", "Cluckwork.Domain.Media", "Cluckwork.Application.Features.Accounts"] },
+    "Farm":             { "kind": "module",   "namespaces": ["Cluckwork.Domain.Accounts", "Cluckwork.Domain.Media", "Cluckwork.Application.Features.Accounts"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Accounts.IFarmModule",
+                            "Cluckwork.Application.Features.Accounts.FarmSettingsDetails",
+                            "Cluckwork.Application.Features.Accounts.FarmBrandingHashes",
+                            "Cluckwork.Application.Features.Accounts.FarmLogoMetadata",
+                            "Cluckwork.Application.Features.Accounts.FarmLogoContent",
+                            "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand"
+                          ] },
     "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"] },
     "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"] },
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
@@ -132,8 +140,10 @@
     },
     {
       "from": "Farm", "to": "Commerce", "kind": "R",
-      "reason": "Farm settings own three Commerce-shaped values. Domain.Accounts.Account holds Domain.Catalog.EggUnit as the farm's default stepper unit and exposes Domain.Sales.DiscountCeiling, while UpdateFarmSettingsHandler resolves the stepper unit through Commerce's IEggUnitConversionRepository and UpdateFarmSettingsValidator parses the ceiling with DiscountCeiling.TryParsePercent (#727). Design 3.4 shows Farm -> Commerce as none; this is live coupling the target design has still to remove.",
+      "reason": "Farm settings own three Commerce-shaped values. Domain.Accounts.Account holds Domain.Catalog.EggUnit as the farm's default stepper unit and exposes Domain.Sales.DiscountCeiling, while UpdateFarmSettingsHandler resolves the stepper unit through Commerce's IEggUnitConversionRepository and UpdateFarmSettingsValidator parses the ceiling with DiscountCeiling.TryParsePercent (#727). The Farm contract's FarmSettingsDetails, declared beside IFarmModule, carries the same Domain.Catalog.EggUnit stepper unit out to its callers (#851). Design 3.4 shows Farm -> Commerce as none; this is live coupling the target design has still to remove.",
       "symbols": [
+        "Cluckwork.Application.Features.Accounts.FarmSettingsDetails",
+        "Cluckwork.Application.Features.Accounts.IFarmModule",
         "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler",
         "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsValidator",
         "Cluckwork.Domain.Accounts.Account"
@@ -545,8 +555,7 @@
     {
       "symbol": "Cluckwork.Api.Endpoints.Auth.AuthEndpoints.Login",
       "reaches": [
-        "Access",
-        "Farm"
+        "Access"
       ]
     },
     {

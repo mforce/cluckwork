@@ -4,7 +4,7 @@
 # re-tagged "latest 10.0". Dependabot's `docker` ecosystem opens the bump PR when
 # a newer digest ships a security fix; refresh with
 #   docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'
-FROM node:26-alpine@sha256:dbaa92e5758cbbcf85d65d5403fdb530fe3442cbe8c6dbfb7ef23365450d5070 AS web-build
+FROM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS web-build
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
