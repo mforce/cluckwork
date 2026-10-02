@@ -37,17 +37,17 @@ public static class AccountEndpoints
     }
 
     private static async Task<IResult> GetAccount(
-        IAccountRepository accounts, IFarmLogoRepository logos, TenantContext tenant,
+        IFarmModule farm, TenantContext tenant,
         FlockScope flockScope, ICurrentUser currentUser, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var account = await accounts.GetCurrentAsync(ct);
+        var account = await farm.GetSettingsAsync(ct);
         if (account is null) return Results.NotFound();
 
         // Hashes only, one round trip (#179 review) — this tells the chrome
         // whether to fetch /logo (or the splash /banner) at all, and gives it a
         // value that changes when the image does.
-        var branding = await logos.GetBrandingHashesAsync(ct);
+        var branding = await farm.GetBrandingHashesAsync(ct);
         return Results.Ok(ToResponse(
             account, branding.LogoContentHash, branding.BannerContentHash,
             ShowFarmWideSaleAllocationNotice(account, flockScope),
@@ -67,20 +67,18 @@ public static class AccountEndpoints
     /// every confirm. The role predicate is shared with that handler so the two
     /// cannot disagree about who is bound.
     /// <para>
-    /// GetAccount already materializes the whole Account row for every role, so
-    /// this costs no new query.
+    /// GetAccount already reads the farm settings for every role, so this costs
+    /// no new query.
     /// </para>
     /// </remarks>
-    private static decimal? YourMaxDiscountPercent(Account account, ICurrentUser currentUser) =>
-        account.MaxDiscount is { } ceiling
+    private static decimal? YourMaxDiscountPercent(FarmSettingsDetails account, ICurrentUser currentUser) =>
+        account.MaxDiscountPercent is { } ceiling
         && !Roles.MayExceedDiscountCeiling(Roles.ResolveEffective(currentUser.Roles))
-            ? ceiling.Percent
+            ? ceiling
             : null;
 
     private static async Task<IResult> GetSettings(
-        IAccountRepository accounts,
-        ICurrencyBoundRowProbe currencyBoundRows,
-        IFarmLogoRepository logos,
+        IFarmModule farm,
         IOptionsSnapshot<FarmLogoOptions> logoOptions,
         IOptionsSnapshot<FarmBannerOptions> bannerOptions,
         TenantContext tenant,
@@ -89,13 +87,13 @@ public static class AccountEndpoints
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var account = await accounts.GetCurrentAsync(ct);
+        var account = await farm.GetSettingsAsync(ct);
         if (account is null) return Results.NotFound();
 
         // Surfaced so the screen can disable the currency field with an
         // explanation instead of letting the user discover the rule as a 422.
-        var canChangeCurrency = !await currencyBoundRows.AnyAsync(ct);
-        var branding = await logos.GetBrandingHashesAsync(ct);
+        var canChangeCurrency = await farm.CanChangeCurrencyAsync(ct);
+        var branding = await farm.GetBrandingHashesAsync(ct);
         // The upload cap travels with the settings the upload screen reads, so
         // the client-side pre-check and the "up to N MB" copy cannot drift from
         // what the server enforces (#123, #179). It IS config, so the SPA must
@@ -109,7 +107,7 @@ public static class AccountEndpoints
             logoOptions.Value.MaxUploadBytes,
             bannerOptions.Value.MaxUploadBytes,
             account.WorkerSaleAllocationPolicy.ToString(),
-            account.MaxDiscount?.Percent));
+            account.MaxDiscountPercent));
     }
 
     // #612 — true only for a restricted plain Worker under AllFarmFlocks: the
@@ -118,13 +116,13 @@ public static class AccountEndpoints
     // persistent generic notice. FlockScope is already resolved by
     // FlockScopeResolutionMiddleware before this endpoint runs, from the same
     // UserRoleAssignment rows Confirm reads — no second query, no new state.
-    private static bool ShowFarmWideSaleAllocationNotice(Account account, FlockScope flockScope) =>
+    private static bool ShowFarmWideSaleAllocationNotice(FarmSettingsDetails account, FlockScope flockScope) =>
         account.WorkerSaleAllocationPolicy == WorkerSaleAllocationPolicy.AllFarmFlocks
         && !flockScope.IsUnrestricted;
 
     private static async Task<IResult> UpdateSettings(
         UpdateFarmSettingsRequest request,
-        UpdateFarmSettingsHandler handler,
+        IFarmModule farm,
         IValidator<UpdateFarmSettingsCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -150,7 +148,7 @@ public static class AccountEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await farm.UpdateSettingsAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
@@ -166,10 +164,10 @@ public static class AccountEndpoints
     };
 
     private static AccountResponse ToResponse(
-        Account a, string? logoContentHash, string? bannerContentHash,
+        FarmSettingsDetails a, string? logoContentHash, string? bannerContentHash,
         bool showFarmWideSaleAllocationNotice, decimal? yourMaxDiscountPercent) => new(
         a.Id, a.Name,
-        a.DefaultCurrencyCode, a.DefaultCurrencyMinorUnit, a.CurrencySymbol,
+        a.CurrencyCode, a.CurrencyMinorUnit, a.CurrencySymbol,
         a.TimeZoneId, a.Locale,
         a.UnitSystem.ToString(),
         a.FirstDayOfWeek?.ToString(),

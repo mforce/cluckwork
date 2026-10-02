@@ -32,6 +32,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Declare adapter tiers before the surfaces that need them exist (#843)](843-adapter-tiers.md) | AGENTS · Application shape |
 | [Generate the coupling matrix from live evidence (#848)](848-generated-coupling-matrix.md) | AGENTS · Application shape |
 | [Reach a contracted module only through its contract (#849)](849-module-contract.md) | AGENTS · Application shape |
+| [Farm settings behind a contract; identity and the account seam outside it (#851)](851-farm-contract.md) | AGENTS · Application shape |
 | [Table-owner completeness from the EF model (#845)](845-table-owners.md) | AGENTS · Data and correctness |
 | [Credential epoch revocation (#364)](364-credential-epoch-revocation.md) | AGENTS · Conventions |
 | [Base reference data via guarded raw-SQL migrations (#283)](283-migrations-base-provisioning.md) | AGENTS · Conventions |
