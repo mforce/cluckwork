@@ -14,6 +14,9 @@ public sealed record OwnerDefinition(
 {
     // #849: when non-empty, adapters may reach this owner only through these types.
     public IReadOnlyList<string> Contract { get; init; } = [];
+
+    // #850: types outside the module's namespaces trusted to read its tables.
+    public IReadOnlyList<string> Implementations { get; init; } = [];
 }
 
 public sealed record EdgeCell(string From, string To, string Kind, string Reason, IReadOnlyList<string> Symbols);
@@ -47,7 +50,8 @@ public sealed record AdapterTier(string Namespace, string Privilege, string Surf
 }
 
 // #850: a member outside a contracted module that reads the module's tables through a DbSet.
-public sealed record CompatibilityException(string Symbol, string Reaches, string Owner, string Reason, string DeleteWhen);
+public sealed record CompatibilityException(
+    string Symbol, string Reaches, IReadOnlyList<string> Tables, string Owner, string Reason, string DeleteWhen);
 
 public sealed record ModuleLedger(
     IReadOnlyList<OwnerDefinition> Owners,
@@ -297,8 +301,11 @@ public sealed record ModuleLedger(
                 "the trigger is the slice issue that deletes the exception, never a date");
         }
 
+        var tables = row.ValueKind == JsonValueKind.Object ? ReadStringArray(row, "tables", label, errors) : [];
+        if (row.ValueKind == JsonValueKind.Object && tables.Count == 0)
+            errors.Add($"{label} names no tables");
         return new CompatibilityException(RequiredString(row, "symbol", label, errors),
-            RequiredString(row, "reaches", label, errors), RequiredString(row, "owner", label, errors),
+            RequiredString(row, "reaches", label, errors), tables, RequiredString(row, "owner", label, errors),
             RequiredString(row, "reason", label, errors), deleteWhen);
     }
 
@@ -339,7 +346,15 @@ public sealed record ModuleLedger(
             errors.Add($"owner '{name}' is a platform owner and cannot declare a contract");
         }
 
-        return new OwnerDefinition(name, kind ?? string.Empty, namespaces, exact) { Contract = contract };
+        var implementations = property.Value.TryGetProperty("implementations", out _)
+            ? ReadStringArray(property.Value, "implementations", $"owner '{name}'", errors)
+            : [];
+
+        return new OwnerDefinition(name, kind ?? string.Empty, namespaces, exact)
+        {
+            Contract = contract,
+            Implementations = implementations,
+        };
     }
 
     private static EdgeCell ReadEdge(JsonElement element, int index, List<string> errors)

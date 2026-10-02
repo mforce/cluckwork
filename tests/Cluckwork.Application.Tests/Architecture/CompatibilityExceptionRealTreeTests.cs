@@ -26,6 +26,6 @@ public sealed class CompatibilityExceptionRealTreeTests(ITestOutputHelper output
         Assert.True(report.CompiledFileCount >= CompatibilityExceptionScanner.RealTreeFileFloor,
             $"compiled {report.CompiledFileCount} files, expected at least {CompatibilityExceptionScanner.RealTreeFileFloor}");
         Assert.Contains(report.Reads, r => r.Allowance == CompatibilityExceptionScanner.DbSetDeclaration);
-        Assert.Contains(report.Reads, r => r.Allowance == CompatibilityExceptionScanner.ModulePort);
+        Assert.Contains(report.Reads, r => r.Allowance == CompatibilityExceptionScanner.Implementation);
     }
 }

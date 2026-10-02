@@ -1,27 +1,31 @@
 using System.Xml.Linq;
 using Cluckwork.Application.Tests.TenantBypass;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
-// #850 (epic #514 slice 8) — every DbSet read of a contracted module's entity from outside that
+// #850 (epic #514 slice 8) — every DbSet read of a contracted module's table from outside that
 // module is either allowed structurally or registered under `compatibilityExceptions`.
 
-public sealed record DbSetRead(string Symbol, string Reaches, string Allowance, string File, int Line);
+public sealed record DbSetRead(string Symbol, string Reaches, string Table, string Allowance, string File, int Line);
 
 public sealed record CompatibilityExceptionReport(
     IReadOnlyList<DbSetRead> Reads,
     IReadOnlyList<DbSetRead> Undeclared,
-    IReadOnlyList<CompatibilityException> Stale,
+    IReadOnlyList<DbSetRead> UnlistedTables,
+    IReadOnlyList<string> Stale,
+    IReadOnlyList<string> Unresolved,
     IReadOnlyList<string> CompileErrors,
     IReadOnlyList<string> RegistryErrors,
     int CompiledFileCount);
 
 public static class CompatibilityExceptionScanner
 {
-    // The project whose sources are compiled for a semantic walk. AppDbContext lives here.
+    // Compiled with zero errors tolerated. Projects referencing it compile with errors tolerated.
     internal const string SemanticProject = "Cluckwork.Infrastructure";
 
     // Below the 156 files src/Cluckwork.Infrastructure held on 2026-10-02.
@@ -30,12 +34,12 @@ public static class CompatibilityExceptionScanner
     internal const string Registered = "registered";
     internal const string OwnModule = "own module";
     internal const string DeclaredEdge = "declared edge";
-    internal const string ModulePort = "implements a module port";
+    internal const string Implementation = "declared implementation";
     internal const string DbSetDeclaration = "DbSet declaration";
 
     private const string DbSetDefinition = "Microsoft.EntityFrameworkCore.DbSet<TEntity>";
 
-    // Microsoft.NET.Sdk's implicit usings, which the compiled project enables.
+    // The implicit usings of Microsoft.NET.Sdk, then the ones Microsoft.NET.Sdk.Web adds.
     private const string ImplicitUsings = """
         global using System;
         global using System.Collections.Generic;
@@ -46,8 +50,39 @@ public static class CompatibilityExceptionScanner
         global using System.Threading.Tasks;
         """;
 
+    private const string WebImplicitUsings = """
+        global using System.Net.Http.Json;
+        global using Microsoft.AspNetCore.Builder;
+        global using Microsoft.AspNetCore.Hosting;
+        global using Microsoft.AspNetCore.Http;
+        global using Microsoft.AspNetCore.Routing;
+        global using Microsoft.Extensions.Configuration;
+        global using Microsoft.Extensions.DependencyInjection;
+        global using Microsoft.Extensions.Hosting;
+        global using Microsoft.Extensions.Logging;
+        """;
+
     private static readonly SymbolDisplayFormat TypeFormat = new(
         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
+
+    // Matches ClrKey, so IdentityUserRole<Guid> finds its model entry.
+    private static readonly SymbolDisplayFormat EntityFormat = TypeFormat.WithGenericsOptions(
+        SymbolDisplayGenericsOptions.IncludeTypeParameters);
+
+    // Entity CLR type -> every table it maps to, from the real model, so a read is classified by the
+    // ledger's table owner rather than the entity's namespace (UserRoleAssignment is the counterexample).
+    private static readonly Lazy<IReadOnlyDictionary<string, string[]>> EntityTables = new(() =>
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=localhost;Database=unreachable;Username=unreachable;Password=unreachable")
+            .EnableServiceProviderCaching(false).Options;
+        using var context = new AppDbContext(options, new TenantContext(), new FlockScope());
+        return context.Model.GetEntityTypes()
+            .Where(e => !e.HasSharedClrType && !e.IsOwned())
+            .ToDictionary(e => ClrKey(e.ClrType),
+                e => TableOwnerScanner.TableStoreObjects(e).Select(t => TableOwnerScanner.Qualify(t.Name, t.Schema)).ToArray(),
+                StringComparer.Ordinal);
+    });
 
     public static CompatibilityExceptionReport Scan(string srcRoot, string ledgerPath)
     {
@@ -56,70 +91,135 @@ public static class CompatibilityExceptionScanner
         var ledger = ModuleLedger.Load(ledgerPath);
         var registryErrors = new List<string>(ledger.RegistryErrors);
         var index = ModuleLedgerScanner.BuildNamespaceIndex(ledger, registryErrors);
-        var contracted = ledger.Owners.Where(o => o.Contract.Count > 0).Select(o => o.Name)
-            .ToHashSet(StringComparer.Ordinal);
-        ValidateRows(ledger, contracted, registryErrors);
+        var contracted = ledger.Owners.Where(o => o.Contract.Count > 0)
+            .ToDictionary(o => o.Name, StringComparer.Ordinal);
+        var tableOwners = ledger.Tables.GroupBy(t => t.Table, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Owner, StringComparer.Ordinal);
+        ValidateRows(ledger, contracted, tableOwners, registryErrors);
 
         string? OwnerOf(INamespaceSymbol ns) =>
             ModuleLedgerScanner.Resolve(index, ns.ToDisplayString(), declared: true)?.Owner;
 
         var files = GuardScanner.EnumerateSourceFiles(Path.Combine(srcFull, SemanticProject));
-        var trees = files
-            .Select(f => CSharpSyntaxTree.ParseText(File.ReadAllText(f), ModuleLedgerScanner.ParseOptions, f))
-            .Append(CSharpSyntaxTree.ParseText(ImplicitUsings, ModuleLedgerScanner.ParseOptions))
-            .ToList();
-        var compilation = CSharpCompilation.Create(SemanticProject, trees, References(),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        var compilation = Compile(SemanticProject, files, ImplicitUsings, References());
         var compileErrors = compilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .Select(d => $"{Relative(repoRoot, d.Location.SourceTree?.FilePath ?? "")}:{Line(d.Location)}: {d.Id} {d.GetMessage()}")
             .ToList();
+        var lenient = ProjectsReferencing(srcFull, SemanticProject)
+            .Select(p => Compile(p, GuardScanner.EnumerateSourceFiles(Path.Combine(srcFull, p)),
+                ImplicitUsings + WebImplicitUsings, References().Append(compilation.ToMetadataReference())))
+            .ToList();
 
         var reads = new List<DbSetRead>();
-        var guardedProperties = new Dictionary<string, string>(StringComparer.Ordinal);
-        var guardedEntities = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var tree in trees)
+        var unresolved = new List<string>();
+        var guardedProperties = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var current in lenient.Prepend(compilation))
         {
-            var model = compilation.GetSemanticModel(tree);
-            foreach (var expression in tree.GetRoot().DescendantNodes().OfType<ExpressionSyntax>())
+            foreach (var tree in current.SyntaxTrees.Where(t => t.FilePath.Length > 0))
             {
-                if (expression is not (MemberAccessExpressionSyntax or InvocationExpressionSyntax or IdentifierNameSyntax)
-                    || model.GetTypeInfo(expression).Type is not INamedTypeSymbol { TypeArguments: [INamedTypeSymbol entity] } type
-                    || type.OriginalDefinition.ToDisplayString() != DbSetDefinition
-                    || OwnerOf(entity.ContainingNamespace) is not { } module
-                    || !contracted.Contains(module))
+                var model = current.GetSemanticModel(tree);
+                var file = Relative(repoRoot, tree.FilePath);
+                foreach (var expression in tree.GetRoot().DescendantNodes().OfType<ExpressionSyntax>())
                 {
-                    continue;
-                }
+                    if (expression is not (MemberAccessExpressionSyntax or InvocationExpressionSyntax or IdentifierNameSyntax)
+                        || model.GetTypeInfo(expression).Type is not INamedTypeSymbol { TypeArguments: [var entity] } type
+                        || !IsDbSet(type))
+                    {
+                        continue;
+                    }
 
-                guardedEntities[entity.Name] = module;
-                var member = EnclosingMember(model, expression);
-                if (member is IPropertySymbol property && property.Type.OriginalDefinition.ToDisplayString() == DbSetDefinition)
-                {
-                    guardedProperties[property.Name] = module;
-                }
+                    var member = EnclosingMember(model, expression);
+                    var symbol = member is INamedTypeSymbol named ? Key(named) : $"{Key(member.ContainingType)}.{member.Name}";
+                    var location = $"{symbol} at {file}:{Line(expression.GetLocation())}";
+                    if (entity is not INamedTypeSymbol namedEntity)
+                    {
+                        unresolved.Add($"{location} obtains DbSet<{entity.Name}> of a type parameter, so the walk " +
+                            "cannot tell which table it reads; obtain the set with a concrete entity type");
+                        continue;
+                    }
 
-                var symbol = member is INamedTypeSymbol named ? Key(named) : $"{Key(member.ContainingType)}.{member.Name}";
-                reads.Add(new DbSetRead(symbol, module, Allowance(member, module), Relative(repoRoot, tree.FilePath), Line(expression.GetLocation())));
+                    if (!EntityTables.Value.TryGetValue(namedEntity.ToDisplayString(EntityFormat), out var tables))
+                    {
+                        unresolved.Add($"{location} obtains DbSet<{namedEntity.ToDisplayString(EntityFormat)}>, " +
+                            "which maps to no table in AppDbContext's model");
+                        continue;
+                    }
+
+                    foreach (var table in tables)
+                    {
+                        if (!tableOwners.TryGetValue(table, out var module) || !contracted.ContainsKey(module))
+                        {
+                            continue;
+                        }
+
+                        if (member is IPropertySymbol property && IsDbSet(property.Type))
+                        {
+                            guardedProperties.Add(property.Name);
+                        }
+
+                        reads.Add(new DbSetRead(symbol, module, table, Allowance(member, module, expression), file,
+                            Line(expression.GetLocation())));
+                    }
+                }
             }
         }
 
-        reads.AddRange(UnwalkedReads(srcFull, repoRoot, guardedProperties, guardedEntities));
+        // A name a lenient project cannot bind might be a guarded read the walk cannot see.
+        foreach (var current in lenient)
+        {
+            foreach (var tree in current.SyntaxTrees.Where(t => t.FilePath.Length > 0))
+            {
+                var model = current.GetSemanticModel(tree);
+                foreach (var node in tree.GetRoot().DescendantNodes().OfType<SimpleNameSyntax>())
+                {
+                    var candidate = node is GenericNameSyntax { Identifier.ValueText: "Set" }
+                        || (node.Parent is MemberAccessExpressionSyntax access && access.Name == node
+                            && guardedProperties.Contains(node.Identifier.ValueText));
+                    if (candidate && model.GetSymbolInfo(node).Symbol is null)
+                    {
+                        unresolved.Add($"{SyntacticKey(node)} at {Relative(repoRoot, tree.FilePath)}:{Line(node.GetLocation())}: " +
+                            $"'{node}' does not bind in {current.AssemblyName}, so it could be a DbSet read the walk cannot classify");
+                    }
+                }
+            }
+        }
 
-        // One row per (member, module); the first site is the one reported.
+        ValidateImplementations(contracted, compilation, reads, OwnerOf, registryErrors);
+
         var distinct = reads
-            .GroupBy(r => (r.Symbol, r.Reaches))
+            .GroupBy(r => (r.Symbol, r.Reaches, r.Table))
             .Select(g => g.OrderBy(r => r.File, StringComparer.Ordinal).ThenBy(r => r.Line).First())
             .OrderBy(r => r.Symbol, StringComparer.Ordinal).ThenBy(r => r.Reaches, StringComparer.Ordinal)
+            .ThenBy(r => r.Table, StringComparer.Ordinal)
             .ToList();
-        var declared = ledger.CompatibilityExceptions.Select(e => (e.Symbol, e.Reaches)).ToHashSet();
-        var undeclared = distinct.Where(r => r.Allowance == Registered && !declared.Contains((r.Symbol, r.Reaches))).ToList();
-        var registered = distinct.Where(r => r.Allowance == Registered).Select(r => (r.Symbol, r.Reaches)).ToHashSet();
-        var stale = ledger.CompatibilityExceptions.Where(e => !registered.Contains((e.Symbol, e.Reaches))).ToList();
+        var registered = distinct.Where(r => r.Allowance == Registered).ToList();
+        var rows = ledger.CompatibilityExceptions.GroupBy(e => (e.Symbol, e.Reaches))
+            .ToDictionary(g => g.Key, g => g.First());
+        var undeclared = registered.Where(r => !rows.ContainsKey((r.Symbol, r.Reaches))).ToList();
+        var unlisted = registered.Where(r => rows.TryGetValue((r.Symbol, r.Reaches), out var row)
+            && !row.Tables.Contains(r.Table, StringComparer.Ordinal)).ToList();
 
-        return new CompatibilityExceptionReport(distinct, undeclared, stale, compileErrors, registryErrors, files.Count);
+        var stale = new List<string>();
+        foreach (var row in ledger.CompatibilityExceptions)
+        {
+            var read = registered.Where(r => r.Symbol == row.Symbol && r.Reaches == row.Reaches)
+                .Select(r => r.Table).ToHashSet(StringComparer.Ordinal);
+            if (read.Count == 0)
+            {
+                stale.Add($"stale compatibility exception {row.Symbol} -> {row.Reaches}: no member by that key reads " +
+                    $"{row.Reaches}'s tables any more, so delete the row (its trigger was {row.DeleteWhen})");
+                continue;
+            }
 
-        string Allowance(ISymbol member, string module)
+            stale.AddRange(row.Tables.Where(t => !read.Contains(t)).Select(t =>
+                $"stale table '{t}' in compatibility exception {row.Symbol} -> {row.Reaches}: the member no longer reads it"));
+        }
+
+        return new CompatibilityExceptionReport(distinct, undeclared, unlisted, stale, unresolved.Distinct().ToList(), compileErrors,
+            registryErrors, files.Count);
+
+        string Allowance(ISymbol member, string module, ExpressionSyntax expression)
         {
             var type = member as INamedTypeSymbol ?? member.ContainingType;
             var outermost = type;
@@ -134,23 +234,18 @@ public static class CompatibilityExceptionScanner
                 return OwnModule;
             }
 
-            var key = Key(outermost);
-            if (ledger.Edges.Any(e => e.From == owner && e.To == module && e.Symbols.Contains(key, StringComparer.Ordinal)))
+            if (ledger.Edges.Any(e => e.From == owner && e.To == module && e.Symbols.Contains(Key(outermost), StringComparer.Ordinal)))
             {
                 return DeclaredEdge;
             }
 
-            for (var current = type; current is not null; current = current.ContainingType)
+            if (contracted[module].Implementations.Contains(Key(type), StringComparer.Ordinal))
             {
-                if (current.AllInterfaces.Any(i => OwnerOf(i.ContainingNamespace) == module))
-                {
-                    return ModulePort;
-                }
+                return Implementation;
             }
 
-            return member is IPropertySymbol property
-                && property.Type.OriginalDefinition.ToDisplayString() == DbSetDefinition
-                && DerivesFromDbContext(type)
+            return member is IPropertySymbol property && IsDbSet(property.Type) && DerivesFromDbContext(type)
+                && expression.Parent is ArrowExpressionClauseSyntax
                 ? DbSetDeclaration
                 : Registered;
         }
@@ -162,22 +257,26 @@ public static class CompatibilityExceptionScanner
         failures.AddRange(report.RegistryErrors.Select(e => $"registry: {e}"));
         failures.AddRange(report.CompileErrors.Select(e =>
             $"compile: {e} — the semantic walk cannot bind {SemanticProject}, so it would miss reads"));
-        failures.AddRange(report.Undeclared.Select(r =>
-            $"undeclared compatibility exception {r.Symbol} -> {r.Reaches} at {r.File}:{r.Line}. Read through the " +
-            $"module's contract, or add this row to compatibilityExceptions and fill in owner, reason and deleteWhen:\n" +
-            $"{{ \"symbol\": \"{r.Symbol}\", \"reaches\": \"{r.Reaches}\", \"owner\": \"\", \"reason\": \"\", \"deleteWhen\": \"#\" }}"));
-        failures.AddRange(report.Stale.Select(e =>
-            $"stale compatibility exception {e.Symbol} -> {e.Reaches}: no member by that key reads {e.Reaches}'s " +
-            $"tables any more, so delete the row (its trigger was {e.DeleteWhen})"));
+        failures.AddRange(report.Unresolved.Select(e => $"unresolved: {e}"));
+        failures.AddRange(report.Undeclared.GroupBy(r => (r.Symbol, r.Reaches)).Select(g =>
+            $"undeclared compatibility exception {g.Key.Symbol} -> {g.Key.Reaches} at {g.First().File}:{g.First().Line}. " +
+            "Read through the module's contract, or add this row to compatibilityExceptions and fill in owner, " +
+            $"reason and deleteWhen:\n{{ \"symbol\": \"{g.Key.Symbol}\", \"reaches\": \"{g.Key.Reaches}\", \"tables\": " +
+            $"[{string.Join(", ", g.Select(r => $"\"{r.Table}\""))}], \"owner\": \"\", \"reason\": \"\", \"deleteWhen\": \"#\" }}"));
+        failures.AddRange(report.UnlistedTables.Select(r =>
+            $"compatibility exception {r.Symbol} -> {r.Reaches} reads table '{r.Table}' at {r.File}:{r.Line}, which its " +
+            "row does not name. Read it through the contract, or add the table and say why in the row's reason"));
+        failures.AddRange(report.Stale);
         return failures;
     }
 
-    private static void ValidateRows(ModuleLedger ledger, HashSet<string> contracted, List<string> errors)
+    private static void ValidateRows(ModuleLedger ledger, IReadOnlyDictionary<string, OwnerDefinition> contracted,
+        IReadOnlyDictionary<string, string> tableOwners, List<string> errors)
     {
         var owners = ledger.Owners.Select(o => o.Name).ToHashSet(StringComparer.Ordinal);
         foreach (var row in ledger.CompatibilityExceptions)
         {
-            if (!string.IsNullOrWhiteSpace(row.Reaches) && !contracted.Contains(row.Reaches))
+            if (!string.IsNullOrWhiteSpace(row.Reaches) && !contracted.ContainsKey(row.Reaches))
             {
                 errors.Add($"compatibilityExceptions row '{row.Symbol}' reaches '{row.Reaches}', which declares no " +
                     "contract — only a contracted module's tables are guarded");
@@ -187,37 +286,53 @@ public static class CompatibilityExceptionScanner
             {
                 errors.Add($"compatibilityExceptions row '{row.Symbol}' has unknown owner '{row.Owner}'");
             }
+
+            foreach (var table in row.Tables.Where(t => tableOwners.GetValueOrDefault(t) != row.Reaches))
+            {
+                errors.Add($"compatibilityExceptions row '{row.Symbol}' names table '{table}', which the ledger's " +
+                    $"tables do not give to {row.Reaches}");
+            }
+        }
+
+        foreach (var owner in ledger.Owners.Where(o => o.Implementations.Count > 0 && o.Contract.Count == 0))
+        {
+            errors.Add($"owner '{owner.Name}' lists implementations but declares no contract, so its tables are not guarded");
         }
     }
 
-    // Projects that reference the semantic project cannot be compiled here (their packages are not
-    // on this test's path), so their reads are found by name: a member access named after a guarded
-    // DbSet property, or Set<T>() of a guarded entity. Key by namespace, type and member.
-    private static IEnumerable<DbSetRead> UnwalkedReads(string srcFull, string repoRoot,
-        Dictionary<string, string> properties, Dictionary<string, string> entities)
+    private static void ValidateImplementations(IReadOnlyDictionary<string, OwnerDefinition> contracted,
+        Compilation compilation, IReadOnlyList<DbSetRead> reads, Func<INamespaceSymbol, string?> ownerOf, List<string> errors)
     {
-        foreach (var project in ProjectsReferencing(srcFull, SemanticProject))
+        var declared = compilation.GetSymbolsWithName(_ => true, SymbolFilter.Type).OfType<INamedTypeSymbol>()
+            .GroupBy(Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        foreach (var (module, owner) in contracted)
         {
-            foreach (var file in GuardScanner.EnumerateSourceFiles(Path.Combine(srcFull, project)))
+            foreach (var implementation in owner.Implementations)
             {
-                var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file), ModuleLedgerScanner.ParseOptions).GetRoot();
-                foreach (var node in root.DescendantNodes())
+                if (!declared.TryGetValue(implementation, out var type))
                 {
-                    var module = node switch
-                    {
-                        MemberAccessExpressionSyntax access => properties.GetValueOrDefault(access.Name.Identifier.ValueText),
-                        GenericNameSyntax { Identifier.ValueText: "Set", TypeArgumentList.Arguments: [var argument] } =>
-                            entities.GetValueOrDefault(ModuleLedgerScanner.DottedText(argument)?.Split('.')[^1] ?? ""),
-                        _ => null,
-                    };
-                    if (module is not null)
-                    {
-                        yield return new DbSetRead(SyntacticKey(node), module, Registered, Relative(repoRoot, file), Line(node.GetLocation()));
-                    }
+                    errors.Add($"owner '{module}' lists implementation '{implementation}', which is not declared in {SemanticProject}");
+                }
+                else if (!type.AllInterfaces.Any(i => ownerOf(i.ContainingNamespace) == module))
+                {
+                    errors.Add($"owner '{module}' lists implementation '{implementation}', which implements none of {module}'s interfaces");
+                }
+                else if (!reads.Any(r => r.Reaches == module && r.Allowance == Implementation
+                             && r.Symbol.StartsWith(implementation + ".", StringComparison.Ordinal)))
+                {
+                    errors.Add($"owner '{module}' lists implementation '{implementation}', which reads none of {module}'s tables — remove it");
                 }
             }
         }
     }
+
+    private static CSharpCompilation Compile(string assembly, IEnumerable<string> files, string implicitUsings,
+        IEnumerable<MetadataReference> references) =>
+        CSharpCompilation.Create(assembly,
+            files.Select(f => CSharpSyntaxTree.ParseText(File.ReadAllText(f), ModuleLedgerScanner.ParseOptions, f))
+                .Append(CSharpSyntaxTree.ParseText(implicitUsings, ModuleLedgerScanner.ParseOptions)),
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
     private static IEnumerable<string> ProjectsReferencing(string srcFull, string target)
     {
@@ -247,6 +362,8 @@ public static class CompatibilityExceptionScanner
 
         return symbol is IMethodSymbol { AssociatedSymbol: { } associated } ? associated : symbol;
     }
+
+    private static bool IsDbSet(ITypeSymbol type) => type.OriginalDefinition.ToDisplayString() == DbSetDefinition;
 
     private static bool DerivesFromDbContext(INamedTypeSymbol type)
     {
@@ -286,6 +403,11 @@ public static class CompatibilityExceptionScanner
     }
 
     private static string Key(INamedTypeSymbol type) => type.ToDisplayString(TypeFormat);
+
+    private static string ClrKey(Type type) => type.IsGenericType
+        ? $"{(type.DeclaringType is { } outer ? ClrKey(outer) : type.Namespace)}.{type.Name[..type.Name.IndexOf('`')]}" +
+          $"<{string.Join(", ", type.GetGenericArguments().Select(ClrKey))}>"
+        : type.FullName!.Replace('+', '.');
 
     private static int Line(Location location) => location.GetLineSpan().StartLinePosition.Line + 1;
 

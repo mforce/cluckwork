@@ -119,7 +119,7 @@ public static class TableOwnerScanner
         return failures;
     }
 
-    private static IEnumerable<StoreObjectIdentifier> TableStoreObjects(IEntityType entity)
+    internal static IEnumerable<StoreObjectIdentifier> TableStoreObjects(IEntityType entity)
     {
         if (entity.GetTableName() is { } primary)
             yield return StoreObjectIdentifier.Table(primary, entity.GetSchema());
@@ -129,7 +129,7 @@ public static class TableOwnerScanner
             yield return fragment.StoreObject;
     }
 
-    private static string Qualify(string table, string? schema) =>
+    internal static string Qualify(string table, string? schema) =>
         schema is { } s && s != "public" ? $"{s}.{table}" : table;
 
     private static string[] ResolveOwners(string? ns, ModuleLedger ledger)
