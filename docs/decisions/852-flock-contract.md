@@ -121,10 +121,17 @@ holds for code only.
   a non-contract Flock Management type.
 - `ModuleContractRealAssemblyTests` walks the contract types. This slice extends
   `SeamSurfaceScanner.ScanContracts` to also walk every public type deriving from
-  a walked class, because `FlockNameResolution`'s cases are separate types. Before
-  the extension, adding a `Flock` property to `FlockNameResolution.NotFound`
-  passed. It now fails, as does a `Task<Flock?>` method added to `IFlockLookup`.
-  The fixture test is `SeamSurfaceTests.Contract_AggregateInADerivedCase_IsAViolation`.
+  a walked class, because `FlockNameResolution`'s cases are separate types. It
+  searches the contract types' own assemblies, the base type's assembly and the
+  assemblies the caller names, Application and Domain for the real test, because a
+  case can sit in another assembly than its base: an Application subclass of
+  Domain's `Result` that carries a `Flock` is returned as a plain `Result`.
+  Before the extension, adding a `Flock` property to
+  `FlockNameResolution.NotFound` passed, and so did returning that `Result`
+  subclass from `FlockModule.DepleteAsync`. Both now fail, as does a
+  `Task<Flock?>` method added to `IFlockLookup`. The fixture tests are
+  `SeamSurfaceTests.Contract_AggregateInADerivedCase_IsAViolation` and
+  `Contract_AggregateInADerivedCaseFromAnotherAssembly_IsAViolation`.
 - `CompatibilityExceptionRealTreeTests` registers the six reads named above.
 - `FlockLookupTests` pins the copy field by field. Swapping `DepletedOn` and
   `ArchivedOn` turns it red. `MortalityLedgerTests` pins the sign rule and the

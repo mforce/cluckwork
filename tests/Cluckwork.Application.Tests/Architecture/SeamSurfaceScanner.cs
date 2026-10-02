@@ -53,13 +53,25 @@ public static class SeamSurfaceScanner
         Assembly assembly, IReadOnlyList<string> namespacePrefixes, int minimumInterfaceFloor) =>
         Scan(assembly.GetTypes()
             .Where(t => t.IsInterface && IsPubliclyReachable(t) && MatchesPrefix(t.Namespace, namespacePrefixes))
-            .ToList(), minimumInterfaceFloor, ForbiddenRules);
+            .ToList(), minimumInterfaceFloor, new ScanRules(ForbiddenRules, null));
 
-    public static SeamSurfaceReport ScanContracts(IReadOnlyList<Type> contractTypes, int minimumInterfaceFloor) =>
-        Scan(contractTypes, minimumInterfaceFloor, ContractRules);
+    // A derived case of a contract type can live in any assembly that can hand
+    // one out, not only its base type's: an Application subclass of Domain's
+    // Result is returned as a Result. Cases are searched in the contract types'
+    // own assemblies, the caller's known assemblies and the base type's assembly.
+    public static SeamSurfaceReport ScanContracts(
+        IReadOnlyList<Type> contractTypes, int minimumInterfaceFloor, IReadOnlyList<Assembly>? knownAssemblies = null) =>
+        Scan(contractTypes, minimumInterfaceFloor, new ScanRules(ContractRules,
+            contractTypes.Select(t => t.Assembly).Concat(knownAssemblies ?? []).ToHashSet()));
+
+    private sealed record ScanRules(
+        (Func<Type, bool> Matches, string Reason)[] Checks, IReadOnlySet<Assembly>? ContractCaseAssemblies)
+    {
+        public bool IsContract => ContractCaseAssemblies is not null;
+    }
 
     private static SeamSurfaceReport Scan(
-        IReadOnlyList<Type> candidates, int minimumInterfaceFloor, (Func<Type, bool> Matches, string Reason)[] rules)
+        IReadOnlyList<Type> candidates, int minimumInterfaceFloor, ScanRules rules)
     {
         var interfaces = candidates.OrderBy(t => t.FullName, StringComparer.Ordinal).ToList();
 
@@ -76,9 +88,9 @@ public static class SeamSurfaceScanner
 
             CheckMembers(iface, iface.FullName!, violations, rules);
 
-            if (ReferenceEquals(rules, ContractRules))
+            if (rules.IsContract)
             {
-                foreach (var derived in DerivedCases(iface))
+                foreach (var derived in DerivedCases(iface, rules))
                 {
                     Walk(derived, [FormatShort(derived)], new HashSet<Type>(), iface.FullName!, $": {FormatShort(derived)}", violations, rules);
                 }
@@ -144,7 +156,7 @@ public static class SeamSurfaceScanner
     }
 
     private static void CheckMembers(Type declaring, string interfaceName, List<SeamSurfaceViolation> violations,
-        (Func<Type, bool> Matches, string Reason)[] rules)
+        ScanRules rules)
     {
         void Check(Type type, string member) =>
             Walk(type, [FormatShort(type)], new HashSet<Type>(), interfaceName, member, violations, rules);
@@ -180,12 +192,12 @@ public static class SeamSurfaceScanner
     // One visited set per method, so a type parameter reached both as a
     // return type and as a declared generic parameter reports once.
     private static void CheckMethod(MethodInfo method, string interfaceName, List<SeamSurfaceViolation> violations,
-        (Func<Type, bool> Matches, string Reason)[] rules) =>
+        ScanRules rules) =>
         WalkSignature(method, [], new HashSet<Type>(), interfaceName, method.Name, violations, rules);
 
     private static void WalkSignature(MethodInfo method, List<string> path, HashSet<Type> visited,
         string interfaceName, string member, List<SeamSurfaceViolation> violations,
-        (Func<Type, bool> Matches, string Reason)[] rules)
+        ScanRules rules)
     {
         var types = (method.IsGenericMethodDefinition ? method.GetGenericArguments() : [])
             .Concat(method.GetParameters().Select(p => p.ParameterType))
@@ -203,7 +215,7 @@ public static class SeamSurfaceScanner
         string interfaceName,
         string member,
         List<SeamSurfaceViolation> violations,
-        (Func<Type, bool> Matches, string Reason)[] rules)
+        ScanRules rules)
     {
         var resolved = type.IsByRef ? type.GetElementType()! : type;
         if (!visited.Add(resolved))
@@ -221,7 +233,7 @@ public static class SeamSurfaceScanner
             return;
         }
 
-        var rule = rules.FirstOrDefault(r => r.Matches(resolved));
+        var rule = rules.Checks.FirstOrDefault(r => r.Matches(resolved));
         if (rule.Reason is not null)
         {
             violations.Add(new SeamSurfaceViolation(
@@ -292,9 +304,9 @@ public static class SeamSurfaceScanner
             }
 
             // #852: a contract result can be a closed hierarchy, so every public case of it is walked too.
-            if (ReferenceEquals(rules, ContractRules))
+            if (rules.IsContract)
             {
-                foreach (var derived in DerivedCases(resolved))
+                foreach (var derived in DerivedCases(resolved, rules))
                 {
                     Walk(derived, [.. path, FormatShort(derived)], visited, interfaceName, member, violations, rules);
                 }
@@ -302,7 +314,7 @@ public static class SeamSurfaceScanner
 
             // A contract result can hand out a nested interface, so its signatures are walked too. #847 scans
             // every seam interface at the root already and keeps its single-report behaviour.
-            if (resolved.IsInterface && ReferenceEquals(rules, ContractRules))
+            if (resolved.IsInterface && rules.IsContract)
             {
                 foreach (var inherited in resolved.GetInterfaces())
                 {
@@ -318,9 +330,11 @@ public static class SeamSurfaceScanner
         }
     }
 
-    private static IEnumerable<Type> DerivedCases(Type type) =>
+    private static IEnumerable<Type> DerivedCases(Type type, ScanRules rules) =>
         type.IsClass && !type.IsSealed
-            ? type.Assembly.GetTypes().Where(t => t != type && IsPubliclyReachable(t) && type.IsAssignableFrom(t))
+            ? rules.ContractCaseAssemblies!.Append(type.Assembly).Distinct()
+                .SelectMany(a => a.GetTypes())
+                .Where(t => t != type && IsPubliclyReachable(t) && type.IsAssignableFrom(t))
             : [];
 
     private static bool IsEntity(Type type)

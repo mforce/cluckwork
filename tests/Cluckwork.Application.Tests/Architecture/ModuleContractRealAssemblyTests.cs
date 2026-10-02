@@ -20,7 +20,7 @@ public sealed class ModuleContractRealAssemblyTests
             "contract types not found in Application or Domain: " +
             string.Join(", ", names.Where((_, i) => types[i] is null)));
 
-        var report = SeamSurfaceScanner.ScanContracts(types!, minimumInterfaceFloor: 1);
+        var report = SeamSurfaceScanner.ScanContracts(types!, minimumInterfaceFloor: 1, knownAssemblies: Assemblies);
         var failures = SeamSurfaceScanner.Evaluate(report);
         Assert.True(failures.Count == 0, "module contract guard failed:\n  " + string.Join("\n  ", failures));
         Assert.Contains("Cluckwork.Application.Features.Expenses.IFinanceModule", report.InspectedInterfaces);
