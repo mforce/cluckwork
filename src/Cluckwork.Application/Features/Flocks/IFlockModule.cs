@@ -30,7 +30,6 @@ public interface IFlockModule
 
     Task<Result<Guid>> RecordMovementAsync(RecordBirdMovementCommand command, Guid accountId, CancellationToken ct);
 
-    // See IFlockRepository.SearchAsync.
     Task<IReadOnlyList<FlockDetails>> SearchAsync(
         string? search, FlockEligibility eligibility, int limit, int offset, CancellationToken ct);
 
