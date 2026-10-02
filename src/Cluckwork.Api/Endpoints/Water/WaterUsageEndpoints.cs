@@ -79,7 +79,7 @@ public static class WaterUsageEndpoints
 
     private static async Task<IResult> ListWaterUsage(
         IWaterUsageRepository waterUsages,
-        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
+        Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
         TenantContext tenant, CancellationToken ct,
         Guid? flockId = null, DateOnly? from = null, DateOnly? to = null,
         int? limit = null, int? offset = null)

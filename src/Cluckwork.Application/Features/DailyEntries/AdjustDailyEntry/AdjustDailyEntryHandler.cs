@@ -21,8 +21,8 @@ public sealed class AdjustDailyEntryHandler(
     IDailyEntryRepository entries,
     IEggLotRepository eggLots,
     IEggGradeRepository eggGrades,
-    IBirdMovementRepository birdMovements,
-    IFlockRepository flocks,
+    IMortalityLedger mortality,
+    IFlockLookup flocks,
     IEggInventoryMovementRepository eggMovements,
     IUnitOfWork unitOfWork,
     IAuditWriter audit,
@@ -46,7 +46,7 @@ public sealed class AdjustDailyEntryHandler(
 
         // Archived flocks are read-only history — same gate as recording.
         // Depleted flocks accept corrections for dates up to their depletion.
-        var flock = await flocks.GetByIdAsync(entry.FlockId, ct);
+        var flock = await flocks.GetAsync(entry.FlockId, ct);
         if (flock is null)
             return Result.Failure<AdjustDailyEntryResponse>(
                 Error.NotFound(nameof(Flock), entry.FlockId)).LogFailure(logger, "AdjustDailyEntry");
@@ -219,12 +219,9 @@ public sealed class AdjustDailyEntryHandler(
             var delta = entry.MortalityCount - previousMortality;
             if (delta != 0)
             {
-                await birdMovements.AddAsync(BirdMovement.Create(
-                    Guid.NewGuid(), accountId, entry.FlockId, entry.Date,
-                    delta > 0 ? BirdMovementType.Mortality : BirdMovementType.Adjustment,
-                    delta,
-                    note: MovementNote("Entry adjusted: ", entry.AdjustReason),
-                    dailyEntryId: entry.Id), transactionCt);
+                await mortality.AppendAsync(
+                    accountId, entry.FlockId, entry.Date, delta, entry.Id,
+                    "Entry adjusted: " + entry.AdjustReason, transactionCt);
             }
 
             // Same transaction as the change (#93): rolls back with it.
@@ -250,16 +247,6 @@ public sealed class AdjustDailyEntryHandler(
     {
         var name = (await eggGrades.GetByIdAsync(gradeId, ct))?.Name ?? gradeId.ToString();
         return Error.Domain(error.Code, $"Grade '{name}': {error.Description}");
-    }
-
-    // A max-length reason would push the prefixed ledger note past the
-    // BirdMovement limit and throw — truncate the note, never the reason.
-    internal static string MovementNote(string prefix, string? reason)
-    {
-        var note = prefix + reason;
-        return note.Length <= Cluckwork.Domain.Flocks.BirdMovement.MaxNoteLength
-            ? note
-            : note[..Cluckwork.Domain.Flocks.BirdMovement.MaxNoteLength];
     }
 }
 

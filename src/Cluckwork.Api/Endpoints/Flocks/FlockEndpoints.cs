@@ -1,14 +1,10 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Flocks;
-using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
-using Cluckwork.Application.Features.Flocks.DepleteFlock;
-using Cluckwork.Application.Features.Flocks.ReactivateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Application.Features.Insights;
-using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -29,8 +25,6 @@ public static class FlockEndpoints
     private const string ActiveAndDepletedEligibility = "active-and-depleted";
     private const string AllEligibility = "all";
 
-    // Code produced by Error.NotFound(nameof(Flock), ...).
-    private static readonly string FlockNotFoundCode = $"{nameof(Flock)}.NotFound";
 
     public static RouteGroupBuilder MapFlockEndpoints(this RouteGroupBuilder group)
     {
@@ -85,7 +79,7 @@ public static class FlockEndpoints
 
     private static async Task<IResult> CreateFlock(
         CreateFlockRequest request,
-        CreateFlockHandler handler,
+        IFlockModule flocks,
         IValidator<CreateFlockCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -99,14 +93,14 @@ public static class FlockEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await flocks.CreateAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/flocks/{result.Value}", new { Id = result.Value })
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
     private static async Task<IResult> ListFlocks(
-        IFlockRepository flocks, IBirdMovementRepository movements, IInsightsModule audit,
+        IFlockModule flocks, IInsightsModule audit,
         TenantContext tenant,
         CancellationToken ct, string? search = null, string? eligibility = null,
         bool? includeArchived = null, int? limit = null, int? offset = null)
@@ -178,37 +172,37 @@ public static class FlockEndpoints
         // Unbounded it cost the account's whole visible movement history on every
         // list request, which grows with the farm's age, not with the page (#311's
         // shape, in the other hot path).
-        var removed = await movements.RemovedForFlocksAsync(list.Select(f => f.Id).ToList(), ct);
+        var removed = await flocks.GetBirdsRemovedAsync(list.Select(f => f.Id).ToList(), ct);
         var provenance = await audit.GetProvenanceAsync(
-            nameof(Flock), list.Select(f => f.Id).ToList(), ct);
+            IFlockModule.FlockAuditEntityType, list.Select(f => f.Id).ToList(), ct);
         return Results.Ok(list.Select(f =>
             ToResponse(f, removed.GetValueOrDefault(f.Id, 0), provenance.GetValueOrDefault(f.Id))));
     }
 
     private static async Task<IResult> GetFlock(
-        Guid id, IFlockRepository flocks, IBirdMovementRepository movements,
+        Guid id, IFlockLookup lookup, IFlockModule flocks,
         IInsightsModule audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var flock = await flocks.GetByIdAsync(id, ct);
+        var flock = await lookup.GetAsync(id, ct);
         if (flock is null) return Results.NotFound();
-        var removed = await movements.RemovedForFlockAsync(id, ct);
-        var provenance = await audit.GetProvenanceAsync(nameof(Flock), [id], ct);
+        var removed = await flocks.GetBirdsRemovedAsync(id, ct);
+        var provenance = await audit.GetProvenanceAsync(IFlockModule.FlockAuditEntityType, [id], ct);
         return Results.Ok(ToResponse(flock, removed, provenance.GetValueOrDefault(id)));
     }
 
     private static async Task<IResult> ReactivateFlock(
-        Guid id, ReactivateFlockHandler handler, TenantContext tenant, CancellationToken ct)
+        Guid id, IFlockModule flocks, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, ct);
+        var result = await flocks.ReactivateAsync(id, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> RecordMovement(
         Guid id,
         RecordBirdMovementRequest request,
-        RecordBirdMovementHandler handler,
+        IFlockModule flocks,
         IValidator<RecordBirdMovementCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -222,24 +216,24 @@ public static class FlockEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await flocks.RecordMovementAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/flocks/{id}/movements", new { Id = result.Value })
             : MapFailure(result.Error);
     }
 
     private static async Task<IResult> ListMovements(
-        Guid id, IFlockRepository flocks, IBirdMovementRepository movements,
+        Guid id, IFlockModule flocks,
         TenantContext tenant, CancellationToken ct, int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        // 404 for a foreign/unknown flock rather than an empty ledger.
-        if (await flocks.GetByIdAsync(id, ct) is null) return Results.NotFound();
 
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await movements.ListByFlockAsync(id, take, skip, ct);
+        var list = await flocks.ListMovementsAsync(id, take, skip, ct);
+        // 404 for a foreign/unknown flock rather than an empty ledger.
+        if (list is null) return Results.NotFound();
         return Results.Ok(list.Select(m => new BirdMovementResponse(
             m.Id, m.FlockId, m.Date, m.Type.ToString(), m.Quantity, m.Note)));
     }
@@ -247,7 +241,7 @@ public static class FlockEndpoints
     private static async Task<IResult> UpdateFlock(
         Guid id,
         UpdateFlockRequest request,
-        UpdateFlockHandler handler,
+        IFlockModule flocks,
         IValidator<UpdateFlockCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -261,29 +255,29 @@ public static class FlockEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await flocks.UpdateAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> DepleteFlock(
-        Guid id, DepleteFlockHandler handler, TenantContext tenant, CancellationToken ct)
+        Guid id, IFlockModule flocks, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, ct);
+        var result = await flocks.DepleteAsync(id, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> ArchiveFlock(
-        Guid id, ArchiveFlockHandler handler, TenantContext tenant, CancellationToken ct)
+        Guid id, IFlockModule flocks, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, ct);
+        var result = await flocks.ArchiveAsync(id, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
     {
-        if (error.Code == FlockNotFoundCode)
+        if (error.Code == IFlockModule.FlockNotFoundCode)
             return Results.NotFound();
         // Lifecycle mismatches (deplete a non-active flock, archive twice) are
         // conflicts with current state.
@@ -292,7 +286,7 @@ public static class FlockEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static FlockResponse ToResponse(Flock f, long removed, EntityProvenance? p) => new(
+    private static FlockResponse ToResponse(FlockDetails f, long removed, EntityProvenance? p) => new(
         f.Id, f.FarmId, f.HouseId, f.Name, f.Breed,
         f.PlacementDate, f.InitialCount, f.InitialCount - removed, f.Status.ToString(),
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);

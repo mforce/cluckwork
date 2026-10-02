@@ -100,6 +100,23 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.PagedResultRetur
     }
 }
 
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractDerivedCase
+{
+    using Cluckwork.Domain.Flocks;
+
+    public abstract record Outcome
+    {
+        public sealed record Leaky(Flock Flock) : Outcome;
+
+        public sealed record Clean(Guid Id) : Outcome;
+    }
+
+    public interface IOutcomeContractFixture
+    {
+        Outcome Get();
+    }
+}
+
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMember
 {
     using Cluckwork.Application.Common;
@@ -371,6 +388,7 @@ namespace Cluckwork.Application.Tests.Architecture
     using PagedResultReturnFixtures = SeamFixtures.PagedResultReturn;
     using MoneyReturnFixtures = SeamFixtures.MoneyReturn;
     using ContractNestedMemberFixtures = SeamFixtures.ContractNestedMember;
+    using ContractDerivedCaseFixtures = SeamFixtures.ContractDerivedCase;
     using InheritedGenericBaseFixtures = SeamFixtures.InheritedGenericBase;
     using NestedPublicInterfaceFixtures = SeamFixtures.NestedPublicInterface;
     using IndexerParameterFixtures = SeamFixtures.IndexerParameter;
@@ -509,6 +527,18 @@ namespace Cluckwork.Application.Tests.Architecture
             var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.IRepositoryContractFixture>());
             Assert.Contains("RepositoryEnvelope.Repository", failure);
             Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+        }
+
+        [Theory]
+        [InlineData(typeof(ContractDerivedCaseFixtures.IOutcomeContractFixture))]
+        [InlineData(typeof(ContractDerivedCaseFixtures.Outcome))]
+        public void Contract_AggregateInADerivedCase_IsAViolation(Type fixture)
+        {
+            // A record's own Equals and Clone also reach the hierarchy, so one leak can report more than once.
+            var failures = SeamSurfaceScanner.Evaluate(SeamSurfaceScanner.ScanContracts([fixture], 1));
+            Assert.NotEmpty(failures);
+            Assert.All(failures, f => Assert.Contains("exposes Cluckwork.Domain.Flocks.Flock via", f));
+            Assert.All(failures, f => Assert.Contains("Leaky.Flock", f));
         }
 
         [Fact]

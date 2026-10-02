@@ -317,6 +317,9 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<ArchiveFlockHandler>();
         services.AddScoped<RecordBirdMovementHandler>();
         services.AddScoped<ReactivateFlockHandler>();
+        services.AddScoped<IFlockModule, FlockModule>();
+        services.AddScoped<IFlockLookup, FlockLookup>();
+        services.AddScoped<IMortalityLedger, MortalityLedger>();
         services.AddScoped<CreateUserHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.UpdateUser.UpdateUserHandler>();

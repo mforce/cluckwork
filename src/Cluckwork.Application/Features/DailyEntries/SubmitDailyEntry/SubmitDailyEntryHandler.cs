@@ -21,9 +21,9 @@ public sealed class SubmitDailyEntryHandler(
     IDailyEntryRepository entries,
     IEggGradeRepository eggGrades,
     IEggLotRepository eggLots,
-    IBirdMovementRepository birdMovements,
+    IMortalityLedger mortality,
     IEggInventoryMovementRepository eggMovements,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IFlockScopeGuard flockScope,
     IAuditWriter audit,
     IUnitOfWork unitOfWork,
@@ -54,7 +54,7 @@ public sealed class SubmitDailyEntryHandler(
         // AFTER the live guard above, via the tenant-explicit write lookup, so
         // a flock newly assigned to this caller since the request-start scope
         // snapshot is still lifecycle-checked rather than skipped.
-        var flock = await flocks.GetByIdForFlockScopedWriteAsync(
+        var flock = await flocks.GetForFlockScopedWriteAsync(
             entry.FlockId, accountId, ct);
         if (flock is not null && !flock.CanRecordProductionOn(entry.Date))
             return Result.Failure<SubmitDailyEntryResponse>(Error.Validation(
@@ -129,11 +129,9 @@ public sealed class SubmitDailyEntryHandler(
         // reflects it. Zero-mortality days write nothing.
         if (entry.MortalityCount > 0)
         {
-            await birdMovements.AddAsync(BirdMovement.Create(
-                Guid.NewGuid(), accountId, entry.FlockId,
-                entry.Date, BirdMovementType.Mortality, entry.MortalityCount,
-                note: "Daily entry mortality",
-                dailyEntryId: entry.Id), ct);
+            await mortality.AppendAsync(
+                accountId, entry.FlockId, entry.Date, entry.MortalityCount, entry.Id,
+                "Daily entry mortality", ct);
         }
 
         // #494 — appended to THIS unit of work, so the event commits with the

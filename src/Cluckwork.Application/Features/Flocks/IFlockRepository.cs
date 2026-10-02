@@ -43,6 +43,10 @@ public interface IFlockRepository : IRepository<Flock, Guid>
     Task<IReadOnlyDictionary<Guid, FlockReference>> GetDisplayNamesAsync(
         IReadOnlyCollection<Guid> flockIds, CancellationToken ct = default);
 
+    // #852 — every visible flock with exactly this name, ordered by id, through
+    // the same filtered set as GetDisplayNamesAsync. Duplicate names are legal.
+    Task<IReadOnlyList<FlockReference>> ListByNameAsync(string name, CancellationToken ct = default);
+
     // Write-side lifecycle lookup (#388). Bypasses the request-start flock
     // snapshot after the live FlockScopeGuard succeeds, but reinstates AccountId
     // explicitly. This closes the assignment-change race without exposing flock

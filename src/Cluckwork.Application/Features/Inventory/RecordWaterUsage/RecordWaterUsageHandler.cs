@@ -10,7 +10,7 @@ namespace Cluckwork.Application.Features.Inventory.RecordWaterUsage;
 // a plain insert; corrections are Version-guarded updates.
 public sealed class RecordWaterUsageHandler(
     IWaterUsageRepository waterUsages,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IFlockScopeGuard flockScope,
     Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
     IUnitOfWork unitOfWork,
@@ -28,7 +28,7 @@ public sealed class RecordWaterUsageHandler(
         // so a foreign flock still reads as null, while a newly-live
         // assignment sees the flock's current state rather than a stale
         // request-start snapshot.
-        var flock = await flocks.GetByIdForFlockScopedWriteAsync(command.FlockId, accountId, ct);
+        var flock = await flocks.GetForFlockScopedWriteAsync(command.FlockId, accountId, ct);
         if (flock is null)
             return Result.Failure<Guid>(Error.NotFound("Flock", command.FlockId)).LogFailure(logger, "RecordWaterUsage");
 

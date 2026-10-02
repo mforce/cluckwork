@@ -14,9 +14,7 @@ using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Flocks;
-using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
-using Cluckwork.Application.Features.Flocks.DepleteFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
@@ -97,8 +95,8 @@ public sealed class SimulationDataSeeder(
     UserManager<ApplicationUser> users,
     IAccountUserDirectory directory,
     IIdentityProvider identity,
-    CreateFlockHandler createFlock,
-    IFlockRepository flocks,
+    IFlockModule flockModule,
+    IFlockLookup flocks,
     IAuditWriter audit,
     IUserRoleAssignmentRepository assignments,
     IFarmModule farm,
@@ -118,9 +116,6 @@ public sealed class SimulationDataSeeder(
     RecordAdjustmentHandler recordAdjustment,
     RecordFeedUsageHandler recordFeedUsage,
     RecordWaterUsageHandler recordWaterUsage,
-    RecordBirdMovementHandler recordBirdMovement,
-    DepleteFlockHandler depleteFlock,
-    ArchiveFlockHandler archiveFlock,
     IFinanceModule finance,
     DailyEntryLockSweep lockSweep,
     IClock clock,
@@ -795,11 +790,20 @@ public sealed class SimulationDataSeeder(
         CancellationToken ct)
     {
         // Tenant is resolved, so the query filter already scopes this to
-        // accountId — matches how DemoDataSeeder probes for existing rows.
-        var existing = await db.Flocks.FirstOrDefaultAsync(f => f.Name == name, ct);
-        if (existing is not null) return existing.Id;
+        // accountId. Duplicate names are legal, so a second flock with this
+        // name is drift the seed refuses to guess past (#852).
+        switch (await flocks.ResolveByNameAsync(name, ct))
+        {
+            case FlockNameResolution.Found found:
+                return found.Flock.Id;
+            case FlockNameResolution.Ambiguous ambiguous:
+                throw new InvalidOperationException(
+                    $"Simulation seed: {ambiguous.Candidates.Count} flocks are named {name} " +
+                    $"({string.Join(", ", ambiguous.Candidates.Select(c => c.Id))}). " +
+                    "Rename the duplicates or reset the fixture.");
+        }
 
-        var result = await createFlock.HandleAsync(
+        var result = await flockModule.CreateAsync(
             new CreateFlockCommand(name, breed, placementDate, initialCount), accountId, ct);
         Require(result, $"create flock {name}");
         return result.Value;
@@ -862,13 +866,13 @@ public sealed class SimulationDataSeeder(
             accountId, FlockDepletedName, "Lohmann Brown", placementDate, 100, ct);
         await TransitionFlockAsync(
             depletedId, FlockDepletedName, FlockStatus.Depleted, storeKeeper,
-            flockId => depleteFlock.HandleAsync(flockId, ct), ct);
+            flockId => flockModule.DepleteAsync(flockId, ct), ct);
 
         var archivedId = await EnsureFlockAsync(
             accountId, FlockArchivedName, "Lohmann Brown", placementDate, 100, ct);
         await TransitionFlockAsync(
             archivedId, FlockArchivedName, FlockStatus.Archived, storeKeeper,
-            flockId => archiveFlock.HandleAsync(flockId, ct), ct);
+            flockId => flockModule.ArchiveAsync(flockId, ct), ct);
     }
 
     // Rerun-safe lifecycle transition: a row already in the wanted status
@@ -879,7 +883,7 @@ public sealed class SimulationDataSeeder(
         Guid flockId, string name, FlockStatus wantedStatus, SimActor actor,
         Func<Guid, Task<Result>> transition, CancellationToken ct)
     {
-        var flock = await flocks.GetByIdAsync(flockId, ct)
+        var flock = await flocks.GetAsync(flockId, ct)
             ?? throw new InvalidOperationException(
                 $"Simulation seed: flock {name} was ensured but cannot be read back.");
         if (flock.Status == wantedStatus) return;
@@ -935,7 +939,7 @@ public sealed class SimulationDataSeeder(
                 m => m.FlockId == flockId && m.Date == date, ct);
             if (!exists)
             {
-                var result = await recordBirdMovement.HandleAsync(new RecordBirdMovementCommand(
+                var result = await flockModule.RecordMovementAsync(new RecordBirdMovementCommand(
                     flockId, date, "Adjustment", 1, note), accountId, ct);
                 Require(result, $"record explicit bird movement for flock {flockId} on {date:yyyy-MM-dd}");
             }
@@ -1001,7 +1005,7 @@ public sealed class SimulationDataSeeder(
         // the SAME audit shape (actor, target email, flock NAME) the
         // handler would have written — pinned by
         // SimulationSeed_RestrictedWorkerAssignment_PreservesActorAndAuditDetails.
-        var flock = await flocks.GetByIdAsync(flockId, ct)
+        var flock = await flocks.GetAsync(flockId, ct)
             ?? throw new InvalidOperationException($"Simulation flock {flockId} does not exist.");
 
         var assignment = UserRoleAssignment.Create(

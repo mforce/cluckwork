@@ -7,7 +7,7 @@ namespace Cluckwork.Application.Features.Expenses.AdjustExpense;
 public sealed class AdjustExpenseHandler(
     IExpenseRepository expenses,
     IExpenseCategoryRepository categories,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
@@ -38,7 +38,7 @@ public sealed class AdjustExpenseHandler(
 
         if (command.FlockId is { } flockId && flockId != expense.FlockId)
         {
-            var flock = await flocks.GetByIdAsync(flockId, ct);
+            var flock = await flocks.GetAsync(flockId, ct);
             if (flock is null || flock.FarmId != expense.FarmId)
                 return Result.Failure(Error.Validation(
                     "Expense.UnknownFlock", "The flock does not exist on this farm."));

@@ -20,9 +20,9 @@ public sealed class VoidDailyEntryHandler(
     IDailyEntryRepository entries,
     IEggLotRepository eggLots,
     IEggGradeRepository eggGrades,
-    IBirdMovementRepository birdMovements,
+    IMortalityLedger mortality,
     IEggInventoryMovementRepository eggMovements,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IUnitOfWork unitOfWork,
     IAuditWriter audit,
     ILogger<VoidDailyEntryHandler> logger)
@@ -40,7 +40,7 @@ public sealed class VoidDailyEntryHandler(
                 "DailyEntry.VersionMismatch",
                 "The entry was changed by someone else. Reload it and retry.")).LogFailure(logger, "VoidDailyEntry");
 
-        var flock = await flocks.GetByIdAsync(entry.FlockId, ct);
+        var flock = await flocks.GetAsync(entry.FlockId, ct);
         if (flock is null)
             return Result.Failure<VoidDailyEntryResponse>(
                 Error.NotFound(nameof(Flock), entry.FlockId)).LogFailure(logger, "VoidDailyEntry");
@@ -103,12 +103,9 @@ public sealed class VoidDailyEntryHandler(
             // tied to the entry puts the birds back on the ledger.
             if (mortalityToReverse > 0)
             {
-                await birdMovements.AddAsync(BirdMovement.Create(
-                    Guid.NewGuid(), accountId, entry.FlockId, entry.Date,
-                    BirdMovementType.Adjustment, -mortalityToReverse,
-                    note: AdjustDailyEntry.AdjustDailyEntryHandler.MovementNote(
-                        "Entry voided: ", entry.VoidReason),
-                    dailyEntryId: entry.Id), transactionCt);
+                await mortality.AppendAsync(
+                    accountId, entry.FlockId, entry.Date, -mortalityToReverse, entry.Id,
+                    "Entry voided: " + entry.VoidReason, transactionCt);
             }
 
             // Same transaction as the change (#93): rolls back with it.

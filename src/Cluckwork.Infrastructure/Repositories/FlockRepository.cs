@@ -109,6 +109,15 @@ public sealed class FlockRepository(AppDbContext db) : IFlockRepository
         return map;
     }
 
+    public async Task<IReadOnlyList<FlockReference>> ListByNameAsync(
+        string name, CancellationToken ct = default) =>
+        await db.Flocks
+            .AsNoTracking()
+            .Where(f => f.Name == name)
+            .OrderBy(f => f.Id)
+            .Select(f => new FlockReference(f.Id, f.Name, f.Status))
+            .ToListAsync(ct);
+
     public async Task AddAsync(Flock entity, CancellationToken ct = default) =>
         await db.Flocks.AddAsync(entity, ct);
 

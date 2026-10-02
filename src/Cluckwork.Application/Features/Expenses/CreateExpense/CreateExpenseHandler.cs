@@ -10,7 +10,7 @@ namespace Cluckwork.Application.Features.Expenses.CreateExpense;
 public sealed class CreateExpenseHandler(
     IExpenseRepository expenses,
     IExpenseCategoryRepository categories,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IAccountRepository accounts,
     IAuditWriter audit,
     IUnitOfWork unitOfWork)
@@ -30,7 +30,7 @@ public sealed class CreateExpenseHandler(
 
         if (command.FlockId is { } flockId)
         {
-            var flock = await flocks.GetByIdAsync(flockId, ct);
+            var flock = await flocks.GetAsync(flockId, ct);
             if (flock is null || flock.FarmId != farmId)
                 return Result.Failure<Guid>(Error.Validation(
                     "Expense.UnknownFlock", "The flock does not exist on this farm."));

@@ -10,7 +10,22 @@
                             "Cluckwork.Application.Features.Accounts.FarmLogoContent",
                             "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand"
                           ] },
-    "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"] },
+    "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Flocks.IFlockModule",
+                            "Cluckwork.Application.Features.Flocks.IFlockLookup",
+                            "Cluckwork.Application.Features.Flocks.IMortalityLedger",
+                            "Cluckwork.Application.Features.Flocks.FlockDetails",
+                            "Cluckwork.Application.Features.Flocks.FlockReference",
+                            "Cluckwork.Application.Features.Flocks.FlockNameResolution",
+                            "Cluckwork.Application.Features.Flocks.BirdMovementDetails",
+                            "Cluckwork.Application.Features.Flocks.FlockEligibility",
+                            "Cluckwork.Application.Features.Flocks.CreateFlock.CreateFlockCommand",
+                            "Cluckwork.Application.Features.Flocks.UpdateFlock.UpdateFlockCommand",
+                            "Cluckwork.Application.Features.Flocks.RecordBirdMovement.RecordBirdMovementCommand",
+                            "Cluckwork.Domain.Flocks.FlockStatus",
+                            "Cluckwork.Domain.Flocks.BirdMovementType"
+                          ] },
     "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"] },
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"] },

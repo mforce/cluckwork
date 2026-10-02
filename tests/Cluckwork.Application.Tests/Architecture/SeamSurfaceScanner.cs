@@ -76,6 +76,14 @@ public static class SeamSurfaceScanner
 
             CheckMembers(iface, iface.FullName!, violations, rules);
 
+            if (ReferenceEquals(rules, ContractRules))
+            {
+                foreach (var derived in DerivedCases(iface))
+                {
+                    Walk(derived, [FormatShort(derived)], new HashSet<Type>(), iface.FullName!, $": {FormatShort(derived)}", violations, rules);
+                }
+            }
+
             // Reflection does not surface inherited interface members; the
             // constructed base interfaces carry them with substituted arguments.
             foreach (var baseInterface in iface.GetInterfaces())
@@ -283,6 +291,15 @@ public static class SeamSurfaceScanner
                     interfaceName, member, violations, rules);
             }
 
+            // #852: a contract result can be a closed hierarchy, so every public case of it is walked too.
+            if (ReferenceEquals(rules, ContractRules))
+            {
+                foreach (var derived in DerivedCases(resolved))
+                {
+                    Walk(derived, [.. path, FormatShort(derived)], visited, interfaceName, member, violations, rules);
+                }
+            }
+
             // A contract result can hand out a nested interface, so its signatures are walked too. #847 scans
             // every seam interface at the root already and keeps its single-report behaviour.
             if (resolved.IsInterface && ReferenceEquals(rules, ContractRules))
@@ -300,6 +317,11 @@ public static class SeamSurfaceScanner
             }
         }
     }
+
+    private static IEnumerable<Type> DerivedCases(Type type) =>
+        type.IsClass && !type.IsSealed
+            ? type.Assembly.GetTypes().Where(t => t != type && IsPubliclyReachable(t) && type.IsAssignableFrom(t))
+            : [];
 
     private static bool IsEntity(Type type)
     {
