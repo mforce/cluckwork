@@ -55,6 +55,7 @@ test("a vulnerability with no open issue creates one titled with severity and id
   const [a] = plan(openCve, [], CTX);
   assert.equal(a.kind, "create");
   assert.equal(a.title, "[HIGH] CVE-2026-1111 in openssl (container image)");
+  assert.ok(a.body.includes("(<https://example.invalid/CVE-2026-1111>)"), "the advisory link is kept as an autolink");
   assert.deepEqual(a.labels, ["dependencies", "docker"]);
 });
 

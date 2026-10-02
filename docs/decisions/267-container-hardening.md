@@ -38,7 +38,7 @@ weekly (Mondays 07:00 UTC) and on `workflow_dispatch`:
 
 - It scans the published `:sha-<commit>` image of the newest `main` commit that
   has one, on `linux/amd64` and `linux/arm64`, for fixable HIGH/CRITICAL findings.
-  Each architecture is scanned by its own manifest digest, resolved from the index.
+  The tag is resolved to one index digest first, and each architecture is scanned by its own manifest digest from that index.
 - **Trivy is pinned by hand.** `aquasecurity/setup-trivy` is SHA-pinned and its
   `version` input is set (`v0.75.0`), because the input defaults to `latest`.
   Dependabot's `github-actions` ecosystem bumps the action SHA, **not** this
