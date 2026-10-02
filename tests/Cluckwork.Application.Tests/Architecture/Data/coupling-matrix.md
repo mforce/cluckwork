@@ -10,7 +10,7 @@
 | EggOperations | — | R (2) | W (7) | — | — | — | — | — | P |
 | Commerce | R (1) | R (4) | — | W (8) fk:3 | — | — | — | — | P |
 | GeneralInventory | — | R (3) | R (3) fk:3 | R (2) fk:2 | — | — | — | — | P |
-| Finance | — | R (2) | R (2) fk:1 | — | — | — | — | — | P |
+| Finance | — | R (3) | R (2) fk:1 | — | — | — | — | — | P |
 | Insights | — | R (1) | R (2) | R (2) | R (2) | R (1) | R (2) | — | P |
 | Platform | A (43) | A (18) | A (23) | A (24) | A (31) | A (18) | A (9) | A (25) | — |
 
@@ -40,7 +40,7 @@
 | Farm | Commerce | — | R (3) |
 | Commerce | Access | — | R (1) |
 | GeneralInventory | EggOperations | — | R (2) fk:2 |
-| Finance | Farm | W | R (2) |
+| Finance | Farm | W | R (3) |
 | Insights | Farm | — | R (1) |
 | Insights | FlockManagement | — | R (2) |
 | Insights | EggOperations | — | R (2) |

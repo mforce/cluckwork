@@ -1,6 +1,7 @@
 import { test, expect } from "../src/fixtures";
 import { owner } from "../src/cast";
 import { tEn } from "../src/i18n";
+import { openSeededExpenses } from "../src/expenses";
 
 // #835 — the one assertion that needs a real font engine.
 //
@@ -91,9 +92,9 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
 // the display cut. Check both the computed pin and the same rendered letters'
 // width against a forced opsz 14 cut. The desktop test above still covers the
 // display figure; Expenses no longer shows that large figure on phones.
-test("real body text stays at the text cut on a phone", { tag: "@phone" }, async ({ page, signIn }) => {
+test("real body text stays at the text cut on a phone", { tag: "@phone" }, async ({ page, signIn, farm, shellLayout }) => {
   await signIn(owner());
-  await page.goto("/expenses");
+  await openSeededExpenses({ page, farm, shellLayout });
   await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
   await expect(page.getByRole("list", { name: tEn("expenses:ledgerHeading") })).toBeVisible();
 
