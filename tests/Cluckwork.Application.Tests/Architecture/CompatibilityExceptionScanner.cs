@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
@@ -62,12 +63,11 @@ public static class CompatibilityExceptionScanner
         global using Microsoft.Extensions.Logging;
         """;
 
+    // Keeps type parameters, so ExpenseRepository<T> never shares ExpenseRepository's key, and
+    // matches ClrKey, so IdentityUserRole<Guid> finds its model entry.
     private static readonly SymbolDisplayFormat TypeFormat = new(
-        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
-
-    // Matches ClrKey, so IdentityUserRole<Guid> finds its model entry.
-    private static readonly SymbolDisplayFormat EntityFormat = TypeFormat.WithGenericsOptions(
-        SymbolDisplayGenericsOptions.IncludeTypeParameters);
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
     // Entity CLR type -> every table it maps to, from the real model, so a read is classified by the
     // ledger's table owner rather than the entity's namespace (UserRoleAssignment is the counterexample).
@@ -79,10 +79,17 @@ public static class CompatibilityExceptionScanner
         using var context = new AppDbContext(options, new TenantContext(), new FlockScope());
         return context.Model.GetEntityTypes()
             .Where(e => !e.HasSharedClrType && !e.IsOwned())
-            .ToDictionary(e => ClrKey(e.ClrType),
-                e => TableOwnerScanner.TableStoreObjects(e).Select(t => TableOwnerScanner.Qualify(t.Name, t.Schema)).ToArray(),
+            .ToDictionary(e => ClrKey(e.ClrType), e => QueriedTables(e).Distinct(StringComparer.Ordinal).ToArray(),
                 StringComparer.Ordinal);
     });
+
+    // A query of a set also loads its owned values and, for a base type, its derived types,
+    // and EF joins their tables when they are mapped apart from the principal's.
+    internal static IEnumerable<string> QueriedTables(IEntityType entity) =>
+        TableOwnerScanner.TableStoreObjects(entity).Select(t => TableOwnerScanner.Qualify(t.Name, t.Schema))
+            .Concat(entity.GetNavigations().Where(n => n.ForeignKey.IsOwnership && !n.IsOnDependent)
+                .SelectMany(n => QueriedTables(n.TargetEntityType)))
+            .Concat(entity.GetDirectlyDerivedTypes().SelectMany(QueriedTables));
 
     public static CompatibilityExceptionReport Scan(string srcRoot, string ledgerPath)
     {
@@ -139,9 +146,9 @@ public static class CompatibilityExceptionScanner
                         continue;
                     }
 
-                    if (!EntityTables.Value.TryGetValue(namedEntity.ToDisplayString(EntityFormat), out var tables))
+                    if (!EntityTables.Value.TryGetValue(Key(namedEntity), out var tables))
                     {
-                        unresolved.Add($"{location} obtains DbSet<{namedEntity.ToDisplayString(EntityFormat)}>, " +
+                        unresolved.Add($"{location} obtains DbSet<{Key(namedEntity)}>, " +
                             "which maps to no table in AppDbContext's model");
                         continue;
                     }
@@ -189,7 +196,8 @@ public static class CompatibilityExceptionScanner
 
         var distinct = reads
             .GroupBy(r => (r.Symbol, r.Reaches, r.Table))
-            .Select(g => g.OrderBy(r => r.File, StringComparer.Ordinal).ThenBy(r => r.Line).First())
+            .Select(g => g.OrderBy(r => r.Allowance == Registered ? 0 : 1)
+                .ThenBy(r => r.File, StringComparer.Ordinal).ThenBy(r => r.Line).First())
             .OrderBy(r => r.Symbol, StringComparer.Ordinal).ThenBy(r => r.Reaches, StringComparer.Ordinal)
             .ThenBy(r => r.Table, StringComparer.Ordinal)
             .ToList();
@@ -245,6 +253,7 @@ public static class CompatibilityExceptionScanner
             }
 
             return member is IPropertySymbol property && IsDbSet(property.Type) && DerivesFromDbContext(type)
+                && expression is InvocationExpressionSyntax { Expression: GenericNameSyntax { Identifier.ValueText: "Set" }, ArgumentList.Arguments.Count: 0 }
                 && expression.Parent is ArrowExpressionClauseSyntax
                 ? DbSetDeclaration
                 : Registered;

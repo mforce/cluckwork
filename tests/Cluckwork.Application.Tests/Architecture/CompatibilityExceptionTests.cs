@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class CompatibilityExceptionTests : IDisposable
@@ -161,6 +163,19 @@ public sealed class CompatibilityExceptionTests : IDisposable
             Assert.Single(Evaluate(implementations: "\"Cluckwork.Temp.Probe\"")));
     }
 
+    [Fact]
+    public void ListedImplementation_DoesNotCoverAGenericTypeOfTheSameName()
+    {
+        WriteSource("Cluckwork.Infrastructure/Probe.cs", """
+            namespace Cluckwork.Temp;
+            public class Probe(FixtureDb db) : Finance.IExpenseStore { public int Run() => db.Expenses.Count(); }
+            public static class Probe<T> { public static int Run(FixtureDb db) => db.Expenses.Count(); }
+            """);
+
+        Assert.Contains("undeclared compatibility exception Cluckwork.Temp.Probe<T>.Run -> Finance",
+            Assert.Single(Evaluate(implementations: "\"Cluckwork.Temp.Probe\"")));
+    }
+
     [Theory]
     [InlineData("\"Cluckwork.Temp.Missing\"", "is not declared")]
     [InlineData("\"Cluckwork.Temp.FixtureDb\"", "implements none of Finance's interfaces")]
@@ -192,13 +207,13 @@ public sealed class CompatibilityExceptionTests : IDisposable
         Assert.Equal(allowed ? 0 : 1, Evaluate().Count);
     }
 
-    [Fact]
-    public void DbSetGetterThatQueries_IsNotADeclaration()
+    [Theory]
+    [InlineData("public DbSet<Expense> Expenses { get { _ = Set<Expense>().Count(); return Set<Expense>(); } }")]
+    [InlineData("public DbSet<Expense> Expenses => (Set<Expense>().Count(), Set<Expense>()).Item2;")]
+    public void DbSetGetterThatQueries_IsNotADeclaration(string getter)
     {
         WriteSource("Cluckwork.Infrastructure/FixtureDb.cs", FixtureDb.Replace(
-            "public DbSet<Expense> Expenses => Set<Expense>();",
-            "public DbSet<Expense> Expenses { get { _ = Set<Expense>().Count(); return Set<Expense>(); } }",
-            StringComparison.Ordinal));
+            "public DbSet<Expense> Expenses => Set<Expense>();", getter, StringComparison.Ordinal));
 
         Assert.Contains("undeclared compatibility exception Cluckwork.Temp.FixtureDb.Expenses -> Finance", Assert.Single(Evaluate()));
     }
@@ -352,5 +367,39 @@ public sealed class CompatibilityExceptionTests : IDisposable
             """);
 
         Assert.Empty(Evaluate());
+    }
+
+    [Fact]
+    public void QueriedTables_IncludeOwnedAndDerivedTablesMappedApart()
+    {
+        var options = new DbContextOptionsBuilder<MappingDb>()
+            .UseNpgsql("Host=localhost;Database=unreachable;Username=unreachable;Password=unreachable")
+            .EnableServiceProviderCaching(false).Options;
+        using var context = new MappingDb(options);
+
+        Assert.Equal(["OrderTotals", "Orders", "SpecialShared"], CompatibilityExceptionScanner
+            .QueriedTables(context.Model.FindEntityType(typeof(MappedOrder))!).Distinct().Order(StringComparer.Ordinal));
+    }
+
+    public sealed class Total { public long Amount { get; set; } }
+
+    public class MappedOrder
+    {
+        public Guid Id { get; set; }
+        public Total Paid { get; set; } = new();
+        public Total Due { get; set; } = new();
+    }
+
+    public sealed class SpecialOrder : MappedOrder { public string Note { get; set; } = ""; }
+
+    private sealed class MappingDb(DbContextOptions<MappingDb> options) : DbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            builder.Entity<MappedOrder>().UseTptMappingStrategy().ToTable("Orders");
+            builder.Entity<MappedOrder>().OwnsOne(o => o.Paid, m => m.ToTable("OrderTotals"));
+            builder.Entity<MappedOrder>().OwnsOne(o => o.Due);
+            builder.Entity<SpecialOrder>().ToTable("SpecialShared");
+        }
     }
 }

@@ -28,8 +28,10 @@ The issue named five exceptions. At `origin/main` 7ce95cf4 they stand as follows
 
 ## The rule
 
-A read is any member that obtains a `DbSet<T>`. The real EF model maps `T` to its
-tables, and the ledger's `tables` section names each table's owner. The reader is
+A read is any member that obtains a `DbSet<T>`. The real EF model maps `T` to the
+tables a query of the set touches: its own tables, the tables of owned values mapped
+apart from it, and the tables of derived types. The ledger's `tables` section names
+each table's owner. The reader is
 classified by its namespace owner. These differ: `UserRoleAssignment` sits in Farm's
 `Domain.Accounts` namespace, but Access owns the `UserRoleAssignments` table. A read of
 a table whose owner has a ledger `contract` is an exception unless one of these holds:
@@ -41,11 +43,14 @@ a table whose owner has a ledger `contract` is an exception unless one of these 
   must be declared in `Cluckwork.Infrastructure`, implement one of the module's
   interfaces, and read the module's tables. Nested types are not covered. Finance
   lists `ExpenseCategoryRepository` and `ExpenseRepository`;
-- the member is a `DbSet<T>` property on a `DbContext` whose expression body is the
-  set itself, as in `Expenses => Set<Expense>()`. A getter that also queries is a read.
+- the member is a `DbSet<T>` property on a `DbContext` whose whole expression body is
+  `Set<T>()`, as in `Expenses => Set<Expense>()`. Any other getter, including one that
+  computes something before returning the set, is a read. When one member reads a table
+  both ways, the stricter classification wins.
 
 Every other read needs a row under `compatibilityExceptions` in `module-ledger.json`.
-A row is keyed by namespace, type and member, never by `file:line` (#632). It names
+A row is keyed by namespace, type and member, never by `file:line` (#632). Type keys
+keep their type parameters, so `ExpenseRepository<T>` is not `ExpenseRepository`. It names
 the module it `reaches`, the `tables` the member reads, an `owner` from the ledger's
 owners, a `reason`, and `deleteWhen`, the slice issue that removes it. `deleteWhen`
 must match `^#[0-9]+$`, so a date cannot stand in for an owner.
@@ -101,6 +106,8 @@ audit kept the contract narrow, and the seeder's conversion belongs to #858.
   receiver at all. `TenantBypassRealTreeTests` classifies every raw-SQL site.
 - A read is attributed to the member that obtains the `DbSet`. A helper that returns
   `db.Expenses.AsQueryable()` to a caller registers the helper, not the caller.
+- Tables reached through navigations, by `Include` or a join in LINQ, are not added to
+  a read's tables. Only owned values and derived types are.
 - A type named by an edge, or listed as an implementation, is trusted for every
   member. A new read in `ReportQueries`, or a new method on `ExpenseRepository`, needs
   no ledger edit. The edge's `kind` is not checked against what the read does; review
@@ -127,5 +134,7 @@ audit kept the contract narrow, and the seeder's conversion belongs to #858.
   (stale row), adding `db.Expenses.AnyAsync` to `PaymentRepository` (undeclared),
   adding `db.Expenses.Count()` to `ListAccountsCliCommand` (undeclared), an aliased
   `Set<E>()` in Api and in AppHost, a Platform `IExpenseRepository` implementer with an
-  unrelated category read, an extra category read in `EnsureExpenseAsync`, and a
-  generic `Set<T>()` helper.
+  unrelated category read, an extra category read in `EnsureExpenseAsync`, a generic
+  `Set<T>()` helper, a generic `ExpenseRepository<T>` beside the listed type, a
+  `DbSet` getter that counts before returning the set, and `SalesOrder.TotalAmount`
+  mapped to a Finance-owned table of its own.
