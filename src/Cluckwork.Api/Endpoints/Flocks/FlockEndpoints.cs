@@ -7,6 +7,7 @@ using Cluckwork.Application.Features.Flocks.DepleteFlock;
 using Cluckwork.Application.Features.Flocks.ReactivateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -105,7 +106,7 @@ public static class FlockEndpoints
     }
 
     private static async Task<IResult> ListFlocks(
-        IFlockRepository flocks, IBirdMovementRepository movements, IAuditEventRepository audit,
+        IFlockRepository flocks, IBirdMovementRepository movements, IInsightsModule audit,
         TenantContext tenant,
         CancellationToken ct, string? search = null, string? eligibility = null,
         bool? includeArchived = null, int? limit = null, int? offset = null)
@@ -186,7 +187,7 @@ public static class FlockEndpoints
 
     private static async Task<IResult> GetFlock(
         Guid id, IFlockRepository flocks, IBirdMovementRepository movements,
-        IAuditEventRepository audit, TenantContext tenant, CancellationToken ct)
+        IInsightsModule audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var flock = await flocks.GetByIdAsync(id, ct);

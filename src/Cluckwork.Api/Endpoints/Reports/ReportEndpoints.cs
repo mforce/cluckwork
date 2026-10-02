@@ -1,6 +1,6 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
-using Cluckwork.Application.Features.Reports;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Infrastructure.Persistence;
 
 namespace Cluckwork.Api.Endpoints.Reports;
@@ -67,7 +67,7 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> Production(
-        IReportQueries reports, IFlockRepository flocks, TenantContext tenant,
+        IInsightsModule reports, IFlockRepository flocks, TenantContext tenant,
         IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null, Guid? flockId = null)
     {
@@ -87,7 +87,7 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> Sales(
-        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
+        IInsightsModule reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -97,7 +97,7 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> Expenses(
-        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
+        IInsightsModule reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -107,7 +107,7 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> Profit(
-        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
+        IInsightsModule reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();

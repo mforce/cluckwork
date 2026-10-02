@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Text.Json;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Export;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Infrastructure.Persistence;
 
 namespace Cluckwork.Api.Endpoints.Export;
@@ -30,7 +30,7 @@ public static class ExportEndpoints
     }
 
     private static async Task<IResult> ExportDataset(
-        string dataset, IExportQueries exports, IAuditWriter audit,
+        string dataset, IInsightsModule exports, IAuditWriter audit,
         IUnitOfWork unitOfWork, IClock clock, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -52,7 +52,7 @@ public static class ExportEndpoints
     }
 
     private static async Task<IResult> ExportAll(
-        IExportQueries exports, IAuditWriter audit,
+        IInsightsModule exports, IAuditWriter audit,
         IUnitOfWork unitOfWork, IClock clock, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -90,7 +90,7 @@ public static class ExportEndpoints
     }
 
     private static async Task WriteZipAsync(
-        PipeWriter writer, IExportQueries exports, IClock clock, CancellationToken ct)
+        PipeWriter writer, IInsightsModule exports, IClock clock, CancellationToken ct)
     {
         try
         {

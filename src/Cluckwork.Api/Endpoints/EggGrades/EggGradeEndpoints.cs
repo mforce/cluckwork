@@ -4,6 +4,7 @@ using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
+using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -48,7 +49,7 @@ public static class EggGradeEndpoints
     }
 
     private static async Task<IResult> ListEggGrades(
-        IEggGradeRepository grades, IAuditEventRepository audit,
+        IEggGradeRepository grades, IInsightsModule audit,
         TenantContext tenant, CancellationToken ct,
         bool includeInactive = false)
     {
@@ -64,7 +65,7 @@ public static class EggGradeEndpoints
     }
 
     private static async Task<IResult> GetEggGrade(
-        Guid id, IEggGradeRepository grades, IAuditEventRepository audit,
+        Guid id, IEggGradeRepository grades, IInsightsModule audit,
         TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
