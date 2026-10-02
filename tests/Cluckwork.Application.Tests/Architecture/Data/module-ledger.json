@@ -9,6 +9,10 @@
                             "Cluckwork.Application.Features.Accounts.FarmLogoMetadata",
                             "Cluckwork.Application.Features.Accounts.FarmLogoContent",
                             "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.AccountRepository",
+                            "Cluckwork.Infrastructure.Repositories.FarmLogoRepository"
                           ] },
     "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"],
                           "contract": [
@@ -39,6 +43,10 @@
                             "Cluckwork.Application.Features.Expenses.UpdateExpenseCategory.UpdateExpenseCategoryCommand",
                             "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseCommand",
                             "Cluckwork.Application.Features.Expenses.AdjustExpense.AdjustExpenseCommand"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.ExpenseCategoryRepository",
+                            "Cluckwork.Infrastructure.Repositories.ExpenseRepository"
                           ] },
     "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export", "Cluckwork.Application.Features.Insights", "Cluckwork.Infrastructure.Insights"] },
     "Platform":         { "kind": "platform", "namespaces": ["Cluckwork.Domain.Common", "Cluckwork.Domain.Auditing", "Cluckwork.Application.Common", "Cluckwork.Infrastructure", "Cluckwork.Api", "Cluckwork.AppHost"], "exactNamespaces": ["Cluckwork.Domain", "Cluckwork.Application"] }
@@ -1379,6 +1387,104 @@
       "surface": "MapMcp",
       "reason": "MCP tool classes inject repositories by design (docs/plans/770-mcp-server/01-design.md:112); the contract-first shape is Track C (#514)",
       "reviewBy": "#806"
+    }
+  ],
+  "compatibilityExceptions": [
+    {
+      "symbol": "Cluckwork.Api.Cli.AccountSlugLookup.ResolveAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Platform",
+      "reason": "Resolves a farm code to its account id across every farm, before any tenant is resolved, for the seed, suspend, reactivate and rename verbs. IFarmModule reads only the current farm; the Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.ListAccountsCliCommand.RunAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Platform",
+      "reason": "Lists every farm's code, name and active state for the operator, across tenants. IFarmModule reads only the current farm; the Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Api.Middleware.CredentialEpochMiddleware.InvokeAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Access",
+      "reason": "Reads Account.IsActive in the same fresh per-request query as the user's credential epoch, so a suspended farm's credentials stop working at once (#364, #579). The read must stay uncached; the Access slice moves it onto an epoch-verifier port.",
+      "deleteWhen": "#857"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Platform",
+      "reason": "Lists every farm's id and time zone before resolving one tenant scope per farm to lock due daily entries. IFarmModule reads only the current farm; the Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Platform",
+      "reason": "Checks that the target farm's account exists before the tenant is resolved, so the verb fails loud on a database without base data. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Platform",
+      "reason": "Counts accounts across farms for the simulation manifest check, beside every other module's counts. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "Finance",
+      "tables": ["ExpenseCategories", "Expenses"],
+      "owner": "Platform",
+      "reason": "Counts ExpenseCategories and Expenses for the simulation manifest check, beside every other module's counts. IFinanceModule has no count read: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseAsync",
+      "reaches": "Finance",
+      "tables": ["Expenses"],
+      "owner": "Platform",
+      "reason": "Checks Expenses for the fixture description before calling IFinanceModule.CreateExpenseAsync, so a re-run converges instead of duplicating. IFinanceModule has no existence read: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseCategoryAsync",
+      "reaches": "Finance",
+      "tables": ["ExpenseCategories"],
+      "owner": "Platform",
+      "reason": "Looks up ExpenseCategories by name before calling IFinanceModule.CreateCategoryAsync, so a re-run converges and reuses the existing id. IFinanceModule has no lookup by name: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Platform",
+      "reason": "Checks that the target farm's account exists before the tenant is resolved, so the verb fails loud on a database without base data. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSecondAccountAsync",
+      "reaches": "Farm",
+      "tables": ["Accounts"],
+      "owner": "Platform",
+      "reason": "Checks for and inserts the second, pristine farm used as the tenant-isolation fixture, writing through a scope resolved to that farm. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
+      "reaches": "Finance",
+      "tables": ["Expenses"],
+      "owner": "Farm",
+      "reason": "Farm's currency lock: any expense carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce and General Inventory tables, so it can only move behind module contracts once the last of them has one, the General Inventory contract slice.",
+      "deleteWhen": "#855"
     }
   ]
 }
