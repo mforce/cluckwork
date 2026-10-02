@@ -11,8 +11,10 @@ name: Weekly image scan
 #   - scans both linux/amd64 and linux/arm64 for fixable HIGH/CRITICAL findings;
 #   - uploads SARIF to the Security tab, one category per architecture;
 #   - files one issue per vulnerability id, comments on it while it persists, and
-#     closes it once a scan of both architectures no longer finds it. The logic
-#     and its rules live in .github/scripts/image-scan-issues.mjs.
+#     closes it once a scan of both architectures no longer finds it. Closing an
+#     issue by hand IGNORES that vulnerability (it gets an `ignored` label and the
+#     scan leaves it alone); reopening it stops ignoring. The logic and its rules
+#     live in .github/scripts/image-scan-issues.mjs.
 #
 # There is no suppression file. A finding is acted on or its issue is closed.
 #

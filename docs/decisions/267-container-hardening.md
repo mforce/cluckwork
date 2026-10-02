@@ -45,10 +45,20 @@ weekly (Mondays 07:00 UTC) and on `workflow_dispatch`:
   input; raise it manually, or the scan runs an old Trivy and an old vulnerability
   database format.
 - It uploads SARIF to the Security tab, one category per architecture.
-- It keeps one open issue per vulnerability id
-  (`.github/scripts/image-scan-issues.mjs`). A new id opens an issue; a known one
-  gets a comment. When a scan of **both** architectures completes without the id,
-  the issue is commented on and closed. A failed or partial scan changes no issue.
+- It keeps one issue per vulnerability id, open or closed
+  (`.github/scripts/image-scan-issues.mjs`), matched by the id in its own title
+  shape, never by body. A new id opens an issue; a known open one gets a comment.
+  When a scan of **both** architectures completes without the id, the open issue
+  is commented on and closed. A failed or partial scan changes no issue and no label.
+- **Closing a scanner issue ignores that CVE; reopening it un-ignores.** An id
+  whose only matching issue is closed is left alone: no new issue, no reopen, no
+  comment. The scan adds an `ignored` label (created if missing) once, so the
+  list shows which CVEs are still present but deliberately ignored. Reopening the
+  issue makes the next scan remove the label and resume commenting. When an
+  ignored CVE no longer appears, the label is removed, since it means "still
+  present". If an open and a closed issue both match, the open one wins. Any
+  closed issue counts, including one the scan closed itself because the CVE
+  cleared.
   An issue is closed only when it has the scanner's title shape, both labels and
   the workflow's bot as author; a human-filed issue is never closed. Because the
   scan is limited to fixable HIGH/CRITICAL, "no longer found" means no longer
@@ -64,6 +74,9 @@ weekly (Mondays 07:00 UTC) and on `workflow_dispatch`:
   yet.
 - **`publish.needs` no longer proves "scanned".** The digest artifact proves the
   image was built and boot-tested ([#351](351-releases.md)).
+- **An ignore has no expiry, and a returning CVE is not re-reported.** A CVE that
+  is fixed (issue closed by the scan) and later returns is not reopened or filed
+  again; the `ignored` label is the only sign, and nothing notifies anyone.
 - The weekly scan is the only coverage of OS packages in the image. The #146 NuGet
   and npm gates still block PRs that add a vulnerable library.
 

@@ -45,7 +45,11 @@ const report = (arch, vulns, over = {}) =>
 const parsed = (vulnsByArch) =>
   Object.fromEntries(Object.entries(vulnsByArch).map(([arch, v]) => [arch, parseReport(report(arch, v), { repo: REPO, arch })]));
 
-const issue = (number, title, labels = LABELS, comments = [], author = "github-actions[bot]") => ({ number, title, labels, comments, author });
+const issue = (number, title, labels = LABELS, comments = [], author = "github-actions[bot]", state = "open") => ({ number, title, labels, comments, author, state });
+const closedIssue = (number, title, labels = LABELS) => issue(number, title, labels, [], "mforce", "closed");
+const IGN = [...LABELS, "ignored"];
+const TITLE_1111 = "[HIGH] CVE-2026-1111 in openssl (container image)";
+const kinds = (actions) => actions.map((a) => [a.kind, a.number]);
 
 const openCve = collect(parsed({ amd64: [vuln("CVE-2026-1111", "openssl")], arm64: [vuln("CVE-2026-1111", "openssl")] }));
 const clean = collect(parsed({ amd64: [], arm64: [] }));
@@ -125,15 +129,46 @@ test("a report that is not a completed scan of the named image is rejected", () 
   assert.throws(bad("{}"), /not a Trivy container-image report/);
 });
 
-function cli(files, openIssues) {
+test("closed and present: label it ignored once, never reopen, comment or create", () => {
+  const closed = closedIssue(20, TITLE_1111);
+  assert.deepEqual(kinds(plan(openCve, [closed], CTX)), [["label", 20]]);
+  const labelled = closedIssue(20, TITLE_1111, IGN);
+  assert.deepEqual(kinds(plan(openCve, [labelled], CTX)), [["skip", 20]]);
+});
+
+test("a closed issue is matched by title only, so a closed human issue without the CVE in its title does not hide it", () => {
+  const closed1006 = closedIssue(1006, "ci: move image vulnerability scanning out of CI to a weekly scan", []);
+  assert.deepEqual(plan(openCve, [closed1006], CTX).map((a) => a.kind), ["create"]);
+});
+
+test("reopened and ignored: drop the label, then update", () => {
+  const reopened = issue(21, TITLE_1111, IGN);
+  assert.deepEqual(kinds(plan(openCve, [reopened], CTX)), [["unlabel", 21], ["comment", 21]]);
+});
+
+test("closed, ignored and absent: the label comes off, and only then", () => {
+  assert.deepEqual(kinds(plan(clean, [closedIssue(22, TITLE_1111, IGN)], CTX)), [["unlabel", 22]]);
+  assert.deepEqual(plan(clean, [closedIssue(22, TITLE_1111)], CTX), []);
+});
+
+test("an open ignored issue whose CVE cleared is closed and loses the label in one run", () => {
+  assert.deepEqual(kinds(plan(clean, [issue(23, TITLE_1111, IGN)], CTX)), [["close", 23], ["unlabel", 23]]);
+});
+
+test("both an open and a closed match: the open one is updated, the closed one untouched", () => {
+  const actions = plan(openCve, [closedIssue(5, TITLE_1111, IGN), issue(30, TITLE_1111)], CTX);
+  assert.deepEqual(kinds(actions), [["comment", 30]]);
+});
+
+function cli(files, issues) {
   const dir = mkdtempSync(join(tmpdir(), "image-scan-"));
   const args = ["--repo", "o/r", "--sha", SHA, "--image", IMAGE, "--run-url", "u", "--dry-run"];
   for (const [arch, text] of Object.entries(files)) {
     writeFileSync(join(dir, arch), text);
     args.push("--report", `${arch}=${join(dir, arch)}`);
   }
-  writeFileSync(join(dir, "issues.json"), JSON.stringify(openIssues));
-  args.push("--open-issues", join(dir, "issues.json"));
+  writeFileSync(join(dir, "issues.json"), JSON.stringify(issues));
+  args.push("--issues", join(dir, "issues.json"));
   return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
 }
 
@@ -146,6 +181,12 @@ test("end to end: a failed or partial scan closes nothing and exits 1", () => {
   const broken = cli({ amd64: report("amd64", []), arm64: "Error: pull access denied" }, open);
   assert.equal(broken.status, 1);
   assert.doesNotMatch(broken.stdout, /close/);
+
+  const ignored = [...open, closedIssue(40, "[HIGH] CVE-2026-2222 in zlib (container image)", IGN)];
+  assert.match(cli({ amd64: report("amd64", []), arm64: report("arm64", []) }, ignored).stdout, /would remove the ignored label from #40/);
+  const failedWithIgnored = cli({ amd64: report("amd64", []), arm64: "Error" }, ignored);
+  assert.equal(failedWithIgnored.status, 1);
+  assert.doesNotMatch(failedWithIgnored.stdout, /label|close/);
 
   const missing = cli({ amd64: report("amd64", []) }, open);
   assert.equal(missing.status, 1);

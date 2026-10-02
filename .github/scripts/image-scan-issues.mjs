@@ -1,26 +1,33 @@
-// Turns the weekly image scan's Trivy JSON reports into GitHub issues: one open
-// issue per vulnerability id, ever.
+// Turns the weekly image scan's Trivy JSON reports into GitHub issues: one issue
+// per vulnerability id, ever.
 //
 //   node image-scan-issues.mjs --repo o/r --sha <40 hex> --image <ref> \
 //     --run-url <url> --report amd64=<json> --report arm64=<json> [--dry-run]
 //
-// Per vulnerability found, an open scanner issue for that id gets a comment and
-// none gets created; with no such issue, one is created. Per open scanner issue
-// whose id is NOT found, the issue is commented on and closed, because the image
-// no longer carries it.
+// Closing an issue IGNORES its vulnerability; reopening it stops ignoring it.
+// Per vulnerability found:
+//   - an open issue for the id gets a comment (and loses the `ignored` label if it
+//     has one, because reopening is how an owner un-ignores it);
+//   - else a closed issue for the id is left alone apart from getting the
+//     `ignored` label once; it is neither reopened nor commented on, so a CVE
+//     that returns after being fixed is not re-reported;
+//   - else a new issue is created.
+// Per scanner issue whose id is NOT found: an open one is commented on and closed
+// because the image no longer carries it, and a closed one loses `ignored`, which
+// means "still present, deliberately ignored".
 //
 // "Not found" is only trustworthy if the scan ran. Both architecture reports must
 // parse and name the image they were asked to scan, or this exits 1 before it
 // reads or writes any issue.
 //
-// A comment goes to any open issue whose title has the exact shape buildTitle
-// writes. An issue is only CLOSED when it is also authored by the workflow's bot
+// An issue matches an id by a title of the exact shape buildTitle writes, open or
+// closed, whoever filed it. An issue is only CLOSED when it is also authored by the workflow's bot
 // and carries both labels, so a human-filed issue is never closed. Issue bodies
 // are never matched: a human issue that merely mentions an id must not be taken
 // for its tracking issue.
 //
-// --dry-run reads the live issue list and prints what it would do. --open-issues
-// substitutes a JSON array of {number,title,labels:[name],author,comments:[body]}
+// --dry-run reads the live issue list and prints what it would do. --issues
+// substitutes a JSON array of {number,title,state,labels:[name],author,comments:[body]}
 // for that list, to exercise the decision logic without the live tracker.
 
 import { execFileSync } from "node:child_process";
@@ -29,6 +36,8 @@ import { pathToFileURL } from "node:url";
 
 export const ARCHS = ["amd64", "arm64"];
 export const LABELS = ["dependencies", "docker"];
+export const IGNORED = "ignored";
+const IGNORED_DESCRIPTION = "Vulnerability still present, deliberately ignored: reopen the issue to un-ignore";
 
 const RANK = { HIGH: 1, CRITICAL: 2 };
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/;
@@ -124,7 +133,7 @@ function createBody(f, ctx) {
     "",
     `Scan run: ${ctx.runUrl}`,
     "",
-    `This is the single issue for ${f.id}. The scan comments here while the image still carries it and closes this issue once a scan no longer finds it. Close it by hand and the next scan that still finds the id files a new one.`,
+    `This is the single issue for ${f.id}. The scan comments here while the image still carries it and closes this issue once a scan no longer finds it. Close it by hand to ignore ${f.id}: the scan then leaves it alone and labels it \`${IGNORED}\`. Reopen it to stop ignoring.`,
     "",
     marker("found", ctx.sha),
   ].join("\n");
@@ -149,29 +158,47 @@ const clearedComment = (id, ctx) =>
     `Scan run: ${ctx.runUrl}`,
   ].join("\n");
 
-// Pure decision logic. `issues` are the open issues, each `{number, title, labels,
-// comments}`; the caller has already refused to get here unless both scans completed.
+// Pure decision logic. `issues` are every scanner-visible issue, open and closed,
+// each `{number, title, state, labels, author, comments}`; the caller has already
+// refused to get here unless both scans completed.
 export function plan(findings, issues, ctx) {
   const scanner = issues.filter((i) => scannerIssueId(i.title) !== null);
+  const matches = (id, state) =>
+    scanner.filter((i) => scannerIssueId(i.title) === id && i.state === state).sort((a, b) => a.number - b.number);
   const actions = [];
   const sorted = [...findings.values()].sort(
     (a, b) => RANK[b.severity] - RANK[a.severity] || a.id.localeCompare(b.id),
   );
   for (const f of sorted) {
-    const existing = scanner
-      .filter((i) => scannerIssueId(i.title) === f.id)
-      .sort((a, b) => a.number - b.number)[0];
-    if (!existing) {
-      actions.push({ kind: "create", id: f.id, title: buildTitle(f), body: createBody(f, ctx), labels: LABELS });
-    } else if ((existing.comments ?? []).some((c) => c.includes(marker("found", ctx.sha)))) {
-      actions.push({ kind: "skip", id: f.id, number: existing.number, why: `#${existing.number} already notes sha-${ctx.sha}` });
+    const [open] = matches(f.id, "open");
+    const closed = matches(f.id, "closed");
+    if (open) {
+      if (open.labels.includes(IGNORED)) actions.push({ kind: "unlabel", id: f.id, number: open.number });
+      if ((open.comments ?? []).some((c) => c.includes(marker("found", ctx.sha)))) {
+        actions.push({ kind: "skip", id: f.id, number: open.number, why: `#${open.number} already notes sha-${ctx.sha}` });
+      } else {
+        actions.push({ kind: "comment", id: f.id, number: open.number, body: foundComment(f, ctx) });
+      }
+    } else if (closed.length > 0) {
+      for (const c of closed) {
+        actions.push(
+          c.labels.includes(IGNORED)
+            ? { kind: "skip", id: f.id, number: c.number, why: `#${c.number} is closed and already ignored` }
+            : { kind: "label", id: f.id, number: c.number },
+        );
+      }
     } else {
-      actions.push({ kind: "comment", id: f.id, number: existing.number, body: foundComment(f, ctx) });
+      actions.push({ kind: "create", id: f.id, title: buildTitle(f), body: createBody(f, ctx), labels: LABELS });
     }
   }
-  for (const i of scanner.filter(isScanner)) {
+  for (const i of scanner.filter((x) => !findings.has(scannerIssueId(x.title)))) {
     const id = scannerIssueId(i.title);
-    if (!findings.has(id)) actions.push({ kind: "close", id, number: i.number, body: clearedComment(id, ctx) });
+    if (i.state === "open" && isScanner(i)) {
+      actions.push({ kind: "close", id, number: i.number, body: clearedComment(id, ctx) });
+      if (i.labels.includes(IGNORED)) actions.push({ kind: "unlabel", id, number: i.number });
+    } else if (i.state === "closed" && i.labels.includes(IGNORED)) {
+      actions.push({ kind: "unlabel", id, number: i.number });
+    }
   }
   return actions;
 }
@@ -180,18 +207,28 @@ function gh(args, input) {
   return execFileSync("gh", args, { encoding: "utf8", input, stdio: ["pipe", "pipe", "inherit"] });
 }
 
-function openIssues(repo) {
-  const list = JSON.parse(
-    gh(["issue", "list", "-R", repo, "--state", "open", "--limit", "5000", "--json", "number,title,labels,author"]),
-  );
-  return list.map((i) => ({ number: i.number, title: i.title, labels: i.labels.map((l) => l.name), author: i.author?.login }));
+// Every issue, open and closed. The REST list also returns pull requests, which
+// carry a `pull_request` key; --paginate follows every page.
+function allIssues(repo) {
+  const out = gh([
+    "api", "--paginate", `repos/${repo}/issues?state=all&per_page=100`,
+    "--jq", ".[] | select(has(\"pull_request\") | not) | {number, title, state, labels: [.labels[].name], author: .user.login}",
+  ]);
+  return out.split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
 
 function commentsOf(repo, number) {
   return JSON.parse(gh(["issue", "view", String(number), "-R", repo, "--json", "comments"])).comments.map((c) => c.body);
 }
 
+function ensureIgnoredLabel(repo) {
+  gh(["label", "create", IGNORED, "-R", repo, "--force", "--color", "6e7681", "--description", IGNORED_DESCRIPTION]);
+}
+
 function apply(repo, a) {
+  if (a.kind === "label" || a.kind === "unlabel") {
+    return gh(["issue", "edit", String(a.number), "-R", repo, a.kind === "label" ? "--add-label" : "--remove-label", IGNORED]).trim();
+  }
   if (a.kind === "create") {
     const args = ["issue", "create", "-R", repo, "--title", a.title, "--body-file", "-"];
     for (const l of a.labels) args.push("--label", l);
@@ -206,6 +243,8 @@ const describe = (a, dry) => {
   if (a.kind === "create") return `${v("create", "would create")} a new issue for ${a.id}: ${a.title}`;
   if (a.kind === "comment") return `${v("update", "would update")} #${a.number} for ${a.id} with a comment`;
   if (a.kind === "close") return `${v("close", "would close")} #${a.number} (${a.id} no longer found)`;
+  if (a.kind === "label") return `${v("add", "would add")} the ${IGNORED} label to closed #${a.number} (${a.id} still present, ignored)`;
+  if (a.kind === "unlabel") return `${v("remove", "would remove")} the ${IGNORED} label from #${a.number} (${a.id})`;
   return `skip ${a.id}: ${a.why}`;
 };
 
@@ -217,7 +256,7 @@ function parseArgs(argv) {
     else if (k === "--report") {
       const [arch, path] = argv[++i].split("=");
       o.reports[arch] = path;
-    } else if (["--repo", "--sha", "--image", "--run-url", "--open-issues"].includes(k)) {
+    } else if (["--repo", "--sha", "--image", "--run-url", "--issues"].includes(k)) {
       o[k.slice(2).replace(/-(\w)/g, (_, c) => c.toUpperCase())] = argv[++i];
     } else throw new Error(`unknown argument ${k}`);
   }
@@ -239,15 +278,24 @@ function main() {
     runUrl: o.runUrl,
     digests: Object.fromEntries(ARCHS.map((a) => [a, parsed[a].digest])),
   };
-  const issues = o.openIssues ? JSON.parse(readFileSync(o.openIssues, "utf8")) : openIssues(o.repo);
+  const issues = o.issues ? JSON.parse(readFileSync(o.issues, "utf8")) : allIssues(o.repo);
   for (const i of issues) {
-    if (scannerIssueId(i.title) !== null && !i.comments) i.comments = o.openIssues ? [] : commentsOf(o.repo, i.number);
+    i.state ??= "open";
+    if (i.state === "open" && scannerIssueId(i.title) !== null && !i.comments) {
+      i.comments = o.issues ? [] : commentsOf(o.repo, i.number);
+    }
   }
   const actions = plan(collect(parsed), issues, ctx);
   console.log(`image-scan: ${ctx.ref} scanned on ${ARCHS.join(" and ")}; ${actions.length} action(s)${o.dryRun ? " (dry run)" : ""}`);
+  let labelEnsured = false;
   for (const a of actions) {
     console.log(describe(a, o.dryRun));
-    if (!o.dryRun && a.kind !== "skip") console.log(`  ${apply(o.repo, a)}`);
+    if (o.dryRun || a.kind === "skip") continue;
+    if (a.kind === "label" && !labelEnsured) {
+      ensureIgnoredLabel(o.repo);
+      labelEnsured = true;
+    }
+    console.log(`  ${apply(o.repo, a)}`);
   }
 }
 
