@@ -36,15 +36,32 @@ public static class SeamSurfaceScanner
         (t => InNamespace(t, InfrastructureNamespace), "in Cluckwork.Infrastructure"),
     ];
 
+    // #849: a module contract carries ids, values and versions, so it also
+    // refuses the concrete aggregates and entities that repository seams return.
+    private const BindingFlags PublicMembers =
+        BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+
+    private static readonly (Func<Type, bool> Matches, string Reason)[] ContractRules =
+    [
+        .. ForbiddenRules,
+        (IsEntity, "a domain entity or aggregate"),
+    ];
+
     // The caller states the interface count it expects, so a namespace-prefix
     // typo that matches nothing reds instead of passing on zero.
     public static SeamSurfaceReport Scan(
-        Assembly assembly, IReadOnlyList<string> namespacePrefixes, int minimumInterfaceFloor)
-    {
-        var interfaces = assembly.GetTypes()
+        Assembly assembly, IReadOnlyList<string> namespacePrefixes, int minimumInterfaceFloor) =>
+        Scan(assembly.GetTypes()
             .Where(t => t.IsInterface && IsPubliclyReachable(t) && MatchesPrefix(t.Namespace, namespacePrefixes))
-            .OrderBy(t => t.FullName, StringComparer.Ordinal)
-            .ToList();
+            .ToList(), minimumInterfaceFloor, ForbiddenRules);
+
+    public static SeamSurfaceReport ScanContracts(IReadOnlyList<Type> contractTypes, int minimumInterfaceFloor) =>
+        Scan(contractTypes, minimumInterfaceFloor, ContractRules);
+
+    private static SeamSurfaceReport Scan(
+        IReadOnlyList<Type> candidates, int minimumInterfaceFloor, (Func<Type, bool> Matches, string Reason)[] rules)
+    {
+        var interfaces = candidates.OrderBy(t => t.FullName, StringComparer.Ordinal).ToList();
 
         var violations = new List<SeamSurfaceViolation>();
         foreach (var iface in interfaces)
@@ -53,18 +70,18 @@ public static class SeamSurfaceScanner
             {
                 foreach (var parameter in iface.GetGenericArguments())
                 {
-                    Walk(parameter, [FormatShort(parameter)], new HashSet<Type>(), iface.FullName!, $"<{parameter.Name}>", violations);
+                    Walk(parameter, [FormatShort(parameter)], new HashSet<Type>(), iface.FullName!, $"<{parameter.Name}>", violations, rules);
                 }
             }
 
-            CheckMembers(iface, iface.FullName!, violations);
+            CheckMembers(iface, iface.FullName!, violations, rules);
 
             // Reflection does not surface inherited interface members; the
             // constructed base interfaces carry them with substituted arguments.
             foreach (var baseInterface in iface.GetInterfaces())
             {
-                Walk(baseInterface, [FormatShort(baseInterface)], new HashSet<Type>(), iface.FullName!, $": {FormatShort(baseInterface)}", violations);
-                CheckMembers(baseInterface, iface.FullName!, violations);
+                Walk(baseInterface, [FormatShort(baseInterface)], new HashSet<Type>(), iface.FullName!, $": {FormatShort(baseInterface)}", violations, rules);
+                CheckMembers(baseInterface, iface.FullName!, violations, rules);
             }
         }
 
@@ -118,10 +135,11 @@ public static class SeamSurfaceScanner
         return failures;
     }
 
-    private static void CheckMembers(Type declaring, string interfaceName, List<SeamSurfaceViolation> violations)
+    private static void CheckMembers(Type declaring, string interfaceName, List<SeamSurfaceViolation> violations,
+        (Func<Type, bool> Matches, string Reason)[] rules)
     {
         void Check(Type type, string member) =>
-            Walk(type, [FormatShort(type)], new HashSet<Type>(), interfaceName, member, violations);
+            Walk(type, [FormatShort(type)], new HashSet<Type>(), interfaceName, member, violations, rules);
 
         // Only accessors are skipped; their property or event is walked below.
         // Operators are special-name too and must be walked.
@@ -130,7 +148,7 @@ public static class SeamSurfaceScanner
             .ToHashSet();
         foreach (var method in declaring.GetMethods().Where(m => !accessors.Contains(m)))
         {
-            CheckMethod(method, interfaceName, violations);
+            CheckMethod(method, interfaceName, violations, rules);
         }
 
         foreach (var property in declaring.GetProperties())
@@ -151,30 +169,22 @@ public static class SeamSurfaceScanner
         }
     }
 
-    private static void CheckMethod(MethodInfo method, string interfaceName, List<SeamSurfaceViolation> violations)
+    // One visited set per method, so a type parameter reached both as a
+    // return type and as a declared generic parameter reports once.
+    private static void CheckMethod(MethodInfo method, string interfaceName, List<SeamSurfaceViolation> violations,
+        (Func<Type, bool> Matches, string Reason)[] rules) =>
+        WalkSignature(method, [], new HashSet<Type>(), interfaceName, method.Name, violations, rules);
+
+    private static void WalkSignature(MethodInfo method, List<string> path, HashSet<Type> visited,
+        string interfaceName, string member, List<SeamSurfaceViolation> violations,
+        (Func<Type, bool> Matches, string Reason)[] rules)
     {
-        // One visited set per method, so a type parameter reached both as a
-        // return type and as a declared generic parameter reports once.
-        var visited = new HashSet<Type>();
-        void Check(Type type) =>
-            Walk(type, [FormatShort(type)], visited, interfaceName, method.Name, violations);
-
-        if (method.IsGenericMethodDefinition)
+        var types = (method.IsGenericMethodDefinition ? method.GetGenericArguments() : [])
+            .Concat(method.GetParameters().Select(p => p.ParameterType))
+            .Concat(method.ReturnType == typeof(void) ? [] : [method.ReturnType]);
+        foreach (var type in types)
         {
-            foreach (var parameter in method.GetGenericArguments())
-            {
-                Check(parameter);
-            }
-        }
-
-        foreach (var parameter in method.GetParameters())
-        {
-            Check(parameter.ParameterType);
-        }
-
-        if (method.ReturnType != typeof(void))
-        {
-            Check(method.ReturnType);
+            Walk(type, [.. path, FormatShort(type)], visited, interfaceName, member, violations, rules);
         }
     }
 
@@ -184,7 +194,8 @@ public static class SeamSurfaceScanner
         HashSet<Type> visited,
         string interfaceName,
         string member,
-        List<SeamSurfaceViolation> violations)
+        List<SeamSurfaceViolation> violations,
+        (Func<Type, bool> Matches, string Reason)[] rules)
     {
         var resolved = type.IsByRef ? type.GetElementType()! : type;
         if (!visited.Add(resolved))
@@ -196,13 +207,13 @@ public static class SeamSurfaceScanner
         {
             foreach (var constraint in resolved.GetGenericParameterConstraints())
             {
-                Walk(constraint, [.. path, FormatShort(constraint)], visited, interfaceName, member, violations);
+                Walk(constraint, [.. path, FormatShort(constraint)], visited, interfaceName, member, violations, rules);
             }
 
             return;
         }
 
-        var rule = ForbiddenRules.FirstOrDefault(r => r.Matches(resolved));
+        var rule = rules.FirstOrDefault(r => r.Matches(resolved));
         if (rule.Reason is not null)
         {
             violations.Add(new SeamSurfaceViolation(
@@ -213,7 +224,7 @@ public static class SeamSurfaceScanner
         if (resolved.IsArray)
         {
             var elementType = resolved.GetElementType()!;
-            Walk(elementType, [.. path, FormatShort(elementType)], visited, interfaceName, member, violations);
+            Walk(elementType, [.. path, FormatShort(elementType)], visited, interfaceName, member, violations, rules);
             return;
         }
 
@@ -221,7 +232,7 @@ public static class SeamSurfaceScanner
         {
             foreach (var argument in resolved.GetGenericArguments())
             {
-                Walk(argument, [.. path, FormatShort(argument)], visited, interfaceName, member, violations);
+                Walk(argument, [.. path, FormatShort(argument)], visited, interfaceName, member, violations, rules);
             }
         }
 
@@ -229,11 +240,11 @@ public static class SeamSurfaceScanner
         {
             foreach (var parameter in resolved.GetFunctionPointerParameterTypes())
             {
-                Walk(parameter, [.. path, FormatShort(parameter)], visited, interfaceName, member, violations);
+                Walk(parameter, [.. path, FormatShort(parameter)], visited, interfaceName, member, violations, rules);
             }
 
             Walk(resolved.GetFunctionPointerReturnType(), [.. path, FormatShort(resolved.GetFunctionPointerReturnType())],
-                visited, interfaceName, member, violations);
+                visited, interfaceName, member, violations, rules);
             return;
         }
 
@@ -242,13 +253,13 @@ public static class SeamSurfaceScanner
             foreach (var parameter in invoke.GetParameters())
             {
                 Walk(parameter.ParameterType, [.. path, FormatShort(parameter.ParameterType)], visited,
-                    interfaceName, member, violations);
+                    interfaceName, member, violations, rules);
             }
 
             if (invoke.ReturnType != typeof(void))
             {
                 Walk(invoke.ReturnType, [.. path, FormatShort(invoke.ReturnType)], visited,
-                    interfaceName, member, violations);
+                    interfaceName, member, violations, rules);
             }
         }
 
@@ -260,12 +271,47 @@ public static class SeamSurfaceScanner
         if (assemblyName is not null && assemblyName.StartsWith("Cluckwork.", StringComparison.Ordinal)
             && (definition == resolved || visited.Add(definition)))
         {
-            foreach (var property in resolved.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var property in resolved.GetProperties(PublicMembers))
             {
                 Walk(property.PropertyType, [.. path, $"{FormatShort(resolved)}.{property.Name}"], visited,
-                    interfaceName, member, violations);
+                    interfaceName, member, violations, rules);
+            }
+
+            foreach (var field in resolved.GetFields(PublicMembers))
+            {
+                Walk(field.FieldType, [.. path, $"{FormatShort(resolved)}.{field.Name}"], visited,
+                    interfaceName, member, violations, rules);
+            }
+
+            // A contract result can hand out a nested interface, so its signatures are walked too. #847 scans
+            // every seam interface at the root already and keeps its single-report behaviour.
+            if (resolved.IsInterface && ReferenceEquals(rules, ContractRules))
+            {
+                foreach (var inherited in resolved.GetInterfaces())
+                {
+                    Walk(inherited, [.. path, FormatShort(inherited)], visited, interfaceName, member, violations, rules);
+                }
+
+                foreach (var method in resolved.GetMethods())
+                {
+                    WalkSignature(method, [.. path, $"{FormatShort(resolved)}.{method.Name}"], visited,
+                        interfaceName, member, violations, rules);
+                }
             }
         }
+    }
+
+    private static bool IsEntity(Type type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(Entity<>))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsPubliclyReachable(Type type) =>

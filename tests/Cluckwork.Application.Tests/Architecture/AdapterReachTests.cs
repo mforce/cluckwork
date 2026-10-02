@@ -14,14 +14,14 @@ public sealed class AdapterReachTests : IDisposable
         File.WriteAllText(full, content);
     }
 
-    private string WriteLedger(string adapters = "", string adapterTiers = "")
+    private string WriteLedger(string adapters = "", string adapterTiers = "", string farmContract = "")
     {
         var path = Path.Combine(_tempRoot, "module-ledger.json");
         File.WriteAllText(path, """
             {
               "owners": {
                 "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp"] },
-                "Farm": { "kind": "module", "namespaces": ["Cluckwork.Temp.Farm"] },
+                "Farm": { "kind": "module", "namespaces": ["Cluckwork.Temp.Farm"], "contract": [FARM_CONTRACT] },
                 "FlockManagement": { "kind": "module", "namespaces": [], "exactNamespaces": ["Cluckwork.Temp.Flocks"] }
               },
               "edges": [],
@@ -32,12 +32,12 @@ public sealed class AdapterReachTests : IDisposable
                 "persistenceForbiddenNamespaces": ["Cluckwork.Temp.Endpoints"]
               },
               "adapters": [
-            """ + adapters + "],\n\"adapterTiers\": [" + adapterTiers + "]\n}\n");
+            """.Replace("FARM_CONTRACT", farmContract) + adapters + "],\n\"adapterTiers\": [" + adapterTiers + "]\n}\n");
         return path;
     }
 
-    private AdapterReachReport Scan(string adapters = "", string adapterTiers = "") =>
-        AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), WriteLedger(adapters, adapterTiers));
+    private AdapterReachReport Scan(string adapters = "", string adapterTiers = "", string farmContract = "") =>
+        AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), WriteLedger(adapters, adapterTiers, farmContract));
 
     private static string Tier(string ns = "Cluckwork.Temp.Mcp") =>
         $$"""{ "namespace": "{{ns}}", "privilege": "DirectRepository", "surface": "MapMcp", "reason": "test", "reviewBy": "#1" }""";
@@ -701,4 +701,153 @@ public sealed class AdapterReachTests : IDisposable
         var report = Scan(adapterTiers: Tier());
         Assert.Contains("forbidden persistence type AppDbContext", Assert.Single(report.PersistenceViolations));
     }
+
+    private const string FarmModuleContract = "\"Cluckwork.Temp.Farm.IFarmModule\"";
+
+    private void WriteFarmModule() => WriteSource("Farm.cs", """
+        namespace Cluckwork.Temp.Farm;
+        public interface IFarmModule { }
+        public interface IAccountRepository { }
+        """);
+
+    [Fact]
+    public void ContractedOwner_ReachThroughContractTypePasses()
+    {
+        WriteFarmModule();
+        WriteSource("Endpoint.cs", """
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(Cluckwork.Temp.Farm.IFarmModule farm) { } }
+            """);
+
+        var report = Scan(Row(), farmContract: FarmModuleContract);
+        Assert.Empty(report.ContractBypasses);
+        Assert.Empty(AdapterReachScanner.Evaluate(report));
+    }
+
+    [Fact]
+    public void ContractedOwner_ReachThroughNonContractTypeIsABypassEvenWhenTheOwnerIsDeclared()
+    {
+        WriteFarmModule();
+        WriteSource("Endpoint.cs", """
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint
+            {
+                private void Run(Cluckwork.Temp.Farm.IFarmModule farm, Cluckwork.Temp.Farm.IAccountRepository accounts) { }
+            }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row(), farmContract: FarmModuleContract)));
+        Assert.Contains("contract bypass " + Symbol + " -> Farm through Cluckwork.Temp.Farm.IAccountRepository", failure);
+        Assert.Contains("src/Endpoint.cs:4", failure);
+        Assert.Empty(AdapterReachScanner.Evaluate(Scan(Row())));
+    }
+
+    [Fact]
+    public void ContractType_NotDeclaredUnderSrcIsARegistryError()
+    {
+        WriteFarmModule();
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(
+            Scan(farmContract: "\"Cluckwork.Temp.Farm.IGoneModule\"")));
+        Assert.Contains("contract type 'Cluckwork.Temp.Farm.IGoneModule' is not declared under src/", failure);
+    }
+
+    [Fact]
+    public void ContractType_InAnotherOwnersNamespaceIsARegistryError()
+    {
+        WriteSource("Flocks.cs", """
+            namespace Cluckwork.Temp.Flocks;
+            public interface IFlockModule { }
+            """);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(
+            Scan(farmContract: "\"Cluckwork.Temp.Flocks.IFlockModule\"")));
+        Assert.Contains("contract type 'Cluckwork.Temp.Flocks.IFlockModule' is not in a namespace 'Farm' owns", failure);
+    }
+
+    [Fact]
+    public void PlatformOwner_CannotDeclareAContract()
+    {
+        var path = Path.Combine(_tempRoot, "platform-contract.json");
+        File.WriteAllText(path, """
+            {
+              "owners": { "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp"], "contract": ["Cluckwork.Temp.IHub"] } },
+              "edges": []
+            }
+            """);
+        Assert.Contains("owner 'Hub' is a platform owner and cannot declare a contract", ModuleLedger.Load(path).RegistryErrors);
+    }
+
+    [Fact]
+    public void ContractedOwner_TupleAliasParameterIsWalkedForBypasses()
+    {
+        WriteFarmModule();
+        WriteSource("Endpoint.cs", """
+            using Repos = (Cluckwork.Temp.Farm.IFarmModule Farm, Cluckwork.Temp.Farm.IAccountRepository Accounts);
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(Repos repos) { } }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row(), farmContract: FarmModuleContract)));
+        Assert.Contains("contract bypass " + Symbol + " -> Farm through Cluckwork.Temp.Farm.IAccountRepository", failure);
+    }
+
+    [Fact]
+    public void AliasedActivatorUtilitiesReceiver_IsReach()
+    {
+        WriteSource("Cli.cs", """
+            using Activator = Microsoft.Extensions.DependencyInjection.ActivatorUtilities;
+            namespace Cluckwork.Temp.Cli;
+            public static class Verb
+            {
+                private static void Run(System.IServiceProvider services) =>
+                    Activator.CreateInstance<Cluckwork.Temp.Flocks.CreateFlockHandler>(services);
+            }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> FlockManagement", failure);
+    }
+
+    [Fact]
+    public void NamespaceAliasPrefixOnTheActivatorReceiver_IsReach()
+    {
+        WriteSource("Cli.cs", """
+            using DI = Microsoft.Extensions.DependencyInjection;
+            namespace Cluckwork.Temp.Cli;
+            public static class Verb
+            {
+                private static void Run(System.IServiceProvider services) =>
+                    DI.ActivatorUtilities.CreateInstance<Cluckwork.Temp.Flocks.CreateFlockHandler>(services);
+            }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> FlockManagement", failure);
+    }
+
+    [Fact]
+    public void AliasQualifiedParameter_IsReach()
+    {
+        WriteSource("Endpoint.cs", """
+            using FarmNs = Cluckwork.Temp.Farm;
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(FarmNs::IAccountRepository accounts) { } }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains(Symbol + " -> Farm through Cluckwork.Temp.Farm.IAccountRepository", failure);
+    }
+
+    [Fact]
+    public void UnresolvableAliasQualifier_FailsClosed()
+    {
+        WriteSource("Endpoint.cs", """
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(Unknown::IAccountRepository accounts) { } }
+            """);
+
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains("cannot resolve the alias qualifier", failure);
+        Assert.Contains("Unknown::IAccountRepository", failure);
+    }
 }
+

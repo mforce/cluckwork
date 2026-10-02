@@ -6,7 +6,17 @@
     "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"] },
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"] },
-    "Finance":          { "kind": "module",   "namespaces": ["Cluckwork.Domain.Expenses", "Cluckwork.Application.Features.Expenses"] },
+    "Finance":          { "kind": "module",   "namespaces": ["Cluckwork.Domain.Expenses", "Cluckwork.Application.Features.Expenses"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Expenses.IFinanceModule",
+                            "Cluckwork.Application.Features.Expenses.ExpenseCategoryDetails",
+                            "Cluckwork.Application.Features.Expenses.ExpenseDetails",
+                            "Cluckwork.Application.Features.Expenses.ExpenseListPage",
+                            "Cluckwork.Application.Features.Expenses.CreateExpenseCategory.CreateExpenseCategoryCommand",
+                            "Cluckwork.Application.Features.Expenses.UpdateExpenseCategory.UpdateExpenseCategoryCommand",
+                            "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseCommand",
+                            "Cluckwork.Application.Features.Expenses.AdjustExpense.AdjustExpenseCommand"
+                          ] },
     "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export"] },
     "Platform":         { "kind": "platform", "namespaces": ["Cluckwork.Domain.Common", "Cluckwork.Domain.Auditing", "Cluckwork.Application.Common", "Cluckwork.Infrastructure", "Cluckwork.Api", "Cluckwork.AppHost"], "exactNamespaces": ["Cluckwork.Domain", "Cluckwork.Application"] }
   },
@@ -127,10 +137,11 @@
     },
     {
       "from": "Finance", "to": "Farm", "kind": "R",
-      "reason": "CreateExpenseHandler injects Farm's IAccountRepository for the lock-aware currency snapshot an expense binds to (#162, FOR SHARE on the account row), and it and CreateExpenseCategoryHandler attach their rows to Domain.Accounts.SeedDefaults.FarmId. Design 3.4 classes this cell W, but the code reads Farm state under a shared row lock and mutates nothing there, the same shape 3.4 classes R on Commerce -> Farm and Inventory -> Farm; the ledger records what the code does and notes the disagreement here so #848 regenerates the matrix from this reading.",
+      "reason": "CreateExpenseHandler injects Farm's IAccountRepository for the lock-aware currency snapshot an expense binds to (#162, FOR SHARE on the account row), and it and CreateExpenseCategoryHandler attach their rows to Domain.Accounts.SeedDefaults.FarmId, whose active categories FinanceModule lists. Design 3.4 classes this cell W, but the code reads Farm state under a shared row lock and mutates nothing there, the same shape 3.4 classes R on Commerce -> Farm and Inventory -> Farm; the ledger records what the code does and notes the disagreement here so #848 regenerates the matrix from this reading.",
       "symbols": [
         "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseHandler",
-        "Cluckwork.Application.Features.Expenses.CreateExpenseCategory.CreateExpenseCategoryHandler"
+        "Cluckwork.Application.Features.Expenses.CreateExpenseCategory.CreateExpenseCategoryHandler",
+        "Cluckwork.Application.Features.Expenses.FinanceModule"
       ]
     },
     {
