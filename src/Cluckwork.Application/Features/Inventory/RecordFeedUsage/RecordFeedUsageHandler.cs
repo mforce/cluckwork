@@ -18,7 +18,7 @@ public sealed class RecordFeedUsageHandler(
     IInventoryLotRepository lots,
     IInventoryMovementRepository movements,
     IFeedUsageRepository usages,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IFlockScopeGuard flockScope,
     Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
     IUnitOfWork unitOfWork,
@@ -52,7 +52,7 @@ public sealed class RecordFeedUsageHandler(
         // mismatched house) means no link, and nothing ever backfills —
         // flock+date stays the authoritative join.
         Guid? dailyEntryId = null;
-        var flockForLink = await flocks.GetByIdForFlockScopedWriteAsync(command.FlockId, accountId, ct);
+        var flockForLink = await flocks.GetForFlockScopedWriteAsync(command.FlockId, accountId, ct);
         if (flockForLink is not null)
             dailyEntryId = (await dailyEntries.FindByNaturalKeyForFlockScopedWriteAsync(
                 accountId, flockForLink.FarmId, flockForLink.HouseId,
@@ -86,7 +86,7 @@ public sealed class RecordFeedUsageHandler(
             // the race to the commit itself. The flock row isn't locked: a
             // same-day deplete racing a same-day feed is business-valid either
             // way (the birds ate before they left).
-            var flock = await flocks.GetByIdForFlockScopedWriteAsync(command.FlockId, accountId, transactionCt);
+            var flock = await flocks.GetForFlockScopedWriteAsync(command.FlockId, accountId, transactionCt);
             if (flock is null)
             {
                 outcome = Result.Failure<RecordFeedUsageResponse>(

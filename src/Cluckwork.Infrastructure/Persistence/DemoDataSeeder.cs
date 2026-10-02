@@ -3,6 +3,7 @@ using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
@@ -42,10 +43,9 @@ public sealed class DemoDataSeeder(
     UserManager<ApplicationUser> users,
     IAccountUserDirectory directory,
     IEggGradeRepository eggGrades,
-    CreateFlockHandler createFlock,
+    IFlockModule flocks,
     RecordDailyEntryHandler recordEntry,
     SubmitDailyEntryHandler submitEntry,
-    RecordBirdMovementHandler recordMovement,
     CreateProductHandler createProduct,
     CreateCustomerHandler createCustomer,
     CreateSalesOrderHandler createOrder,
@@ -315,11 +315,11 @@ public sealed class DemoDataSeeder(
             throw new InvalidOperationException("Demo seed needs the default egg grades.");
 
         // --- Flocks: two active at different ages + one depleted historical.
-        var house1 = Require(await createFlock.HandleAsync(new CreateFlockCommand(
+        var house1 = Require(await flocks.CreateAsync(new CreateFlockCommand(
             "House 1 layers", "ISA Brown", today.AddDays(-45 * 7), House1Birds), accountId, ct));
-        var house2 = Require(await createFlock.HandleAsync(new CreateFlockCommand(
+        var house2 = Require(await flocks.CreateAsync(new CreateFlockCommand(
             "House 2 layers", "Lohmann Brown", today.AddDays(-40 * 7), House2Birds), accountId, ct));
-        var oldBatch = Require(await createFlock.HandleAsync(new CreateFlockCommand(
+        var oldBatch = Require(await flocks.CreateAsync(new CreateFlockCommand(
             "2025 batch (sold)", "ISA Brown", today.AddDays(-90 * 7), 450), accountId, ct));
 
         // Backdated depletion via the domain (the handler stamps "today", which
@@ -366,7 +366,7 @@ public sealed class DemoDataSeeder(
         }
 
         // --- A manual cull on the depleted flock's final days.
-        Require(await recordMovement.HandleAsync(new RecordBirdMovementCommand(
+        Require(await flocks.RecordMovementAsync(new RecordBirdMovementCommand(
             oldBatch, today.AddDays(-31), "Cull", 430, "End of lay — sold as spent hens"),
             accountId, ct));
 

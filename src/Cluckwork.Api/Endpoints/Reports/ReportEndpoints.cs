@@ -67,7 +67,7 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> Production(
-        IInsightsModule reports, IFlockRepository flocks, TenantContext tenant,
+        IInsightsModule reports, IFlockLookup flocks, TenantContext tenant,
         IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null, Guid? flockId = null)
     {
@@ -81,7 +81,7 @@ public static class ReportEndpoints
         // flock that never existed all resolve to null and all answer 404.
         // Which of the three it was is deliberately not distinguishable.
         // Nothing here is a write, so `FlockScopeGuard` does not apply (#787).
-        if (flockId is not null && await flocks.GetByIdAsync(flockId.Value, ct) is null)
+        if (flockId is not null && await flocks.GetAsync(flockId.Value, ct) is null)
             return Results.NotFound();
         return Results.Ok(await reports.GetProductionAsync(f, t, flockId, ct));
     }

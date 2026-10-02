@@ -12,7 +12,7 @@ namespace Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
 // read→edit→save cycle (codex review of PR #76).
 public sealed class UpdateWaterUsageHandler(
     IWaterUsageRepository waterUsages,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
@@ -31,7 +31,7 @@ public sealed class UpdateWaterUsageHandler(
 
         // Same lifecycle rule as recording: an archived flock's history is
         // read-only; depleted allows corrections within the backfill window.
-        var flock = await flocks.GetByIdAsync(usage.FlockId, ct);
+        var flock = await flocks.GetAsync(usage.FlockId, ct);
         if (flock is not null && !flock.CanRecordProductionOn(usage.Date))
             return Result.Failure(Error.Validation(
                 "WaterUsage.FlockNotActive",

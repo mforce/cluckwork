@@ -14,7 +14,7 @@ namespace Cluckwork.Application.Features.Users.AssignFlock;
 // exist.
 public sealed class AssignFlockHandler(
     IUserRoleAssignmentRepository assignments,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IIdentityProvider identity,
     IUnitOfWork unitOfWork,
     IAuditWriter audit,
@@ -45,7 +45,7 @@ public sealed class AssignFlockHandler(
                 "Users.FlockAssignmentsWorkerOnly",
                 "Flock assignments apply only to a plain Worker."));
 
-        var flock = await flocks.GetByIdAsync(flockId, ct);
+        var flock = await flocks.GetAsync(flockId, ct);
         if (flock is null)
             return Result.Failure<Guid>(Error.NotFound("Flock", flockId));
 

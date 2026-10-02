@@ -12,7 +12,7 @@ namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 public sealed class RecordDailyEntryHandler(
     IDailyEntryRepository repository,
     IEggGradeRepository eggGrades,
-    IFlockRepository flocks,
+    IFlockLookup flocks,
     IFlockScopeGuard flockScope,
     IAuditWriter audit,
     IUnitOfWork unitOfWork,
@@ -32,7 +32,7 @@ public sealed class RecordDailyEntryHandler(
         // dated on/before the depletion date (the final laying days are often
         // entered late). The flock must also belong to the farm/house the entry
         // names — ids are caller-supplied and only tenant-checked otherwise.
-        var flock = await flocks.GetByIdForFlockScopedWriteAsync(command.FlockId, accountId, ct);
+        var flock = await flocks.GetForFlockScopedWriteAsync(command.FlockId, accountId, ct);
         if (flock is null)
             return Result.Failure<Guid>(Error.NotFound(nameof(Flock), command.FlockId))
                 .LogFailure(logger, "RecordDailyEntry");

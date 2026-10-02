@@ -110,10 +110,13 @@ public sealed class Flock : AggregateRoot<Guid>, IMutableRecord
     // Whether production may be recorded for the given operational date:
     // active flocks always; depleted flocks only for dates on/before the
     // depletion date (late backfill of the final laying days); archived never.
-    public bool CanRecordProductionOn(DateOnly date) => Status switch
+    public bool CanRecordProductionOn(DateOnly date) => CanRecordProductionOn(Status, DepletedOn, date);
+
+    // The same rule over a copy of the flock's state read outside the aggregate.
+    public static bool CanRecordProductionOn(FlockStatus status, DateOnly? depletedOn, DateOnly date) => status switch
     {
         FlockStatus.Active => true,
-        FlockStatus.Depleted => DepletedOn is null || date <= DepletedOn,
+        FlockStatus.Depleted => depletedOn is null || date <= depletedOn,
         _ => false,
     };
 }

@@ -1,6 +1,7 @@
 using System.Reflection;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+using Cluckwork.Infrastructure.Persistence;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
@@ -20,7 +21,9 @@ public sealed class ModuleContractRealAssemblyTests
             "contract types not found in Application or Domain: " +
             string.Join(", ", names.Where((_, i) => types[i] is null)));
 
-        var report = SeamSurfaceScanner.ScanContracts(types!, minimumInterfaceFloor: 1);
+        // Infrastructure implements Application's ports, so a Result subclass it returns reaches callers as a Result.
+        var report = SeamSurfaceScanner.ScanContracts(
+            types!, minimumInterfaceFloor: 1, knownAssemblies: [.. Assemblies, typeof(AppDbContext).Assembly]);
         var failures = SeamSurfaceScanner.Evaluate(report);
         Assert.True(failures.Count == 0, "module contract guard failed:\n  " + string.Join("\n  ", failures));
         Assert.Contains("Cluckwork.Application.Features.Expenses.IFinanceModule", report.InspectedInterfaces);

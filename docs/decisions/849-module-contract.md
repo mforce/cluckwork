@@ -76,11 +76,11 @@ DI. Moving validation behind the contract changes both.
   persistence types as seeder reach. Those reads, and `CurrencyBoundRowProbe`'s, are
   `compatibilityExceptions` rows guarded by #850. `ReportQueries` and `ExportQueries`
   moved to Insights in #856 and read Finance through a declared edge.
-- Finance's own handlers still inject Farm's `IAccountRepository` and Flock
-  Management's `IFlockRepository`. The Farm slice kept `IAccountRepository` as the
-  stable account seam peer modules call directly
-  ([`851-farm-contract.md`](851-farm-contract.md)); `IFlockRepository` belongs to
-  the Flock Management contract slice.
+- Finance's own handlers still inject Farm's `IAccountRepository`. The Farm slice
+  kept it as the stable account seam peer modules call directly
+  ([`851-farm-contract.md`](851-farm-contract.md)). They read flocks through Flock
+  Management's `IFlockLookup` port since #852
+  ([`852-flock-contract.md`](852-flock-contract.md)).
 
 ## How it is enforced
 
@@ -94,7 +94,12 @@ DI. Moving validation behind the contract changes both.
   entity-or-aggregate rule to #847's persistence rules. It follows public
   properties and fields, static and inherited ones included, at any depth. For any
   interface a contract type exposes, it also walks the interface's method signatures,
-  generic constraints included, and the interfaces it inherits. The field walk applies to #847's scan too. Adding
+  generic constraints included, and the interfaces it inherits. Since #852 it also walks every public type
+  deriving from a walked class, in Application, Domain, Infrastructure and the
+  contract types' own assemblies, so a closed result hierarchy and a subclass of
+  `Result` are covered. The walk checks declared and statically discoverable types
+  only: a generic constructed at runtime, such as `Result<Expense>` returned through
+  a non-generic `Result` signature, is invisible to it and relies on review. The field walk applies to #847's scan too. Adding
   `Task<Expense?> LeakAsync(Guid id)` to `IFinanceModule` turns it red. The fixture
   tests are `SeamSurfaceTests.Contract_*`.
 - `FinanceModuleTests` pins the read paths' field-by-field copy against literals.

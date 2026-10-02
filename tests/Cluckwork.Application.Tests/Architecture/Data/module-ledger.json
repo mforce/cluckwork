@@ -14,7 +14,26 @@
                             "Cluckwork.Infrastructure.Repositories.AccountRepository",
                             "Cluckwork.Infrastructure.Repositories.FarmLogoRepository"
                           ] },
-    "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"] },
+    "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Flocks.IFlockModule",
+                            "Cluckwork.Application.Features.Flocks.IFlockLookup",
+                            "Cluckwork.Application.Features.Flocks.IMortalityLedger",
+                            "Cluckwork.Application.Features.Flocks.FlockDetails",
+                            "Cluckwork.Application.Features.Flocks.FlockReference",
+                            "Cluckwork.Application.Features.Flocks.FlockNameResolution",
+                            "Cluckwork.Application.Features.Flocks.BirdMovementDetails",
+                            "Cluckwork.Application.Features.Flocks.FlockEligibility",
+                            "Cluckwork.Application.Features.Flocks.CreateFlock.CreateFlockCommand",
+                            "Cluckwork.Application.Features.Flocks.UpdateFlock.UpdateFlockCommand",
+                            "Cluckwork.Application.Features.Flocks.RecordBirdMovement.RecordBirdMovementCommand",
+                            "Cluckwork.Domain.Flocks.FlockStatus",
+                            "Cluckwork.Domain.Flocks.BirdMovementType"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.BirdMovementRepository",
+                            "Cluckwork.Infrastructure.Repositories.FlockRepository"
+                          ] },
     "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"] },
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"] },
@@ -84,7 +103,7 @@
     },
     {
       "from": "Access", "to": "FlockManagement", "kind": "R",
-      "reason": "AssignFlockHandler and UnassignFlockHandler inject Flock Management's IFlockRepository to prove the flock exists before narrowing a worker to it (#103, spec 5.2/5.3). Design 3.4 row Access -> Flock = R.",
+      "reason": "AssignFlockHandler injects Flock Management's IFlockLookup port to prove the flock exists before narrowing a worker to it and to name it in the audit row (#103, spec 5.2/5.3); UnassignFlockHandler shares its file and namespace imports. Design 3.4 row Access -> Flock = R.",
       "symbols": [
         "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
         "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler"
@@ -131,7 +150,7 @@
     },
     {
       "from": "EggOperations", "to": "FlockManagement", "kind": "W",
-      "reason": "Daily entry is the mortality writer: SubmitDailyEntryHandler, AdjustDailyEntryHandler and VoidDailyEntryHandler append Domain.Flocks bird-movement rows through Flock Management's IBirdMovementRepository in the same transaction as the entry itself (#54, #69), and every daily-entry handler loads the flock through IFlockRepository to check Flock.CanRecordProductionOn for the entry's date. Design 3.4 row Egg Ops -> Flock = W.",
+      "reason": "Daily entry is the mortality writer: SubmitDailyEntryHandler, AdjustDailyEntryHandler and VoidDailyEntryHandler append bird-movement rows through Flock Management's IMortalityLedger port, which adds the row to the caller's unit of work and never saves, so it commits with the entry itself (#54, #69, #852). Every daily-entry handler reads the flock through the IFlockLookup port to check CanRecordProductionOn for the entry's date. Design 3.4 row Egg Ops -> Flock = W.",
       "symbols": [
         "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryHandler",
         "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryResponse",
@@ -164,7 +183,7 @@
     },
     {
       "from": "Finance", "to": "FlockManagement", "kind": "R",
-      "reason": "CreateExpenseHandler and AdjustExpenseHandler inject Flock Management's IFlockRepository to validate the optional flock an expense is attributed to. Design 3.4 row Finance -> Flock = R.",
+      "reason": "CreateExpenseHandler and AdjustExpenseHandler inject Flock Management's IFlockLookup port to validate the optional flock an expense is attributed to. Design 3.4 row Finance -> Flock = R.",
       "symbols": [
         "Cluckwork.Application.Features.Expenses.AdjustExpense.AdjustExpenseHandler",
         "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseHandler"
@@ -196,7 +215,7 @@
     },
     {
       "from": "GeneralInventory", "to": "FlockManagement", "kind": "R",
-      "reason": "RecordFeedUsageHandler, RecordWaterUsageHandler and UpdateWaterUsageHandler inject Flock Management's IFlockRepository to prove the flock being fed or watered exists and is eligible for the usage date. Design 3.4 row Inventory -> Flock = R.",
+      "reason": "RecordFeedUsageHandler, RecordWaterUsageHandler and UpdateWaterUsageHandler inject Flock Management's IFlockLookup port to prove the flock being fed or watered exists and is eligible for the usage date. Design 3.4 row Inventory -> Flock = R.",
       "symbols": [
         "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageHandler",
         "Cluckwork.Application.Features.Inventory.RecordWaterUsage.RecordWaterUsageHandler",
@@ -1408,11 +1427,35 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
+      "reaches": "FlockManagement",
+      "tables": ["BirdMovements", "Flocks"],
+      "owner": "Platform",
+      "reason": "Deletes a partial demo seed's BirdMovements and Flocks for one farm, children before parents, in the same transaction as every other module's demo rows. IFlockModule has no delete: flocks are archived, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
       "reaches": "Farm",
       "tables": ["Accounts"],
       "owner": "Platform",
       "reason": "Checks that the target farm's account exists before the tenant is resolved, so the verb fails loud on a database without base data. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedAsync",
+      "reaches": "FlockManagement",
+      "tables": ["Flocks"],
+      "owner": "Platform",
+      "reason": "Checks whether the target farm already has any flock, across the tenant filter, so the demo seed skips a farm that holds data. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedDemoAsync",
+      "reaches": "FlockManagement",
+      "tables": ["Flocks"],
+      "owner": "Platform",
+      "reason": "Loads the demo's historical flock to deplete it on a backdated day, because DepleteFlockHandler stamps the farm's today and that would block the historical entries the demo records next. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1429,6 +1472,14 @@
       "tables": ["ExpenseCategories", "Expenses"],
       "owner": "Platform",
       "reason": "Counts ExpenseCategories and Expenses for the simulation manifest check, beside every other module's counts. IFinanceModule has no count read: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "FlockManagement",
+      "tables": ["BirdMovements", "Flocks"],
+      "owner": "Platform",
+      "reason": "Counts Flocks by status and BirdMovements for the simulation manifest check, beside every other module's counts. IFlockModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1456,6 +1507,14 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedExplicitBirdMovementsAsync",
+      "reaches": "FlockManagement",
+      "tables": ["BirdMovements"],
+      "owner": "Platform",
+      "reason": "Checks BirdMovements for a fixture row on each date before calling IFlockModule.RecordMovementAsync, so a re-run converges instead of duplicating. IFlockModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSecondAccountAsync",
       "reaches": "Farm",
       "tables": ["Accounts"],
@@ -1470,6 +1529,14 @@
       "owner": "Farm",
       "reason": "Farm's currency lock: any expense carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce and General Inventory tables, so it can only move behind module contracts once the last of them has one, the General Inventory contract slice.",
       "deleteWhen": "#855"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository.ListByNameByUserAsync",
+      "reaches": "FlockManagement",
+      "tables": ["Flocks"],
+      "owner": "Access",
+      "reason": "Left-joins a user's assignments to the filtered Flocks set in one statement, so each assigned flock carries its current name and the flock-scope filter decides which names the caller sees (#613). IFlockLookup.GetDisplayNamesAsync would add a second round trip; the Access slice moves assignments behind its contract.",
+      "deleteWhen": "#857"
     }
   ]
 }
