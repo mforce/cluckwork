@@ -39,9 +39,10 @@ for why each gate exists and what it alone misses.
   all block rather than pass.
 - `dependency-review` checks the PR **diff**; CodeQL scans first-party source
   (advisory).
-- **Container images** are scanned by Trivy, which fails the build on a *fixable*
-  HIGH/CRITICAL. The runtime stage runs non-root and every base image is
-  digest-pinned.
+- **Container images** are not scanned in CI and no scan gates a release. Trivy
+  scans the *published* image weekly for a *fixable* HIGH/CRITICAL, reports to the
+  Security tab and files one issue per vulnerability. The runtime stage runs
+  non-root and every base image is digest-pinned.
 - **Third-party Actions are pinned to a full commit SHA.** A mutable tag means you
   review one thing and run another — the 2026-03 `aquasecurity/trivy-action` and
   2025-03 `tj-actions/changed-files` compromises both retargeted tags to

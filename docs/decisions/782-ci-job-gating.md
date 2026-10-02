@@ -131,14 +131,15 @@ documentation pull requests.
 
 **What it does to #146's security gates, stated exactly.** `build-and-test`'s
 NuGet `vuln-gate`, `dependency-review`, GitGuardian and CodeQL are untouched and
-run on every pull request as before. Two gates DO stop running on a
-documentation-only pull request, because they live inside the gated jobs: the two
-npm `vuln-gate` audits in `web`, and the Trivy image scan in `image`. Neither can
-change verdict because of the diff itself — a documentation-only pull request
+run on every pull request as before. Two gates DID stop running on a
+documentation-only pull request, because they lived inside the gated jobs: the two
+npm `vuln-gate` audits in `web`, and the Trivy image scan in `image`. The image
+scan was removed from CI on 2026-10-02 ([#267](267-container-hardening.md)), so
+only the npm audits remain. Neither could change verdict because of the diff itself — a documentation-only pull request
 changes no `package-lock.json`, no `.csproj`, no `Directory.Packages.props`, no
 lock file and no Dockerfile, which by the inverted predicate is guaranteed rather
 than hoped for, and those files are the entire input to both. What it does give
-up is the incidental re-scan: those two gates also re-run daily-ish against an
+up is the incidental re-scan: the npm gates also re-run daily-ish against an
 UNCHANGED dependency set and would catch an advisory published since the last
 pull request, and on a documentation-only pull request they no longer do. The
 weekly scheduled `security-audit.yml` is what covers that case, at a coarser
