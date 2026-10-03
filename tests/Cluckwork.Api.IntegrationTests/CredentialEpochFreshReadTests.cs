@@ -114,6 +114,18 @@ public sealed class CredentialReadInterceptor : DbCommandInterceptor
     }
 }
 
+// A cache the application clears on its own writes is emptied by any save of a
+// user or account row, including one made by another test class running at the
+// same time. Such a save between a test's priming request and its check would
+// let that cache pass every test here, so this class never runs alongside any
+// other (#1032 review).
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class CredentialEpochFreshReadCollection
+{
+    public const string Name = "credential-epoch-fresh-read";
+}
+
+[Collection(CredentialEpochFreshReadCollection.Name)]
 public sealed class CredentialEpochFreshReadTests(CredentialEpochFreshReadFactory factory)
     : IClassFixture<CredentialEpochFreshReadFactory>, IDisposable
 {
