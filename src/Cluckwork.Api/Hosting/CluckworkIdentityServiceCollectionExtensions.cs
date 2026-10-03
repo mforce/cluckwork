@@ -3,6 +3,7 @@ using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Security;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -121,6 +122,8 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // Scoped like the two services that consume it below.
         services.AddScoped<AuthSecurityEventLogger>();
         services.AddScoped<IIdentityProvider, IdentityProvider>();
+        // #364/#857 — Scoped, like the AppDbContext it reads through.
+        services.AddScoped<ICredentialEpochVerifier, CredentialEpochVerifier>();
         // Break-glass recovery must remain available in Production.
         services.AddScoped<AdminRecoveryService>();
         // #532 — no CLI or HTTP surface yet; #534's operator verbs resolve it.

@@ -4,7 +4,7 @@
 
 | from / to | Access | Farm | FlockManagement | EggOperations | Commerce | GeneralInventory | Finance | Insights | Platform |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Access | — | W (19) fk:1 | R (2) | W (2) | W (6) | — | — | — | P |
+| Access | — | W (20) fk:1 | R (2) | W (2) | W (6) | — | — | — | P |
 | Farm | — | — | — | — | R (5) | — | — | — | P |
 | FlockManagement | — | R (1) | — | — | — | — | — | — | P |
 | EggOperations | — | R (2) | W (7) | — | — | — | — | — | P |
@@ -34,7 +34,7 @@
 
 | from | to | hand-written | generated |
 |---|---|---|---|
-| Access | Farm | R | W (19) fk:1 |
+| Access | Farm | R | W (20) fk:1 |
 | Access | EggOperations | — | W (2) |
 | Access | Commerce | — | W (6) |
 | Farm | Commerce | — | R (5) |

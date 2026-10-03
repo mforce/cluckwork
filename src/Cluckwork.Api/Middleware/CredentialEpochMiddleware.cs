@@ -1,20 +1,22 @@
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
-using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Application.Features.Users;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.Middleware;
 
 // #364 — server-side access-token revocation. Every authenticated request is
 // bound to the credential epoch held by its exact (user, account) row. Missing
 // and malformed claims deliberately become retired epoch zero, never an opt-out.
+// That holds only while the stored epoch is at least 1, which nothing enforces
+// yet (#1031). Since #857 the read itself is ICredentialEpochVerifier's; this
+// middleware keeps the claims, the exemptions and the responses.
 public sealed class CredentialEpochMiddleware(RequestDelegate next)
 {
     private const string LogoutPath = "/api/v1/auth/logout";
 
-    public async Task InvokeAsync(HttpContext context, AppDbContext db)
+    public async Task InvokeAsync(HttpContext context, ICredentialEpochVerifier verifier)
     {
         if (context.User.Identity?.IsAuthenticated == true
             && context.Features.Get<IExceptionHandlerFeature>() is null
@@ -28,70 +30,28 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 ? parsedEpoch
                 : 0;
 
-            // #532 — Account.IsActive folds into the EXISTING per-request read as
-            // a correlated subquery: one round trip, not two. This is what makes
-            // suspension immediate rather than "effective at token expiry"
-            // (epic #530 decision 15), so it is enforcement, not a nicety — do
-            // not delete it as cosmetic.
-            //
-            // IgnoreQueryFilters is DEFENSIVE, not required: it makes this read
-            // independent of TenantResolutionMiddleware having run. Today
-            // nothing depends on that — TenantResolutionMiddleware resolves the
-            // tenant from the SAME account_id claim, so on any request that
-            // reaches the subquery tenant.AccountId == accountId and the
-            // filter matches, and an unparseable claim means Guid.TryParse above
-            // is false and the subquery is never built. Keep it anyway: a read
-            // whose correctness does not hinge on middleware order is worth
-            // keeping. No test claims to cover this.
-            var credentialState = Guid.TryParse(userIdClaim, out var userId)
+            // An unparseable user or account claim never reaches the database.
+            var verdict = Guid.TryParse(userIdClaim, out var userId)
                 && Guid.TryParse(accountIdClaim, out var accountId)
-                ? await db.Users.AsNoTracking()
-                    .Where(user => user.Id == userId && user.AccountId == accountId)
-                    .Select(user => new
-                    {
-                        user.CredentialEpoch,
-                        user.DisabledAt,
-                        AccountIsActive = db.Accounts.IgnoreQueryFilters()
-                            .Where(account => account.Id == user.AccountId)
-                            .Select(account => (bool?)account.IsActive)
-                            .FirstOrDefault(),
-                    })
-                    .SingleOrDefaultAsync(context.RequestAborted)
-                : null;
+                ? await verifier.VerifyAsync(userId, accountId, tokenEpoch, context.RequestAborted)
+                : CredentialVerdict.UnknownUser;
 
-            // #532 — PRECEDENCE IS DELIBERATE, and it is the reason the epoch
-            // test moved to last. Suspending a farm bumps every one of its users'
-            // CredentialEpoch, so a suspended farm's bearer fails BOTH the
-            // account test and the epoch test. Checking the epoch first would
-            // answer Auth.CredentialsSuperseded — "sign in again" — to someone
-            // whose farm is suspended and whose sign-in cannot succeed. Order:
-            // unknown user, then disabled user, then suspended farm, then epoch.
-            if (credentialState is null
-                || credentialState.DisabledAt is not null
-                || credentialState.AccountIsActive != true
-                || credentialState.CredentialEpoch != tokenEpoch)
+            if (verdict != CredentialVerdict.Current)
             {
-                var disabled = credentialState?.DisabledAt is not null;
-                // DisabledAt is null here by construction: farmSuspended is only
-                // read in the disabled ? … : farmSuspended ? … ternaries below,
-                // where the disabled branch already failed, so the DisabledAt
-                // clause is unreachable and has been deleted.
-                var farmSuspended = credentialState is not null
-                    && credentialState.AccountIsActive != true;
+                var (title, detail) = verdict switch
+                {
+                    CredentialVerdict.Disabled =>
+                        ("Auth.AccountDisabled", "Your account has been disabled."),
+                    CredentialVerdict.FarmSuspended =>
+                        ("Auth.FarmSuspended", "This farm is suspended. Contact your administrator."),
+                    _ => ("Auth.CredentialsSuperseded", "Your credentials have been superseded. Sign in again."),
+                };
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/problem+json";
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
-                    Title = disabled
-                        ? "Auth.AccountDisabled"
-                        : farmSuspended
-                            ? "Auth.FarmSuspended"
-                            : "Auth.CredentialsSuperseded",
-                    Detail = disabled
-                        ? "Your account has been disabled."
-                        : farmSuspended
-                            ? "This farm is suspended. Contact your administrator."
-                            : "Your credentials have been superseded. Sign in again.",
+                    Title = title,
+                    Detail = detail,
                     Status = StatusCodes.Status401Unauthorized,
                 });
                 return;
