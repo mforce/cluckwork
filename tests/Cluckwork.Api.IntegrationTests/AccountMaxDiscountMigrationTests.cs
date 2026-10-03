@@ -34,7 +34,7 @@ public sealed class AccountMaxDiscountMigrationTests
                 SELECT COUNT(*)::int AS "Value" FROM "Accounts"
                 WHERE "MaxDiscountBasisPoints" IS NULL
                 """)
-            .FirstAsync();
+            .SingleAsync();
 
     [Fact]
     public async Task MigratingUp_LeavesTheDefaultAccountWithNoCeiling()
@@ -116,7 +116,7 @@ public sealed class AccountMaxDiscountMigrationTests
                 SELECT COUNT(*)::int AS "Value" FROM information_schema.columns
                 WHERE table_name = 'Accounts' AND column_name = 'MaxDiscountBasisPoints'
                 """)
-            .FirstAsync();
+            .SingleAsync();
         Assert.Equal(0, columnCount);
 
         await migrator.MigrateAsync();

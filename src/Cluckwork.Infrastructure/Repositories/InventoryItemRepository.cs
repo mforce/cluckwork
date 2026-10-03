@@ -48,7 +48,7 @@ public sealed class InventoryItemRepository(AppDbContext db) : IInventoryItemRep
             SELECT * FROM "InventoryItems" WHERE "Id" = {id} AND "AccountId" = {accountId} FOR UPDATE
             """)
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
 
     public async Task AddAsync(InventoryItem entity, CancellationToken ct = default) =>
         await db.InventoryItems.AddAsync(entity, ct);

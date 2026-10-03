@@ -260,6 +260,12 @@ elif str(db).strip().lower() != "true":
 else:
     ok.append("Database__AllowInsecureConnection OK")
 
+query_warnings = str(env.get("Database__ThrowQueryShapeWarnings", "false")).strip().lower()
+if query_warnings != "false":
+    fail.append("Database__ThrowQueryShapeWarnings must stay false in the serving simulation")
+else:
+    ok.append("Query-shape warnings remain logged")
+
 # --- #316 OTLP: the endpoint and the flag are ONE guard ------------------
 # Mirrors OtlpOptions.ResolveSignalEndpoint: absolute http(s) URI, and no
 # userinfo / query / fragment. The insecure flag is an acknowledgement of

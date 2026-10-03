@@ -36,7 +36,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
             SELECT * FROM "SalesOrders" WHERE "Id" = {id} AND "AccountId" = {accountId} FOR UPDATE
             """)
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
         if (order is null) return null;
 
         await db.Entry(order).Collection(o => o.Items).Query()
