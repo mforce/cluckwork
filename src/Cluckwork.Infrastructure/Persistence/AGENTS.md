@@ -1,6 +1,6 @@
 # AGENTS.md — `src/Cluckwork.Infrastructure/Persistence/`
 
-Rules for EF Core persistence and migrations. They extend the root [`AGENTS.md`](../../../AGENTS.md), whose
+Rules for EF Core persistence, migrations and the generated schema docs. They extend the root [`AGENTS.md`](../../../AGENTS.md), whose
 conventions apply here too: one paragraph per rule, and a `→` link to the decision
 record you must read before changing the rule.
 
@@ -10,3 +10,4 @@ record you must read before changing the rule.
 - **Base reference data ships as guarded raw-SQL migrations (#283).** The default account, four assignable roles, default egg grades and packed-unit conversions are `migrationBuilder.Sql` with `WHERE NOT EXISTS` guards — **never `HasData`/`InsertData`**, which key on the PK and emit `UpdateData`/`DeleteData` that silently reverts the farm's own edits. Grades guard whole-set (they are user-renamable); roles, conversions and account guard per-key. → [`283-migrations-base-provisioning.md`](../../../docs/decisions/283-migrations-base-provisioning.md)
 - **Schema docs are generated, committed, and regenerated with every migration (#417).** `tools/schema-docs/generate.sh` creates `docs/schema/`; CI's `build-and-test` runs `generate.sh --check` and rejects stale output. Never hand-edit it. Regenerate after a rebase conflict. → [`417-schema-docs.md`](../../../docs/decisions/417-schema-docs.md)
 - **The design-time connection is fail-closed (#318).** `AppDbContextDesignTimeFactory` has no default: an unset `CLUCKWORK_MIGRATIONS_CONNECTION` throws, and every target meets the same TLS floor as a Production boot, except an explicitly acknowledged loopback via `CLUCKWORK_MIGRATIONS_ALLOW_INSECURE_LOOPBACK=true`. → [`318-design-time-migration-connection.md`](../../../docs/decisions/318-design-time-migration-connection.md)
+- **`AuditEvents` is not time-partitioned, on purpose (#505).** The dominant read filters on `AccountId`+`EntityType`+`EntityId` with no date predicate, so monthly partitions would turn one index lookup into one per partition for no pruning benefit. If it is ever needed, partition by `AccountId`. → [`505-audit-events-no-time-partition.md`](../../../../docs/decisions/505-audit-events-no-time-partition.md)

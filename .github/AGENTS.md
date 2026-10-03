@@ -1,13 +1,8 @@
 # AGENTS.md — `.github/`
 
-Rules for CI workflows and releases. They extend the root [`AGENTS.md`](../AGENTS.md), whose
+Rules for CI workflows, releases and deployment instructions. They extend the root [`AGENTS.md`](../AGENTS.md), whose
 conventions apply here too: one paragraph per rule, and a `→` link to the decision
 record you must read before changing the rule.
-
-## CI test jobs
-
-- **The four test projects are legs of one fail-fast CI matrix (#775).** `ci.yml`'s `tests` job runs `domain`, `application`, `apphost` and `integration` with `fail-fast: true`. A five-second domain failure cancels the nine-minute integration leg. Separate jobs cannot do this: GitHub does not cancel siblings; a matrix is the only built-in mechanism that stops this spend. `build-and-test`, named **Build, audit and schema docs**, runs no tests. It keeps the once-per-run work, #146's NuGet gate and #417's schema-docs check, and the solution build both reuse. That build enforces warnings-as-errors even in projects outside a test leg's graph. Every new test project needs a matrix leg. `SolutionTestProjectSplitTests` fails when the solution's test-project inventory differs from the set last reconciled with the matrix. Unlike `dotnet test Cluckwork.sln`, a matrix can silently leave a project unrun. The guard deliberately does not read `ci.yml`. The former workflow-text guard passed despite an `if:`, deleted leg or `continue-on-error` stopping a leg, and failed when `fail-fast` was merely omitted. **An `if:`, `continue-on-error: true` and `fail-fast: false` on that job remain unguarded; only review catches them.** This shortens RED runs only. Green runs remain bounded by integration; container reuse and parallelism are separate optimization options discussed in #775. → [`775-ci-test-matrix.md`](../docs/decisions/775-ci-test-matrix.md)
-- **Backend coverage is measured, not gated (#776).** `tools/coverage/collect.sh` runs the four test projects under coverlet and writes per-project and combined reports plus `coverage-out/SUMMARY.md`. `.github/workflows/coverage.yml` runs it Mondays, on `workflow_dispatch`, and on `pull_request` changes to the tooling. **There is no threshold; adding one is a separate decision.** `Integration` measures executed code, not asserted behavior: real-Postgres tests touch nearly every assembly incidentally. All reports exclude generated EF migration code because #407 freezes it and every integration test executes it at container boot. Coverage also cannot show whether overlapping tests are redundant; that requires mutation testing. → [`776-backend-coverage.md`](../docs/decisions/776-backend-coverage.md)
 
 ## Workflow rules
 
