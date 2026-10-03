@@ -227,8 +227,7 @@ public sealed class IdentityProvider(
         // letting replay detection revoke a later epoch's credentials.
         var user = await userManager.FindByIdAsync(stored.UserId.ToString());
         // #1031 — the floor stops a retired-zero or negative row matching a stored
-        // epoch below 1, and like the rest of this line it must stay ahead of
-        // replay detection, which would otherwise revoke the user's live tokens.
+        // epoch below 1.
         if (user is null || user.DisabledAt is not null || user.CredentialEpoch < 1
             || stored.IssuedEpoch != user.CredentialEpoch)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));

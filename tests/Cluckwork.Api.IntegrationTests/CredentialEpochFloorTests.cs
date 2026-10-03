@@ -104,7 +104,7 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
     public async Task Login_RefusesAStoredEpochBelowOne_LikeADisabledUser(int storedEpoch, string password)
     {
         var (accountId, userId, email) = await SeedWithStoredEpochAsync(storedEpoch);
-        var loginFailed = EventsFor(SecurityEvents.LoginFailed);
+        var loginFailed = CountEvents(SecurityEvents.LoginFailed);
         factory.Hasher.Reset();
 
         var response = await factory.TryLoginAsync(email, password);
@@ -114,7 +114,7 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
         Assert.False(response.Headers.Contains("Set-Cookie"), "a refused login must not set a refresh cookie");
         Assert.Empty(await TokenRowsAsync(accountId, userId));
         Assert.Equal(1, factory.Hasher.VerifyCount);
-        Assert.Equal(loginFailed + 1, EventsFor(SecurityEvents.LoginFailed));
+        Assert.Equal(loginFailed + 1, CountEvents(SecurityEvents.LoginFailed));
         await AssertLockoutUntouchedAsync(accountId, userId);
     }
 
@@ -145,7 +145,7 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
             accountId, userId, 0, revokedAt: DateTimeOffset.UtcNow.AddMinutes(-5));
         await AddRefreshTokenAsync(accountId, userId, 0);
         var before = await TokenRowsAsync(accountId, userId);
-        var replays = EventsFor(SecurityEvents.RefreshTokenReplayDetected);
+        var replays = CountEvents(SecurityEvents.RefreshTokenReplayDetected);
 
         var response = await factory.CreateClient().PostRefreshAsync(
             presented, expectedAccount: accountId.ToString());
@@ -153,7 +153,7 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal(before, await TokenRowsAsync(accountId, userId));
         Assert.Contains(before, row => row.RevokedAt is null);
-        Assert.Equal(replays, EventsFor(SecurityEvents.RefreshTokenReplayDetected));
+        Assert.Equal(replays, CountEvents(SecurityEvents.RefreshTokenReplayDetected));
         await AssertLockoutUntouchedAsync(accountId, userId);
 
         Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
@@ -234,7 +234,7 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
         Assert.Null(state.LockoutEnd);
     }
 
-    private int EventsFor(string securityEvent) => factory.Sink.Events.Count(e =>
+    private int CountEvents(string securityEvent) => factory.Sink.Events.Count(e =>
         e.Properties.TryGetValue("SecurityEvent", out var value)
         && value is ScalarValue { Value: string name } && name == securityEvent);
 
