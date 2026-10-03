@@ -124,6 +124,9 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<IIdentityProvider, IdentityProvider>();
         // #364/#857 — Scoped, like the AppDbContext it reads through.
         services.AddScoped<ICredentialEpochVerifier, CredentialEpochVerifier>();
+        // #857 — Scoped, like the AppDbContext and handlers they forward to.
+        services.AddScoped<IAccessModule, AccessModule>();
+        services.AddScoped<IAccessLookup, AccessLookup>();
         // Break-glass recovery must remain available in Production.
         services.AddScoped<AdminRecoveryService>();
         // #532 — no CLI or HTTP surface yet; #534's operator verbs resolve it.
