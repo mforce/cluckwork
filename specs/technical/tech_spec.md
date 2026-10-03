@@ -43,7 +43,7 @@ Api  ──►  Application  ──►  Domain
 ```
 
 - `Domain` depends on nothing. Entities, value objects, domain rules (e.g. withdrawal restriction logic, money value object).
-- `Application` depends only on `Domain`. Use-case handlers, port interfaces (`IRepository`, `IIdentityProvider`, `IClock`, `IUnitOfWork`), DTOs.
+- `Application` depends only on `Domain`. Use-case handlers, port interfaces (per-feature repositories such as `IFlockRepository`, `IIdentityProvider`, `IClock`, `IUnitOfWork`), DTOs.
 - `Infrastructure` implements `Application` ports. EF Core, migrations, Identity, provider config, file/PDF/Excel, background jobs.
 - `Api` composes everything. Minimal API endpoints, middleware, DI wiring, OpenAPI.
 

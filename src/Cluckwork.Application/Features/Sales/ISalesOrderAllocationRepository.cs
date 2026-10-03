@@ -2,10 +2,10 @@ using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Application.Features.Sales;
 
-// Deliberately not IRepository: allocations are written as a batch inside the
-// confirm transaction and only ever mutated by marking them released inside
-// the void transaction. Rows are never deleted — they are the traceability
-// chain from a sale back to its source lots (spec §9.6).
+// Deliberately has no single-entity Get, Update or Remove: allocations are
+// written as a batch inside the confirm transaction and only ever mutated by
+// marking them released inside the void transaction. Rows are never deleted —
+// they are the traceability chain from a sale back to its source lots (spec §9.6).
 public interface ISalesOrderAllocationRepository
 {
     Task AddRangeAsync(IReadOnlyList<SalesOrderAllocation> allocations, CancellationToken ct = default);
