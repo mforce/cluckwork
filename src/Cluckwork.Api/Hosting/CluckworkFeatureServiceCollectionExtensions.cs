@@ -298,6 +298,12 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<ConfirmSaleHandler>();
         services.AddScoped<VoidSaleHandler>();
         services.AddScoped<RecordPaymentHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Sales.ICommerceModule,
+            Cluckwork.Application.Features.Sales.CommerceModule>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Catalog.IEggUnitConversionLookup,
+            Cluckwork.Application.Features.Catalog.EggUnitConversionLookup>();
         services.AddScoped<VoidPaymentHandler>();
         services.AddScoped<CreateInventoryItemHandler>();
         services.AddScoped<UpdateInventoryItemHandler>();

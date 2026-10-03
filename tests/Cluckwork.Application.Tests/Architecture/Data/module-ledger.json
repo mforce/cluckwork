@@ -74,7 +74,51 @@
                             "Cluckwork.Infrastructure.Repositories.EggInventoryMovementRepository",
                             "Cluckwork.Infrastructure.Repositories.EggLotRepository"
                           ] },
-    "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
+    "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Sales.ICommerceModule",
+                            "Cluckwork.Application.Features.Catalog.IEggUnitConversionLookup",
+                            "Cluckwork.Application.Features.Sales.ProductDetails",
+                            "Cluckwork.Application.Features.Catalog.EggUnitConversionDetails",
+                            "Cluckwork.Application.Features.Sales.CustomerDetails",
+                            "Cluckwork.Application.Features.Customers.CustomerReference",
+                            "Cluckwork.Application.Features.Sales.SalesOrderDetails",
+                            "Cluckwork.Application.Features.Sales.SalesOrderItemDetails",
+                            "Cluckwork.Application.Features.Sales.SalesOrderListItem",
+                            "Cluckwork.Application.Features.Sales.SalesOrderListFilter",
+                            "Cluckwork.Application.Features.Sales.SettlementScope",
+                            "Cluckwork.Application.Features.Sales.PaymentDetails",
+                            "Cluckwork.Application.Features.Sales.CustomerBalance",
+                            "Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductCommand",
+                            "Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductCommand",
+                            "Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionCommand",
+                            "Cluckwork.Application.Features.Customers.CreateCustomer.CreateCustomerCommand",
+                            "Cluckwork.Application.Features.Customers.UpdateCustomer.UpdateCustomerCommand",
+                            "Cluckwork.Application.Features.Sales.CreateSalesOrder.CreateSalesOrderCommand",
+                            "Cluckwork.Application.Features.Sales.AddOrderItem.AddOrderItemCommand",
+                            "Cluckwork.Application.Features.Sales.UpdateOrderItem.UpdateOrderItemCommand",
+                            "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleCommand",
+                            "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleResponse",
+                            "Cluckwork.Application.Features.Sales.VoidSale.VoidSaleCommand",
+                            "Cluckwork.Application.Features.Sales.VoidSale.VoidSaleResponse",
+                            "Cluckwork.Application.Features.Sales.RecordPayment.RecordPaymentCommand",
+                            "Cluckwork.Application.Features.Sales.VoidPayment.VoidPaymentCommand",
+                            "Cluckwork.Domain.Catalog.ProductType",
+                            "Cluckwork.Domain.Catalog.ProductUnit",
+                            "Cluckwork.Domain.Catalog.EggUnit",
+                            "Cluckwork.Domain.Sales.SalesOrderStatus",
+                            "Cluckwork.Domain.Sales.DiscountReasonCode",
+                            "Cluckwork.Domain.Sales.ListPriceBasis",
+                            "Cluckwork.Domain.Sales.PaymentMethod"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.CustomerRepository",
+                            "Cluckwork.Infrastructure.Repositories.EggUnitConversionRepository",
+                            "Cluckwork.Infrastructure.Repositories.PaymentRepository",
+                            "Cluckwork.Infrastructure.Repositories.ProductRepository",
+                            "Cluckwork.Infrastructure.Repositories.SalesOrderAllocationRepository",
+                            "Cluckwork.Infrastructure.Repositories.SalesOrderRepository"
+                          ] },
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"],
                           "contract": [
                             "Cluckwork.Application.Features.Inventory.IInventoryModule",
@@ -1493,6 +1537,14 @@
     },
     {
       "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
+      "reaches": "Commerce",
+      "tables": ["Customers", "SalesOrderItems", "SalesOrders"],
+      "owner": "Platform",
+      "reason": "Deletes a partial demo seed's SalesOrderItems, SalesOrders and Customers for one farm, children before parents, in the same transaction as every other module's demo rows. ICommerceModule has no delete: orders are cancelled or voided, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
       "reaches": "EggOperations",
       "tables": ["DailyEntries", "DailyEntryGrades", "EggInventoryMovements", "EggLots"],
       "owner": "Platform",
@@ -1537,6 +1589,14 @@
       "tables": ["Flocks"],
       "owner": "Platform",
       "reason": "Loads the demo's historical flock to deplete it on a backdated day, because DepleteFlockHandler stamps the farm's today and that would block the historical entries the demo records next. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "Commerce",
+      "tables": ["Customers", "Payments", "SalesOrders"],
+      "owner": "Platform",
+      "reason": "Counts Customers, SalesOrders by status and Payments for the simulation manifest check, beside every other module's counts. ICommerceModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1588,6 +1648,22 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureConfirmedOrderAsync",
+      "reaches": "Commerce",
+      "tables": ["SalesOrders"],
+      "owner": "Platform",
+      "reason": "Reads the order's status before calling ICommerceModule.ConfirmSaleAsync, so a re-run confirms only an order still in Draft. ICommerceModule.GetSalesOrderAsync would also load the order's lines. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureCustomerAsync",
+      "reaches": "Commerce",
+      "tables": ["Customers"],
+      "owner": "Platform",
+      "reason": "Looks up Customers by name before calling ICommerceModule.CreateCustomerAsync, so a re-run converges and reuses the existing id. ICommerceModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseAsync",
       "reaches": "Finance",
       "tables": ["Expenses"],
@@ -1604,6 +1680,14 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExtraLineAsync",
+      "reaches": "Commerce",
+      "tables": ["SalesOrderItems"],
+      "owner": "Platform",
+      "reason": "Checks SalesOrderItems for the product's line on the order before calling ICommerceModule.AddOrderItemAsync, so a re-run converges instead of duplicating. ICommerceModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureInventoryItemAsync",
       "reaches": "GeneralInventory",
       "tables": ["InventoryItems"],
@@ -1617,6 +1701,30 @@
       "tables": ["InventoryLots"],
       "owner": "Platform",
       "reason": "Checks InventoryLots for the item's opening lot, and reads its id, before calling IInventoryModule.RecordPurchaseAsync, so a re-run converges and reuses the lot. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsurePartialPaymentAsync",
+      "reaches": "Commerce",
+      "tables": ["Payments", "SalesOrders"],
+      "owner": "Platform",
+      "reason": "Checks Payments for the order and reads its total before calling ICommerceModule.RecordPaymentAsync, so a re-run converges and the payment stays half the total. ICommerceModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureProductAsync",
+      "reaches": "Commerce",
+      "tables": ["Products"],
+      "owner": "Platform",
+      "reason": "Looks up Products by name before calling ICommerceModule.CreateProductAsync, so a re-run converges and reuses the existing id. ICommerceModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.FindOrderAsync",
+      "reaches": "Commerce",
+      "tables": ["SalesOrders"],
+      "owner": "Platform",
+      "reason": "Finds the fixture's order by customer and order date, the natural key this seeder controls, so a re-run reuses the order instead of creating another. ICommerceModule has no lookup by that key. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {

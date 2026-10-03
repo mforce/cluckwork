@@ -7,6 +7,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
+using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
@@ -44,11 +45,7 @@ public sealed class DemoDataSeeder(
     IAccountUserDirectory directory,
     IEggOperationsModule eggs,
     IFlockModule flocks,
-    CreateProductHandler createProduct,
-    CreateCustomerHandler createCustomer,
-    CreateSalesOrderHandler createOrder,
-    AddOrderItemHandler addItem,
-    ConfirmSaleHandler confirmSale,
+    ICommerceModule commerce,
     IFarmClock farmClock,
     ILogger<DemoDataSeeder> logger)
 {
@@ -369,41 +366,41 @@ public sealed class DemoDataSeeder(
             accountId, ct));
 
         // --- Customers.
-        var mercado = Require(await createCustomer.HandleAsync(new CreateCustomerCommand(
+        var mercado = Require(await commerce.CreateCustomerAsync(new CreateCustomerCommand(
             "Mercado Central", "555-0100", "orders@mercadocentral.example", "12 Market Rd", "Pays cash"),
             accountId, ct));
-        var kcc = Require(await createCustomer.HandleAsync(new CreateCustomerCommand(
+        var kcc = Require(await commerce.CreateCustomerAsync(new CreateCustomerCommand(
             "KCC Bakery", "555-0117", null, null, "Weekly standing order"), accountId, ct));
-        Require(await createCustomer.HandleAsync(new CreateCustomerCommand(
+        Require(await commerce.CreateCustomerAsync(new CreateCustomerCommand(
             "Hotel Paraíso", "555-0142"), accountId, ct));
 
         // --- Products (#99): sales sell products, not raw grades. Prices are
         // per individual egg (unit Egg → factor 1), preserving the old demo math.
         // The catalog is deliberately partial — Small has no product either, so
         // the Stock screen shows a realistic mix of sellable and unlisted grades.
-        var largeEggs = Require(await createProduct.HandleAsync(new CreateProductCommand(
+        var largeEggs = Require(await commerce.CreateProductAsync(new CreateProductCommand(
             "Large Eggs", "Egg", "Egg", 45, grades["Large"], null), accountId, ct));
-        var mediumEggs = Require(await createProduct.HandleAsync(new CreateProductCommand(
+        var mediumEggs = Require(await commerce.CreateProductAsync(new CreateProductCommand(
             "Medium Eggs", "Egg", "Egg", 38, grades["Medium"], null), accountId, ct));
         // #396: the cracked counter now mints its own lot at submit, so the demo
         // carries a discounted product for it — otherwise the feature reads as
         // stock appearing that nothing can ever sell. Priced below Small.
-        Require(await createProduct.HandleAsync(new CreateProductCommand(
+        Require(await commerce.CreateProductAsync(new CreateProductCommand(
             "Cracked Eggs", "Egg", "Egg", 18, grades["Cracked"], "Sold at a discount"), accountId, ct));
 
         // --- Orders: one confirmed (exercises FIFO allocation), one open draft.
-        var confirmed = Require(await createOrder.HandleAsync(new CreateSalesOrderCommand(
+        var confirmed = Require(await commerce.CreateSalesOrderAsync(new CreateSalesOrderCommand(
             mercado, today.AddDays(-1)), accountId, ct));
-        Require(await addItem.HandleAsync(new AddOrderItemCommand(
+        Require(await commerce.AddOrderItemAsync(new AddOrderItemCommand(
             confirmed, largeEggs, 360, null, null), accountId, ct));
-        Require(await addItem.HandleAsync(new AddOrderItemCommand(
+        Require(await commerce.AddOrderItemAsync(new AddOrderItemCommand(
             confirmed, mediumEggs, 180, null, null), accountId, ct));
-        Check((await confirmSale.HandleAsync(new ConfirmSaleCommand(confirmed), accountId, currentUser.UserId, ct))
+        Check((await commerce.ConfirmSaleAsync(new ConfirmSaleCommand(confirmed), accountId, currentUser.UserId, ct))
             is { IsSuccess: true } ? Result.Success() : Result.Failure(Error.Domain("Demo.Confirm", "confirm failed")));
 
-        var draft = Require(await createOrder.HandleAsync(new CreateSalesOrderCommand(
+        var draft = Require(await commerce.CreateSalesOrderAsync(new CreateSalesOrderCommand(
             kcc, today), accountId, ct));
-        Require(await addItem.HandleAsync(new AddOrderItemCommand(
+        Require(await commerce.AddOrderItemAsync(new AddOrderItemCommand(
             draft, largeEggs, 240, null, null), accountId, ct));
     }
 

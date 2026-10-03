@@ -1,10 +1,9 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
-using Cluckwork.Application.Features.Catalog.SetProductActive;
 using Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion;
 using Cluckwork.Application.Features.Catalog.UpdateProduct;
-using Cluckwork.Domain.Catalog;
+using Cluckwork.Application.Features.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -32,13 +31,13 @@ public static class ProductEndpoints
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/deactivate",
-                (Guid id, SetProductActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, false, h, t, ct))
+                (Guid id, ICommerceModule commerce, TenantContext t, CancellationToken ct) => SetActive(id, false, commerce, t, ct))
             .WithName("DeactivateProduct")
             .WithSummary("Deactivate a product: it leaves sale pickers; history is unaffected.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/activate",
-                (Guid id, SetProductActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, true, h, t, ct))
+                (Guid id, ICommerceModule commerce, TenantContext t, CancellationToken ct) => SetActive(id, true, commerce, t, ct))
             .WithName("ActivateProduct")
             .WithSummary("Reactivate a previously deactivated product.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
@@ -61,17 +60,16 @@ public static class ProductEndpoints
     }
 
     private static async Task<IResult> ListProducts(
-        IProductRepository products, TenantContext tenant, CancellationToken ct,
+        ICommerceModule commerce, TenantContext tenant, CancellationToken ct,
         bool includeInactive = false)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = await products.ListAsync(includeInactive, ct);
-        var mappings = (await products.ListMappingsAsync(ct)).ToDictionary(m => m.ProductId, m => m.EggGradeId);
-        return Results.Ok(list.Select(p => ToResponse(p, mappings.GetValueOrDefault(p.Id))));
+        var list = await commerce.ListProductsAsync(includeInactive, ct);
+        return Results.Ok(list.Select(ToResponse));
     }
 
     private static async Task<IResult> CreateProduct(
-        CreateProductRequest request, CreateProductHandler handler,
+        CreateProductRequest request, ICommerceModule commerce,
         IValidator<CreateProductCommand> validator, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -84,14 +82,14 @@ public static class ProductEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await commerce.CreateProductAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/products/{result.Value}", new { Id = result.Value })
             : MapFailure(result.Error);
     }
 
     private static async Task<IResult> UpdateProduct(
-        Guid id, UpdateProductRequest request, UpdateProductHandler handler,
+        Guid id, UpdateProductRequest request, ICommerceModule commerce,
         IValidator<UpdateProductCommand> validator, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -104,30 +102,30 @@ public static class ProductEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await commerce.UpdateProductAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> SetActive(
-        Guid id, bool active, SetProductActiveHandler handler, TenantContext tenant, CancellationToken ct)
+        Guid id, bool active, ICommerceModule commerce, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, active, ct);
+        var result = await commerce.SetProductActiveAsync(id, active, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> ListConversions(
-        IEggUnitConversionRepository conversions, TenantContext tenant, CancellationToken ct)
+        ICommerceModule commerce, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = await conversions.ListAsync(ct);
+        var list = await commerce.ListConversionsAsync(ct);
         return Results.Ok(list.Select(c =>
             new EggUnitConversionResponse(c.Id, c.UnitCode.ToString(), c.EggsPerUnit, c.Active, c.Version)));
     }
 
     private static async Task<IResult> UpdateConversion(
         Guid id, UpdateEggUnitConversionRequest request,
-        UpdateEggUnitConversionHandler handler,
+        ICommerceModule commerce,
         IValidator<UpdateEggUnitConversionCommand> validator,
         TenantContext tenant, CancellationToken ct)
     {
@@ -138,7 +136,7 @@ public static class ProductEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await commerce.UpdateConversionAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
@@ -151,10 +149,10 @@ public static class ProductEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static ProductResponse ToResponse(Product p, Guid? eggGradeId) =>
+    private static ProductResponse ToResponse(ProductDetails p) =>
         new(p.Id, p.Name, p.ProductType.ToString(), p.DefaultUnit.ToString(),
             p.DefaultPriceMinorUnits, p.CurrencyCode, p.CurrencyMinorUnit,
-            eggGradeId, p.Notes, p.Active, p.Version);
+            p.EggGradeId, p.Notes, p.Active, p.Version);
 }
 
 public sealed record ProductResponse(

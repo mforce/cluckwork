@@ -9,7 +9,7 @@ namespace Cluckwork.Application.Features.Users.SetStepperUnit;
 // only ever set their OWN stepper-unit preference. Account-scoped inside the
 // provider, same as SetLanguageHandler.
 public sealed class SetStepperUnitHandler(
-    IIdentityProvider identity, IEggUnitConversionRepository conversions)
+    IIdentityProvider identity, IEggUnitConversionLookup conversions)
 {
     public async Task<Result> HandleAsync(
         SetStepperUnitCommand command, Guid accountId, Guid userId, CancellationToken ct = default)
