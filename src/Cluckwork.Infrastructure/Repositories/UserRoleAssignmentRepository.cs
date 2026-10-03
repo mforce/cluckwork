@@ -62,7 +62,7 @@ public sealed class UserRoleAssignmentRepository(AppDbContext db) : IUserRoleAss
 // #103 — spec §5.3 flock scoping. Elevated roles skip the check entirely; a
 // worker is narrowed only once assignment rows exist.
 public sealed class FlockScopeGuard(
-    AppDbContext db,
+    IAccessLookup access,
     ICurrentUser user) : IFlockScopeGuard
 {
     public async Task<Result> CheckAsync(Guid flockId, CancellationToken ct = default)
@@ -78,9 +78,7 @@ public sealed class FlockScopeGuard(
         if (Roles.ResolveEffective(user.Roles) != EffectiveAccountRole.Worker)
             return Result.Success();
 
-        var assignments = await db.UserRoleAssignments.AsNoTracking()
-            .Where(a => a.UserId == user.UserId)
-            .ToListAsync(ct);
+        var assignments = await access.ListFlockAssignmentsAsync(user.UserId, ct);
 
         // No rows = unscoped worker (grandfathered #73 behavior).
         if (assignments.Count == 0) return Result.Success();
