@@ -147,8 +147,6 @@ public sealed class InventoryModuleTests
         public Task<InventoryItem?> GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task AddAsync(InventoryItem entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(InventoryItem entity) => throw new NotSupportedException();
-        public void Remove(InventoryItem entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeLots : IInventoryLotRepository
@@ -171,10 +169,7 @@ public sealed class InventoryModuleTests
             throw new NotSupportedException();
         public Task<InventoryLot?> GetByIdLockedAsync(Guid accountId, Guid lotId, CancellationToken ct = default) =>
             throw new NotSupportedException();
-        public Task<InventoryLot?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(InventoryLot entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(InventoryLot entity) => throw new NotSupportedException();
-        public void Remove(InventoryLot entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeMovements : IInventoryMovementRepository
@@ -189,10 +184,7 @@ public sealed class InventoryModuleTests
             return Task.FromResult<IReadOnlyList<InventoryMovement>>(Rows);
         }
 
-        public Task<InventoryMovement?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(InventoryMovement entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(InventoryMovement entity) => throw new NotSupportedException();
-        public void Remove(InventoryMovement entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeFeedUsages : IFeedUsageRepository
@@ -207,10 +199,7 @@ public sealed class InventoryModuleTests
             return Task.FromResult<IReadOnlyList<FeedUsage>>(Rows);
         }
 
-        public Task<FeedUsage?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(FeedUsage entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(FeedUsage entity) => throw new NotSupportedException();
-        public void Remove(FeedUsage entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeWaterUsages : IWaterUsageRepository
@@ -227,7 +216,5 @@ public sealed class InventoryModuleTests
 
         public Task<WaterUsage?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(WaterUsage entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(WaterUsage entity) => throw new NotSupportedException();
-        public void Remove(WaterUsage entity) => throw new NotSupportedException();
     }
 }

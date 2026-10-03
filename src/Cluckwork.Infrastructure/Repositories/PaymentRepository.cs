@@ -62,8 +62,4 @@ public sealed class PaymentRepository(AppDbContext db) : IPaymentRepository,
 
     public async Task AddAsync(Payment entity, CancellationToken ct = default) =>
         await db.Payments.AddAsync(entity, ct);
-
-    public void Update(Payment entity) => db.Payments.Update(entity);
-
-    public void Remove(Payment entity) => db.Payments.Remove(entity);
 }

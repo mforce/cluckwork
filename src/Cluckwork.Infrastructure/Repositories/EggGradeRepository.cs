@@ -43,8 +43,4 @@ public sealed class EggGradeRepository(AppDbContext db) : IEggGradeRepository
 
     public async Task AddAsync(EggGrade entity, CancellationToken ct = default) =>
         await db.EggGrades.AddAsync(entity, ct);
-
-    public void Update(EggGrade entity) => db.EggGrades.Update(entity);
-
-    public void Remove(EggGrade entity) => db.EggGrades.Remove(entity);
 }

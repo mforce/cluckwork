@@ -159,8 +159,4 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
 
     public async Task AddAsync(EggLot entity, CancellationToken ct = default) =>
         await db.EggLots.AddAsync(entity, ct);
-
-    public void Update(EggLot entity) => db.EggLots.Update(entity);
-
-    public void Remove(EggLot entity) => db.EggLots.Remove(entity);
 }

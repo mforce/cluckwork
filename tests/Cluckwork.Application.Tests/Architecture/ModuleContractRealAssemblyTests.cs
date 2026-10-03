@@ -9,7 +9,7 @@ namespace Cluckwork.Application.Tests.Architecture;
 // type and no domain entity or aggregate, however deeply nested.
 public sealed class ModuleContractRealAssemblyTests
 {
-    private static readonly Assembly[] Assemblies = [typeof(IRepository<,>).Assembly, typeof(Result).Assembly];
+    private static readonly Assembly[] Assemblies = [typeof(IUnitOfWork).Assembly, typeof(Result).Assembly];
 
     [Fact]
     public void RealLedger_EveryContractTypeIsFreeOfPersistenceAndAggregates()

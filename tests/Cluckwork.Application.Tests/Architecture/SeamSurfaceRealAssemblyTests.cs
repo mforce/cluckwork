@@ -7,7 +7,7 @@ namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class SeamSurfaceRealAssemblyTests
 {
-    private static Assembly ApplicationAssembly => typeof(IRepository<,>).Assembly;
+    private static Assembly ApplicationAssembly => typeof(IUnitOfWork).Assembly;
 
     [Fact]
     public void RealApplicationAssembly_NoPublicInterfaceExposesPersistence()

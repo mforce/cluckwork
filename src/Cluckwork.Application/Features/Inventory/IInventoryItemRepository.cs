@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Inventory;
 
 namespace Cluckwork.Application.Features.Inventory;
 
-public interface IInventoryItemRepository : IRepository<InventoryItem, Guid>
+public interface IInventoryItemRepository
 {
+    Task<InventoryItem?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(InventoryItem entity, CancellationToken ct = default);
+
     // Catalog view, name order. includeInactive for management/display lookups
     // (historical movements may reference deactivated items).
     Task<IReadOnlyList<InventoryItem>> ListAsync(

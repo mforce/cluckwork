@@ -222,8 +222,6 @@ public sealed class CommerceModuleTests
         public Task<IReadOnlyList<Customer>> ListAsync(int limit, int offset, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task AddAsync(Customer entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(Customer entity) => throw new NotSupportedException();
-        public void Remove(Customer entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeOrders : ISalesOrderRepository
@@ -246,8 +244,6 @@ public sealed class CommerceModuleTests
             throw new NotSupportedException();
         public Task<SalesOrder?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(SalesOrder entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(SalesOrder entity) => throw new NotSupportedException();
-        public void Remove(SalesOrder entity) => throw new NotSupportedException();
     }
 
     private sealed class FakePayments : IPaymentRepository
@@ -279,7 +275,5 @@ public sealed class CommerceModuleTests
         public Task<bool> AnyNonVoidedByOrderAsync(Guid salesOrderId, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task AddAsync(Payment entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(Payment entity) => throw new NotSupportedException();
-        public void Remove(Payment entity) => throw new NotSupportedException();
     }
 }

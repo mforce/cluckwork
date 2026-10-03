@@ -52,13 +52,10 @@ public sealed class MortalityLedgerTests
             return Task.CompletedTask;
         }
 
-        public Task<BirdMovement?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<BirdMovement>> ListByFlockAsync(Guid flockId, int limit, int offset, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task<Dictionary<Guid, long>> RemovedForFlocksAsync(IReadOnlyCollection<Guid> flockIds, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task<long> RemovedForFlockAsync(Guid flockId, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(BirdMovement entity) => throw new NotSupportedException();
-        public void Remove(BirdMovement entity) => throw new NotSupportedException();
     }
 }

@@ -70,8 +70,8 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         Assert.Equal(accountId, db2.Entry(loaded!).Property(nameof(Flock.AccountId)).OriginalValue);
     }
 
-    // Walks every repository that exposes Update/Remove and asserts none of its
-    // single-entity reads opts out of change tracking.
+    // Walks every repository that declares AddAsync, Update or Remove and
+    // asserts none of its single-entity reads opts out of change tracking.
     //
     // Discovery rather than a hand-kept list, deliberately: a new mutable
     // repository is covered the moment it is added, which a list would not do —
@@ -79,7 +79,7 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
     //
     // Deliberate exclusion: reads whose name says ReadOnly. Those exist to serve
     // query paths (DailyEntryRepository.GetReadOnlyAsync,
-    // SalesOrderRepository.GetReadOnlyAsync) and are never fed to Update/Remove;
+    // SalesOrderRepository.GetReadOnlyAsync) and are never fed to a write;
     // AsNoTracking is correct there. The exclusion is by NAME so that adding one
     // is a deliberate, visible act.
     [Fact]
@@ -88,15 +88,31 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         var dir = Path.Combine(FindRepoRoot(), "src", "Cluckwork.Infrastructure", "Repositories");
         Assert.True(Directory.Exists(dir), $"Repository directory not found: {dir}");
 
-        // The entity a repository can MUTATE is whatever Update/Remove accepts.
+        // The entity a repository can MUTATE is whatever its AddAsync, Update or
+        // Remove accepts. AddAsync names the aggregate a repository owns even
+        // where it has no Update: handlers mutate the tracked entity a Get*Async
+        // read returned, then save.
         // Keying on that, rather than on "any Get*Async", is what keeps
         // read-only PROJECTIONS out of scope: FarmLogoRepository returns
         // FarmLogoMetadata/FarmLogoContent from AsNoTracking queries and that is
         // correct — they are never handed to Remove. Only reads returning the
         // mutable entity itself feed the write path the interceptor guards.
-        var mutates = new Regex(@"public\s+void\s+(?:Update|Remove)\s*\(\s*(?<type>[A-Za-z0-9_]+)\s",
+        var mutates = new Regex(
+            @"public\s+(?:async\s+)?(?:void\s+(?<edit>Update|Remove)|Task\s+AddAsync)\s*\(\s*(?<type>[A-Za-z0-9_]+)\s",
             RegexOptions.Compiled);
         var nextMember = new Regex(@"\n    (?:public|private|internal|protected)\s", RegexOptions.Compiled);
+
+        // Append-only ledgers add rows but never read one back to change it, so
+        // they have no single-entity read to check. Excluded by NAME, like the
+        // ReadOnly reads above, and only while they really are append-only: no
+        // Update, no Remove and no single-entity read.
+        string[] appendOnlyLedgers =
+        [
+            "BirdMovementRepository.cs",
+            "EggInventoryMovementRepository.cs",
+            "FeedUsageRepository.cs",
+            "InventoryMovementRepository.cs",
+        ];
 
         var mutableRepositories = new List<string>();
         var violations = new List<string>();
@@ -104,7 +120,8 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         foreach (var file in Directory.GetFiles(dir, "*.cs").OrderBy(f => f, StringComparer.Ordinal))
         {
             var text = File.ReadAllText(file);
-            var entityTypes = mutates.Matches(text)
+            var writers = mutates.Matches(text);
+            var entityTypes = writers
                 .Select(m => m.Groups["type"].Value)
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
@@ -124,14 +141,26 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
                     .Where(m => !m.Groups["name"].Value.Contains("ReadOnly", StringComparison.Ordinal)));
             }
 
+            if (appendOnlyLedgers.Contains(name))
+            {
+                var edits = writers.Where(m => m.Groups["edit"].Success).Select(m => m.Groups["edit"].Value).ToList();
+                Assert.True(edits.Count == 0,
+                    $"{name} is listed as an append-only ledger but now declares {string.Join(" and ", edits)}. " +
+                    "Remove it from the list so its reads are checked like any other mutable repository.");
+                Assert.True(reads.Count == 0,
+                    $"{name} is listed as an append-only ledger but now has a single-entity read " +
+                    $"({string.Join(", ", reads.Select(r => r.Groups["name"].Value))}). Remove it from the list.");
+                continue;
+            }
+
             // Backstop against this guard rotting into a no-op if the
             // repositories are reshaped so the pattern stops matching.
             //
             // Honest about its strength: this assertion is NOT the primary
             // defence and has not been observed firing. Renaming a read is
-            // caught earlier and harder by the compiler, because
-            // IRepository<T, TId> pins GetByIdAsync — the attempt fails with
-            // CS0535 before any test runs. This covers the residue: a mutable
+            // caught earlier and harder by the compiler, because each repository
+            // interface that declares GetByIdAsync pins it — the attempt fails
+            // with CS0535 before any test runs. This covers the residue: a mutable
             // repository whose read is NOT interface-bound (FarmLogoRepository's
             // GetTrackedAsync) or a future declaration style the regex misses.
             Assert.True(reads.Count > 0,
@@ -158,6 +187,7 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         Assert.Contains("FlockRepository.cs", mutableRepositories);
         Assert.Contains("CustomerRepository.cs", mutableRepositories);
         Assert.Contains("FarmLogoRepository.cs", mutableRepositories);
+        Assert.All(appendOnlyLedgers, ledger => Assert.Contains(ledger, mutableRepositories));
 
         Assert.True(violations.Count == 0,
             "These repositories can mutate, but the read that feeds the write path opts out of change " +
