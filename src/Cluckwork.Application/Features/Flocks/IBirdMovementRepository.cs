@@ -1,10 +1,13 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Flocks;
 
 namespace Cluckwork.Application.Features.Flocks;
 
-public interface IBirdMovementRepository : IRepository<BirdMovement, Guid>
+// Append-only ledger, so the port has no Update or Remove: corrections are new
+// Adjustment rows, never edits or deletes.
+public interface IBirdMovementRepository
 {
+    Task AddAsync(BirdMovement entity, CancellationToken ct = default);
+
     // Newest first (date, then id) — ledger browsing.
     Task<IReadOnlyList<BirdMovement>> ListByFlockAsync(
         Guid flockId, int limit, int offset, CancellationToken ct = default);

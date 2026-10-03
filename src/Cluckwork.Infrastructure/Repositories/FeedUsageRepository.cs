@@ -13,9 +13,6 @@ public sealed class FeedUsageRepository(AppDbContext db) : IFeedUsageRepository,
     Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
         db.FeedUsages.AnyAsync(ct);
 
-    public Task<FeedUsage?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        db.FeedUsages.FirstOrDefaultAsync(u => u.Id == id, ct);
-
     public async Task<IReadOnlyList<FeedUsage>> ListAsync(
         Guid? flockId, DateOnly? from, DateOnly? to,
         int limit, int offset, CancellationToken ct = default) =>
@@ -31,13 +28,4 @@ public sealed class FeedUsageRepository(AppDbContext db) : IFeedUsageRepository,
 
     public async Task AddAsync(FeedUsage entity, CancellationToken ct = default) =>
         await db.FeedUsages.AddAsync(entity, ct);
-
-    // Create-only: corrections are compensating inventory adjustments, never
-    // edits of the usage record (it must stay attached to the movements it
-    // generated).
-    public void Update(FeedUsage entity) =>
-        throw new NotSupportedException("Feed usage records are create-only; record an inventory Adjustment instead.");
-
-    public void Remove(FeedUsage entity) =>
-        throw new NotSupportedException("Feed usage records are create-only; record an inventory Adjustment instead.");
 }

@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
 
 namespace Cluckwork.Application.Features.DailyEntries;
 
-public interface IDailyEntryRepository : IRepository<DailyEntry, Guid>
+public interface IDailyEntryRepository
 {
+    Task<DailyEntry?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(DailyEntry entity, CancellationToken ct = default);
+
     // Untracked read for GET endpoints (the tracked GetByIdAsync is the write path).
     Task<DailyEntry?> GetReadOnlyAsync(Guid id, CancellationToken ct = default);
 

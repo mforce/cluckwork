@@ -39,9 +39,6 @@ public sealed class UpdateCustomerHandlerTests
             _store[entity.Id] = entity;
             return Task.CompletedTask;
         }
-
-        public void Update(Customer entity) { }
-        public void Remove(Customer entity) { }
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

@@ -67,8 +67,4 @@ public sealed class CustomerRepository(AppDbContext db) : ICustomerRepository
 
     public async Task AddAsync(Customer entity, CancellationToken ct = default) =>
         await db.Customers.AddAsync(entity, ct);
-
-    public void Update(Customer entity) => db.Customers.Update(entity);
-
-    public void Remove(Customer entity) => db.Customers.Remove(entity);
 }

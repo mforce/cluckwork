@@ -14,9 +14,6 @@ public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepos
     Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
         db.InventoryLots.AnyAsync(ct);
 
-    public Task<InventoryLot?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        db.InventoryLots.FirstOrDefaultAsync(l => l.Id == id, ct);
-
     // FOR UPDATE lock for FIFO feed-usage consumption. Canonical
     // (ReceivedDate, Id) ordering — every locking path over these rows must
     // share it (the egg-lot deadlock lesson from #60/PR #64).
@@ -70,8 +67,4 @@ public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepos
 
     public async Task AddAsync(InventoryLot entity, CancellationToken ct = default) =>
         await db.InventoryLots.AddAsync(entity, ct);
-
-    public void Update(InventoryLot entity) => db.InventoryLots.Update(entity);
-
-    public void Remove(InventoryLot entity) => db.InventoryLots.Remove(entity);
 }

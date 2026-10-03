@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Expenses;
 
 namespace Cluckwork.Application.Features.Expenses;
 
-public interface IExpenseCategoryRepository : IRepository<ExpenseCategory, Guid>
+public interface IExpenseCategoryRepository
 {
+    Task<ExpenseCategory?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(ExpenseCategory entity, CancellationToken ct = default);
+
     // Active categories for the current tenant's farm, name order.
     Task<IReadOnlyList<ExpenseCategory>> ListActiveAsync(Guid farmId, CancellationToken ct = default);
 
@@ -16,8 +18,11 @@ public interface IExpenseCategoryRepository : IRepository<ExpenseCategory, Guid>
     Task<bool> NameExistsAsync(Guid farmId, string name, Guid? excludeId = null, CancellationToken ct = default);
 }
 
-public interface IExpenseRepository : IRepository<Expense, Guid>
+public interface IExpenseRepository
 {
+    Task<Expense?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(Expense entity, CancellationToken ct = default);
+
     Task<IReadOnlyList<Expense>> ListAsync(
         DateOnly? from, DateOnly? to, Guid? categoryId, int limit, int offset,
         CancellationToken ct = default);

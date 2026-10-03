@@ -141,8 +141,4 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
 
     public async Task AddAsync(SalesOrder entity, CancellationToken ct = default) =>
         await db.SalesOrders.AddAsync(entity, ct);
-
-    public void Update(SalesOrder entity) => db.SalesOrders.Update(entity);
-
-    public void Remove(SalesOrder entity) => db.SalesOrders.Remove(entity);
 }

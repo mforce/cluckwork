@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Application.Features.Sales;
 
-public interface ISalesOrderRepository : IRepository<SalesOrder, Guid>
+public interface ISalesOrderRepository
 {
+    Task<SalesOrder?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(SalesOrder entity, CancellationToken ct = default);
+
     // Untracked read for GET endpoints (the tracked GetByIdAsync is the write path).
     Task<SalesOrder?> GetReadOnlyAsync(Guid id, CancellationToken ct = default);
 

@@ -52,8 +52,4 @@ public sealed class InventoryItemRepository(AppDbContext db) : IInventoryItemRep
 
     public async Task AddAsync(InventoryItem entity, CancellationToken ct = default) =>
         await db.InventoryItems.AddAsync(entity, ct);
-
-    public void Update(InventoryItem entity) => db.InventoryItems.Update(entity);
-
-    public void Remove(InventoryItem entity) => db.InventoryItems.Remove(entity);
 }

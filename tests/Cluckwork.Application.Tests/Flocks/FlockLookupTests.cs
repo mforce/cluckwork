@@ -97,6 +97,5 @@ public sealed class FlockLookupTests
             throw new NotSupportedException();
         public Task AddAsync(Flock entity, CancellationToken ct = default) => throw new NotSupportedException();
         public void Update(Flock entity) => throw new NotSupportedException();
-        public void Remove(Flock entity) => throw new NotSupportedException();
     }
 }

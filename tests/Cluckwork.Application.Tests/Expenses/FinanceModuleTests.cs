@@ -80,8 +80,6 @@ public sealed class FinanceModuleTests
         }
 
         public Task AddAsync(Expense entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(Expense entity) => throw new NotSupportedException();
-        public void Remove(Expense entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeCategories : IExpenseCategoryRepository
@@ -106,7 +104,5 @@ public sealed class FinanceModuleTests
             throw new NotSupportedException();
         public Task<ExpenseCategory?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(ExpenseCategory entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(ExpenseCategory entity) => throw new NotSupportedException();
-        public void Remove(ExpenseCategory entity) => throw new NotSupportedException();
     }
 }
