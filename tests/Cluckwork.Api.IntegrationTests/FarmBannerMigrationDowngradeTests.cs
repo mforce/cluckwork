@@ -54,7 +54,7 @@ public sealed class FarmBannerMigrationDowngradeTests
 
         var remaining = await db.Database
             .SqlQueryRaw<int>("SELECT COUNT(*)::int AS \"Value\" FROM \"FarmLogos\"")
-            .FirstAsync();
+            .SingleAsync();
         Assert.Equal(0, remaining);
     }
 }

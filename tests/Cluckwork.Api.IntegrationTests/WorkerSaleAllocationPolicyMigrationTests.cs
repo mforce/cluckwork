@@ -40,8 +40,8 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
 
         var value = await db.Database
             .SqlQueryRaw<string>(
-                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\" LIMIT 1")
-            .FirstAsync();
+                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\"")
+            .SingleAsync();
         Assert.Equal("AssignedFlocksOnly", value);
     }
 
@@ -62,15 +62,15 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
                 SELECT COUNT(*)::int AS "Value" FROM information_schema.columns
                 WHERE table_name = 'Accounts' AND column_name = 'WorkerSaleAllocationPolicy'
                 """)
-            .FirstAsync();
+            .SingleAsync();
         Assert.Equal(0, columnCount);
 
         // Round-trips back up without error and re-backfills.
         await migrator.MigrateAsync();
         var value = await db.Database
             .SqlQueryRaw<string>(
-                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\" LIMIT 1")
-            .FirstAsync();
+                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\"")
+            .SingleAsync();
         Assert.Equal("AssignedFlocksOnly", value);
     }
 }

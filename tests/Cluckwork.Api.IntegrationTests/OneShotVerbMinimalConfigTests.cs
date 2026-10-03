@@ -57,7 +57,7 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
     // all, which is the whole point — an inherited Jwt__* or Otlp__* would hide
     // exactly the defect under test.
     private static readonly string[] InheritedOsVariables =
-        ["PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER"];
+        ["PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER", "Database__ThrowQueryShapeWarnings"];
 
     private Process Start(string verbAndArgs, string environment) =>
         Start(verbAndArgs, environment, _ => { });

@@ -28,14 +28,14 @@ public sealed class AccountRepository(AppDbContext db, TenantContext tenant) : I
             """)
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
 
     public Task<Account?> GetCurrentLockedAsync(CancellationToken ct = default) =>
         db.Accounts.FromSqlInterpolated($"""
             SELECT * FROM "Accounts" WHERE "Id" = {tenant.AccountId} FOR UPDATE
             """)
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
 
     // See the port for why IgnoreQueryFilters is mandatory rather than an
     // optimisation. AsNoTracking: login only reads Id and IsActive off this.
