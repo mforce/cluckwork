@@ -164,7 +164,7 @@
   "edges": [
     {
       "from": "Access", "to": "Commerce", "kind": "W",
-      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, SetStepperUnitHandler resolves it through Commerce's IEggUnitConversionRepository and rejects inactive conversions, and SetStepperUnitValidator validates only the enum name. Nothing prevents a stored preference from pointing at a conversion later deactivated through UpdateEggUnitConversionHandler. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
+      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, SetStepperUnitHandler resolves it through Commerce's IEggUnitConversionLookup port (#854) and rejects inactive conversions, and SetStepperUnitValidator validates only the enum name. Nothing prevents a stored preference from pointing at a conversion later deactivated through UpdateEggUnitConversionHandler. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitHandler",
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitValidator",
@@ -266,7 +266,7 @@
     },
     {
       "from": "Farm", "to": "Commerce", "kind": "R",
-      "reason": "Farm settings own three Commerce-shaped values. Domain.Accounts.Account holds Domain.Catalog.EggUnit as the farm's default stepper unit and exposes Domain.Sales.DiscountCeiling, while UpdateFarmSettingsHandler resolves the stepper unit through Commerce's IEggUnitConversionRepository and UpdateFarmSettingsValidator parses the ceiling with DiscountCeiling.TryParsePercent (#727). The Farm contract's FarmSettingsDetails, declared beside IFarmModule, carries the same Domain.Catalog.EggUnit stepper unit out to its callers (#851). Design 3.4 shows Farm -> Commerce as none; this is live coupling the target design has still to remove.",
+      "reason": "Farm settings own three Commerce-shaped values. Domain.Accounts.Account holds Domain.Catalog.EggUnit as the farm's default stepper unit and exposes Domain.Sales.DiscountCeiling, while UpdateFarmSettingsHandler resolves the stepper unit through Commerce's IEggUnitConversionLookup port (#854) and UpdateFarmSettingsValidator parses the ceiling with DiscountCeiling.TryParsePercent (#727). The Farm contract's FarmSettingsDetails, declared beside IFarmModule, carries the same Domain.Catalog.EggUnit stepper unit out to its callers (#851). Design 3.4 shows Farm -> Commerce as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Accounts.FarmSettingsDetails",
         "Cluckwork.Application.Features.Accounts.IFarmModule",
@@ -475,21 +475,21 @@
       "name": "FK_ProductEggGradeMappings_EggGrades_EggGradeId",
       "from": "Commerce",
       "to": "EggOperations",
-      "reason": "product grade mappings reference egg grades; catalog handlers validate through IEggGradeRepository (design 3.3)"
+      "reason": "product grade mappings reference egg grades; catalog handlers validate through IEggGradeLookup (#854, design 3.3)"
     },
     {
       "table": "SalesOrderAllocations",
       "name": "FK_SalesOrderAllocations_EggLots_EggLotId",
       "from": "Commerce",
       "to": "EggOperations",
-      "reason": "sale allocations reserve egg lots; ConfirmSaleHandler allocates through IEggLotRepository (design 3.3)"
+      "reason": "sale allocations reserve egg lots; ConfirmSaleHandler allocates through IEggStock (#854, design 3.3)"
     },
     {
       "table": "SalesOrderItems",
       "name": "FK_SalesOrderItems_EggGrades_EggGradeId",
       "from": "Commerce",
       "to": "EggOperations",
-      "reason": "sale items retain their egg grade; AddOrderItemHandler validates through IEggGradeRepository (design 3.3)"
+      "reason": "sale items retain their egg grade; AddOrderItemHandler validates through IEggGradeLookup (#854, design 3.3)"
     },
     {
       "table": "WaterUsages",

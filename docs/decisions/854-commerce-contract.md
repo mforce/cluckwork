@@ -53,9 +53,11 @@ Commerce reaches egg lots through Egg Operations' `IEggStock`, never through
 - `LockForSaleAsync` takes the confirm's one `FOR UPDATE` over every available
   lot of the order's grades, farm-wide, in `(ProductionDate, Id)` order, and
   returns an `IEggStockReservation`.
-- `IEggStockReservation.Plan` is the FIFO planner over those locked lots. It is
-  pure, so `ConfirmSaleHandler` can plan over a restricted Worker's assigned
-  flocks first and over every locked lot second without a second lock (#612).
+- `IEggStockReservation.Plan` is the FIFO planner over those locked lots'
+  current availability. It changes nothing, so `ConfirmSaleHandler` can plan
+  over a restricted Worker's assigned flocks first and over every locked lot
+  second without a second lock (#612). A draw lowers availability, so a plan
+  made after a draw sees less.
 - `IEggStockReservation.DrawAsync` calls `EggLot.Allocate` on the locked
   instance and writes the Sale movement. A refusal throws: the plan read the
   same instance.
@@ -63,7 +65,13 @@ Commerce reaches egg lots through Egg Operations' `IEggStock`, never through
   refuses `EggLot.AllocationSourceMissing`, restores each lot and writes its
   Void movement.
 
-The port never saves, like `IMortalityLedger` (#852). Commerce keeps the order
+The port never saves, like `IMortalityLedger` (#852), and it runs only inside a
+transaction, because a `FOR UPDATE` lock ends with its transaction. Both methods
+refuse when the caller has no transaction. A reservation remembers the
+transaction that locked its lots and refuses to plan or draw once another
+transaction, or none, is current. It reads that through `ICurrentTransaction`, a
+Platform port that exposes only the transaction's id, so no persistence type
+reaches Application. Commerce keeps the order
 lock, the #612 policy, the refusal messages, the allocation rows and their ids,
 and the audit row. Egg Operations keeps the lock, the planner, lot mutation and
 the ledger rows. The reference type on a movement is passed in, so Egg
@@ -99,8 +107,12 @@ Infrastructure, the Platform hub, so the inversion adds no module edge.
 
 ## What this does NOT cover
 
-- Peer modules are not checked (#849, #852). A peer that injects
-  `IEggUnitConversionRepository` again stays green.
+- Peer modules other than Commerce's reach into Egg Operations are not checked
+  (#849, #852, #1023). A peer that injects `IEggUnitConversionRepository` again
+  stays green.
+- `PeerContractRealTreeTests` reads parameter types and service resolutions, as
+  the adapter check does, not method bodies. A Commerce method that calls
+  `SaleAllocationPlanner.Plan` from its body stays green.
 - `ConfirmSaleHandler`'s in-transaction role and assignment reads stay a
   declared Commerce to Access edge for #857. `AccountProvisioner` still inserts a
   new farm's default conversions, a declared Access to Commerce edge (#857).
@@ -126,13 +138,24 @@ Infrastructure, the Platform hub, so the inversion adds no module edge.
 - `CompatibilityExceptionRealTreeTests` fails on an unregistered read of a
   Commerce table. Removing `PaymentRepository` from `implementations` turns it
   red, its currency-source read included.
+- `PeerContractRealTreeTests` walks Commerce's namespaces as adapter roots and
+  fails on any Egg Operations type outside `owners.EggOperations.contract`, the
+  first peer check #1023 asks for. Adding `IEggLotRepository eggLots` back to
+  `ConfirmSaleHandler` turns it red; every other architecture test stays green.
 - `EggLotLockOrderTests.ConfirmSale_TwoGrades_HoldsTheOtherGradesEarlierLotWhileWaitingOnTheLater`
   turns red when the port locks each grade in line order.
+- `EggStockTransactionTests` keeps a reservation after its transaction commits,
+  then plans and draws, both with no transaction and inside a later one, and
+  calls the port with no transaction. Dropping the reservation's check, or
+  letting the port run without a transaction, turns it red.
 - `ConfirmSaleAtomicityTests` faults a confirm after a lot allocation, after its
   Sale movement, after the allocation rows and after the order is confirmed, and
-  finds nothing persisted. Removing the confirm's transaction alone, or saving
-  after each draw alone, leaves it green: one holds the other. Both together
-  turn all four cases red.
+  finds nothing persisted. At each fault it also checks that the confirm still
+  runs in a transaction and that no draw was saved yet. Saving after each draw
+  turns all four cases red with `a drawn lot was already saved before the
+  fault`. Removing the confirm's transaction turns them red at the port's own
+  check, and with the port's checks also off, at the test's `the confirm runs
+  outside a transaction`.
 - `CommerceModuleTests` pins the copies. Swapping `Email` and `Address`,
   `Quantity` and `QuantityBase`, or `ReferenceNumber` and `Note` turns it red.
 - Unregistering `ProductRepository` as a currency source turns
