@@ -209,9 +209,6 @@ public sealed class EggOperationsModuleTests
             throw new NotSupportedException();
         public Task<IReadOnlyList<DailyEntry>> ListSubmittedBeforeAsync(DateOnly before, int limit, CancellationToken ct = default) =>
             throw new NotSupportedException();
-        public Task<DailyEntry?> FindByNaturalKeyAsync(
-            Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date, CancellationToken ct = default) =>
-            throw new NotSupportedException();
         public Task<DailyEntry?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(DailyEntry entity, CancellationToken ct = default) => throw new NotSupportedException();
         public void Update(DailyEntry entity) => throw new NotSupportedException();

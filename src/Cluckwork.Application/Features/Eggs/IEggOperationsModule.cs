@@ -37,6 +37,8 @@ public interface IEggOperationsModule
         Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset, CancellationToken ct);
 
     // Locks up to batchSize Submitted entries dated before the cutoff, then saves.
+    // For the leader-gated DailyEntryLockSweep only: it runs no flock-scope
+    // guard, needs no actor and writes no audit row.
     Task<DailyEntryLockPass> LockSubmittedEntriesAsync(DateOnly before, int batchSize, CancellationToken ct);
 
     Task<IReadOnlyList<EggGradeDetails>> ListActiveGradesAsync(Guid? farmId, CancellationToken ct);

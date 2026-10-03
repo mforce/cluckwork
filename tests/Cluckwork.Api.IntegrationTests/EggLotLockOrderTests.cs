@@ -1,5 +1,6 @@
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -12,10 +13,14 @@ namespace Cluckwork.Api.IntegrationTests;
 // behind each other instead of deadlocking. Each test holds the canonically
 // LATER lot, parks the request on it, and then finds the EARLIER lot already
 // locked by that request. Before #853 nothing failed when either order flipped.
+//
+// The seeds keep any other row order from matching the canonical one by luck:
+// the later lot is inserted first and holds fewer eggs, and on different dates
+// it also has the smaller Id. Heap order, IX_EggLots_Allocation's quantity order
+// and primary-key order then disagree with the canonical order wherever they can.
 [Collection(IntegrationCollection.Name)]
 public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
 {
-    private sealed record Created(Guid Id);
     private sealed record EntryVersion(int Version);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
@@ -44,44 +49,39 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
         var order = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 50);
         (await client.PostWithKeyAsync($"/api/v1/sales/{order}/confirm", Guid.NewGuid().ToString()))
             .EnsureSuccessStatusCode();
-        Assert.Equal((0, 10), await AvailableAsync(accountId, earlierLot, laterLot));
+        Assert.Equal((0, 20), await AvailableAsync(accountId, earlierLot, laterLot));
 
         await AssertLockedInOrderAsync(accountId, earlierLot, laterLot,
             () => client.PostWithKeyAsync($"/api/v1/sales/{order}/void", Guid.NewGuid().ToString(),
                 new { reason = "Confirmed by mistake" }));
     }
 
-    // One entry's lots share a production date, so Id alone orders them.
+    // One entry's lots share a production date, so Id alone orders them. The
+    // entry and its lots are seeded directly so the test picks their Ids.
     [Fact]
     public async Task VoidDailyEntry_HoldsTheEarlierLotWhileWaitingOnTheLater()
     {
         var farmId = Guid.NewGuid();
         var (client, accountId, grades) = await SetupAsync(farmId, "Large", "Medium");
         var flockId = await factory.SeedFlockAsync(accountId, farmId);
-        var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        var entryId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            farmId, houseId = Guid.NewGuid(), flockId, date = Today,
-            totalEggs = 30, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
-            grades = new[]
-            {
-                new { eggGradeId = grades["Large"], quantity = 10 },
-                new { eggGradeId = grades["Medium"], quantity = 20 },
-            },
+            var entry = DailyEntry.Create(entryId, accountId, farmId, Guid.NewGuid(), flockId, Today);
+            Assert.True(entry.RecordProduction(30, 0, 0, 0, 0,
+                [new GradeQuantity(grades["Large"], 10), new GradeQuantity(grades["Medium"], 20)]).IsSuccess);
+            Assert.True(entry.Submit().IsSuccess);
+            db.DailyEntries.Add(entry);
+            await db.SaveChangesAsync();
         });
-        Assert.Equal(HttpStatusCode.Created, record.StatusCode);
-        var entryId = (await record.Content.ReadFromJsonAsync<Created>())!.Id;
-        (await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString()))
-            .EnsureSuccessStatusCode();
+        var (earlierLot, laterLot) = await IdsInDatabaseOrderAsync(accountId);
+        await factory.SeedEggLotAsync(accountId, grades["Medium"], 20,
+            productionDate: Today, lotId: laterLot, dailyEntryId: entryId);
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 10,
+            productionDate: Today, lotId: earlierLot, dailyEntryId: entryId);
         var version = (await client.GetFromJsonAsync<EntryVersion>($"/api/v1/daily-entries/{entryId}"))!.Version;
 
-        var lots = await factory.WithTenantScopeAsync(accountId, db => db.EggLots
-            .Where(l => l.DailyEntryId == entryId)
-            .OrderBy(l => l.ProductionDate).ThenBy(l => l.Id)
-            .Select(l => l.Id)
-            .ToListAsync());
-        Assert.Equal(2, lots.Count);
-
-        await AssertLockedInOrderAsync(accountId, lots[0], lots[1],
+        await AssertLockedInOrderAsync(accountId, earlierLot, laterLot,
             () => client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/void", Guid.NewGuid().ToString(),
                 new { version, reason = "Recorded against the wrong flock" }));
     }
@@ -105,19 +105,35 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    // Two 30-egg lots, so a 50-egg sale draws from both. Which one is earlier
-    // is asked of the database that applies the lock order, not of C#.
+    // A 40-egg earlier lot and a 30-egg later lot, so a 50-egg sale draws from
+    // both. The later lot is inserted first.
     private async Task<(Guid Earlier, Guid Later)> SeedTwoLotsAsync(Guid accountId, Guid gradeId, int daysApart)
     {
-        var first = await factory.SeedEggLotAsync(accountId, gradeId, 30, productionDate: Today.AddDays(-5));
-        var second = await factory.SeedEggLotAsync(accountId, gradeId, 30, productionDate: Today.AddDays(daysApart - 5));
-        var ordered = await factory.WithTenantScopeAsync(accountId, db => db.EggLots
-            .Where(l => l.Id == first || l.Id == second)
+        var (low, high) = await IdsInDatabaseOrderAsync(accountId);
+        var (earlierLot, laterLot) = daysApart == 0 ? (low, high) : (high, low);
+        await factory.SeedEggLotAsync(accountId, gradeId, 30,
+            productionDate: Today.AddDays(daysApart - 5), lotId: laterLot);
+        await factory.SeedEggLotAsync(accountId, gradeId, 40,
+            productionDate: Today.AddDays(-5), lotId: earlierLot);
+
+        var canonical = await factory.WithTenantScopeAsync(accountId, db => db.EggLots
+            .Where(l => l.Id == earlierLot || l.Id == laterLot)
             .OrderBy(l => l.ProductionDate).ThenBy(l => l.Id)
             .Select(l => l.Id)
             .ToListAsync());
-        return (ordered[0], ordered[1]);
+        Assert.Equal([earlierLot, laterLot], canonical);
+        return (earlierLot, laterLot);
     }
+
+    // Two fresh Ids, lower first in PostgreSQL's uuid order: the test asks the
+    // database that applies the lock order rather than a C# comparison.
+    private Task<(Guid Low, Guid High)> IdsInDatabaseOrderAsync(Guid accountId) =>
+        factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
+            var aFirst = await db.Database.SqlQuery<bool>($"""SELECT {a} < {b} AS "Value" """).SingleAsync();
+            return aFirst ? (a, b) : (b, a);
+        });
 
     private Task<(int Earlier, int Later)> AvailableAsync(Guid accountId, Guid earlierLot, Guid laterLot) =>
         factory.WithTenantScopeAsync(accountId, async db => (

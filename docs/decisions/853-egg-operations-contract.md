@@ -79,17 +79,33 @@ than deadlock. The three reads are `GetAvailableFifoLockedAsync` (confirm),
 `GetByIdsLockedAsync` (sale void) and `GetByDailyEntryLockedAsync` (entry adjust and
 void).
 
-`EggLotLockOrderTests` pins all three. Each test holds the canonically later lot in
-a second connection, waits until the request is parked on it
-(`pg_blocking_pids`), then tries the earlier lot with `FOR UPDATE NOWAIT`. The try
-must fail, because the request already holds that lot. The confirm and sale-void
-tests run twice: with lots on different dates, and with lots on one date, so both
-parts of the order are covered. A daily entry's lots always share a date. The
-tests ask PostgreSQL, the database that applies the lock order, which lot is
-earlier, rather than relying on a C# comparison. Reversing a whole `ORDER BY`,
-or only its `Id` part, turns the matching test red. The tenant-bypass allow-list
-does not catch either change, because it keys raw-SQL reads by signature rather
-than by SQL text.
+Two tests pin it.
+
+`EggLotLockOrderTests` checks the order behaviourally. Each test holds the
+canonically later lot in a second connection, waits until the request is parked
+on it (`pg_blocking_pids`), then tries the earlier lot with `FOR UPDATE NOWAIT`.
+The try must fail, because the request already holds that lot. The confirm and
+sale-void tests run with lots on different dates and with lots on one date; a
+daily entry's lots always share a date. The tests ask PostgreSQL, the database
+that applies the lock order, which Id is lower, rather than relying on a C#
+comparison. The seeds keep any other row order from matching the canonical one
+by luck: the later lot is inserted first and holds fewer eggs, and on different
+dates it has the smaller Id. Heap order, `IX_EggLots_Allocation`'s quantity
+order and primary-key order then disagree with the canonical order wherever
+they can.
+
+Each of these changes turned its test red on all of three runs: a reversed
+order, a reversed `Id` part, and a dropped `ORDER BY` on each of the three reads,
+and a dropped `Id` tie-breaker on the confirm and daily-entry reads. One change stays invisible to it: a dropped `Id`
+tie-breaker on the sale-void read. That read runs as a bitmap heap scan after the
+confirm has rewritten both lots, in canonical order, so it already returns them
+in that order and nothing observable changes.
+
+`EggLotLockSqlTests` covers that gap and every other text change. It walks
+`src/` with Roslyn for each SQL string that takes `FOR UPDATE` on `"EggLots"`,
+requires `ORDER BY "ProductionDate", "Id"` directly before `FOR UPDATE`, and fails
+below three statements. The tenant-bypass allow-list does not catch any of these
+changes, because it keys raw-SQL reads by signature rather than by SQL text.
 
 ## The stock seam waits for Commerce
 
@@ -164,4 +180,4 @@ order and the outcomes while #854 moves those calls.
   `QuantityProduced` and `QuantityAvailable` turns it red. So do dropping the lot
   check before a movement read, dropping the farm from the active-grade list, and
   swapping the lookup's natural key.
-- `EggLotLockOrderTests` pins the lock order, as above.
+- `EggLotLockOrderTests` and `EggLotLockSqlTests` pin the lock order, as above.

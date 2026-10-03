@@ -272,28 +272,30 @@ internal static class TestHarness
 
     // Seeds an egg lot for the account. Pass restrictedUntil to make it withdrawal-restricted.
     // eggGradeId must reference a seeded EggGrade row (see SeedEggGradesAsync) — lots FK to grades.
+    // Pass lotId when a test needs to control where the lot falls in Id order.
     public static async Task<Guid> SeedEggLotAsync(
         this CluckworkWebApplicationFactory factory, Guid accountId,
         Guid eggGradeId, int quantity, DateOnly? restrictedUntil = null,
-        DateOnly? productionDate = null)
+        DateOnly? productionDate = null, Guid? lotId = null, Guid? dailyEntryId = null)
     {
-        var lotId = Guid.NewGuid();
+        var id = lotId ?? Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            var lot = EggLot.Create(lotId, accountId, Guid.NewGuid(),
-                productionDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date), eggGradeId, quantity);
+            var lot = EggLot.Create(id, accountId, Guid.NewGuid(),
+                productionDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date), eggGradeId, quantity,
+                dailyEntryId);
             if (restrictedUntil is not null)
                 lot.SetWithdrawalRestriction(restrictedUntil.Value);
             // Seeded lots keep the #101 ledger invariant: their opening
             // balance exists as an explicit Production movement, exactly as
             // the real submit path writes it.
             db.EggInventoryMovements.Add(Cluckwork.Domain.Eggs.EggInventoryMovement.Create(
-                Guid.NewGuid(), accountId, lotId, Cluckwork.Domain.Eggs.EggMovementType.Production,
-                quantity, "DailyEntry", Guid.NewGuid()));
+                Guid.NewGuid(), accountId, id, Cluckwork.Domain.Eggs.EggMovementType.Production,
+                quantity, "DailyEntry", dailyEntryId ?? Guid.NewGuid()));
             db.EggLots.Add(lot);
             await db.SaveChangesAsync();
         });
-        return lotId;
+        return id;
     }
 
     // Seeds a draft sales order with a single line item for the given grade/quantity.
