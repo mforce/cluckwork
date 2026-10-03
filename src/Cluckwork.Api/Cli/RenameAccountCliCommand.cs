@@ -1,5 +1,5 @@
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -99,8 +99,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var service = scope.ServiceProvider.GetRequiredService<AccountRenameService>();
-            var result = await service.RenameAsync(
+            var result = await scope.ServiceProvider.GetRequiredService<IAccessOperations>().RenameAccountAsync(
                 current, newSlug.Value, CliDispatcher.ArgValue(args, "--reason"),
                 CancellationToken.None);
             if (result.IsFailure)

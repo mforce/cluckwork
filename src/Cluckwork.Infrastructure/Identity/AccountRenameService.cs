@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
@@ -193,7 +194,3 @@ public sealed class AccountRenameService(
     // otherwise.
     private sealed record SlugResolution(Guid? CurrentId, int CurrentVersion, bool TargetTaken);
 }
-
-// Changed = "this command changed the code", so the verb can tell an operator their
-// re-run was a no-op without re-reading the database. Deliberately NOT "the farm is fine".
-public sealed record AccountRenameOutcome(bool Changed);

@@ -1,5 +1,5 @@
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -48,14 +48,15 @@ public sealed class ProvisionAccountCliCommand : ICliCommand
             await Console.Out.WriteLineAsync($"Farm code: {slug.Value}");
 
             using var scope = app.Services.CreateScope();
-            var result = await scope.ServiceProvider.GetRequiredService<AccountProvisioner>()
-                .ProvisionAsync(
+            var result = await scope.ServiceProvider.GetRequiredService<IAccessOperations>()
+                .ProvisionAccountAsync(
                     CliDispatcher.ArgValue(args, "--name"),
                     slug.Value,
                     CliDispatcher.ArgValue(args, "--owner-email"),
                     CliDispatcher.ArgValue(args, "--locale"),
                     CliDispatcher.ArgValue(args, "--currency"),
-                    CliDispatcher.ArgValue(args, "--timezone"));
+                    CliDispatcher.ArgValue(args, "--timezone"),
+                    CancellationToken.None);
 
             if (result.IsFailure)
             {

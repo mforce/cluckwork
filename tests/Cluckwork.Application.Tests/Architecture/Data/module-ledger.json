@@ -212,16 +212,12 @@
         "Cluckwork.Application.Features.Users.IUserRoleAssignmentRepository",
         "Cluckwork.Application.Features.Users.UserFlockAssignment",
         "Cluckwork.Infrastructure.Identity.AccessLookup",
-        "Cluckwork.Infrastructure.Identity.AccountLifecycleOutcome",
         "Cluckwork.Infrastructure.Identity.AccountProvisionOutcome",
         "Cluckwork.Infrastructure.Identity.AccountProvisioner",
-        "Cluckwork.Infrastructure.Identity.AccountRenameOutcome",
         "Cluckwork.Infrastructure.Identity.AccountRenameService",
         "Cluckwork.Infrastructure.Identity.AccountSuspensionService",
-        "Cluckwork.Infrastructure.Identity.AdminRecoveryResult",
         "Cluckwork.Infrastructure.Identity.AdminRecoveryService",
         "Cluckwork.Infrastructure.Identity.CredentialEpochVerifier",
-        "Cluckwork.Infrastructure.Identity.FirstRunAdminOutcome",
         "Cluckwork.Infrastructure.Identity.FirstRunAdminService",
         "Cluckwork.Infrastructure.Identity.FirstRunProvisioningLatch",
         "Cluckwork.Infrastructure.Identity.FirstRunStatusService",
@@ -1362,6 +1358,12 @@
       "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.LockDueEntriesAsync",
       "reaches": [
         "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Jobs.RefreshTokenPurgeSweep.RunAsync",
+      "reaches": [
+        "Access"
       ]
     },
     {

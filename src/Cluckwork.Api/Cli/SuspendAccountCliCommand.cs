@@ -1,4 +1,4 @@
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -45,8 +45,7 @@ public sealed class SuspendAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
-            var result = await service.SuspendAsync(
+            var result = await scope.ServiceProvider.GetRequiredService<IAccessOperations>().SuspendAccountAsync(
                 accountId.Value, CliDispatcher.ArgValue(args, "--reason"), CancellationToken.None);
             if (result.IsFailure)
             {

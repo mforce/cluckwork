@@ -1,4 +1,4 @@
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -39,8 +39,8 @@ public sealed class BootstrapAdminCliCommand : ICliCommand
             await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 
             var email = CliDispatcher.ArgValue(args, "--email");
-            var provisioning = sp.GetRequiredService<FirstRunAdminService>();
-            var result = await provisioning.ProvisionAsync(email, CancellationToken.None);
+            var result = await sp.GetRequiredService<IAccessOperations>()
+                .BootstrapAdminAsync(email, CancellationToken.None);
             if (result.IsFailure)
             {
                 await Console.Error.WriteLineAsync(

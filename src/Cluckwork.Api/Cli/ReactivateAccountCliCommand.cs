@@ -1,4 +1,4 @@
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Application.Features.Users;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,8 +35,7 @@ public sealed class ReactivateAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
-            var result = await service.ReactivateAsync(
+            var result = await scope.ServiceProvider.GetRequiredService<IAccessOperations>().ReactivateAccountAsync(
                 accountId.Value, CliDispatcher.ArgValue(args, "--reason"), CancellationToken.None);
             if (result.IsFailure)
             {
