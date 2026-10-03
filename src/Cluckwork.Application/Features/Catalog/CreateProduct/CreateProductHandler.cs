@@ -9,7 +9,7 @@ namespace Cluckwork.Application.Features.Catalog.CreateProduct;
 
 public sealed class CreateProductHandler(
     IProductRepository products,
-    IEggGradeRepository grades,
+    IEggGradeLookup grades,
     IAccountRepository accounts,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
@@ -25,7 +25,7 @@ public sealed class CreateProductHandler(
 
         // Validator guarantees Egg + a grade id; the grade must exist and be
         // active — mapping a product to a retired bucket would sell from it.
-        var grade = await grades.GetByIdAsync(command.EggGradeId!.Value, ct);
+        var grade = await grades.GetAsync(command.EggGradeId!.Value, ct);
         if (grade is null)
             return Result.Failure<Guid>(Error.Validation(
                 "Product.UnknownGrade", "The egg grade does not exist."));

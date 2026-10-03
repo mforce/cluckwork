@@ -1,9 +1,11 @@
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Sales;
 
-namespace Cluckwork.Application.Features.Sales.ConfirmSale;
+namespace Cluckwork.Application.Features.EggLots;
 
-public sealed record PlannedEggLotDraw(Guid SalesOrderItemId, Guid EggLotId, int Quantity);
+// One line of a sale: the caller's line id, its grade and the eggs it needs.
+public sealed record SaleDemandLine(Guid LineId, Guid EggGradeId, int Quantity);
+
+public sealed record PlannedEggLotDraw(Guid LineId, Guid EggLotId, int Quantity);
 
 // #612 — whether the plan covered the whole order, and — when it did not —
 // which grade ran short and by how much. The CALLER turns that into an Error:
@@ -25,13 +27,13 @@ public sealed record SaleAllocationPlan(
 
 // #612 — pure whole-order FIFO planner (spec §10.9.1): reads
 // EggLot.QuantityAvailable off the given candidate list and never mutates a
-// lot or the order. The same immutable input plans identically every time,
-// so a caller can try a NARROWER candidate subset first and the SAME full
-// locked list second without a second lock or query.
+// lot. The same immutable input plans identically every time, so a caller can
+// try a NARROWER candidate subset first and the SAME full locked list second
+// without a second lock or query.
 public static class SaleAllocationPlanner
 {
     public static SaleAllocationPlan Plan(
-        IReadOnlyList<SalesOrderItem> items, IReadOnlyList<EggLot> candidateLots)
+        IReadOnlyList<SaleDemandLine> items, IReadOnlyList<EggLot> candidateLots)
     {
         var draws = new List<PlannedEggLotDraw>();
         // A copy, never the lots' own field — repeated grades across items
@@ -40,14 +42,14 @@ public static class SaleAllocationPlanner
 
         foreach (var item in items)
         {
-            var remaining = item.QuantityBase;
+            var remaining = item.Quantity;
             foreach (var lot in candidateLots.Where(l => l.EggGradeId == item.EggGradeId))
             {
                 if (remaining <= 0) break;
                 var available = remainingByLot[lot.Id];
                 if (available <= 0) continue;
                 var take = Math.Min(remaining, available);
-                draws.Add(new PlannedEggLotDraw(item.Id, lot.Id, take));
+                draws.Add(new PlannedEggLotDraw(item.LineId, lot.Id, take));
                 remainingByLot[lot.Id] = available - take;
                 remaining -= take;
             }

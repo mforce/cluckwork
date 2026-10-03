@@ -21,6 +21,7 @@ namespace Cluckwork.Api.IntegrationTests;
 [Collection(IntegrationCollection.Name)]
 public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
 {
+    private sealed record Created(Guid Id);
     private sealed record EntryVersion(int Version);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
@@ -54,6 +55,37 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
         await AssertLockedInOrderAsync(accountId, earlierLot, laterLot,
             () => client.PostWithKeyAsync($"/api/v1/sales/{order}/void", Guid.NewGuid().ToString(),
                 new { reason = "Confirmed by mistake" }));
+    }
+
+    // The first line's grade holds the later lot. The one farm-wide statement
+    // still locks the other grade's earlier lot first, where a lock per grade
+    // in line order would park on the first grade and never reach it (#854).
+    // Each line is its own request, so the lines keep the order they were added in.
+    [Fact]
+    public async Task ConfirmSale_TwoGrades_HoldsTheOtherGradesEarlierLotWhileWaitingOnTheLater()
+    {
+        var farmId = Guid.NewGuid();
+        var (client, accountId, grades) = await SetupAsync(farmId, "Large", "Medium");
+        var (low, high) = await IdsInDatabaseOrderAsync(accountId);
+        var (earlierLot, laterLot) = (high, low);
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 30, productionDate: Today, lotId: laterLot);
+        await factory.SeedEggLotAsync(accountId, grades["Medium"], 40,
+            productionDate: Today.AddDays(-5), lotId: earlierLot);
+        var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Two Grade Buyer", phone = "555-0100" });
+        var created = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id, orderDate = Today });
+        var order = (await created.Content.ReadFromJsonAsync<Created>())!.Id;
+        foreach (var grade in new[] { "Large", "Medium" })
+        {
+            var productId = await factory.SeedProductAsync(accountId, farmId, grades[grade], defaultPriceMinorUnits: 100);
+            (await client.PostWithKeyAsync($"/api/v1/sales/{order}/items", Guid.NewGuid().ToString(),
+                new { productId, quantity = 10 })).EnsureSuccessStatusCode();
+        }
+        Assert.Equal([grades["Large"], grades["Medium"]], await LineGradesAsync(accountId, order));
+
+        await AssertLockedInOrderAsync(accountId, earlierLot, laterLot,
+            () => client.PostWithKeyAsync($"/api/v1/sales/{order}/confirm", Guid.NewGuid().ToString()));
     }
 
     // One entry's lots share a production date, so Id alone orders them. The
@@ -134,6 +166,14 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
             var aFirst = await db.Database.SqlQuery<bool>($"""SELECT {a} < {b} AS "Value" """).SingleAsync();
             return aFirst ? (a, b) : (b, a);
         });
+
+    // The order a confirm reads an order's lines in.
+    private Task<List<Guid>> LineGradesAsync(Guid accountId, Guid orderId) =>
+        factory.WithTenantScopeAsync(accountId, db => db.SalesOrderItems
+            .Where(i => i.SalesOrderId == orderId)
+            .OrderBy(i => i.CreatedAtUtc).ThenBy(i => EF.Property<long>(i, "Sequence"))
+            .Select(i => i.EggGradeId)
+            .ToListAsync());
 
     private Task<(int Earlier, int Later)> AvailableAsync(Guid accountId, Guid earlierLot, Guid laterLot) =>
         factory.WithTenantScopeAsync(accountId, async db => (

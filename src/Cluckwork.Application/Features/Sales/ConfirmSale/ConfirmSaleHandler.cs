@@ -3,11 +3,9 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
-using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;
 
@@ -16,10 +14,9 @@ namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 public sealed class ConfirmSaleHandler(
     IAccountRepository accounts,
     ISalesOrderRepository salesOrders,
-    IEggLotRepository eggLots,
-    IEggGradeRepository eggGrades,
+    IEggStock eggStock,
+    IEggGradeLookup eggGrades,
     ISalesOrderAllocationRepository allocations,
-    IEggInventoryMovementRepository eggMovements,
     IUserRoleAssignmentRepository assignments,
     IIdentityProvider identity,
     IAuditWriter audit,
@@ -188,11 +185,10 @@ public sealed class ConfirmSaleHandler(
                 && !Roles.MayExceedDiscountCeiling(role.Value)
                 && order.FindCeilingBreach(ceiling) is { } breach)
             {
-                // The grade name resolves through the already-injected
-                // repository, the same way the insufficient-stock message below
-                // does. The domain decides WHO breaches; this composes the
+                // The grade name resolves through Egg Operations' grade lookup,
+                // the same way the insufficient-stock message below does. The domain decides WHO breaches; this composes the
                 // refusal, because SalesOrderItem carries an EggGradeId only.
-                var gradeName = (await eggGrades.GetByIdAsync(breach.EggGradeId, transactionCt))?.Name
+                var gradeName = (await eggGrades.GetAsync(breach.EggGradeId, transactionCt))?.Name
                     ?? breach.EggGradeId.ToString();
                 failure = Result.Failure<ConfirmSaleResponse>(
                     CeilingRefusal(breach, ceiling, gradeName));
@@ -214,11 +210,13 @@ public sealed class ConfirmSaleHandler(
 
             // 7 — ONE farm-wide FIFO lock statement for every grade on the
             // order, ordered (ProductionDate, Id). Never filtered by flock in
-            // SQL and never called twice (#612 — EggLotRepository keeps this
-            // shape on purpose).
+            // SQL and never called twice (#612 — IEggStock keeps this shape on
+            // purpose).
             var gradeIds = order.Items.Select(i => i.EggGradeId).Distinct().ToList();
-            var lockedLots = await eggLots.GetAvailableFifoLockedAsync(
+            var stock = await eggStock.LockForSaleAsync(
                 accountId, gradeIds, allocationDate, transactionCt);
+            var demand = order.Items
+                .Select(i => new SaleDemandLine(i.Id, i.EggGradeId, i.QuantityBase)).ToList();
 
             // 8/9 — plan in memory, never mutating a lot or the order.
             var useAssignedFirst = isRestrictedWorker
@@ -227,8 +225,7 @@ public sealed class ConfirmSaleHandler(
             SaleAllocationPlan plan;
             if (useAssignedFirst)
             {
-                var assignedLots = lockedLots.Where(l => assignedFlockIds!.Contains(l.FlockId)).ToList();
-                var assignedPlan = SaleAllocationPlanner.Plan(order.Items, assignedLots);
+                var assignedPlan = stock.Plan(demand, assignedFlockIds);
                 if (assignedPlan.IsComplete)
                 {
                     plan = assignedPlan;
@@ -237,7 +234,7 @@ public sealed class ConfirmSaleHandler(
                 {
                     // Retry against the SAME already-locked farm-wide rows —
                     // no second query, no new lock.
-                    var farmWidePlan = SaleAllocationPlanner.Plan(order.Items, lockedLots);
+                    var farmWidePlan = stock.Plan(demand);
                     if (farmWidePlan.IsComplete)
                     {
                         // Farm-wide would have covered it, but a restricted
@@ -260,7 +257,7 @@ public sealed class ConfirmSaleHandler(
             }
             else
             {
-                plan = SaleAllocationPlanner.Plan(order.Items, lockedLots);
+                plan = stock.Plan(demand);
                 if (!plan.IsComplete)
                 {
                     if (isRestrictedWorker)
@@ -277,7 +274,7 @@ public sealed class ConfirmSaleHandler(
                     // Unchanged behavior for every non-restricted caller
                     // (elevated roles, farm-wide policy, or an unrestricted
                     // Worker): today's specific grade/quantity message.
-                    var gradeName = (await eggGrades.GetByIdAsync(plan.ShortEggGradeId!.Value, transactionCt))?.Name
+                    var gradeName = (await eggGrades.GetAsync(plan.ShortEggGradeId!.Value, transactionCt))?.Name
                         ?? plan.ShortEggGradeId.Value.ToString();
                     failure = Result.Failure<ConfirmSaleResponse>(Error.Domain(
                         "EggLot.InsufficientStock",
@@ -286,32 +283,15 @@ public sealed class ConfirmSaleHandler(
                 }
             }
 
-            // 10 — apply ONLY the successful plan. Every lot in a draw is one
-            // of the SAME locked instances the plan was computed from, so
-            // Allocate() re-validating quantity here cannot disagree with the
-            // plan — a contradiction is an invariant violation, not a normal
-            // domain failure, and must not be swallowed into a 422.
-            var lotsById = lockedLots.ToDictionary(l => l.Id);
+            // 10 — apply ONLY the successful plan. The draw's Sale movement
+            // references the ALLOCATION, so its id exists first.
             var allocationRows = new List<SalesOrderAllocation>();
             foreach (var draw in plan.Draws)
             {
-                var lot = lotsById[draw.EggLotId];
-                var allocateResult = lot.Allocate(draw.Quantity, allocationDate);
-                if (allocateResult.IsFailure)
-                    throw new InvalidOperationException(
-                        $"Sale allocation plan contradicted EggLot.Allocate for lot {lot.Id}: " +
-                        allocateResult.Error.Description);
-
                 var allocation = SalesOrderAllocation.Create(
-                    accountId, order.Id, draw.SalesOrderItemId, draw.EggLotId, draw.Quantity);
+                    accountId, order.Id, draw.LineId, draw.EggLotId, draw.Quantity);
                 allocationRows.Add(allocation);
-                // Ledger row (#101): the draw leaves the lot as an explicit
-                // Sale movement, same transaction. References the ALLOCATION,
-                // not the order — two same-grade lines drawing from one lot
-                // stay distinguishable (codex #102).
-                await eggMovements.AddAsync(EggInventoryMovement.Create(
-                    Guid.NewGuid(), accountId, lot.Id, EggMovementType.Sale,
-                    -draw.Quantity, nameof(SalesOrderAllocation), allocation.Id), transactionCt);
+                await stock.DrawAsync(draw, nameof(SalesOrderAllocation), allocation.Id, transactionCt);
             }
 
             var confirmResult = order.Confirm(discountReasonCode, command.DiscountReasonNote);

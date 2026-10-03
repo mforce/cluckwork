@@ -1,8 +1,6 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggLots;
-using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;
 
@@ -20,10 +18,9 @@ namespace Cluckwork.Application.Features.Sales.VoidSale;
 public sealed class VoidSaleHandler(
     ISalesOrderRepository salesOrders,
     ISalesOrderAllocationRepository allocations,
-    IEggLotRepository eggLots,
+    IEggStock eggStock,
     IPaymentRepository payments,
     IUnitOfWork unitOfWork,
-    IEggInventoryMovementRepository eggMovements,
     IClock clock,
     IAuditWriter audit,
     ILogger<VoidSaleHandler> logger)
@@ -89,32 +86,12 @@ public sealed class VoidSaleHandler(
             var perLot = rows
                 .GroupBy(r => r.EggLotId)
                 .ToDictionary(g => g.Key, g => g.Sum(r => r.Quantity));
-            var lockedLots = await eggLots.GetByIdsLockedAsync(
-                accountId, perLot.Keys.ToList(), transactionCt);
-
-            if (lockedLots.Count != perLot.Count)
+            var restored = await eggStock.RestoreAsync(
+                accountId, perLot, nameof(SalesOrder), order.Id, command.Reason, transactionCt);
+            if (restored.IsFailure)
             {
-                outcome = Result.Failure<VoidSaleResponse>(Error.Domain(
-                    "EggLot.AllocationSourceMissing",
-                    "One or more source egg lots for this order no longer exist."));
+                outcome = Result.Failure<VoidSaleResponse>(restored.Error);
                 return false;
-            }
-
-            foreach (var lot in lockedLots)
-            {
-                var restore = lot.Restore(perLot[lot.Id]);
-                if (restore.IsFailure)
-                {
-                    outcome = Result.Failure<VoidSaleResponse>(restore.Error);
-                    return false;
-                }
-
-                // Ledger row (#101): the returned eggs re-enter as an explicit
-                // Void movement, same transaction as the restore.
-                await eggMovements.AddAsync(EggInventoryMovement.Create(
-                    Guid.NewGuid(), accountId, lot.Id, EggMovementType.Void,
-                    perLot[lot.Id], nameof(SalesOrder), order.Id,
-                    reason: command.Reason), transactionCt);
             }
 
             var releasedAt = clock.UtcNow;

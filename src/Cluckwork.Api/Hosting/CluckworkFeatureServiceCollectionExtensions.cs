@@ -359,6 +359,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Eggs.IEggOperationsModule,
             Cluckwork.Application.Features.Eggs.EggOperationsModule>();
         services.AddScoped<IEggGradeLookup, EggGradeLookup>();
+        services.AddScoped<IEggStock, EggStock>();
         services.AddScoped<IDailyEntryLookup, DailyEntryLookup>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();

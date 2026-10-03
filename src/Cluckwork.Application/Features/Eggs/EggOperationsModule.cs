@@ -54,13 +54,13 @@ public sealed class EggOperationsModule(
         lockDueEntries.HandleAsync(before, batchSize, ct);
 
     public async Task<IReadOnlyList<EggGradeDetails>> ListActiveGradesAsync(Guid? farmId, CancellationToken ct) =>
-        (await grades.ListActiveAsync(farmId, ct)).Select(ToDetails).ToList();
+        (await grades.ListActiveAsync(farmId, ct)).Select(EggGradeLookup.ToDetails).ToList();
 
     public async Task<IReadOnlyList<EggGradeDetails>> ListAllGradesAsync(CancellationToken ct) =>
-        (await grades.ListAllAsync(ct)).Select(ToDetails).ToList();
+        (await grades.ListAllAsync(ct)).Select(EggGradeLookup.ToDetails).ToList();
 
     public async Task<EggGradeDetails?> GetGradeAsync(Guid id, CancellationToken ct) =>
-        await grades.GetByIdAsync(id, ct) is { } grade ? ToDetails(grade) : null;
+        await grades.GetByIdAsync(id, ct) is { } grade ? EggGradeLookup.ToDetails(grade) : null;
 
     public Task<Result<Guid>> CreateGradeAsync(CreateEggGradeCommand command, Guid accountId, CancellationToken ct) =>
         createGrade.HandleAsync(command, accountId, ct);
@@ -98,8 +98,4 @@ public sealed class EggOperationsModule(
             e.CrackedGradeId, e.DirtyGradeId,
             e.Grades.Select(g => new GradeQuantityDto(g.EggGradeId, g.Quantity)).ToList(),
             e.Version, e.AdjustReason, e.VoidReason, e.LockedAtUtc, e.AdjustedFromJson);
-
-    private static EggGradeDetails ToDetails(EggGrade g) =>
-        new(g.Id, g.FarmId, g.Name, g.GradeType, g.SortOrder, g.IsSaleable,
-            g.DailyEntryKind, g.Active, g.LowStockFloor);
 }

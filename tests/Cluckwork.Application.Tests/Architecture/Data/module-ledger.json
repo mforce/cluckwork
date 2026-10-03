@@ -38,6 +38,11 @@
                           "contract": [
                             "Cluckwork.Application.Features.Eggs.IEggOperationsModule",
                             "Cluckwork.Application.Features.EggGrades.IEggGradeLookup",
+                            "Cluckwork.Application.Features.EggLots.IEggStock",
+                            "Cluckwork.Application.Features.EggLots.IEggStockReservation",
+                            "Cluckwork.Application.Features.EggLots.SaleDemandLine",
+                            "Cluckwork.Application.Features.EggLots.PlannedEggLotDraw",
+                            "Cluckwork.Application.Features.EggLots.SaleAllocationPlan",
                             "Cluckwork.Application.Features.DailyEntries.IDailyEntryLookup",
                             "Cluckwork.Application.Features.Eggs.DailyEntryDetails",
                             "Cluckwork.Application.Features.Eggs.EggGradeDetails",
@@ -175,15 +180,12 @@
     },
     {
       "from": "Commerce", "to": "EggOperations", "kind": "W",
-      "reason": "FIFO egg stock. ConfirmSaleHandler and VoidSaleHandler draw from and return to Domain.Eggs.EggLot through Egg Operations' IEggLotRepository and IEggInventoryMovementRepository inside the confirm and void transactions, and SaleAllocationPlanner plans those draws over EggLot. Products and order lines map to grades through IEggGradeRepository in CreateProductHandler, UpdateProductHandler and AddOrderItemHandler. Design 3.4 row Commerce -> Egg Ops = W.",
+      "reason": "FIFO egg stock. ConfirmSaleHandler and VoidSaleHandler lock, draw from and return egg lots through Egg Operations' IEggStock port, which adds the lot changes and Sale or Void movements to the confirm and void transactions and never saves (#854); Commerce sees plans and lot ids, never Domain.Eggs.EggLot. Products, order lines and confirm refusals read grades through IEggGradeLookup in CreateProductHandler, UpdateProductHandler, AddOrderItemHandler and ConfirmSaleHandler. Design 3.4 row Commerce -> Egg Ops = W.",
       "symbols": [
         "Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductHandler",
         "Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductHandler",
         "Cluckwork.Application.Features.Sales.AddOrderItem.AddOrderItemHandler",
         "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler",
-        "Cluckwork.Application.Features.Sales.ConfirmSale.PlannedEggLotDraw",
-        "Cluckwork.Application.Features.Sales.ConfirmSale.SaleAllocationPlan",
-        "Cluckwork.Application.Features.Sales.ConfirmSale.SaleAllocationPlanner",
         "Cluckwork.Application.Features.Sales.VoidSale.VoidSaleHandler"
       ]
     },
