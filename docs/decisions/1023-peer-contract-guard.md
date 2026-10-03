@@ -30,6 +30,8 @@ and `UserRoleAssignment`.
 A module member may take another contracted module's type only when the type is
 in that module's `contract` or `seam` in `module-ledger.json`. The check reads
 parameter types and service resolutions, the same syntax #849 reads for adapters.
+That includes service resolutions and typed lambda and local-function parameters
+inside a body, but nothing else in the body.
 
 - **`seam`** lists the types peer modules may reach outside the contract. Farm's
   seam is `IAccountRepository`, `Domain.Accounts.Account` and
@@ -42,6 +44,16 @@ parameter types and service resolutions, the same syntax #849 reads for adapters
   owner wherever a full type name is resolved: the adapter walk, this walk and
   contract validation. A claimed type is also walked as a member of its module.
   No owner claims a type yet.
+- **Entries name only top-level, non-generic types.** This holds for `contract`,
+  `seam` and `types`, and a claimed type may not declare nested types. Each
+  breach is a registry error. The syntax walk drops generic arity from both
+  declarations and references, so a `seam` entry for `IAccountRepository` would
+  also admit an unlisted `IAccountRepository<T>`. A claim on a generic type would
+  be counted under one key and resolved under another. A claim's nested types
+  would belong to the module but never be walked. Rejecting those shapes is
+  smaller than carrying arity and nesting through every key, and nothing needs
+  them today. #1013 hit the same arity loss in the compatibility-exception
+  scanner.
 - Its own module, Platform code, and modules with no contract are not checked.
   Today those are Access, until #857 declares its contract, and Insights.
 
@@ -90,7 +102,7 @@ so the seeder does not become an adapter bypass once Access owns
 ## What this does NOT cover
 
 - Method bodies: `nameof`, static calls, object creation, `Set<T>()`, local
-  declarations, casts and patterns.
+  declarations, casts, patterns and parameter default values.
 - Return, property and field types.
 - A module type passed through a Platform type. Platform is the free hub, so a
   Platform helper may take `IFlockRepository` and a peer may take the helper.
@@ -99,8 +111,11 @@ so the seeder does not become an adapter bypass once Access owns
 - Modules with no contract.
 - Access types left in Platform on purpose: `ICurrentUser`, `IFlockScopeGuard`
   and `SystemActors`.
-- The #842 edge walk reads namespaces. It sees a claimed type only through a
-  fully qualified name, not through an import and a short name.
+- The #842 edge walk reads namespaces. It attributes an incoming reference to a
+  claimed type only when the reference is fully qualified, and it attributes the
+  claimed type's own outgoing references to Platform, because it classifies a
+  source by its namespace. The #850 scanner also classifies a reader by its
+  namespace, so a claim grants its reads no own-module allowance.
 - The seam does not excuse an undeclared edge. A Commerce handler that newly takes
   `IAccountRepository` passes this check and still needs its symbol in the
   `Commerce -> Farm` edge.
@@ -115,7 +130,8 @@ so the seeder does not become an adapter bypass once Access owns
   `ModuleLedgerTests.GlobalImportOfAPlatformNamespaceHoldingAClaimedType_IsAFailure`
   covers the global-import ban, which now includes any namespace that holds a
   claimed type, because the walk resolves a short name through its own file's
-  imports only.
+  imports only. `GenericHomonymOfAnEntry_IsARegistryError` and
+  `GenericOrNestedClaim_IsARegistryError` cover the entry shapes.
 - Against 7bb45cc3, each of these turned the real-tree test red: adding
   `IFlockRepository` to `CreateExpenseHandler`, adding a fully qualified
   `IBirdMovementRepository` to `AdjustExpenseHandler`, removing
@@ -124,3 +140,7 @@ so the seeder does not become an adapter bypass once Access owns
   Adding `IFlockRepository` to `CreateFlockHandler` stayed green. Adding
   `IAccountRepository` to an expense endpoint turned `AdapterReachRealTreeTests`
   red, so the seam does not reach adapters.
+- Review round 1 of PR #1033 found four shapes that passed every guard: a generic
+  homonym of a seam type, a generic claimed type, a claimed type with a nested
+  class, and a nested claim behind a global import. Each now fails
+  `PeerContractRealTreeTests` with a registry error naming the entry.
