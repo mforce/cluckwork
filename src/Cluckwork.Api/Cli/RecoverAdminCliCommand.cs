@@ -1,4 +1,4 @@
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Application.Features.Users;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -47,8 +47,7 @@ public sealed class RecoverAdminCliCommand : ICliCommand
                 accountId = parsedAccount;
             }
 
-            var recovery = sp.GetRequiredService<AdminRecoveryService>();
-            var recovered = await recovery.RecoverAsync(
+            var recovered = await sp.GetRequiredService<IAccessOperations>().RecoverAdminAsync(
                 CliDispatcher.ArgValue(args, "--email"), accountId,
                 CliDispatcher.ArgValue(args, "--reason"), CancellationToken.None);
             if (recovered.IsFailure)

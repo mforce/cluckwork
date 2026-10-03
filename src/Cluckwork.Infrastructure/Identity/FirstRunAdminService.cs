@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
@@ -384,23 +385,4 @@ public sealed class FirstRunAdminService(
                    AND pid = pg_backend_pid()
                    AND granted) AS "Value"
              """).SingleAsync(ct);
-}
-
-// #589 — Slug is NULLABLE and sits beside the other nullable fields deliberately.
-// This record is not a mirror of AccountProvisionOutcome: that one has no no-op
-// path, so all its fields are non-null, whereas AlreadyProvisioned() here returns
-// a value with nothing populated. Copying its non-nullable `string Slug` across
-// would make the idempotent branch unrepresentable.
-public sealed record FirstRunAdminOutcome(
-    bool WasAlreadyProvisioned,
-    string? Email,
-    Guid? AccountId,
-    string? Slug,
-    string? TemporaryPassword)
-{
-    public static FirstRunAdminOutcome AlreadyProvisioned() => new(true, null, null, null, null);
-
-    public static FirstRunAdminOutcome Provisioned(
-        string email, Guid accountId, string slug, string password) =>
-        new(false, email, accountId, slug, password);
 }

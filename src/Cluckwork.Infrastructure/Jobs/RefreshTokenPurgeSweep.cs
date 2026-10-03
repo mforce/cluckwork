@@ -1,5 +1,4 @@
-using Cluckwork.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using Cluckwork.Application.Features.Users;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -63,7 +62,7 @@ public sealed class RefreshTokenPurgeSweep(
     public async Task RunAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var purge = scope.ServiceProvider.GetRequiredService<IRefreshTokenPurge>();
 
         var cutoff = timeProvider.GetUtcNow() - PurgeGrace;
         var total = 0;
@@ -73,15 +72,7 @@ public sealed class RefreshTokenPurgeSweep(
         {
             for (var batch = 0; batch < MaxBatchesPerRun; batch++)
             {
-                // Strictly older than the cutoff. Exact equality is a measure-zero
-                // case against a moving clock and carries no guarantee worth
-                // pinning — what matters, and what the tests pin, is the retention
-                // WINDOW: a row is safe until its own ExpiresAt plus the grace.
-                var deleted = await db.RefreshTokens
-                    .Where(t => t.ExpiresAt < cutoff)
-                    .OrderBy(t => t.ExpiresAt)
-                    .Take(BatchSize)
-                    .ExecuteDeleteAsync(ct);
+                var deleted = await purge.DeleteExpiredBatchAsync(cutoff, BatchSize, ct);
 
                 total += deleted;
                 if (deleted < BatchSize)

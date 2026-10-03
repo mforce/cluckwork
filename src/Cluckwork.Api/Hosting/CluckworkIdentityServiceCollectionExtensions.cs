@@ -139,6 +139,8 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // real deploy's first login depends on it.
         services.AddScoped<FirstRunAdminService>();
         services.AddScoped<AccountProvisioner>();
+        services.AddScoped<IAccessOperations, AccessOperations>();
+        services.AddScoped<IRefreshTokenPurge, RefreshTokenPurge>();
         // #283 follow-up — first-run discoverability for the SPA login page.
         // The latch is a SINGLETON (one observation serves every later request
         // process-wide, so the failed-sign-in path stops touching the database

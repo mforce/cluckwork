@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
@@ -216,7 +217,3 @@ public sealed class AccountSuspensionService(
         }, ct);
     }
 }
-
-// Changed = "this command transitioned the farm", so a verb can report a no-op
-// re-run without going back to the database to work out what it did.
-public sealed record AccountLifecycleOutcome(bool Changed);
