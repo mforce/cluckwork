@@ -388,7 +388,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         factory.WithTenantScopeAsync(accountId, async db =>
             await db.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync());
 
-    private static string CreateAccessToken(Guid userId, Guid accountId, string? credentialEpoch)
+    internal static string CreateAccessToken(Guid userId, Guid accountId, string? credentialEpoch)
     {
         using var rsa = RSA.Create();
         rsa.ImportFromPem(TestJwtKeys.PrivateKeyPem.Replace("\\n", "\n", StringComparison.Ordinal));
@@ -415,6 +415,6 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
     private static string CreatePassword() =>
         $"Aa1!{Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16))}";
 
-    private static string HashToken(string token) => Convert.ToHexString(
+    internal static string HashToken(string token) => Convert.ToHexString(
         SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
 }
