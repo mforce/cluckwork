@@ -82,6 +82,7 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         // opting out of it is not a serving concern leaking in.
         psi.Environment["ConnectionStrings__Default"] = _database.ConnectionString;
         psi.Environment["Database__Provider"] = "Postgres";
+        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         configure(psi);
 

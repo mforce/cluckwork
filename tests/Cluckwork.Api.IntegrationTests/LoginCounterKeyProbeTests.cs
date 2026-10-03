@@ -115,6 +115,7 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         // without a database it can talk to.
         psi.Environment["ConnectionStrings__Default"] = _postgres.GetConnectionString();
         psi.Environment["Database__Provider"] = "Postgres";
+        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["SharedState__Redis__ConnectionString"] = _redis.GetConnectionString();

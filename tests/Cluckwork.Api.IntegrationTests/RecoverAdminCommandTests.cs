@@ -42,6 +42,7 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         psi.Environment["ConnectionStrings__Default"] = _factory.ConnectionString;
         psi.Environment["Database__Provider"] = "Postgres";
+        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         // The Testcontainers DB is plaintext; opt out of the #262 Production TLS floor so
         // recover-admin runs. Only this one: the #260/#319 serving guards check
         // ProcessRole and skip a one-shot verb (#347), and the TLS floor applies

@@ -236,7 +236,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
     [Fact]
     public async Task OnceLatched_AnswersWithoutTouchingTheDatabase()
     {
-        var unreachable = new DbContextOptionsBuilder<AppDbContext>()
+        var unreachable = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
             .UseNpgsql("Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none;Timeout=1")
             .Options;
         await using var unusableDb = new AppDbContext(unreachable, new TenantContext(), new FlockScope());

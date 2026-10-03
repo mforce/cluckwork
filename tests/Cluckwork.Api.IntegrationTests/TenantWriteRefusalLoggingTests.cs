@@ -180,7 +180,7 @@ public sealed class TenantWriteRefusalLoggingTests(SecurityEventLoggingFactory f
         var tenant = new TenantContext();
         tenant.Resolve(accountA);
         var sink = new ThrowingLogger();
-        var options = new DbContextOptionsBuilder<AppDbContext>();
+        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
         new PostgresDbContextConfigurator().Configure(options, factory.ConnectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(tenant, sink));
         await using var db = new AppDbContext(options.Options, tenant, new FlockScope());

@@ -69,6 +69,7 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         psi.Environment["ConnectionStrings__Default"] = _postgres.GetConnectionString();
         psi.Environment["Database__Provider"] = "Postgres";
+        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         // #544 — BOTH processes share ONE Redis, so the auth-rate-limit
         // counter is one shared counter, not two per-process ones.

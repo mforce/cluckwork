@@ -86,7 +86,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var tenantA = new TenantContext();
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             tenantA, new FlockScope());
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
@@ -156,7 +156,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var tenantA = new TenantContext();
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             tenantA, new FlockScope());
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
@@ -230,7 +230,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var tenantA = new TenantContext();
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             tenantA, new FlockScope());
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(

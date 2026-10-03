@@ -32,7 +32,7 @@ public sealed class AccountSlugMigrationTests
 
     private static AppDbContext BuildContext(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>();
+        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
         new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
         return new AppDbContext(options.Options, new TenantContext(), new FlockScope());
@@ -44,7 +44,7 @@ public sealed class AccountSlugMigrationTests
         // straight to a *Raw method trips the EF1002 injection analyzer (a
         // build error here). These are test-controlled literal ids, not input.
         string sql = $"SELECT \"Slug\" AS \"Value\" FROM \"Accounts\" WHERE \"Id\" = '{accountId}'::uuid";
-        return db.Database.SqlQueryRaw<string>(sql).FirstAsync();
+        return db.Database.SqlQueryRaw<string>(sql).SingleAsync();
     }
 
     [Fact]

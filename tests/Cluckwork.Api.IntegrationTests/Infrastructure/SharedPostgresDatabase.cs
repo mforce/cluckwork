@@ -62,7 +62,7 @@ internal sealed class SharedPostgresDatabase : IAsyncDisposable
         {
             await ExecuteAdminAsync($"CREATE DATABASE \"{TemplateName}\" TEMPLATE template0");
             var templateConnection = ConnectionStringFor(TemplateName, pooled: false);
-            var options = new DbContextOptionsBuilder<AppDbContext>();
+            var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
             new PostgresDbContextConfigurator().Configure(
                 options, templateConnection, new DatabaseResilienceOptions());
             options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));

@@ -209,7 +209,13 @@ public sealed class InsightsReadOnlyTests
             or "Cluckwork.Infrastructure.Persistence.AppDbContext.AppDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<Cluckwork.Infrastructure.Persistence.AppDbContext>, Cluckwork.Infrastructure.Persistence.TenantContext, Cluckwork.Infrastructure.Persistence.FlockScope)"
             or "Microsoft.EntityFrameworkCore.DbContext.Database.get"
             or "Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Cluckwork.Infrastructure.Persistence.AppDbContext>.Options.get"
-            or "Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Cluckwork.Infrastructure.Persistence.AppDbContext>.DbContextOptionsBuilder()";
+            or "Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Cluckwork.Infrastructure.Persistence.AppDbContext>.DbContextOptionsBuilder()"
+            or "Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension.WarningsConfiguration.get"
+            or "Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptions.FindExtension<Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension>()"
+            or "Microsoft.EntityFrameworkCore.DbContextOptions.FindExtension<Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension>()"
+            or "Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptions>(Microsoft.EntityFrameworkCore.Infrastructure.IInfrastructure<System.IServiceProvider>)"
+            or "Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptionsBuilderInfrastructure.AddOrUpdateExtension<Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension>(Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension)"
+            or "Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension.WithWarningsConfiguration(Microsoft.EntityFrameworkCore.Diagnostics.WarningsConfiguration)";
     }
 
     private static void AssertDto(Type type, HashSet<Type> seen)

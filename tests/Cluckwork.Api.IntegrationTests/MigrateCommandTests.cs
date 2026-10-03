@@ -27,6 +27,7 @@ public sealed class MigrateCommandTests
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         psi.Environment["ConnectionStrings__Default"] = connectionString;
         psi.Environment["Database__Provider"] = "Postgres";
+        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         // Runs Production against a plaintext Testcontainers DB (and, for the unreachable
         // case, a plaintext dead host): opt out of the #262 TLS floor so the migrate verb
         // actually runs — otherwise #262 would throw at config time, before the verb, and the

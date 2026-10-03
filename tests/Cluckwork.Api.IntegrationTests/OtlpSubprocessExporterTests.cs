@@ -309,6 +309,7 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         psi.Environment["ConnectionStrings__Default"] = connectionString;
         psi.Environment["Database__Provider"] = "Postgres";
+        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";

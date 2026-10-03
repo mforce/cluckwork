@@ -20,7 +20,7 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
 
     private static AppDbContext BuildContext(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>();
+        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
         new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
         return new AppDbContext(options.Options, new TenantContext(), new FlockScope());
@@ -40,8 +40,8 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
 
         var value = await db.Database
             .SqlQueryRaw<string>(
-                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\" LIMIT 1")
-            .FirstAsync();
+                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\"")
+            .SingleAsync();
         Assert.Equal("AssignedFlocksOnly", value);
     }
 
@@ -62,15 +62,15 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
                 SELECT COUNT(*)::int AS "Value" FROM information_schema.columns
                 WHERE table_name = 'Accounts' AND column_name = 'WorkerSaleAllocationPolicy'
                 """)
-            .FirstAsync();
+            .SingleAsync();
         Assert.Equal(0, columnCount);
 
         // Round-trips back up without error and re-backfills.
         await migrator.MigrateAsync();
         var value = await db.Database
             .SqlQueryRaw<string>(
-                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\" LIMIT 1")
-            .FirstAsync();
+                "SELECT \"WorkerSaleAllocationPolicy\" AS \"Value\" FROM \"Accounts\"")
+            .SingleAsync();
         Assert.Equal("AssignedFlocksOnly", value);
     }
 }

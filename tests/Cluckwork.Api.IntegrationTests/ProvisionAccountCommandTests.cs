@@ -179,6 +179,7 @@ public sealed class ProvisionAccountCommandTests(CluckworkWebApplicationFactory 
         info.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         info.Environment["ConnectionStrings__Default"] = connectionString;
         info.Environment["Database__Provider"] = "Postgres";
+        info.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         info.Environment["Database__AllowInsecureConnection"] = "true";
         return Process.Start(info)!;
     }

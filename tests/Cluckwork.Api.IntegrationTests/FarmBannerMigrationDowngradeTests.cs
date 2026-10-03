@@ -26,7 +26,7 @@ public sealed class FarmBannerMigrationDowngradeTests
 
     private static AppDbContext BuildContext(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>();
+        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
         new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
         return new AppDbContext(options.Options, new TenantContext(), new FlockScope());
@@ -54,7 +54,7 @@ public sealed class FarmBannerMigrationDowngradeTests
 
         var remaining = await db.Database
             .SqlQueryRaw<int>("SELECT COUNT(*)::int AS \"Value\" FROM \"FarmLogos\"")
-            .FirstAsync();
+            .SingleAsync();
         Assert.Equal(0, remaining);
     }
 }

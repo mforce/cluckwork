@@ -27,7 +27,7 @@ public sealed class ReportQueryBoundingTests(CluckworkWebApplicationFactory fact
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         capture = new SqlCaptureInterceptor();
-        var options = new DbContextOptionsBuilder<AppDbContext>()
+        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(capture)
             .Options;
