@@ -19,7 +19,11 @@ public interface IEggStock
 }
 
 // The lots one LockForSaleAsync call locked. It works only while the
-// transaction that locked them is current, and throws after it ends.
+// transaction that locked them is current, and throws after it ends. The check
+// compares transaction ids only, so do not use a reservation after rolling back
+// to a savepoint taken before it was created: PostgreSQL releases the locks and
+// the id stays the same. Nothing in src/ creates such a savepoint; EF's own
+// SaveChanges savepoint comes after the locks.
 public interface IEggStockReservation
 {
     // Plans over the locked lots' current availability, or only the lots from

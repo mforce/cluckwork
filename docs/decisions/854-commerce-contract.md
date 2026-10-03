@@ -71,7 +71,18 @@ refuse when the caller has no transaction. A reservation remembers the
 transaction that locked its lots and refuses to plan or draw once another
 transaction, or none, is current. It reads that through `ICurrentTransaction`, a
 Platform port that exposes only the transaction's id, so no persistence type
-reaches Application. Commerce keeps the order
+reaches Application.
+
+The check compares transaction ids only. Rolling back to a savepoint taken
+before `LockForSaleAsync` releases the reservation's row locks, but the
+transaction id stays the same, so the reservation would still plan and draw.
+Do not use a reservation after rolling back to a savepoint taken before it was
+created. Nothing in `src/` creates or rolls back to such a savepoint: the only
+savepoint is the one EF takes inside `SaveChanges`, after the locks. The owner
+chose to record this limit rather than track savepoints (PR #1030, review
+round 2).
+
+Commerce keeps the order
 lock, the #612 policy, the refusal messages, the allocation rows and their ids,
 and the audit row. Egg Operations keeps the lock, the planner, lot mutation and
 the ledger rows. The reference type on a movement is passed in, so Egg
