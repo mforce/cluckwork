@@ -8,7 +8,10 @@
                             "Cluckwork.Application.Features.Accounts.FarmBrandingHashes",
                             "Cluckwork.Application.Features.Accounts.FarmLogoMetadata",
                             "Cluckwork.Application.Features.Accounts.FarmLogoContent",
-                            "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand"
+                            "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand",
+                            "Cluckwork.Application.Features.Accounts.IFarmDirectory",
+                            "Cluckwork.Application.Features.Accounts.FarmTimeZone",
+                            "Cluckwork.Application.Features.Accounts.FarmListing"
                           ],
                           "seam": [
                             "Cluckwork.Application.Features.Accounts.IAccountRepository",
@@ -564,9 +567,21 @@
   },
   "adapters": [
     {
+      "symbol": "Cluckwork.Api.Cli.AccountSlugLookup.ResolveAsync",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
       "symbol": "Cluckwork.Api.Cli.BootstrapAdminCliCommand.RunAsync",
       "reaches": [
         "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.ListAccountsCliCommand.RunAsync",
+      "reaches": [
+        "Farm"
       ]
     },
     {
@@ -1373,6 +1388,12 @@
       ]
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Jobs.RefreshTokenPurgeSweep.RunAsync",
       "reaches": [
         "Access"
@@ -1550,30 +1571,6 @@
     }
   ],
   "compatibilityExceptions": [
-    {
-      "symbol": "Cluckwork.Api.Cli.AccountSlugLookup.ResolveAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Platform",
-      "reason": "Resolves a farm code to its account id across every farm, before any tenant is resolved, for the seed, suspend, reactivate and rename verbs. IFarmModule reads only the current farm; the Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Api.Cli.ListAccountsCliCommand.RunAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Platform",
-      "reason": "Lists every farm's code, name and active state for the operator, across tenants. IFarmModule reads only the current farm; the Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Platform",
-      "reason": "Lists every farm's id and time zone before resolving one tenant scope per farm to lock due daily entries. IFarmModule reads only the current farm; the Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
     {
       "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
       "reaches": "Commerce",

@@ -95,4 +95,38 @@ public sealed class ListAccountsCommandTests(CluckworkWebApplicationFactory fact
             stdout.Split('\n'), line => line.StartsWith("FORGED-ROW", StringComparison.Ordinal));
         Assert.Contains(seededSlug, stdout);
     }
+
+    // The verb promises slug order. The two farms are renamed out of slug order
+    // ("-zz" first), so their newest row versions sit in reverse slug order; in
+    // a full run the shared database also holds many randomly named farms. The
+    // printed list must match the database's own ORDER BY "Slug" exactly, so a
+    // read without ORDER BY fails on any inversion, not just on this pair.
+    [Fact]
+    public async Task ListAccounts_PrintsFarmsInSlugOrder()
+    {
+        var first = await factory.SeedAccountWithUserAsync($"order-{Guid.NewGuid():N}@test.local");
+        var second = await factory.SeedAccountWithUserAsync($"order-{Guid.NewGuid():N}@test.local");
+        var stem = "order-" + first.ToString("N")[..12];
+        var (late, early) = (stem + "-zz", stem + "-aa");
+        await factory.WithTenantScopeAsync(first, db => db.Database.ExecuteSqlAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {late} WHERE \"Id\" = {first}"));
+        await factory.WithTenantScopeAsync(second, db => db.Database.ExecuteSqlAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {early} WHERE \"Id\" = {second}"));
+
+        var (exitCode, stdout, stderr) = await SeedCommandRunner.RunToCompletionAsync(
+            StartListAccounts(), SubprocessTimeout);
+
+        Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+        // stdout also carries the host's JSON log lines; a farm row is exactly
+        // three tab-separated columns.
+        var printed = stdout.Split('\n')
+            .Select(line => line.TrimEnd('\r').Split('\t'))
+            .Where(columns => columns.Length == 3)
+            .Select(columns => columns[0])
+            .ToList();
+        var expected = await factory.WithTenantScopeAsync(first, db => db.Accounts.IgnoreQueryFilters()
+            .OrderBy(a => a.Slug).Select(a => a.Slug).ToListAsync());
+        Assert.Contains(early, printed);
+        Assert.Equal(expected, printed);
+    }
 }
