@@ -189,14 +189,16 @@
     },
     {
       "from": "Access", "to": "Farm", "kind": "W",
-      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). CredentialEpochVerifier reads Account.IsActive in the same fresh per-request query as the user's credential epoch, so a suspended farm's credentials stop working at once (#364, #579, #857). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. Design 3.4 row Access -> Farm = R.",
+      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). CredentialEpochVerifier reads Account.IsActive in the same fresh per-request query as the user's credential epoch, so a suspended farm's credentials stop working at once (#364, #579, #857). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. IAccessLookup returns Domain.Accounts.EffectiveAccountRole, and AccessLookup resolves it with Roles.ResolveEffective in the one effective-role routine IdentityProvider also runs (#612, #857). Design 3.4 row Access -> Farm = R.",
       "symbols": [
         "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
         "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler",
         "Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleValidator",
         "Cluckwork.Application.Features.Users.CreateUser.CreateUserValidator",
+        "Cluckwork.Application.Features.Users.IAccessLookup",
         "Cluckwork.Application.Features.Users.IUserRoleAssignmentRepository",
         "Cluckwork.Application.Features.Users.UserFlockAssignment",
+        "Cluckwork.Infrastructure.Identity.AccessLookup",
         "Cluckwork.Infrastructure.Identity.AccountLifecycleOutcome",
         "Cluckwork.Infrastructure.Identity.AccountProvisionOutcome",
         "Cluckwork.Infrastructure.Identity.AccountProvisioner",
@@ -223,7 +225,7 @@
     },
     {
       "from": "Commerce", "to": "Access", "kind": "R",
-      "reason": "ConfirmSaleHandler injects Access's IUserRoleAssignmentRepository and calls IIdentityProvider.GetEffectiveRoleAsync inside the confirm transaction, so a plain Worker's committed flock assignments and the discount ceiling bound to their effective role are read at the moment of confirmation rather than from a request-start snapshot (#727). Design 3.4 shows Commerce -> Access as none; this is live coupling the target design has still to remove.",
+      "reason": "ConfirmSaleHandler reads through Access's IAccessLookup port (GetEffectiveRoleAsync and ListFlockAssignmentsAsync, #857) inside the confirm transaction, so a plain Worker's committed flock assignments and the discount ceiling bound to their effective role are read at the moment of confirmation rather than from a request-start snapshot (#727). Design 3.4 shows Commerce -> Access as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler"
       ]
@@ -1096,6 +1098,12 @@
       ]
     },
     {
+      "symbol": "Cluckwork.Api.Endpoints.Me.MeEndpoints.GetMe",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
       "symbol": "Cluckwork.Api.Endpoints.Me.MeEndpoints.SetLanguage",
       "reaches": [
         "Access"
@@ -1290,6 +1298,12 @@
     },
     {
       "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.ListAssignments",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.ListUsers",
       "reaches": [
         "Access"
       ]

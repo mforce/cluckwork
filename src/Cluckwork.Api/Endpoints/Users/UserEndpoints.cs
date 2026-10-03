@@ -119,20 +119,20 @@ public static class UserEndpoints
     }
 
     private static async Task<IResult> ListAssignments(
-        Guid id, IUserRoleAssignmentRepository assignments, TenantContext tenant, CancellationToken ct)
+        Guid id, IAccessModule access, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         // #512 T047 — the name comes from the repository's single scoped left
         // join, not from a second per-row flock lookup here. A second round trip
         // would be invisible in this file's shape and visible only in the guard.
-        var list = await assignments.ListByNameByUserAsync(id, ct);
+        var list = await access.ListFlockAssignmentsAsync(id, ct);
         return Results.Ok(list.Select(a => new FlockAssignmentResponse(a.Id, a.FlockId, a.FlockName)));
     }
 
     private static async Task<IResult> AssignFlock(
         Guid id, AssignFlockRequest request,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        AssignFlockHandler handler,
+        IAccessModule access,
         TenantContext tenant, ICurrentUser currentUser, CancellationToken ct)
     {
         if (!tenant.IsResolved || !currentUser.IsResolved) return Results.Unauthorized();
@@ -142,7 +142,7 @@ public static class UserEndpoints
                 ["flockId"] = ["A flock id is required."],
             });
         var command = new AssignFlockCommand(id, request.FlockId, stepUpToken);
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.AssignFlockAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess)
             return Results.Created($"/api/v1/users/{id}/flock-assignments", new { Id = result.Value });
         // #606 — a missing/invalid step-up grant is a 403, checked before the
@@ -160,12 +160,12 @@ public static class UserEndpoints
     private static async Task<IResult> UnassignFlock(
         Guid id, Guid assignmentId,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        UnassignFlockHandler handler,
+        IAccessModule access,
         TenantContext tenant, ICurrentUser currentUser, CancellationToken ct)
     {
         if (!tenant.IsResolved || !currentUser.IsResolved) return Results.Unauthorized();
         var command = new UnassignFlockCommand(id, assignmentId, stepUpToken);
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.UnassignFlockAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
         // #606 — same uniform-403-before-NotFound mapping as AssignFlock above.
         return result.Error.Code == StepUpErrorCodes.Required
@@ -176,7 +176,7 @@ public static class UserEndpoints
     private static async Task<IResult> CreateUser(
         CreateUserRequest request,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        CreateUserHandler handler,
+        IAccessModule access,
         IValidator<CreateUserCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
@@ -190,7 +190,7 @@ public static class UserEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.CreateUserAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess)
             return Results.Created("/api/v1/users", new { Id = result.Value });
         // #308/#360 — every interactive creation requires a step-up grant
@@ -206,7 +206,7 @@ public static class UserEndpoints
     private static async Task<IResult> UpdateUser(
         Guid id,
         UpdateUserRequest request,
-        UpdateUserHandler handler,
+        IAccessModule access,
         IValidator<UpdateUserCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -218,7 +218,7 @@ public static class UserEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await access.UpdateUserAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess) return Results.NoContent();
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
@@ -231,7 +231,7 @@ public static class UserEndpoints
         Guid id,
         SetUserPasswordRequest request,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        SetUserPasswordHandler handler,
+        IAccessModule access,
         IValidator<SetUserPasswordCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
@@ -256,7 +256,7 @@ public static class UserEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.SetUserPasswordAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
         // #308/#360 — every administrative reset requires a step-up grant
         // regardless of the target's role. A missing/invalid grant is a 403,
@@ -280,7 +280,7 @@ public static class UserEndpoints
         Guid id,
         ChangeUserRoleRequest request,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        ChangeUserRoleHandler handler,
+        IAccessModule access,
         IValidator<ChangeUserRoleCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
@@ -303,7 +303,7 @@ public static class UserEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.ChangeUserRoleAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
         // #308/#360 — every role change requires a step-up grant regardless of
         // the requested role, and the actor is re-checked inside the provider's
@@ -323,7 +323,7 @@ public static class UserEndpoints
         Guid id,
         ChangeUserEmailRequest request,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        ChangeUserEmailHandler handler,
+        IAccessModule access,
         IValidator<ChangeUserEmailCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
@@ -336,7 +336,7 @@ public static class UserEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.ChangeUserEmailAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
         if (result.Error.Code is Cluckwork.Application.Common.StepUpErrorCodes.Required or "Auth.Forbidden")
             return Results.Problem(result.Error.Description,
@@ -356,7 +356,7 @@ public static class UserEndpoints
         Guid id,
         DisableUserRequest? request,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        DisableUserHandler handler,
+        IAccessModule access,
         IValidator<DisableUserCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
@@ -382,13 +382,13 @@ public static class UserEndpoints
             return ValidationResponse.Problem(validation);
 
         return MapUserStateResult(
-            await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct));
+            await access.DisableUserAsync(command, tenant.AccountId, currentUser.UserId, ct));
     }
 
     private static async Task<IResult> EnableUser(
         Guid id,
         [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
-        EnableUserHandler handler,
+        IAccessModule access,
         TenantContext tenant,
         ICurrentUser currentUser,
         CancellationToken ct)
@@ -405,7 +405,7 @@ public static class UserEndpoints
                 title: "Users.CannotEnableSelf");
 
         return MapUserStateResult(
-            await handler.HandleAsync(new EnableUserCommand(id, stepUpToken),
+            await access.EnableUserAsync(new EnableUserCommand(id, stepUpToken),
                 tenant.AccountId, currentUser.UserId, ct));
     }
 
@@ -426,10 +426,10 @@ public static class UserEndpoints
     }
 
     private static async Task<IResult> ListUsers(
-        IIdentityProvider identity, TenantContext tenant, CancellationToken ct)
+        IAccessModule access, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var users = await identity.ListUsersAsync(tenant.AccountId, ct);
+        var users = await access.ListUsersAsync(tenant.AccountId, ct);
         return Results.Ok(users.Select(u =>
             new UserResponse(u.Id, u.Email, u.DisplayName, u.Role, u.DisabledAt)));
     }

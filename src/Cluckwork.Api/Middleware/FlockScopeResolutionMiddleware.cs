@@ -1,7 +1,7 @@
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.Middleware;
 
@@ -20,7 +20,7 @@ namespace Cluckwork.Api.Middleware;
 // are Unrestricted too, matching FlockScopeGuard's resolved-worker rules.
 public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, FlockScope scope, CurrentUserContext user, AppDbContext db)
+    public async Task InvokeAsync(HttpContext context, FlockScope scope, CurrentUserContext user, IAccessLookup access)
     {
         // #388 — UseExceptionHandler re-executes the downstream pipeline at
         // /error. Never repeat assignment resolution there: if the original
@@ -54,9 +54,7 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
             return;
         }
 
-        var assignments = await db.UserRoleAssignments.AsNoTracking()
-            .Where(a => a.UserId == user.UserId)
-            .ToListAsync(context.RequestAborted);
+        var assignments = await access.ListFlockAssignmentsAsync(user.UserId, context.RequestAborted);
 
         if (assignments.Count == 0)
         {

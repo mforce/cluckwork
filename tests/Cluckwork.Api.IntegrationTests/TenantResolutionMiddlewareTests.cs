@@ -198,7 +198,7 @@ public sealed class TenantResolutionMiddlewareTests
             return Task.CompletedTask;
         });
         var tenantMiddleware = new TenantResolutionMiddleware(
-            nextContext => flockMiddleware.InvokeAsync(nextContext, flockScope, user, db));
+            nextContext => flockMiddleware.InvokeAsync(nextContext, flockScope, user, new AccessLookup(db, tenant)));
         using var serilog = new LoggerConfiguration().CreateLogger();
 
         await tenantMiddleware.InvokeAsync(
