@@ -121,9 +121,10 @@ Infrastructure, the Platform hub, so the inversion adds no module edge.
 - Peer modules other than Commerce's reach into Egg Operations are not checked
   (#849, #852, #1023). A peer that injects `IEggUnitConversionRepository` again
   stays green.
-- `PeerContractRealTreeTests` reads parameter types and service resolutions, as
-  the adapter check does, not method bodies. A Commerce method that calls
-  `SaleAllocationPlanner.Plan` from its body stays green.
+- `PeerContractRealTreeTests` reads only parameter types and service
+  resolutions, as the adapter check does, not return types or method bodies. A
+  Commerce method that returns `EggLot`, or calls `SaleAllocationPlanner.Plan`
+  from its body, stays green.
 - `ConfirmSaleHandler`'s in-transaction role and assignment reads stay a
   declared Commerce to Access edge for #857. `AccountProvisioner` still inserts a
   new farm's default conversions, a declared Access to Commerce edge (#857).
@@ -167,6 +168,9 @@ Infrastructure, the Platform hub, so the inversion adds no module edge.
   fault`. Removing the confirm's transaction turns them red at the port's own
   check, and with the port's checks also off, at the test's `the confirm runs
   outside a transaction`.
+- `SaleAllocationLineTests` confirms a two-line order and requires each
+  allocation row to name the line whose grade it drew. Stamping every draw with
+  the first line's id, in the planner or in the handler, turns it red.
 - `CommerceModuleTests` pins the copies. Swapping `Email` and `Address`,
   `Quantity` and `QuantityBase`, or `ReferenceNumber` and `Note` turns it red.
 - Unregistering `ProductRepository` as a currency source turns
