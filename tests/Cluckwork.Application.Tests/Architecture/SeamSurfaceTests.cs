@@ -136,7 +136,6 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractCrossAss
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMember
 {
-    using Cluckwork.Application.Common;
     using Cluckwork.Domain.Flocks;
 
     public sealed class FieldPayload
@@ -153,7 +152,19 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMe
 
     public sealed record PropertyEnvelope(PropertyPayload Payload);
 
-    public interface IFlockStore : IRepository<Flock, Guid>;
+    // The generic repository base was deleted from production (#858); this local copy
+    // keeps a repository reached through an inherited generic interface covered.
+    public interface IStore<T, TId>
+        where T : class
+        where TId : notnull
+    {
+        Task<T?> GetByIdAsync(TId id, CancellationToken ct = default);
+        Task AddAsync(T entity, CancellationToken ct = default);
+        void Update(T entity);
+        void Remove(T entity);
+    }
+
+    public interface IFlockStore : IStore<Flock, Guid>;
 
     public sealed record RepositoryEnvelope(IFlockStore Repository);
 

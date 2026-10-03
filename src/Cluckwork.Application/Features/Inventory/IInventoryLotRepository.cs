@@ -1,10 +1,11 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Inventory;
 
 namespace Cluckwork.Application.Features.Inventory;
 
-public interface IInventoryLotRepository : IRepository<InventoryLot, Guid>
+public interface IInventoryLotRepository
 {
+    Task AddAsync(InventoryLot entity, CancellationToken ct = default);
+
     // FIFO-ordered lots with stock remaining for one item, locked FOR UPDATE —
     // the feed-usage consumption path (PR2 of #66). Canonical (ReceivedDate,
     // Id) lock order, same discipline as egg-lot allocation. Call inside an

@@ -552,8 +552,6 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
             inner.ListAsync(eggGradeId, from, to, limit, offset, ct);
         public Task<EggLot?> GetByIdAsync(Guid id, CancellationToken ct = default) => inner.GetByIdAsync(id, ct);
         public Task AddAsync(EggLot entity, CancellationToken ct = default) => inner.AddAsync(entity, ct);
-        public void Update(EggLot entity) => inner.Update(entity);
-        public void Remove(EggLot entity) => inner.Remove(entity);
     }
 
     [Fact]

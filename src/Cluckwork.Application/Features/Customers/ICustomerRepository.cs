@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Application.Features.Customers;
 
-public interface ICustomerRepository : IRepository<Customer, Guid>
+public interface ICustomerRepository
 {
+    Task<Customer?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(Customer entity, CancellationToken ct = default);
+
     Task<IReadOnlyList<Customer>> ListAsync(int limit, int offset, CancellationToken ct = default);
 
     // #512 — picker discovery. Same literal search semantics as the flock

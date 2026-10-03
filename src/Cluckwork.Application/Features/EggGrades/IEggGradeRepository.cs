@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
 
 namespace Cluckwork.Application.Features.EggGrades;
 
-public interface IEggGradeRepository : IRepository<EggGrade, Guid>
+public interface IEggGradeRepository
 {
+    Task<EggGrade?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(EggGrade entity, CancellationToken ct = default);
+
     // Active grades for the current tenant, saleable and not, in sort order.
     // Pass farmId to filter server-side (grades are farm-scoped, spec §9.1).
     Task<IReadOnlyList<EggGrade>> ListActiveAsync(Guid? farmId = null, CancellationToken ct = default);

@@ -71,8 +71,4 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
 
     public async Task AddAsync(DailyEntry entity, CancellationToken ct = default) =>
         await db.DailyEntries.AddAsync(entity, ct);
-
-    public void Update(DailyEntry entity) => db.DailyEntries.Update(entity);
-
-    public void Remove(DailyEntry entity) => db.DailyEntries.Remove(entity);
 }
