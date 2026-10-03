@@ -357,6 +357,12 @@ public sealed class DemoDataSeeder(
                 // are visible; everything older is submitted (lots + movements).
                 if (d > 0)
                     Require(await eggs.SubmitDailyEntryAsync(entry, accountId, ct));
+
+                // Every handler has saved by here and the next day re-loads by
+                // id, so release the day's entities: SaveChanges and the tenant
+                // interceptor each rescan the whole tracker, which otherwise
+                // grows to ~8k entities and dominates the seed (#1007).
+                db.ChangeTracker.Clear();
             }
         }
 
