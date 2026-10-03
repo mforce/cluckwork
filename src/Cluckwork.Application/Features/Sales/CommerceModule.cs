@@ -15,7 +15,6 @@ using Cluckwork.Application.Features.Sales.RemoveOrderItem;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Application.Features.Sales.VoidPayment;
 using Cluckwork.Application.Features.Sales.VoidSale;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Application.Features.Sales;

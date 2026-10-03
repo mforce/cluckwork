@@ -26,6 +26,7 @@ public interface IEggStockReservation
     SaleAllocationPlan Plan(IReadOnlyList<SaleDemandLine> lines, IReadOnlySet<Guid>? fromFlocks = null);
 
     // Takes one planned draw from its locked lot and writes the Sale movement.
-    // A draw the lot refuses means the plan was wrong, so it throws.
+    // The lot is the same locked instance the plan read, so a refusal means the
+    // plan was wrong: it throws, and is never a 422.
     Task DrawAsync(PlannedEggLotDraw draw, string referenceType, Guid referenceId, CancellationToken ct);
 }

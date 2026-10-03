@@ -47,9 +47,6 @@ public sealed class EggStock(IEggLotRepository lots, IEggInventoryMovementReposi
         public async Task DrawAsync(
             PlannedEggLotDraw draw, string referenceType, Guid referenceId, CancellationToken ct)
         {
-            // The lot is one of the SAME locked instances the plan read, so a
-            // refusal here contradicts the plan: an invariant violation, never
-            // a 422.
             var lot = _lotsById[draw.EggLotId];
             var allocated = lot.Allocate(draw.Quantity, saleDate);
             if (allocated.IsFailure)

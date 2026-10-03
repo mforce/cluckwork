@@ -1,5 +1,4 @@
 using Cluckwork.Api.Validation;
-using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
 using Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion;
 using Cluckwork.Application.Features.Catalog.UpdateProduct;

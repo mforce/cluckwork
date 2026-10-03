@@ -1,5 +1,4 @@
 using Cluckwork.Api.Validation;
-using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Application.Features.Sales;

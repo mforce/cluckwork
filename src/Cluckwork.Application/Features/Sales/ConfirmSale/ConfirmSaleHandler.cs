@@ -186,8 +186,9 @@ public sealed class ConfirmSaleHandler(
                 && order.FindCeilingBreach(ceiling) is { } breach)
             {
                 // The grade name resolves through Egg Operations' grade lookup,
-                // the same way the insufficient-stock message below does. The domain decides WHO breaches; this composes the
-                // refusal, because SalesOrderItem carries an EggGradeId only.
+                // the same way the insufficient-stock message below does. The
+                // domain decides WHO breaches; this composes the refusal,
+                // because SalesOrderItem carries an EggGradeId only.
                 var gradeName = (await eggGrades.GetAsync(breach.EggGradeId, transactionCt))?.Name
                     ?? breach.EggGradeId.ToString();
                 failure = Result.Failure<ConfirmSaleResponse>(
