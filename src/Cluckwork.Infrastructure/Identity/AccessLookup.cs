@@ -16,6 +16,14 @@ public sealed class AccessLookup(AppDbContext db) : IAccessLookup
     public async Task<IReadOnlyList<FlockAssignmentDetails>> ListFlockAssignmentsAsync(
         Guid userId, CancellationToken ct = default)
     {
+        // The tenant query filter scopes this read. Under an unresolved tenant
+        // it would return no rows, and no rows means account-wide access, so
+        // refuse rather than fail open.
+        if (!db.Tenant.IsResolved)
+            throw new InvalidOperationException(
+                "Flock assignments require a resolved tenant: an unresolved tenant reads no rows, " +
+                "and no rows would grant account-wide access.");
+
         var assignments = await db.UserRoleAssignments.AsNoTracking()
             .Where(a => a.UserId == userId)
             .ToListAsync(ct);

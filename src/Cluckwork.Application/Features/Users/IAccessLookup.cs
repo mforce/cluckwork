@@ -11,6 +11,8 @@ public interface IAccessLookup
         Guid accountId, Guid userId, CancellationToken ct = default);
 
     // No rows means account-wide access; a null FlockId is a farm-wide row.
+    // Throws when the tenant is unresolved, because the read would then find
+    // no rows and grant account-wide access.
     Task<IReadOnlyList<FlockAssignmentDetails>> ListFlockAssignmentsAsync(
         Guid userId, CancellationToken ct = default);
 }

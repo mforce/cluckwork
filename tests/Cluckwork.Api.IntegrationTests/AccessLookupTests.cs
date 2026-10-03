@@ -74,6 +74,43 @@ public sealed class AccessLookupTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(new Guid?[] { farm.FlockB }, forY.Select(a => a.FlockId).ToArray());
     }
 
+    // One email holds a different role in each of two farms. The role read is
+    // scoped by the account it is asked about, never by the user id alone.
+    [Fact]
+    public async Task GetEffectiveRole_AnswersOnlyForTheAccountItIsAskedAbout()
+    {
+        var email = $"both-{Guid.NewGuid():N}@test.local";
+        var farmA = await SeedFarmAsync();
+        var farmB = await SeedFarmAsync();
+        await factory.SeedUserAsync(farmA.AccountId, email, Roles.Manager);
+        await factory.SeedUserAsync(farmB.AccountId, email, Roles.Owner);
+        var inA = await factory.WithTenantScopeAsync(farmA.AccountId, db =>
+            db.Users.Where(u => u.Email == email && u.AccountId == farmA.AccountId).Select(u => u.Id).SingleAsync());
+        var inB = await factory.WithTenantScopeAsync(farmB.AccountId, db =>
+            db.Users.Where(u => u.Email == email && u.AccountId == farmB.AccountId).Select(u => u.Id).SingleAsync());
+
+        using var scope = factory.Services.CreateScope();
+        scope.ResolveTenantAndActor(farmB.AccountId);
+        var lookup = scope.ServiceProvider.GetRequiredService<IAccessLookup>();
+
+        Assert.Equal(EffectiveAccountRole.Owner, await lookup.GetEffectiveRoleAsync(farmB.AccountId, inB));
+        Assert.Null(await lookup.GetEffectiveRoleAsync(farmB.AccountId, inA));
+        Assert.Equal(EffectiveAccountRole.Manager, await lookup.GetEffectiveRoleAsync(farmA.AccountId, inA));
+        Assert.Null(await lookup.GetEffectiveRoleAsync(farmA.AccountId, inB));
+    }
+
+    [Fact]
+    public async Task ListFlockAssignments_RefusesAnUnresolvedTenant()
+    {
+        var farm = await SeedFarmAsync();
+        var (worker, _) = await SeedWorkerAsync(farm, farm.FlockA);
+
+        using var scope = factory.Services.CreateScope();
+        var lookup = scope.ServiceProvider.GetRequiredService<IAccessLookup>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => lookup.ListFlockAssignmentsAsync(worker));
+    }
+
     [Fact]
     public async Task ARestrictedWorker_DoesNotInheritAnotherWorkersFarmWideRow()
     {
