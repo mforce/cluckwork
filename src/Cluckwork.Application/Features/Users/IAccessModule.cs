@@ -1,5 +1,6 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.AssignFlock;
+using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Application.Features.Users.ChangeUserEmail;
 using Cluckwork.Application.Features.Users.ChangeUserRole;
 using Cluckwork.Application.Features.Users.CreateUser;
@@ -14,9 +15,9 @@ using Cluckwork.Domain.Common;
 namespace Cluckwork.Application.Features.Users;
 
 // #857 — Access's surface for HTTP adapters: user administration, the
-// caller's own profile, and flock assignments. Each member forwards to the
-// existing handler or identity call, so step-up checks, locks, audit rows and
-// errors are theirs, unchanged. Peers use IAccessLookup instead.
+// caller's own profile, flock assignments, and sessions. Each member forwards
+// to the existing handler or identity service, so step-up checks, locks, audit
+// rows, tokens and errors are theirs, unchanged. Peers use IAccessLookup instead.
 public interface IAccessModule
 {
     Task<Result<Guid>> CreateUserAsync(
@@ -56,4 +57,31 @@ public interface IAccessModule
 
     Task<Result> SetStepperUnitAsync(
         SetStepperUnitCommand command, Guid accountId, Guid userId, CancellationToken ct);
+
+    Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct);
+
+    Task<Result<TokenPair>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct);
+
+    // Whether the DEFAULT account has an Owner (#283, #361).
+    Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct);
+
+    // The LoginFailed security event for a failure decided before any
+    // credential check: an unknown farm code or a suspended farm.
+    void RecordLoginFailure();
+
+    Task<Result<TokenPair>> RefreshAsync(string refreshToken, Guid? expectedAccountId, CancellationToken ct);
+
+    Task<RefreshTokenRevocationOutcome> RevokeRefreshTokenAsync(
+        string refreshToken, Guid? expectedAccountId, CancellationToken ct);
+
+    Task RecordLogoutAsync(Guid userId, CancellationToken ct);
+
+    Task<Result<TokenPair>> ChangeOwnPasswordAsync(ChangeOwnPasswordCommand command, Guid userId, CancellationToken ct);
+
+    Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
+        Guid accountId, Guid userId, string currentPassword, CancellationToken ct);
+
+    // Jwt:RefreshTokenDays, the refresh cookie's lifetime. Only this value
+    // leaves the JWT options; the signing keys stay in Identity.
+    int RefreshTokenLifetimeDays { get; }
 }
