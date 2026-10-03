@@ -118,6 +118,14 @@ public sealed class BusinessRecordModelTests
     {
         using var db = BuildContext();
 
+        var ownedTimestamped = db.Model.GetEntityTypes()
+            .Where(entity => entity.IsOwned() && typeof(ICreatedRecord).IsAssignableFrom(entity.ClrType))
+            .Select(entity => entity.ClrType.FullName).Distinct().Order().ToArray();
+        Assert.True(ownedTimestamped.Length == 0,
+            "Owned entity types cannot be timestamped business records: "
+            + string.Join(", ", ownedTimestamped)
+            + ". BusinessRecordModel configures no timestamps or Sequence for owned types; map the record as an entity type.");
+
         var timestampedTypes = db.Model.GetEntityTypes()
             .Where(entity => !entity.IsOwned()
                 && typeof(ICreatedRecord).IsAssignableFrom(entity.ClrType))

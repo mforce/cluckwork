@@ -114,7 +114,9 @@ page or read by time, because that is a fact about queries, not about the model.
 Every mapped `ICreatedRecord` must appear in exactly one of two lists:
 `ChronologicalListTypes`, or `NotReadByTimeTypes` with a one-line reason. The
 test fails when a record is in neither list, in both, or when a listed type is
-not a mapped timestamped record. A second test fails when the chronological
+not a mapped timestamped record. It also rejects any owned entity type that
+implements `ICreatedRecord`, because `BusinessRecordModel` configures no
+timestamps or `Sequence` for owned types. A second test fails when the chronological
 list and the module contributions disagree, because only contributed records
 carry `Sequence`. A new timestamped record therefore cannot be omitted silently.
 The test does not check that a declaration is true. A record users page by time
