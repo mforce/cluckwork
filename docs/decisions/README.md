@@ -36,6 +36,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Flock lifecycle behind a contract, with read and mortality ports for peers (#852)](852-flock-contract.md) | AGENTS · Application shape |
 | [Egg Operations behind a contract, with the egg lot lock order pinned (#853)](853-egg-operations-contract.md) | AGENTS · Application shape |
 | [General Inventory behind a contract, keeping the feed-usage lock order (#855)](855-inventory-contract.md) | AGENTS · Application shape |
+| [Reach a contracted peer module only through its contract or seam (#1023)](1023-peer-contract-guard.md) | AGENTS · Application shape |
 | [Table-owner completeness from the EF model (#845)](845-table-owners.md) | AGENTS · Data and correctness |
 | [Credential epoch revocation (#364)](364-credential-epoch-revocation.md) | AGENTS · Conventions |
 | [Base reference data via guarded raw-SQL migrations (#283)](283-migrations-base-provisioning.md) | AGENTS · Conventions |
