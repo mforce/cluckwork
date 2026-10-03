@@ -14,15 +14,18 @@ using Npgsql;
 namespace Cluckwork.Api.IntegrationTests;
 
 // #857 — the per-request credential read (#364) must stay a fresh database
-// round trip. The existing suites change credentials through the application's
-// own services or a tracked SaveChanges, and none of them uses the bearer before
-// the change, so a cache that the application clears on its own writes, or one
-// that a cold first request leaves empty, passes all of them. Every test here
-// uses the bearer first, then changes the row over an independent connection
-// the application never sees, and counts the read on every request.
+// round trip. CredentialEpochTests changes the epoch through the application's
+// services or a tracked SaveChanges, without using the bearer first, so a cache
+// the application clears on its own writes passes it. Only AccountSuspensionTests'
+// inactive-farm case uses its bearer before changing the row. These tests cover
+// the rest: the revocation tests use the bearer, then change the epoch, the
+// disabled flag, the farm or the user over an independent connection the
+// application never sees; the count test counts the read on every request; the
+// overlap test holds one read in flight while a second request arrives.
 //
-// The host clock is frozen so that a cache expiring on TimeProvider can only
-// hit: with a running clock, five slow requests could each outlive its TTL.
+// The host clock's GetUtcNow is frozen, so a cache that expires on
+// TimeProvider.GetUtcNow can only hit. GetTimestamp and CreateTimer are not
+// frozen, and a cache expiring on either could still expire mid-test.
 public sealed class CredentialEpochFreshReadFactory : CluckworkWebApplicationFactory
 {
     public CredentialReadInterceptor CredentialReads { get; } = new();
@@ -46,17 +49,43 @@ public sealed class CredentialEpochFreshReadFactory : CluckworkWebApplicationFac
 
 // Counts executions of the credential read: the one statement that selects a
 // user's CredentialEpoch together with the account's IsActive. It can also fail
-// that statement, transiently once or permanently.
+// that statement (transiently once, permanently, or as a cancellation), or hold
+// the next one after it has executed.
 public sealed class CredentialReadInterceptor : DbCommandInterceptor
 {
     private int _count;
     private volatile Fault _fault;
+    private TaskCompletionSource? _pauseEntered;
+    private TaskCompletionSource? _pauseRelease;
 
-    public enum Fault { None, TransientOnce, Permanent }
+    public enum Fault { None, TransientOnce, Permanent, Cancelled }
 
     public int Count => Volatile.Read(ref _count);
 
     public void Inject(Fault fault) => _fault = fault;
+
+    // Holds the next credential read once it has executed, so the row state it
+    // returns predates anything the test commits while it is held.
+    public (Task Entered, Action Release) PauseNextReadAfterExecution()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pauseRelease = release;
+        Volatile.Write(ref _pauseEntered, entered);
+        return (entered.Task, () => release.TrySetResult());
+    }
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsCredentialRead(command) && Interlocked.Exchange(ref _pauseEntered, null) is { } entered)
+        {
+            entered.TrySetResult();
+            await _pauseRelease!.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
 
     public static bool IsCredentialRead(DbCommand command) =>
         command.CommandText.Contains("\"CredentialEpoch\"", StringComparison.Ordinal)
@@ -77,6 +106,8 @@ public sealed class CredentialReadInterceptor : DbCommandInterceptor
                     throw TransientFault.Create();
                 case Fault.Permanent:
                     throw new InvalidOperationException("simulated non-transient failure of the credential read");
+                case Fault.Cancelled:
+                    throw new OperationCanceledException("simulated cancellation of the credential read");
             }
         }
         return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
@@ -218,6 +249,62 @@ public sealed class CredentialEpochFreshReadTests(CredentialEpochFreshReadFactor
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.False(await factory.WithTenantScopeAsync(bearer.AccountId, db =>
             db.ExpenseCategories.AnyAsync(c => c.Name == name)));
+    }
+
+    // A cancelled read is a failed read, so it surfaces as an error. Turning it
+    // into any verdict breaks the port's contract, and while Current was the
+    // enum's zero value, `return default` admitted the request.
+    [Fact]
+    public async Task ACancelledCredentialRead_IsAnErrorNotAVerdict()
+    {
+        var bearer = await ActiveBearerAsync();
+        var name = $"must-not-exist-{Guid.NewGuid():N}";
+        factory.CredentialReads.Inject(CredentialReadInterceptor.Fault.Cancelled);
+
+        var response = await bearer.Client.PostWithKeyAsync(
+            "/api/v1/expense-categories", Guid.NewGuid().ToString(), new { name });
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.False(await factory.WithTenantScopeAsync(bearer.AccountId, db =>
+            db.ExpenseCategories.AnyAsync(c => c.Name == name)));
+    }
+
+    // The first request's read is held after it has executed, so its result
+    // predates the revocation committed next. A second request with the same
+    // bearer must run its own read and be refused at once. A Singleton verifier
+    // (one captured AppDbContext) or a cache of in-flight reads fails this; the
+    // sequential tests above see neither.
+    [Fact]
+    public async Task AnOverlappingRequest_ReadsItsOwnCredential_WhileAnEarlierReadIsInFlight()
+    {
+        var bearer = await ActiveBearerAsync();
+        var (entered, release) = factory.CredentialReads.PauseNextReadAfterExecution();
+        var first = bearer.Client.GetAsync("/api/v1/users");
+        try
+        {
+            await entered.WaitAsync(TimeSpan.FromSeconds(30));
+            await ExecuteOnIndependentConnectionAsync(
+                """UPDATE "AspNetUsers" SET "CredentialEpoch" = "CredentialEpoch" + 1 WHERE "Id" = @id""",
+                bearer.UserId);
+            var readsBefore = factory.CredentialReads.Count;
+
+            var second = bearer.Client.GetAsync("/api/v1/users");
+            await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(30)));
+            Assert.True(second.IsCompleted, "the second request waited on the first request's credential read");
+            var response = await second;
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal("Auth.CredentialsSuperseded",
+                (await response.Content.ReadFromJsonAsync<ProblemDetails>())!.Title);
+            Assert.Equal(1, factory.CredentialReads.Count - readsBefore);
+        }
+        finally
+        {
+            release();
+        }
+
+        // Its read completed before the revocation, so it is admitted: the
+        // accepted in-flight window, and proof the hold came after execution.
+        Assert.Equal(HttpStatusCode.OK, (await first).StatusCode);
     }
 
     private static HttpRequestMessage LogoutRequest(string path, ActiveBearer bearer)
