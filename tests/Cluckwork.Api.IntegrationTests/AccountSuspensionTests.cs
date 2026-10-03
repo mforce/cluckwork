@@ -767,7 +767,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
 
         // Both conditions are true at once. Precedence says DISABLED wins: the
         // farm's suspension is not this person's actionable problem. Swap the two
-        // clauses in CredentialEpochMiddleware and only this test reddens.
+        // clauses in CredentialEpochVerifier and only this test reddens.
         var response = await client.GetAsync("/api/v1/users");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();

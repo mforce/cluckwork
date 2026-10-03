@@ -189,7 +189,7 @@
     },
     {
       "from": "Access", "to": "Farm", "kind": "W",
-      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. Design 3.4 row Access -> Farm = R.",
+      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). CredentialEpochVerifier reads Account.IsActive in the same fresh per-request query as the user's credential epoch, so a suspended farm's credentials stop working at once (#364, #579, #857). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. Design 3.4 row Access -> Farm = R.",
       "symbols": [
         "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
         "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler",
@@ -205,6 +205,7 @@
         "Cluckwork.Infrastructure.Identity.AccountSuspensionService",
         "Cluckwork.Infrastructure.Identity.AdminRecoveryResult",
         "Cluckwork.Infrastructure.Identity.AdminRecoveryService",
+        "Cluckwork.Infrastructure.Identity.CredentialEpochVerifier",
         "Cluckwork.Infrastructure.Identity.FirstRunAdminOutcome",
         "Cluckwork.Infrastructure.Identity.FirstRunAdminService",
         "Cluckwork.Infrastructure.Identity.FirstRunProvisioningLatch",
@@ -1523,14 +1524,6 @@
       "owner": "Platform",
       "reason": "Lists every farm's code, name and active state for the operator, across tenants. IFarmModule reads only the current farm; the Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Api.Middleware.CredentialEpochMiddleware.InvokeAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Access",
-      "reason": "Reads Account.IsActive in the same fresh per-request query as the user's credential epoch, so a suspended farm's credentials stop working at once (#364, #579). The read must stay uncached; the Access slice moves it onto an epoch-verifier port.",
-      "deleteWhen": "#857"
     },
     {
       "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync",

@@ -10,14 +10,14 @@
     "justification": "Operator CLI resolves an account by its global slug (slugs are unique across farms); no tenant resolved at this point."
   },
   {
-    "symbol": "Cluckwork.Api.Middleware.CredentialEpochMiddleware.InvokeAsync(HttpContext context, AppDbContext db)",
-    "file": "src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs",
-    "justification": "DEFENSIVE bypass: reads the user's own account to check IsActive. The read is scoped to the JWT's account id; IgnoreQueryFilters makes it work even before TenantContext resolves. #364 fail-closed guarantee."
-  },
-  {
     "symbol": "Cluckwork.Infrastructure.Identity.AccountProvisioner.ProvisionAsync(string? name, string? slug, string? ownerEmail, string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Identity/AccountProvisioner.cs",
     "justification": "Provisions a NEW account; checks the global slug for a collision before any tenant exists. Runs at unresolved tenant by design (#533)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.CredentialEpochVerifier.VerifyAsync(Guid userId, Guid accountId, int tokenEpoch, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/CredentialEpochVerifier.cs",
+    "justification": "DEFENSIVE bypass: reads the user's own account to check IsActive. The read is scoped to the JWT's account id; IgnoreQueryFilters makes it work even before TenantContext resolves. #364 fail-closed guarantee. Moved here from CredentialEpochMiddleware.InvokeAsync by #857, query unchanged."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionAsync(string? email, CancellationToken ct)",

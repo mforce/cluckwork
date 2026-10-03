@@ -240,8 +240,9 @@ guard's floor is unchanged there.
 
 **The rule.** `Account.IsActive` is checked on **every authenticated request**, folded into
 the per-request read `CredentialEpochMiddleware` already performs for #364's credential
-epoch (`src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs:54-57`, rejected at
-`:69-73`). Suspension also revokes, in the same transaction, every user's credential epoch
+epoch (since #857, the correlated subquery in `CredentialEpochVerifier.VerifyAsync`,
+`src/Cluckwork.Infrastructure/Identity/CredentialEpochVerifier.cs`; the middleware refuses
+any verdict but `Current`). Suspension also revokes, in the same transaction, every user's credential epoch
 and security stamp and every open refresh token
 (`src/Cluckwork.Infrastructure/Identity/AccountSuspensionService.cs:164-190`).
 
