@@ -71,7 +71,7 @@
 # database that is throwaway by design — annoying, not lossy. That is a better
 # trade than a second, drifting copy of the rules.
 #
-# When a NEW guard breaks this harness, add it here (that is the AGENTS.md
+# When a NEW guard breaks this harness, add it here (that is the src/AGENTS.md
 # rule). Do not add guards speculatively.
 #
 # Seconds to run. No image build, no stack boot.
@@ -365,7 +365,7 @@ else:
 #
 # On the header's "do not add guards speculatively" rule: this one has NOT
 # broken the harness — bootstrap.sh generates a real keypair, so a freshly
-# bootstrapped .env.sim satisfies it. It is here because the AGENTS.md #370 rule
+# bootstrapped .env.sim satisfies it. It is here because the src/AGENTS.md #370 rule
 # requires a new boot guard to reach all three harness files, and because the
 # thing it catches is one this repo actively SHIPS: deploy/.env.example's
 # `replace-me` body is a plausible copy-paste source for a hand-edited .env.sim.

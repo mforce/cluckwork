@@ -1,6 +1,6 @@
 # Retire style guards with a named successor (#824)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md).
+> **Rule** — the one-paragraph version lives in [`web/AGENTS.md`](../../web/AGENTS.md).
 
 **Status:** accepted
 **Date:** 2026-09-22

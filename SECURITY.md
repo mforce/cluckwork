@@ -64,7 +64,7 @@ only then an exception, naming the blocker and linking the PR that removes it.
 Released images carry a build-provenance attestation. Deploy **by digest**, and
 verify origin before you do — the exact commands, and a precise statement of what
 they do and do not prove, are in [`docs/releasing.md`](docs/releasing.md#deploying)
-and the deploy bullet of [`AGENTS.md`](AGENTS.md#releases-and-image-publishing-351).
+and the deploy bullet of [`.github/AGENTS.md`](.github/AGENTS.md#releases-and-image-publishing-351).
 
 ## What this repo does not hold
 

@@ -1,6 +1,6 @@
 # Proxy-trust boot guard (#260)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file is the relocated rationale. Why the guard is scoped to the serving
 > process and not to the CLI verbs is in [#347](347-process-role.md).
 

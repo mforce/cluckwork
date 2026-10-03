@@ -5,7 +5,7 @@ those become a version.**
 
 > This file is the **how-to**. The **invariants** — what not to break, and why
 > each step is shaped the way it is — live in the release section of
-> [`AGENTS.md`](../AGENTS.md#releases-and-image-publishing-351); the full internal
+> [`.github/AGENTS.md`](../.github/AGENTS.md#releases-and-image-publishing-351); the full internal
 > mechanism (promotion, the release-please split, the App token, the commit-body
 > parser) is in [`docs/decisions/351-releases.md`](decisions/351-releases.md).
 
@@ -136,7 +136,7 @@ TAGGED=$(docker buildx imagetools inspect ghcr.io/mforce/cluckwork:vX.Y.Z \
 Step 3 catches an asset rewritten on its own. It does **not** catch someone who
 can also push to the registry and move the tag to match, and it says nothing
 about a change merged to `main`. **Read the deploy bullet in
-[`AGENTS.md`](../AGENTS.md#releases-and-image-publishing-351) before relying on
+[`.github/AGENTS.md`](../.github/AGENTS.md#releases-and-image-publishing-351) before relying on
 any of this** — it is the canonical statement of what each step does and does not
 prove, and of why each flag is required.
 

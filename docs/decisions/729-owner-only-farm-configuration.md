@@ -1,6 +1,6 @@
 # Keep farm configuration and identity Owner-only (#729)
 
-> **Rule.** The one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md).
+> **Rule.** The one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md).
 > This file records why the authorization boundary differs from the broader
 > `AdminOnly` operations tier.
 

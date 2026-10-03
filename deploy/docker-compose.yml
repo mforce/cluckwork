@@ -15,7 +15,7 @@ services:
   # Only the two purge sweeps are silent about it. DailyEntryLockSweep loses an
   # optimistic-concurrency check and logs "Lock sweep failed for account …",
   # which reads as a database fault rather than as a second replica. See
-  # "Deploy invariant" in AGENTS.md for the full list and for how to re-derive
+  # "Deploy invariant" in src/AGENTS.md for the full list and for how to re-derive
   # it — and note that #307's closure is NOT permission to scale.
   app:
     build:
@@ -102,7 +102,7 @@ services:
   # and runs with Database:MigrateOnStartup=false, so request-serving never runs
   # DDL. Here both use the single POSTGRES_USER; a real multi-role deploy points
   # THIS job at the owner/migrator credential and `app` at a least-privilege
-  # runtime role (USAGE + DML, no DDL) — see AGENTS.md. `migrate` is a
+  # runtime role (USAGE + DML, no DDL) — see src/AGENTS.md. `migrate` is a
   # run-then-exit verb on the same image (ENTRYPOINT dotnet Cluckwork.Api.dll).
   migrate:
     build:
