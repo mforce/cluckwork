@@ -1,6 +1,7 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
+using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Application.Features.Users.ChangeUserEmail;
 using Cluckwork.Application.Features.Users.ChangeUserRole;
 using Cluckwork.Application.Features.Users.CreateUser;
@@ -11,11 +12,12 @@ using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Application.Features.Users.SetUserPassword;
 using Cluckwork.Application.Features.Users.UpdateUser;
 using Cluckwork.Domain.Common;
+using Microsoft.Extensions.Options;
 
 namespace Cluckwork.Infrastructure.Identity;
 
-// #857 — lives in Infrastructure because the session members PR C adds read
-// Identity configuration and services. It takes IIdentityProvider from DI, never
+// #857 — lives in Infrastructure because the session members read Identity
+// configuration and services. It takes IIdentityProvider from DI, never
 // the concrete provider, so a registered decorator stays in the path.
 public sealed class AccessModule(
     CreateUserHandler createUser,
@@ -29,7 +31,12 @@ public sealed class AccessModule(
     UnassignFlockHandler unassignFlock,
     SetLanguageHandler setLanguage,
     SetStepperUnitHandler setStepperUnit,
+    ChangeOwnPasswordHandler changeOwnPassword,
     IIdentityProvider identity,
+    IStepUpGrantService stepUp,
+    FirstRunStatusService firstRun,
+    AuthSecurityEventLogger securityEvents,
+    IOptions<JwtOptions> jwt,
     IUserRoleAssignmentRepository assignments) : IAccessModule
 {
     public Task<Result<Guid>> CreateUserAsync(
@@ -83,4 +90,33 @@ public sealed class AccessModule(
     public Task<Result> SetStepperUnitAsync(
         SetStepperUnitCommand command, Guid accountId, Guid userId, CancellationToken ct) =>
         setStepperUnit.HandleAsync(command, accountId, userId, ct);
+
+    public Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct) =>
+        identity.ResolveFarmCodeAsync(farmCode, ct);
+
+    public Task<Result<TokenPair>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct) =>
+        identity.LoginAsync(accountId, email, password, ct);
+
+    public Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct) => firstRun.IsProvisionedAsync(ct);
+
+    public void RecordLoginFailure() => securityEvents.LoginFailed();
+
+    public Task<Result<TokenPair>> RefreshAsync(string refreshToken, Guid? expectedAccountId, CancellationToken ct) =>
+        identity.RefreshAsync(refreshToken, ct, expectedAccountId);
+
+    public Task<RefreshTokenRevocationOutcome> RevokeRefreshTokenAsync(
+        string refreshToken, Guid? expectedAccountId, CancellationToken ct) =>
+        identity.RevokeRefreshTokenAsync(refreshToken, ct, expectedAccountId);
+
+    public Task RecordLogoutAsync(Guid userId, CancellationToken ct) => identity.RecordLogoutAsync(userId, ct);
+
+    public Task<Result<TokenPair>> ChangeOwnPasswordAsync(
+        ChangeOwnPasswordCommand command, Guid userId, CancellationToken ct) =>
+        changeOwnPassword.HandleAsync(command, userId, ct);
+
+    public Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
+        Guid accountId, Guid userId, string currentPassword, CancellationToken ct) =>
+        stepUp.IssueAsync(accountId, userId, currentPassword, ct);
+
+    public int RefreshTokenLifetimeDays => jwt.Value.RefreshTokenDays;
 }
