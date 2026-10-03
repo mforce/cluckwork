@@ -17,8 +17,7 @@ public sealed class ConfirmSaleHandler(
     IEggStock eggStock,
     IEggGradeLookup eggGrades,
     ISalesOrderAllocationRepository allocations,
-    IUserRoleAssignmentRepository assignments,
-    IIdentityProvider identity,
+    IAccessLookup access,
     IAuditWriter audit,
     IUnitOfWork unitOfWork,
     IClock clock,
@@ -165,7 +164,7 @@ public sealed class ConfirmSaleHandler(
             // 5 — a FRESH read, not the JWT-issued caller's own claims: the
             // caller's role can have changed while queued behind the Account
             // lock above.
-            var role = await identity.GetEffectiveRoleAsync(accountId, actingUserId, transactionCt);
+            var role = await access.GetEffectiveRoleAsync(accountId, actingUserId, transactionCt);
             if (role is null || !AllowedToConfirm.Contains(role.Value))
             {
                 failure = Result.Failure<ConfirmSaleResponse>(AppError.Forbidden());
@@ -203,7 +202,7 @@ public sealed class ConfirmSaleHandler(
             HashSet<Guid>? assignedFlockIds = null;
             if (role == EffectiveAccountRole.Worker)
             {
-                var rows = await assignments.ListByUserAsync(actingUserId, transactionCt);
+                var rows = await access.ListFlockAssignmentsAsync(actingUserId, transactionCt);
                 if (rows.Count > 0 && rows.All(r => r.FlockId is not null))
                     assignedFlockIds = rows.Select(r => r.FlockId!.Value).ToHashSet();
             }

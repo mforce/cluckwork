@@ -1,5 +1,6 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.SetLanguage;
 using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Domain.Common;
@@ -34,11 +35,11 @@ public static class MeEndpoints
     }
 
     private static async Task<IResult> GetMe(
-        IIdentityProvider identity, ICurrentUser currentUser, TenantContext tenant,
+        IAccessModule access, ICurrentUser currentUser, TenantContext tenant,
         CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
-        var profile = await identity.GetUserAsync(tenant.AccountId, currentUser.UserId, ct);
+        var profile = await access.GetUserAsync(tenant.AccountId, currentUser.UserId, ct);
         return profile is null
             ? Results.NotFound()
             : Results.Ok(new MeResponse(
@@ -47,7 +48,7 @@ public static class MeEndpoints
     }
 
     private static async Task<IResult> SetLanguage(
-        SetLanguageRequest request, SetLanguageHandler handler,
+        SetLanguageRequest request, IAccessModule access,
         IValidator<SetLanguageCommand> validator, ICurrentUser currentUser,
         TenantContext tenant, CancellationToken ct)
     {
@@ -61,7 +62,7 @@ public static class MeEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation); // carries Me.Language.Format
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.SetLanguageAsync(command, tenant.AccountId, currentUser.UserId, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
@@ -70,7 +71,7 @@ public static class MeEndpoints
     // exist and is it active" check inside the handler (needs a repository read,
     // unlike SetLanguage's plain format check).
     private static async Task<IResult> SetStepperUnit(
-        SetStepperUnitRequest request, SetStepperUnitHandler handler,
+        SetStepperUnitRequest request, IAccessModule access,
         IValidator<SetStepperUnitCommand> validator, ICurrentUser currentUser,
         TenantContext tenant, CancellationToken ct)
     {
@@ -81,7 +82,7 @@ public static class MeEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation); // carries Me.StepperUnit.Format
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        var result = await access.SetStepperUnitAsync(command, tenant.AccountId, currentUser.UserId, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
