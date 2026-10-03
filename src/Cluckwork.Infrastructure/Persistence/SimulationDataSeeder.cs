@@ -389,6 +389,8 @@ public sealed class SimulationDataSeeder(
             // manifest emission have succeeded, and only once (a first completion
             // stamps it; later re-runs leave it). The timestamp itself isn't
             // validated/fingerprinted, so its value is free to differ per run.
+            // The per-day clear detached the durable completion row.
+            state = await db.SimulationSeedStates.SingleAsync(s => s.AccountId == accountId, ct);
             if (state.CompletedAtUtc is null)
             {
                 state.CompletedAtUtc = new DateTimeOffset(clock.UtcNow, TimeSpan.Zero);
@@ -1179,6 +1181,10 @@ public sealed class SimulationDataSeeder(
                 var submitted = await eggs.SubmitDailyEntryAsync(entryId, accountId, ct);
                 Require(submitted, $"submit daily entry {entryId} for flock {flockId} on {date:yyyy-MM-dd}");
             }
+
+            // Every handler has saved; later days reload by id, so release the
+            // day's entities instead of rescanning the whole history (#1045).
+            db.ChangeTracker.Clear();
         }
     }
 
