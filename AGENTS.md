@@ -25,7 +25,7 @@ rule is a convention; apply it consistently without archaeology.
 
 ## Scoped rule files
 
-Some rules can only be broken by a change inside one directory. Those rules live in that directory's `AGENTS.md`. Codex applies a nested `AGENTS.md` to its directory tree. Claude Code loads the sibling `CLAUDE.md` (`@AGENTS.md`) when it reads a file in that tree. **Read the scoped file before you edit in its tree, even if your runtime did not load it.** A rule moves out of this file only when the file that triggers it lives in that tree. A rule triggered by a `src/` edit stays here, even when its subject lives elsewhere (#370, #565, #394). Each rule lives in exactly one file (#1034).
+Some rules can only be broken by a change inside one directory. Those rules live in that directory's `AGENTS.md`. Codex applies a nested `AGENTS.md` to its directory tree. Other runtimes, Claude Code included, load only this file. **Read the scoped file before you edit in its tree, even if your runtime did not load it.** A rule moves out of this file only when the file that triggers it lives in that tree. A rule triggered by a `src/` edit stays here, even when its subject lives elsewhere (#370, #565, #394). Each rule lives in exactly one file (#1034).
 
 - [`web/AGENTS.md`](web/AGENTS.md) — SPA text and styling: badge case (#662), help prose follows labels (#688), selector call sites (#662), retiring style guards (#824).
 - [`tools/simulation/AGENTS.md`](tools/simulation/AGENTS.md) — the Playwright E2E suite (#277/#385).
