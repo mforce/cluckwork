@@ -7,7 +7,7 @@ prose — every claim below was read out of the files named beside it.
 
 Layering (`Api` → `Application`/`Infrastructure` → `Domain`, and `Domain`
 depends on nothing) is in [the README](../README.md#architecture). The rules
-these diagrams illustrate live in [`AGENTS.md`](../AGENTS.md); the reasoning
+these diagrams illustrate live in [`src/AGENTS.md`](../src/AGENTS.md); the reasoning
 behind each lives in [`docs/decisions/`](decisions/).
 
 ## The request pipeline

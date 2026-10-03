@@ -69,7 +69,7 @@ jobs:
   # which satisfies a required check.
   #
   # The changed paths come from plain `git diff`, not a third-party action:
-  # `AGENTS.md` cites the 2025-03 `tj-actions/changed-files` compromise as the
+  # `.github/AGENTS.md` cites the 2025-03 `tj-actions/changed-files` compromise as the
   # reason actions are SHA-pinned, and this needs no dependency at all.
   # The classifier's own guard. It lives in its own job, and NOTHING depends on
   # it, on purpose. It cannot sit inside `changes` below, because `changes` is
@@ -969,7 +969,7 @@ jobs:
       # side's, because promotion runs inside a workflow a branch writer can
       # edit. And NEITHER survives a change merged to `main`.
       #
-      # AGENTS.md's "Deploy by digest" bullet is the canonical statement of that
+      # .github/AGENTS.md's "Deploy by the index digest" bullet is the canonical statement of that
       # boundary — go there rather than re-deriving it here. This claim has been
       # corrected several times and every copy of it drifted; there is one copy
       # on purpose.

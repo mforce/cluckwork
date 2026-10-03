@@ -1,6 +1,6 @@
 # Process role, not statement order (#347)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
 
 ### What was wrong
 

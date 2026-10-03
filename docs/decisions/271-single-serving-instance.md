@@ -1,7 +1,7 @@
 # Exactly one serving API instance (#271, #338)
 
 > **Rule** — the one-paragraph version lives in
-> [`AGENTS.md`](../../AGENTS.md#deploy-invariant-exactly-one-serving-api-instance-271-338);
+> [`src/AGENTS.md`](../../src/AGENTS.md#deploy-invariant-exactly-one-serving-api-instance-271);
 > this file is the relocated rationale, including how the blocker list was
 > derived and why that method matters.
 

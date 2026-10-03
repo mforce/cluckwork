@@ -166,7 +166,7 @@ jobs:
           permission-issues: write
 
       # Third-party action: pinned to the immutable commit, not the re-pointable
-      # tag (AGENTS.md). Dependabot's github-actions ecosystem reads the trailing
+      # tag (.github/AGENTS.md). Dependabot's github-actions ecosystem reads the trailing
       # comment and bumps both.
       - name: Run release-please
         id: release
@@ -375,7 +375,7 @@ jobs:
           echo "Released commit was published as $digest"
 
           # (What this check does and does not defend against is stated once, in
-          # AGENTS.md's "Deploy by digest" bullet. Summarise and point there;
+          # .github/AGENTS.md's "Deploy by the index digest" bullet. Summarise and point there;
           # do not grow a fourth parallel derivation of it here.)
           #
           # VERIFY PROVENANCE BEFORE RETAGGING. The artifact above proves CI's

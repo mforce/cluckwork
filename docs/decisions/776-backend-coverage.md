@@ -154,7 +154,7 @@ tooling itself (`tools/coverage/**`, the workflow file, `.config/dotnet-tools.js
 `tests/Directory.Build.props`, `Directory.Packages.props` and
 `tests/**/packages.lock.json`) on every PR that touches those paths, so a
 change to the collection mechanism proves itself before it reaches the
-Monday schedule — the failure mode `AGENTS.md` records for the sim harness
+Monday schedule — the failure mode `src/AGENTS.md` records for the sim harness
 (#370) and the AppHost (#565): a workflow nobody runs on a normal PR rots
 silently. `dotnet restore Cluckwork.sln --locked-mode` in that workflow
 still enforces #146's lock-file discipline for the packages this decision

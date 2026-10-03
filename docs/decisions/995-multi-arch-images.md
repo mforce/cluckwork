@@ -1,6 +1,6 @@
 # Publish amd64 and arm64 images (#995)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md).
+> **Rule** — the one-paragraph version lives in [`.github/AGENTS.md`](../../.github/AGENTS.md).
 
 **Status:** accepted
 

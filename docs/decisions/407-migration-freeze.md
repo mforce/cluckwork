@@ -1,6 +1,6 @@
 # Migrations: `InitialCreate` frozen, one migration per change (#407)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
+> **Rule** — the one-paragraph version lives in [`src/Cluckwork.Infrastructure/Persistence/AGENTS.md`](../../src/Cluckwork.Infrastructure/Persistence/AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
 
 **Migrations: `InitialCreate`, then one per change — the #407 cutover.** `Persistence/Migrations/` began as exactly **one** migration, `InitialCreate`, generated from the current model on 2026-08-01. It replaced the 34 that had accumulated since 2026-06-27 (12 of them carrying raw SQL written for mid-history data states — backfills that touch 0 rows on an empty database but still execute). Done once, before the first production deploy, precisely because no `__EFMigrationsHistory` anywhere needed baselining.
 

@@ -1,6 +1,6 @@
 # Gate two C# style rules at build time (#985)
 
-**Rule in [`AGENTS.md`](../../AGENTS.md) → Conventions → Application shape.**
+**Rule in [`src/AGENTS.md`](../../src/AGENTS.md) → Conventions → Application shape.**
 
 No incident. This is an **accepted-risk** record: the risk taken is that a future
 `:warning` entry in `.editorconfig` breaks the build for everyone, and the rule is

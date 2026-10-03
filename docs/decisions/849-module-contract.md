@@ -1,6 +1,6 @@
 # Reach a contracted module only through its contract (#849)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file records the shape later contract slices copy and the limits of its guards.
 
 **Status:** accepted

@@ -1,6 +1,6 @@
 # Generate the coupling matrix from live evidence (#848)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md).
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md).
 
 **Status:** accepted
 **Date:** 2026-09-14

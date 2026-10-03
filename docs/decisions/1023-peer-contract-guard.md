@@ -1,6 +1,6 @@
 # Reach a contracted peer module only through its contract or seam (#1023)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md),
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md),
 > beside the #849 contract rule; this file records the peer check, Farm's seam,
 > type claims, and what the check deliberately leaves to review.
 
