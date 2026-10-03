@@ -38,10 +38,6 @@ public sealed class ExpenseCategoryRepository(AppDbContext db) : IExpenseCategor
 
     public async Task AddAsync(ExpenseCategory entity, CancellationToken ct = default) =>
         await db.ExpenseCategories.AddAsync(entity, ct);
-
-    public void Update(ExpenseCategory entity) => db.ExpenseCategories.Update(entity);
-
-    public void Remove(ExpenseCategory entity) => db.ExpenseCategories.Remove(entity);
 }
 
 public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository,
@@ -78,8 +74,4 @@ public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository,
 
     public async Task AddAsync(Expense entity, CancellationToken ct = default) =>
         await db.Expenses.AddAsync(entity, ct);
-
-    public void Update(Expense entity) => db.Expenses.Update(entity);
-
-    public void Remove(Expense entity) => db.Expenses.Remove(entity);
 }

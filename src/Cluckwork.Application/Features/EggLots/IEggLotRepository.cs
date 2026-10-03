@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
 
 namespace Cluckwork.Application.Features.EggLots;
 
-public interface IEggLotRepository : IRepository<EggLot, Guid>
+public interface IEggLotRepository
 {
+    Task<EggLot?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(EggLot entity, CancellationToken ct = default);
+
     // Returns FIFO-ordered available lots for the account across ALL requested
     // grades in ONE statement, acquired with a pessimistic FOR UPDATE lock.
     // Must be called inside an open transaction. Single-statement, canonical

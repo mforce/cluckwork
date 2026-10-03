@@ -3,12 +3,11 @@ using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
-using Microsoft.Extensions.Options;
 
 namespace Cluckwork.Api.Endpoints.Auth;
 
@@ -171,10 +170,8 @@ public static class AuthEndpoints
     private static bool CookieSecure(IWebHostEnvironment env) => !env.IsDevelopment();
 
     private static async Task<IResult> Login(
-        LoginRequest request, IIdentityProvider identity, IValidator<LoginRequest> validator,
-        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
-        FirstRunStatusService firstRun,
-        AuthSecurityEventLogger securityEvents, CancellationToken ct)
+        LoginRequest request, IAccessModule access, IValidator<LoginRequest> validator,
+        HttpResponse response, IWebHostEnvironment env, CancellationToken ct)
     {
         // #309 — reject an OVERSIZED email/password (400) before the hasher. An
         // empty/short credential is NOT rejected here: it still flows to
@@ -189,7 +186,7 @@ public static class AuthEndpoints
         // unresolved and the Account filter (AccountId == Guid.Empty) matches
         // zero rows — a lookup written the obvious way reports every farm code as
         // unknown, silently.
-        var farm = await identity.ResolveFarmCodeAsync(request.FarmCode, ct);
+        var farm = await access.ResolveFarmCodeAsync(request.FarmCode, ct);
         if (farm is null)
         {
             // Identity-free, exactly like every other unsuccessful branch, and
@@ -198,7 +195,7 @@ public static class AuthEndpoints
             // Deliberately does NOT touch AccessFailedAsync — there is no user
             // row here, and a farm code must never burn a real account's
             // lockout budget.
-            securityEvents.LoginFailed();
+            access.RecordLoginFailure();
             return Results.Problem(
                 "That farm code is not recognised.",
                 statusCode: 401, title: UnknownFarmCodeCode);
@@ -210,13 +207,13 @@ public static class AuthEndpoints
             // a suspended farm must answer the same way whether or not the
             // password was right, and must not fall through to a branch that
             // discloses its provisioning state instead.
-            securityEvents.LoginFailed();
+            access.RecordLoginFailure();
             return Results.Problem(
                 "This farm is suspended. Contact your administrator.",
                 statusCode: 401, title: FarmSuspendedCode);
         }
 
-        var result = await identity.LoginAsync(farm.AccountId, request.Email, request.Password, ct);
+        var result = await access.LoginAsync(farm.AccountId, request.Email, request.Password, ct);
         if (!result.IsSuccess)
         {
             // #283 follow-up (#361) — first-run discoverability, reported HERE
@@ -271,7 +268,7 @@ public static class AuthEndpoints
             // farm code an attacker can guess, and would re-open the DoS the
             // latch closed, since a farm that is never provisioned never latches
             // and every failed login re-runs the triple-nested query.
-            if (farm.AccountId == SeedDefaults.AccountId && !await firstRun.IsProvisionedAsync(ct))
+            if (farm.AccountId == SeedDefaults.AccountId && !await access.IsFirstRunProvisionedAsync(ct))
                 // Says ADMINISTRATOR, not "no accounts" and not "no sign-in can
                 // succeed" (PR #363 review). The predicate is specifically "the
                 // default account has no Owner", which is #283's provisioning
@@ -293,13 +290,13 @@ public static class AuthEndpoints
         // that was just authenticated and can no longer disturb any other
         // farm's cookie. The old last-login-wins-over-every-tab behaviour is
         // gone by construction, not by a guard.
-        AuthCookies.SetRefreshCookie(response, farm.AccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        AuthCookies.SetRefreshCookie(response, farm.AccountId, result.Value.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
     private static async Task<IResult> Refresh(
-        HttpRequest request, HttpResponse response, IIdentityProvider identity,
-        IOptions<JwtOptions> jwt, IWebHostEnvironment env, CancellationToken ct)
+        HttpRequest request, HttpResponse response, IAccessModule access,
+        IWebHostEnvironment env, CancellationToken ct)
     {
         // #309 — refresh carries no bound body parameter (the token rides in the
         // cookie), so the middleware's byte-capped stream is only enforced if
@@ -377,9 +374,9 @@ public static class AuthEndpoints
             var legacy = AuthCookies.ReadLegacyRefreshCookie(request);
             if (legacy is not null && legacy.Length <= MaxRefreshTokenLength)
             {
-                var legacyResult = await identity.RefreshAsync(legacy, ct, accountId);
+                var legacyResult = await access.RefreshAsync(legacy, accountId, ct);
                 if (legacyResult.IsSuccess)
-                    return LegacyUpgradeResult(response, legacyResult.Value, jwt.Value.RefreshTokenDays, CookieSecure(env));
+                    return LegacyUpgradeResult(response, legacyResult.Value, access.RefreshTokenLifetimeDays, CookieSecure(env));
                 // A dead legacy cookie (rotated elsewhere / expired) is not
                 // this farm's to clear on the legacy name — it is not per-farm.
                 // Leave it; it is inert. Fall through to the no-cookie 401.
@@ -409,7 +406,7 @@ public static class AuthEndpoints
             return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
         }
 
-        var result = await identity.RefreshAsync(refreshToken, ct, selectedAccountId);
+        var result = await access.RefreshAsync(refreshToken, selectedAccountId, ct);
         if (!result.IsSuccess)
         {
             // The cookie's token is invalid / already rotated / expired — expire
@@ -427,7 +424,7 @@ public static class AuthEndpoints
         // always match it. If it ever does not, something is wrong and we want
         // to fail closed on it.
 
-        AuthCookies.SetRefreshCookie(response, selectedAccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        AuthCookies.SetRefreshCookie(response, selectedAccountId, result.Value.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
@@ -444,9 +441,9 @@ public static class AuthEndpoints
     }
 
     private static async Task<IResult> ChangePassword(
-        ChangeOwnPasswordRequest request, ChangeOwnPasswordHandler handler,
+        ChangeOwnPasswordRequest request, IAccessModule access,
         IValidator<ChangeOwnPasswordCommand> validator, ICurrentUser currentUser,
-        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
+        HttpResponse response, IWebHostEnvironment env,
         CancellationToken ct)
     {
         if (!currentUser.IsResolved) return Results.Unauthorized();
@@ -458,7 +455,7 @@ public static class AuthEndpoints
 
         // The user id comes from the token, never the request: a caller can only
         // ever change their OWN password here.
-        var result = await handler.HandleAsync(command, currentUser.UserId, ct);
+        var result = await access.ChangeOwnPasswordAsync(command, currentUser.UserId, ct);
         if (!result.IsSuccess)
             return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
 
@@ -472,7 +469,7 @@ public static class AuthEndpoints
         // (ChangeOwnPasswordHandler returns it), not an ICurrentUser property:
         // the interface is the authorization input, and adding account
         // resolution to it would widen that surface for no gain.
-        AuthCookies.SetRefreshCookie(response, result.Value.AccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        AuthCookies.SetRefreshCookie(response, result.Value.AccountId, result.Value.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
@@ -481,7 +478,7 @@ public static class AuthEndpoints
     // specific authenticated user re-confirming their OWN credential — see
     // the class-level threat model on StepUpGrantService).
     private static async Task<IResult> StepUp(
-        StepUpRequest request, IStepUpGrantService stepUp, IValidator<StepUpRequest> validator,
+        StepUpRequest request, IAccessModule access, IValidator<StepUpRequest> validator,
         ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
@@ -490,7 +487,7 @@ public static class AuthEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await stepUp.IssueAsync(tenant.AccountId, currentUser.UserId, request.Password, ct);
+        var result = await access.IssueStepUpGrantAsync(tenant.AccountId, currentUser.UserId, request.Password, ct);
         if (!result.IsSuccess)
             // #336 review — 400, exactly as ChangePassword above returns the SAME
             // Users.CurrentPasswordIncorrect error. A rejected step-up password is a
@@ -563,14 +560,14 @@ public static class AuthEndpoints
     // With no selector and any named farm cookie present, infer nothing and
     // preserve every session (RefreshAccountBindingTests, #569/#570).
     private static async Task<IResult> Logout(
-        HttpRequest request, HttpResponse response, IIdentityProvider identity,
+        HttpRequest request, HttpResponse response, IAccessModule access,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
     {
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
 
         if (currentUser.IsResolved)
-            await identity.RecordLogoutAsync(currentUser.UserId, ct);
+            await access.RecordLogoutAsync(currentUser.UserId, ct);
 
         // The header is checked first, and it wins: it is the tab declaring
         // which farm it is ending. The per-farm rename made that declaration
@@ -612,18 +609,18 @@ public static class AuthEndpoints
         // it belongs to the selected farm (RefreshAccountBindingTests, #569).
         if (selectedRefreshToken is not null)
         {
-            var selectedOutcome = await identity.RevokeRefreshTokenAsync(
-                selectedRefreshToken, ct, accountId);
+            var selectedOutcome = await access.RevokeRefreshTokenAsync(
+                selectedRefreshToken, accountId, ct);
             if (legacyMatchesSelected)
                 clearLegacyCookie = selectedOutcome == RefreshTokenRevocationOutcome.InScope;
         }
         if (legacyRefreshToken is not null && !legacyMatchesSelected)
         {
             if (legacyIsOnlyPresentedSession)
-                await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct);
+                await access.RevokeRefreshTokenAsync(legacyRefreshToken, null, ct);
             else if (accountId is not null)
             {
-                var legacyOutcome = await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct, accountId);
+                var legacyOutcome = await access.RevokeRefreshTokenAsync(legacyRefreshToken, accountId, ct);
                 clearLegacyCookie = legacyOutcome == RefreshTokenRevocationOutcome.InScope;
             }
         }

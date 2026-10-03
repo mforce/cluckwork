@@ -133,6 +133,4 @@ public sealed class FlockRepository(AppDbContext db) : IFlockRepository
         await db.Flocks.AddAsync(entity, ct);
 
     public void Update(Flock entity) => db.Flocks.Update(entity);
-
-    public void Remove(Flock entity) => db.Flocks.Remove(entity);
 }

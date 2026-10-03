@@ -218,8 +218,6 @@ public sealed class EggOperationsModuleTests
             throw new NotSupportedException();
         public Task<DailyEntry?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(DailyEntry entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(DailyEntry entity) => throw new NotSupportedException();
-        public void Remove(DailyEntry entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeGrades : IEggGradeRepository
@@ -253,8 +251,6 @@ public sealed class EggOperationsModuleTests
         public Task<bool> NameExistsAsync(Guid farmId, string name, Guid? excludeId = null, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task AddAsync(EggGrade entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(EggGrade entity) => throw new NotSupportedException();
-        public void Remove(EggGrade entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeLots : IEggLotRepository
@@ -288,8 +284,6 @@ public sealed class EggOperationsModuleTests
             Guid accountId, Guid dailyEntryId, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task AddAsync(EggLot entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(EggLot entity) => throw new NotSupportedException();
-        public void Remove(EggLot entity) => throw new NotSupportedException();
     }
 
     private sealed class FakeMovements : IEggInventoryMovementRepository

@@ -1,10 +1,12 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Application.Features.Sales;
 
-public interface IPaymentRepository : IRepository<Payment, Guid>
+public interface IPaymentRepository
 {
+    Task<Payment?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(Payment entity, CancellationToken ct = default);
+
     // All payments of one order, oldest first (a settlement history reads
     // top-down), voided included — the SPA badges them.
     Task<IReadOnlyList<Payment>> ListByOrderAsync(Guid salesOrderId, CancellationToken ct = default);

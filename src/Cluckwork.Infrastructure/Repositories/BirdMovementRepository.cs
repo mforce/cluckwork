@@ -7,10 +7,6 @@ namespace Cluckwork.Infrastructure.Repositories;
 
 public sealed class BirdMovementRepository(AppDbContext db) : IBirdMovementRepository
 {
-    // Reads rely on the tenant query filter (AccountId == current tenant).
-    public Task<BirdMovement?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        db.BirdMovements.FirstOrDefaultAsync(m => m.Id == id, ct);
-
     public async Task<IReadOnlyList<BirdMovement>> ListByFlockAsync(
         Guid flockId, int limit, int offset, CancellationToken ct = default) =>
         await db.BirdMovements
@@ -49,12 +45,4 @@ public sealed class BirdMovementRepository(AppDbContext db) : IBirdMovementRepos
 
     public async Task AddAsync(BirdMovement entity, CancellationToken ct = default) =>
         await db.BirdMovements.AddAsync(entity, ct);
-
-    // The ledger is append-only: corrections are new Adjustment rows, never
-    // edits or deletes — enforced here so no handler can drift.
-    public void Update(BirdMovement entity) =>
-        throw new NotSupportedException("Bird movements are append-only; record an Adjustment instead.");
-
-    public void Remove(BirdMovement entity) =>
-        throw new NotSupportedException("Bird movements are append-only; record an Adjustment instead.");
 }

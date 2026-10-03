@@ -702,7 +702,19 @@
       ]
     },
     {
+      "symbol": "Cluckwork.Api.Endpoints.Auth.AuthEndpoints.Logout",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
       "symbol": "Cluckwork.Api.Endpoints.Auth.AuthEndpoints.Refresh",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUp",
       "reaches": [
         "Access"
       ]

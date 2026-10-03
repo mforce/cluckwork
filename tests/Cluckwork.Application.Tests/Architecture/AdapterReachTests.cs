@@ -444,7 +444,7 @@ public sealed class AdapterReachTests : IDisposable
         WriteSource("Endpoint.cs", """
             using Cluckwork.Temp.Flocks;
             namespace Cluckwork.Temp.Endpoints;
-            public class Endpoint { public void Run(IRepository<Flock, Guid> repository) { } }
+            public class Endpoint { public void Run(IStore<Flock, Guid> store) { } }
             """);
 
         var reach = Assert.Single(Scan().LiveReach);

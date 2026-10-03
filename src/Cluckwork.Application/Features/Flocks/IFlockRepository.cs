@@ -1,10 +1,13 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Flocks;
 
 namespace Cluckwork.Application.Features.Flocks;
 
-public interface IFlockRepository : IRepository<Flock, Guid>
+public interface IFlockRepository
 {
+    Task<Flock?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task AddAsync(Flock entity, CancellationToken ct = default);
+    void Update(Flock entity);
+
     // Archived flocks are hidden by default — they only appear in the
     // management view (includeArchived: true). Depleted flocks stay visible.
     Task<IReadOnlyList<Flock>> ListAsync(

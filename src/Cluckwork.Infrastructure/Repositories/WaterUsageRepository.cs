@@ -25,8 +25,4 @@ public sealed class WaterUsageRepository(AppDbContext db) : IWaterUsageRepositor
 
     public async Task AddAsync(WaterUsage entity, CancellationToken ct = default) =>
         await db.WaterUsages.AddAsync(entity, ct);
-
-    public void Update(WaterUsage entity) => db.WaterUsages.Update(entity);
-
-    public void Remove(WaterUsage entity) => db.WaterUsages.Remove(entity);
 }
