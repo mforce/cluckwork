@@ -96,10 +96,11 @@ public sealed class ListAccountsCommandTests(CluckworkWebApplicationFactory fact
         Assert.Contains(seededSlug, stdout);
     }
 
-    // The verb promises slug order. Each UPDATE writes a new row version at the
-    // end of the heap, so renaming the first farm to "...-zz" and then the second
-    // to "...-aa" stores them in reverse slug order: a read without ORDER BY
-    // returns "zz" first.
+    // The verb promises slug order. The two farms are renamed out of slug order
+    // ("-zz" first), so their newest row versions sit in reverse slug order; in
+    // a full run the shared database also holds many randomly named farms. The
+    // printed list must match the database's own ORDER BY "Slug" exactly, so a
+    // read without ORDER BY fails on any inversion, not just on this pair.
     [Fact]
     public async Task ListAccounts_PrintsFarmsInSlugOrder()
     {
@@ -116,8 +117,16 @@ public sealed class ListAccountsCommandTests(CluckworkWebApplicationFactory fact
             StartListAccounts(), SubprocessTimeout);
 
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
-        var slugs = stdout.Split('\n').Select(line => line.Split('\t')[0]).ToList();
-        Assert.True(slugs.IndexOf(early) >= 0 && slugs.IndexOf(early) < slugs.IndexOf(late),
-            $"expected {early} before {late}:\n{stdout}");
+        // stdout also carries the host's JSON log lines; a farm row is exactly
+        // three tab-separated columns.
+        var printed = stdout.Split('\n')
+            .Select(line => line.TrimEnd('\r').Split('\t'))
+            .Where(columns => columns.Length == 3)
+            .Select(columns => columns[0])
+            .ToList();
+        var expected = await factory.WithTenantScopeAsync(first, db => db.Accounts.IgnoreQueryFilters()
+            .OrderBy(a => a.Slug).Select(a => a.Slug).ToListAsync());
+        Assert.Contains(early, printed);
+        Assert.Equal(expected, printed);
     }
 }

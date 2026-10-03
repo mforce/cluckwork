@@ -1,8 +1,10 @@
 namespace Cluckwork.Application.Features.Accounts;
 
 // Reads across every farm, with no tenant resolved, for the operator verbs and
-// the lock sweep (#858). Each query ignores the tenant filter, so a request
-// path must never call it; FarmDirectoryCallerTests holds that boundary.
+// the lock sweep (#858). Each query ignores the tenant filter, so no request
+// path may reach it. FarmDirectoryCallerTests only keeps this name out of
+// request code; it does not follow a forwarder in an allowed place, which today
+// is AccountSlugLookup.ResolveAsync.
 public interface IFarmDirectory
 {
     // Every farm, suspended ones included: the lock sweep still locks their

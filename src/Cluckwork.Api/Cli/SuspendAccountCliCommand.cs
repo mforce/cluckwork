@@ -77,8 +77,10 @@ public sealed class SuspendAccountCliCommand : ICliCommand
     }
 }
 
-// Shared by both lifecycle verbs (#534). The cross-farm read lives in Farm's
-// IFarmDirectory (#858), beside list-accounts' and the lock sweep's.
+// Shared by seed, suspend-account, reactivate-account and rename-account (#534).
+// The cross-farm read lives in Farm's IFarmDirectory (#858). ResolveAsync only
+// forwards to it, which hides the directory from FarmDirectoryCallerTests; #858
+// P8 inlines it into the four verbs once #857 D has moved them.
 internal static class AccountSlugLookup
 {
     // Slugs are stored already-lowercased (Account.ValidateSlug REJECTS uppercase

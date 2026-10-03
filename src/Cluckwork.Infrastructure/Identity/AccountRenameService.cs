@@ -160,7 +160,7 @@ public sealed class AccountRenameService(
     // ONE unresolved-tenant read for BOTH codes (#732 review round 1, F7). Reads ACROSS
     // accounts with no tenant resolved, so IgnoreQueryFilters is required rather than
     // defensive — without it the account filter matches Guid.Empty and every real farm
-    // reads as absent. Same justified call site as AccountSlugLookup.ResolveAsync, and
+    // reads as absent. Same justification as IFarmDirectory.FindIdBySlugAsync, and
     // #536's registry needs its own row.
     //
     // Neither half is an authority. The source row's id is stable but everything else
