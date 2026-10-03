@@ -1,8 +1,5 @@
-using Cluckwork.Application.Features.Sales.ConfirmSale;
-using Cluckwork.Domain.Catalog;
-using Cluckwork.Domain.Common;
+using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Application.Tests.Sales;
 
@@ -15,15 +12,8 @@ public sealed class SaleAllocationPlannerTests
     private static readonly Guid GradeA = Guid.NewGuid();
     private static readonly Guid GradeB = Guid.NewGuid();
 
-    private static SalesOrder OrderWith(params (Guid GradeId, int Quantity)[] lines)
-    {
-        var order = SalesOrder.Create(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-PLAN", Today, "USD");
-        foreach (var (gradeId, quantity) in lines)
-            order.AddItem(Guid.NewGuid(), ProductType.Egg, gradeId, ProductUnit.Egg, 1, quantity, Money.Zero("USD"),
-                null, ListPriceBasis.ProductUnpriced);
-        return order;
-    }
+    private static IReadOnlyList<SaleDemandLine> OrderWith(params (Guid GradeId, int Quantity)[] lines) =>
+        lines.Select(l => new SaleDemandLine(Guid.NewGuid(), l.GradeId, l.Quantity)).ToList();
 
     private static EggLot Lot(Guid gradeId, int quantity, DateOnly? productionDate = null, Guid? flockId = null) =>
         EggLot.Create(
@@ -37,7 +27,7 @@ public sealed class SaleAllocationPlannerTests
         var newer = Lot(GradeA, 10, Today.AddDays(-1));
         var order = OrderWith((GradeA, 12));
 
-        var plan = SaleAllocationPlanner.Plan(order.Items, [older, newer]);
+        var plan = SaleAllocationPlanner.Plan(order, [older, newer]);
 
         Assert.True(plan.IsComplete);
         Assert.Equal(2, plan.Draws.Count);
@@ -53,7 +43,7 @@ public sealed class SaleAllocationPlannerTests
         var lot = Lot(GradeA, 15);
         var order = OrderWith((GradeA, 10), (GradeA, 5));
 
-        var plan = SaleAllocationPlanner.Plan(order.Items, [lot]);
+        var plan = SaleAllocationPlanner.Plan(order, [lot]);
 
         Assert.True(plan.IsComplete);
         Assert.Equal(2, plan.Draws.Count);
@@ -68,7 +58,7 @@ public sealed class SaleAllocationPlannerTests
         var lotB = Lot(GradeB, 10);
         var order = OrderWith((GradeA, 6), (GradeB, 4));
 
-        var plan = SaleAllocationPlanner.Plan(order.Items, [lotA, lotB]);
+        var plan = SaleAllocationPlanner.Plan(order, [lotA, lotB]);
 
         Assert.True(plan.IsComplete);
         Assert.Contains(plan.Draws, d => d.EggLotId == lotA.Id && d.Quantity == 6);
@@ -81,7 +71,7 @@ public sealed class SaleAllocationPlannerTests
         var lot = Lot(GradeA, 3);
         var order = OrderWith((GradeA, 10));
 
-        var plan = SaleAllocationPlanner.Plan(order.Items, [lot]);
+        var plan = SaleAllocationPlanner.Plan(order, [lot]);
 
         Assert.False(plan.IsComplete);
         Assert.Equal(GradeA, plan.ShortEggGradeId);
@@ -96,7 +86,7 @@ public sealed class SaleAllocationPlannerTests
         var before = lot.QuantityAvailable;
         var order = OrderWith((GradeA, 6));
 
-        SaleAllocationPlanner.Plan(order.Items, [lot]);
+        SaleAllocationPlanner.Plan(order, [lot]);
 
         Assert.Equal(before, lot.QuantityAvailable);
     }
@@ -110,8 +100,8 @@ public sealed class SaleAllocationPlannerTests
         var lot = Lot(GradeA, 10);
         var order = OrderWith((GradeA, 6));
 
-        var first = SaleAllocationPlanner.Plan(order.Items, [lot]);
-        var second = SaleAllocationPlanner.Plan(order.Items, [lot]);
+        var first = SaleAllocationPlanner.Plan(order, [lot]);
+        var second = SaleAllocationPlanner.Plan(order, [lot]);
 
         Assert.Equal(first.Draws, second.Draws);
     }
@@ -120,7 +110,7 @@ public sealed class SaleAllocationPlannerTests
     public void EmptyCandidateList_IsInsufficient_ForAnyNonZeroLine()
     {
         var order = OrderWith((GradeA, 1));
-        var plan = SaleAllocationPlanner.Plan(order.Items, []);
+        var plan = SaleAllocationPlanner.Plan(order, []);
         Assert.False(plan.IsComplete);
         Assert.Equal(GradeA, plan.ShortEggGradeId);
         Assert.Equal(1, plan.ShortRemaining);

@@ -160,6 +160,13 @@ public sealed class EggOperationsModuleTests
     }
 
     [Fact]
+    public async Task GradeLookup_GetCopiesEveryField()
+    {
+        Assert.Equal(ExpectedCracked, await new EggGradeLookup(_grades).GetAsync(CrackedId, default));
+        Assert.Null(await new EggGradeLookup(_grades).GetAsync(Guid.NewGuid(), default));
+    }
+
+    [Fact]
     public async Task DailyEntryLookup_ForwardsTheNaturalKeyAndReturnsTheId()
     {
         var lookup = new DailyEntryLookup(_entries);

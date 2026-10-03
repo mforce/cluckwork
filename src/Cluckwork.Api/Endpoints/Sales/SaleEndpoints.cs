@@ -3,10 +3,8 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
-using Cluckwork.Application.Features.Sales.CancelSalesOrder;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
-using Cluckwork.Application.Features.Sales.RemoveOrderItem;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Application.Features.Sales.VoidSale;
 using FluentValidation;
@@ -89,7 +87,7 @@ public static class SaleEndpoints
 
     private static async Task<IResult> CreateSalesOrder(
         CreateSalesOrderRequest request,
-        CreateSalesOrderHandler handler,
+        ICommerceModule commerce,
         IValidator<CreateSalesOrderCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -101,7 +99,7 @@ public static class SaleEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await commerce.CreateSalesOrderAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess)
             return Results.Created($"/api/v1/sales/{result.Value}", new { Id = result.Value });
         return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
@@ -112,7 +110,7 @@ public static class SaleEndpoints
     private static async Task<IResult> AddOrderItem(
         Guid id,
         AddOrderItemRequest request,
-        AddOrderItemHandler handler,
+        ICommerceModule commerce,
         IValidator<AddOrderItemCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -127,7 +125,7 @@ public static class SaleEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await commerce.AddOrderItemAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess)
             return Results.Created($"/api/v1/sales/{id}", new { OrderId = id, ItemId = result.Value });
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
@@ -151,7 +149,7 @@ public static class SaleEndpoints
         Guid id,
         Guid itemId,
         UpdateOrderItemRequest request,
-        UpdateOrderItemHandler handler,
+        ICommerceModule commerce,
         IValidator<UpdateOrderItemCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -163,31 +161,31 @@ public static class SaleEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await commerce.UpdateOrderItemAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapItemMutationFailure(result.Error);
     }
 
     private static async Task<IResult> RemoveOrderItem(
         Guid id,
         Guid itemId,
-        RemoveOrderItemHandler handler,
+        ICommerceModule commerce,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, itemId, ct);
+        var result = await commerce.RemoveOrderItemAsync(id, itemId, ct);
         return result.IsSuccess ? Results.NoContent() : MapItemMutationFailure(result.Error);
     }
 
     private static async Task<IResult> CancelSalesOrder(
         Guid id,
-        CancelSalesOrderHandler handler,
+        ICommerceModule commerce,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var result = await handler.HandleAsync(id, ct);
+        var result = await commerce.CancelSalesOrderAsync(id, ct);
         if (result.IsSuccess) return Results.NoContent();
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
@@ -197,17 +195,16 @@ public static class SaleEndpoints
     }
 
     private static async Task<IResult> GetSalesOrder(
-        Guid id, ISalesOrderRepository orders, ICustomerRepository customers, IEggGradeLookup grades,
-        IInsightsModule audit, IPaymentRepository payments,
+        Guid id, ICommerceModule commerce, IEggGradeLookup grades, IInsightsModule audit,
         IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var order = await orders.GetReadOnlyAsync(id, ct);
+        var order = await commerce.GetSalesOrderAsync(id, ct);
         if (order is null) return Results.NotFound();
-        var provenance = await audit.GetProvenanceAsync(nameof(SalesOrder), [id], ct);
+        var provenance = await audit.GetProvenanceAsync(ICommerceModule.SalesOrderAuditEntityType, [id], ct);
         // Detail and list must answer identically (#512): same read, one id.
-        var customer = (await customers.GetDisplayNamesAsync([order.CustomerId], ct))
+        var customer = (await commerce.GetCustomerNamesAsync([order.CustomerId], ct))
             .GetValueOrDefault(order.CustomerId);
         // #769 — same figure, same tier, same NULL-off-Confirmed rule as the
         // list. Leaving this null while the list carries it would make the two
@@ -215,7 +212,7 @@ public static class SaleEndpoints
         long? outstanding = null;
         if (order.Status == SalesOrderStatus.Confirmed && await MaySeeMoneyAsync(authorization, caller))
             outstanding = order.TotalAmount.MinorUnits
-                - await payments.SumNonVoidedByOrderAsync(id, ct);
+                - await commerce.SumNonVoidedPaymentsAsync(id, ct);
         var gradeNames = await grades.GetDisplayNamesAsync(order.Items.Select(i => i.EggGradeId).Distinct().ToList(), ct);
         return Results.Ok(ToResponse(
             order, provenance.GetValueOrDefault(id), gradeNames, customer, outstanding));
@@ -243,8 +240,7 @@ public static class SaleEndpoints
         (await authorization.AuthorizeAsync(caller, AuthPolicies.SalesAccess)).Succeeded;
 
     private static async Task<IResult> ListSalesOrders(
-        ISalesOrderRepository orders,
-        Cluckwork.Application.Features.Customers.ICustomerRepository customers,
+        ICommerceModule commerce,
         IEggGradeLookup grades,
         IInsightsModule audit,
         IAuthorizationService authorization, ClaimsPrincipal caller,
@@ -286,16 +282,16 @@ public static class SaleEndpoints
             : unpaid == true ? SettlementScope.UnpaidOnly
             : SettlementScope.Visible;
 
-        var list = await orders.ListAsync(
+        var list = await commerce.ListSalesOrdersAsync(
             new SalesOrderListFilter(statusFilter, customerId, from, to, settlement),
             take, skip, ct);
         var provenance = await audit.GetProvenanceAsync(
-            nameof(SalesOrder), list.Select(r => r.Order.Id).ToList(), ct);
+            ICommerceModule.SalesOrderAuditEntityType, list.Select(r => r.Order.Id).ToList(), ct);
         // #512 T048 — one scoped bulk customer read for the page, not one per
         // order. A missing key means the customer left this tenant, which the
         // tenant filter makes unreachable on a scoped route; the row then carries
         // a null name rather than an identifier fragment.
-        var names = await customers.GetDisplayNamesAsync(
+        var names = await commerce.GetCustomerNamesAsync(
             list.Select(r => r.Order.CustomerId).ToList(), ct);
         var gradeNames = await grades.GetDisplayNamesAsync(
             list.SelectMany(r => r.Order.Items).Select(i => i.EggGradeId).Distinct().ToList(), ct);
@@ -305,7 +301,7 @@ public static class SaleEndpoints
     }
 
     private static SalesOrderResponse ToResponse(
-        SalesOrder o, EntityProvenance? p, IReadOnlyDictionary<Guid, string> gradeNames,
+        SalesOrderDetails o, EntityProvenance? p, IReadOnlyDictionary<Guid, string> gradeNames,
         CustomerReference? customer = null,
         long? outstandingMinorUnits = null) => new(
         o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
@@ -325,7 +321,7 @@ public static class SaleEndpoints
     private static async Task<IResult> VoidSale(
         Guid id,
         VoidSaleRequest request,
-        VoidSaleHandler handler,
+        ICommerceModule commerce,
         IValidator<VoidSaleCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -338,7 +334,7 @@ public static class SaleEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await commerce.VoidSaleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess)
             return Results.Ok(result.Value);
 
@@ -358,7 +354,7 @@ public static class SaleEndpoints
     private static async Task<IResult> ConfirmSale(
         Guid id,
         ConfirmSaleRequest? request,
-        ConfirmSaleHandler handler,
+        ICommerceModule commerce,
         IValidator<ConfirmSaleCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
@@ -373,7 +369,7 @@ public static class SaleEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(
+        var result = await commerce.ConfirmSaleAsync(
             command, tenant.AccountId, currentUser.UserId, ct);
 
         // TenantMismatch is surfaced as NotFound to avoid revealing that the

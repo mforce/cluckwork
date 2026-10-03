@@ -60,7 +60,7 @@ complete set of inventory writers:
 |---|---|---|
 | `DailyEntry.Submit` | `SubmitDailyEntryHandler` | creates lots |
 | `DailyEntry` adjust / void | `AdjustDailyEntryHandler`, `VoidDailyEntryHandler` | `EggLot.AdjustProduction` reconciles the lot down to what the corrected day says, with the already-sold amount as the floor |
-| `SalesOrder.Confirm` / `Void` | `ConfirmSaleHandler`, `VoidSaleHandler` | `Allocate` / `Restore` |
+| `SalesOrder.Confirm` / `Void` | `ConfirmSaleHandler`, `VoidSaleHandler`, through Egg Operations' `IEggStock` | `Allocate` / `Restore` |
 | **Manual stock movement** | `RecordEggLotMovementHandler` (`/stock`) | `EggLot.AdjustAvailable` for a `Discard`, `InternalUse` or `Reconciliation` movement — no daily entry and no sale involved |
 
 Anything touching lot concurrency or the movement ledger has to account for all
@@ -122,7 +122,9 @@ allocation before the state changes — insufficient stock on any line aborts th
 transaction, so a half-allocated confirmed order cannot exist. Lots are drawn
 **FIFO by `ProductionDate`, then `Id`** as tiebreaker
 (`Infrastructure/Repositories/EggLotRepository.cs`), locked `FOR UPDATE`, and
-each draw writes a `SalesOrderAllocation` row. `Void` re-locks those same lots
+each draw writes a `SalesOrderAllocation` row. Commerce reaches the lots only
+through Egg Operations' `IEggStock` port, which locks, plans and draws inside
+the confirm's transaction and never saves (#854). `Void` re-locks those same lots
 **in the same order** — that shared ordering is what stops confirm and void
 deadlocking against each other — restores each quantity, and marks the
 allocation rows released rather than deleting them.

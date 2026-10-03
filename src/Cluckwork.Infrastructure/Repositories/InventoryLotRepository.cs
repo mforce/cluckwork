@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
@@ -5,8 +6,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepository
+public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepository,
+    ICurrencyBoundRowSource
 {
+    // Every lot stores a unit cost; costs from two denominations would be summed
+    // as though they were one.
+    Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
+        db.InventoryLots.AnyAsync(ct);
+
     public Task<InventoryLot?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.InventoryLots.FirstOrDefaultAsync(l => l.Id == id, ct);
 

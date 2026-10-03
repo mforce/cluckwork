@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Persistence;
@@ -43,8 +44,12 @@ public sealed class ExpenseCategoryRepository(AppDbContext db) : IExpenseCategor
     public void Remove(ExpenseCategory entity) => db.ExpenseCategories.Remove(entity);
 }
 
-public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository
+public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository,
+    ICurrencyBoundRowSource
 {
+    Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
+        db.Expenses.AnyAsync(ct);
+
     public Task<Expense?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.Expenses.FirstOrDefaultAsync(e => e.Id == id, ct);
 

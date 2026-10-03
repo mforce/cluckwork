@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
@@ -5,8 +6,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-public sealed class FeedUsageRepository(AppDbContext db) : IFeedUsageRepository
+public sealed class FeedUsageRepository(AppDbContext db) : IFeedUsageRepository,
+    ICurrencyBoundRowSource
 {
+    // Every usage stores an estimated cost.
+    Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
+        db.FeedUsages.AnyAsync(ct);
+
     public Task<FeedUsage?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.FeedUsages.FirstOrDefaultAsync(u => u.Id == id, ct);
 

@@ -11,7 +11,7 @@ namespace Cluckwork.Application.Features.Sales.AddOrderItem;
 public sealed class AddOrderItemHandler(
     ISalesOrderRepository orders,
     IProductRepository products,
-    IEggGradeRepository eggGrades,
+    IEggGradeLookup eggGrades,
     IEggUnitConversionRepository conversions,
     IAuditWriter audit,
     IUnitOfWork unitOfWork)
@@ -35,7 +35,7 @@ public sealed class AddOrderItemHandler(
         // The grade snapshot comes from the product's CURRENT mapping — the
         // line keeps it even if the mapping is re-pointed later.
         var mapping = await products.GetMappingAsync(product.Id, ct);
-        var grade = mapping is null ? null : await eggGrades.GetByIdAsync(mapping.EggGradeId, ct);
+        var grade = mapping is null ? null : await eggGrades.GetAsync(mapping.EggGradeId, ct);
         if (grade is null || !grade.Active || !grade.IsSaleable)
             return Result.Failure<Guid>(Error.Validation(
                 "SalesOrder.UnknownGrade",

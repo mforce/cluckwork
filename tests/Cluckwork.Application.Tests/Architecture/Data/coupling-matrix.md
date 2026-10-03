@@ -8,7 +8,7 @@
 | Farm | — | — | — | — | R (5) | — | — | — | P |
 | FlockManagement | — | R (1) | — | — | — | — | — | — | P |
 | EggOperations | — | R (2) | W (7) | — | — | — | — | — | P |
-| Commerce | R (1) | R (4) | — | W (8) fk:3 | — | — | — | — | P |
+| Commerce | R (1) | R (4) | — | W (5) fk:3 | — | — | — | — | P |
 | GeneralInventory | — | R (3) | R (3) fk:3 | R (2) fk:2 | — | — | — | — | P |
 | Finance | — | R (3) | R (2) fk:1 | — | — | — | — | — | P |
 | Insights | — | R (1) | R (2) | R (2) | R (2) | R (1) | R (2) | — | P |

@@ -8,7 +8,7 @@ namespace Cluckwork.Application.Features.Catalog.UpdateProduct;
 
 public sealed class UpdateProductHandler(
     IProductRepository products,
-    IEggGradeRepository grades,
+    IEggGradeLookup grades,
     IAccountRepository accounts,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
@@ -23,7 +23,7 @@ public sealed class UpdateProductHandler(
             return Result.Failure(Error.Conflict(
                 "Product.DuplicateName", $"A product named '{command.Name.Trim()}' already exists."));
 
-        var grade = await grades.GetByIdAsync(command.EggGradeId!.Value, ct);
+        var grade = await grades.GetAsync(command.EggGradeId!.Value, ct);
         if (grade is null)
             return Result.Failure(Error.Validation(
                 "Product.UnknownGrade", "The egg grade does not exist."));

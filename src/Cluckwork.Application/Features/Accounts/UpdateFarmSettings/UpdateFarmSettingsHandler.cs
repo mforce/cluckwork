@@ -9,7 +9,7 @@ namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 public sealed class UpdateFarmSettingsHandler(
     IAccountRepository accounts,
     ICurrencyBoundRowProbe currencyBoundRows,
-    IEggUnitConversionRepository conversions,
+    IEggUnitConversionLookup conversions,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {

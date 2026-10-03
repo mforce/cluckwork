@@ -1,8 +1,7 @@
 using Cluckwork.Api.Validation;
-using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.Customers.UpdateCustomer;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Application.Features.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -42,7 +41,7 @@ public static class CustomerEndpoints
     }
 
     private static async Task<IResult> UpdateCustomer(
-        Guid id, UpdateCustomerRequest request, UpdateCustomerHandler handler,
+        Guid id, UpdateCustomerRequest request, ICommerceModule commerce,
         IValidator<UpdateCustomerCommand> validator, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -50,7 +49,7 @@ public static class CustomerEndpoints
             id, request.Version, request.Name, request.Phone, request.Email, request.Address, request.Note);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid) return ValidationResponse.Problem(validation);
-        var result = await handler.HandleAsync(command, ct);
+        var result = await commerce.UpdateCustomerAsync(command, ct);
         return result.IsSuccess ? Results.NoContent()
             : result.Error.Code == "Customer.VersionMismatch"
                 ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
@@ -61,7 +60,7 @@ public static class CustomerEndpoints
 
     private static async Task<IResult> CreateCustomer(
         CreateCustomerRequest request,
-        CreateCustomerHandler handler,
+        ICommerceModule commerce,
         IValidator<CreateCustomerCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -75,14 +74,14 @@ public static class CustomerEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await commerce.CreateCustomerAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/customers/{result.Value}", new { Id = result.Value })
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
     private static async Task<IResult> ListCustomers(
-        ICustomerRepository customers, TenantContext tenant, CancellationToken ct,
+        ICommerceModule commerce, TenantContext tenant, CancellationToken ct,
         string? search = null, int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -93,19 +92,19 @@ public static class CustomerEndpoints
         // #512 — additive `search` only: trimming and the literal wildcard
         // handling live in the repository, and every existing caller that
         // omits it lands on the same query it always ran (#512 compatibility).
-        var list = await customers.SearchAsync(search, take, skip, ct);
+        var list = await commerce.SearchCustomersAsync(search, take, skip, ct);
         return Results.Ok(list.Select(ToResponse));
     }
 
     private static async Task<IResult> GetCustomer(
-        Guid id, ICustomerRepository customers, TenantContext tenant, CancellationToken ct)
+        Guid id, ICommerceModule commerce, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var customer = await customers.GetByIdAsync(id, ct);
+        var customer = await commerce.GetCustomerAsync(id, ct);
         return customer is null ? Results.NotFound() : Results.Ok(ToResponse(customer));
     }
 
-    private static CustomerResponse ToResponse(Customer c) =>
+    private static CustomerResponse ToResponse(CustomerDetails c) =>
         new(c.Id, c.Name, c.Phone, c.Email, c.Address, c.Note, c.Version);
 }
 
