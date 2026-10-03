@@ -1,0 +1,95 @@
+using System.Net;
+using System.Net.Http.Json;
+using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Users;
+using Cluckwork.Domain.Accounts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Cluckwork.Api.IntegrationTests;
+
+// #857 — IAccessLookup serves the flock-scope middleware, FlockScopeGuard and
+// ConfirmSaleHandler. The existing suites never put two workers with different
+// assignments in one farm, nor give one worker both a flock row and a farm-wide
+// row, so a lookup that returned the whole farm's rows, or dropped farm-wide
+// rows, passed them. These tests seed exactly those shapes.
+[Collection(IntegrationCollection.Name)]
+public sealed class AccessLookupTests(CluckworkWebApplicationFactory factory)
+{
+    private sealed record FlockRow(Guid Id);
+
+    private sealed record Farm(Guid AccountId, Guid FarmId, Guid FlockA, Guid FlockB);
+
+    private async Task<Farm> SeedFarmAsync()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"o-{Guid.NewGuid():N}@test.local");
+        var farmId = Guid.NewGuid();
+        return new Farm(accountId, farmId,
+            await factory.SeedFlockAsync(accountId, farmId),
+            await factory.SeedFlockAsync(accountId, farmId));
+    }
+
+    // A null flock seeds a farm-wide row: FlockId null, FarmId set.
+    private async Task<(Guid Id, string Email)> SeedWorkerAsync(Farm farm, params Guid?[] flocks)
+    {
+        var accountId = farm.AccountId;
+        var email = $"w-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, email, (string?)null);
+        var id = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var userId = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync();
+            foreach (var flockId in flocks)
+                db.UserRoleAssignments.Add(UserRoleAssignment.Create(
+                    Guid.NewGuid(), accountId, userId, flockId is null ? farm.FarmId : null, houseId: null, flockId));
+            await db.SaveChangesAsync();
+            return userId;
+        });
+        return (id, email);
+    }
+
+    private async Task<HashSet<Guid>> VisibleFlocksAsync(string email)
+    {
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var response = await client.GetAsync("/api/v1/flocks");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<List<FlockRow>>())!.Select(f => f.Id).ToHashSet();
+    }
+
+    [Fact]
+    public async Task ListFlockAssignments_ReturnsExactlyThatUsersRows_IncludingAFarmWideRow()
+    {
+        var farm = await SeedFarmAsync();
+        var (x, _) = await SeedWorkerAsync(farm, farm.FlockA, null);
+        var (y, _) = await SeedWorkerAsync(farm, farm.FlockB);
+
+        using var scope = factory.Services.CreateScope();
+        scope.ResolveTenantAndActor(farm.AccountId);
+        var lookup = scope.ServiceProvider.GetRequiredService<IAccessLookup>();
+
+        var forX = await lookup.ListFlockAssignmentsAsync(x);
+        var forY = await lookup.ListFlockAssignmentsAsync(y);
+
+        Assert.Equal(new HashSet<Guid?> { farm.FlockA, null }, forX.Select(a => a.FlockId).ToHashSet());
+        Assert.Equal(2, forX.Count);
+        Assert.Equal(new Guid?[] { farm.FlockB }, forY.Select(a => a.FlockId).ToArray());
+    }
+
+    [Fact]
+    public async Task ARestrictedWorker_DoesNotInheritAnotherWorkersFarmWideRow()
+    {
+        var farm = await SeedFarmAsync();
+        var (_, restricted) = await SeedWorkerAsync(farm, farm.FlockA);
+        await SeedWorkerAsync(farm, (Guid?)null);
+
+        Assert.Equal(new HashSet<Guid> { farm.FlockA }, await VisibleFlocksAsync(restricted));
+    }
+
+    [Fact]
+    public async Task AWorkerWithAFlockRowAndAFarmWideRow_IsUnrestricted()
+    {
+        var farm = await SeedFarmAsync();
+        var (_, worker) = await SeedWorkerAsync(farm, farm.FlockA, null);
+
+        Assert.Equal(new HashSet<Guid> { farm.FlockA, farm.FlockB }, await VisibleFlocksAsync(worker));
+    }
+}
