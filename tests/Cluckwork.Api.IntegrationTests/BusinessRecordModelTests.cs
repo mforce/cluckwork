@@ -1,10 +1,12 @@
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -24,6 +26,24 @@ public sealed class BusinessRecordModelTests
         typeof(SalesOrder), typeof(SalesOrderItem), typeof(Expense), typeof(DailyEntry), typeof(EggLot),
         typeof(BirdMovement), typeof(Payment), typeof(InventoryLot), typeof(FeedUsage),
         typeof(WaterUsage), typeof(InventoryMovement), typeof(EggInventoryMovement)
+    ];
+
+    private static readonly (Type Type, string Reason)[] NotReadByTimeTypes =
+    [
+        (typeof(Account), "farm record resolved by id or farm code; operators list it by code"),
+        (typeof(ApplicationUser), "user list is ordered by email"),
+        (typeof(Customer), "customer list is ordered by name"),
+        (typeof(DailyEntryGrade), "lines read through their daily entry; export orders by entry"),
+        (typeof(EggGrade), "grades are ordered by sort order and name"),
+        (typeof(EggUnitConversion), "conversions are ordered by unit code"),
+        (typeof(ExpenseCategory), "categories are ordered by name"),
+        (typeof(FarmLogo), "one logo row per farm"),
+        (typeof(Flock), "flock screens are name-ordered; the export keeps PlacementDate, Id (#819)"),
+        (typeof(InventoryItem), "items are ordered by name"),
+        (typeof(Product), "products are ordered by name"),
+        (typeof(ProductEggGradeMapping), "one mapping per product, read by product"),
+        (typeof(SalesOrderAllocation), "allocations read through their sales order; export orders by order"),
+        (typeof(UserRoleAssignment), "a user's role set, not a list")
     ];
 
     private static AppDbContext BuildContext()
@@ -91,5 +111,34 @@ public sealed class BusinessRecordModelTests
             Assert.Contains(entity.GetIndexes(), index =>
                 index.IsUnique && index.Properties.Count == 1 && index.Properties[0] == sequence);
         }
+    }
+
+    [Fact]
+    public void Every_timestamped_record_is_declared_chronological_or_not_read_by_time()
+    {
+        using var db = BuildContext();
+
+        var timestampedTypes = db.Model.GetEntityTypes()
+            .Where(entity => !entity.IsOwned()
+                && typeof(ICreatedRecord).IsAssignableFrom(entity.ClrType))
+            .Select(entity => entity.ClrType)
+            .ToHashSet();
+        var declaredTypes = ChronologicalListTypes
+            .Concat(NotReadByTimeTypes.Select(entry => entry.Type))
+            .ToArray();
+
+        var undeclared = timestampedTypes.Except(declaredTypes).Select(type => type.FullName).Order().ToArray();
+        Assert.True(undeclared.Length == 0,
+            "Timestamped records missing from both ChronologicalListTypes and NotReadByTimeTypes: "
+            + string.Join(", ", undeclared)
+            + ". A record users page or read by time joins its module's chronological contribution and ChronologicalListTypes;"
+            + " any other record joins NotReadByTimeTypes with its reason.");
+
+        var declaredTwice = declaredTypes.GroupBy(type => type).Where(group => group.Count() > 1)
+            .Select(group => group.Key.Name).Order().ToArray();
+        Assert.True(declaredTwice.Length == 0, "Declared more than once: " + string.Join(", ", declaredTwice));
+
+        var stale = declaredTypes.Except(timestampedTypes).Select(type => type.Name).Order().ToArray();
+        Assert.True(stale.Length == 0, "Declared but not a mapped timestamped record: " + string.Join(", ", stale));
     }
 }
