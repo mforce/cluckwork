@@ -1,12 +1,14 @@
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Serilog.Events;
 using SetCookie = Microsoft.Net.Http.Headers.SetCookieHeaderValue;
 
@@ -19,6 +21,23 @@ namespace Cluckwork.Api.IntegrationTests;
 [Collection(SecurityEventLoggingCollection.Name)]
 public sealed class AuthSessionContractTests(SecurityEventLoggingFactory factory)
 {
+    // Not the 30-day default, so a cookie written with a hardcoded or default
+    // lifetime fails here rather than matching by coincidence.
+    private const int RefreshTokenDays = 7;
+
+    private WebApplicationFactory<Program> ShortLifetimeHost() =>
+        factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Jwt:RefreshTokenDays", RefreshTokenDays.ToString(CultureInfo.InvariantCulture)));
+
+    private static void AssertRefreshCookieLifetime(HttpResponseMessage response, string cookieName, string step)
+    {
+        var cookie = response.Headers.GetValues("Set-Cookie").Select(header => SetCookie.Parse(header))
+            .Single(c => c.Name.Value == cookieName);
+        var expected = DateTimeOffset.UtcNow.AddDays(RefreshTokenDays);
+        Assert.True(cookie.Expires is { } expires && (expires - expected).Duration() < TimeSpan.FromMinutes(2),
+            $"{step}: expected the refresh cookie to expire about {expected:O}, got {cookie.Expires:O}");
+    }
+
     private static string? ScalarOf(LogEvent e, string name) =>
         e.Properties.TryGetValue(name, out var value) && value is ScalarValue scalar
             ? scalar.Value?.ToString()
@@ -66,36 +85,48 @@ public sealed class AuthSessionContractTests(SecurityEventLoggingFactory factory
     [Fact]
     public async Task RefreshCookie_ExpiresAfterTheConfiguredLifetime_OnLoginRefreshAndPasswordChange()
     {
-        var days = factory.Services.GetRequiredService<IOptions<JwtOptions>>().Value.RefreshTokenDays;
+        using var host = ShortLifetimeHost();
         var email = $"cookie-life-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var cookieName = AuthCookies.RefreshCookieNameFor(accountId);
-        var client = factory.CreateClient(TestHarness.Cookieless(factory));
-
-        void AssertLifetime(HttpResponseMessage response, string step)
-        {
-            var cookie = response.Headers.GetValues("Set-Cookie").Select(header => SetCookie.Parse(header))
-                .Single(c => c.Name.Value == cookieName);
-            var expected = DateTimeOffset.UtcNow.AddDays(days);
-            Assert.True(cookie.Expires is { } expires && (expires - expected).Duration() < TimeSpan.FromMinutes(2),
-                $"{step}: expected the refresh cookie to expire about {expected:O}, got {cookie.Expires:O}");
-        }
+        var client = host.CreateClient(TestHarness.Cookieless(factory));
 
         var login = await client.PostAsJsonAsync("/api/v1/auth/login",
             new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         login.EnsureSuccessStatusCode();
-        AssertLifetime(login, "login");
+        AssertRefreshCookieLifetime(login, cookieName, "login");
         var tokens = await TestHarness.ReadTokensAsync(login);
 
         var refresh = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString());
         refresh.EnsureSuccessStatusCode();
-        AssertLifetime(refresh, "refresh");
+        AssertRefreshCookieLifetime(refresh, cookieName, "refresh");
         var rotated = await TestHarness.ReadTokensAsync(refresh);
 
-        var authed = factory.CreateAuthedClient(rotated.AccessToken);
+        var authed = host.CreateClient(TestHarness.Cookieless(factory));
+        authed.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", rotated.AccessToken);
         var change = await authed.PostAsJsonAsync("/api/v1/auth/change-password",
             new { currentPassword = TestHarness.Password, newPassword = TestHarness.Password + "x" });
         change.EnsureSuccessStatusCode();
-        AssertLifetime(change, "change-password");
+        AssertRefreshCookieLifetime(change, cookieName, "change-password");
+    }
+
+    // A session still on the pre-#532 shared cookie name is upgraded to the
+    // per-farm name on its next refresh, and the new cookie gets the same lifetime.
+    [Fact]
+    public async Task LegacyCookieUpgrade_WritesThePerFarmCookieForTheConfiguredLifetime()
+    {
+        using var host = ShortLifetimeHost();
+        var email = $"legacy-life-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = host.CreateClient(TestHarness.Cookieless(factory));
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login",
+            new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
+        login.EnsureSuccessStatusCode();
+        var legacyToken = (await TestHarness.ReadTokensAsync(login)).RefreshToken;
+
+        var upgrade = await client.PostRefreshRawAsync(AuthCookies.LegacyRefreshCookieName + "=" + legacyToken);
+
+        Assert.Equal(HttpStatusCode.OK, upgrade.StatusCode);
+        AssertRefreshCookieLifetime(upgrade, AuthCookies.RefreshCookieNameFor(accountId), "legacy upgrade");
     }
 }
