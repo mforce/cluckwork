@@ -1,6 +1,5 @@
-using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Application.Features.Accounts;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.Cli;
@@ -10,9 +9,9 @@ namespace Cluckwork.Api.Cli;
 // the farm code mandatory at login, so the first upgraded deployment needs a
 // supported way to discover its own code BEFORE provisioning (#533) exists.
 //
-// Reads ACROSS accounts, so it runs with an unresolved tenant and must use
-// IgnoreQueryFilters() on purpose (that call site is on #536's justified
-// allow-list). Run-then-exit like the other verbs; classified OneShot
+// Reads ACROSS accounts with an unresolved tenant, through Farm's
+// IFarmDirectory (#858), whose query is on #536's justified allow-list.
+// Run-then-exit like the other verbs; classified OneShot
 // automatically via CliDispatcher.Commands (#347) and NOT environment-gated.
 // It does not migrate — like recover-admin it only reads an already-migrated
 // database — and it wraps its work fail-loud so a missing/unreachable database
@@ -26,13 +25,7 @@ public sealed class ListAccountsCliCommand : ICliCommand
         try
         {
             using var scope = app.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-            var accounts = await db.Accounts
-                .IgnoreQueryFilters()
-                .OrderBy(a => a.Slug)
-                .Select(a => new { a.Slug, a.Name, a.IsActive })
-                .ToListAsync();
+            var accounts = await scope.ServiceProvider.GetRequiredService<IFarmDirectory>().ListAsync();
 
             foreach (var account in accounts)
                 await Console.Out.WriteLineAsync(

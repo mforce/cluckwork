@@ -1,7 +1,6 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Infrastructure.Identity;
-using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.Cli;
@@ -78,11 +77,10 @@ public sealed class SuspendAccountCliCommand : ICliCommand
     }
 }
 
-// Shared by both lifecycle verbs (#534). Reads ACROSS accounts with no tenant
-// resolved, so IgnoreQueryFilters() is required rather than defensive — without
-// it the account query filter matches Guid.Empty and returns zero rows for every
-// real farm. Same justified call site as ListAccountsCliCommand's; #536
-// enumerates both.
+// Shared by seed, suspend-account, reactivate-account and rename-account (#534).
+// The cross-farm read lives in Farm's IFarmDirectory (#858). ResolveAsync only
+// forwards to it, which hides the directory from FarmDirectoryCallerTests; #858
+// P8 inlines it into the four verbs once #857 D has moved them.
 internal static class AccountSlugLookup
 {
     // Slugs are stored already-lowercased (Account.ValidateSlug REJECTS uppercase
@@ -93,20 +91,6 @@ internal static class AccountSlugLookup
     internal static string? Normalize(string? slug) =>
         string.IsNullOrWhiteSpace(slug) ? null : slug.Trim().ToLowerInvariant();
 
-    internal static async Task<Guid?> ResolveAsync(IServiceProvider services, string slug)
-    {
-        var db = services.GetRequiredService<AppDbContext>();
-        var matches = await db.Accounts
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(account => account.Slug == slug)
-            .Select(account => account.Id)
-            .ToListAsync();
-        // Slug carries a unique index, so 0 or 1 — SingleOrDefault would be
-        // equally correct and would THROW on a hand-corrupted database rather
-        // than picking one arbitrarily; this returns null, which the caller
-        // reports as "no such farm". Either is defensible; not-found is the
-        // quieter failure for a break-glass-adjacent tool.
-        return matches.Count == 1 ? matches[0] : null;
-    }
+    internal static Task<Guid?> ResolveAsync(IServiceProvider services, string slug) =>
+        services.GetRequiredService<IFarmDirectory>().FindIdBySlugAsync(slug);
 }

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-public sealed class AccountRepository(AppDbContext db, TenantContext tenant) : IAccountRepository
+public sealed class AccountRepository(AppDbContext db, TenantContext tenant) : IAccountRepository, IFarmDirectory
 {
     // The account query filter is self-scoped (AccountId == Id == tenant), so
     // FirstOrDefault returns exactly the current tenant's account.
@@ -50,4 +50,34 @@ public sealed class AccountRepository(AppDbContext db, TenantContext tenant) : I
 
     public void DiscardChanges(Account account) =>
         db.Entry(account).State = EntityState.Unchanged;
+
+    // The three IFarmDirectory reads run with no tenant resolved, so the account
+    // filter would match Guid.Empty and return nothing: IgnoreQueryFilters is
+    // required, not defensive.
+    public async Task<IReadOnlyList<FarmTimeZone>> ListTimeZonesAsync(CancellationToken ct = default) =>
+        await db.Accounts
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Select(a => new FarmTimeZone(a.Id, a.TimeZoneId))
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<FarmListing>> ListAsync(CancellationToken ct = default) =>
+        await db.Accounts
+            .IgnoreQueryFilters()
+            .OrderBy(a => a.Slug)
+            .Select(a => new FarmListing(a.Slug, a.Name, a.IsActive))
+            .ToListAsync(ct);
+
+    public async Task<Guid?> FindIdBySlugAsync(string slug, CancellationToken ct = default)
+    {
+        var matches = await db.Accounts
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(account => account.Slug == slug)
+            .Select(account => account.Id)
+            .ToListAsync(ct);
+        // Slug carries a unique index, so 0 or 1. A hand-corrupted database with
+        // two matches answers "no such farm" rather than picking one.
+        return matches.Count == 1 ? matches[0] : null;
+    }
 }

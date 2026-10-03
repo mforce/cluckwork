@@ -7,6 +7,14 @@
 **Status:** accepted
 **Date:** 2026-10-02
 
+> **Amended 2026-10-03 (#858 P3, PR #1043):** the contract now also lists
+> `IFarmDirectory`, `FarmTimeZone` and `FarmListing`. Unlike every member below,
+> the directory reads every farm with the tenant filter off, for the operator
+> verbs and the lock sweep only. `DailyEntryLockSweep.RunAsync`,
+> `AccountSlugLookup.ResolveAsync` and `ListAccountsCliCommand.RunAsync` read
+> through it and are no longer compatibility exceptions. #858 P8 records the
+> final state.
+
 ## What happened
 
 No incident. This is epic #514, Track C slice 9, the second module behind a
