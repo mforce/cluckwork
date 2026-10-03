@@ -84,6 +84,7 @@ services:
       ASPNETCORE_URLS: ${ASPNETCORE_URLS}
       Database__Provider: ${Database__Provider}
       Database__MigrateOnStartup: ${Database__MigrateOnStartup}
+      Database__ThrowQueryShapeWarnings: ${Database__ThrowQueryShapeWarnings:-false}
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       # #556 — ConnectionStrings__LeaderLease is deliberately NOT set: this
       # stack's db is a direct sidecar (no transaction pooler), so Default is

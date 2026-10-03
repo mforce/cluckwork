@@ -9,6 +9,7 @@ using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
+using Cluckwork.Infrastructure.Providers;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -52,6 +53,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
     public DbSet<FarmLogo> FarmLogos => Set<FarmLogo>();
+
+    protected override void OnConfiguring(DbContextOptionsBuilder options)
+    {
+        if (QueryShapeWarnings.Enabled)
+            options.ConfigureWarnings(QueryShapeWarnings.Configure);
+    }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

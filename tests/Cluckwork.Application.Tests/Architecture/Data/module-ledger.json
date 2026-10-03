@@ -163,7 +163,20 @@
                             "Cluckwork.Infrastructure.Repositories.ExpenseCategoryRepository",
                             "Cluckwork.Infrastructure.Repositories.ExpenseRepository"
                           ] },
-    "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export", "Cluckwork.Application.Features.Insights", "Cluckwork.Infrastructure.Insights"] },
+    "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export", "Cluckwork.Application.Features.Insights", "Cluckwork.Infrastructure.Insights"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Insights.IInsightsModule",
+                            "Cluckwork.Application.Features.Insights.AuditEventRead",
+                            "Cluckwork.Application.Features.Audit.EntityProvenance",
+                            "Cluckwork.Application.Features.Export.ExportDataset",
+                            "Cluckwork.Application.Features.Reports.ProductionReport",
+                            "Cluckwork.Application.Features.Reports.ProductionDay",
+                            "Cluckwork.Application.Features.Reports.GradeTotal",
+                            "Cluckwork.Application.Features.Reports.SalesSummary",
+                            "Cluckwork.Application.Features.Reports.ExpenseSummary",
+                            "Cluckwork.Application.Features.Reports.ExpenseCategoryTotal",
+                            "Cluckwork.Application.Features.Reports.ProfitReport"
+                          ] },
     "Platform":         { "kind": "platform", "namespaces": ["Cluckwork.Domain.Common", "Cluckwork.Domain.Auditing", "Cluckwork.Application.Common", "Cluckwork.Infrastructure", "Cluckwork.Api", "Cluckwork.AppHost"], "exactNamespaces": ["Cluckwork.Domain", "Cluckwork.Application"] }
   },
   "edges": [

@@ -51,7 +51,7 @@ public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepos
             FOR UPDATE
             """)
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
 
     public async Task<IReadOnlyList<InventoryLot>> ListByItemAsync(
         Guid inventoryItemId, CancellationToken ct = default) =>

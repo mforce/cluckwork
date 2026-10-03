@@ -55,7 +55,7 @@ inside a body, but nothing else in the body.
   them today. #1013 hit the same arity loss in the compatibility-exception
   scanner.
 - Its own module, Platform code, and modules with no contract are not checked.
-  Today those are Access, until #857 declares its contract, and Insights.
+  Today that is Access, until #857 declares its contract.
 
 Break it and a peer that injects another module's repository passes CI, and the
 contract stops meaning anything between modules.

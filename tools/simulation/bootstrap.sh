@@ -208,6 +208,7 @@ COMPOSE_PROJECT_NAME=cluckwork-sim
 ASPNETCORE_URLS=http://+:8080
 Database__Provider=Postgres
 Database__MigrateOnStartup=true
+Database__ThrowQueryShapeWarnings=false
 
 # --- Sim Postgres (isolated named volume under cluckwork-sim only) --------
 POSTGRES_DB=${POSTGRES_DB}

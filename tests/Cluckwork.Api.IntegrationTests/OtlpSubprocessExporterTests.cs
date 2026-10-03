@@ -302,7 +302,7 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         // then scrub OTLP transport names again before the case applies its own
         // profile. This is intentionally not xUnit-process environment mutation.
         psi.Environment.Clear();
-        foreach (var name in new[] { "PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER" })
+        foreach (var name in new[] { "PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER", "Database__ThrowQueryShapeWarnings" })
             if (Environment.GetEnvironmentVariable(name) is { } value)
                 psi.Environment[name] = value;
         ScrubOtlpTransport(psi);

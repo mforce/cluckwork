@@ -305,7 +305,7 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
     // Otlp__AllowInsecureEndpoint (a documented sim-harness setting) would have
     // silently voided the #316 arm.
     private static readonly string[] InheritedOsVariables =
-        ["PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER"];
+        ["PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER", "Database__ThrowQueryShapeWarnings"];
 
     private static void RemoveCanonicalOtlpTransport(ProcessStartInfo psi)
     {
