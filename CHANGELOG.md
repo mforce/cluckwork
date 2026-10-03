@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.1.5](https://github.com/mforce/cluckwork/compare/v0.1.4...v0.1.5) (2026-10-03)
+
+
+### Features
+
+* **ci:** publish amd64 and arm64 images ([#996](https://github.com/mforce/cluckwork/issues/996)) ([ce4a4ab](https://github.com/mforce/cluckwork/commit/ce4a4ab6845c987dbeafe9152fee55a122400d1a))
+
+
+### Bug fixes
+
+* **auth:** refuse a stored credential epoch below 1 ([#1036](https://github.com/mforce/cluckwork/issues/1036)) ([02e8a63](https://github.com/mforce/cluckwork/commit/02e8a6333bbc18cf80ba20e4e64dae39dea52ab9))
+* **e2e:** select a farm-local expense range across month boundaries ([#1011](https://github.com/mforce/cluckwork/issues/1011)) ([944acb0](https://github.com/mforce/cluckwork/commit/944acb0e3fa2a2b030ad494c0a8e874f7a8a8384))
+* **inventory:** see a flock archived while feed usage waits on the item lock ([#1026](https://github.com/mforce/cluckwork/issues/1026)) ([582f8c8](https://github.com/mforce/cluckwork/commit/582f8c8a91ed750d6d4c982ab16d26e304d70e91))
+* **test:** repair demo seed false pass and measure collection floor ([#1000](https://github.com/mforce/cluckwork/issues/1000)) ([af3eb47](https://github.com/mforce/cluckwork/commit/af3eb471b336071ccea904f6e2d8d6b3f48eeaf4))
+
+
+### Performance
+
+* **test:** reuse one Postgres server for integration databases ([#1002](https://github.com/mforce/cluckwork/issues/1002)) ([1953cde](https://github.com/mforce/cluckwork/commit/1953cdea0737a6bb382d051680bcbac9bc3af639))
+* **test:** serialize the five full-seed integration classes ([#1003](https://github.com/mforce/cluckwork/issues/1003)) ([ad258d8](https://github.com/mforce/cluckwork/commit/ad258d8f21a517bd32ecd214526318f511234abd))
+
+
+### Refactoring
+
+* **auth:** move the credential-epoch check behind ICredentialEpochVerifier ([#1032](https://github.com/mforce/cluckwork/issues/1032)) ([3b89567](https://github.com/mforce/cluckwork/commit/3b8956791b8bbe7da27a0229e10b4a8aefd430eb))
+* **eggs:** put egg operations behind an IEggOperationsModule contract ([#1028](https://github.com/mforce/cluckwork/issues/1028)) ([d6dbd47](https://github.com/mforce/cluckwork/commit/d6dbd47da165ac4e12d6cf96a2751423535138a7))
+* **farm:** put farm settings behind an IFarmModule contract ([#1015](https://github.com/mforce/cluckwork/issues/1015)) ([4c429f0](https://github.com/mforce/cluckwork/commit/4c429f0864f14ddbc6e7e4e82d1553f175eaa341))
+* **finance:** put Finance behind an IFinanceModule contract ([#1010](https://github.com/mforce/cluckwork/issues/1010)) ([b9f7f76](https://github.com/mforce/cluckwork/commit/b9f7f76b42ce71b0149fdcbdcf495f3bdfd6dc10))
+* **flocks:** put flock lifecycle behind an IFlockModule contract ([#1021](https://github.com/mforce/cluckwork/issues/1021)) ([08cf44c](https://github.com/mforce/cluckwork/commit/08cf44c6669d8740ba5c53cf354850db1c725449))
+* **insights:** read reports, exports and audit provenance through an Insights facade ([#1012](https://github.com/mforce/cluckwork/issues/1012)) ([7ce95cf](https://github.com/mforce/cluckwork/commit/7ce95cf475318e161c39647529e5b5f17a41b24a))
+* **inventory:** put general inventory behind an IInventoryModule contract ([#1027](https://github.com/mforce/cluckwork/issues/1027)) ([54a5f29](https://github.com/mforce/cluckwork/commit/54a5f298cba500f743af0e278df7ea46ed9baf1c))
+* **persistence:** split business record census by module ([#970](https://github.com/mforce/cluckwork/issues/970)) ([f28bb47](https://github.com/mforce/cluckwork/commit/f28bb47098a43dbaa634e3292b5c11bf8c9c893e))
+* **sales:** put Commerce behind a contract and reach egg stock through IEggStock ([#1030](https://github.com/mforce/cluckwork/issues/1030)) ([7bb45cc](https://github.com/mforce/cluckwork/commit/7bb45cc3d2159821e71e7d1bd54c94e18d740acf))
+
+
+### Documentation
+
+* **ci:** measure the integration collection split (no CI win; reverted) ([#1004](https://github.com/mforce/cluckwork/issues/1004)) ([6166890](https://github.com/mforce/cluckwork/commit/61668907a97e4abfdaa05e73a6eb743005939406))
+* deslop the README and remove its em-dashes ([#994](https://github.com/mforce/cluckwork/issues/994)) ([d32638e](https://github.com/mforce/cluckwork/commit/d32638edc23f826be95a2215bf115bca15d0bad0))
+* show the egg loop as a GIF in the README ([#992](https://github.com/mforce/cluckwork/issues/992)) ([c8b382a](https://github.com/mforce/cluckwork/commit/c8b382a1a13873f55acc299badbf8ff5729bb3a9))
+* split AGENTS.md into directory-scoped rule files ([#1035](https://github.com/mforce/cluckwork/issues/1035)) ([07fc42c](https://github.com/mforce/cluckwork/commit/07fc42cdeed34b5fbf825c0ab74b0e538c3b9b7a))
+
 ## [0.1.4](https://github.com/mforce/cluckwork/compare/v0.1.3...v0.1.4) (2026-09-28)
 
 
