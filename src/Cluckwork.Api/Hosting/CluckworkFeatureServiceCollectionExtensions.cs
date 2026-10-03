@@ -137,6 +137,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IFarmDirectory, AccountRepository>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.ICurrencyBoundRowProbe,
             Cluckwork.Application.Features.Accounts.CurrencyBoundRowProbe>();

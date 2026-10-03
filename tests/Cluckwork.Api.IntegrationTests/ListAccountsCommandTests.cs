@@ -95,4 +95,29 @@ public sealed class ListAccountsCommandTests(CluckworkWebApplicationFactory fact
             stdout.Split('\n'), line => line.StartsWith("FORGED-ROW", StringComparison.Ordinal));
         Assert.Contains(seededSlug, stdout);
     }
+
+    // The verb promises slug order. Each UPDATE writes a new row version at the
+    // end of the heap, so renaming the first farm to "...-zz" and then the second
+    // to "...-aa" stores them in reverse slug order: a read without ORDER BY
+    // returns "zz" first.
+    [Fact]
+    public async Task ListAccounts_PrintsFarmsInSlugOrder()
+    {
+        var first = await factory.SeedAccountWithUserAsync($"order-{Guid.NewGuid():N}@test.local");
+        var second = await factory.SeedAccountWithUserAsync($"order-{Guid.NewGuid():N}@test.local");
+        var stem = "order-" + first.ToString("N")[..12];
+        var (late, early) = (stem + "-zz", stem + "-aa");
+        await factory.WithTenantScopeAsync(first, db => db.Database.ExecuteSqlAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {late} WHERE \"Id\" = {first}"));
+        await factory.WithTenantScopeAsync(second, db => db.Database.ExecuteSqlAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {early} WHERE \"Id\" = {second}"));
+
+        var (exitCode, stdout, stderr) = await SeedCommandRunner.RunToCompletionAsync(
+            StartListAccounts(), SubprocessTimeout);
+
+        Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+        var slugs = stdout.Split('\n').Select(line => line.Split('\t')[0]).ToList();
+        Assert.True(slugs.IndexOf(early) >= 0 && slugs.IndexOf(early) < slugs.IndexOf(late),
+            $"expected {early} before {late}:\n{stdout}");
+    }
 }

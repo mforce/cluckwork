@@ -1,7 +1,7 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -42,17 +42,10 @@ public sealed class DailyEntryLockSweep(
         // Accounts first (filter-free), then one tenant-resolved scope per
         // account so the query filter and stamp interceptor behave exactly as
         // in a request.
-        List<(Guid Id, string TimeZoneId)> accounts;
+        IReadOnlyList<FarmTimeZone> accounts;
         using (var scope = scopeFactory.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            accounts = (await db.Accounts
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Select(a => new { a.Id, a.TimeZoneId })
-                .ToListAsync(ct))
-                .Select(a => (a.Id, a.TimeZoneId))
-                .ToList();
+            accounts = await scope.ServiceProvider.GetRequiredService<IFarmDirectory>().ListTimeZonesAsync(ct);
         }
 
         var lockedTotal = 0;

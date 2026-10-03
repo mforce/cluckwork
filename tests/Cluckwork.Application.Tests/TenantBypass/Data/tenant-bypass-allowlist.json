@@ -1,15 +1,5 @@
 [
   {
-    "symbol": "Cluckwork.Api.Cli.ListAccountsCliCommand.RunAsync(WebApplication app, string[] args)",
-    "file": "src/Cluckwork.Api/Cli/ListAccountsCliCommand.cs",
-    "justification": "Operator CLI lists ALL accounts (the whole point of list-accounts); no single tenant is resolved. Annotated in the file header as on #536's justified list."
-  },
-  {
-    "symbol": "Cluckwork.Api.Cli.AccountSlugLookup.ResolveAsync(IServiceProvider services, string slug)",
-    "file": "src/Cluckwork.Api/Cli/SuspendAccountCliCommand.cs",
-    "justification": "Operator CLI resolves an account by its global slug (slugs are unique across farms); no tenant resolved at this point."
-  },
-  {
     "symbol": "Cluckwork.Infrastructure.Identity.AccountProvisioner.ProvisionAsync(string? name, string? slug, string? ownerEmail, string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Identity/AccountProvisioner.cs",
     "justification": "Provisions a NEW account; checks the global slug for a collision before any tenant exists. Runs at unresolved tenant by design (#533)."
@@ -38,11 +28,6 @@
     "symbol": "Cluckwork.Infrastructure.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, DateTimeOffset now, string rotatedStamp, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs",
     "justification": "Low-level raw-SQL data-modifying CTE for logout lineage fencing. Both refresh-token UPDATE arms are explicitly constrained by UserId, AccountId, and IssuedEpoch; the dedicated atomic-logout CTE guard pins both arms and the builder-to-RelationalCommand execution seam."
-  },
-  {
-    "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync(CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Jobs/DailyEntryLockSweep.cs",
-    "justification": "Background sweep releases stale locks across ALL tenants (it runs with no tenant resolved, under the single-leader gate #271). Every row it touches is re-checked against its own AccountId."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedAsync(Guid? targetAccountId, CancellationToken ct)",
@@ -88,6 +73,21 @@
     "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.FindBySlugAsync(string slug, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
     "justification": "Resolves an account by its global slug (slugs are unique across farms); used by the operator CLI and provisioning where no tenant is resolved."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.ListTimeZonesAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+    "justification": "IFarmDirectory (#858): lists every farm's id and time zone for the daily-entry lock sweep, which runs with no tenant resolved under the single-leader gate (#271) and then resolves one tenant scope per farm. Only the operator verbs and jobs may call the directory (FarmDirectoryCallerTests)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.ListAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+    "justification": "IFarmDirectory (#858): list-accounts prints every farm's code, name and active state for the operator; no tenant is resolved. Only the operator verbs and jobs may call the directory (FarmDirectoryCallerTests)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.FindIdBySlugAsync(string slug, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+    "justification": "IFarmDirectory (#858): the operator verbs resolve a farm by its global code (slugs are unique across farms) before any tenant is resolved. Only the operator verbs and jobs may call the directory (FarmDirectoryCallerTests)."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Insights.AuditEventRepository.GetProvenanceChunkAsync(string entityType, Guid[] ids, CancellationToken ct)",
@@ -163,11 +163,6 @@
     "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.ReleaseClaimAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, Guid ownerToken, CancellationToken ct)",
     "file": "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
     "justification": "Raw-SQL DELETE of the tenant's own idempotency claim; the statement carries WHERE \"AccountId\" = {accountId} AND (EndpointHash, IdempotencyKeyHash, LeaseOwner) — scoped to this tenant. Not a row lock."
-  },
-  {
-    "symbol": "Cluckwork.Api.Cli.SuspendAccountCliCommand.RunAsync(WebApplication app, string[] args)",
-    "file": "src/Cluckwork.Api/Cli/SuspendAccountCliCommand.cs",
-    "justification": "Caller of AccountSlugLookup.ResolveAsync (a forwarding wrapper that carries the IgnoreQueryFilters). Operator CLI suspends an account by global slug; no tenant is resolved at this point. The caller is flagged by the wrapper-forwarding walk (review P1-3) — the wrapper and its caller both need entries."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string accountSlug, string email, CancellationToken ct)",

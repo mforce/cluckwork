@@ -12,7 +12,7 @@
 | GeneralInventory | — | R (3) | R (3) fk:3 | R (2) fk:2 | — | — | — | — | P |
 | Finance | — | R (3) | R (2) fk:1 | — | — | — | — | — | P |
 | Insights | — | R (1) | R (2) | R (2) | R (2) | R (1) | R (2) | — | P |
-| Platform | A (43) | A (17) | A (23) | A (25) | A (31) | A (18) | A (9) | A (25) | — |
+| Platform | A (43) | A (20) | A (23) | A (25) | A (31) | A (18) | A (9) | A (25) | — |
 
 ## Cross-owner foreign keys
 
@@ -63,7 +63,7 @@ After-commit events and read-model queries are not syntactically observable, and
 | Finance | Insights | E | — |
 | Insights | Platform | Q/P | P |
 | Platform/adapters | Access | W | A (43) |
-| Platform/adapters | Farm | W | A (17) |
+| Platform/adapters | Farm | W | A (20) |
 | Platform/adapters | FlockManagement | W | A (23) |
 | Platform/adapters | EggOperations | W | A (25) |
 | Platform/adapters | Commerce | W | A (31) |
