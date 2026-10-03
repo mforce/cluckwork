@@ -197,7 +197,7 @@ public static class SaleEndpoints
     }
 
     private static async Task<IResult> GetSalesOrder(
-        Guid id, ISalesOrderRepository orders, ICustomerRepository customers, IEggGradeRepository grades,
+        Guid id, ISalesOrderRepository orders, ICustomerRepository customers, IEggGradeLookup grades,
         IInsightsModule audit, IPaymentRepository payments,
         IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct)
@@ -245,7 +245,7 @@ public static class SaleEndpoints
     private static async Task<IResult> ListSalesOrders(
         ISalesOrderRepository orders,
         Cluckwork.Application.Features.Customers.ICustomerRepository customers,
-        IEggGradeRepository grades,
+        IEggGradeLookup grades,
         IInsightsModule audit,
         IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct,

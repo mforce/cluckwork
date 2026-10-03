@@ -87,9 +87,11 @@ Worth reading off the diagram, because a linear "Draft → Submitted → Locked 
 Voided" sketch gets all three wrong: **`ManagerAdjusted` is re-enterable**,
 **`Void` is reachable from three states**, and **a Draft cannot be voided at
 all** — it never generated anything to reverse. States and guards live in
-`src/Cluckwork.Domain/Eggs/DailyEntry.cs`; the sweep is
-`Infrastructure/Jobs/DailyEntryLockSweep.cs` (`Submitted` entries strictly older
-than 7 farm-local days).
+`src/Cluckwork.Domain/Eggs/DailyEntry.cs`. The sweep,
+`Infrastructure/Jobs/DailyEntryLockSweep.cs`, picks each farm's cutoff
+(`Submitted` entries strictly older than 7 farm-local days) and locks them
+through `IEggOperationsModule`; the lock loop itself is
+`Application/Features/DailyEntries/LockDueDailyEntries/LockDueDailyEntriesHandler.cs`.
 
 `Submit` is the transition that creates stock — in one transaction with the
 state change (`Application/Features/DailyEntries/SubmitDailyEntry/`):

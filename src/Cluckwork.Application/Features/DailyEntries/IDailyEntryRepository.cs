@@ -21,9 +21,9 @@ public interface IDailyEntryRepository : IRepository<DailyEntry, Guid>
         Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset,
         CancellationToken ct = default);
 
-    Task<DailyEntry?> FindByNaturalKeyAsync(
-        Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
-        CancellationToken ct = default);
+    // Tracked: the lock sweep (#69) locks what this returns.
+    Task<IReadOnlyList<DailyEntry>> ListSubmittedBeforeAsync(
+        DateOnly before, int limit, CancellationToken ct = default);
 
     // Write-side natural-key lookup (#388). Same bypass shape as
     // GetByIdForFlockScopedWriteAsync: IgnoreQueryFilters, AccountId

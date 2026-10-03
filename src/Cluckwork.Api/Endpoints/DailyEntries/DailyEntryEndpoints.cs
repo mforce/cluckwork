@@ -3,8 +3,8 @@ using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
-using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -54,17 +54,17 @@ public static class DailyEntryEndpoints
 
     private static async Task<IResult> GetDailyEntry(
         Guid id,
-        Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
+        IEggOperationsModule eggs,
         Cluckwork.Application.Features.Insights.IInsightsModule audit,
         Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var entry = await entries.GetReadOnlyAsync(id, ct);
+        var entry = await eggs.GetDailyEntryAsync(id, ct);
         if (entry is null) return Results.NotFound();
         var provenance = await audit.GetProvenanceAsync(
-            nameof(Cluckwork.Domain.Eggs.DailyEntry), [id], ct);
+            IEggOperationsModule.DailyEntryAuditEntityType, [id], ct);
         // One detail row is a page of one: the same bulk read, one id, so detail
         // and list answer identically (the contract requires it) and the route does
         // not grow a second, divergent path to the same name.
@@ -74,7 +74,7 @@ public static class DailyEntryEndpoints
     }
 
     private static async Task<IResult> ListDailyEntries(
-        Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
+        IEggOperationsModule eggs,
         Cluckwork.Application.Features.Insights.IInsightsModule audit,
         Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
         TenantContext tenant,
@@ -90,9 +90,9 @@ public static class DailyEntryEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await entries.ListAsync(flockId, from, to, take, skip, ct);
+        var list = await eggs.ListDailyEntriesAsync(flockId, from, to, take, skip, ct);
         var provenance = await audit.GetProvenanceAsync(
-            nameof(Cluckwork.Domain.Eggs.DailyEntry), list.Select(e => e.Id).ToList(), ct);
+            IEggOperationsModule.DailyEntryAuditEntityType, list.Select(e => e.Id).ToList(), ct);
         // #512 T045 — ONE scoped bulk read for the whole page's flock references,
         // never one per row. A key missing from the map means the flock left this
         // caller's scope (or was deleted) between the page read and this one; the
@@ -104,7 +104,7 @@ public static class DailyEntryEndpoints
     }
 
     private static DailyEntryResponse ToResponse(
-        Cluckwork.Domain.Eggs.DailyEntry e,
+        DailyEntryDetails e,
         Cluckwork.Application.Features.Audit.EntityProvenance? p,
         FlockReference? flock = null) => new(
         e.Id, e.FarmId, e.HouseId, e.FlockId, e.Date, e.Status.ToString(),
@@ -125,7 +125,7 @@ public static class DailyEntryEndpoints
     private static async Task<IResult> AdjustDailyEntry(
         Guid id,
         AdjustDailyEntryRequest request,
-        AdjustDailyEntryHandler handler,
+        IEggOperationsModule eggs,
         IValidator<AdjustDailyEntryCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -147,14 +147,14 @@ public static class DailyEntryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await eggs.AdjustDailyEntryAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.Ok(result.Value) : MapAdjustFailure(result.Error);
     }
 
     private static async Task<IResult> VoidDailyEntry(
         Guid id,
         VoidDailyEntryRequest request,
-        VoidDailyEntryHandler handler,
+        IEggOperationsModule eggs,
         IValidator<VoidDailyEntryCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -166,7 +166,7 @@ public static class DailyEntryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await eggs.VoidDailyEntryAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.Ok(result.Value) : MapAdjustFailure(result.Error);
     }
 
@@ -182,13 +182,13 @@ public static class DailyEntryEndpoints
 
     private static async Task<IResult> SubmitDailyEntry(
         Guid id,
-        SubmitDailyEntryHandler handler,
+        IEggOperationsModule eggs,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var result = await handler.HandleAsync(id, tenant.AccountId, ct);
+        var result = await eggs.SubmitDailyEntryAsync(id, tenant.AccountId, ct);
         if (result.IsSuccess) return Results.Ok(result.Value);
         return result.Error.Code == EntryNotFoundCode
             ? Results.NotFound()
@@ -197,7 +197,7 @@ public static class DailyEntryEndpoints
 
     private static async Task<IResult> RecordDailyEntry(
         RecordDailyEntryRequest request,
-        RecordDailyEntryHandler handler,
+        IEggOperationsModule eggs,
         IValidator<RecordDailyEntryCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -223,7 +223,7 @@ public static class DailyEntryEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await eggs.RecordDailyEntryAsync(command, tenant.AccountId, ct);
 
         if (result.IsSuccess)
             return Results.Created($"/api/v1/daily-entries/{result.Value}", new { Id = result.Value });

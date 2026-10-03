@@ -93,8 +93,8 @@ for #854.
 - The handlers' peer calls. Item create, item update and purchase keep Farm's
   `IAccountRepository` for the #162 `FOR SHARE` currency snapshot (#851). Feed
   usage, water usage and the water correction keep `IFlockLookup`, and the two
-  record handlers keep Egg Operations' `IDailyEntryRepository` for daily-entry
-  provenance.
+  record handlers read daily-entry provenance through Egg Operations'
+  `IDailyEntryLookup` port since #853.
 - Method bodies. Endpoints still name `InventoryItem.*` error codes in strings.
 - Peer modules are not checked (#849, #852).
 
