@@ -171,6 +171,27 @@ public sealed class PeerContractTests : IDisposable
         Assert.Contains(expected, failure);
     }
 
+    [Theory]
+    [InlineData("contract", "Farm.cs", "Cluckwork.Temp.Farm", "IFarmModule")]
+    [InlineData("seam", "Farm.cs", "Cluckwork.Temp.Farm", "IAccountRepository")]
+    public void GenericHomonymOfAnEntry_IsARegistryError(string list, string file, string ns, string type)
+    {
+        WriteSource("Homonym" + file, $"namespace {ns}; public interface {type}<T> {{ }}");
+
+        Assert.Contains($"owner 'Farm' {list} type '{ns}.{type}' names a generic or nested declaration", Assert.Single(Peers()));
+    }
+
+    [Theory]
+    [InlineData("public interface IIdentity<T> { }", AccessClaim, "names a generic or nested declaration")]
+    [InlineData("public class Outer { public interface IIdentity { } }", "\"Cluckwork.Temp.Common.Outer.IIdentity\"", "names a generic or nested declaration")]
+    [InlineData("public class IIdentity { public class Reader { } }", AccessClaim, "declares nested types")]
+    public void GenericOrNestedClaim_IsARegistryError(string declaration, string claim, string expected)
+    {
+        WriteSource("Common.cs", "namespace Cluckwork.Temp.Common; public interface IClock { } " + declaration);
+
+        Assert.Contains(expected, Assert.Single(Peers(accessTypes: claim)));
+    }
+
     [Fact]
     public void TypeClaimedTwice_IsARegistryError()
     {
