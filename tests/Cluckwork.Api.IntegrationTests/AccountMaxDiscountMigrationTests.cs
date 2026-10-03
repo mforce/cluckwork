@@ -21,7 +21,7 @@ public sealed class AccountMaxDiscountMigrationTests
 
     private static AppDbContext BuildContext(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>();
+        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
         new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
         return new AppDbContext(options.Options, new TenantContext(), new FlockScope());
@@ -34,7 +34,7 @@ public sealed class AccountMaxDiscountMigrationTests
                 SELECT COUNT(*)::int AS "Value" FROM "Accounts"
                 WHERE "MaxDiscountBasisPoints" IS NULL
                 """)
-            .FirstAsync();
+            .SingleAsync();
 
     [Fact]
     public async Task MigratingUp_LeavesTheDefaultAccountWithNoCeiling()
@@ -116,7 +116,7 @@ public sealed class AccountMaxDiscountMigrationTests
                 SELECT COUNT(*)::int AS "Value" FROM information_schema.columns
                 WHERE table_name = 'Accounts' AND column_name = 'MaxDiscountBasisPoints'
                 """)
-            .FirstAsync();
+            .SingleAsync();
         Assert.Equal(0, columnCount);
 
         await migrator.MigrateAsync();

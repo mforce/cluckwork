@@ -213,7 +213,7 @@ public sealed class EggLotLockOrderTests(CluckworkWebApplicationFactory factory)
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         return new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
     }
 

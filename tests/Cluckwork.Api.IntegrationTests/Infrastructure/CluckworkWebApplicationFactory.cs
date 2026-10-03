@@ -63,6 +63,7 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // into the test database — tests must be hermetic.
         builder.UseEnvironment("Testing");
         builder.UseSetting("Database:Provider", "Postgres");
+        builder.UseSetting("Database:ThrowQueryShapeWarnings", "true");
         builder.UseSetting("ConnectionStrings:Default", ConnectionString);
         builder.UseSetting("Jwt:PrivateKeyPem", TestJwtKeys.PrivateKeyPem);
         builder.UseSetting("Jwt:PublicKeyPem", TestJwtKeys.PublicKeyPem);

@@ -70,7 +70,7 @@ public sealed class StepUpGrantRegistryTests : IClassFixture<CluckworkWebApplica
         var tenant = new TenantContext();
         tenant.Resolve(_accountId);
         return new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
     }
 
@@ -100,7 +100,7 @@ public sealed class StepUpGrantRegistryTests : IClassFixture<CluckworkWebApplica
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         _db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
 
         // Fixed anchor so the claim TTLs are deterministic. The in-process

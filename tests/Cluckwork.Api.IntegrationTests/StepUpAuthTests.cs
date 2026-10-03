@@ -840,7 +840,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         var interceptor = new RevokeUpdateFaultInterceptor();
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
-        var options = new DbContextOptionsBuilder<AppDbContext>()
+        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(interceptor)
             .Options;
@@ -978,7 +978,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
 
         var stepUp = new StepUpGrantService(

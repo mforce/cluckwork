@@ -45,7 +45,7 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
         var holderTenant = new TenantContext();
         holderTenant.Resolve(accountB);
         await using var holderDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             holderTenant, new FlockScope());
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
@@ -90,7 +90,7 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
         var holderTenant = new TenantContext();
         holderTenant.Resolve(accountB);
         await using var holderDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
             holderTenant, new FlockScope());
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
