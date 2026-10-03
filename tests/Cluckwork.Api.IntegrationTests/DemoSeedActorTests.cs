@@ -78,9 +78,23 @@ public sealed class DemoSeedAttributionTests(DemoSeedAttributionFactory factory)
                 .Where(e => e.AccountId == SeedDefaults.AccountId)
                 .ToListAsync());
 
-        // Without this, a seeder that wrote no audit rows at all would satisfy
-        // Assert.All vacuously — the failure mode this whole issue is about.
-        Assert.NotEmpty(rows);
+        // These counts are part of the seed contract (#280, #500).
+        // Deliberate seed changes update them in the same PR.
+        (string Action, int Count)[] expectedCounts =
+        [
+            ("Customer.Create", 3),
+            ("DailyEntry.Create", 481),
+            ("DailyEntry.Submit", 480),
+            ("Flock.BirdMovement", 1),
+            ("Flock.Create", 3),
+            ("Product.Create", 3),
+            ("SalesOrder.AddItem", 3),
+            ("SalesOrder.Confirm", 1),
+            ("SalesOrder.Create", 2),
+        ];
+        Assert.Equal(expectedCounts, rows.GroupBy(e => e.Action)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => (g.Key, g.Count())));
         Assert.All(rows, e =>
         {
             Assert.Equal(ownerId, e.ActorUserId);
