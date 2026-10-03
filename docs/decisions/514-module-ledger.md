@@ -1,6 +1,6 @@
 # Cross-module references are declared in the module ledger (#514, #842)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file is the relocated rationale (what shipped, why the short version was
 > insufficient, what not to break).
 

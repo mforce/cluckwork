@@ -9,7 +9,7 @@ name: Backend coverage
 # docs/decisions/776-backend-coverage.md.
 #
 # The `pull_request` path filter below exists so this workflow does not rot
-# silently the way AGENTS.md records for the sim harness (#370) and the
+# silently the way src/AGENTS.md records for the sim harness (#370) and the
 # AppHost (#565): a workflow nobody runs on a normal PR only gets exercised on
 # the Monday schedule, so a change to the coverage tooling itself would land
 # broken and sit broken for up to a week. Scoping the filter to the tooling's

@@ -5,7 +5,7 @@
 # Same reasoning as e2e-smoke.yml: this stands up the whole sim stack — build
 # the image, boot Postgres, migrate, bootstrap an admin, run `seed --profile
 # simulation` — once per rep (default 3), before k6 even starts. That's a
-# pre-release confidence check, not a per-push gate. See AGENTS.md and
+# pre-release confidence check, not a per-push gate. See src/AGENTS.md and
 # tools/simulation/README.md for the harness's own #370 reasoning; it applies
 # here unchanged.
 #

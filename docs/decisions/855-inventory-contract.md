@@ -1,6 +1,6 @@
 # Put General Inventory behind a contract and keep the feed-usage lock order (#855)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md),
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md),
 > beside the #849 contract rule; this file records what the General Inventory
 > contract covers, the order it must keep, and the exception it leaves for #854.
 

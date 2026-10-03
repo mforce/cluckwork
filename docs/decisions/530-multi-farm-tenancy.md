@@ -1,6 +1,6 @@
 # Multi-farm tenancy: shared database, row-level isolation, farm-code login (#530)
 
-> **Rule** — the one-paragraph versions live in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph versions live in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file is the relocated rationale (what shipped, why the short version was
 > insufficient, what not to break).
 

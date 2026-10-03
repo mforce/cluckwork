@@ -1,6 +1,6 @@
 # Nothing writes an audit event without an actor (#500)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file is the relocated rationale. The design record that produced it is
 > [`docs/plans/500-seeded-audit-actor/`](../plans/500-seeded-audit-actor/) —
 > a planning record, not current documentation.

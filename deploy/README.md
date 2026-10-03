@@ -39,7 +39,7 @@ downgrade.
 
 Demo sample data (#280/#284) is **command-only** — there is no `Seed__Demo` boot
 toggle. Against an already base-seeded, non-Production database, run
-`dotnet Cluckwork.Api.dll seed --profile demo` (see `AGENTS.md`).
+`dotnet Cluckwork.Api.dll seed --profile demo` (see `src/AGENTS.md`).
 
 **Run `bootstrap-admin` first (#500).** The demo profile signs every record it
 seeds with the default account's Owner, so it refuses to run when there is none —

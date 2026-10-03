@@ -1,6 +1,6 @@
 # Put Egg Operations behind a contract and pin the egg lot lock order (#853)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md),
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md),
 > beside the #849 contract rule; this file records what the Egg Operations
 > contract covers, the lock order it pins, and what it leaves for Commerce (#854).
 
