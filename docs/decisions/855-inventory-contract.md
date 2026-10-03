@@ -96,7 +96,8 @@ for #854.
   record handlers read daily-entry provenance through Egg Operations'
   `IDailyEntryLookup` port since #853.
 - Method bodies. Endpoints still name `InventoryItem.*` error codes in strings.
-- Peer modules are not checked (#849, #852).
+- Peer modules were not checked here (#849, #852). Since #1023
+  `PeerContractRealTreeTests` checks them.
 
 ## How it is enforced
 

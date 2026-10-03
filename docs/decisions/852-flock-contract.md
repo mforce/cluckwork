@@ -101,13 +101,12 @@ holds for code only.
 
 ## What this does NOT cover
 
-- **Peer modules are not checked.** The #849 adapter check covers adapters only,
-  and the module-ledger edge walk records namespaces, not types. Nothing stops a
-  peer handler injecting `IFlockRepository` again; the edge stays declared and
-  every guard stays green. A constructor-parameter check over Application would
-  be cheap. It would need a per-owner opt-in in the ledger, because Farm keeps
-  `IAccountRepository` outside its contract on purpose (#851). The owner deferred
-  it.
+- **Peer modules were not checked here.** The #849 adapter check covers adapters
+  only. A peer check needed a per-owner opt-in in the ledger, because Farm keeps
+  `IAccountRepository` outside its contract on purpose (#851), so it was deferred.
+  #1023 added it as Farm's `seam`: a peer handler that injects `IFlockRepository`
+  again now fails `PeerContractRealTreeTests`
+  ([`1023-peer-contract-guard.md`](1023-peer-contract-guard.md)).
 - Method bodies. Handlers still write `Error.NotFound(nameof(Flock), ...)`, so
   they keep their `Domain.Flocks` import. `IFlockModule.FlockAuditEntityType` and
   `IFlockModule.FlockNotFoundCode` exist for the adapters' bodies.

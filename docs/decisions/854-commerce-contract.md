@@ -118,9 +118,9 @@ Infrastructure, the Platform hub, so the inversion adds no module edge.
 
 ## What this does NOT cover
 
-- Peer modules other than Commerce's reach into Egg Operations are not checked
-  (#849, #852, #1023). A peer that injects `IEggUnitConversionRepository` again
-  stays green.
+- This slice checked only Commerce's reach into Egg Operations. #1023 widened
+  `PeerContractRealTreeTests` to every module, so a peer that injects
+  `IEggUnitConversionRepository` again now fails too.
 - `PeerContractRealTreeTests` reads only parameter types and service
   resolutions, as the adapter check does, not return types or method bodies. A
   Commerce method that returns `EggLot`, or calls `SaleAllocationPlanner.Plan`
@@ -150,10 +150,11 @@ Infrastructure, the Platform hub, so the inversion adds no module edge.
 - `CompatibilityExceptionRealTreeTests` fails on an unregistered read of a
   Commerce table. Removing `PaymentRepository` from `implementations` turns it
   red, its currency-source read included.
-- `PeerContractRealTreeTests` walks Commerce's namespaces as adapter roots and
-  fails on any Egg Operations type outside `owners.EggOperations.contract`, the
-  first peer check #1023 asks for. Adding `IEggLotRepository eggLots` back to
-  `ConfirmSaleHandler` turns it red; every other architecture test stays green.
+- `PeerContractRealTreeTests` fails on any Egg Operations type outside
+  `owners.EggOperations.contract` in a Commerce member. This slice wrote it for
+  Commerce alone; #1023 widened it to every module. Adding
+  `IEggLotRepository eggLots` back to `ConfirmSaleHandler` turns it red; every
+  other architecture test stays green.
 - `EggLotLockOrderTests.ConfirmSale_TwoGrades_HoldsTheOtherGradesEarlierLotWhileWaitingOnTheLater`
   turns red when the port locks each grade in line order.
 - `EggStockTransactionTests` keeps a reservation after its transaction commits,

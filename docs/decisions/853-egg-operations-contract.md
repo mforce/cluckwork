@@ -148,8 +148,8 @@ order and the outcomes while #854 moves those calls.
 
 - Commerce's handlers, as above. The Commerce to Egg Operations `W` edge is
   unchanged.
-- Peer modules are not checked (#849, #852). A peer that injects
-  `IDailyEntryRepository` again stays green.
+- Peer modules were not checked here (#849, #852). Since #1023 a peer that injects
+  `IDailyEntryRepository` again fails `PeerContractRealTreeTests`.
 - `EggGradeFloorPolicy` stays inside the module: no adapter calls it. Its read of
   `Domain.Accounts.Roles` stays an Egg Operations to Farm `R` edge for #857.
 - `AccountProvisioner` still inserts a new farm's default grades inside its own
