@@ -47,6 +47,12 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
         string TokenHash, int IssuedEpoch, DateTimeOffset? RevokedAt,
         string? ReplacedByTokenHash, bool RevokedByGrace, string ConcurrencyStamp);
 
+    // Nonzero and set, so a refusal that resets or clears lockout state shows up.
+    // The lockout end is in the past: a live lockout would refuse the login on
+    // its own and hide a missing epoch refusal.
+    private const int SeededFailedAccessCount = 2;
+    private static readonly DateTimeOffset SeededLockoutEnd = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     [Theory]
     [InlineData(null)]
     [InlineData("not-an-epoch")]
@@ -186,8 +192,13 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
             await db.Database.ExecuteSqlRawAsync(
                 """ALTER TABLE "AspNetUsers" DROP CONSTRAINT IF EXISTS "CK_AspNetUsers_CredentialEpoch" """);
             var id = await db.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync();
-            await db.Database.ExecuteSqlInterpolatedAsync(
-                $"""UPDATE "AspNetUsers" SET "CredentialEpoch" = {storedEpoch} WHERE "Id" = {id}""");
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE "AspNetUsers"
+                SET "CredentialEpoch" = {storedEpoch},
+                    "AccessFailedCount" = {SeededFailedAccessCount},
+                    "LockoutEnd" = {SeededLockoutEnd}
+                WHERE "Id" = {id}
+                """);
             return id;
         });
         return (accountId, userId, email);
@@ -230,8 +241,8 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
             .Where(user => user.Id == userId)
             .Select(user => new { user.AccessFailedCount, user.LockoutEnd })
             .SingleAsync());
-        Assert.Equal(0, state.AccessFailedCount);
-        Assert.Null(state.LockoutEnd);
+        Assert.Equal(SeededFailedAccessCount, state.AccessFailedCount);
+        Assert.Equal(SeededLockoutEnd, state.LockoutEnd);
     }
 
     private int CountEvents(string securityEvent) => factory.Sink.Events.Count(e =>
