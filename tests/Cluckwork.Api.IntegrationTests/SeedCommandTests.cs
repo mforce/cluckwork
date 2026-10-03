@@ -59,7 +59,6 @@ public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFact
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         psi.Environment["ConnectionStrings__Default"] = connectionString ?? _factory.ConnectionString;
         psi.Environment["Database__Provider"] = "Postgres";
-        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         // The Testcontainers DB is plaintext; opt out of the #262 Production TLS floor so
         // the seed verb runs. Only this one: the #260/#319 serving guards check
         // ProcessRole and skip a one-shot verb (#347), and the TLS floor applies

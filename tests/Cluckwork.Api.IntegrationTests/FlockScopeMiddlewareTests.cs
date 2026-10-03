@@ -125,7 +125,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         var flockScope = new FlockScope();
         var currentUser = new CurrentUserContext(); // deliberately unresolved
         var tenant = new TenantContext();           // deliberately unresolved
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(
                 "Host=127.0.0.1;Port=1;Database=unreachable;Username=none;" +
                 "Password=none;Timeout=1;Command Timeout=1")
@@ -160,7 +160,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
             Guid.NewGuid(), "worker-error@test.local", roles: []); // resolved plain Worker
         var tenant = new TenantContext();
         tenant.Resolve(Guid.NewGuid());
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(
                 "Host=127.0.0.1;Port=1;Database=unreachable;Username=none;" +
                 "Password=none;Timeout=1;Command Timeout=1")

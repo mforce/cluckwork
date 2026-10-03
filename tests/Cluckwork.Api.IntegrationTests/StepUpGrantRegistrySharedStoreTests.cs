@@ -71,7 +71,7 @@ public sealed class StepUpGrantRegistrySharedStoreTests :
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         _db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
 
         // One REAL Redis claim store, one namespace, two registries — the
@@ -160,7 +160,7 @@ public sealed class StepUpGrantRegistrySharedStoreTests :
         var tenant = new TenantContext();
         tenant.Resolve(_accountId);
         var sideEffectDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
 
         var gapLogoutClaimOnce = new LogoutOnClaimClaimOnceStore(

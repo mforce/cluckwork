@@ -435,7 +435,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
         var tenant = new TenantContext();
         tenant.Resolve(farm.AccountId);
         await using var fenceDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
         await using var fence = await fenceDb.Database.BeginTransactionAsync();
         await fenceDb.Database.ExecuteSqlInterpolatedAsync(

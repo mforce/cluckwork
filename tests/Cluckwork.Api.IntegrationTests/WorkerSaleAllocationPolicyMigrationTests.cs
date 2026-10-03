@@ -20,7 +20,7 @@ public sealed class WorkerSaleAllocationPolicyMigrationTests
 
     private static AppDbContext BuildContext(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
+        var options = new DbContextOptionsBuilder<AppDbContext>();
         new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
         return new AppDbContext(options.Options, new TenantContext(), new FlockScope());

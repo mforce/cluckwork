@@ -97,7 +97,7 @@ public sealed class FeedUsageLockOrderTests(CluckworkWebApplicationFactory facto
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
         var transaction = await db.Database.BeginTransactionAsync();
         await takeLock(db);

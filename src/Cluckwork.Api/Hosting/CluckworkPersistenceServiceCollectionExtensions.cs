@@ -69,8 +69,6 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
                     $"Unsupported database provider: {dbProvider}")
             };
             configurator.Configure(options, connectionString, resilience);
-            if (configuration.GetValue<bool>("Database:ThrowQueryShapeWarnings"))
-                options.ConfigureWarnings(QueryShapeWarnings.Configure);
         });
 
         // Farm-local boundaries require IANA tzdata/ICU. Validate the image

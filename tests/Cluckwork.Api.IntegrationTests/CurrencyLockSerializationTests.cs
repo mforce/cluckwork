@@ -83,7 +83,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
         var tenantA = new TenantContext();
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             tenantA, new FlockScope());
 
         await using var transactionA = await dbA.Database.BeginTransactionAsync(isolationLevel);
@@ -99,7 +99,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
             var tenantB = new TenantContext();
             tenantB.Resolve(accountId);
             await using var db = new AppDbContext(
-                new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+                new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
                 tenantB, new FlockScope());
             await using var transactionB = await db.Database.BeginTransactionAsync();
             await db.Accounts.AsNoTracking().SingleAsync();
@@ -170,7 +170,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         await using var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
 
         await using var transaction = await db.Database.BeginTransactionAsync();

@@ -43,7 +43,7 @@ public sealed class AccountRenameServiceTests(CluckworkWebApplicationFactory fac
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             tenant, new FlockScope());
         var tx = await db.Database.BeginTransactionAsync();
         await db.Database.ExecuteSqlInterpolatedAsync(

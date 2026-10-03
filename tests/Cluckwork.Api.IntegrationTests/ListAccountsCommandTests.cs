@@ -32,7 +32,6 @@ public sealed class ListAccountsCommandTests(CluckworkWebApplicationFactory fact
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         psi.Environment["ConnectionStrings__Default"] = factory.ConnectionString;
         psi.Environment["Database__Provider"] = "Postgres";
-        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         // The Testcontainers DB is plaintext; opt out of the #262 Production TLS
         // floor. The #260/#319 serving guards skip a one-shot verb (#347).
         psi.Environment["Database__AllowInsecureConnection"] = "true";

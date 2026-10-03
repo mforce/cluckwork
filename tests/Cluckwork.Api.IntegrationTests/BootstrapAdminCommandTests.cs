@@ -44,7 +44,6 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         psi.Environment["ConnectionStrings__Default"] = connectionString ?? _factory.ConnectionString;
         psi.Environment["Database__Provider"] = "Postgres";
-        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
@@ -249,7 +248,7 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         // separate, pre-existing concern this test isn't about — every real
         // deploy flow never runs bootstrap-admin concurrently with migrate.
         {
-            var migrateOptions = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
+            var migrateOptions = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>();
             new Cluckwork.Infrastructure.Providers.Postgres.PostgresDbContextConfigurator()
                 .Configure(migrateOptions, connectionString, new Cluckwork.Infrastructure.Providers.DatabaseResilienceOptions());
             await using var migrateDb = new AppDbContext(migrateOptions.Options, new TenantContext(), new FlockScope());
@@ -280,7 +279,7 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
 
         // And the database itself agrees: exactly one Owner, under exactly
         // one of the two emails — never both, never a third.
-        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>();
         new Cluckwork.Infrastructure.Providers.Postgres.PostgresDbContextConfigurator()
             .Configure(options, connectionString, new Cluckwork.Infrastructure.Providers.DatabaseResilienceOptions());
         await using var db = new AppDbContext(options.Options, new TenantContext(), new FlockScope());

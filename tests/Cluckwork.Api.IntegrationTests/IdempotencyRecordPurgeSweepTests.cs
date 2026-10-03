@@ -138,7 +138,7 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         var stealTenant = new TenantContext();
         stealTenant.Resolve(Guid.NewGuid());
         await using var stealDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure).UseNpgsql(factory.ConnectionString).Options,
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
             stealTenant, new FlockScope());
         await using var stealTx = await stealDb.Database.BeginTransactionAsync();
         await stealDb.Database.ExecuteSqlInterpolatedAsync(

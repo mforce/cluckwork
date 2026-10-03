@@ -232,7 +232,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
         var tenant = new TenantContext();
         tenant.Resolve(fix.AccountId);
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .Options;
         await using var db = new AppDbContext(options, tenant, scope);
@@ -341,7 +341,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         scope.Resolve(false, [fix.FlockA]);
         var tenant = new TenantContext();
         tenant.Resolve(fix.AccountId);
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .Options;
         await using var db = new AppDbContext(options, tenant, scope);
@@ -471,7 +471,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
         var tenant = new TenantContext();
         tenant.Resolve(fix.AccountId);
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .Options;
         // Fresh FlockScope is deliberately Unrestricted: the tenant conjunct is
@@ -579,7 +579,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         scope.Resolve(false, [fix.FlockA]);
         var tenant = new TenantContext();
         tenant.Resolve(fix.AccountId);
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .Options;
         await using var restrictedDb = new AppDbContext(options, tenant, scope);
@@ -641,7 +641,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
         var tenant = new TenantContext();
         tenant.Resolve(accountA);
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .Options;
         await using var db = new AppDbContext(options, tenant, new FlockScope());
@@ -1022,7 +1022,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
         var tenant = new TenantContext();
         tenant.Resolve(fix.AccountId);
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .Options;
 

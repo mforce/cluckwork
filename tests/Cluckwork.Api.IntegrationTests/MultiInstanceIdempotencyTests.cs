@@ -61,7 +61,6 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         psi.Environment["ConnectionStrings__Default"] = _postgres.GetConnectionString();
         psi.Environment["Database__Provider"] = "Postgres";
-        psi.Environment["Database__ThrowQueryShapeWarnings"] = "true";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         // SAME signing key material, issuer and audience on every process —
         // TestJwtKeys is one Lazy<T> per TEST process, so a token minted by

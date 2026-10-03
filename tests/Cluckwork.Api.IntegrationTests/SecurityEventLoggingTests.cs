@@ -310,7 +310,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         // StepUpAuthTests' proven pattern; every other dependency comes off the
         // real host so login/token plumbing stays production code.
         var interceptor = new ThrowingRefreshTokenUpdateInterceptor();
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(interceptor)
             .Options;
@@ -369,7 +369,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         var tokens = await factory.LoginAsync(email);
 
         var interceptor = new ThrowingRefreshTokenUpdateInterceptor();
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(interceptor)
             .Options;
@@ -475,7 +475,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
     // mirrors StepUpAuthTests' proven pattern; every other dependency comes off
     // the real host so login/token plumbing stays production code.
     private AppDbContext InterceptedDbContext(DbCommandInterceptor interceptor) =>
-        new(new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        new(new DbContextOptionsBuilder<AppDbContext>()
                 .UseNpgsql(factory.ConnectionString)
                 .AddInterceptors(interceptor)
                 .Options,

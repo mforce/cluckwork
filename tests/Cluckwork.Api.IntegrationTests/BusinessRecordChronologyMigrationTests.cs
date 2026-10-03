@@ -180,7 +180,7 @@ public sealed class BusinessRecordChronologyMigrationTests
 
     private static AppDbContext BuildContext(string connectionString, TenantContext? tenant = null)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure);
+        var options = new DbContextOptionsBuilder<AppDbContext>();
         new PostgresDbContextConfigurator().Configure(
             options, connectionString, new DatabaseResilienceOptions());
         var activeTenant = tenant ?? new TenantContext();

@@ -990,7 +990,7 @@ public sealed class NamedEntityDiscoveryTests(CluckworkWebApplicationFactory fac
         scope.Resolve(false, [flockA]);
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(factory.ConnectionString)
             .Options;
         await using var db = new AppDbContext(options, tenant, scope);

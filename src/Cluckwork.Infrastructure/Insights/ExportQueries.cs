@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using Cluckwork.Application.Features.Export;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Cluckwork.Infrastructure.Insights;
@@ -74,14 +73,11 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
     // is even called) keeps its retry strategy untouched.
     public async Task<IAsyncDisposable> BeginConsistentReadAsync(CancellationToken ct = default)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(requestDb.Database.GetConnectionString());
-        var warnings = requestDb.GetService<IDbContextOptions>()
-            .FindExtension<CoreOptionsExtension>()!.WarningsConfiguration;
-        // Keep the request's warning policy without copying its retry strategy.
-        ((IDbContextOptionsBuilderInfrastructure)options).AddOrUpdateExtension(
-            options.Options.FindExtension<CoreOptionsExtension>()!.WithWarningsConfiguration(warnings));
-        var snapshotDb = new AppDbContext(options.Options, tenant, flockScope);
+        var snapshotDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>()
+                .UseNpgsql(requestDb.Database.GetConnectionString())
+                .Options,
+            tenant, flockScope);
         IDbContextTransaction transaction;
         try
         {

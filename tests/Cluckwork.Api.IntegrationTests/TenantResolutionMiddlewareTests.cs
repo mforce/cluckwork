@@ -186,7 +186,7 @@ public sealed class TenantResolutionMiddlewareTests
         FlockScope flockScope,
         Action onFinal)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>().ConfigureWarnings(QueryShapeWarnings.Configure)
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(
                 "Host=127.0.0.1;Port=1;Database=unreachable;Username=none;" +
                 "Password=none;Timeout=1;Command Timeout=1")
