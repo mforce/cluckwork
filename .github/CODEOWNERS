@@ -6,7 +6,7 @@
 # attestation that is genuinely valid — right signer workflow, right source ref
 # — because `--source-ref` records which ref built the image, not whether that
 # ref's content is trustworthy. Review of changes to `main` is the only control
-# that closes it. → the "Deploy by digest" bullet in AGENTS.md.
+# that closes it. → the "Deploy by the index digest" bullet in .github/AGENTS.md.
 #
 # SHIPPED INERT, deliberately. Today `main` requires a pull request with
 # `required_approving_review_count: 0` and a single owner with write access, so

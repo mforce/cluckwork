@@ -1,6 +1,6 @@
 # Skip the web and image jobs on documentation-only pull requests (#782)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph version lives in [`.github/AGENTS.md`](../../.github/AGENTS.md);
 > this file is the relocated rationale (what shipped, why the short version was
 > insufficient, what not to break).
 
@@ -111,7 +111,7 @@ usual workaround is a shim workflow declaring a same-named job on the inverse
 filter, which is a second copy that silently drifts. A job skipped by `if:`
 reports as skipped, which satisfies a required check.
 
-**Use `tj-actions/changed-files` or `dorny/paths-filter`.** `AGENTS.md` names the
+**Use `tj-actions/changed-files` or `dorny/paths-filter`.** `.github/AGENTS.md` names the
 2025-03 `tj-actions/changed-files` compromise as the reason third-party actions
 are pinned to a full commit SHA here. `git diff --name-only` plus a 70-line Node
 module needs no dependency at all.
