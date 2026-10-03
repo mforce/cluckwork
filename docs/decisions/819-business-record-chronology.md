@@ -108,8 +108,21 @@ persistence configuration. `BusinessRecordModel` merges those contributions,
 then its centralized model walk classifies every mapped type as mutable,
 create-only, or excluded. The walk rejects duplicate contributions, unmapped
 exclusions, and unclassified mapped types. It cannot infer which tables users
-page or read by time. An omitted chronological contribution therefore stays
-green, and only review catches it.
+page or read by time, because that is a fact about queries, not about the model.
+
+`BusinessRecordModelTests` therefore holds an explicit declaration (#1024).
+Every mapped `ICreatedRecord` must appear in exactly one of two lists:
+`ChronologicalListTypes`, or `NotReadByTimeTypes` with a one-line reason. The
+test fails when a record is in neither list, in both, or when a listed type is
+not a mapped timestamped record. It also rejects any owned entity type that
+implements `ICreatedRecord`, because `BusinessRecordModel` configures no
+timestamps or `Sequence` for owned types. A second test fails when the chronological
+list and the module contributions disagree, because only contributed records
+carry `Sequence`. A new timestamped record therefore cannot be omitted silently.
+The test does not check that a declaration is true. A record users page by time
+that is declared in `NotReadByTimeTypes` stays green; review of its reason is
+the only check. Mapped exclusions do not implement `ICreatedRecord` and are
+outside this declaration.
 
 ## Sales line display order (#906)
 
