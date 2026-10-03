@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
@@ -5,8 +6,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-public sealed class PaymentRepository(AppDbContext db) : IPaymentRepository
+public sealed class PaymentRepository(AppDbContext db) : IPaymentRepository,
+    ICurrencyBoundRowSource
 {
+    Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
+        db.Payments.AnyAsync(ct);
+
     // Reads rely on the tenant query filter (AccountId == current tenant).
     public Task<Payment?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.Payments.FirstOrDefaultAsync(p => p.Id == id, ct);

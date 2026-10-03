@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Infrastructure.Persistence;
@@ -5,8 +6,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-public sealed class ProductRepository(AppDbContext db) : IProductRepository
+public sealed class ProductRepository(AppDbContext db) : IProductRepository,
+    ICurrencyBoundRowSource
 {
+    // A priced product: an order line taking the default re-labels the raw
+    // integer with the ORDER's currency. An unpriced product carries a currency
+    // column too, but nothing reads it as an amount, so it cannot be misread and
+    // does not lock the farm out of a currency it has not started trading in.
+    Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
+        db.Products.AnyAsync(p => p.DefaultPriceMinorUnits != null, ct);
+
     public Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
 

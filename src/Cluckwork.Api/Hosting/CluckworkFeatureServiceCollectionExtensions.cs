@@ -138,7 +138,20 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.ICurrencyBoundRowProbe,
-            CurrencyBoundRowProbe>();
+            Cluckwork.Application.Features.Accounts.CurrencyBoundRowProbe>();
+        // #854: the probe asks these in this order and stops at the first yes;
+        // the three spec §4.6 names come first. Payments and FeedUsages cannot
+        // be tested alone: a payment exists only against a sales order and a
+        // feed usage only against the lot it drew from, so the source before
+        // each always answers first. They stay because the rule is that a row
+        // carrying an amount locks the currency, and these carry one.
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, SalesOrderRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, PaymentRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, ExpenseRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, ProductRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, InventoryLotRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, FeedUsageRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, InventoryItemRepository>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.IFarmLogoRepository,
             FarmLogoRepository>();

@@ -1684,22 +1684,6 @@
       "deleteWhen": "#858"
     },
     {
-      "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
-      "reaches": "Finance",
-      "tables": ["Expenses"],
-      "owner": "Farm",
-      "reason": "Farm's currency lock: any expense carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce and General Inventory tables, so it can only move behind module contracts once the last of them has one, the Commerce contract slice.",
-      "deleteWhen": "#854"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["FeedUsages", "InventoryItems", "InventoryLots"],
-      "owner": "Farm",
-      "reason": "Farm's currency lock: every lot and feed usage, and any item with a default cost, carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce, which has no contract yet, so it moves behind module contracts with the last of them, the Commerce contract slice.",
-      "deleteWhen": "#854"
-    },
-    {
       "symbol": "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository.ListByNameByUserAsync",
       "reaches": "FlockManagement",
       "tables": ["Flocks"],

@@ -453,7 +453,8 @@ public sealed class SalesOrderItem : Entity<Guid>, IMutableRecord
     /// Admin-only CSV export that already carried it. That
     /// denomination check is what makes a bare long? honest, and it
     /// backstops a state the #123 currency lock makes unreachable today — a
-    /// priced product locks the farm currency (CurrencyBoundRowProbe.cs:24).
+    /// priced product locks the farm currency (ProductRepository's
+    /// ICurrencyBoundRowSource read).
     /// </summary>
     public long? ListUnitPriceMinorUnits { get; private set; }
     /// <summary>
