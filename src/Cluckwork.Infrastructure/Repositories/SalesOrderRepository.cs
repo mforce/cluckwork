@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
@@ -5,8 +6,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository
+public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository,
+    ICurrencyBoundRowSource
 {
+    Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
+        db.SalesOrders.AnyAsync(ct);
+
     public Task<SalesOrder?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.SalesOrders
             .Include(o => o.Items.OrderBy(i => i.CreatedAtUtc).ThenBy(i => EF.Property<long>(i, "Sequence")))

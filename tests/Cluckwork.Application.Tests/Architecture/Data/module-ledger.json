@@ -38,6 +38,11 @@
                           "contract": [
                             "Cluckwork.Application.Features.Eggs.IEggOperationsModule",
                             "Cluckwork.Application.Features.EggGrades.IEggGradeLookup",
+                            "Cluckwork.Application.Features.EggLots.IEggStock",
+                            "Cluckwork.Application.Features.EggLots.IEggStockReservation",
+                            "Cluckwork.Application.Features.EggLots.SaleDemandLine",
+                            "Cluckwork.Application.Features.EggLots.PlannedEggLotDraw",
+                            "Cluckwork.Application.Features.EggLots.SaleAllocationPlan",
                             "Cluckwork.Application.Features.DailyEntries.IDailyEntryLookup",
                             "Cluckwork.Application.Features.Eggs.DailyEntryDetails",
                             "Cluckwork.Application.Features.Eggs.EggGradeDetails",
@@ -69,7 +74,51 @@
                             "Cluckwork.Infrastructure.Repositories.EggInventoryMovementRepository",
                             "Cluckwork.Infrastructure.Repositories.EggLotRepository"
                           ] },
-    "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
+    "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Sales.ICommerceModule",
+                            "Cluckwork.Application.Features.Catalog.IEggUnitConversionLookup",
+                            "Cluckwork.Application.Features.Sales.ProductDetails",
+                            "Cluckwork.Application.Features.Catalog.EggUnitConversionDetails",
+                            "Cluckwork.Application.Features.Sales.CustomerDetails",
+                            "Cluckwork.Application.Features.Customers.CustomerReference",
+                            "Cluckwork.Application.Features.Sales.SalesOrderDetails",
+                            "Cluckwork.Application.Features.Sales.SalesOrderItemDetails",
+                            "Cluckwork.Application.Features.Sales.SalesOrderListItem",
+                            "Cluckwork.Application.Features.Sales.SalesOrderListFilter",
+                            "Cluckwork.Application.Features.Sales.SettlementScope",
+                            "Cluckwork.Application.Features.Sales.PaymentDetails",
+                            "Cluckwork.Application.Features.Sales.CustomerBalance",
+                            "Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductCommand",
+                            "Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductCommand",
+                            "Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionCommand",
+                            "Cluckwork.Application.Features.Customers.CreateCustomer.CreateCustomerCommand",
+                            "Cluckwork.Application.Features.Customers.UpdateCustomer.UpdateCustomerCommand",
+                            "Cluckwork.Application.Features.Sales.CreateSalesOrder.CreateSalesOrderCommand",
+                            "Cluckwork.Application.Features.Sales.AddOrderItem.AddOrderItemCommand",
+                            "Cluckwork.Application.Features.Sales.UpdateOrderItem.UpdateOrderItemCommand",
+                            "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleCommand",
+                            "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleResponse",
+                            "Cluckwork.Application.Features.Sales.VoidSale.VoidSaleCommand",
+                            "Cluckwork.Application.Features.Sales.VoidSale.VoidSaleResponse",
+                            "Cluckwork.Application.Features.Sales.RecordPayment.RecordPaymentCommand",
+                            "Cluckwork.Application.Features.Sales.VoidPayment.VoidPaymentCommand",
+                            "Cluckwork.Domain.Catalog.ProductType",
+                            "Cluckwork.Domain.Catalog.ProductUnit",
+                            "Cluckwork.Domain.Catalog.EggUnit",
+                            "Cluckwork.Domain.Sales.SalesOrderStatus",
+                            "Cluckwork.Domain.Sales.DiscountReasonCode",
+                            "Cluckwork.Domain.Sales.ListPriceBasis",
+                            "Cluckwork.Domain.Sales.PaymentMethod"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.CustomerRepository",
+                            "Cluckwork.Infrastructure.Repositories.EggUnitConversionRepository",
+                            "Cluckwork.Infrastructure.Repositories.PaymentRepository",
+                            "Cluckwork.Infrastructure.Repositories.ProductRepository",
+                            "Cluckwork.Infrastructure.Repositories.SalesOrderAllocationRepository",
+                            "Cluckwork.Infrastructure.Repositories.SalesOrderRepository"
+                          ] },
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"],
                           "contract": [
                             "Cluckwork.Application.Features.Inventory.IInventoryModule",
@@ -115,7 +164,7 @@
   "edges": [
     {
       "from": "Access", "to": "Commerce", "kind": "W",
-      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, SetStepperUnitHandler resolves it through Commerce's IEggUnitConversionRepository and rejects inactive conversions, and SetStepperUnitValidator validates only the enum name. Nothing prevents a stored preference from pointing at a conversion later deactivated through UpdateEggUnitConversionHandler. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
+      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, SetStepperUnitHandler resolves it through Commerce's IEggUnitConversionLookup port (#854) and rejects inactive conversions, and SetStepperUnitValidator validates only the enum name. Nothing prevents a stored preference from pointing at a conversion later deactivated through UpdateEggUnitConversionHandler. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitHandler",
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitValidator",
@@ -175,15 +224,12 @@
     },
     {
       "from": "Commerce", "to": "EggOperations", "kind": "W",
-      "reason": "FIFO egg stock. ConfirmSaleHandler and VoidSaleHandler draw from and return to Domain.Eggs.EggLot through Egg Operations' IEggLotRepository and IEggInventoryMovementRepository inside the confirm and void transactions, and SaleAllocationPlanner plans those draws over EggLot. Products and order lines map to grades through IEggGradeRepository in CreateProductHandler, UpdateProductHandler and AddOrderItemHandler. Design 3.4 row Commerce -> Egg Ops = W.",
+      "reason": "FIFO egg stock. ConfirmSaleHandler and VoidSaleHandler lock, draw from and return egg lots through Egg Operations' IEggStock port, which adds the lot changes and Sale or Void movements to the confirm and void transactions and never saves (#854); Commerce sees plans and lot ids, never Domain.Eggs.EggLot. Products, order lines and confirm refusals read grades through IEggGradeLookup in CreateProductHandler, UpdateProductHandler, AddOrderItemHandler and ConfirmSaleHandler. Design 3.4 row Commerce -> Egg Ops = W.",
       "symbols": [
         "Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductHandler",
         "Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductHandler",
         "Cluckwork.Application.Features.Sales.AddOrderItem.AddOrderItemHandler",
         "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler",
-        "Cluckwork.Application.Features.Sales.ConfirmSale.PlannedEggLotDraw",
-        "Cluckwork.Application.Features.Sales.ConfirmSale.SaleAllocationPlan",
-        "Cluckwork.Application.Features.Sales.ConfirmSale.SaleAllocationPlanner",
         "Cluckwork.Application.Features.Sales.VoidSale.VoidSaleHandler"
       ]
     },
@@ -220,7 +266,7 @@
     },
     {
       "from": "Farm", "to": "Commerce", "kind": "R",
-      "reason": "Farm settings own three Commerce-shaped values. Domain.Accounts.Account holds Domain.Catalog.EggUnit as the farm's default stepper unit and exposes Domain.Sales.DiscountCeiling, while UpdateFarmSettingsHandler resolves the stepper unit through Commerce's IEggUnitConversionRepository and UpdateFarmSettingsValidator parses the ceiling with DiscountCeiling.TryParsePercent (#727). The Farm contract's FarmSettingsDetails, declared beside IFarmModule, carries the same Domain.Catalog.EggUnit stepper unit out to its callers (#851). Design 3.4 shows Farm -> Commerce as none; this is live coupling the target design has still to remove.",
+      "reason": "Farm settings own three Commerce-shaped values. Domain.Accounts.Account holds Domain.Catalog.EggUnit as the farm's default stepper unit and exposes Domain.Sales.DiscountCeiling, while UpdateFarmSettingsHandler resolves the stepper unit through Commerce's IEggUnitConversionLookup port (#854) and UpdateFarmSettingsValidator parses the ceiling with DiscountCeiling.TryParsePercent (#727). The Farm contract's FarmSettingsDetails, declared beside IFarmModule, carries the same Domain.Catalog.EggUnit stepper unit out to its callers (#851). Design 3.4 shows Farm -> Commerce as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Accounts.FarmSettingsDetails",
         "Cluckwork.Application.Features.Accounts.IFarmModule",
@@ -429,21 +475,21 @@
       "name": "FK_ProductEggGradeMappings_EggGrades_EggGradeId",
       "from": "Commerce",
       "to": "EggOperations",
-      "reason": "product grade mappings reference egg grades; catalog handlers validate through IEggGradeRepository (design 3.3)"
+      "reason": "product grade mappings reference egg grades; catalog handlers validate through IEggGradeLookup (#854, design 3.3)"
     },
     {
       "table": "SalesOrderAllocations",
       "name": "FK_SalesOrderAllocations_EggLots_EggLotId",
       "from": "Commerce",
       "to": "EggOperations",
-      "reason": "sale allocations reserve egg lots; ConfirmSaleHandler allocates through IEggLotRepository (design 3.3)"
+      "reason": "sale allocations reserve egg lots; ConfirmSaleHandler allocates through IEggStock (#854, design 3.3)"
     },
     {
       "table": "SalesOrderItems",
       "name": "FK_SalesOrderItems_EggGrades_EggGradeId",
       "from": "Commerce",
       "to": "EggOperations",
-      "reason": "sale items retain their egg grade; AddOrderItemHandler validates through IEggGradeRepository (design 3.3)"
+      "reason": "sale items retain their egg grade; AddOrderItemHandler validates through IEggGradeLookup (#854, design 3.3)"
     },
     {
       "table": "WaterUsages",
@@ -1491,6 +1537,14 @@
     },
     {
       "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
+      "reaches": "Commerce",
+      "tables": ["Customers", "SalesOrderItems", "SalesOrders"],
+      "owner": "Platform",
+      "reason": "Deletes a partial demo seed's SalesOrderItems, SalesOrders and Customers for one farm, children before parents, in the same transaction as every other module's demo rows. ICommerceModule has no delete: orders are cancelled or voided, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
       "reaches": "EggOperations",
       "tables": ["DailyEntries", "DailyEntryGrades", "EggInventoryMovements", "EggLots"],
       "owner": "Platform",
@@ -1535,6 +1589,14 @@
       "tables": ["Flocks"],
       "owner": "Platform",
       "reason": "Loads the demo's historical flock to deplete it on a backdated day, because DepleteFlockHandler stamps the farm's today and that would block the historical entries the demo records next. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "Commerce",
+      "tables": ["Customers", "Payments", "SalesOrders"],
+      "owner": "Platform",
+      "reason": "Counts Customers, SalesOrders by status and Payments for the simulation manifest check, beside every other module's counts. ICommerceModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1586,6 +1648,22 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureConfirmedOrderAsync",
+      "reaches": "Commerce",
+      "tables": ["SalesOrders"],
+      "owner": "Platform",
+      "reason": "Reads the order's status before calling ICommerceModule.ConfirmSaleAsync, so a re-run confirms only an order still in Draft. ICommerceModule.GetSalesOrderAsync would also load the order's lines. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureCustomerAsync",
+      "reaches": "Commerce",
+      "tables": ["Customers"],
+      "owner": "Platform",
+      "reason": "Looks up Customers by name before calling ICommerceModule.CreateCustomerAsync, so a re-run converges and reuses the existing id. ICommerceModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseAsync",
       "reaches": "Finance",
       "tables": ["Expenses"],
@@ -1602,6 +1680,14 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExtraLineAsync",
+      "reaches": "Commerce",
+      "tables": ["SalesOrderItems"],
+      "owner": "Platform",
+      "reason": "Checks SalesOrderItems for the product's line on the order before calling ICommerceModule.AddOrderItemAsync, so a re-run converges instead of duplicating. ICommerceModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureInventoryItemAsync",
       "reaches": "GeneralInventory",
       "tables": ["InventoryItems"],
@@ -1615,6 +1701,30 @@
       "tables": ["InventoryLots"],
       "owner": "Platform",
       "reason": "Checks InventoryLots for the item's opening lot, and reads its id, before calling IInventoryModule.RecordPurchaseAsync, so a re-run converges and reuses the lot. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsurePartialPaymentAsync",
+      "reaches": "Commerce",
+      "tables": ["Payments", "SalesOrders"],
+      "owner": "Platform",
+      "reason": "Checks Payments for the order and reads its total before calling ICommerceModule.RecordPaymentAsync, so a re-run converges and the payment stays half the total. ICommerceModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureProductAsync",
+      "reaches": "Commerce",
+      "tables": ["Products"],
+      "owner": "Platform",
+      "reason": "Looks up Products by name before calling ICommerceModule.CreateProductAsync, so a re-run converges and reuses the existing id. ICommerceModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.FindOrderAsync",
+      "reaches": "Commerce",
+      "tables": ["SalesOrders"],
+      "owner": "Platform",
+      "reason": "Finds the fixture's order by customer and order date, the natural key this seeder controls, so a re-run reuses the order instead of creating another. ICommerceModule has no lookup by that key. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1680,22 +1790,6 @@
       "owner": "Platform",
       "reason": "Checks WaterUsages for a fixture row per flock and date before calling IInventoryModule.RecordWaterUsageAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
-      "reaches": "Finance",
-      "tables": ["Expenses"],
-      "owner": "Farm",
-      "reason": "Farm's currency lock: any expense carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce and General Inventory tables, so it can only move behind module contracts once the last of them has one, the Commerce contract slice.",
-      "deleteWhen": "#854"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Repositories.CurrencyBoundRowProbe.AnyAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["FeedUsages", "InventoryItems", "InventoryLots"],
-      "owner": "Farm",
-      "reason": "Farm's currency lock: every lot and feed usage, and any item with a default cost, carries an amount in the farm currency, so it blocks a currency change. The same probe reads Commerce, which has no contract yet, so it moves behind module contracts with the last of them, the Commerce contract slice.",
-      "deleteWhen": "#854"
     },
     {
       "symbol": "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository.ListByNameByUserAsync",

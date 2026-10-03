@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
@@ -5,8 +6,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-public sealed class InventoryItemRepository(AppDbContext db) : IInventoryItemRepository
+public sealed class InventoryItemRepository(AppDbContext db) : IInventoryItemRepository,
+    ICurrencyBoundRowSource
 {
+    // An item's default cost is what a purchase falls back to when no cost is
+    // given, which would stamp a new lot in the old currency after a change.
+    Task<bool> ICurrencyBoundRowSource.AnyAsync(CancellationToken ct) =>
+        db.InventoryItems.AnyAsync(i => i.DefaultUnitCost != null, ct);
+
     public Task<InventoryItem?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.InventoryItems.FirstOrDefaultAsync(i => i.Id == id, ct);
 

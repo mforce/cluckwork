@@ -103,6 +103,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             ExportQueries>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<ICurrentTransaction, CurrentTransaction>();
         services.AddScoped<IClock, SystemClock>();
         services.AddScoped<IFarmClock, FarmClock>();
         services.AddSingleton(TimeProvider.System);
@@ -138,7 +139,20 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.ICurrencyBoundRowProbe,
-            CurrencyBoundRowProbe>();
+            Cluckwork.Application.Features.Accounts.CurrencyBoundRowProbe>();
+        // #854: the probe asks these in this order and stops at the first yes;
+        // the three spec §4.6 names come first. Payments and FeedUsages cannot
+        // be tested alone: a payment exists only against a sales order and a
+        // feed usage only against the lot it drew from, so the source before
+        // each always answers first. They stay because the rule is that a row
+        // carrying an amount locks the currency, and these carry one.
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, SalesOrderRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, PaymentRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, ExpenseRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, ProductRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, InventoryLotRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, FeedUsageRepository>();
+        services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowSource, InventoryItemRepository>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.IFarmLogoRepository,
             FarmLogoRepository>();
@@ -285,6 +299,12 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<ConfirmSaleHandler>();
         services.AddScoped<VoidSaleHandler>();
         services.AddScoped<RecordPaymentHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Sales.ICommerceModule,
+            Cluckwork.Application.Features.Sales.CommerceModule>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Catalog.IEggUnitConversionLookup,
+            Cluckwork.Application.Features.Catalog.EggUnitConversionLookup>();
         services.AddScoped<VoidPaymentHandler>();
         services.AddScoped<CreateInventoryItemHandler>();
         services.AddScoped<UpdateInventoryItemHandler>();
@@ -359,6 +379,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Eggs.IEggOperationsModule,
             Cluckwork.Application.Features.Eggs.EggOperationsModule>();
         services.AddScoped<IEggGradeLookup, EggGradeLookup>();
+        services.AddScoped<IEggStock, EggStock>();
         services.AddScoped<IDailyEntryLookup, DailyEntryLookup>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();

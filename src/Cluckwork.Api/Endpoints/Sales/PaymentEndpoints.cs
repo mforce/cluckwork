@@ -2,7 +2,6 @@ using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.RecordPayment;
 using Cluckwork.Application.Features.Sales.VoidPayment;
-using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -56,17 +55,16 @@ public static class PaymentEndpoints
 
     private static async Task<IResult> ListOrderPayments(
         Guid id,
-        IPaymentRepository payments,
-        ISalesOrderRepository orders,
+        ICommerceModule commerce,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var order = await orders.GetReadOnlyAsync(id, ct);
+        var order = await commerce.GetSalesOrderAsync(id, ct);
         if (order is null) return Results.NotFound();
 
-        var list = await payments.ListByOrderAsync(id, ct);
+        var list = await commerce.ListOrderPaymentsAsync(id, ct);
         var paid = list.Where(p => !p.Voided).Sum(p => p.AmountMinorUnits);
         return Results.Ok(new OrderPaymentsResponse(
             list.Select(ToResponse).ToList(),
@@ -80,7 +78,7 @@ public static class PaymentEndpoints
     private static async Task<IResult> RecordPayment(
         Guid id,
         RecordPaymentRequest request,
-        RecordPaymentHandler handler,
+        ICommerceModule commerce,
         IValidator<RecordPaymentCommand> validator,
         TenantContext tenant,
         CancellationToken ct)
@@ -95,7 +93,7 @@ public static class PaymentEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await commerce.RecordPaymentAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created($"/api/v1/sales/{id}/payments", new { Id = result.Value })
             : MapFailure(result.Error);
@@ -104,9 +102,8 @@ public static class PaymentEndpoints
     private static async Task<IResult> VoidPayment(
         Guid id,
         VoidPaymentRequest request,
-        VoidPaymentHandler handler,
+        ICommerceModule commerce,
         IValidator<VoidPaymentCommand> validator,
-        IPaymentRepository payments,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -117,22 +114,22 @@ public static class PaymentEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, ct);
+        var result = await commerce.VoidPaymentAsync(command, ct);
         if (result.IsFailure) return MapFailure(result.Error);
 
-        var updated = await payments.GetByIdAsync(id, ct);
+        var updated = await commerce.GetPaymentAsync(id, ct);
         return updated is null ? Results.NotFound() : Results.Ok(ToResponse(updated));
     }
 
     private static async Task<IResult> ListCustomerBalances(
-        IPaymentRepository payments,
+        ICommerceModule commerce,
         Cluckwork.Application.Features.Accounts.IFarmModule farm,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var rows = await payments.ListCustomerBalancesAsync(ct);
+        var rows = await commerce.ListCustomerBalancesAsync(ct);
         var settings = await farm.GetSettingsAsync(ct);
         return Results.Ok(new CustomerBalancesResponse(
             rows.Select(r => new CustomerBalanceResponse(
@@ -155,7 +152,7 @@ public static class PaymentEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static PaymentResponse ToResponse(Payment p) =>
+    private static PaymentResponse ToResponse(PaymentDetails p) =>
         new(p.Id, p.SalesOrderId, p.CustomerId, p.PaymentDate, p.AmountMinorUnits,
             p.CurrencyCode, p.CurrencyMinorUnit, p.Method.ToString(),
             p.ReferenceNumber, p.Note, p.Voided, p.VoidReason, p.Version);

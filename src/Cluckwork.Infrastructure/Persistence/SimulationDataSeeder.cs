@@ -21,6 +21,7 @@ using Cluckwork.Application.Features.Inventory.RecordAdjustment;
 using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 using Cluckwork.Application.Features.Inventory.RecordPurchase;
 using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
+using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
@@ -100,12 +101,7 @@ public sealed class SimulationDataSeeder(
     IUserRoleAssignmentRepository assignments,
     IFarmModule farm,
     IEggOperationsModule eggs,
-    CreateProductHandler createProduct,
-    CreateCustomerHandler createCustomer,
-    CreateSalesOrderHandler createSalesOrder,
-    AddOrderItemHandler addOrderItem,
-    ConfirmSaleHandler confirmSale,
-    RecordPaymentHandler recordPayment,
+    ICommerceModule commerce,
     IInventoryModule inventory,
     IFinanceModule finance,
     DailyEntryLockSweep lockSweep,
@@ -1370,7 +1366,7 @@ public sealed class SimulationDataSeeder(
         if (existing is not null) return existing.Id;
 
         ActAs(actor);
-        var result = await createProduct.HandleAsync(new CreateProductCommand(
+        var result = await commerce.CreateProductAsync(new CreateProductCommand(
             name, "Egg", "Egg", priceMinorUnits, eggGradeId, "Simulation fixture product"), accountId, ct);
         Require(result, $"create product {name}");
         return result.Value;
@@ -1420,7 +1416,7 @@ public sealed class SimulationDataSeeder(
         if (existing is not null) return existing.Id;
 
         ActAs(actor);
-        var result = await createCustomer.HandleAsync(
+        var result = await commerce.CreateCustomerAsync(
             new CreateCustomerCommand(name, phone, Note: note), accountId, ct);
         Require(result, $"create customer {name}");
         return result.Value;
@@ -1442,14 +1438,14 @@ public sealed class SimulationDataSeeder(
         if (existing is not null) return existing.Value;
 
         ActAs(actor);
-        var created = await createSalesOrder.HandleAsync(
+        var created = await commerce.CreateSalesOrderAsync(
             new CreateSalesOrderCommand(customerId, orderDate), accountId, ct);
         Require(created, $"create sales order for customer {customerId} on {orderDate:yyyy-MM-dd}");
         var orderId = created.Value;
 
         // Unit/price both null: defaults from the product (Egg unit, the
         // catalog price seeded above) — same pattern as DemoDataSeeder.
-        var added = await addOrderItem.HandleAsync(
+        var added = await commerce.AddOrderItemAsync(
             new AddOrderItemCommand(orderId, productId, quantityEggs, null, null), accountId, ct);
         Require(added, $"add item to sales order {orderId}");
 
@@ -1471,7 +1467,7 @@ public sealed class SimulationDataSeeder(
         if (alreadyHasLine) return;
 
         ActAs(actor);
-        var added = await addOrderItem.HandleAsync(
+        var added = await commerce.AddOrderItemAsync(
             new AddOrderItemCommand(orderId, productId, quantityEggs, null, explicitPriceMinorUnits),
             accountId, ct);
         Require(added, $"add extra line to sales order {orderId}");
@@ -1507,7 +1503,7 @@ public sealed class SimulationDataSeeder(
         // FIFO allocation (tech spec §10.9.1): draws from the oldest
         // available lots for this grade under a FOR UPDATE lock — this is
         // what depletes the production history's egg lots.
-        var confirmed = await confirmSale.HandleAsync(new ConfirmSaleCommand(orderId), accountId, actor.UserId, ct);
+        var confirmed = await commerce.ConfirmSaleAsync(new ConfirmSaleCommand(orderId), accountId, actor.UserId, ct);
         Require(confirmed, $"confirm sales order {orderId}");
         return orderId;
     }
@@ -1528,7 +1524,7 @@ public sealed class SimulationDataSeeder(
                 $"Simulation seed: sales order {orderId}'s total is too small to seed a partial payment.");
 
         ActAs(actor);
-        var result = await recordPayment.HandleAsync(new RecordPaymentCommand(
+        var result = await commerce.RecordPaymentAsync(new RecordPaymentCommand(
             orderId, paymentDate, amount, "Cash", null, "Simulation fixture partial payment"), accountId, ct);
         Require(result, $"record partial payment for sales order {orderId}");
     }
