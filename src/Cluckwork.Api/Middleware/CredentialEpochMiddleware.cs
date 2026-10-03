@@ -8,10 +8,11 @@ namespace Cluckwork.Api.Middleware;
 
 // #364 — server-side access-token revocation. Every authenticated request is
 // bound to the credential epoch held by its exact (user, account) row. Missing
-// and malformed claims deliberately become retired epoch zero, never an opt-out.
-// That holds only while the stored epoch is at least 1, which nothing enforces
-// yet (#1031). Since #857 the read itself is ICredentialEpochVerifier's; this
-// middleware keeps the claims, the exemptions and the responses.
+// and malformed claims deliberately become retired epoch zero, never an opt-out:
+// the verifier never matches a stored epoch below 1, and a CHECK keeps such a
+// row from being written at all (#1031). Since #857 the read itself is
+// ICredentialEpochVerifier's; this middleware keeps the claims, the exemptions
+// and the responses.
 public sealed class CredentialEpochMiddleware(RequestDelegate next)
 {
     private const string LogoutPath = "/api/v1/auth/logout";

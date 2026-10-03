@@ -14,6 +14,10 @@ public sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Appl
     {
         builder.Property(u => u.Language).HasMaxLength(16);
         builder.Property(u => u.CredentialEpoch).HasDefaultValue(1);
+        // #1031 — epoch 0 is retired (#364) and a missing or malformed claim
+        // parses to it, so a stored epoch below 1 must be unwritable.
+        builder.ToTable(t => t.HasCheckConstraint(
+            "CK_AspNetUsers_CredentialEpoch", "\"CredentialEpoch\" >= 1"));
         builder.Property(u => u.PreferredStepperUnit).HasConversion<string>().HasMaxLength(16);
         builder.Property(u => u.StepUpLogoutEpoch).HasDefaultValue(0);
     }

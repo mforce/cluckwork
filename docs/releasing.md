@@ -178,3 +178,10 @@ on has both.
   workflow definition runs, and an image built from a branch dispatch carries
   provenance naming that branch — which the release workflow, and any deploy
   that verifies, both reject.
+- **If the `migrate` job fails with SQL state `23514`**, existing rows break a
+  constraint the release adds. The migration repaired and recorded nothing, so
+  stop the deploy and follow that constraint's remediation rather than editing
+  rows to fit. For `CK_AspNetUsers_CredentialEpoch` (#1031), run the preflight
+  query in
+  [`364-credential-epoch-revocation.md`](decisions/364-credential-epoch-revocation.md#the-stored-epoch-floor-1031)
+  before deploying; setting a bad row to 1 revives outstanding credentials.

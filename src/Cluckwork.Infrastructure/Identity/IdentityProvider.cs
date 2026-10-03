@@ -54,7 +54,10 @@ public sealed class IdentityProvider(
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
-        if (user.DisabledAt is not null)
+        // #1031 — a stored epoch below 1 is refused exactly like a disabled
+        // account. It must never mint, and repairing the row is an operator's
+        // job, not a login's.
+        if (user.DisabledAt is not null || user.CredentialEpoch < 1)
         {
             // Pay the same password-hash cost for a correct or incorrect
             // password, but never feed a disabled account into Identity's
@@ -223,7 +226,11 @@ public sealed class IdentityProvider(
         // not evidence about the current family, so it fails inert rather than
         // letting replay detection revoke a later epoch's credentials.
         var user = await userManager.FindByIdAsync(stored.UserId.ToString());
-        if (user is null || user.DisabledAt is not null || stored.IssuedEpoch != user.CredentialEpoch)
+        // #1031 — the floor stops a retired-zero or negative row matching a stored
+        // epoch below 1, and like the rest of this line it must stay ahead of
+        // replay detection, which would otherwise revoke the user's live tokens.
+        if (user is null || user.DisabledAt is not null || user.CredentialEpoch < 1
+            || stored.IssuedEpoch != user.CredentialEpoch)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
         // #532 — a suspended farm cannot rotate a session. Deliberately the SAME
