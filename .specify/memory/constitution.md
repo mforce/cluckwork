@@ -78,7 +78,7 @@ and pass the high/critical vulnerability gate. A release MUST promote the alread
 image by server-side retagging, never rebuild it. Deployment MUST use the release digest, verify its
 attestation and source, and confirm the promoted tag still resolves to that digest. The serving
 topology and Postgres pooling mode MUST satisfy the single-leader and shared-state guarantees
-documented in `AGENTS.md` and decision 271.
+documented in `src/AGENTS.md` and decision 271.
 
 Rationale: portability prevents deployment policy from leaking into the product, while immutable
 inputs and digest-based promotion preserve the identity of the artifact that CI actually tested.

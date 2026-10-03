@@ -1,6 +1,6 @@
 # Put farm settings behind a Farm contract; keep identity and the account seam outside it (#851)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md),
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md),
 > beside the #849 contract rule; this file records what the Farm contract covers
 > and what it deliberately leaves alone.
 

@@ -57,6 +57,7 @@
 | AspNetUsers_TwoFactorEnabled_not_null | n | NOT NULL "TwoFactorEnabled" |
 | AspNetUsers_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | AspNetUsers_UserName_not_null | n | NOT NULL "UserName" |
+| CK_AspNetUsers_CredentialEpoch | CHECK | CHECK (("CredentialEpoch" >= 1)) |
 | FK_AspNetUsers_Accounts_AccountId | FOREIGN KEY | FOREIGN KEY ("AccountId") REFERENCES "Accounts"("Id") ON DELETE RESTRICT |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
 | AK_AspNetUsers_Id_AccountId | UNIQUE | UNIQUE ("Id", "AccountId") |

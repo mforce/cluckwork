@@ -1,6 +1,6 @@
 # Break-glass recovery: `recover-admin` (#265)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > the **procedure and its verification drill** are in
 > [`docs/runbooks/break-glass-account-recovery.md`](../runbooks/break-glass-account-recovery.md).
 > This file is the design rationale.

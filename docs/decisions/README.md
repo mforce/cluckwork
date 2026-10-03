@@ -1,10 +1,9 @@
 # Decision records
 
 Each file here holds the **relocated rationale** for a rule that also appears — in
-one compressed paragraph — in [`AGENTS.md`](../../AGENTS.md), or in a how-to such
+one compressed paragraph — in [`AGENTS.md`](../../AGENTS.md) or a scoped `AGENTS.md` it indexes, or in a how-to such
 as [`docs/releasing.md`](../releasing.md). The short version (the rule + the one-line
-consequence of breaking it) stays resident in `AGENTS.md` so it loads into every
-agent session; the narrative that earned it (what shipped, which review round
+consequence of breaking it) lives in an `AGENTS.md` that agents read before editing the paths it covers; the narrative that earned it (what shipped, which review round
 found it, what the wrong fix was, what not to break) lives here so it is reachable
 without being resident.
 

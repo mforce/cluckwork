@@ -1,6 +1,6 @@
 # Releases and image publishing — internals (#351)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
+> **Rule** — the one-paragraph version lives in [`.github/AGENTS.md`](../../.github/AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
 
 
 Two stages, deliberately separate: **CI publishes, the release PR versions.**
@@ -336,7 +336,7 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
 
   For the **canonical one-paragraph statement** of exactly what these gates do
   and do not prove — the summary that `docs/releasing.md` and the `ci.yml` comment point
-  at — see the **"Deploy by digest" bullet in [`AGENTS.md`](../../AGENTS.md)**. It
+  at — see the **"Deploy by the index digest" bullet in [`.github/AGENTS.md`](../../.github/AGENTS.md)**. It
   is kept there as the single source so the three summaries cannot drift; do not
   restate it here.
 - **Promotion reads the digest from CI's own run artifact, never by resolving

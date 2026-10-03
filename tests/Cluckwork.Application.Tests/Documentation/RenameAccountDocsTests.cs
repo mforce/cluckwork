@@ -14,7 +14,7 @@ public sealed class RenameAccountDocsTests
     private const string RenameHeading = "## Renaming a farm's code";
 
     [Theory]
-    [InlineData("AGENTS.md")]
+    [InlineData("src/AGENTS.md")]
     [InlineData("docs/decisions/README.md")]
     public void RenameDecision_IsLinkedFromRulesAndIndex(string relativePath)
     {

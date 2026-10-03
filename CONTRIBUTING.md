@@ -118,7 +118,7 @@ Expectations, enforced at review like a missing feature:
 - every change under `src/` ships with tests in the same PR;
 - every change under `web/` ships with Vitest tests in the same PR;
 - **every aggregate mutation bumps `Version`** and gets a parallel-race
-  integration test — see the `Version` bullet in [`AGENTS.md`](AGENTS.md#conventions-follow-these);
+  integration test — see the `Version` bullet in [`src/AGENTS.md`](src/AGENTS.md#conventions-follow-these);
 - a new **guard** (a test whose job is to fail when someone later does the wrong
   thing) is mutation-checked before you claim it catches anything —
   [`docs/decisions/407-writing-a-guard.md`](docs/decisions/407-writing-a-guard.md).

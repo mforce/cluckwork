@@ -77,7 +77,7 @@ closed (no push happens); everything else is testable without it.
 > additionally requires **Pull requests: RW** and **Issues: RW** — a Contents-RW-only App
 > can no longer mint that token. A permission change also needs the installation owner to
 > **approve** it before an existing installation picks it up. This job still receives a
-> Contents-only token, because its mint pins `permission-contents: write`; see AGENTS.md
+> Contents-only token, because its mint pins `permission-contents: write`; see `.github/AGENTS.md`
 > for what that pin does and does not guarantee.
 >
 > The secret named above is also stale: `create-github-app-token` v3 deprecated the

@@ -1,6 +1,6 @@
 # Walk table ownership from the EF model (#845)
 
-> **Rule:** the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md).
+> **Rule:** the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md).
 > This record explains the enforcement boundary for epic #514, slice 3, Track B.
 
 **Status:** accepted

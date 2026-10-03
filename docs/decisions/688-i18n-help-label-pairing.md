@@ -1,6 +1,6 @@
 # Help prose naming a control: checked by review, not by a guard (#688)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
+> **Rule** — the one-paragraph version lives in [`web/AGENTS.md`](../../web/AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
 
 **Status:** accepted
 **Date:** 2026-09-05

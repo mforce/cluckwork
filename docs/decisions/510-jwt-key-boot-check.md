@@ -1,6 +1,6 @@
 # Both JWT keys are checked at boot, and the check is serving-only (#510)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file is the relocated rationale.
 
 **Status:** accepted · **Date:** 2026-08

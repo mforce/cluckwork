@@ -55,7 +55,9 @@ public sealed class CredentialEpochVerifier(AppDbContext db) : ICredentialEpochV
         // null must not pass.
         if (credentialState.AccountIsActive != true)
             return CredentialVerdict.FarmSuspended;
-        return credentialState.CredentialEpoch == tokenEpoch
+        // #1031 — the floor keeps a missing or malformed claim, parsed as 0, a
+        // mismatch even when the stored row is 0 or negative.
+        return credentialState.CredentialEpoch >= 1 && credentialState.CredentialEpoch == tokenEpoch
             ? CredentialVerdict.Current
             : CredentialVerdict.Superseded;
     }
