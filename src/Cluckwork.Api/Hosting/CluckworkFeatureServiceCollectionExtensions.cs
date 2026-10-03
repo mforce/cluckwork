@@ -103,6 +103,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             ExportQueries>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<ICurrentTransaction, CurrentTransaction>();
         services.AddScoped<IClock, SystemClock>();
         services.AddScoped<IFarmClock, FarmClock>();
         services.AddSingleton(TimeProvider.System);

@@ -6,6 +6,7 @@ using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,7 +16,9 @@ namespace Cluckwork.Api.IntegrationTests;
 // state and audit row together or not at all. Each case faults one step of the
 // confirm on the second of two draws and finds nothing changed. The handler
 // runs outside HTTP, so IdempotencyMiddleware's request transaction does not
-// wrap it.
+// wrap it. Each fault first checks the two rules that make the confirm atomic,
+// so breaking either one alone fails here: the confirm is inside a transaction,
+// and no draw was saved before the end.
 [Collection(IntegrationCollection.Name)]
 public sealed class ConfirmSaleAtomicityTests(CluckworkWebApplicationFactory factory)
 {
@@ -44,14 +47,16 @@ public sealed class ConfirmSaleAtomicityTests(CluckworkWebApplicationFactory fac
         using (var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, userId, email))
         {
             var services = scope.ServiceProvider;
+            var db = services.GetRequiredService<AppDbContext>();
             var stock = new EggStock(services.GetRequiredService<IEggLotRepository>(),
-                new FaultingMovements(services.GetRequiredService<IEggInventoryMovementRepository>(), fault));
+                new FaultingMovements(services.GetRequiredService<IEggInventoryMovementRepository>(), fault, db),
+                services.GetRequiredService<ICurrentTransaction>());
             var handler = ActivatorUtilities.CreateInstance<ConfirmSaleHandler>(services, stock,
-                new FaultingAllocations(services.GetRequiredService<ISalesOrderAllocationRepository>(), fault),
-                new FaultingAuditWriter(services.GetRequiredService<IAuditWriter>(), fault));
+                new FaultingAllocations(services.GetRequiredService<ISalesOrderAllocationRepository>(), fault, db),
+                new FaultingAuditWriter(services.GetRequiredService<IAuditWriter>(), fault, db));
             var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => handler.HandleAsync(
                 new ConfirmSaleCommand(orderId), accountId, userId, CancellationToken.None));
-            Assert.Equal(Fault(fault).Message, thrown.Message);
+            Assert.Equal(FaultMessage(fault), thrown.Message);
         }
 
         // Each seeded lot carries its Production movement; adding the line bumped the order once.
@@ -79,10 +84,17 @@ public sealed class ConfirmSaleAtomicityTests(CluckworkWebApplicationFactory fac
                 await db.AuditEvents.CountAsync(e => e.EntityId == orderId));
         });
 
-    private static InvalidOperationException Fault(FaultPoint at) =>
-        new($"#854 atomicity guard: faulting {at}.");
+    private static string FaultMessage(FaultPoint at) => $"#854 atomicity guard: faulting {at}.";
 
-    private sealed class FaultingMovements(IEggInventoryMovementRepository inner, FaultPoint fault)
+    // Both lots are drawn, so an Unchanged lot at the fault is a draw already saved.
+    private static Exception Fault(FaultPoint at, AppDbContext db) =>
+        db.Database.CurrentTransaction is null
+            ? new Xunit.Sdk.XunitException($"{at}: the confirm runs outside a transaction")
+            : db.ChangeTracker.Entries<EggLot>().Any(e => e.State == EntityState.Unchanged)
+                ? new Xunit.Sdk.XunitException($"{at}: a drawn lot was already saved before the fault")
+                : new InvalidOperationException(FaultMessage(at));
+
+    private sealed class FaultingMovements(IEggInventoryMovementRepository inner, FaultPoint fault, AppDbContext db)
         : IEggInventoryMovementRepository
     {
         private int _calls;
@@ -90,9 +102,9 @@ public sealed class ConfirmSaleAtomicityTests(CluckworkWebApplicationFactory fac
         public async Task AddAsync(EggInventoryMovement movement, CancellationToken ct = default)
         {
             var second = ++_calls == 2;
-            if (second && fault == FaultPoint.AfterLotAllocation) throw Fault(fault);
+            if (second && fault == FaultPoint.AfterLotAllocation) throw Fault(fault, db);
             await inner.AddAsync(movement, ct);
-            if (second && fault == FaultPoint.AfterEggMovement) throw Fault(fault);
+            if (second && fault == FaultPoint.AfterEggMovement) throw Fault(fault, db);
         }
 
         public Task AddRangeAsync(IEnumerable<EggInventoryMovement> movements, CancellationToken ct = default) =>
@@ -102,13 +114,13 @@ public sealed class ConfirmSaleAtomicityTests(CluckworkWebApplicationFactory fac
             inner.ListByLotAsync(eggLotId, ct);
     }
 
-    private sealed class FaultingAllocations(ISalesOrderAllocationRepository inner, FaultPoint fault)
+    private sealed class FaultingAllocations(ISalesOrderAllocationRepository inner, FaultPoint fault, AppDbContext db)
         : ISalesOrderAllocationRepository
     {
         public async Task AddRangeAsync(IReadOnlyList<SalesOrderAllocation> allocations, CancellationToken ct = default)
         {
             await inner.AddRangeAsync(allocations, ct);
-            if (fault == FaultPoint.AfterAllocationRows) throw Fault(fault);
+            if (fault == FaultPoint.AfterAllocationRows) throw Fault(fault, db);
         }
 
         public Task<IReadOnlyList<SalesOrderAllocation>> ListPendingByOrderAsync(
@@ -116,12 +128,12 @@ public sealed class ConfirmSaleAtomicityTests(CluckworkWebApplicationFactory fac
             inner.ListPendingByOrderAsync(salesOrderId, ct);
     }
 
-    private sealed class FaultingAuditWriter(IAuditWriter inner, FaultPoint fault) : IAuditWriter
+    private sealed class FaultingAuditWriter(IAuditWriter inner, FaultPoint fault, AppDbContext db) : IAuditWriter
     {
         public Task WriteAsync(string action, string entityType, Guid entityId, string? reason = null,
             object? details = null, CancellationToken ct = default) =>
             fault == FaultPoint.AfterOrderConfirmation
-                ? throw Fault(fault)
+                ? throw Fault(fault, db)
                 : inner.WriteAsync(action, entityType, entityId, reason, details, ct);
     }
 }
