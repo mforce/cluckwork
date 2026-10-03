@@ -143,7 +143,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
 
         // Any UserRoleAssignments query attempts the unreachable connection and
         // throws. Completing proves the unresolved branch performs no DB I/O.
-        await middleware.InvokeAsync(context, flockScope, currentUser, new AccessLookup(db));
+        await middleware.InvokeAsync(context, flockScope, currentUser, new AccessLookup(db, tenant));
 
         Assert.True(nextCalled);
         Assert.True(flockScope.IsResolved);
@@ -182,7 +182,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
 
         // Without the re-execution bypass, the resolved Worker reaches the
         // UserRoleAssignments query and the unreachable connection throws.
-        await middleware.InvokeAsync(context, flockScope, currentUser, new AccessLookup(db));
+        await middleware.InvokeAsync(context, flockScope, currentUser, new AccessLookup(db, tenant));
 
         Assert.True(nextCalled);
         Assert.False(flockScope.IsResolved);

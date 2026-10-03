@@ -22,10 +22,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     // (EggLotRepository's FOR UPDATE paths read the scope from here).
     public FlockScope FlockScope => flockScope;
 
-    // #857 — exposed so a read that relies on the tenant filter can refuse an
-    // unresolved tenant instead of reading nothing (AccessLookup).
-    public TenantContext Tenant => tenant;
-
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Flock> Flocks => Set<Flock>();
     public DbSet<BirdMovement> BirdMovements => Set<BirdMovement>();
