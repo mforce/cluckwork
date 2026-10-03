@@ -17,6 +17,13 @@ public sealed record OwnerDefinition(
 
     // #850: types outside the module's namespaces trusted to read its tables.
     public IReadOnlyList<string> Implementations { get; init; } = [];
+
+    // #1023: non-contract types peer modules may still reach. Adapters may not, and the contract walk skips
+    // them, because a seam can carry an aggregate on purpose (#851's account seam).
+    public IReadOnlyList<string> Seam { get; init; } = [];
+
+    // #1023: types this owner claims inside a Platform namespace.
+    public IReadOnlyList<string> Types { get; init; } = [];
 }
 
 public sealed record EdgeCell(string From, string To, string Kind, string Reason, IReadOnlyList<string> Symbols);
@@ -350,10 +357,32 @@ public sealed record ModuleLedger(
             ? ReadStringArray(property.Value, "implementations", $"owner '{name}'", errors)
             : [];
 
+        var seam = property.Value.TryGetProperty("seam", out _)
+            ? ReadStringArray(property.Value, "seam", $"owner '{name}'", errors)
+            : [];
+        if (seam.Count > 0 && contract.Count == 0)
+        {
+            errors.Add($"owner '{name}' declares a seam but no contract; only a contracted owner's types are checked, so the seam would excuse nothing");
+        }
+        foreach (var type in seam.Intersect(contract, StringComparer.Ordinal))
+        {
+            errors.Add($"owner '{name}' lists '{type}' in both its contract and its seam");
+        }
+
+        var types = property.Value.TryGetProperty("types", out _)
+            ? ReadStringArray(property.Value, "types", $"owner '{name}'", errors)
+            : [];
+        if (types.Count > 0 && kind == PlatformKind)
+        {
+            errors.Add($"owner '{name}' is a platform owner and cannot claim types");
+        }
+
         return new OwnerDefinition(name, kind ?? string.Empty, namespaces, exact)
         {
             Contract = contract,
             Implementations = implementations,
+            Seam = seam,
+            Types = types,
         };
     }
 

@@ -113,6 +113,9 @@ public static class ModuleLedgerScanner
             .GroupBy(o => o.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First().Kind, StringComparer.Ordinal);
         ValidateEdgeCells(ledger, ownerKinds, registryErrors);
+        var claimedTypeNamespaces = ledger.Owners.SelectMany(o => o.Types)
+            .Where(t => t.Contains('.', StringComparison.Ordinal))
+            .Select(t => t[..t.LastIndexOf('.')]).ToHashSet(StringComparer.Ordinal);
 
         var files = GuardScanner.EnumerateSourceFiles(srcRoot);
 
@@ -136,7 +139,8 @@ public static class ModuleLedgerScanner
                 parseErrors.Add($"{relative}:{line}: {diagnostic.Id} {diagnostic.GetMessage()}");
             }
 
-            ScanFile(root, relative, ProjectRootNamespace(srcFull, file), namespaceOwners, ownerKinds, rawEdges, unowned, globalModuleImports);
+            ScanFile(root, relative, ProjectRootNamespace(srcFull, file), namespaceOwners, ownerKinds, claimedTypeNamespaces,
+                rawEdges, unowned, globalModuleImports);
         }
 
         var liveEdges = Collapse(rawEdges);
@@ -237,6 +241,7 @@ public static class ModuleLedgerScanner
         string rootNamespace,
         IReadOnlyDictionary<string, Claim> namespaceOwners,
         IReadOnlyDictionary<string, string> ownerKinds,
+        IReadOnlySet<string> claimedTypeNamespaces,
         List<CrossOwnerEdge> edges,
         SortedDictionary<string, string> unowned,
         List<GlobalModuleImport> globalModuleImports)
@@ -348,6 +353,12 @@ public static class ModuleLedgerScanner
                 {
                     globalModuleImports.Add(new GlobalModuleImport(owner.Namespace, relative, LineOf(directive)));
                 }
+                // #1023: the peer walk resolves a simple name through its own file's imports only, so a global
+                // import would hide a claimed type from it.
+                else if (directive.GlobalKeyword != default && claimedTypeNamespaces.Contains(dotted))
+                {
+                    globalModuleImports.Add(new GlobalModuleImport(dotted, relative, LineOf(directive)));
+                }
 
                 Record(dotted, LineOf(directive), directiveNamespace, scope);
             }
@@ -422,16 +433,20 @@ public static class ModuleLedgerScanner
             errors.Add($"duplicate owner '{duplicate.Key}' — {duplicate.Count()} entries share the name, so which one claims its namespaces is undefined");
         }
 
+        // #1023: a claimed type is an exact claim on its full name. Resolve probes the full name first, so the
+        // claim outranks the owner of the type's namespace.
         var index = new Dictionary<string, Claim>(StringComparer.Ordinal);
         foreach (var claim in ledger.Owners
-            .SelectMany(o => o.Namespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: true))
-                .Concat(o.ExactNamespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: false))))
+            .SelectMany(o => o.Namespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: true, Label: "namespace"))
+                .Concat(o.ExactNamespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: false, Label: "namespace")))
+                .Concat(o.Types.Select(t => (Owner: o.Name, Namespace: t, Subtree: false, Label: "type"))))
             .GroupBy(c => c.Namespace, StringComparer.Ordinal))
         {
             var claimants = claim.Select(c => c.Owner).Distinct(StringComparer.Ordinal).OrderBy(o => o, StringComparer.Ordinal).ToList();
             if (claim.Count() > 1)
             {
-                errors.Add($"namespace '{claim.Key}' is claimed {claim.Count()} times ({string.Join(", ", claimants)}) — every namespace must be claimed by exactly one owner");
+                var label = claim.Any(c => c.Label == "type") ? "type" : "namespace";
+                errors.Add($"{label} '{claim.Key}' is claimed {claim.Count()} times ({string.Join(", ", claimants)}) — every {label} must be claimed by exactly one owner");
             }
 
             index[claim.Key] = new Claim(claimants[0], claim.First().Subtree);

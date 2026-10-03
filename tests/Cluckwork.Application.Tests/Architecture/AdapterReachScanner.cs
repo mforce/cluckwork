@@ -28,6 +28,7 @@ public sealed record AdapterReachReport(
 public static class AdapterReachScanner
 {
     internal const int RealTreeAdapterFloor = 40;
+    internal const int RealTreePeerFloor = 800;
 
     private static readonly Dictionary<string, string?> ResolverCalls = new(StringComparer.Ordinal)
     {
@@ -48,11 +49,32 @@ public static class AdapterReachScanner
 
     private sealed record ProgramRoute(string Name, IReadOnlyList<SyntaxNode> Handlers);
 
-    public static AdapterReachReport Scan(string srcRoot, string ledgerPath)
+    public static AdapterReachReport Scan(string srcRoot, string ledgerPath) =>
+        Scan(srcRoot, ModuleLedger.Load(ledgerPath), peers: false);
+
+    // #1023: the same walk with every module's own namespaces and claimed types as the roots. A member
+    // reaching another contracted module outside its contract and seam is a bypass; its own module and
+    // Platform are free. Adapter rows do not apply, so nothing is undeclared or loosenable.
+    public static AdapterReachReport ScanPeers(string srcRoot, string ledgerPath)
+    {
+        var ledger = ModuleLedger.Load(ledgerPath);
+        var modules = ledger.Owners.Where(o => o.Kind == ModuleLedger.ModuleKind).ToList();
+        return Scan(srcRoot, ledger with
+        {
+            AdapterRoots = new AdapterRoots(
+                modules.SelectMany(o => o.Namespaces.Concat(o.ExactNamespaces)).ToList(),
+                modules.SelectMany(o => o.Types).ToList())
+            {
+                PersistenceForbiddenNamespaces = ledger.AdapterRoots.PersistenceForbiddenNamespaces,
+            },
+            AdapterTiers = [],
+        }, peers: true);
+    }
+
+    private static AdapterReachReport Scan(string srcRoot, ModuleLedger ledger, bool peers)
     {
         var srcFull = Path.GetFullPath(srcRoot);
         var repoRoot = Path.GetDirectoryName(srcFull)!;
-        var ledger = ModuleLedger.Load(ledgerPath);
         var errors = new List<string>(ledger.RegistryErrors);
         var claims = ModuleLedgerScanner.BuildNamespaceIndex(ledger, errors);
         var kinds = ledger.Owners.GroupBy(o => o.Name, StringComparer.Ordinal)
@@ -69,19 +91,36 @@ public static class AdapterReachScanner
         var declaredTypes = roots.SelectMany(root => root.DescendantNodes())
             .Where(n => n is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax)
             .Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
-        var contracts = ledger.Owners.Where(o => o.Contract.Count > 0)
-            .ToDictionary(o => o.Name, o => o.Contract.ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
-        foreach (var (owner, types) in contracts)
+        var allowed = ledger.Owners.Where(o => o.Contract.Count > 0).ToDictionary(o => o.Name,
+            o => o.Contract.Concat(peers ? o.Seam : []).ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        foreach (var owner in ledger.Owners)
         {
-            foreach (var type in types.Order(StringComparer.Ordinal))
+            foreach (var (list, types) in new[] { ("contract", owner.Contract), ("seam", owner.Seam) })
             {
+                foreach (var type in types.Order(StringComparer.Ordinal))
+                {
+                    if (!declaredTypes.Contains(type))
+                    {
+                        errors.Add($"owner '{owner.Name}' {list} type '{type}' is not declared under src/");
+                    }
+                    else if (ModuleLedgerScanner.Resolve(claims, type, declared: false)?.Owner != owner.Name)
+                    {
+                        errors.Add($"owner '{owner.Name}' {list} type '{type}' is not in a namespace '{owner.Name}' owns");
+                    }
+                }
+            }
+            foreach (var type in owner.Types.Order(StringComparer.Ordinal))
+            {
+                var home = type.Contains('.', StringComparison.Ordinal)
+                    ? ModuleLedgerScanner.Resolve(claims, type[..type.LastIndexOf('.')], declared: false) : null;
                 if (!declaredTypes.Contains(type))
                 {
-                    errors.Add($"owner '{owner}' contract type '{type}' is not declared under src/");
+                    errors.Add($"owner '{owner.Name}' claims type '{type}', which is not declared under src/");
                 }
-                else if (ModuleLedgerScanner.Resolve(claims, type, declared: false)?.Owner != owner)
+                else if (home is null || kinds[home.Value.Owner] != ModuleLedger.PlatformKind)
                 {
-                    errors.Add($"owner '{owner}' contract type '{type}' is not in a namespace '{owner}' owns");
+                    errors.Add($"owner '{owner.Name}' claims type '{type}' outside a platform namespace; " +
+                        "only a type the free hub holds can be claimed");
                 }
             }
         }
@@ -204,22 +243,25 @@ public static class AdapterReachScanner
             .ThenBy(r => r.File, StringComparer.Ordinal).ThenBy(r => r.Line).ToList();
         var declared = ledger.Adapters.GroupBy(a => a.Symbol, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.SelectMany(a => a.Reaches).ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
-        var undeclared = ordered.Where(r => !declared.TryGetValue(r.Symbol, out var owners) || !owners.Contains(r.Owner)).ToList();
+        var undeclared = peers ? []
+            : ordered.Where(r => !declared.TryGetValue(r.Symbol, out var owners) || !owners.Contains(r.Owner)).ToList();
         var reached = ordered.Select(r => (r.Symbol, r.Owner)).ToHashSet();
         var reachedSymbols = ordered.Select(r => r.Symbol).ToHashSet(StringComparer.Ordinal);
-        var loosenable = ledger.Adapters.Select(a => new AdapterClaim(a.Symbol,
+        var loosenable = peers ? [] : ledger.Adapters.Select(a => new AdapterClaim(a.Symbol,
                 a.Reaches.Where(owner => !reached.Contains((a.Symbol, owner))).Order(StringComparer.Ordinal).ToArray()))
             .Where(a => a.Reaches.Count > 0 || !reachedSymbols.Contains(a.Symbol))
             .OrderBy(a => a.Symbol, StringComparer.Ordinal).ToList();
         var floor = GuardScanner.FindRepoRoot(AppContext.BaseDirectory) is { } realRoot
-            && srcFull == Path.Combine(realRoot, "src") ? RealTreeAdapterFloor : count;
+            && srcFull == Path.Combine(realRoot, "src") ? (peers ? RealTreePeerFloor : RealTreeAdapterFloor) : count;
         return new AdapterReachReport(ordered, undeclared, loosenable, persistence, unresolved.ToList(),
             parseErrors, errors, count, floor)
         {
             TopLevelProgramAdapterCount = programCount,
             RouteErrors = routeErrors,
             AliasErrors = aliasErrors,
-            ContractBypasses = ordered.Where(r => contracts.TryGetValue(r.Owner, out var types) && !types.Contains(r.Type)).ToList(),
+            ContractBypasses = ordered.Where(r => allowed.TryGetValue(r.Owner, out var types) && !types.Contains(r.Type)
+                && (!peers || (ModuleLedgerScanner.Resolve(claims, r.Symbol, declared: false)?.Owner is { } from
+                    && kinds[from] == ModuleLedger.ModuleKind && from != r.Owner))).ToList(),
         };
     }
 

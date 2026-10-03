@@ -351,6 +351,18 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
+    public void GlobalImportOfAPlatformNamespaceHoldingAClaimedType_IsAFailure()
+    {
+        WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Hub; namespace Cluckwork.Temp.Hub; public class H { }");
+        var claimed = Owners.Replace(
+            "\"Red\":  { \"kind\": \"module\",   \"namespaces\": [\"Cluckwork.Temp.Red\"] }",
+            "\"Red\":  { \"kind\": \"module\",   \"namespaces\": [\"Cluckwork.Temp.Red\"], \"types\": [\"Cluckwork.Temp.Hub.H\"] }");
+
+        var failure = Assert.Single(Evaluate(WriteLedger(string.Empty, claimed)));
+        Assert.Contains("global using of module namespace 'Cluckwork.Temp.Hub' in src/Hub.cs:1", failure);
+    }
+
+    [Fact]
     public void GenericTopLevelTypes_HaveDistinctSymbols()
     {
         WriteSource("src/Blue.cs", BlueSource);

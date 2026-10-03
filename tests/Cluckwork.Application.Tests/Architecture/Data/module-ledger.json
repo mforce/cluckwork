@@ -10,6 +10,11 @@
                             "Cluckwork.Application.Features.Accounts.FarmLogoContent",
                             "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand"
                           ],
+                          "seam": [
+                            "Cluckwork.Application.Features.Accounts.IAccountRepository",
+                            "Cluckwork.Domain.Accounts.Account",
+                            "Cluckwork.Domain.Accounts.UserRoleAssignment"
+                          ],
                           "implementations": [
                             "Cluckwork.Infrastructure.Repositories.AccountRepository",
                             "Cluckwork.Infrastructure.Repositories.FarmLogoRepository"
