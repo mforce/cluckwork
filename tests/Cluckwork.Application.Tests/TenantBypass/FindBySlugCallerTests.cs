@@ -7,19 +7,18 @@ namespace Cluckwork.Application.Tests.TenantBypass;
 // #1053 — IAccountRepository.FindBySlugAsync ignores the tenant filter and
 // returns any farm's whole Account. IAccountRepository is Farm's seam, so every
 // peer module may take it and the ledger guards stay green on a new caller.
-// This guard keeps a REFERENCE to the member out of every file but login's.
+// This guard allows a REFERENCE to the member only inside login's method, keyed
+// by enclosing symbol (#632), so another method in IdentityProvider fails too.
 // Declarations are not references, so the interface and its implementation
-// need no exemption. Like FarmDirectoryCallerTests it does not
-// follow calls: IIdentityProvider.ResolveFarmCodeAsync is the forwarder, and it
-// hands out only the account id and active flag.
+// need no exemption. Like FarmDirectoryCallerTests it does not follow calls:
+// ResolveFarmCodeAsync is the forwarder, and it hands out only the account id
+// and active flag.
 public sealed class FindBySlugCallerTests
 {
     private const string Member = "FindBySlugAsync";
 
-    private static readonly string[] AllowedFiles =
-    [
-        "src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs",
-    ];
+    private const string Login =
+        "Cluckwork.Infrastructure.Identity.IdentityProvider.ResolveFarmCodeAsync(string farmCode, CancellationToken ct)";
 
     [Fact]
     public void OnlyLoginCallsTheCrossFarmSlugLookup()
@@ -27,19 +26,19 @@ public sealed class FindBySlugCallerTests
         var repoRoot = GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found");
 
-        var callers = GuardScanner.EnumerateSourceFiles(Path.Combine(repoRoot, "src"))
-            .Select(file => Path.GetRelativePath(repoRoot, file).Replace('\\', '/'))
-            .Where(relative => ReferencesMember(File.ReadAllText(Path.Combine(repoRoot, relative))))
+        var references = GuardScanner.EnumerateSourceFiles(Path.Combine(repoRoot, "src"))
+            .SelectMany(file => References(File.ReadAllText(file))
+                .Select(name => GuardScanner.EnclosingSymbolOf(name, file)))
             .ToList();
 
-        var outside = callers.Except(AllowedFiles).ToList();
+        var outside = references.Where(symbol => symbol != Login).ToList();
         Assert.True(outside.Count == 0,
-            $"These files reference IAccountRepository.{Member}, which reads any farm's account " +
+            $"These members reference IAccountRepository.{Member}, which reads any farm's account " +
             "with the tenant filter off. Only login may call it:\n  " +
             string.Join("\n  ", outside));
 
         // The walk saw login's call, so an empty result above is not vacuous.
-        Assert.Contains(AllowedFiles[0], callers);
+        Assert.Contains(Login, references);
     }
 
     [Theory]
@@ -49,15 +48,16 @@ public sealed class FindBySlugCallerTests
     [InlineData("class H { Task Run(IServiceProvider s) => s.GetRequiredService<IAccountRepository>().FindBySlugAsync(\"x\"); }")]
     [InlineData("class H { string N = nameof(IAccountRepository.FindBySlugAsync); }")]
     [InlineData("class H {\n#if NET10_0\n Task Run(IAccountRepository a) => a.FindBySlugAsync(\"x\");\n#endif\n}")]
-    public void AReferenceIsSeen(string source) => Assert.True(ReferencesMember(source));
+    [InlineData("class H {\n#if NETCOREAPP3_1_OR_GREATER\n Task Run(IAccountRepository a) => a.FindBySlugAsync(\"x\");\n#endif\n}")]
+    public void AReferenceIsSeen(string source) => Assert.NotEmpty(References(source));
 
     [Fact]
     public void ADeclarationIsNotAReference() =>
-        Assert.False(ReferencesMember(
+        Assert.Empty(References(
             "class R : IAccountRepository { public Task<Account?> FindBySlugAsync(string s, CancellationToken ct) => null!; }"));
 
-    private static bool ReferencesMember(string source) =>
+    private static IEnumerable<IdentifierNameSyntax> References(string source) =>
         CSharpSyntaxTree.ParseText(source, ModuleLedgerScanner.ParseOptions)
             .GetRoot().DescendantNodes().OfType<IdentifierNameSyntax>()
-            .Any(name => name.Identifier.ValueText == Member);
+            .Where(name => name.Identifier.ValueText == Member);
 }

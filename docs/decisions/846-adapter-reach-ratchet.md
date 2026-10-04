@@ -120,6 +120,9 @@ extern aliases, or competing imports. It does not expand imports from another
 file. The existing module-ledger guard rejects global module imports. Both
 walks share `ModuleLedgerScanner.ParseOptions`. The #1052 amendment keeps the
 .NET 10 and TRACE symbols and selects DEBUG or RELEASE to match the test build.
+The #1053 amendment replaces that hand list: the test project embeds its own
+`DefineConstants` after the SDK adds its implicit framework symbols, so a branch
+under `#if NETCOREAPP3_1_OR_GREATER`, which the hand list omitted, is walked.
 `SourcePreprocessorTests.RealSourceTree_HasNoInactiveCode` rejects any
 `DisabledTextTrivia` under `src/`, so a conditional branch outside the shared
 parse cannot silently escape the guards.

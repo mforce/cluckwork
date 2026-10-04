@@ -97,7 +97,8 @@ instead, `ModuleLedgerScanner.UndeclaredDefineConstants` enumerates every
 `*.csproj`, `*.props` and `*.targets` under the repo root (skipping `bin/`,
 `obj/`, `node_modules/`, `.git/` and `web/`), collects each `<DefineConstants>`
 value, and fails the walk-trust check the moment any of them defines a symbol
-the fixed list does not carry. It does not resolve MSBuild imports — there is
+the fixed list does not carry. (#1053 derives that list from the test build's
+`DefineConstants`; a symbol one project defines for itself still reds here.) It does not resolve MSBuild imports — there is
 no project graph to resolve against — so it over-approximates instead: it
 reads every matching file textually, whatever file or `Condition` it sits in,
 so a constant defined ANYWHERE under the repo root is red even if no project
