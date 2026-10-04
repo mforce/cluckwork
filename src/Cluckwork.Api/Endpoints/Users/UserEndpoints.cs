@@ -122,9 +122,6 @@ public static class UserEndpoints
         Guid id, IAccessModule access, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        // #512 T047 — the name comes from the repository's single scoped left
-        // join, not from a second per-row flock lookup here. A second round trip
-        // would be invisible in this file's shape and visible only in the guard.
         var list = await access.ListFlockAssignmentsAsync(id, ct);
         return Results.Ok(list.Select(a => new FlockAssignmentResponse(a.Id, a.FlockId, a.FlockName)));
     }

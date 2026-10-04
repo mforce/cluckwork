@@ -41,9 +41,10 @@ namespace Cluckwork.Api.IntegrationTests;
 //      own name because a foreign id entered the same read.
 //
 // Plus the shape guards (ShapeProbe): the read is ONE grouped read per page, the
-// assignment projection is ONE left join, and the flock-list movement aggregate is
-// bounded to the returned ids. A wrong shape returns right data, so those are the
-// only properties that cannot be guarded by asserting on a response.
+// assignment list names its flocks with ONE such read, and the flock-list
+// movement aggregate is bounded to the returned ids. A wrong shape returns right
+// data, so those are the only properties that cannot be guarded by asserting on a
+// response.
 public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>, IAsyncLifetime
 {
     private const string RouteEntries = "daily-entries";
@@ -722,7 +723,7 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
         Assert.Equal(f.ArchivedName, unrestricted[f.ArchivedFlock].Name);
     }
 
-    // A Worker is scoped to assigned flocks. The projection's flock half is joined
+    // A Worker is scoped to assigned flocks. The assignment list names flocks
     // through the FILTERED Flocks set, so a Worker must not learn the name of a
     // flock they were never assigned — while the assignment row itself still
     // appears. Dropping the row would read as "this worker has no such assignment",
@@ -786,7 +787,7 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
     // cannot be counted as a read, and asserts both the tagged read's execution
     // count and the absence of per-row reference statements.
 
-    // Probe honesty, asserted once for all four reads rather than four times. Every
+    // Probe honesty, asserted once for all three reads rather than three times. Every
     // count below is keyed on a tag, so an instrument that silently sees NOTHING
     // would report "exactly one read" for a route that makes none — the worst
     // guard failure there is, because it reads as a pass. EF's TagWith folds tags
@@ -810,11 +811,6 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
         using (var w = Probe.Arm(ShapeProbe.MovementAggregate))
         {
             await GetRows<FlockRow>(client, "flocks");
-            Assert.NotEmpty(w.Marked);
-        }
-        using (var w = Probe.Arm(ShapeProbe.AssignmentProjection))
-        {
-            await GetRows<AssignmentRow>(client, "users/00000000-0000-0000-0000-000000000001/flock-assignments");
             Assert.NotEmpty(w.Marked);
         }
     }
@@ -947,42 +943,29 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
             s => s.Contains("flocks", StringComparison.OrdinalIgnoreCase));
     }
 
-    // #512 T047 — the guard that separates one LEFT JOIN from a per-row lookup.
+    // #859 — the assignment list names its flocks with ONE lookup bounded to the
+    // list's distinct flock ids, never one per row. Two more flock rows first, so a
+    // per-row lookup would run three times where this asserts one.
     [Fact]
-    public async Task AssignmentProjection_IsASingleLeftJoinStatement()
+    public async Task AssignmentNames_AreOneBoundedFlockReferenceRead()
     {
         var (client, f) = await SeedAsync();
-        await GetRows<AssignmentRow>(client, $"users/{f.WorkerId}/flock-assignments");
+        await factory.WithTenantScopeAsync(f.AccountId, async db =>
+        {
+            db.UserRoleAssignments.AddRange(
+                UserRoleAssignment.Create(Guid.NewGuid(), f.AccountId, f.WorkerId, null, null, f.ArchivedFlock),
+                UserRoleAssignment.Create(Guid.NewGuid(), f.AccountId, f.WorkerId, null, null, f.DepletedFlock));
+            await db.SaveChangesAsync();
+        });
+        var route = $"users/{f.WorkerId}/flock-assignments";
+        await GetRows<AssignmentRow>(client, route);   // warm
 
-        using var probe = Probe.Arm(ShapeProbe.AssignmentProjection);
-        var rows = await GetRows<AssignmentRow>(client, $"users/{f.WorkerId}/flock-assignments");
-        Assert.Equal(2, rows.Count);
+        using var probe = Probe.Arm(ShapeProbe.FlockReference);
+        var rows = await GetRows<AssignmentRow>(client, route);
 
-        var sql = probe.Marked[0];
-        // LEFT JOIN present; the per-row constructs absent. The obvious-looking
-        // `Select(a => db.Flocks.Where(...).FirstOrDefault())` returns IDENTICAL data
-        // while rendering a correlated lookup per row, so only the statement separates
-        // them. The constructs of a correlated lookup are a sub-SELECT in the projection list
-        // and, for the set-returning form, LATERAL — matched on those, not on a table
-        // alias or whitespace, which an EF/Npgsql upgrade can change with the property
-        // intact.
-        //
-        // NOT asserted: an absence match on `LIMIT 1`. A real N+1's scalar LIMIT
-        // reaches the server as a bound parameter (`LIMIT @p`), so a literal-text match
-        // would pass against that shape — a guard that cannot fail for the case it
-        // names is worse than no guard, so the claim is left where it actually holds:
-        // the projection list contains no sub-SELECT.
-        Assert.Contains("LEFT JOIN", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("LATERAL", sql, StringComparison.OrdinalIgnoreCase);
-        var projectionList = sql[(sql.IndexOf("SELECT", StringComparison.Ordinal) + 6)..
-            sql.IndexOf("FROM", StringComparison.Ordinal)];
-        Assert.DoesNotContain("SELECT", projectionList, StringComparison.OrdinalIgnoreCase);
-
-        // One execution of the tagged read, which is the `Marked` claim; the window's
-        // other statements are excluded on purpose because one of them is the
-        // middleware's credential-epoch read, which belongs to the request and not to
-        // this projection.
+        Assert.Equal(4, rows.Count);
         Assert.Single(probe.Marked);
+        Assert.Equal(3, probe.MarkedParameterCounts[0]);
     }
 
     // The flock list had this defect on `main`: it aggregated the caller's ENTIRE

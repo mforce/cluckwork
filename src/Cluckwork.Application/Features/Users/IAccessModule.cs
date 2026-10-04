@@ -85,3 +85,8 @@ public interface IAccessModule
     // leaves the JWT options; the signing keys stay in Identity.
     int RefreshTokenLifetimeDays { get; }
 }
+
+// #512 T047 — an assignment with its flock's CURRENT name. FlockName is null for
+// a farm-wide assignment (FlockId null) and for a flock this caller may not see
+// or that no longer resolves; FlockId is kept either way.
+public sealed record UserFlockAssignment(Guid Id, Guid? FlockId, string? FlockName);

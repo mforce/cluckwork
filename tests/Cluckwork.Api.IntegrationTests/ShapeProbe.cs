@@ -38,7 +38,6 @@ public sealed class ShapeProbe : DbCommandInterceptor
     public const string FlockReference = "cluckwork-flock-reference";
     public const string CustomerReference = "cluckwork-customer-reference";
     public const string MovementAggregate = "cluckwork-movement-aggregate";
-    public const string AssignmentProjection = "cluckwork-assignment-projection";
 
     private Window? _active;
 
