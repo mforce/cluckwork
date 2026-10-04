@@ -30,21 +30,6 @@
     "justification": "Low-level raw-SQL data-modifying CTE for logout lineage fencing. Both refresh-token UPDATE arms are explicitly constrained by UserId, AccountId, and IssuedEpoch; the dedicated atomic-logout CTE guard pins both arms and the builder-to-RelationalCommand execution seam."
   },
   {
-    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedAsync(Guid? targetAccountId, CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
-    "justification": "Dev-only seeder runs at unresolved tenant by design (#280); every query carries an explicit AccountId predicate or is a whole-account operation. Re-read when targetAccountId landed: the account is now the CALLER's (seed --profile demo --farm-code <slug>) rather than always SeedDefaults.AccountId, and the predicate is the same local either way — these queries run BEFORE tenant.Resolve, so the bypass is still what lets the preflight see the target farm at all."
-  },
-  {
-    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync(Guid accountId, CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
-    "justification": "Dev-only seeder runs at unresolved tenant by design (#280); scoped to the seeded account via explicit AccountId."
-  },
-  {
-    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync(Guid accountId)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
-    "justification": "Dev-only seeder cleanup runs at unresolved tenant by design (#280); every ExecuteDelete is scoped to the seeded account via explicit AccountId."
-  },
-  {
     "symbol": "Cluckwork.Infrastructure.Repositories.EggOperationsFixture.ListSaleableGradeNamesAsync(Guid accountId, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/EggOperationsFixture.cs",
     "justification": "Non-Production simulation fixture port (#858); the seeder calls it at unresolved tenant by design (#279), scoped to the seeded account via explicit AccountId."
@@ -148,6 +133,36 @@
     "symbol": "Cluckwork.Infrastructure.Repositories.SalesOrderRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/SalesOrderRepository.cs",
     "justification": "FOR UPDATE on a sales order; the raw SQL carries WHERE \"Id\" = {id} AND \"AccountId\" = {accountId} so a foreign-tenant id matches no row (#313)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.CommerceFixture.PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/CommerceFixture.cs",
+    "justification": "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's order lines, orders and customers inside the seeder's transaction, scoped by explicit AccountId (#280)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.EggOperationsFixture.AnyGradeAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/EggOperationsFixture.cs",
+    "justification": "Non-Production demo fixture port (#858); the demo seeder's base-data check runs at unresolved tenant by design (#280), scoped by explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.EggOperationsFixture.PurgeDailyEntriesAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/EggOperationsFixture.cs",
+    "justification": "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's egg movements, lots, entry grades and entries inside the seeder's transaction, scoped by explicit AccountId (#280)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.FlockFixture.AnyFlockAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/FlockFixture.cs",
+    "justification": "Non-Production demo fixture port (#858); the demo seeder's already-seeded check runs at unresolved tenant by design (#280), scoped by explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.FlockFixture.PurgeBirdMovementsAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/FlockFixture.cs",
+    "justification": "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's bird movements inside the seeder's transaction, scoped by explicit AccountId (#280)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.FlockFixture.PurgeFlocksAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/FlockFixture.cs",
+    "justification": "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's flocks inside the seeder's transaction, after Egg Operations' purge, scoped by explicit AccountId (#280)."
   },
   {
     "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)",

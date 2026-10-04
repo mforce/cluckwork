@@ -1,6 +1,6 @@
 namespace Cluckwork.Application.Features.Sales;
 
-// Simulation fixture reads; registered beside the seeders outside Production.
+// Seed fixture reads and writes; registered beside the seeders outside Production.
 public interface ICommerceFixture
 {
     Task<Guid?> FindProductIdByNameAsync(string name, CancellationToken ct = default);
@@ -18,6 +18,10 @@ public interface ICommerceFixture
     Task<long> GetOrderTotalMinorUnitsAsync(Guid orderId, CancellationToken ct = default);
 
     Task<CommerceFixtureCounts> CountAsync(CancellationToken ct = default);
+
+    // Demo cleanup: deletes every row of the farm, ignoring the tenant filter.
+    // Runs inside the caller's transaction and never commits.
+    Task PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct = default);
 }
 
 public sealed record CommerceFixtureCounts(

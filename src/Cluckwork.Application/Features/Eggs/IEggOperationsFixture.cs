@@ -1,6 +1,6 @@
 namespace Cluckwork.Application.Features.Eggs;
 
-// Simulation fixture reads; registered beside the seeders outside Production.
+// Seed fixture reads and writes; registered beside the seeders outside Production.
 public interface IEggOperationsFixture
 {
     // Ignores the tenant filter; the seeder calls it before resolving the tenant.
@@ -10,6 +10,13 @@ public interface IEggOperationsFixture
         Guid accountId, Guid flockId, DateOnly date, CancellationToken ct = default);
 
     Task<EggOperationsFixtureCounts> CountAsync(CancellationToken ct = default);
+
+    // Ignores the tenant filter; the demo seeder calls it before resolving the tenant.
+    Task<bool> AnyGradeAsync(Guid accountId, CancellationToken ct = default);
+
+    // Demo cleanup: deletes every row of the farm, ignoring the tenant filter.
+    // Runs inside the caller's transaction and never commits.
+    Task PurgeDailyEntriesAsync(Guid accountId, CancellationToken ct = default);
 }
 
 public sealed record EggOperationsFixtureCounts(
