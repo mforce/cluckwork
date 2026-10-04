@@ -59,16 +59,33 @@ public sealed class InsightsReadOnlyTests
     {
         var files = GuardScanner.EnumerateSourceFiles(Path.Combine(RepoRoot, "src", "Cluckwork.Api", "Endpoints"));
         Assert.NotEmpty(files);
-        var legacyPorts = new[] { nameof(IReportQueries), nameof(IExportQueries), nameof(IAuditEventRepository) };
         foreach (var file in files)
-        {
-            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file)).GetRoot();
-            Assert.DoesNotContain(root.DescendantNodes().OfType<IdentifierNameSyntax>(),
-                n => legacyPorts.Contains(n.Identifier.ValueText));
-        }
+            Assert.False(NamesReadSessionPort(File.ReadAllText(file)), file);
+    }
+
+    [Fact]
+    public void EndpointInAnActiveFrameworkConditional_NamingAReadSessionPortIsSeen()
+    {
+        Assert.True(NamesReadSessionPort("""
+            class Endpoint
+            {
+            #if NET10_0
+                void Read(IReportQueries queries) { }
+            #endif
+            }
+            """));
+        Assert.False(NamesReadSessionPort("class Endpoint { void Read(IInsightsModule insights) { } }"));
+    }
+
+    private static bool NamesReadSessionPort(string source)
+    {
+        var legacyPorts = new[] { nameof(IReportQueries), nameof(IExportQueries), nameof(IAuditEventRepository) };
+        return CSharpSyntaxTree.ParseText(source, ModuleLedgerScanner.ParseOptions).GetRoot().DescendantNodes().OfType<IdentifierNameSyntax>()
+            .Any(n => legacyPorts.Contains(n.Identifier.ValueText));
     }
 
     [Theory]
+    [InlineData("\n#if NET10_0\nawait db.SaveChangesAsync();\n#endif\n")]
     [InlineData("Func<CancellationToken, Task<int>> save = db.SaveChangesAsync; await save(ct);")]
     [InlineData("await Task.Run(db.SaveChanges, ct);")]
     [InlineData("_ = new Cluckwork.Application.Tests.Architecture.InsightsReadOnlyTests.ExternalWriteProbe(db);")]
@@ -116,7 +133,7 @@ public sealed class InsightsReadOnlyTests
             global using System.Linq;
             global using System.Threading;
             global using System.Threading.Tasks;
-            """).Select(s => CSharpSyntaxTree.ParseText(s)).ToArray();
+            """).Select(s => CSharpSyntaxTree.ParseText(s, ModuleLedgerScanner.ParseOptions)).ToArray();
         var platformPaths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
         var references = platformPaths.Concat(Directory.GetFiles(AppContext.BaseDirectory, "*.dll"))
             .Distinct().Select(p => MetadataReference.CreateFromFile(p));

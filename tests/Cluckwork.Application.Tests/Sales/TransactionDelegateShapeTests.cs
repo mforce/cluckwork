@@ -1,4 +1,5 @@
 using System.Linq;
+using Cluckwork.Application.Tests.Architecture;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -79,9 +80,6 @@ public sealed class TransactionDelegateShapeTests
     private static IEnumerable<SyntaxNode> DescendantsExcludingNestedLambdas(SyntaxNode root) =>
         root.DescendantNodes(n => n is not AnonymousFunctionExpressionSyntax);
 
-    private static string RelativePath(string root, string file) =>
-        Path.GetRelativePath(root, file).Replace('\\', '/');
-
     [Fact]
     public void NoExitBelowTheInnerSaveInAnyExecuteInTransactionDelegate()
     {
@@ -97,21 +95,54 @@ public sealed class TransactionDelegateShapeTests
         Assert.True(files.Count >= 400,
             $"walk saw only {files.Count} .cs files under src/ — the floor is 400. The scanner is not seeing the tree.");
 
+        var violations = FindViolations(files.Select(file =>
+            (Path.GetRelativePath(root, file).Replace('\\', '/'), File.ReadAllText(file))), out var inScope);
+        Assert.True(violations.Count == 0, string.Join("\n\n", violations));
+
+        // Keep a known delegate in scope so an empty walk cannot pass.
+        Assert.NotEmpty(inScope);
+        Assert.Contains(inScope, d => d.File.EndsWith("AddOrderItemHandler.cs", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExitAfterSaveInAnActiveFrameworkConditional_IsReported()
+    {
+        const string source = """
+            class Handler
+            {
+                async Task Handle() => await unitOfWork.ExecuteInTransactionAsync(async () =>
+                {
+                    await unitOfWork.SaveChangesAsync();
+            #if NET10_0
+                    return false;
+            #else
+                    return true;
+            #endif
+                });
+            }
+            """;
+        var violations = FindViolations([("Fixture.cs", source)], out _);
+
+        Assert.Contains("exits the `ExecuteInTransactionAsync` delegate **after** its inner `SaveChangesAsync`",
+            Assert.Single(violations), StringComparison.Ordinal);
+    }
+
+    private static List<string> FindViolations(IEnumerable<(string File, string Text)> sources,
+        out List<InScopeDelegate> inScope)
+    {
         var parseErrors = new List<string>();
         var violations = new List<string>();
         var siteShapeFailures = new List<string>();
-        var inScope = new List<InScopeDelegate>();
-        var skipped = new List<InScopeDelegate>();
+        inScope = new List<InScopeDelegate>();
 
-        foreach (var file in files)
+        foreach (var (file, text) in sources)
         {
-            var text = File.ReadAllText(file);
-            var tree = CSharpSyntaxTree.ParseText(text, path: file);
+            var tree = CSharpSyntaxTree.ParseText(text, ModuleLedgerScanner.ParseOptions, path: file);
 
             foreach (var diag in tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
             {
                 parseErrors.Add(
-                    $"{RelativePath(root, file)}:{diag.Location.GetLineSpan().StartLinePosition.Line + 1}: {diag.Id} {diag.GetMessage()}");
+                    $"{file}:{diag.Location.GetLineSpan().StartLinePosition.Line + 1}: {diag.Id} {diag.GetMessage()}");
             }
 
             var root2 = tree.GetCompilationUnitRoot();
@@ -122,14 +153,13 @@ public sealed class TransactionDelegateShapeTests
             foreach (var call in executeCalls)
             {
                 var line = tree.GetLineSpan(call.Span).StartLinePosition.Line + 1;
-                var relFile = RelativePath(root, file);
 
                 if (call.ArgumentList.Arguments.Count == 0
                     || call.ArgumentList.Arguments[0].Expression is not AnonymousFunctionExpressionSyntax anon
                     || anon.Block is null)
                 {
                     siteShapeFailures.Add(
-                        $"{relFile}:{line}: ExecuteInTransactionAsync's first argument is not a lambda with a " +
+                        $"{file}:{line}: ExecuteInTransactionAsync's first argument is not a lambda with a " +
                         "block body — the guard's assumptions about this call site's shape moved and it must be re-taught, not skipped.");
                     continue;
                 }
@@ -143,11 +173,10 @@ public sealed class TransactionDelegateShapeTests
                 {
                     // This delegate does not save inside itself — the hazard
                     // this guard exists for is not present. Not in scope.
-                    skipped.Add(new InScopeDelegate(relFile, line));
                     continue;
                 }
 
-                inScope.Add(new InScopeDelegate(relFile, line));
+                inScope.Add(new InScopeDelegate(file, line));
                 var lastSaveEnd = saveCalls.Max(s => s.Span.End);
 
                 // Allow-list, not a ban-list: the only legitimate exit below
@@ -167,7 +196,7 @@ public sealed class TransactionDelegateShapeTests
                 {
                     var exitLine = tree.GetLineSpan(exit.Span).StartLinePosition.Line + 1;
                     violations.Add(
-                        $"{relFile}:{exitLine} exits the `ExecuteInTransactionAsync` delegate **after** its inner " +
+                        $"{file}:{exitLine} exits the `ExecuteInTransactionAsync` delegate **after** its inner " +
                         "`SaveChangesAsync`. The rollback undoes the rows but leaves the entities tracked as " +
                         "`Unchanged`, so a later flush on the same context silently drops them (#743, #159). " +
                         "Either move the exit above the save, or add a `DiscardChanges`-style cleanup on the " +
@@ -186,14 +215,6 @@ public sealed class TransactionDelegateShapeTests
         Assert.True(siteShapeFailures.Count == 0,
             string.Join("\n\n", siteShapeFailures));
 
-        Assert.True(violations.Count == 0,
-            string.Join("\n\n", violations));
-
-        // Assert the guard has something to guard: if a future refactor moves
-        // the save out of every ExecuteInTransactionAsync delegate, THIS is
-        // what tells the next reader the guard went vacuous instead of
-        // passing forever on an empty set.
-        Assert.NotEmpty(inScope);
-        Assert.Contains(inScope, d => d.File.EndsWith("AddOrderItemHandler.cs", StringComparison.Ordinal));
+        return violations;
     }
 }
