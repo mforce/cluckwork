@@ -4,8 +4,11 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -15,8 +18,8 @@ namespace Cluckwork.Api.IntegrationTests;
 // sweep modeled on RefreshTokenPurgeSweep) purges rows whose CreatedAt is older
 // than IdempotencyRecordPurgeSweep.PurgeRetention, across every account in one
 // global batched delete (the table is not tenant-query-filtered).
-[Collection(IntegrationCollection.Name)]
-public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFactory factory)
+public sealed class IdempotencyRecordPurgeSweepTests(IdempotencyPurgeSweepFactory factory)
+    : IClassFixture<IdempotencyPurgeSweepFactory>
 {
     private static IdempotencyRecord NewRecord(
         DateTimeOffset createdAt,
@@ -154,16 +157,9 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         // expire before the DELETE selects the row, and after the steal commits even
         // the broken batched form would see only the renewed lease — a false pass
         // that silently stops guarding the regression (#421 review round 6).
-        //
-        // #470 — this waits through the SHARED probe rather than a copy local to
-        // this file. The copy keyed "blocked" on a text match against
-        // pg_stat_activity.query, could not see the sweep task at all, and carried
-        // its own 10s ceiling, so all three of "not started yet", "finished without
-        // ever contending" and "genuinely blocked" arrived as one opaque timeout —
-        // which is how it failed on a loaded runner with nothing to diagnose. The
-        // shared probe keys on the holder's backend pid via pg_blocking_pids and
-        // returns false the moment the sweep completes, so a sweep that never
-        // contended fails HERE, naming that, instead of 10s later as a timeout.
+        // This fixture has no background sweep, so the only possible waiter is
+        // the DELETE started above. No purge can delete the seed before its lock
+        // is acquired, or satisfy the probe on behalf of this sweep.
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(sweep, stealPid),
             "the sweep finished without ever blocking on the steal's row lock — the "
             + "interleaving this guard exists to exercise never happened, so a pass "
@@ -321,5 +317,16 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         var count = await factory.WithTenantScopeAsync(accountId,
             db => db.Expenses.CountAsync(e => e.ExpenseCategoryId == categoryId));
         Assert.Equal(2, count); // re-executed: two rows, not one
+    }
+}
+
+public sealed class IdempotencyPurgeSweepFactory : CluckworkWebApplicationFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(services => services.Remove(services.Single(
+            descriptor => descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(DurableJobWorker))));
     }
 }
