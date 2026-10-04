@@ -17,6 +17,11 @@ the index swap. Each section below answers the template's four questions (what
 happened · the rule · why not the obvious alternative · what it does not cover) for
 its own decision, and every claim carries the `path:line` that proves it.
 
+**Mechanism note (2026-10-04, #859 step 1):** #536's allow-list and filter-free-set
+classifications cited below now live as C# rows in
+`tests/Cluckwork.Application.Tests/TenantBypass/BypassAllowList.cs` and `FilterFreeSetSites.cs`.
+The rows, their #632 identities and the guard behaviour are unchanged.
+
 ---
 
 ## 1. Topology: one shared database, row-level `AccountId`
@@ -199,7 +204,7 @@ entity — but on every filtered entity such a scope reads zero rows unless it w
 `IgnoreQueryFilters()`, a marker a reviewer sees, while here there is no filter and so no marker: an
 unresolved-tenant `db.UserRoles.Where(…)` + `RemoveRange` would delete every farm's matching
 grants with no refusal. Nothing in `src/` does that, and what holds the arm shut is #536's scanner
-(every `db.UserRoles` site is a classified candidate in `filter-free-set-sites.tsv`) — a guarded
+(every `db.UserRoles` site is a classified candidate in `FilterFreeSetSites.cs`) — a guarded
 convention, not a mechanism; narrowing that entry is what reopens it.
 **Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins`, `AspNetUserTokens` and
 `AspNetRoleClaims` keep no tenant column. Nothing in `src/` writes or reads them, any direct

@@ -774,12 +774,12 @@ public static class GuardScanner
 
         foreach (var o in report.Unexcused)
         {
-            failures.Add($"unexcused bypass [{o.Kind}] {o.File}:{o.Line} in {o.EnclosingSymbol} ({o.Detail}) — add an allow-list entry with a justification, or fix the bypass");
+            failures.Add($"unexcused bypass [{o.Kind}] {o.File}:{o.Line} in {o.EnclosingSymbol} ({o.Detail}) — add a row with a justification to TenantBypass/BypassAllowList.cs, or fix the bypass");
         }
 
         foreach (var s in report.StaleEntries)
         {
-            failures.Add($"stale allow-list entry {s.Entry.File} :: {s.Entry.Symbol} — {s.Reason}");
+            failures.Add($"stale allow-list entry {s.Entry.File} :: {s.Entry.Symbol} — {s.Reason}; delete its row from TenantBypass/BypassAllowList.cs");
         }
 
         foreach (var v in report.RawSqlPredicateViolations)

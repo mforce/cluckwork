@@ -63,7 +63,7 @@ public sealed class TenantBypassRealTreeTests
     // filter-free entity carrying an AccountId column (a tenant table the
     // global query filter does NOT scope) and whose enclosing statement has no
     // AccountId compare. Each such candidate is classified in
-    // Data/filter-free-set-sites.tsv with the REASON it is scoped (by-id,
+    // FilterFreeSetSites.cs with the REASON it is scoped (by-id,
     // by-hash, non-tenant sweep, …).
     //
     // Why stability and not a pure shape gate: the shape check cannot
@@ -146,7 +146,7 @@ public sealed class TenantBypassRealTreeTests
         // COMPARISON in the enclosing statement (the predicate rule applies).
         // Review P1-3: the filter is `!= true`, not `== false`, so a site the
         // scanner cannot classify (PredicateHasAccountId == null, "flag for
-        // review") is a candidate too — it must be classified in the TSV rather
+        // review") is a candidate too — it must be classified in FilterFreeSetSites.cs rather
         // than silently passing. A `Select(u => u.AccountId)` projection no
         // longer reads as a predicate (HasAccountIdComparison returns false), so
         // a cross-tenant by-email enumeration is a candidate, not a pass.
@@ -194,8 +194,8 @@ public sealed class TenantBypassRealTreeTests
             .Select(site =>
             {
                 Assert.True(!string.IsNullOrWhiteSpace(site.Reason),
-                    "malformed classification row — expected symbol, set, signature and a NON-EMPTY reason " +
-                    "separated by tabs. #698 review: a row with a valid identity and a blank reason passed the " +
+                    "malformed classification row — expected symbol, set, signature and a NON-EMPTY reason. " +
+                    "#698 review: a row with a valid identity and a blank reason passed the " +
                     "missing, stale, duplicate and needs-review checks alike, so it excused a filter-free query " +
                     $"with no reviewed justification at all (#632):\n  {site.Key}\t{site.Reason}");
                 return (site.Key, Reason: site.Reason.Trim());
@@ -209,7 +209,7 @@ public sealed class TenantBypassRealTreeTests
         var duplicateRows = classified.GroupBy(c => c.Key, StringComparer.Ordinal)
             .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
         Assert.True(duplicateRows.Count == 0,
-            "duplicate classification rows in Data/filter-free-set-sites.tsv — one identity, one row (#632):\n  " +
+            "duplicate classification rows in TenantBypass/FilterFreeSetSites.cs — one identity, one row (#632):\n  " +
             string.Join("\n  ", duplicateRows));
 
         // 1. Every candidate (both tracks) must be classified (no needs-review,
@@ -227,7 +227,7 @@ public sealed class TenantBypassRealTreeTests
         Assert.True(unclassified.Count == 0,
             "unclassified filter-free-set candidates (a new db.<tenant-table> query with no " +
             "AccountId compare, a new db.<non-tenant-set> query, or an EDITED query — a moved one no longer " +
-            "reaches here). Paste each identity into Data/filter-free-set-sites.tsv with a reason " +
+            "reaches here). Add a row for each identity to TenantBypass/FilterFreeSetSites.cs with a reason " +
             "(scoped-by-X or needs-review), or fix the query:\n  " +
             string.Join("\n  ", unclassified));
 
@@ -235,7 +235,7 @@ public sealed class TenantBypassRealTreeTests
         var stale = classifiedKeys.Except(candidateKeys, StringComparer.Ordinal).ToList();
         Assert.True(stale.Count == 0,
             "stale filter-free-set classifications (the query was deleted, renamed out of its method, or " +
-            "edited — update Data/filter-free-set-sites.tsv):\n  " +
+            "edited — update TenantBypass/FilterFreeSetSites.cs):\n  " +
             string.Join("\n  ", stale));
 
         // 3. No needs-review sentinel may remain.
