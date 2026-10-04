@@ -11,13 +11,10 @@ public sealed class ModuleLedgerRealTreeTests
         Path.Combine(GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found"), "src");
 
-    private static string LedgerPath() =>
-        Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json");
-
     [Fact]
     public void RealSourceTree_EveryCrossOwnerEdgeIsLedgered()
     {
-        var report = ModuleLedgerScanner.Scan(SrcRoot(), LedgerPath());
+        var report = ModuleLedgerScanner.Scan(SrcRoot(), RealModuleLedger.Value);
         var failures = ModuleLedgerScanner.Evaluate(report);
         Assert.True(failures.Count == 0,
             "module-ledger guard failed:\n  " + string.Join("\n  ", failures));
@@ -26,7 +23,7 @@ public sealed class ModuleLedgerRealTreeTests
     [Fact]
     public void RealSourceTree_FloorIsTheStaticMinimumNotTheScannedCount()
     {
-        var report = ModuleLedgerScanner.Scan(SrcRoot(), LedgerPath());
+        var report = ModuleLedgerScanner.Scan(SrcRoot(), RealModuleLedger.Value);
 
         Assert.Equal(ModuleLedgerScanner.RealTreeFileFloor, report.ExpectedFileCountFloor);
         Assert.True(report.ScannedFileCount >= ModuleLedgerScanner.RealTreeFileFloor,

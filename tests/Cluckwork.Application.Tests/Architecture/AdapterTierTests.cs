@@ -13,27 +13,16 @@ public sealed class AdapterTierTests : IDisposable
         File.WriteAllText(full, content);
     }
 
-    private string WriteLedger(string tiers = "")
-    {
-        var path = Path.Combine(_tempRoot, "module-ledger.json");
-        File.WriteAllText(path, """
-            {
-              "owners": { "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp"] } },
-              "edges": [],
-              "adapterTiers": [
-            """ + tiers + "]\n}\n");
-        return path;
-    }
-
-    private AdapterTierReport Scan(string tiers = "")
+    private AdapterTierReport Scan(params AdapterTier[] tiers)
     {
         Directory.CreateDirectory(Path.Combine(_tempRoot, "src"));
-        return AdapterTierScanner.Scan(Path.Combine(_tempRoot, "src"), WriteLedger(tiers));
+        return AdapterTierScanner.Scan(Path.Combine(_tempRoot, "src"), ModuleLedger.Validate(
+            new ModuleLedger([new("Hub", "platform", ["Cluckwork.Temp"], [])], [], []) { AdapterTiers = tiers }));
     }
 
-    private static string Tier(string ns = "Cluckwork.Temp.Mcp", string privilege = "DirectRepository",
+    private static AdapterTier Tier(string ns = "Cluckwork.Temp.Mcp", string privilege = "DirectRepository",
         string surface = "MapMcp", string reason = "test reason", string reviewBy = "#1") =>
-        $$"""{ "namespace": "{{ns}}", "privilege": "{{privilege}}", "surface": "{{surface}}", "reason": "{{reason}}", "reviewBy": "{{reviewBy}}" }""";
+        new(ns, privilege, surface, reason, reviewBy);
 
     private void WriteCsproj(string projectName, string defineConstants)
     {
@@ -291,14 +280,14 @@ public sealed class AdapterTierTests : IDisposable
     [Fact]
     public void BlankField_IsRegistryError()
     {
-        var row = """{ "namespace": " ", "privilege": "DirectRepository", "surface": "MapMcp", "reason": "r", "reviewBy": "#1" }""";
+        var row = Tier(ns: " ", reason: "r");
         Assert.Contains(Scan(row).RegistryErrors, e => e.Contains("'namespace'", StringComparison.Ordinal));
     }
 
     [Fact]
     public void MissingField_IsRegistryError()
     {
-        var row = """{ "privilege": "DirectRepository", "surface": "MapMcp", "reason": "r", "reviewBy": "#1" }""";
+        var row = Tier(ns: "", reason: "r");
         Assert.Contains(Scan(row).RegistryErrors, e => e.Contains("'namespace'", StringComparison.Ordinal));
     }
 
@@ -338,16 +327,14 @@ public sealed class AdapterTierTests : IDisposable
     [Fact]
     public void DuplicateNamespace_IsRegistryError()
     {
-        var rows = Tier(surface: "MapMcp") + "," + Tier(surface: "MapOther");
-        Assert.Contains(Scan(rows).RegistryErrors,
+        Assert.Contains(Scan(Tier(surface: "MapMcp"), Tier(surface: "MapOther")).RegistryErrors,
             e => e.Contains("duplicate", StringComparison.Ordinal) && e.Contains("namespace", StringComparison.Ordinal));
     }
 
     [Fact]
     public void DuplicateSurface_IsRegistryError()
     {
-        var rows = Tier(ns: "Cluckwork.Temp.Mcp") + "," + Tier(ns: "Cluckwork.Temp.Other");
-        Assert.Contains(Scan(rows).RegistryErrors,
+        Assert.Contains(Scan(Tier(ns: "Cluckwork.Temp.Mcp"), Tier(ns: "Cluckwork.Temp.Other")).RegistryErrors,
             e => e.Contains("duplicate", StringComparison.Ordinal) && e.Contains("surface", StringComparison.Ordinal));
     }
 }

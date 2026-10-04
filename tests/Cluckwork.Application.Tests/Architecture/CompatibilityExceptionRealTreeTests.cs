@@ -8,7 +8,7 @@ public sealed class CompatibilityExceptionRealTreeTests(ITestOutputHelper output
     private static readonly Lazy<CompatibilityExceptionReport> Report = new(() => CompatibilityExceptionScanner.Scan(
         Path.Combine(GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found"), "src"),
-        Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json")));
+        RealModuleLedger.Value));
 
     [Fact]
     public void RealSourceTree_EveryCompatibilityExceptionIsRegistered()

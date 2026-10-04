@@ -6,8 +6,9 @@ public sealed class CompatibilityExceptionTests : IDisposable
 {
     private readonly string _tempRoot = Directory.CreateTempSubdirectory("compatibility-exception-").FullName;
     private const string Symbol = "Cluckwork.Temp.Probe.Run";
-    private const string FinanceTables = "\"Expenses\", \"ExpenseCategories\"";
-    private const string Tables = $"\"Finance\": [{FinanceTables}], \"Insights\": [\"Flocks\"]";
+    private static readonly string[] FinanceTables = ["Expenses", "ExpenseCategories"];
+    private static readonly TableClaim[] Tables =
+        [new("Finance", "Expenses"), new("Finance", "ExpenseCategories"), new("Insights", "Flocks")];
 
     private const string FixtureDb = """
         using Cluckwork.Domain.Expenses;
@@ -54,29 +55,30 @@ public sealed class CompatibilityExceptionTests : IDisposable
         WriteSource("Cluckwork.Api/Verb.cs", source);
     }
 
-    private IReadOnlyList<string> Evaluate(string rows = "", string implementations = "", string tables = Tables)
+    private IReadOnlyList<string> Evaluate(IReadOnlyList<CompatibilityException>? rows = null,
+        IReadOnlyList<string>? implementations = null, IReadOnlyList<TableClaim>? tables = null)
     {
-        var path = Path.Combine(_tempRoot, "module-ledger.json");
-        File.WriteAllText(path, $$"""
-            {
-              "owners": {
-                "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp"] },
-                "Finance": { "kind": "module", "namespaces": ["Cluckwork.Domain.Expenses", "Cluckwork.Temp.Finance"],
-                  "contract": ["Cluckwork.Temp.Finance.IFinanceModule"], "implementations": [{{implementations}}] },
-                "Insights": { "kind": "module", "namespaces": ["Cluckwork.Temp.Insights"] }
-              },
-              "edges": [
-                { "from": "Insights", "to": "Finance", "kind": "R", "reason": "test", "symbols": ["Cluckwork.Temp.Insights.Declared"] }
-              ],
-              "tables": { {{tables}} },
-              "compatibilityExceptions": [{{rows}}]
-            }
-            """);
-        return CompatibilityExceptionScanner.Evaluate(CompatibilityExceptionScanner.Scan(Path.Combine(_tempRoot, "src"), path));
+        var ledger = ModuleLedger.Validate(new ModuleLedger(
+            [
+                new("Hub", "platform", ["Cluckwork.Temp"], []),
+                new("Finance", "module", ["Cluckwork.Domain.Expenses", "Cluckwork.Temp.Finance"], [])
+                {
+                    Contract = ["Cluckwork.Temp.Finance.IFinanceModule"], Implementations = implementations ?? [],
+                },
+                new("Insights", "module", ["Cluckwork.Temp.Insights"], []),
+            ],
+            [new("Insights", "Finance", "R", "test", ["Cluckwork.Temp.Insights.Declared"])],
+            [])
+        {
+            Tables = tables ?? Tables,
+            CompatibilityExceptions = rows ?? [],
+        });
+        return CompatibilityExceptionScanner.Evaluate(CompatibilityExceptionScanner.Scan(Path.Combine(_tempRoot, "src"), ledger));
     }
 
-    private static string Row(string symbol = Symbol, string tables = "\"Expenses\"", string owner = "Hub", string deleteWhen = "#858") =>
-        $$"""{ "symbol": "{{symbol}}", "reaches": "Finance", "tables": [{{tables}}], "owner": "{{owner}}", "reason": "test", "deleteWhen": "{{deleteWhen}}" }""";
+    private static CompatibilityException Row(string symbol = Symbol, IReadOnlyList<string>? tables = null,
+        string owner = "Hub", string deleteWhen = "#858") =>
+        new(symbol, "Finance", tables ?? ["Expenses"], owner, "test", deleteWhen);
 
     [Fact]
     public void UndeclaredRead_NamesMemberModuleTableAndLocationAndRendersRow()
@@ -87,7 +89,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
         Assert.Contains($"undeclared compatibility exception {Symbol} -> Finance", failure);
         Assert.Contains("src/Cluckwork.Infrastructure/Probe.cs:6", failure);
         Assert.Contains($"\"symbol\": \"{Symbol}\", \"reaches\": \"Finance\", \"tables\": [\"Expenses\"]", failure);
-        Assert.Empty(Evaluate(Row()));
+        Assert.Empty(Evaluate([Row()]));
     }
 
     [Theory]
@@ -127,7 +129,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
         WriteProbe("return db.ExpenseCategories.Count();");
 
         Assert.Single(Evaluate());
-        Assert.Empty(Evaluate(tables: "\"Finance\": [\"Expenses\"], \"Insights\": [\"Flocks\", \"ExpenseCategories\"]"));
+        Assert.Empty(Evaluate(tables: [new("Finance", "Expenses"), new("Insights", "Flocks"), new("Insights", "ExpenseCategories")]));
     }
 
     [Fact]
@@ -144,7 +146,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
         WriteProbe("return db.Expenses.Count();", bases: ": Cluckwork.Temp.Finance.IExpenseStore");
 
         Assert.Contains($"undeclared compatibility exception {Symbol} -> Finance", Assert.Single(Evaluate()));
-        Assert.Empty(Evaluate(implementations: "\"Cluckwork.Temp.Probe\""));
+        Assert.Empty(Evaluate(implementations: ["Cluckwork.Temp.Probe"]));
     }
 
     [Fact]
@@ -160,7 +162,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
             """);
 
         Assert.Contains("Cluckwork.Temp.Probe.Inner.Run -> Finance",
-            Assert.Single(Evaluate(implementations: "\"Cluckwork.Temp.Probe\"")));
+            Assert.Single(Evaluate(implementations: ["Cluckwork.Temp.Probe"])));
     }
 
     [Fact]
@@ -173,15 +175,15 @@ public sealed class CompatibilityExceptionTests : IDisposable
             """);
 
         Assert.Contains("undeclared compatibility exception Cluckwork.Temp.Probe<T>.Run -> Finance",
-            Assert.Single(Evaluate(implementations: "\"Cluckwork.Temp.Probe\"")));
+            Assert.Single(Evaluate(implementations: ["Cluckwork.Temp.Probe"])));
     }
 
     [Theory]
-    [InlineData("\"Cluckwork.Temp.Missing\"", "is not declared")]
-    [InlineData("\"Cluckwork.Temp.FixtureDb\"", "implements none of Finance's interfaces")]
+    [InlineData("Cluckwork.Temp.Missing", "is not declared")]
+    [InlineData("Cluckwork.Temp.FixtureDb", "implements none of Finance's interfaces")]
     public void ImplementationThatIsNotAPort_FailsTheRegistry(string implementation, string expected)
     {
-        Assert.Contains(Evaluate(implementations: implementation),
+        Assert.Contains(Evaluate(implementations: [implementation]),
             f => f.StartsWith("registry:", StringComparison.Ordinal) && f.Contains(expected, StringComparison.Ordinal));
     }
 
@@ -190,7 +192,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     {
         WriteProbe("return 0;", bases: ": Cluckwork.Temp.Finance.IExpenseStore");
 
-        Assert.Contains(Evaluate(implementations: "\"Cluckwork.Temp.Probe\""),
+        Assert.Contains(Evaluate(implementations: ["Cluckwork.Temp.Probe"]),
             f => f.Contains("reads none of Finance's tables", StringComparison.Ordinal));
     }
 
@@ -231,9 +233,9 @@ public sealed class CompatibilityExceptionTests : IDisposable
     {
         WriteProbe("_ = db.ExpenseCategories.Count(); return db.Expenses.Count();");
 
-        var failure = Assert.Single(Evaluate(Row()));
+        var failure = Assert.Single(Evaluate([Row()]));
         Assert.Contains($"{Symbol} -> Finance reads table 'ExpenseCategories'", failure);
-        Assert.Empty(Evaluate(Row(tables: FinanceTables)));
+        Assert.Empty(Evaluate([Row(tables: FinanceTables)]));
     }
 
     [Fact]
@@ -241,23 +243,24 @@ public sealed class CompatibilityExceptionTests : IDisposable
     {
         WriteProbe("return db.Expenses.Count();");
 
-        Assert.Contains("stale table 'ExpenseCategories'", Assert.Single(Evaluate(Row(tables: FinanceTables))));
+        Assert.Contains("stale table 'ExpenseCategories'", Assert.Single(Evaluate([Row(tables: FinanceTables)])));
     }
 
     [Theory]
-    [InlineData("\"reaches\": \"Finance\", \"tables\": [\"Expenses\"], \"owner\": \"Hub\", \"reason\": \"test\"", "blank or non-string 'deleteWhen'")]
-    [InlineData("\"reaches\": \"Finance\", \"tables\": [\"Expenses\"], \"reason\": \"test\", \"deleteWhen\": \"#858\"", "blank or non-string 'owner'")]
-    [InlineData("\"reaches\": \"Finance\", \"tables\": [\"Expenses\"], \"owner\": \"Hub\", \"deleteWhen\": \"#858\"", "blank or non-string 'reason'")]
-    [InlineData("\"reaches\": \"Finance\", \"tables\": [], \"owner\": \"Hub\", \"reason\": \"test\", \"deleteWhen\": \"#858\"", "names no tables")]
-    [InlineData("\"reaches\": \"Finance\", \"tables\": [\"Flocks\"], \"owner\": \"Hub\", \"reason\": \"test\", \"deleteWhen\": \"#858\"", "do not give to Finance")]
-    [InlineData("\"reaches\": \"Finance\", \"tables\": [\"Expenses\"], \"owner\": \"Hub\", \"reason\": \"test\", \"deleteWhen\": \"2026-12-31\"", "never a date")]
-    [InlineData("\"reaches\": \"Finance\", \"tables\": [\"Expenses\"], \"owner\": \"Nobody\", \"reason\": \"test\", \"deleteWhen\": \"#858\"", "unknown owner 'Nobody'")]
-    [InlineData("\"reaches\": \"Insights\", \"tables\": [\"Flocks\"], \"owner\": \"Hub\", \"reason\": \"test\", \"deleteWhen\": \"#858\"", "declares no contract")]
-    public void IncompleteRow_FailsTheRegistry(string fields, string expected)
+    [InlineData("Finance", "Expenses", "Hub", "test", "", "blank or non-string 'deleteWhen'")]
+    [InlineData("Finance", "Expenses", "", "test", "#858", "blank or non-string 'owner'")]
+    [InlineData("Finance", "Expenses", "Hub", "", "#858", "blank or non-string 'reason'")]
+    [InlineData("Finance", "", "Hub", "test", "#858", "names no tables")]
+    [InlineData("Finance", "Flocks", "Hub", "test", "#858", "do not give to Finance")]
+    [InlineData("Finance", "Expenses", "Hub", "test", "2026-12-31", "never a date")]
+    [InlineData("Finance", "Expenses", "Nobody", "test", "#858", "unknown owner 'Nobody'")]
+    [InlineData("Insights", "Flocks", "Hub", "test", "#858", "declares no contract")]
+    public void IncompleteRow_FailsTheRegistry(
+        string reaches, string table, string owner, string reason, string deleteWhen, string expected)
     {
         WriteProbe("return db.Expenses.Count();");
 
-        Assert.Contains(Evaluate($$"""{ "symbol": "{{Symbol}}", {{fields}} }"""),
+        Assert.Contains(Evaluate([new(Symbol, reaches, table == "" ? [] : [table], owner, reason, deleteWhen)]),
             f => f.StartsWith("registry:", StringComparison.Ordinal) && f.Contains(expected, StringComparison.Ordinal));
     }
 
@@ -266,7 +269,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     {
         WriteProbe("return db.Expenses.Count();");
 
-        Assert.Contains(Evaluate(Row() + "," + Row()), f => f.Contains("duplicate compatibilityExceptions row", StringComparison.Ordinal));
+        Assert.Contains(Evaluate([Row(), Row()]), f => f.Contains("duplicate compatibilityExceptions row", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -274,7 +277,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     {
         WriteProbe("return 0;");
 
-        var failure = Assert.Single(Evaluate(Row()));
+        var failure = Assert.Single(Evaluate([Row()]));
         Assert.Contains($"stale compatibility exception {Symbol} -> Finance", failure);
         Assert.Contains("#858", failure);
     }
@@ -284,7 +287,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     {
         WriteProbe("return db.Expenses.Count();", "Cluckwork.Temp.Finance");
 
-        Assert.Contains(Evaluate(Row("Cluckwork.Temp.Finance.Probe.Run")),
+        Assert.Contains(Evaluate([Row("Cluckwork.Temp.Finance.Probe.Run")]),
             f => f.StartsWith("stale compatibility exception", StringComparison.Ordinal));
     }
 
@@ -328,7 +331,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
             """);
 
         Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> Finance at src/Cluckwork.Api/Verb.cs:6",
-            Assert.Single(Evaluate(Row("Cluckwork.Temp.Cli.Verb.Rows"))));
+            Assert.Single(Evaluate([Row("Cluckwork.Temp.Cli.Verb.Rows")])));
     }
 
     [Fact]

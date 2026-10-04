@@ -105,13 +105,12 @@ public static class ModuleLedgerScanner
         return files.OrderBy(f => f, StringComparer.Ordinal).ToList();
     }
 
-    public static ModuleLedgerReport Scan(string srcRoot, string ledgerPath)
+    public static ModuleLedgerReport Scan(string srcRoot, ModuleLedger ledger)
     {
         var srcFull = Path.GetFullPath(srcRoot);
         var repoRoot = Path.GetDirectoryName(srcFull)
             ?? throw new InvalidOperationException($"ModuleLedgerScanner: cannot derive a root from '{srcRoot}'.");
 
-        var ledger = ModuleLedger.Load(ledgerPath);
         var registryErrors = new List<string>(ledger.RegistryErrors);
         var namespaceOwners = BuildNamespaceIndex(ledger, registryErrors);
         var ownerKinds = ledger.Owners

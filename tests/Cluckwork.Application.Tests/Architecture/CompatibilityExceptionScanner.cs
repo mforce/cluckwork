@@ -91,11 +91,10 @@ public static class CompatibilityExceptionScanner
                 .SelectMany(n => QueriedTables(n.TargetEntityType)))
             .Concat(entity.GetDirectlyDerivedTypes().SelectMany(QueriedTables));
 
-    public static CompatibilityExceptionReport Scan(string srcRoot, string ledgerPath)
+    public static CompatibilityExceptionReport Scan(string srcRoot, ModuleLedger ledger)
     {
         var srcFull = Path.GetFullPath(srcRoot);
         var repoRoot = Path.GetDirectoryName(srcFull)!;
-        var ledger = ModuleLedger.Load(ledgerPath);
         var registryErrors = new List<string>(ledger.RegistryErrors);
         var index = ModuleLedgerScanner.BuildNamespaceIndex(ledger, registryErrors);
         var contracted = ledger.Owners.Where(o => o.Contract.Count > 0)

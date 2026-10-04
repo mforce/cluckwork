@@ -11,10 +11,9 @@ public sealed class CouplingMatrixRealTreeTests
     {
         var repoRoot = GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found");
-        var ledgerPath = Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json");
-        var ledger = ModuleLedger.Load(ledgerPath);
-        var edgeReport = ModuleLedgerScanner.Scan(Path.Combine(repoRoot, "src"), ledgerPath);
-        var adapterReport = AdapterReachScanner.Scan(Path.Combine(repoRoot, "src"), ledgerPath);
+        var ledger = RealModuleLedger.Value;
+        var edgeReport = ModuleLedgerScanner.Scan(Path.Combine(repoRoot, "src"), ledger);
+        var adapterReport = AdapterReachScanner.Scan(Path.Combine(repoRoot, "src"), ledger);
         var tableReport = ScanTables(ledger);
         var regenerated = RenderChecked(ledger, edgeReport, tableReport, adapterReport);
         var committedPath = Path.Combine(repoRoot, "tests", "Cluckwork.Application.Tests", "Architecture", "Data",
@@ -33,9 +32,8 @@ public sealed class CouplingMatrixRealTreeTests
     {
         var repoRoot = GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found");
-        var ledgerPath = Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json");
-        var ledger = ModuleLedger.Load(ledgerPath);
-        var report = ModuleLedgerScanner.Scan(Path.Combine(repoRoot, "src"), ledgerPath);
+        var ledger = RealModuleLedger.Value;
+        var report = ModuleLedgerScanner.Scan(Path.Combine(repoRoot, "src"), ledger);
         var generated = CouplingMatrix.LiveModulePairs(ledger, report).OrderBy(pair => pair.From, StringComparer.Ordinal)
             .ThenBy(pair => pair.To, StringComparer.Ordinal).ToArray();
         var declared = ledger.Edges.Select(edge => (edge.From, edge.To)).OrderBy(pair => pair.From, StringComparer.Ordinal)

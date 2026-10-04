@@ -3,9 +3,9 @@ namespace Cluckwork.Application.Tests.Architecture;
 // #1023: the peer rule on a temp tree, one named assertion per allowance and registry error.
 public sealed class PeerContractTests : IDisposable
 {
-    private const string FarmSeam = "\"Cluckwork.Temp.Farm.IAccountRepository\"";
-    private const string AccessClaim = "\"Cluckwork.Temp.Common.IIdentity\"";
-    private const string FlockContract = "\"Cluckwork.Temp.Flocks.IFlockLookup\"";
+    private const string FarmSeam = "Cluckwork.Temp.Farm.IAccountRepository";
+    private const string AccessClaim = "Cluckwork.Temp.Common.IIdentity";
+    private const string FlockContract = "Cluckwork.Temp.Flocks.IFlockLookup";
 
     private readonly string _tempRoot = Directory.CreateTempSubdirectory("peer-contract-").FullName;
 
@@ -45,38 +45,36 @@ public sealed class PeerContractTests : IDisposable
         File.WriteAllText(full, content);
     }
 
-    private string WriteLedger(string farmSeam, string accessTypes, string flockContract)
-    {
-        var path = Path.Combine(_tempRoot, "module-ledger.json");
-        File.WriteAllText(path, $$"""
+    private static IReadOnlyList<string> OneOrNone(string entry) => entry == "" ? [] : [entry];
+
+    private static ModuleLedger Ledger(string farmSeam, string accessTypes, string flockContract, string financeTypes = "") =>
+        ModuleLedger.Validate(new ModuleLedger(
+            [
+                new("Hub", "platform", ["Cluckwork.Temp", "Cluckwork.Temp.Flocks.Shared"], []),
+                new("Farm", "module", ["Cluckwork.Temp.Farm"], [])
+                {
+                    Contract = ["Cluckwork.Temp.Farm.IFarmModule"], Seam = OneOrNone(farmSeam),
+                },
+                new("FlockManagement", "module", ["Cluckwork.Temp.Flocks"], []) { Contract = OneOrNone(flockContract) },
+                new("Finance", "module", ["Cluckwork.Temp.Finance"], []) { Types = OneOrNone(financeTypes) },
+                new("Access", "module", ["Cluckwork.Temp.Access"], [])
+                {
+                    Contract = ["Cluckwork.Temp.Access.IAccessModule"], Types = OneOrNone(accessTypes),
+                },
+            ],
+            [], [])
+        {
+            AdapterRoots = new(["Cluckwork.Temp.Endpoints"], [])
             {
-              "owners": {
-                "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp", "Cluckwork.Temp.Flocks.Shared"] },
-                "Farm": { "kind": "module", "namespaces": ["Cluckwork.Temp.Farm"],
-                          "contract": ["Cluckwork.Temp.Farm.IFarmModule"], "seam": [{{farmSeam}}] },
-                "FlockManagement": { "kind": "module", "namespaces": ["Cluckwork.Temp.Flocks"],
-                                     "contract": [{{flockContract}}] },
-                "Finance": { "kind": "module", "namespaces": ["Cluckwork.Temp.Finance"] },
-                "Access": { "kind": "module", "namespaces": ["Cluckwork.Temp.Access"],
-                            "contract": ["Cluckwork.Temp.Access.IAccessModule"], "types": [{{accessTypes}}] }
-              },
-              "edges": [],
-              "adapterRoots": {
-                "namespaces": ["Cluckwork.Temp.Endpoints"],
-                "types": [],
-                "persistenceForbiddenNamespaces": ["Cluckwork.Temp.Endpoints"]
-              },
-              "adapters": []
-            }
-            """);
-        return path;
-    }
+                PersistenceForbiddenNamespaces = ["Cluckwork.Temp.Endpoints"],
+            },
+        });
 
     private IReadOnlyList<string> Peers(
         string farmSeam = FarmSeam, string accessTypes = AccessClaim,
         string flockContract = FlockContract) =>
         AdapterReachScanner.Evaluate(AdapterReachScanner.ScanPeers(
-            Path.Combine(_tempRoot, "src"), WriteLedger(farmSeam, accessTypes, flockContract)));
+            Path.Combine(_tempRoot, "src"), Ledger(farmSeam, accessTypes, flockContract)));
 
     [Fact]
     public void PeerNonContractType_IsABypassNamingMemberTypeAndLocation()
@@ -129,7 +127,7 @@ public sealed class PeerContractTests : IDisposable
             public class Endpoint { public void Run(Cluckwork.Temp.Farm.IAccountRepository accounts) { } }
             """);
 
-        var report = AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), WriteLedger(FarmSeam, AccessClaim, FlockContract));
+        var report = AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), Ledger(FarmSeam, AccessClaim, FlockContract));
         Assert.Equal("Cluckwork.Temp.Farm.IAccountRepository", Assert.Single(report.ContractBypasses).Type);
     }
 
@@ -161,10 +159,10 @@ public sealed class PeerContractTests : IDisposable
     }
 
     [Theory]
-    [InlineData("seam", "\"Cluckwork.Temp.Farm.IGone\"", "owner 'Farm' seam type 'Cluckwork.Temp.Farm.IGone' is not declared under src/")]
-    [InlineData("seam", "\"Cluckwork.Temp.Flocks.IFlockRepository\"", "owner 'Farm' seam type 'Cluckwork.Temp.Flocks.IFlockRepository' is not in a namespace 'Farm' owns")]
-    [InlineData("types", "\"Cluckwork.Temp.Common.IGone\"", "owner 'Access' claims type 'Cluckwork.Temp.Common.IGone', which is not declared under src/")]
-    [InlineData("types", "\"Cluckwork.Temp.Flocks.IFlockRepository\"", "owner 'Access' claims type 'Cluckwork.Temp.Flocks.IFlockRepository' outside a platform namespace")]
+    [InlineData("seam", "Cluckwork.Temp.Farm.IGone", "owner 'Farm' seam type 'Cluckwork.Temp.Farm.IGone' is not declared under src/")]
+    [InlineData("seam", "Cluckwork.Temp.Flocks.IFlockRepository", "owner 'Farm' seam type 'Cluckwork.Temp.Flocks.IFlockRepository' is not in a namespace 'Farm' owns")]
+    [InlineData("types", "Cluckwork.Temp.Common.IGone", "owner 'Access' claims type 'Cluckwork.Temp.Common.IGone', which is not declared under src/")]
+    [InlineData("types", "Cluckwork.Temp.Flocks.IFlockRepository", "owner 'Access' claims type 'Cluckwork.Temp.Flocks.IFlockRepository' outside a platform namespace")]
     public void BadSeamOrClaimedType_IsARegistryError(string list, string entry, string expected)
     {
         var failure = Assert.Single(list == "seam" ? Peers(farmSeam: entry) : Peers(accessTypes: entry));
@@ -183,7 +181,7 @@ public sealed class PeerContractTests : IDisposable
 
     [Theory]
     [InlineData("public interface IIdentity<T> { }", AccessClaim, "names a generic or nested declaration")]
-    [InlineData("public class Outer { public interface IIdentity { } }", "\"Cluckwork.Temp.Common.Outer.IIdentity\"", "names a generic or nested declaration")]
+    [InlineData("public class Outer { public interface IIdentity { } }", "Cluckwork.Temp.Common.Outer.IIdentity", "names a generic or nested declaration")]
     [InlineData("public class IIdentity { public class Reader { } }", AccessClaim, "declares nested types")]
     public void GenericOrNestedClaim_IsARegistryError(string declaration, string claim, string expected)
     {
@@ -195,26 +193,25 @@ public sealed class PeerContractTests : IDisposable
     [Fact]
     public void TypeClaimedTwice_IsARegistryError()
     {
-        var path = WriteLedger(FarmSeam, AccessClaim, FlockContract);
-        File.WriteAllText(path, File.ReadAllText(path).Replace(
-            "\"Finance\": { \"kind\": \"module\", \"namespaces\": [\"Cluckwork.Temp.Finance\"] }",
-            "\"Finance\": { \"kind\": \"module\", \"namespaces\": [\"Cluckwork.Temp.Finance\"], \"types\": [" + AccessClaim + "] }"));
-
-        var report = AdapterReachScanner.ScanPeers(Path.Combine(_tempRoot, "src"), path);
+        var report = AdapterReachScanner.ScanPeers(Path.Combine(_tempRoot, "src"),
+            Ledger(FarmSeam, AccessClaim, FlockContract, financeTypes: AccessClaim));
         Assert.Contains(report.RegistryErrors, e => e.StartsWith("type 'Cluckwork.Temp.Common.IIdentity' is claimed 2 times (Access, Finance)", StringComparison.Ordinal));
     }
 
     [Theory]
-    [InlineData("""{ "kind": "module", "namespaces": ["Cluckwork.Temp.Finance"], "seam": ["Cluckwork.Temp.Finance.IExpenseRepository"] }""",
+    [InlineData("module", "", "Cluckwork.Temp.Finance.IExpenseRepository", "",
         "owner 'Finance' declares a seam but no contract")]
-    [InlineData("""{ "kind": "module", "namespaces": ["Cluckwork.Temp.Finance"], "contract": ["Cluckwork.Temp.Finance.IExpenseRepository"], "seam": ["Cluckwork.Temp.Finance.IExpenseRepository"] }""",
+    [InlineData("module", "Cluckwork.Temp.Finance.IExpenseRepository", "Cluckwork.Temp.Finance.IExpenseRepository", "",
         "owner 'Finance' lists 'Cluckwork.Temp.Finance.IExpenseRepository' in both its contract and its seam")]
-    [InlineData("""{ "kind": "platform", "namespaces": ["Cluckwork.Temp.Finance"], "types": ["Cluckwork.Temp.Common.IClock"] }""",
+    [InlineData("platform", "", "", "Cluckwork.Temp.Common.IClock",
         "owner 'Finance' is a platform owner and cannot claim types")]
-    public void SeamOrClaimShape_IsALoadError(string finance, string expected)
+    public void SeamOrClaimShape_IsALoadError(string kind, string contract, string seam, string types, string expected)
     {
-        var path = Path.Combine(_tempRoot, "shape.json");
-        File.WriteAllText(path, $$"""{ "owners": { "Finance": {{finance}} }, "edges": [] }""");
-        Assert.Contains(ModuleLedger.Load(path).RegistryErrors, e => e.StartsWith(expected, StringComparison.Ordinal));
+        var finance = new OwnerDefinition("Finance", kind, ["Cluckwork.Temp.Finance"], [])
+        {
+            Contract = OneOrNone(contract), Seam = OneOrNone(seam), Types = OneOrNone(types),
+        };
+        Assert.Contains(ModuleLedger.Validate(new ModuleLedger([finance], [], [])).RegistryErrors,
+            e => e.StartsWith(expected, StringComparison.Ordinal));
     }
 }

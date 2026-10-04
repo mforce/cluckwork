@@ -14,8 +14,7 @@ public sealed class ModuleContractRealAssemblyTests
     [Fact]
     public void RealLedger_EveryContractTypeIsFreeOfPersistenceAndAggregates()
     {
-        var ledger = ModuleLedger.Load(Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json"));
-        var names = ledger.Owners.SelectMany(o => o.Contract).ToList();
+        var names = RealModuleLedger.Value.Owners.SelectMany(o => o.Contract).ToList();
         var types = names.Select(name => Assemblies.Select(a => a.GetType(name)).OfType<Type>().SingleOrDefault()).ToList();
         Assert.True(types.All(t => t is not null),
             "contract types not found in Application or Domain: " +

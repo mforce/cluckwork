@@ -49,15 +49,14 @@ public static class AdapterReachScanner
 
     private sealed record ProgramRoute(string Name, IReadOnlyList<SyntaxNode> Handlers);
 
-    public static AdapterReachReport Scan(string srcRoot, string ledgerPath) =>
-        Scan(srcRoot, ModuleLedger.Load(ledgerPath), peers: false);
+    public static AdapterReachReport Scan(string srcRoot, ModuleLedger ledger) =>
+        Scan(srcRoot, ledger, peers: false);
 
     // #1023: the same walk with every module's own namespaces and claimed types as the roots. A member
     // reaching another contracted module outside its contract and seam is a bypass; its own module and
     // Platform are free. Adapter rows do not apply, so nothing is undeclared or loosenable.
-    public static AdapterReachReport ScanPeers(string srcRoot, string ledgerPath)
+    public static AdapterReachReport ScanPeers(string srcRoot, ModuleLedger ledger)
     {
-        var ledger = ModuleLedger.Load(ledgerPath);
         var modules = ledger.Owners.Where(o => o.Kind == ModuleLedger.ModuleKind).ToList();
         return Scan(srcRoot, ledger with
         {
