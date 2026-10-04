@@ -19,11 +19,10 @@ using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Endpoints.Users;
 using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Security;
 using Cluckwork.Api.Validation;
-using Cluckwork.Application.Features.Insights;
-using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Builder;
@@ -74,12 +73,7 @@ var sharedState = builder.Services.AddCluckworkSharedState(builder.Configuration
 builder.Services.AddCluckworkReportConcurrencyCap(
     rateLimiting.Options.ReportsConcurrency.PermitLimit, sharedState.Redis.KeyNamespace);
 
-builder.Services.AddCluckworkFeatures(builder.Configuration);
-builder.Services.AddScoped<IInsightsModule, InsightsModule>();
-
-// #307 — lease duration / max-wait bounds for the idempotency claim protocol.
-builder.Services.Configure<IdempotencyOptions>(
-    builder.Configuration.GetSection(IdempotencyOptions.SectionName));
+builder.Services.AddCluckworkModules(builder.Configuration);
 
 // #398 — ASP.NET Core's minimal-API parameter binding defaults
 // RouteHandlerOptions.ThrowOnBadRequest to true only in Development; outside

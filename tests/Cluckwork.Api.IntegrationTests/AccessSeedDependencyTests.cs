@@ -1,5 +1,6 @@
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
@@ -35,7 +36,7 @@ public sealed class AccessSeedDependencyTests(CluckworkWebApplicationFactory fac
         builder.Services.AddCluckworkPersistence(builder.Configuration, builder.Environment);
         builder.Services.AddCluckworkIdentity(builder.Configuration, ProcessRole.OneShot);
         builder.Services.AddCluckworkSharedState(builder.Configuration, ProcessRole.OneShot);
-        builder.Services.AddCluckworkFeatures(builder.Configuration);
+        builder.Services.AddCluckworkModules(builder.Configuration);
         builder.Services.AddCluckworkJobs();
         var resolutions = 0;
         if (poisonRedis)
@@ -84,7 +85,7 @@ public sealed class AccessSeedDependencyTests(CluckworkWebApplicationFactory fac
         builder.Services.AddCluckworkPersistence(builder.Configuration, builder.Environment);
         builder.Services.AddCluckworkIdentity(builder.Configuration, ProcessRole.OneShot);
         builder.Services.AddCluckworkSharedState(builder.Configuration, ProcessRole.OneShot);
-        builder.Services.AddCluckworkFeatures(builder.Configuration);
+        builder.Services.AddCluckworkModules(builder.Configuration);
         builder.Services.AddCluckworkJobs();
         await using var app = builder.Build();
         using var scope = app.Services.CreateScope();

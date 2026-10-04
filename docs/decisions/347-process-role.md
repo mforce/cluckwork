@@ -21,7 +21,7 @@ That is not a property anyone can read off the guard, and getting it wrong is no
 | #319 AllowedHosts | `Serving` only | `ServingBootGuards.EnsureServingConfiguration` |
 | #316 OTLP endpoint **and protocol** | `Serving` throws; `OneShot` degrades to export-disabled | `AddCluckworkTelemetry` |
 | All of `RateLimitingOptions.Validate` — malformed CIDR, window limits, the #311 queue limit | `Serving` throws; `OneShot` degrades to defaults | `AddCluckworkRateLimiting` |
-| `FarmLogo` / `FarmBanner` upload caps | `Serving` only, **by mechanism** | `AddCluckworkFeatures`, via `.ValidateOnStart()` |
+| `FarmLogo` / `FarmBanner` upload caps | `Serving` only, **by mechanism** | `AddFarmModule`, via `.ValidateOnStart()` |
 | #261/#262 Postgres TLS floor | **both** | `AddCluckworkPersistence`, unconditional |
 | #264 tzdata/ICU canary | **both** | `AddCluckworkPersistence`, unconditional |
 

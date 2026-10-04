@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -152,7 +153,7 @@ public sealed class ServingGuardCoverageTests
     public void EveryValidateOnStartOption_HasACoveringRow()
     {
         var services = new ServiceCollection();
-        services.AddCluckworkFeatures(new ConfigurationBuilder().Build());
+        services.AddCluckworkModules(new ConfigurationBuilder().Build());
 
         var validatedOptionTypes = services
             .Where(d => d.ServiceType.IsGenericType
@@ -208,7 +209,7 @@ public sealed class ServingGuardCoverageTests
     }
 
     // 4. …and the same question asked of the WHOLE source tree, because the
-    //    enumeration above only executes AddCluckworkFeatures. A `.ValidateOnStart()`
+    //    enumeration above only executes AddCluckworkModules. A `.ValidateOnStart()`
     //    added tomorrow to persistence, identity, jobs or anywhere else would be a
     //    new serving-only guard that test cannot see, and `Assert.NotEmpty` would
     //    stay satisfied by the two existing validators (#347 review round 3, codex).
@@ -234,7 +235,7 @@ public sealed class ServingGuardCoverageTests
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["CluckworkFeatureServiceCollectionExtensions.cs"], sites);
+        Assert.Equal(["FarmModuleServiceCollectionExtensions.cs"], sites);
     }
 
     private static string RepositoryRoot()

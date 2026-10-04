@@ -1,6 +1,7 @@
 using Cluckwork.Api.Cli;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
@@ -62,7 +63,7 @@ public sealed class AccessLifecycleDependencyTests(CluckworkWebApplicationFactor
         builder.Services.AddCluckworkPersistence(builder.Configuration, builder.Environment);
         builder.Services.AddCluckworkIdentity(builder.Configuration, ProcessRole.OneShot);
         builder.Services.AddCluckworkSharedState(builder.Configuration, ProcessRole.OneShot);
-        builder.Services.AddCluckworkFeatures(builder.Configuration);
+        builder.Services.AddCluckworkModules(builder.Configuration);
         var resolutions = 0;
         builder.Services.RemoveAll<UserManager<ApplicationUser>>();
         builder.Services.AddScoped<UserManager<ApplicationUser>>(_ =>
