@@ -72,7 +72,7 @@
   {
     "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.FindBySlugAsync(string slug, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
-    "justification": "Resolves an account by its global slug (slugs are unique across farms); used by the operator CLI and provisioning where no tenant is resolved."
+    "justification": "Resolves an account by its global slug (slugs are unique across farms) for farm-code login, before any tenant is resolved. Only login may call it (FindBySlugCallerTests, #1053)."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.ListTimeZonesAsync(CancellationToken ct)",

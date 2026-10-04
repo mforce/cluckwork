@@ -48,6 +48,9 @@ public interface IAccountRepository
     // but REJECTS uppercase rather than folding it), so a caller that forgets
     // to fold turns a phone keyboard's auto-capital into "unknown farm code".
     // One place, impossible to forget.
+    //
+    // This is Farm's seam, so any peer could call it and read another farm's
+    // account. FindBySlugCallerTests allows only login (#1053).
     Task<Account?> FindBySlugAsync(string slug, CancellationToken ct = default);
 
     // Put a tracked account back the way the database has it. A rolled-back
