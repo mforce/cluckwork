@@ -220,11 +220,29 @@ namespace Cluckwork.Application.Tests.Architecture
             try
             {
                 File.WriteAllText(path, "{\"owners\":{},\"edges\":[]," + section + "}");
-                var ledger = ModuleLedger.Load(path);
+                var ledger = ModuleLedger.Validate(ModuleLedger.Parse(path));
                 Assert.Contains(ledger.RegistryErrors, f => f.Contains(expected));
                 Assert.Contains(Evaluate(ledger), f => f.Contains("registry error") && f.Contains(expected));
             }
             finally { File.Delete(path); }
+        }
+
+        // Validate rejects a blank name in a record, not only a non-string one in JSON. The scanner's own
+        // checks report the same rows, so the assertion names Validate's message.
+        [Fact]
+        public void BlankTableName_IsRejectedByValidate()
+        {
+            var ledger = ModuleLedger.Validate(Ledger() with { Tables = [.. Ledger().Tables, new("Red", "")] });
+            Assert.Contains("tables has a blank or non-string entry in 'Red'", ledger.RegistryErrors);
+            Assert.Contains("table-owner registry error: tables has a blank or non-string entry in 'Red'", Evaluate(ledger));
+        }
+
+        [Fact]
+        public void BlankForeignKeyName_IsRejectedByValidate()
+        {
+            var ledger = ModuleLedger.Validate(Ledger() with { ForeignKeys = [Ledger().ForeignKeys[0] with { Name = "" }] });
+            Assert.Contains("foreignKeys[0] has a blank or non-string 'name'", ledger.RegistryErrors);
+            Assert.Contains("table-owner registry error: foreignKeys[0] has a blank or non-string 'name'", Evaluate(ledger));
         }
 
         [Fact]
@@ -259,7 +277,7 @@ namespace Cluckwork.Application.Tests.Architecture
             {
                 File.WriteAllText(path,
                     """{"owners":{},"edges":[],"tables":{"Red":["First"],"Red":["Second"]}}""");
-                Assert.Equal([new("Red", "First"), new TableClaim("Red", "Second")], ModuleLedger.Load(path).Tables);
+                Assert.Equal([new("Red", "First"), new TableClaim("Red", "Second")], ModuleLedger.Validate(ModuleLedger.Parse(path)).Tables);
             }
             finally { File.Delete(path); }
         }
@@ -278,7 +296,7 @@ namespace Cluckwork.Application.Tests.Architecture
                 var baseline = section == "owners" ? "\"edges\":[],"
                     : section == "edges" ? "\"owners\":{}," : "\"owners\":{},\"edges\":[],";
                 File.WriteAllText(path, "{" + baseline + $"\"{section}\":{value},\"{section}\":{value}" + "}");
-                var ledger = ModuleLedger.Load(path);
+                var ledger = ModuleLedger.Validate(ModuleLedger.Parse(path));
                 Assert.Contains($"duplicate top-level section '{section}'", ledger.RegistryErrors);
                 Assert.Contains($"table-owner registry error: duplicate top-level section '{section}'", Evaluate(ledger));
             }

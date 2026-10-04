@@ -19,24 +19,14 @@ public sealed class CouplingMatrixTests : IDisposable
             namespace Cluckwork.Beta;
             public sealed class BetaType { }
             """);
-        var ledgerPath = Path.Combine(_root, "module-ledger.json");
-        File.WriteAllText(ledgerPath, """
-            {
-              "owners": {
-                "Alpha": { "kind": "module", "namespaces": ["Cluckwork.Alpha"] },
-                "Beta": { "kind": "module", "namespaces": ["Cluckwork.Beta"] },
-                "Platform": { "kind": "platform", "namespaces": ["Cluckwork.Platform"] }
-              },
-              "edges": [
-                {
-                  "from": "Alpha", "to": "Beta", "kind": "W", "reason": "test",
-                  "symbols": ["Cluckwork.Alpha.Writer", "Cluckwork.Alpha.Reader"]
-                }
-              ]
-            }
-            """);
-        var ledger = ModuleLedger.Load(ledgerPath);
-        var edgeReport = ModuleLedgerScanner.Scan(sourceRoot, ledgerPath);
+        var ledger = ModuleLedger.Validate(new ModuleLedger(
+            [
+                new("Alpha", "module", ["Cluckwork.Alpha"], []),
+                new("Beta", "module", ["Cluckwork.Beta"], []),
+                new("Platform", "platform", ["Cluckwork.Platform"], []),
+            ],
+            [new("Alpha", "Beta", "W", "test", ["Cluckwork.Alpha.Writer", "Cluckwork.Alpha.Reader"])], []));
+        var edgeReport = ModuleLedgerScanner.Scan(sourceRoot, ledger);
         var tableReport = new TableOwnerReport(2,
             [new CrossOwnerForeignKey("BetaRows", "FK_BetaRows_AlphaRows_AlphaId", "Alpha", "Beta")], [], []);
         var adapterReport = new AdapterReachReport(
@@ -68,24 +58,14 @@ public sealed class CouplingMatrixTests : IDisposable
             namespace Cluckwork.Farm;
             public sealed class Account { }
             """);
-        var ledgerPath = Path.Combine(_root, "kind-change-ledger.json");
-        File.WriteAllText(ledgerPath, """
-            {
-              "owners": {
-                "Access": { "kind": "module", "namespaces": ["Cluckwork.Access"] },
-                "Farm": { "kind": "module", "namespaces": ["Cluckwork.Farm"] },
-                "Platform": { "kind": "platform", "namespaces": ["Cluckwork.Platform"] }
-              },
-              "edges": [
-                {
-                  "from": "Access", "to": "Farm", "kind": "W", "reason": "test",
-                  "symbols": ["Cluckwork.Access.Writer"]
-                }
-              ]
-            }
-            """);
-        var ledger = ModuleLedger.Load(ledgerPath);
-        var edgeReport = ModuleLedgerScanner.Scan(sourceRoot, ledgerPath);
+        var ledger = ModuleLedger.Validate(new ModuleLedger(
+            [
+                new("Access", "module", ["Cluckwork.Access"], []),
+                new("Farm", "module", ["Cluckwork.Farm"], []),
+                new("Platform", "platform", ["Cluckwork.Platform"], []),
+            ],
+            [new("Access", "Farm", "W", "test", ["Cluckwork.Access.Writer"])], []));
+        var edgeReport = ModuleLedgerScanner.Scan(sourceRoot, ledger);
         var emptyTables = new TableOwnerReport(0, [], [], []);
         var emptyAdapters = new AdapterReachReport([], [], [], [], [], [], [], 0, 0);
 
@@ -107,19 +87,14 @@ public sealed class CouplingMatrixTests : IDisposable
             namespace Cluckwork.Insights;
             public sealed class Projection { }
             """);
-        var ledgerPath = Path.Combine(_root, "event-ledger.json");
-        File.WriteAllText(ledgerPath, """
-            {
-              "owners": {
-                "Access": { "kind": "module", "namespaces": ["Cluckwork.Access"] },
-                "Insights": { "kind": "module", "namespaces": ["Cluckwork.Insights"] },
-                "Platform": { "kind": "platform", "namespaces": ["Cluckwork.Platform"] }
-              },
-              "edges": []
-            }
-            """);
-        var ledger = ModuleLedger.Load(ledgerPath);
-        var edgeReport = ModuleLedgerScanner.Scan(sourceRoot, ledgerPath);
+        var ledger = ModuleLedger.Validate(new ModuleLedger(
+            [
+                new("Access", "module", ["Cluckwork.Access"], []),
+                new("Insights", "module", ["Cluckwork.Insights"], []),
+                new("Platform", "platform", ["Cluckwork.Platform"], []),
+            ],
+            [], []));
+        var edgeReport = ModuleLedgerScanner.Scan(sourceRoot, ledger);
         var emptyTables = new TableOwnerReport(0, [], [], []) { ExpectedTableCountFloor = 0 };
         var emptyAdapters = new AdapterReachReport([], [], [], [], [], [], [], 0, 0);
 

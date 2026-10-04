@@ -36,7 +36,7 @@ public sealed class TenantBypassWalkTests
     [Fact]
     public void Walk_ParsesEveryFileWithoutErrors()
     {
-        var report = GuardScanner.Scan(SrcRoot(), AllowListPath());
+        var report = GuardScanner.Scan(SrcRoot(), NoAllowList);
 
         Assert.Empty(report.ParseErrors);
     }
@@ -56,7 +56,7 @@ public sealed class TenantBypassWalkTests
         File.WriteAllText(Path.Combine(dir, "src", "Bad.cs"),
             "namespace Bad;\npublic class Broken { void X() { "); // unclosed brace
 
-        var report = GuardScanner.Scan(Path.Combine(dir, "src"), Path.Combine(dir, "none.json"));
+        var report = GuardScanner.Scan(Path.Combine(dir, "src"), []);
 
         Assert.NotEmpty(report.ParseErrors);
         var failures = GuardScanner.Evaluate(report);
@@ -87,7 +87,7 @@ public sealed class TenantBypassWalkTests
     [Fact]
     public void Walk_FindsTheIgnoreQueryFiltersBaseline()
     {
-        var report = GuardScanner.Scan(SrcRoot(), AllowListPath());
+        var report = GuardScanner.Scan(SrcRoot(), NoAllowList);
         var iqf = report.Occurrences.Where(o => o.Kind == BypassKind.IgnoreQueryFilters).ToList();
 
         // Baseline pinned 2026-08-22: 36 code occurrences (52 total grep hits
@@ -107,7 +107,7 @@ public sealed class TenantBypassWalkTests
     [Fact]
     public void Walk_FindsRawSqlAndIdentityBans()
     {
-        var report = GuardScanner.Scan(SrcRoot(), AllowListPath());
+        var report = GuardScanner.Scan(SrcRoot(), NoAllowList);
 
         // 8 src files use raw-SQL APIs (FromSql*/ExecuteSql*/SqlQuery) — the
         // FOR UPDATE/audit paths. The walk must find at least their
@@ -130,8 +130,9 @@ public sealed class TenantBypassWalkTests
         _ = identity; // exercised by the real-tree test in Task 3
     }
 
-    private static string AllowListPath() =>
-        Path.Combine(AppContext.BaseDirectory, "Data", "tenant-bypass-allowlist.json");
+    // These tests assert what the walk finds, not what is excused. Their allow-list path never existed (it
+    // omitted TenantBypass/), so they have always run with no entries; the empty list keeps that (#859).
+    private static readonly IReadOnlyList<AllowListEntry> NoAllowList = [];
 
     // #732 review round 1 (F7) — excuse matching is Any() over (file, symbol), so two
     // rows carrying the SAME key both "match" every occurrence under it and neither can
@@ -152,13 +153,11 @@ public sealed class TenantBypassWalkTests
             using Microsoft.EntityFrameworkCore;
             class Probe { void Read(DbSet<object> rows) { _ = rows.IgnoreQueryFilters(); } }
             """);
-        var allowList = Path.Combine(dir, "allow.json");
-        File.WriteAllText(allowList, """
-            [
-              { "symbol": "Probe.Read(DbSet<object> rows)", "file": "src/Probe.cs", "justification": "first" },
-              { "symbol": "Probe.Read(DbSet<object> rows)", "file": "src/Probe.cs", "justification": "second" }
-            ]
-            """);
+        AllowListEntry[] allowList =
+        [
+            new() { Symbol = "Probe.Read(DbSet<object> rows)", File = "src/Probe.cs", Justification = "first" },
+            new() { Symbol = "Probe.Read(DbSet<object> rows)", File = "src/Probe.cs", Justification = "second" },
+        ];
 
         var report = GuardScanner.Scan(src, allowList);
         var failures = GuardScanner.Evaluate(report);

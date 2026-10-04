@@ -14,7 +14,7 @@ public sealed class PeerContractRealTreeTests(ITestOutputHelper output)
         var report = AdapterReachScanner.ScanPeers(
             Path.Combine(GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
                 ?? throw new InvalidOperationException("repo root not found"), "src"),
-            Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json"));
+            RealModuleLedger.Value);
         output.WriteLine($"Walked {report.WalkedAdapterCount} module members.");
 
         Assert.Equal(800, report.ExpectedAdapterCountFloor);

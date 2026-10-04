@@ -8,7 +8,7 @@ public sealed class AdapterReachRealTreeTests(ITestOutputHelper output)
     private static AdapterReachReport Scan() => AdapterReachScanner.Scan(
         Path.Combine(GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found"), "src"),
-        Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json"));
+        RealModuleLedger.Value);
 
     [Fact]
     public void RealSourceTree_EveryAdapterReachIsDeclared()

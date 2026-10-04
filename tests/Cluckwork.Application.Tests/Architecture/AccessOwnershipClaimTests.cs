@@ -7,9 +7,7 @@ public sealed class AccessOwnershipClaimTests
     [InlineData("Cluckwork.Application.Common.IStepUpGrantService")]
     public void CommonIdentityPortRemainsOwnedByContractedAccess(string type)
     {
-        var ledger = ModuleLedger.Load(Path.Combine(AppContext.BaseDirectory,
-            "Architecture", "Data", "module-ledger.json"));
-        var access = Assert.Single(ledger.Owners, owner => owner.Name == "Access");
+        var access = Assert.Single(RealModuleLedger.Value.Owners, owner => owner.Name == "Access");
         Assert.NotEmpty(access.Contract);
         Assert.Contains(type, access.Types);
     }

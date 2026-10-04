@@ -4,13 +4,12 @@ namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class ModuleLedgerTests : IDisposable
 {
-    private const string Owners = """
-          "owners": {
-            "Red":  { "kind": "module",   "namespaces": ["Cluckwork.Temp.Red"] },
-            "Blue": { "kind": "module",   "namespaces": ["Cluckwork.Temp.Blue"] },
-            "Hub":  { "kind": "platform", "namespaces": ["Cluckwork.Temp.Hub"] }
-          }
-        """;
+    private static readonly OwnerDefinition[] Owners =
+    [
+        Owner("Red", "module", "Cluckwork.Temp.Red"),
+        Owner("Blue", "module", "Cluckwork.Temp.Blue"),
+        Owner("Hub", "platform", "Cluckwork.Temp.Hub"),
+    ];
 
     private const string BlueSource = """
         namespace Cluckwork.Temp.Blue;
@@ -31,24 +30,20 @@ public sealed class ModuleLedgerTests : IDisposable
         File.WriteAllText(full, content);
     }
 
-    private string WriteLedger(string edges, string owners = Owners)
-    {
-        var path = Path.Combine(_tempRoot, "module-ledger.json");
-        File.WriteAllText(path, "{\n" + owners + ",\n  \"edges\": [" + edges + "]\n}\n");
-        return path;
-    }
+    private static ModuleLedger Ledger(IReadOnlyList<EdgeCell> edges, IReadOnlyList<OwnerDefinition>? owners = null) =>
+        ModuleLedger.Validate(new ModuleLedger(owners ?? Owners, edges, []));
 
-    private static string Cell(string from, string to, params string[] symbols)
-    {
-        var quoted = string.Join(", ", symbols.Select(s => "\"" + s + "\""));
-        return $"{{ \"from\": \"{from}\", \"to\": \"{to}\", \"kind\": \"R\", \"reason\": \"fixture\", \"symbols\": [{quoted}] }}";
-    }
+    private static OwnerDefinition Owner(string name, string kind, string ns, string? exact = null) =>
+        new(name, kind, [ns], exact is null ? [] : [exact]);
 
-    private IReadOnlyList<string> Evaluate(string ledgerPath) =>
-        ModuleLedgerScanner.Evaluate(ModuleLedgerScanner.Scan(Path.Combine(_tempRoot, "src"), ledgerPath));
+    private static EdgeCell Cell(string from, string to, params string[] symbols) =>
+        new(from, to, "R", "fixture", symbols);
 
-    private ModuleLedgerReport Scan(string ledgerPath) =>
-        ModuleLedgerScanner.Scan(Path.Combine(_tempRoot, "src"), ledgerPath);
+    private IReadOnlyList<string> Evaluate(ModuleLedger ledger) =>
+        ModuleLedgerScanner.Evaluate(ModuleLedgerScanner.Scan(Path.Combine(_tempRoot, "src"), ledger));
+
+    private ModuleLedgerReport Scan(ModuleLedger ledger) =>
+        ModuleLedgerScanner.Scan(Path.Combine(_tempRoot, "src"), ledger);
 
     [Fact]
     public void UsingDirective_CrossingOwners_IsAnUndeclaredEdge()
@@ -60,7 +55,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { public string Go() => B.Name; }
             """);
 
-        var failure = Evaluate(WriteLedger(string.Empty))
+        var failure = Evaluate(Ledger([]))
             .FirstOrDefault(f => f.Contains("undeclared cross-owner edge"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected an undeclared-edge failure");
@@ -78,7 +73,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { public string Go() => Cluckwork.Temp.Blue.B.Name; }
             """);
 
-        var failure = Evaluate(WriteLedger(string.Empty))
+        var failure = Evaluate(Ledger([]))
             .FirstOrDefault(f => f.Contains("undeclared cross-owner edge"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected an undeclared-edge failure");
@@ -96,7 +91,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { public string Go() => B.Name; }
             """);
 
-        var failures = Evaluate(WriteLedger(Cell("Red", "Blue", "Cluckwork.Temp.Red.R")));
+        var failures = Evaluate(Ledger([Cell("Red", "Blue", "Cluckwork.Temp.Red.R")]));
 
         Assert.True(failures.Count == 0, "expected a green gate, got: " + string.Join(" | ", failures));
     }
@@ -111,8 +106,8 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { public string Go() => B.Name; }
             """);
 
-        var failure = Evaluate(WriteLedger(
-                Cell("Red", "Blue", "Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.Gone")))
+        var failure = Evaluate(Ledger([
+                Cell("Red", "Blue", "Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.Gone")]))
             .FirstOrDefault(f => f.Contains("stale ledger row"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected a stale-row failure");
@@ -124,7 +119,7 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Blue.cs", BlueSource);
 
-        var failure = Evaluate(WriteLedger(Cell("Red", "Blue")))
+        var failure = Evaluate(Ledger([Cell("Red", "Blue")]))
             .FirstOrDefault(f => f.Contains("stale ledger row"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected a stale-row failure for an empty cell");
@@ -139,7 +134,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class G { }
             """);
 
-        var failure = Evaluate(WriteLedger(string.Empty))
+        var failure = Evaluate(Ledger([]))
             .FirstOrDefault(f => f.Contains("unowned namespace"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected an unowned-namespace failure");
@@ -156,7 +151,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { }
             """);
 
-        var failure = Evaluate(WriteLedger(string.Empty))
+        var failure = Evaluate(Ledger([]))
             .FirstOrDefault(f => f.Contains("referenced from"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected an unowned referenced-namespace failure");
@@ -175,7 +170,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class Second { }
             """);
 
-        var report = Scan(WriteLedger(string.Empty));
+        var report = Scan(Ledger([]));
 
         Assert.Equal(
             ["Cluckwork.Temp.Red.First", "Cluckwork.Temp.Red.Second"],
@@ -198,7 +193,7 @@ public sealed class ModuleLedgerTests : IDisposable
             }
             """);
 
-        var report = Scan(WriteLedger(string.Empty));
+        var report = Scan(Ledger([]));
 
         Assert.Equal("Cluckwork.Temp.Red.Inside", Assert.Single(report.LiveEdges).Symbol);
     }
@@ -215,7 +210,7 @@ public sealed class ModuleLedgerTests : IDisposable
             }
             """);
 
-        var report = Scan(WriteLedger(string.Empty));
+        var report = Scan(Ledger([]));
 
         Assert.Equal("Cluckwork.Temp.Red.Outer", Assert.Single(report.LiveEdges).Symbol);
     }
@@ -234,17 +229,16 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { }
             """);
 
-        Assert.Empty(Scan(WriteLedger(string.Empty)).LiveEdges);
+        Assert.Empty(Scan(Ledger([])).LiveEdges);
 
-        const string hubAsModule = """
-              "owners": {
-                "Red": { "kind": "module", "namespaces": ["Cluckwork.Temp.Red"] },
-                "Hub": { "kind": "module", "namespaces": ["Cluckwork.Temp.Hub"] }
-              }
-            """;
+        OwnerDefinition[] hubAsModule =
+        [
+            Owner("Red", "module", "Cluckwork.Temp.Red"),
+            Owner("Hub", "module", "Cluckwork.Temp.Hub"),
+        ];
         Assert.Equal(
             [("Hub", "Red"), ("Red", "Hub")],
-            Scan(WriteLedger(string.Empty, hubAsModule)).LiveEdges.Select(e => (e.From, e.To)));
+            Scan(Ledger([], hubAsModule)).LiveEdges.Select(e => (e.From, e.To)));
     }
 
     [Fact]
@@ -255,7 +249,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { public void Broken( }
             """);
 
-        var failure = Evaluate(WriteLedger(string.Empty))
+        var failure = Evaluate(Ledger([]))
             .FirstOrDefault(f => f.Contains("the walk cannot be trusted"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected a parse-error failure");
@@ -265,20 +259,19 @@ public sealed class ModuleLedgerTests : IDisposable
     [Fact]
     public void LongestNamespacePrefixWins_OverASiblingClaimingTheShorterOne()
     {
-        const string owners = """
-              "owners": {
-                "Wide": { "kind": "module", "namespaces": ["Cluckwork.Temp"] },
-                "Blue": { "kind": "module", "namespaces": ["Cluckwork.Temp.Blue"] },
-                "Red":  { "kind": "module", "namespaces": ["Cluckwork.Temp.Red"] }
-              }
-            """;
+        OwnerDefinition[] owners =
+        [
+            Owner("Wide", "module", "Cluckwork.Temp"),
+            Owner("Blue", "module", "Cluckwork.Temp.Blue"),
+            Owner("Red", "module", "Cluckwork.Temp.Red"),
+        ];
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", """
             namespace Cluckwork.Temp.Red;
             public class R { public string Go() => Cluckwork.Temp.Blue.B.Name; }
             """);
 
-        var report = Scan(WriteLedger(string.Empty, owners));
+        var report = Scan(Ledger([], owners));
 
         Assert.Equal("Blue", Assert.Single(report.LiveEdges).To);
     }
@@ -286,16 +279,15 @@ public sealed class ModuleLedgerTests : IDisposable
     [Fact]
     public void ExactClaim_CoversTheNamespaceButNotItsChildren()
     {
-        const string owners = """
-              "owners": {
-                "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp.Hub"], "exactNamespaces": ["Cluckwork.Temp"] },
-                "Red": { "kind": "module",   "namespaces": ["Cluckwork.Temp.Red"] }
-              }
-            """;
+        OwnerDefinition[] owners =
+        [
+            Owner("Hub", "platform", "Cluckwork.Temp.Hub", "Cluckwork.Temp"),
+            Owner("Red", "module", "Cluckwork.Temp.Red"),
+        ];
         WriteSource("src/Root.cs", "namespace Cluckwork.Temp;\npublic class Root { }\n");
         WriteSource("src/Child.cs", "namespace Cluckwork.Temp.Child;\npublic class C { }\n");
 
-        var failures = Evaluate(WriteLedger(string.Empty, owners));
+        var failures = Evaluate(Ledger([], owners));
 
         var unowned = Assert.Single(failures, f => f.Contains("unowned namespace"));
         Assert.Contains("'Cluckwork.Temp.Child'", unowned);
@@ -310,7 +302,7 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { public global::Cluckwork.Temp.Blue.B? Held; }
             """);
 
-        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
 
         Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R"), (edge.From, edge.To, edge.Symbol));
     }
@@ -321,7 +313,7 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red; public record R(Temp.Blue.B Value);");
 
-        var report = Scan(WriteLedger(string.Empty));
+        var report = Scan(Ledger([]));
         Assert.True(report.LiveEdges.Count == 1, string.Join(" | ", report.UnownedNamespaces));
         var edge = report.LiveEdges[0];
         Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
@@ -333,7 +325,7 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", "using Bs = System.Collections.Generic.List<Cluckwork.Temp.Blue.B>; namespace Cluckwork.Temp.Red; public class R { }");
 
-        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
         Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
     }
 
@@ -343,22 +335,20 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Blue; namespace Cluckwork.Temp.Hub; public class H { }");
 
-        var failure = Assert.Single(Evaluate(WriteLedger(string.Empty)));
+        var failure = Assert.Single(Evaluate(Ledger([])));
         Assert.Contains("global using of module namespace 'Cluckwork.Temp.Blue'", failure);
 
         WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Hub; namespace Cluckwork.Temp.Hub; public class H { }");
-        Assert.Empty(Evaluate(WriteLedger(string.Empty)));
+        Assert.Empty(Evaluate(Ledger([])));
     }
 
     [Fact]
     public void GlobalImportOfAPlatformNamespaceHoldingAClaimedType_IsAFailure()
     {
         WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Hub; namespace Cluckwork.Temp.Hub; public class H { }");
-        var claimed = Owners.Replace(
-            "\"Red\":  { \"kind\": \"module\",   \"namespaces\": [\"Cluckwork.Temp.Red\"] }",
-            "\"Red\":  { \"kind\": \"module\",   \"namespaces\": [\"Cluckwork.Temp.Red\"], \"types\": [\"Cluckwork.Temp.Hub.H\"] }");
+        OwnerDefinition[] claimed = [Owners[0] with { Types = ["Cluckwork.Temp.Hub.H"] }, Owners[1], Owners[2]];
 
-        var failure = Assert.Single(Evaluate(WriteLedger(string.Empty, claimed)));
+        var failure = Assert.Single(Evaluate(Ledger([], claimed)));
         Assert.Contains("global using of module namespace 'Cluckwork.Temp.Hub' in src/Hub.cs:1", failure);
     }
 
@@ -368,7 +358,7 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", "using Cluckwork.Temp.Blue; namespace Cluckwork.Temp.Red; public class R { } public class R<T> { }");
 
-        Assert.Equal(["Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R<>"], Scan(WriteLedger(string.Empty)).LiveEdges.Select(edge => edge.Symbol));
+        Assert.Equal(["Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R<>"], Scan(Ledger([])).LiveEdges.Select(edge => edge.Symbol));
     }
 
     [Fact]
@@ -376,22 +366,21 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Both.cs", "namespace Cluckwork.Temp.Red { public class R { } } namespace Cluckwork.Temp.Blue { public class B { } }");
 
-        Assert.Empty(Scan(WriteLedger(string.Empty)).LiveEdges);
+        Assert.Empty(Scan(Ledger([])).LiveEdges);
     }
 
     [Fact]
     public void ExactClaim_ResolvesAReferencedTypeBelowItsNamespace()
     {
-        const string owners = """
-              "owners": {
-                "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp.Hub"], "exactNamespaces": ["Cluckwork.Temp"] },
-                "Red": { "kind": "module", "namespaces": ["Cluckwork.Temp.Red"] }
-              }
-            """;
+        OwnerDefinition[] owners =
+        [
+            Owner("Hub", "platform", "Cluckwork.Temp.Hub", "Cluckwork.Temp"),
+            Owner("Red", "module", "Cluckwork.Temp.Red"),
+        ];
         WriteSource("src/Root.cs", "namespace Cluckwork.Temp; public class Root { }");
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red; public class R { Cluckwork.Temp.Root? Value; }");
 
-        Assert.Empty(Evaluate(WriteLedger(string.Empty, owners)));
+        Assert.Empty(Evaluate(Ledger([], owners)));
     }
 
     [Fact]
@@ -400,7 +389,7 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", "#if NET10_0\nusing Cluckwork.Temp.Blue;\n#endif\nnamespace Cluckwork.Temp.Red; public class R { }");
 
-        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
         Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
     }
 
@@ -409,7 +398,7 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(Cell("Red", "Red", "Cluckwork.Temp.Red.R")));
+        var failure = RegistryFailure(Ledger([Cell("Red", "Red", "Cluckwork.Temp.Red.R")]));
 
         Assert.Contains("names one owner on both ends", failure);
     }
@@ -431,7 +420,7 @@ public sealed class ModuleLedgerTests : IDisposable
 
         Assert.Equal(
             ["Cluckwork.Temp.Red.Probe@src/One.cs", "Cluckwork.Temp.Red.Probe@src/Two.cs"],
-            Scan(WriteLedger(string.Empty)).LiveEdges.Select(edge => edge.Symbol));
+            Scan(Ledger([])).LiveEdges.Select(edge => edge.Symbol));
     }
 
     [Fact]
@@ -447,9 +436,9 @@ public sealed class ModuleLedgerTests : IDisposable
             """);
 
 #if DEBUG
-        Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        Assert.Single(Scan(Ledger([])).LiveEdges);
 #else
-        Assert.Empty(Scan(WriteLedger(string.Empty)).LiveEdges);
+        Assert.Empty(Scan(Ledger([])).LiveEdges);
 #endif
     }
 
@@ -468,7 +457,7 @@ public sealed class ModuleLedgerTests : IDisposable
             }
             """);
 
-        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
 
         Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R"), (edge.From, edge.To, edge.Symbol));
     }
@@ -476,18 +465,17 @@ public sealed class ModuleLedgerTests : IDisposable
     [Fact]
     public void GlobalAliasToAnExactRoot_IsAFailure()
     {
-        const string owners = """
-              "owners": {
-                "Hub":  { "kind": "platform", "namespaces": ["Cluckwork.Temp.Hub"], "exactNamespaces": ["Cluckwork.Temp"] },
-                "Red":  { "kind": "module",   "namespaces": ["Cluckwork.Temp.Red"] },
-                "Blue": { "kind": "module",   "namespaces": ["Cluckwork.Temp.Blue"] }
-              }
-            """;
+        OwnerDefinition[] owners =
+        [
+            Owner("Hub", "platform", "Cluckwork.Temp.Hub", "Cluckwork.Temp"),
+            Owner("Red", "module", "Cluckwork.Temp.Red"),
+            Owner("Blue", "module", "Cluckwork.Temp.Blue"),
+        ];
         WriteSource("src/Root.cs", "namespace Cluckwork.Temp;\npublic class Root { }\n");
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Globals.cs", "global using T = Cluckwork.Temp;\n");
 
-        var failure = Evaluate(WriteLedger(string.Empty, owners))
+        var failure = Evaluate(Ledger([], owners))
             .FirstOrDefault(f => f.Contains("global using of module namespace"));
 
         Assert.False(string.IsNullOrEmpty(failure), "expected the root alias to be rejected");
@@ -506,7 +494,7 @@ public sealed class ModuleLedgerTests : IDisposable
             }
             """);
 
-        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
 
         Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R"), (edge.From, edge.To, edge.Symbol));
     }
@@ -524,7 +512,7 @@ public sealed class ModuleLedgerTests : IDisposable
             }
             """);
 
-        Assert.Empty(Scan(WriteLedger(string.Empty)).LiveEdges);
+        Assert.Empty(Scan(Ledger([])).LiveEdges);
     }
 
     [Fact]
@@ -534,7 +522,7 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
         WriteSource("src/Hub.cs", "namespace Cluckwork.Temp.Hub;\npublic class H { }\n");
 
-        var report = Scan(WriteLedger(string.Empty));
+        var report = Scan(Ledger([]));
 
         Assert.Equal(3, report.ScannedFileCount);
         Assert.Equal(3, report.ExpectedFileCountFloor);
@@ -544,15 +532,14 @@ public sealed class ModuleLedgerTests : IDisposable
     [Fact]
     public void DuplicateOwnerName_IsARegistryError()
     {
-        const string owners = """
-              "owners": {
-                "Red":  { "kind": "module", "namespaces": ["Cluckwork.Temp.Red"] },
-                "Red":  { "kind": "module", "namespaces": ["Cluckwork.Temp.Blue"] }
-              }
-            """;
+        OwnerDefinition[] owners =
+        [
+            Owner("Red", "module", "Cluckwork.Temp.Red"),
+            Owner("Red", "module", "Cluckwork.Temp.Blue"),
+        ];
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(string.Empty, owners));
+        var failure = RegistryFailure(Ledger([], owners));
 
         Assert.Contains("duplicate owner 'Red'", failure);
     }
@@ -560,15 +547,14 @@ public sealed class ModuleLedgerTests : IDisposable
     [Fact]
     public void NamespaceClaimedByTwoOwners_IsARegistryError()
     {
-        const string owners = """
-              "owners": {
-                "Red":  { "kind": "module", "namespaces": ["Cluckwork.Temp.Red"] },
-                "Blue": { "kind": "module", "namespaces": ["Cluckwork.Temp.Red"] }
-              }
-            """;
+        OwnerDefinition[] owners =
+        [
+            Owner("Red", "module", "Cluckwork.Temp.Red"),
+            Owner("Blue", "module", "Cluckwork.Temp.Red"),
+        ];
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(string.Empty, owners));
+        var failure = RegistryFailure(Ledger([], owners));
 
         Assert.Contains("namespace 'Cluckwork.Temp.Red' is claimed 2 times", failure);
     }
@@ -578,7 +564,7 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(Cell("Red", "Purple", "Cluckwork.Temp.Red.R")));
+        var failure = RegistryFailure(Ledger([Cell("Red", "Purple", "Cluckwork.Temp.Red.R")]));
 
         Assert.Contains("references unknown owner 'Purple'", failure);
     }
@@ -588,8 +574,7 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(
-            Cell("Red", "Blue", "Cluckwork.Temp.Red.R") + "," + Cell("Red", "Blue", "Cluckwork.Temp.Red.R")));
+        var failure = RegistryFailure(Ledger([Cell("Red", "Blue", "Cluckwork.Temp.Red.R"), Cell("Red", "Blue", "Cluckwork.Temp.Red.R")]));
 
         Assert.Contains("duplicate edge cell Red -> Blue", failure);
     }
@@ -599,8 +584,8 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(
-            Cell("Red", "Blue", "Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R")));
+        var failure = RegistryFailure(Ledger([
+            Cell("Red", "Blue", "Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R")]));
 
         Assert.Contains("lists symbol 'Cluckwork.Temp.Red.R' 2 times", failure);
     }
@@ -610,7 +595,7 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(Cell("Red", "Hub", "Cluckwork.Temp.Red.R")));
+        var failure = RegistryFailure(Ledger([Cell("Red", "Hub", "Cluckwork.Temp.Red.R")]));
 
         Assert.Contains("names platform owner 'Hub'", failure);
     }
@@ -620,16 +605,16 @@ public sealed class ModuleLedgerTests : IDisposable
     {
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
 
-        var failure = RegistryFailure(WriteLedger(
-            """{ "from": "Red", "to": "Blue", "kind": "X", "reason": "  ", "symbols": ["Cluckwork.Temp.Red.R"] }"""));
+        var failure = RegistryFailure(Ledger(
+            [new EdgeCell("Red", "Blue", "X", "  ", ["Cluckwork.Temp.Red.R"])]));
 
         Assert.Contains("has kind 'X'", failure);
         Assert.Contains("blank reason", failure);
     }
 
-    private string RegistryFailure(string ledgerPath)
+    private string RegistryFailure(ModuleLedger ledger)
     {
-        var failure = Evaluate(ledgerPath).FirstOrDefault(f => f.Contains("registry error"));
+        var failure = Evaluate(ledger).FirstOrDefault(f => f.Contains("registry error"));
         Assert.False(string.IsNullOrEmpty(failure), "expected a registry-error failure");
         return failure!;
     }

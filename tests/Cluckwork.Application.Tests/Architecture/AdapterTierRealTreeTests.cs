@@ -4,12 +4,10 @@ namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class AdapterTierRealTreeTests
 {
-    private static string LedgerPath => Path.Combine(AppContext.BaseDirectory, "Architecture", "Data", "module-ledger.json");
-
     private static AdapterTierReport Scan() => AdapterTierScanner.Scan(
         Path.Combine(GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found"), "src"),
-        LedgerPath);
+        RealModuleLedger.Value);
 
     [Fact]
     public void RealSourceTree_HasNoViolations()
@@ -22,8 +20,7 @@ public sealed class AdapterTierRealTreeTests
     [Fact]
     public void McpTierRow_IsDeclared()
     {
-        var ledger = ModuleLedger.Load(LedgerPath);
-        Assert.Contains(ledger.AdapterTiers, t => t.Namespace == "Cluckwork.Api.Mcp" && t.Surface == "MapMcp");
+        Assert.Contains(RealModuleLedger.Value.AdapterTiers, t => t.Namespace == "Cluckwork.Api.Mcp" && t.Surface == "MapMcp");
     }
 
     // /mcp is not mapped yet (#806 has not landed). This pins today's green: the

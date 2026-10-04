@@ -14,36 +14,35 @@ public sealed class AdapterReachTests : IDisposable
         File.WriteAllText(full, content);
     }
 
-    private string WriteLedger(string adapters = "", string adapterTiers = "", string farmContract = "")
-    {
-        var path = Path.Combine(_tempRoot, "module-ledger.json");
-        File.WriteAllText(path, """
+    private static ModuleLedger Ledger(IReadOnlyList<AdapterClaim>? adapters = null,
+        IReadOnlyList<AdapterTier>? adapterTiers = null, IReadOnlyList<string>? farmContract = null,
+        string seeder = "Cluckwork.Temp.Persistence.Seeder") =>
+        ModuleLedger.Validate(new ModuleLedger(
+            [
+                new("Hub", "platform", ["Cluckwork.Temp"], []),
+                new("Farm", "module", ["Cluckwork.Temp.Farm"], []) { Contract = farmContract ?? [] },
+                new("FlockManagement", "module", [], ["Cluckwork.Temp.Flocks"]),
+            ],
+            [], [])
+        {
+            AdapterRoots = new(["Cluckwork.Temp.Endpoints", "Cluckwork.Temp.Cli", "Cluckwork.Temp.Jobs"], [seeder])
             {
-              "owners": {
-                "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp"] },
-                "Farm": { "kind": "module", "namespaces": ["Cluckwork.Temp.Farm"], "contract": [FARM_CONTRACT] },
-                "FlockManagement": { "kind": "module", "namespaces": [], "exactNamespaces": ["Cluckwork.Temp.Flocks"] }
-              },
-              "edges": [],
-              "adapterRoots": {
-                "namespaces": ["Cluckwork.Temp.Endpoints", "Cluckwork.Temp.Cli", "Cluckwork.Temp.Jobs"],
-                "types": ["Cluckwork.Temp.Persistence.Seeder"],
-                "topLevelPrograms": ["Cluckwork.Temp.Api"],
-                "persistenceForbiddenNamespaces": ["Cluckwork.Temp.Endpoints"]
-              },
-              "adapters": [
-            """.Replace("FARM_CONTRACT", farmContract) + adapters + "],\n\"adapterTiers\": [" + adapterTiers + "]\n}\n");
-        return path;
-    }
+                TopLevelPrograms = ["Cluckwork.Temp.Api"],
+                PersistenceForbiddenNamespaces = ["Cluckwork.Temp.Endpoints"],
+            },
+            Adapters = adapters ?? [],
+            AdapterTiers = adapterTiers ?? [],
+        });
 
-    private AdapterReachReport Scan(string adapters = "", string adapterTiers = "", string farmContract = "") =>
-        AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), WriteLedger(adapters, adapterTiers, farmContract));
+    private AdapterReachReport Scan(IReadOnlyList<AdapterClaim>? adapters = null,
+        IReadOnlyList<AdapterTier>? adapterTiers = null, IReadOnlyList<string>? farmContract = null) =>
+        AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), Ledger(adapters, adapterTiers, farmContract));
 
-    private static string Tier(string ns = "Cluckwork.Temp.Mcp") =>
-        $$"""{ "namespace": "{{ns}}", "privilege": "DirectRepository", "surface": "MapMcp", "reason": "test", "reviewBy": "#1" }""";
+    private static AdapterTier Tier(string ns = "Cluckwork.Temp.Mcp") =>
+        new(ns, "DirectRepository", "MapMcp", "test", "#1");
 
-    private static string Row(string symbol = Symbol, string reaches = "\"Farm\"") =>
-        $$"""{ "symbol": "{{symbol}}", "reaches": [{{reaches}}] }""";
+    private static AdapterClaim Row(string symbol = Symbol, IReadOnlyList<string>? reaches = null) =>
+        new(symbol, reaches ?? ["Farm"]);
 
     [Fact]
     public void UndeclaredParameter_NamesSymbolOwnerTypeAndLocationAndRendersRow()
@@ -60,7 +59,7 @@ public sealed class AdapterReachTests : IDisposable
         Assert.Contains("src/Endpoint.cs:2", failure);
         Assert.Contains("\"symbol\": \"" + Symbol + "\"", failure);
         Assert.Contains("\"Farm\"", failure);
-        Assert.Empty(AdapterReachScanner.Evaluate(Scan(Row())));
+        Assert.Empty(AdapterReachScanner.Evaluate(Scan([Row()])));
     }
 
     [Theory]
@@ -118,7 +117,7 @@ public sealed class AdapterReachTests : IDisposable
                 }
             }
             """);
-        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row())));
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()])));
         Assert.Contains("forbidden persistence type Cluckwork.Infrastructure.Persistence.AppDbContext", failure);
         Assert.Contains(Symbol, failure);
         Assert.Contains("src/Endpoint.cs:4", failure);
@@ -395,7 +394,7 @@ public sealed class AdapterReachTests : IDisposable
             """);
         const string get = "Cluckwork.Temp.Api.Program.MapGet(/api/v1/x)";
         const string post = "Cluckwork.Temp.Api.Program.MapPost(/api/v1/x)";
-        var report = Scan(Row(symbol: get));
+        var report = Scan([Row(symbol: get)]);
         Assert.Equal([get, post], report.LiveReach.Select(r => r.Symbol));
         Assert.Equal(post, Assert.Single(report.Undeclared).Symbol);
         Assert.Contains(post + " -> Farm", Assert.Single(AdapterReachScanner.Evaluate(report)));
@@ -414,7 +413,7 @@ public sealed class AdapterReachTests : IDisposable
             """);
         const string get = "Cluckwork.Temp.Api.Program.MapMethods(/x;[GET])";
         const string post = "Cluckwork.Temp.Api.Program.MapMethods(/x;[POST])";
-        var report = Scan(Row(symbol: get));
+        var report = Scan([Row(symbol: get)]);
         Assert.Equal([get, post], report.LiveReach.Select(r => r.Symbol));
         Assert.Equal(post, Assert.Single(report.Undeclared).Symbol);
         Assert.Contains(post + " -> Farm", Assert.Single(AdapterReachScanner.Evaluate(report)));
@@ -431,7 +430,7 @@ public sealed class AdapterReachTests : IDisposable
             """);
         const string read = "Cluckwork.Temp.Api.Program.MapGet(/x).Read";
         const string write = "Cluckwork.Temp.Api.Program.MapGet(/x).Write";
-        var report = Scan(Row(symbol: read));
+        var report = Scan([Row(symbol: read)]);
         Assert.Equal([read, write], report.LiveReach.Select(r => r.Symbol));
         Assert.Equal(write, Assert.Single(report.Undeclared).Symbol);
         Assert.Contains(write + " -> Farm", Assert.Single(AdapterReachScanner.Evaluate(report)));
@@ -478,7 +477,7 @@ public sealed class AdapterReachTests : IDisposable
             public class Endpoint { public void Run({{type}} db) { } }
             """);
 
-        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row())));
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()])));
         Assert.Contains("forbidden persistence type", failure);
         Assert.Contains(Symbol, failure);
         Assert.Contains("src/Endpoint.cs:2", failure);
@@ -521,7 +520,7 @@ public sealed class AdapterReachTests : IDisposable
             namespace Cluckwork.Temp.Endpoints;
             public class Endpoint { public void Run(Cluckwork.Temp.Farm.Account account, Cluckwork.Temp.Flocks.Flock flock) { } }
             """);
-        var rows = Row(reaches: "\"Farm\", \"FlockManagement\"");
+        AdapterClaim[] rows = [Row(reaches: ["Farm", "FlockManagement"])];
         Assert.Empty(Scan(rows).Loosenable);
         WriteSource("Endpoint.cs", """
             namespace Cluckwork.Temp.Endpoints;
@@ -542,7 +541,7 @@ public sealed class AdapterReachTests : IDisposable
     public void EmptyOrDeletedAdapterRow_IsLoosenable(string member)
     {
         WriteSource("Endpoint.cs", "namespace Cluckwork.Temp.Endpoints; public class Endpoint { " + member + " }");
-        var report = Scan(Row());
+        var report = Scan([Row()]);
         Assert.Empty(AdapterReachScanner.Evaluate(report));
         Assert.Equal(["Farm"], Assert.Single(report.Loosenable).Reaches);
     }
@@ -560,19 +559,19 @@ public sealed class AdapterReachTests : IDisposable
     }
 
     [Theory]
-    [InlineData("\"Unknown\"", "unknown owner 'Unknown'")]
-    [InlineData("\"Hub\"", "platform owner 'Hub'")]
+    [InlineData("Unknown", "unknown owner 'Unknown'")]
+    [InlineData("Hub", "platform owner 'Hub'")]
     public void InvalidReachOwner_IsRegistryError(string reaches, string expected)
     {
         WriteSource("Endpoint.cs", "namespace Cluckwork.Temp.Endpoints; public class Endpoint { }");
-        Assert.Contains(Scan(Row(reaches: reaches)).RegistryErrors, e => e.Contains(expected, StringComparison.Ordinal));
+        Assert.Contains(Scan([Row(reaches: [reaches])]).RegistryErrors, e => e.Contains(expected, StringComparison.Ordinal));
     }
 
     [Fact]
     public void DuplicateAndBlankSymbols_AreRegistryErrors()
     {
         WriteSource("Endpoint.cs", "namespace Cluckwork.Temp.Endpoints; public class Endpoint { }");
-        var report = Scan(Row() + "," + Row() + "," + Row(symbol: " "));
+        var report = Scan([Row(), Row(), Row(symbol: " ")]);
         Assert.Contains(report.RegistryErrors, e => e.Contains("duplicate adapter symbol", StringComparison.Ordinal));
         Assert.Contains(report.RegistryErrors, e => e.Contains("blank", StringComparison.Ordinal));
         Assert.NotEmpty(AdapterReachScanner.Evaluate(report));
@@ -606,9 +605,7 @@ public sealed class AdapterReachTests : IDisposable
                 public class Seeder { private void Run(Account account) { } }
             }
             """);
-        var path = WriteLedger();
-        File.WriteAllText(path, File.ReadAllText(path).Replace("Cluckwork.Temp.Persistence.Seeder", "Cluckwork.Temp.Farm.Seeder", StringComparison.Ordinal));
-        var report = AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), path);
+        var report = AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), Ledger(seeder: "Cluckwork.Temp.Farm.Seeder"));
         Assert.Equal("Cluckwork.Temp.Farm.Account", Assert.Single(report.LiveReach).Type);
     }
 
@@ -686,7 +683,7 @@ public sealed class AdapterReachTests : IDisposable
             namespace Cluckwork.Temp.Mcp;
             public class WaterTools { public void Run(Cluckwork.Temp.Farm.IAccountRepository accounts) { } }
             """);
-        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(adapterTiers: Tier())));
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(adapterTiers: [Tier()])));
         Assert.Contains("Cluckwork.Temp.Mcp.WaterTools.Run -> Farm", failure);
         Assert.Contains("Cluckwork.Temp.Farm.IAccountRepository", failure);
     }
@@ -698,11 +695,11 @@ public sealed class AdapterReachTests : IDisposable
             namespace Cluckwork.Temp.Mcp;
             public class WaterTools { public void Run(AppDbContext db) { } }
             """);
-        var report = Scan(adapterTiers: Tier());
+        var report = Scan(adapterTiers: [Tier()]);
         Assert.Contains("forbidden persistence type AppDbContext", Assert.Single(report.PersistenceViolations));
     }
 
-    private const string FarmModuleContract = "\"Cluckwork.Temp.Farm.IFarmModule\"";
+    private static readonly string[] FarmModuleContract = ["Cluckwork.Temp.Farm.IFarmModule"];
 
     private void WriteFarmModule() => WriteSource("Farm.cs", """
         namespace Cluckwork.Temp.Farm;
@@ -719,7 +716,7 @@ public sealed class AdapterReachTests : IDisposable
             public class Endpoint { private void Run(Cluckwork.Temp.Farm.IFarmModule farm) { } }
             """);
 
-        var report = Scan(Row(), farmContract: FarmModuleContract);
+        var report = Scan([Row()], farmContract: FarmModuleContract);
         Assert.Empty(report.ContractBypasses);
         Assert.Empty(AdapterReachScanner.Evaluate(report));
     }
@@ -736,10 +733,10 @@ public sealed class AdapterReachTests : IDisposable
             }
             """);
 
-        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row(), farmContract: FarmModuleContract)));
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()], farmContract: FarmModuleContract)));
         Assert.Contains("contract bypass " + Symbol + " -> Farm through Cluckwork.Temp.Farm.IAccountRepository", failure);
         Assert.Contains("src/Endpoint.cs:4", failure);
-        Assert.Empty(AdapterReachScanner.Evaluate(Scan(Row())));
+        Assert.Empty(AdapterReachScanner.Evaluate(Scan([Row()])));
     }
 
     [Fact]
@@ -747,7 +744,7 @@ public sealed class AdapterReachTests : IDisposable
     {
         WriteFarmModule();
         var failure = Assert.Single(AdapterReachScanner.Evaluate(
-            Scan(farmContract: "\"Cluckwork.Temp.Farm.IGoneModule\"")));
+            Scan(farmContract: ["Cluckwork.Temp.Farm.IGoneModule"])));
         Assert.Contains("contract type 'Cluckwork.Temp.Farm.IGoneModule' is not declared under src/", failure);
     }
 
@@ -759,21 +756,16 @@ public sealed class AdapterReachTests : IDisposable
             public interface IFlockModule { }
             """);
         var failure = Assert.Single(AdapterReachScanner.Evaluate(
-            Scan(farmContract: "\"Cluckwork.Temp.Flocks.IFlockModule\"")));
+            Scan(farmContract: ["Cluckwork.Temp.Flocks.IFlockModule"])));
         Assert.Contains("contract type 'Cluckwork.Temp.Flocks.IFlockModule' is not in a namespace 'Farm' owns", failure);
     }
 
     [Fact]
     public void PlatformOwner_CannotDeclareAContract()
     {
-        var path = Path.Combine(_tempRoot, "platform-contract.json");
-        File.WriteAllText(path, """
-            {
-              "owners": { "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp"], "contract": ["Cluckwork.Temp.IHub"] } },
-              "edges": []
-            }
-            """);
-        Assert.Contains("owner 'Hub' is a platform owner and cannot declare a contract", ModuleLedger.Load(path).RegistryErrors);
+        var ledger = ModuleLedger.Validate(new ModuleLedger(
+            [new("Hub", "platform", ["Cluckwork.Temp"], []) { Contract = ["Cluckwork.Temp.IHub"] }], [], []));
+        Assert.Contains("owner 'Hub' is a platform owner and cannot declare a contract", ledger.RegistryErrors);
     }
 
     [Fact]
@@ -786,7 +778,7 @@ public sealed class AdapterReachTests : IDisposable
             public class Endpoint { private void Run(Repos repos) { } }
             """);
 
-        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row(), farmContract: FarmModuleContract)));
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()], farmContract: FarmModuleContract)));
         Assert.Contains("contract bypass " + Symbol + " -> Farm through Cluckwork.Temp.Farm.IAccountRepository", failure);
     }
 

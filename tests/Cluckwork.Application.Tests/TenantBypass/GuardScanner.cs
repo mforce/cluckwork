@@ -116,7 +116,7 @@ public static class GuardScanner
         ["GetUsersInRoleAsync"] = BypassKind.IdentityLookup,
     };
 
-    public static GuardReport Scan(string srcRoot, string allowListPath)
+    public static GuardReport Scan(string srcRoot, IReadOnlyList<AllowListEntry> allowList)
     {
         // The root is the PARENT of the src root. For the real tree that is
         // the repository (FindRepoRoot double-checks it holds Cluckwork.sln);
@@ -432,8 +432,6 @@ public static class GuardScanner
                 }
             }
         }
-
-        var allowList = AllowList.Load(allowListPath);
 
         // #732 review round 1 (F7) — the key is (file, symbol) and matching below is
         // Any(), so two rows carrying the SAME key both excuse every occurrence under

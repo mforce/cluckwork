@@ -32,11 +32,10 @@ public static class AdapterTierScanner
         "McpServerToolType", "McpServerToolTypeAttribute",
     };
 
-    public static AdapterTierReport Scan(string srcRoot, string ledgerPath)
+    public static AdapterTierReport Scan(string srcRoot, ModuleLedger ledger)
     {
         var srcFull = Path.GetFullPath(srcRoot);
         var repoRoot = Path.GetDirectoryName(srcFull)!;
-        var ledger = ModuleLedger.Load(ledgerPath);
         var errors = new List<string>(ledger.RegistryErrors);
 
         var files = GuardScanner.EnumerateSourceFiles(srcFull);
