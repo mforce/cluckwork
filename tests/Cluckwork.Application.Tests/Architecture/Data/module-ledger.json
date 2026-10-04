@@ -167,6 +167,8 @@
     "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"],
                           "contract": [
                             "Cluckwork.Application.Features.Inventory.IInventoryModule",
+                            "Cluckwork.Application.Features.Inventory.IInventoryFixture",
+                            "Cluckwork.Application.Features.Inventory.InventoryFixtureCounts",
                             "Cluckwork.Application.Features.Inventory.InventoryItemDetails",
                             "Cluckwork.Application.Features.Inventory.InventoryLotDetails",
                             "Cluckwork.Application.Features.Inventory.InventoryMovementDetails",
@@ -183,6 +185,7 @@
                           ],
                           "implementations": [
                             "Cluckwork.Infrastructure.Repositories.FeedUsageRepository",
+                            "Cluckwork.Infrastructure.Repositories.InventoryFixture",
                             "Cluckwork.Infrastructure.Repositories.InventoryItemRepository",
                             "Cluckwork.Infrastructure.Repositories.InventoryLotRepository",
                             "Cluckwork.Infrastructure.Repositories.InventoryMovementRepository",
@@ -191,6 +194,8 @@
     "Finance":          { "kind": "module",   "namespaces": ["Cluckwork.Domain.Expenses", "Cluckwork.Application.Features.Expenses"],
                           "contract": [
                             "Cluckwork.Application.Features.Expenses.IFinanceModule",
+                            "Cluckwork.Application.Features.Expenses.IFinanceFixture",
+                            "Cluckwork.Application.Features.Expenses.FinanceFixtureCounts",
                             "Cluckwork.Application.Features.Expenses.ExpenseCategoryDetails",
                             "Cluckwork.Application.Features.Expenses.ExpenseDetails",
                             "Cluckwork.Application.Features.Expenses.ExpenseListPage",
@@ -201,7 +206,8 @@
                           ],
                           "implementations": [
                             "Cluckwork.Infrastructure.Repositories.ExpenseCategoryRepository",
-                            "Cluckwork.Infrastructure.Repositories.ExpenseRepository"
+                            "Cluckwork.Infrastructure.Repositories.ExpenseRepository",
+                            "Cluckwork.Infrastructure.Repositories.FinanceFixture"
                           ] },
     "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export", "Cluckwork.Application.Features.Insights", "Cluckwork.Infrastructure.Insights"],
                           "contract": [
@@ -1567,34 +1573,10 @@
     },
     {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
-      "reaches": "Finance",
-      "tables": ["ExpenseCategories", "Expenses"],
-      "owner": "Platform",
-      "reason": "Counts ExpenseCategories and Expenses for the simulation manifest check, beside every other module's counts. IFinanceModule has no count read: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
       "reaches": "FlockManagement",
       "tables": ["BirdMovements", "Flocks"],
       "owner": "Platform",
       "reason": "Counts Flocks by status and BirdMovements for the simulation manifest check, beside every other module's counts. IFlockModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["FeedUsages", "InventoryItems", "InventoryLots", "InventoryMovements", "WaterUsages"],
-      "owner": "Platform",
-      "reason": "Counts InventoryItems, InventoryLots, InventoryMovements by type, FeedUsages and WaterUsages for the simulation manifest check, beside every other module's counts. IInventoryModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureAdjustmentAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["InventoryMovements"],
-      "owner": "Platform",
-      "reason": "Checks InventoryMovements for an Adjustment or Discard on the lot before calling IInventoryModule.RecordAdjustmentAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1614,43 +1596,11 @@
       "deleteWhen": "#858"
     },
     {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseAsync",
-      "reaches": "Finance",
-      "tables": ["Expenses"],
-      "owner": "Platform",
-      "reason": "Checks Expenses for the fixture description before calling IFinanceModule.CreateExpenseAsync, so a re-run converges instead of duplicating. IFinanceModule has no existence read: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExpenseCategoryAsync",
-      "reaches": "Finance",
-      "tables": ["ExpenseCategories"],
-      "owner": "Platform",
-      "reason": "Looks up ExpenseCategories by name before calling IFinanceModule.CreateCategoryAsync, so a re-run converges and reuses the existing id. IFinanceModule has no lookup by name: #849 kept the contract to the writes the seeder makes, and the seeder's conversion to module contracts is the Platform composition slice.",
-      "deleteWhen": "#858"
-    },
-    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExtraLineAsync",
       "reaches": "Commerce",
       "tables": ["SalesOrderItems"],
       "owner": "Platform",
       "reason": "Checks SalesOrderItems for the product's line on the order before calling ICommerceModule.AddOrderItemAsync, so a re-run converges instead of duplicating. ICommerceModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureInventoryItemAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["InventoryItems"],
-      "owner": "Platform",
-      "reason": "Looks up InventoryItems by name before calling IInventoryModule.CreateItemAsync, so a re-run converges and reuses the existing id. IInventoryModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureOpeningPurchaseAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["InventoryLots"],
-      "owner": "Platform",
-      "reason": "Checks InventoryLots for the item's opening lot, and reads its id, before calling IInventoryModule.RecordPurchaseAsync, so a re-run converges and reuses the lot. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {
@@ -1702,22 +1652,6 @@
       "deleteWhen": "#858"
     },
     {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFeedAdjustmentsAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["InventoryMovements"],
-      "owner": "Platform",
-      "reason": "Checks InventoryMovements for a fixture adjustment on each date before calling IInventoryModule.RecordAdjustmentAsync, then counts the band so a short one fails the seed. IInventoryModule has no existence or count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFeedUsageAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["FeedUsages"],
-      "owner": "Platform",
-      "reason": "Checks FeedUsages for a fixture row per flock, item and date before calling IInventoryModule.RecordFeedUsageAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFlockHistoryAsync",
       "reaches": "EggOperations",
       "tables": ["DailyEntries"],
@@ -1731,14 +1665,6 @@
       "tables": ["Accounts"],
       "owner": "Platform",
       "reason": "Checks for and inserts the second, pristine farm used as the tenant-isolation fixture, writing through a scope resolved to that farm. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedWaterUsageAsync",
-      "reaches": "GeneralInventory",
-      "tables": ["WaterUsages"],
-      "owner": "Platform",
-      "reason": "Checks WaterUsages for a fixture row per flock and date before calling IInventoryModule.RecordWaterUsageAsync, so a re-run converges instead of duplicating. IInventoryModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
       "deleteWhen": "#858"
     },
     {

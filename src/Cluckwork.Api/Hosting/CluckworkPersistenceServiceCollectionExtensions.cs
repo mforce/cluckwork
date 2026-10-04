@@ -1,4 +1,6 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Expenses;
+using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
@@ -6,6 +8,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
+using Cluckwork.Infrastructure.Repositories;
 using Cluckwork.Infrastructure.Time;
 using Microsoft.EntityFrameworkCore;
 
@@ -89,6 +92,8 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
         if (!environment.IsProduction())
         {
             services.AddScoped<IAccessSeedLookup, AccessSeedLookup>();
+            services.AddScoped<IFinanceFixture, FinanceFixture>();
+            services.AddScoped<IInventoryFixture, InventoryFixture>();
             services.AddScoped<DemoDataSeeder>();
         }
 
