@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
@@ -15,7 +16,6 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Identity;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -41,8 +41,7 @@ public sealed class DemoDataSeeder(
     AppDbContext db,
     TenantContext tenant,
     CurrentUserContext currentUser,
-    UserManager<ApplicationUser> users,
-    IAccountUserDirectory directory,
+    IAccessSeedLookup access,
     IEggOperationsModule eggs,
     IFlockModule flocks,
     ICommerceModule commerce,
@@ -93,7 +92,7 @@ public sealed class DemoDataSeeder(
         // trade was made knowingly: a demo fixture exists to be looked at,
         // looking requires a login, and a login requires an Owner — so the
         // prerequisite turns a later surprise into an immediate, clear failure.
-        var (owner, disabledOwners) = await FindOwnerAsync(accountId);
+        var (owner, disabledOwners) = await FindOwnerAsync(accountId, ct);
         if (owner is null)
         {
             // The remedy DIFFERS by cause, and naming the wrong one strands the
@@ -138,12 +137,15 @@ public sealed class DemoDataSeeder(
         // fixture is authored by the Owner: a one-person farm is exactly what
         // the demo represents, so every record's History line names them.
         //
-        // The roles come from UserManager, never from a `[Roles.Owner]` literal.
+        // The roles are read through Access, never from a `[Roles.Owner]` literal.
         // What is resolved here is an AUTHORIZATION input (FlockScopeGuard reads
         // it), so a literal would fabricate a privilege rather than report one —
         // and it would keep claiming Owner even for a user demoted between the
         // lookup above and this line.
-        currentUser.Resolve(owner.Id, owner.Email!, [.. await users.GetRolesAsync(owner)]);
+        var actor = await access.GetActorAsync(accountId, owner.Id, ct);
+        if (actor is null)
+            return SeedResult.Failed("Demo seed: the selected Owner cannot be read back.");
+        currentUser.Resolve(actor.Id, actor.Email!, actor.Roles);
 
         try
         {
@@ -187,12 +189,12 @@ public sealed class DemoDataSeeder(
     //
     // Returns the disabled count too, because the CALLER's advice depends on it:
     // "no Owner at all" and "only disabled Owners" need different remedies.
-    private async Task<(ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(Guid accountId)
+    private async Task<(AccessUserSummary? Owner, int DisabledOwners)> FindOwnerAsync(Guid accountId, CancellationToken ct)
     {
         // #532 — scoped at the query. GetUsersInRoleAsync loaded every Owner in
         // every farm and post-filtered in memory: correct while one farm
         // existed, an O(all farms) cross-tenant read once several do.
-        var owners = (await directory.FindByAccountRoleAsync(accountId, Roles.Owner)).ToList();
+        var owners = (await access.ListUsersInRoleAsync(accountId, Roles.Owner, ct)).ToList();
 
         return (owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
                 owners.Count(u => u.DisabledAt is not null));

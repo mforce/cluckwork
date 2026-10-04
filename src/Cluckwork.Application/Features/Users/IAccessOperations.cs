@@ -16,4 +16,7 @@ public interface IAccessOperations
     Task<Result<AccountProvisionOutcome>> ProvisionAccountAsync(
         string? name, string? slug, string? ownerEmail,
         string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct);
+
+    Task<Result<Guid>> CreateUserAsync(
+        Guid accountId, string email, string password, string? role, string? name, CancellationToken ct);
 }

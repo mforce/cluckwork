@@ -1,4 +1,4 @@
-namespace Cluckwork.Infrastructure.Identity;
+namespace Cluckwork.Infrastructure.Persistence;
 
 /// Config for the #243 load-test simulation seeder (bound from the "Simulation"
 /// section). #283: the Owner persona reuses whichever Owner the `bootstrap-admin`

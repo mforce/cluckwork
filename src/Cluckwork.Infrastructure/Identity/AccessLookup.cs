@@ -10,9 +10,27 @@ namespace Cluckwork.Infrastructure.Identity;
 // flock-scope middleware resolves it on every request. Stateless.
 public sealed class AccessLookup(AppDbContext db, TenantContext tenant) : IAccessLookup
 {
-    public Task<EffectiveAccountRole?> GetEffectiveRoleAsync(
-        Guid accountId, Guid userId, CancellationToken ct = default) =>
-        ReadEffectiveRoleAsync(accountId, userId, ct);
+    // #612 — a fresh, account-scoped read of the CURRENT effective role, for
+    // callers that must re-verify live rather than trust a JWT claim minted
+    // earlier in the request. A DISABLED user has NO effective role: the
+    // account-membership check alone returned the role of a user disabled after
+    // the request passed middleware, so a request parked on a lock resumed with
+    // the authority it held when it queued. Existence is not authority — the
+    // predicate is active membership.
+    public async Task<EffectiveAccountRole?> GetEffectiveRoleAsync(
+        Guid accountId, Guid userId, CancellationToken ct = default)
+    {
+        var isActive = await db.Users.AsNoTracking().AnyAsync(
+            u => u.Id == userId && u.AccountId == accountId && u.DisabledAt == null, ct);
+        if (!isActive) return null;
+
+        var roleNames = await (
+            from userRole in db.UserRoles
+            join role in db.Roles on userRole.RoleId equals role.Id
+            where userRole.UserId == userId
+            select role.Name!).ToListAsync(ct);
+        return Roles.ResolveEffective(roleNames);
+    }
 
     public async Task<IReadOnlySet<Guid>?> GetAssignedFlocksAsync(
         Guid userId, CancellationToken ct = default)
@@ -31,27 +49,5 @@ public sealed class AccessLookup(AppDbContext db, TenantContext tenant) : IAcces
         return assignments.Count == 0 || assignments.Any(a => a.FlockId is null)
             ? null
             : assignments.Select(a => a.FlockId!.Value).ToHashSet();
-    }
-
-    // #612 — a fresh, account-scoped read of the CURRENT effective role, for
-    // callers that must re-verify live rather than trust a JWT claim minted
-    // earlier in the request. A DISABLED user has NO effective role: the
-    // account-membership check alone returned the role of a user disabled after
-    // the request passed middleware, so a request parked on a lock resumed with
-    // the authority it held when it queued. Existence is not authority — the
-    // predicate is active membership.
-    private async Task<EffectiveAccountRole?> ReadEffectiveRoleAsync(
-        Guid accountId, Guid userId, CancellationToken ct)
-    {
-        var isActive = await db.Users.AsNoTracking().AnyAsync(
-            u => u.Id == userId && u.AccountId == accountId && u.DisabledAt == null, ct);
-        if (!isActive) return null;
-
-        var roleNames = await (
-            from userRole in db.UserRoles
-            join role in db.Roles on userRole.RoleId equals role.Id
-            where userRole.UserId == userId
-            select role.Name!).ToListAsync(ct);
-        return Roles.ResolveEffective(roleNames);
     }
 }

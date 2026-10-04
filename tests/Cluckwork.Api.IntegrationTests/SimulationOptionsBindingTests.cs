@@ -1,4 +1,4 @@
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 
 namespace Cluckwork.Api.IntegrationTests;
