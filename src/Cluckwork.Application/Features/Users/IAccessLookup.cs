@@ -10,11 +10,9 @@ public interface IAccessLookup
     Task<Cluckwork.Domain.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
         Guid accountId, Guid userId, CancellationToken ct = default);
 
-    // No rows means account-wide access; a null FlockId is a farm-wide row.
+    // Null means account-wide access: zero rows or any farm-wide row.
     // Throws when the tenant is unresolved, because the read would then find
     // no rows and grant account-wide access.
-    Task<IReadOnlyList<FlockAssignmentDetails>> ListFlockAssignmentsAsync(
+    Task<IReadOnlySet<Guid>?> GetAssignedFlocksAsync(
         Guid userId, CancellationToken ct = default);
 }
-
-public sealed record FlockAssignmentDetails(Guid Id, Guid? FlockId);

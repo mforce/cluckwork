@@ -54,26 +54,8 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
             return;
         }
 
-        var assignments = await access.ListFlockAssignmentsAsync(user.UserId, context.RequestAborted);
-
-        if (assignments.Count == 0)
-        {
-            // 0 rows: unscoped worker (grandfathered #73). Unrestricted.
-            scope.Resolve(true, []);
-            await next(context);
-            return;
-        }
-
-        if (assignments.Any(a => a.FlockId == null))
-        {
-            // Farm-wide row: grants everything. Unrestricted.
-            scope.Resolve(true, []);
-            await next(context);
-            return;
-        }
-
-        var flockIds = assignments.Where(a => a.FlockId != null).Select(a => a.FlockId!.Value).ToList();
-        scope.Resolve(false, flockIds);
+        var assigned = await access.GetAssignedFlocksAsync(user.UserId, context.RequestAborted);
+        scope.Resolve(assigned is null, assigned is null ? [] : assigned);
         await next(context);
     }
 }

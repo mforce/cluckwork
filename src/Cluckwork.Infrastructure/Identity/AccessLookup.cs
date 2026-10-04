@@ -12,9 +12,9 @@ public sealed class AccessLookup(AppDbContext db, TenantContext tenant) : IAcces
 {
     public Task<EffectiveAccountRole?> GetEffectiveRoleAsync(
         Guid accountId, Guid userId, CancellationToken ct = default) =>
-        ReadEffectiveRoleAsync(db, accountId, userId, ct);
+        ReadEffectiveRoleAsync(accountId, userId, ct);
 
-    public async Task<IReadOnlyList<FlockAssignmentDetails>> ListFlockAssignmentsAsync(
+    public async Task<IReadOnlySet<Guid>?> GetAssignedFlocksAsync(
         Guid userId, CancellationToken ct = default)
     {
         // The tenant query filter scopes this read. Under an unresolved tenant
@@ -28,7 +28,9 @@ public sealed class AccessLookup(AppDbContext db, TenantContext tenant) : IAcces
         var assignments = await db.UserRoleAssignments.AsNoTracking()
             .Where(a => a.UserId == userId)
             .ToListAsync(ct);
-        return assignments.Select(a => new FlockAssignmentDetails(a.Id, a.FlockId)).ToList();
+        return assignments.Count == 0 || assignments.Any(a => a.FlockId is null)
+            ? null
+            : assignments.Select(a => a.FlockId!.Value).ToHashSet();
     }
 
     // #612 — a fresh, account-scoped read of the CURRENT effective role, for
@@ -37,10 +39,9 @@ public sealed class AccessLookup(AppDbContext db, TenantContext tenant) : IAcces
     // account-membership check alone returned the role of a user disabled after
     // the request passed middleware, so a request parked on a lock resumed with
     // the authority it held when it queued. Existence is not authority — the
-    // predicate is active membership. IdentityProvider.GetEffectiveRoleAsync runs
-    // this same routine, so the two can never disagree.
-    internal static async Task<EffectiveAccountRole?> ReadEffectiveRoleAsync(
-        AppDbContext db, Guid accountId, Guid userId, CancellationToken ct)
+    // predicate is active membership.
+    private async Task<EffectiveAccountRole?> ReadEffectiveRoleAsync(
+        Guid accountId, Guid userId, CancellationToken ct)
     {
         var isActive = await db.Users.AsNoTracking().AnyAsync(
             u => u.Id == userId && u.AccountId == accountId && u.DisabledAt == null, ct);

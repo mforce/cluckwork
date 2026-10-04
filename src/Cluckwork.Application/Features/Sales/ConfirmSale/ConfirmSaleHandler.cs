@@ -199,13 +199,9 @@ public sealed class ConfirmSaleHandler(
             // before stock (no lock — "committed" is the contract; assignment
             // add/remove is not newly serialized). Zero rows or any farm-wide
             // row (FlockId null) is Unrestricted, matching FlockScopeGuard.
-            HashSet<Guid>? assignedFlockIds = null;
+            IReadOnlySet<Guid>? assignedFlockIds = null;
             if (role == EffectiveAccountRole.Worker)
-            {
-                var rows = await access.ListFlockAssignmentsAsync(actingUserId, transactionCt);
-                if (rows.Count > 0 && rows.All(r => r.FlockId is not null))
-                    assignedFlockIds = rows.Select(r => r.FlockId!.Value).ToHashSet();
-            }
+                assignedFlockIds = await access.GetAssignedFlocksAsync(actingUserId, transactionCt);
             var isRestrictedWorker = assignedFlockIds is not null;
 
             // 7 — ONE farm-wide FIFO lock statement for every grade on the

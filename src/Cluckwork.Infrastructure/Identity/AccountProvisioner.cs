@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
@@ -200,9 +201,3 @@ public sealed class AccountProvisioner(
         string CurrencyCode,
         string TimeZoneId);
 }
-
-public sealed record AccountProvisionOutcome(
-    Guid AccountId,
-    string Slug,
-    string OwnerEmail,
-    string TemporaryPassword);

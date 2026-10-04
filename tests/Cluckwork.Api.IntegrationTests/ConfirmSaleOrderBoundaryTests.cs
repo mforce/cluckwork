@@ -1,10 +1,14 @@
+using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Net;
-using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -13,7 +17,6 @@ namespace Cluckwork.Api.IntegrationTests;
 public sealed class ConfirmSaleOrderBoundaryTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-    private sealed record Created(Guid Id);
 
     private async Task<Guid> SeedLotAsync(Guid accountId, Guid flockId, Guid gradeId, int quantity, DateOnly date)
     {
@@ -35,10 +38,8 @@ public sealed class ConfirmSaleOrderBoundaryTests(CluckworkWebApplicationFactory
     {
         var ownerEmail = $"o-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(ownerEmail);
-        var owner = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(ownerEmail));
         var farmId = Guid.NewGuid();
         var gradeId = (await factory.SeedEggGradesAsync(accountId, farmId, "Large"))["Large"];
-        var productId = await factory.SeedProductAsync(accountId, farmId, gradeId, "Large Eggs", 100);
         var flockA = await factory.SeedFlockAsync(accountId, farmId);
         var flockB = await factory.SeedFlockAsync(accountId, farmId);
         // The assigned flock alone cannot fill 10; the farm can. Under the
@@ -56,16 +57,14 @@ public sealed class ConfirmSaleOrderBoundaryTests(CluckworkWebApplicationFactory
             await db.SaveChangesAsync();
             return id;
         });
-        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+        var commands = new ConfirmCommands();
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(commands))));
+        var worker = host.CreateClient(TestHarness.Cookieless(factory));
+        worker.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", await factory.LoginForAccessTokenAsync(workerEmail));
 
-        var customer = await owner.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
-            new { name = $"Buyer {Guid.NewGuid():N}"[..14], phone = "1" });
-        var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
-        var order = await owner.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
-            new { customerId, orderDate = Today });
-        var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
-        Assert.Equal(HttpStatusCode.Created, (await owner.PostWithKeyAsync(
-            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(), new { productId, quantity = 10 })).StatusCode);
+        var orderId = await factory.SeedSalesOrderAsync(accountId, gradeId, 10);
 
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
@@ -90,6 +89,10 @@ public sealed class ConfirmSaleOrderBoundaryTests(CluckworkWebApplicationFactory
         await transaction.CommitAsync();
         var response = await confirm;
 
+        Assert.Equal(disableWorker
+            ? ["account lock", "order lock", "active actor"]
+            : new[] { "account lock", "order lock", "active actor", "effective role", "assignments", "stock lock" },
+            commands.Sequence.ToArray());
         Assert.Equal(disableWorker ? HttpStatusCode.Forbidden : HttpStatusCode.OK, response.StatusCode);
         var (quantityA, quantityB) = await factory.WithTenantScopeAsync(accountId, async db =>
         {
@@ -98,5 +101,32 @@ public sealed class ConfirmSaleOrderBoundaryTests(CluckworkWebApplicationFactory
         });
         Assert.Equal(disableWorker ? 5 : 0, quantityA);
         Assert.Equal(disableWorker ? 20 : 15, quantityB);
+    }
+
+    private sealed class ConfirmCommands : DbCommandInterceptor
+    {
+        public ConcurrentQueue<string> Sequence { get; } = new();
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.Transaction is null) return ValueTask.FromResult(result);
+            var sql = command.CommandText;
+            var step = sql switch
+            {
+                _ when sql.Contains("FOR SHARE", StringComparison.Ordinal) => "account lock",
+                _ when sql.Contains("\"SalesOrders\"", StringComparison.Ordinal)
+                    && sql.Contains("FOR UPDATE", StringComparison.Ordinal) => "order lock",
+                _ when sql.Contains("FROM \"AspNetUsers\"", StringComparison.Ordinal) => "active actor",
+                _ when sql.Contains("FROM \"AspNetUserRoles\"", StringComparison.Ordinal) => "effective role",
+                _ when sql.Contains("FROM \"UserRoleAssignments\"", StringComparison.Ordinal) => "assignments",
+                _ when sql.Contains("\"EggLots\"", StringComparison.Ordinal)
+                    && sql.Contains("FOR UPDATE", StringComparison.Ordinal) => "stock lock",
+                _ => null,
+            };
+            if (step is not null) Sequence.Enqueue(step);
+            return ValueTask.FromResult(result);
+        }
     }
 }

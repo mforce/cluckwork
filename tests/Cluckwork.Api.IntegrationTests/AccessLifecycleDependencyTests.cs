@@ -3,6 +3,9 @@ using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +17,27 @@ namespace Cluckwork.Api.IntegrationTests;
 [Collection(IntegrationCollection.Name)]
 public sealed class AccessLifecycleDependencyTests(CluckworkWebApplicationFactory factory)
 {
+    [Fact]
+    public async Task ProvisioningOutcomeNamesTheCommittedFarmAndOwnerAndCarriesTheirWorkingPassword()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var slug = "outcome-" + suffix[..12];
+        var email = $"outcome-{suffix}@test.local";
+        using var scope = factory.Services.CreateScope();
+        var operations = scope.ServiceProvider.GetRequiredService<IAccessOperations>();
+        var result = await operations.ProvisionAccountAsync(
+            "Outcome Farm", slug, email, "en-US", "USD", "UTC", CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var account = await db.Accounts.IgnoreQueryFilters().SingleAsync(a => a.Slug == slug);
+        var owner = await db.Users.SingleAsync(u => u.AccountId == account.Id && u.Email == email);
+        Assert.Equal(account.Id, result.Value.AccountId);
+        Assert.Equal(account.Slug, result.Value.Slug);
+        Assert.Equal(owner.Email, result.Value.OwnerEmail);
+        Assert.Equal(System.Net.HttpStatusCode.OK,
+            (await factory.TryLoginAsync(email, result.Value.TemporaryPassword)).StatusCode);
+    }
+
     [Theory]
     [InlineData("suspend-account", false)]
     [InlineData("reactivate-account", false)]

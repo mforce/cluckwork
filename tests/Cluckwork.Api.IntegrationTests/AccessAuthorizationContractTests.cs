@@ -31,7 +31,7 @@ public sealed class AccessAuthorizationContractTests(CluckworkWebApplicationFact
         Assert.False(second.ServiceProvider.GetRequiredService<ICurrentUser>().IsResolved);
         var lookup = first.ServiceProvider.GetRequiredService<IAccessLookup>();
         Assert.NotSame(lookup, second.ServiceProvider.GetRequiredService<IAccessLookup>());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => lookup.ListFlockAssignmentsAsync(actor.UserId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => lookup.GetAssignedFlocksAsync(actor.UserId));
     }
 
     [Fact]
@@ -129,6 +129,8 @@ public sealed class AccessAuthorizationContractTests(CluckworkWebApplicationFact
             }
             else
                 Assert.True((await users.AddToRolesAsync(target, [Roles.ReadOnly, Roles.Manager])).Succeeded);
+            var listed = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>().ListUsersAsync(accountId);
+            Assert.Equal(disabled ? "Worker" : Roles.Manager, listed.Single(u => u.Id == targetId).Role);
         }
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
         var stepUp = await client.PostAsJsonAsync("/api/v1/auth/step-up", new { password = TestHarness.Password });

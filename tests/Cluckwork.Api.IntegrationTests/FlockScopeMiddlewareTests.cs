@@ -141,8 +141,8 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         var context = new DefaultHttpContext();
         context.Request.Path = "/health/live";
 
-        // Any UserRoleAssignments query attempts the unreachable connection and
-        // throws. Completing proves the unresolved branch performs no DB I/O.
+        // The lookup refuses an unresolved tenant before querying. Completing
+        // proves the unresolved actor branch never calls it.
         await middleware.InvokeAsync(context, flockScope, currentUser, new AccessLookup(db, tenant));
 
         Assert.True(nextCalled);

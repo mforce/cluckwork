@@ -78,14 +78,8 @@ public sealed class FlockScopeGuard(
         if (Roles.ResolveEffective(user.Roles) != EffectiveAccountRole.Worker)
             return Result.Success();
 
-        var assignments = await access.ListFlockAssignmentsAsync(user.UserId, ct);
-
-        // No rows = unscoped worker (grandfathered #73 behavior).
-        if (assignments.Count == 0) return Result.Success();
-
-        // A farm/house-wide row (no flock) grants everything in the
-        // single-farm MVP; otherwise the flock must be assigned.
-        return assignments.Any(a => a.FlockId == null || a.FlockId == flockId)
+        var assigned = await access.GetAssignedFlocksAsync(user.UserId, ct);
+        return assigned is null || assigned.Contains(flockId)
             ? Result.Success()
             : Result.Failure(Error.Domain(
                 "FlockScope.NotAssigned",

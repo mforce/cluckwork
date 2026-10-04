@@ -287,7 +287,7 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
     // from) flips on which policy actually won the race.
     //
     // A separate role-change race would exercise the identical Account lock
-    // statement (the fresh identity.GetEffectiveRoleAsync re-check runs
+    // statement (the fresh IAccessLookup.GetEffectiveRoleAsync re-check runs
     // strictly AFTER this same FOR SHARE acquisition, inside the same
     // transaction) — this one test already proves that acquisition itself
     // serializes, so a second copy would add no new coverage.

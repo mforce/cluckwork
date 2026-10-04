@@ -35,7 +35,7 @@ public sealed class ReactivateAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var result = await scope.ServiceProvider.GetRequiredService<IAccessOperations>().ReactivateAccountAsync(
+            var result = await scope.ServiceProvider.GetRequiredService<IAccessAccountLifecycle>().ReactivateAccountAsync(
                 accountId.Value, CliDispatcher.ArgValue(args, "--reason"), CancellationToken.None);
             if (result.IsFailure)
             {

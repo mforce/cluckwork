@@ -1,6 +1,7 @@
 using System.Net;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;

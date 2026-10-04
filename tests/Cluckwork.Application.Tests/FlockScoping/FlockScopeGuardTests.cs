@@ -14,8 +14,9 @@ public sealed class FlockScopeGuardTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Port=1;Database=unreachable;Username=unreachable;Password=unreachable")
             .Options;
-        using var db = new AppDbContext(options, new TenantContext(), new FlockScope());
-        var guard = new FlockScopeGuard(new AccessLookup(db, new TenantContext()), new CurrentUserContext());
+        var tenant = new TenantContext();
+        using var db = new AppDbContext(options, tenant, new FlockScope());
+        var guard = new FlockScopeGuard(new AccessLookup(db, tenant), new CurrentUserContext());
 
         var result = await guard.CheckAsync(Guid.NewGuid());
 

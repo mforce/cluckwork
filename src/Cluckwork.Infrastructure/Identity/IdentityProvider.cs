@@ -1452,12 +1452,6 @@ public sealed class IdentityProvider(
             user.PreferredStepperUnit);
     }
 
-    // #612 — AssignFlockHandler's target-role admission. The read is the one
-    // routine IAccessLookup also runs (#857); see AccessLookup.
-    public Task<Cluckwork.Domain.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
-        Guid accountId, Guid userId, CancellationToken ct = default) =>
-        AccessLookup.ReadEffectiveRoleAsync(db, accountId, userId, ct);
-
     public async Task<Result> SetLanguageAsync(
         Guid accountId, Guid userId, string? language, CancellationToken ct = default)
     {
