@@ -92,12 +92,16 @@ public sealed class SimulationDataSeeder(
     CurrentUserContext currentUser,
     IAccessSeedLookup access,
     IAccessOperations operations,
+    IAccessFixture accessFixture,
     IFlockModule flockModule,
+    IFlockFixture flockFixture,
     IFlockLookup flocks,
-    IAuditWriter audit,
     IFarmModule farm,
+    IFarmFixture farmFixture,
     IEggOperationsModule eggs,
+    IEggOperationsFixture eggsFixture,
     ICommerceModule commerce,
+    ICommerceFixture commerceFixture,
     IInventoryModule inventory,
     IInventoryFixture inventoryFixture,
     IFinanceModule finance,
@@ -444,22 +448,14 @@ public sealed class SimulationDataSeeder(
     // separately, from the single FindOwnerAsync lookup.
     private async Task<bool> MissingBaseDataAsync(Guid accountId, CancellationToken ct)
     {
-        var accountExists = await db.Accounts
-            .IgnoreQueryFilters()
-            .AnyAsync(a => a.Id == accountId, ct);
-        if (!accountExists) return true;
+        if (!await farmFixture.AccountExistsAsync(accountId, ct)) return true;
 
-        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct);
-        if (!adminRoleExists) return true;
+        if (!await access.OwnerRoleExistsAsync(ct)) return true;
 
-        // Tenant is unresolved here, so IgnoreQueryFilters + explicit AccountId
-        // (the repository's ListActiveAsync would apply the tenant filter and
-        // see nothing).
-        var saleableGradeNames = await db.EggGrades
-            .IgnoreQueryFilters()
-            .Where(g => g.AccountId == accountId && g.IsSaleable)
-            .Select(g => g.Name)
-            .ToListAsync(ct);
+        // Tenant is unresolved here, so the fixture reads with the filter off
+        // and an explicit AccountId (the repository's ListActiveAsync would
+        // apply the tenant filter and see nothing).
+        var saleableGradeNames = await eggsFixture.ListSaleableGradeNamesAsync(accountId, ct);
         return !RequiredSaleableGrades.All(saleableGradeNames.Contains);
     }
 
@@ -492,7 +488,7 @@ public sealed class SimulationDataSeeder(
     private async Task<(bool RoleExists, AccessUserSummary? Owner, int DisabledOwners)> FindOwnerAsync(
         Guid accountId, CancellationToken ct)
     {
-        if (!await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct)) return (false, null, 0);
+        if (!await access.OwnerRoleExistsAsync(ct)) return (false, null, 0);
 
         // #532 — see DemoDataSeeder: scoped at the query, not post-filtered.
         var owners = (await access.ListUsersInRoleAsync(accountId, Roles.Owner, ct)).ToList();
@@ -919,8 +915,7 @@ public sealed class SimulationDataSeeder(
             var isLast = offset == ExplicitBirdMovementCount - 1;
             var note = isLast ? BirdMovementPageTwoSentinelNote : $"Simulation fixture explicit adjustment {d}";
 
-            var exists = await db.BirdMovements.AnyAsync(
-                m => m.FlockId == flockId && m.Date == date, ct);
+            var exists = await flockFixture.BirdMovementExistsAsync(flockId, date, ct);
             if (!exists)
             {
                 var result = await flockModule.RecordMovementAsync(new RecordBirdMovementCommand(
@@ -933,8 +928,7 @@ public sealed class SimulationDataSeeder(
         // Fail closed rather than silently publish a short band: the probe
         // above only skips rows that already exist, so a count short of 51
         // means the dates stopped being distinct.
-        var count = await db.BirdMovements.CountAsync(
-            m => m.FlockId == flockId && m.Type == BirdMovementType.Adjustment, ct);
+        var count = await flockFixture.CountAdjustmentsAsync(flockId, ct);
         if (count < ExplicitBirdMovementCount)
             throw new InvalidOperationException(
                 $"Simulation seed: only {count} explicit bird adjustments exist on the operational " +
@@ -978,35 +972,15 @@ public sealed class SimulationDataSeeder(
         var worker = cast.Workers[0];
         var flockId = flockIds[0];
 
-        var existingAssignments = await db.UserRoleAssignments.AsNoTracking()
-            .Where(a => a.UserId == worker.UserId)
-            .OrderBy(a => a.Id)
-            .ToListAsync(ct);
-        // Idempotent re-run — the pair, not Empty. See the header.
-        if (existingAssignments.Any(a => a.FlockId == flockId)) return (worker.UserId, flockId);
-
         // #606 — the interactive AssignFlockHandler now requires an
         // interactive step-up grant this trusted, non-HTTP caller cannot
-        // hold. Provision the assignment directly at the repository/audit
-        // layer instead of routing through the (now-gated) handler, writing
-        // the SAME audit shape (actor, target email, flock NAME) the
-        // handler would have written — pinned by
+        // hold, so the Access fixture writes the assignment with the SAME
+        // audit shape (actor, target email, flock NAME) the handler would
+        // have written — pinned by
         // SimulationSeed_RestrictedWorkerAssignment_PreservesActorAndAuditDetails.
-        var flock = await flocks.GetAsync(flockId, ct)
-            ?? throw new InvalidOperationException($"Simulation flock {flockId} does not exist.");
-
-        var assignment = UserRoleAssignment.Create(
-            Guid.NewGuid(), accountId, worker.UserId, farmId: null, houseId: null, flockId);
-        await db.UserRoleAssignments.AddAsync(assignment, ct);
-
-        await audit.WriteAsync(
-            AuditActions.UserFlockAssign,
-            "User",
-            worker.UserId,
-            details: new { worker.Email, Flock = flock.Name },
-            ct: ct);
-
-        await db.SaveChangesAsync(ct);
+        // An existing assignment is the idempotent re-run: the pair, not
+        // Empty. See the header.
+        await accessFixture.EnsureFlockAssignmentAsync(accountId, worker.UserId, worker.Email, flockId, ct);
         return (worker.UserId, flockId);
     }
 
@@ -1129,13 +1103,7 @@ public sealed class SimulationDataSeeder(
             // edits to Draft entries, so a plain re-call would throw once the
             // sentinel is Submitted/Locked — skip on existence instead
             // (mirrors EnsureUserAsync/EnsureFlockAsync above).
-            if (await db.DailyEntries.AnyAsync(e =>
-                    e.AccountId == accountId &&
-                    e.FarmId == SeedDefaults.FarmId &&
-                    e.HouseId == SeedDefaults.HouseId &&
-                    e.FlockId == flockId &&
-                    e.Date == date &&
-                    e.Status != DailyEntryStatus.Voided, ct))
+            if (await eggsFixture.DefaultHouseEntryExistsAsync(accountId, flockId, date, ct))
                 continue;
 
             var total = EggsOnDay(LiveBirdsOnDay(initialCount, d, historyDays, carriesExplicitAdjustments), d);
@@ -1366,8 +1334,7 @@ public sealed class SimulationDataSeeder(
     private async Task<Guid> EnsureProductAsync(
         Guid accountId, string name, Guid eggGradeId, long? priceMinorUnits, SimActor actor, CancellationToken ct)
     {
-        var existing = await db.Products.FirstOrDefaultAsync(p => p.Name == name, ct);
-        if (existing is not null) return existing.Id;
+        if (await commerceFixture.FindProductIdByNameAsync(name, ct) is Guid existingId) return existingId;
 
         ActAs(actor);
         var result = await commerce.CreateProductAsync(new CreateProductCommand(
@@ -1416,8 +1383,7 @@ public sealed class SimulationDataSeeder(
     private async Task<Guid> EnsureCustomerAsync(
         Guid accountId, string name, string phone, string note, SimActor actor, CancellationToken ct)
     {
-        var existing = await db.Customers.FirstOrDefaultAsync(c => c.Name == name, ct);
-        if (existing is not null) return existing.Id;
+        if (await commerceFixture.FindCustomerIdByNameAsync(name, ct) is Guid existingId) return existingId;
 
         ActAs(actor);
         var result = await commerce.CreateCustomerAsync(
@@ -1430,9 +1396,8 @@ public sealed class SimulationDataSeeder(
     // call site below uses a distinct date per customer) — SalesOrder itself
     // has no other stable, human-chosen identity to check idempotency against
     // (ReferenceNumber is minted from a random order id inside the handler).
-    private async Task<Guid?> FindOrderAsync(Guid customerId, DateOnly orderDate, CancellationToken ct) =>
-        (await db.SalesOrders
-            .FirstOrDefaultAsync(o => o.CustomerId == customerId && o.OrderDate == orderDate, ct))?.Id;
+    private Task<Guid?> FindOrderAsync(Guid customerId, DateOnly orderDate, CancellationToken ct) =>
+        commerceFixture.FindOrderIdAsync(customerId, orderDate, ct);
 
     private async Task<Guid> EnsureDraftOrderAsync(
         Guid accountId, Guid customerId, DateOnly orderDate, Guid productId, int quantityEggs,
@@ -1466,9 +1431,7 @@ public sealed class SimulationDataSeeder(
         Guid accountId, Guid orderId, Guid productId, int quantityEggs, long explicitPriceMinorUnits,
         SimActor actor, CancellationToken ct)
     {
-        var alreadyHasLine = await db.SalesOrderItems
-            .AnyAsync(i => i.SalesOrderId == orderId && i.ProductId == productId, ct);
-        if (alreadyHasLine) return;
+        if (await commerceFixture.OrderHasLineAsync(orderId, productId, ct)) return;
 
         ActAs(actor);
         var added = await commerce.AddOrderItemAsync(
@@ -1487,8 +1450,7 @@ public sealed class SimulationDataSeeder(
         // Status, not "the order already existed", decides whether to
         // confirm — an order that exists but is still Draft still needs
         // confirming on a re-run.
-        var order = await db.SalesOrders.FirstAsync(o => o.Id == orderId, ct);
-        if (order.Status == SalesOrderStatus.Confirmed) return orderId;
+        if (await commerceFixture.IsOrderConfirmedAsync(orderId, ct)) return orderId;
 
         // Re-declared rather than inherited from EnsureDraftOrderAsync: on the
         // re-run path above, that call returns early without acting at all, so
@@ -1516,13 +1478,11 @@ public sealed class SimulationDataSeeder(
     private async Task EnsurePartialPaymentAsync(
         Guid accountId, Guid orderId, DateOnly paymentDate, SimActor actor, CancellationToken ct)
     {
-        var hasPayment = await db.Payments.AnyAsync(p => p.SalesOrderId == orderId, ct);
-        if (hasPayment) return;
+        if (await commerceFixture.PaymentExistsAsync(orderId, ct)) return;
 
-        var order = await db.SalesOrders.FirstAsync(o => o.Id == orderId, ct);
         // Half the total, rounded down — strictly less than TotalAmount so
         // the order stays genuinely partially paid, never fully settled.
-        var amount = order.TotalAmount.MinorUnits / 2;
+        var amount = await commerceFixture.GetOrderTotalMinorUnitsAsync(orderId, ct) / 2;
         if (amount <= 0)
             throw new InvalidOperationException(
                 $"Simulation seed: sales order {orderId}'s total is too small to seed a partial payment.");
@@ -1908,30 +1868,27 @@ public sealed class SimulationDataSeeder(
 
     private async Task SeedSecondAccountAsync(CancellationToken ct)
     {
-        // The account query filter would hide a second tenant's row —
-        // IgnoreQueryFilters to see it regardless of which tenant is resolved.
-        var exists = await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.Id == SecondAccountId, ct);
-        if (exists) return;
+        // The account query filter would hide a second tenant's row — the
+        // fixture reads with it off, regardless of which tenant is resolved.
+        if (await farmFixture.AccountExistsAsync(SecondAccountId, ct)) return;
 
         // #546 — this row belongs to the SECOND account while this seeder's own
         // scope is resolved to the PRIMARY one (see SeedAsync), so writing it
-        // through `db` is a cross-tenant write and TenantStampInterceptor now
+        // through the seeder's own scope is a cross-tenant write and TenantStampInterceptor now
         // refuses it. Give the write its own scope resolved to the account it
         // actually writes, mirroring DailyEntryLockSweep.LockDueEntriesAsync.
         //
-        // BOTH the TenantContext and the AppDbContext must come from the new
-        // scope. The interceptor is bound to the scope that constructed its
+        // BOTH the TenantContext and the fixture must come from the new scope.
+        // The interceptor is bound to the scope that constructed its
         // DbContext, so resolving the tenant here and still writing through the
-        // outer `db` would leave the guard reading the PRIMARY account — a
-        // no-op that looks like a fix. Resolving the injected `tenant` field
-        // instead would throw: it is single-assignment as of this same slice.
+        // injected farmFixture would leave the guard reading the PRIMARY
+        // account — a no-op that looks like a fix. Resolving the injected
+        // `tenant` field instead would throw: it is single-assignment as of
+        // this same slice.
         using var scope = scopeFactory.CreateScope();
         scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(SecondAccountId);
-        var secondAccountDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        secondAccountDb.Accounts.Add(
-            Account.Create(SecondAccountId, "Simulation Second Farm", "simulation-second-farm", "UTC", "USD"));
-        await secondAccountDb.SaveChangesAsync(ct);
+        await scope.ServiceProvider.GetRequiredService<IFarmFixture>().CreateAccountAsync(
+            SecondAccountId, "Simulation Second Farm", "simulation-second-farm", "UTC", "USD", ct);
         logger.LogInformation("Seeded second pristine simulation account {AccountId}.", SecondAccountId);
     }
 
@@ -2203,7 +2160,7 @@ public sealed class SimulationDataSeeder(
     private async Task<(SimulationManifestCounts Counts, SimulationLifecycleStates States)> ComputeCountsAsync(
         Guid accountId, CancellationToken ct)
     {
-        var usersTotal = await db.Users.CountAsync(u => u.AccountId == accountId, ct);
+        var usersTotal = await access.CountUsersAsync(accountId, ct);
         var ownerCount = (await access.ListUsersInRoleAsync(accountId, Roles.Owner, ct)).Count;
         var managerCount = (await access.ListUsersInRoleAsync(accountId, Roles.Manager, ct)).Count;
         var salesCount = (await access.ListUsersInRoleAsync(accountId, Roles.Sales, ct)).Count;
@@ -2212,52 +2169,30 @@ public sealed class SimulationDataSeeder(
         // subtraction rather than a role lookup that would always find none.
         var workerCount = usersTotal - ownerCount - managerCount - salesCount - readOnlyCount;
 
-        var accountCount = await db.Accounts.IgnoreQueryFilters().CountAsync(ct);
-        var flockCount = await db.Flocks.CountAsync(ct);
+        var accountCount = await farmFixture.CountAccountsAsync(ct);
         // #627 — the flock lifecycle split the manifest now certifies exactly
-        // (INV-5). Flock is tenant-filtered, like every other count here.
-        var flockActive = await db.Flocks.CountAsync(f => f.Status == FlockStatus.Active, ct);
-        var flockDepleted = await db.Flocks.CountAsync(f => f.Status == FlockStatus.Depleted, ct);
-        var flockArchived = await db.Flocks.CountAsync(f => f.Status == FlockStatus.Archived, ct);
-
-        var customerCount = await db.Customers.CountAsync(ct);
-        var birdMovementCount = await db.BirdMovements.CountAsync(ct);
-
-        var dailyEntriesTotal = await db.DailyEntries.CountAsync(ct);
-        var draftEntries = await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Draft, ct);
-        var submittedEntries = await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Submitted, ct);
-        var lockedEntries = await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Locked, ct);
-
-        var eggLotCount = await db.EggLots.CountAsync(ct);
-
-        var salesOrdersTotal = await db.SalesOrders.CountAsync(ct);
-        var draftOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Draft, ct);
-        var confirmedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Confirmed, ct);
-        var shippedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Shipped, ct);
-        var invoicedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Invoiced, ct);
-        var cancelledOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Cancelled, ct);
-        var voidedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Voided, ct);
-
-        var paymentCount = await db.Payments.CountAsync(ct);
-
+        // (INV-5). Every count but the accounts one is tenant-filtered.
+        var flockCounts = await flockFixture.CountAsync(ct);
+        var eggCounts = await eggsFixture.CountAsync(ct);
+        var commerceCounts = await commerceFixture.CountAsync(ct);
         var inventoryCounts = await inventoryFixture.CountAsync(ct);
         var financeCounts = await financeFixture.CountAsync(ct);
 
         var counts = new SimulationManifestCounts(
             Accounts: accountCount,
-            Customers: customerCount,
-            BirdMovements: birdMovementCount,
+            Customers: commerceCounts.Customers,
+            BirdMovements: flockCounts.BirdMovements,
             Owners: ownerCount,
             Managers: managerCount,
             Sales: salesCount,
             Workers: workerCount,
             ReadOnly: readOnlyCount,
             UsersTotal: usersTotal,
-            Flocks: flockCount,
-            DailyEntriesTotal: dailyEntriesTotal,
-            EggLots: eggLotCount,
-            SalesOrdersTotal: salesOrdersTotal,
-            Payments: paymentCount,
+            Flocks: flockCounts.Flocks,
+            DailyEntriesTotal: eggCounts.DailyEntries,
+            EggLots: eggCounts.EggLots,
+            SalesOrdersTotal: commerceCounts.SalesOrders,
+            Payments: commerceCounts.Payments,
             InventoryItems: inventoryCounts.Items,
             InventoryLots: inventoryCounts.Lots,
             InventoryMovementsTotal: inventoryCounts.Movements,
@@ -2267,10 +2202,13 @@ public sealed class SimulationDataSeeder(
             Expenses: financeCounts.Expenses);
 
         var states = new SimulationLifecycleStates(
-            DailyEntries: new SimulationDailyEntryStates(draftEntries, submittedEntries, lockedEntries),
-            Flocks: new SimulationFlockStates(flockActive, flockDepleted, flockArchived),
+            DailyEntries: new SimulationDailyEntryStates(
+                eggCounts.DraftEntries, eggCounts.SubmittedEntries, eggCounts.LockedEntries),
+            Flocks: new SimulationFlockStates(
+                flockCounts.ActiveFlocks, flockCounts.DepletedFlocks, flockCounts.ArchivedFlocks),
             SalesOrders: new SimulationSalesOrderStates(
-                draftOrders, confirmedOrders, shippedOrders, invoicedOrders, cancelledOrders, voidedOrders),
+                commerceCounts.DraftOrders, commerceCounts.ConfirmedOrders, commerceCounts.ShippedOrders,
+                commerceCounts.InvoicedOrders, commerceCounts.CancelledOrders, commerceCounts.VoidedOrders),
             InventoryMovements: new SimulationInventoryMovementStates(
                 inventoryCounts.PurchaseMovements, inventoryCounts.UsageMovements,
                 inventoryCounts.AdjustmentMovements, inventoryCounts.DiscardMovements));

@@ -14,7 +14,7 @@ The Access ledger declares 28 top-level types under
 
 | Purpose | Contract entries |
 |---|---|
-| Ports (7) | `IAccessModule`, `IAccessLookup`, `ICredentialEpochVerifier`, `IRefreshTokenPurge`, `IAccessOperations`, `IAccessAccountLifecycle`, `IAccessSeedLookup` |
+| Ports (8) | `IAccessModule`, `IAccessLookup`, `ICredentialEpochVerifier`, `IRefreshTokenPurge`, `IAccessOperations`, `IAccessAccountLifecycle`, `IAccessSeedLookup`, `IAccessFixture` (#858 P5) |
 | Values (9) | `CredentialVerdict`, `UserFlockAssignment`, `AccessActor`, `AccessUserSummary`, `FirstRunAdminOutcome`, `AdminRecoveryResult`, `AccountProvisionOutcome`, `AccountLifecycleOutcome`, `AccountRenameOutcome` |
 | Commands (12) | `CreateUser.CreateUserCommand`, `UpdateUser.UpdateUserCommand`, `SetUserPassword.SetUserPasswordCommand`, `ChangeUserRole.ChangeUserRoleCommand`, `ChangeUserEmail.ChangeUserEmailCommand`, `DisableUser.DisableUserCommand`, `EnableUser.EnableUserCommand`, `AssignFlock.AssignFlockCommand`, `AssignFlock.UnassignFlockCommand`, `SetLanguage.SetLanguageCommand`, `SetStepperUnit.SetStepperUnitCommand`, `ChangeOwnPassword.ChangeOwnPasswordCommand` |
 
@@ -91,6 +91,15 @@ three AspNetRoles prerequisites, one AspNetUsers total count, and that
 UserRoleAssignments write. The assignment repository's single filtered LEFT
 JOIN into Flocks instead expires at #859; a second lookup would change its
 query shape.
+
+**Amended by #858 P5.** The write moved to `IAccessFixture`, registered only
+outside Production. It keeps the read, factory, Owner actor, flock-name audit
+and single save above, and adds one account-scoped check that the user belongs
+to the named farm, because no foreign key ties an assignment's user to its
+farm. A flock outside the resolved tenant reads as missing, and the tenant stamp
+refuses a farm other than the resolved one. `IAccessSeedLookup` gained the
+Owner-role existence check and the farm's user count. Four of the five Access
+rows are gone; demo's Owner-role prerequisite remains for #858 P6.
 
 The #280/#500 parity proof includes demo's exact 977 action/actor rows and
 simulation's exact cast, six products, all count and lifecycle fields, complete

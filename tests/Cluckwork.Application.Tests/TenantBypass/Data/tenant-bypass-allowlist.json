@@ -45,19 +45,19 @@
     "justification": "Dev-only seeder cleanup runs at unresolved tenant by design (#280); every ExecuteDelete is scoped to the seeded account via explicit AccountId."
   },
   {
-    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync(Guid accountId, CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
-    "justification": "Simulation seeder runs at unresolved tenant by design (#279); scoped to the seeded account via explicit AccountId."
+    "symbol": "Cluckwork.Infrastructure.Repositories.EggOperationsFixture.ListSaleableGradeNamesAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/EggOperationsFixture.cs",
+    "justification": "Non-Production simulation fixture port (#858); the seeder calls it at unresolved tenant by design (#279), scoped to the seeded account via explicit AccountId."
   },
   {
-    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSecondAccountAsync(CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
-    "justification": "Simulation seeder creates a second account for the two-tenant simulation; checks the global account existence at unresolved tenant by design (#279)."
+    "symbol": "Cluckwork.Infrastructure.Repositories.FarmFixture.AccountExistsAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/FarmFixture.cs",
+    "justification": "Non-Production simulation fixture port (#858); checks one farm's existence by id before the tenant is resolved, and the second, pristine farm's existence while the seeder's tenant is the primary farm (#279)."
   },
   {
-    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync(Guid accountId, CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
-    "justification": "Simulation seeder manifest counts run at unresolved tenant by design (#279); scoped to the seeded account via explicit AccountId."
+    "symbol": "Cluckwork.Infrastructure.Repositories.FarmFixture.CountAccountsAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/FarmFixture.cs",
+    "justification": "Non-Production simulation fixture port (#858); the manifest certifies exactly two farms on the deployment, so the count spans every farm by design (#279)."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.GetCurrentSharedLockedAsync(CancellationToken ct)",
@@ -168,16 +168,6 @@
     "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string accountSlug, string email, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
     "justification": "Caller of HoldsProvisioningLockAsync (a forwarding wrapper). First-run admin bootstrap runs at unresolved tenant by design (#283); the provisioning lock is a process-level advisory lock, not tenant-scoped."
-  },
-  {
-    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedAsync(CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
-    "justification": "Caller of MissingBaseDataAsync / ComputeCountsAsync / SeedSecondAccountAsync (forwarding wrappers). Simulation seeder runs at unresolved tenant by design (#279); every wrapped query is scoped to the seeded account via explicit AccountId."
-  },
-  {
-    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EmitManifestAsync(Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)",
-    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
-    "justification": "Caller of ComputeCountsAsync (a forwarding wrapper). Simulation seeder manifest counts run at unresolved tenant by design (#279); scoped to the seeded account via explicit AccountId."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Insights.AuditEventRepository.GetProvenanceAsync(string entityType, IReadOnlyCollection<Guid> entityIds, CancellationToken ct)",

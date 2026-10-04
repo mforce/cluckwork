@@ -9,6 +9,7 @@
                             "Cluckwork.Application.Features.Users.IAccessOperations",
                             "Cluckwork.Application.Features.Users.IAccessAccountLifecycle",
                             "Cluckwork.Application.Features.Users.IAccessSeedLookup",
+                            "Cluckwork.Application.Features.Users.IAccessFixture",
                             "Cluckwork.Application.Features.Users.CredentialVerdict",
                             "Cluckwork.Application.Features.Users.UserFlockAssignment",
                             "Cluckwork.Application.Features.Users.AccessActor",
@@ -41,6 +42,7 @@
     "Farm":             { "kind": "module",   "namespaces": ["Cluckwork.Domain.Accounts", "Cluckwork.Domain.Media", "Cluckwork.Application.Features.Accounts"],
                           "contract": [
                             "Cluckwork.Application.Features.Accounts.IFarmModule",
+                            "Cluckwork.Application.Features.Accounts.IFarmFixture",
                             "Cluckwork.Application.Features.Accounts.FarmSettingsDetails",
                             "Cluckwork.Application.Features.Accounts.FarmBrandingHashes",
                             "Cluckwork.Application.Features.Accounts.FarmLogoMetadata",
@@ -57,11 +59,14 @@
                           ],
                           "implementations": [
                             "Cluckwork.Infrastructure.Repositories.AccountRepository",
+                            "Cluckwork.Infrastructure.Repositories.FarmFixture",
                             "Cluckwork.Infrastructure.Repositories.FarmLogoRepository"
                           ] },
     "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"],
                           "contract": [
                             "Cluckwork.Application.Features.Flocks.IFlockModule",
+                            "Cluckwork.Application.Features.Flocks.IFlockFixture",
+                            "Cluckwork.Application.Features.Flocks.FlockFixtureCounts",
                             "Cluckwork.Application.Features.Flocks.IFlockLookup",
                             "Cluckwork.Application.Features.Flocks.IMortalityLedger",
                             "Cluckwork.Application.Features.Flocks.FlockDetails",
@@ -77,11 +82,14 @@
                           ],
                           "implementations": [
                             "Cluckwork.Infrastructure.Repositories.BirdMovementRepository",
+                            "Cluckwork.Infrastructure.Repositories.FlockFixture",
                             "Cluckwork.Infrastructure.Repositories.FlockRepository"
                           ] },
     "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"],
                           "contract": [
                             "Cluckwork.Application.Features.Eggs.IEggOperationsModule",
+                            "Cluckwork.Application.Features.Eggs.IEggOperationsFixture",
+                            "Cluckwork.Application.Features.Eggs.EggOperationsFixtureCounts",
                             "Cluckwork.Application.Features.EggGrades.IEggGradeLookup",
                             "Cluckwork.Application.Features.EggLots.IEggStock",
                             "Cluckwork.Application.Features.EggLots.IEggStockReservation",
@@ -114,6 +122,7 @@
                             "Cluckwork.Domain.Eggs.EggMovementType"
                           ],
                           "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.EggOperationsFixture",
                             "Cluckwork.Infrastructure.Repositories.DailyEntryRepository",
                             "Cluckwork.Infrastructure.Repositories.EggGradeRepository",
                             "Cluckwork.Infrastructure.Repositories.EggInventoryMovementRepository",
@@ -122,6 +131,8 @@
     "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"],
                           "contract": [
                             "Cluckwork.Application.Features.Sales.ICommerceModule",
+                            "Cluckwork.Application.Features.Sales.ICommerceFixture",
+                            "Cluckwork.Application.Features.Sales.CommerceFixtureCounts",
                             "Cluckwork.Application.Features.Catalog.IEggUnitConversionLookup",
                             "Cluckwork.Application.Features.Sales.ProductDetails",
                             "Cluckwork.Application.Features.Catalog.EggUnitConversionDetails",
@@ -158,6 +169,7 @@
                           ],
                           "implementations": [
                             "Cluckwork.Infrastructure.Repositories.CustomerRepository",
+                            "Cluckwork.Infrastructure.Repositories.CommerceFixture",
                             "Cluckwork.Infrastructure.Repositories.EggUnitConversionRepository",
                             "Cluckwork.Infrastructure.Repositories.PaymentRepository",
                             "Cluckwork.Infrastructure.Repositories.ProductRepository",
@@ -246,7 +258,7 @@
     },
     {
       "from": "Access", "to": "Farm", "kind": "W",
-      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). CredentialEpochVerifier reads Account.IsActive in the same fresh per-request query as the user's credential epoch, so a suspended farm's credentials stop working at once (#364, #579, #857). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. IAccessLookup returns Domain.Accounts.EffectiveAccountRole, and AccessLookup resolves it with Roles.ResolveEffective in its private effective-role routine (#612, #857). Design 3.4 row Access -> Farm = R.",
+      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). CredentialEpochVerifier reads Account.IsActive in the same fresh per-request query as the user's credential epoch, so a suspended farm's credentials stop working at once (#364, #579, #857). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. IAccessLookup returns Domain.Accounts.EffectiveAccountRole, and AccessLookup resolves it with Roles.ResolveEffective in its private effective-role routine (#612, #857). Design 3.4 row Access -> Farm = R. AccessFixture (#858) creates the simulation fixture's UserRoleAssignment through the scoped context, and AccessSeedLookup checks the fixture's Owner role by Roles.Owner.",
       "symbols": [
         "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
         "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler",
@@ -255,7 +267,9 @@
         "Cluckwork.Application.Features.Users.IAccessLookup",
         "Cluckwork.Application.Features.Users.IUserRoleAssignmentRepository",
         "Cluckwork.Application.Features.Users.UserFlockAssignment",
+        "Cluckwork.Infrastructure.Identity.AccessFixture",
         "Cluckwork.Infrastructure.Identity.AccessLookup",
+        "Cluckwork.Infrastructure.Identity.AccessSeedLookup",
         "Cluckwork.Infrastructure.Identity.AccountProvisioner",
         "Cluckwork.Infrastructure.Identity.AccountRenameService",
         "Cluckwork.Infrastructure.Identity.AccountSuspensionService",
@@ -269,10 +283,11 @@
     },
     {
       "from": "Access", "to": "FlockManagement", "kind": "R",
-      "reason": "AssignFlockHandler injects Flock Management's IFlockLookup port to prove the flock exists before narrowing a worker to it and to name it in the audit row (#103, spec 5.2/5.3); UnassignFlockHandler shares its file and namespace imports. Design 3.4 row Access -> Flock = R.",
+      "reason": "AssignFlockHandler injects Flock Management's IFlockLookup port to prove the flock exists before narrowing a worker to it and to name it in the audit row (#103, spec 5.2/5.3); UnassignFlockHandler shares its file and namespace imports. Design 3.4 row Access -> Flock = R. AccessFixture (#858) reads the same port for the simulation fixture's assignment and audit row.",
       "symbols": [
         "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
-        "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler"
+        "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler",
+        "Cluckwork.Infrastructure.Identity.AccessFixture"
       ]
     },
     {
@@ -1463,6 +1478,12 @@
       ]
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSecondAccountAsync",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.TransitionFlockAsync",
       "reaches": [
         "FlockManagement"
@@ -1548,163 +1569,11 @@
       "deleteWhen": "#858"
     },
     {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
-      "reaches": "Commerce",
-      "tables": ["Customers", "Payments", "SalesOrders"],
-      "owner": "Platform",
-      "reason": "Counts Customers, SalesOrders by status and Payments for the simulation manifest check, beside every other module's counts. ICommerceModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
-      "reaches": "EggOperations",
-      "tables": ["DailyEntries", "EggLots"],
-      "owner": "Platform",
-      "reason": "Counts DailyEntries by status and EggLots for the simulation manifest check, beside every other module's counts. IEggOperationsModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Platform",
-      "reason": "Counts accounts across farms for the simulation manifest check, beside every other module's counts. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
-      "reaches": "FlockManagement",
-      "tables": ["BirdMovements", "Flocks"],
-      "owner": "Platform",
-      "reason": "Counts Flocks by status and BirdMovements for the simulation manifest check, beside every other module's counts. IFlockModule has no count read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureConfirmedOrderAsync",
-      "reaches": "Commerce",
-      "tables": ["SalesOrders"],
-      "owner": "Platform",
-      "reason": "Reads the order's status before calling ICommerceModule.ConfirmSaleAsync, so a re-run confirms only an order still in Draft. ICommerceModule.GetSalesOrderAsync would also load the order's lines. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureCustomerAsync",
-      "reaches": "Commerce",
-      "tables": ["Customers"],
-      "owner": "Platform",
-      "reason": "Looks up Customers by name before calling ICommerceModule.CreateCustomerAsync, so a re-run converges and reuses the existing id. ICommerceModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureExtraLineAsync",
-      "reaches": "Commerce",
-      "tables": ["SalesOrderItems"],
-      "owner": "Platform",
-      "reason": "Checks SalesOrderItems for the product's line on the order before calling ICommerceModule.AddOrderItemAsync, so a re-run converges instead of duplicating. ICommerceModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsurePartialPaymentAsync",
-      "reaches": "Commerce",
-      "tables": ["Payments", "SalesOrders"],
-      "owner": "Platform",
-      "reason": "Checks Payments for the order and reads its total before calling ICommerceModule.RecordPaymentAsync, so a re-run converges and the payment stays half the total. ICommerceModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EnsureProductAsync",
-      "reaches": "Commerce",
-      "tables": ["Products"],
-      "owner": "Platform",
-      "reason": "Looks up Products by name before calling ICommerceModule.CreateProductAsync, so a re-run converges and reuses the existing id. ICommerceModule has no lookup by name. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.FindOrderAsync",
-      "reaches": "Commerce",
-      "tables": ["SalesOrders"],
-      "owner": "Platform",
-      "reason": "Finds the fixture's order by customer and order date, the natural key this seeder controls, so a re-run reuses the order instead of creating another. ICommerceModule has no lookup by that key. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync",
-      "reaches": "EggOperations",
-      "tables": ["EggGrades"],
-      "owner": "Platform",
-      "reason": "Checks that the target farm has the saleable egg grades the simulation records against, before the tenant is resolved, so the verb fails loud on a database without base data. IEggOperationsModule reads only the current farm. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Platform",
-      "reason": "Checks that the target farm's account exists before the tenant is resolved, so the verb fails loud on a database without base data. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedExplicitBirdMovementsAsync",
-      "reaches": "FlockManagement",
-      "tables": ["BirdMovements"],
-      "owner": "Platform",
-      "reason": "Checks BirdMovements for a fixture row on each date before calling IFlockModule.RecordMovementAsync, so a re-run converges instead of duplicating. IFlockModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFlockHistoryAsync",
-      "reaches": "EggOperations",
-      "tables": ["DailyEntries"],
-      "owner": "Platform",
-      "reason": "Checks for a live daily entry on the flock's day before calling IEggOperationsModule.RecordDailyEntryAsync, so a re-run converges instead of failing on an entry that is no longer a draft. IEggOperationsModule has no existence read. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSecondAccountAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Platform",
-      "reason": "Checks for and inserts the second, pristine farm used as the tenant-isolation fixture, writing through a scope resolved to that farm. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
       "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
       "reaches": "Access",
       "tables": ["AspNetRoles"],
       "owner": "Platform",
       "reason": "Checks the globally provisioned Owner role before demo seeding. The #858 fixture port will own Access prerequisites.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync",
-      "reaches": "Access",
-      "tables": ["AspNetRoles"],
-      "owner": "Platform",
-      "reason": "Checks globally provisioned assignable roles before simulation seeding. The #858 fixture port will own Access prerequisites.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.FindOwnerAsync",
-      "reaches": "Access",
-      "tables": ["AspNetRoles"],
-      "owner": "Platform",
-      "reason": "Distinguishes a missing Owner role from an account with no active Owner before reading account-scoped summaries through IAccessSeedLookup. The #858 fixture port will own this prerequisite.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
-      "reaches": "Access",
-      "tables": ["AspNetUsers"],
-      "owner": "Platform",
-      "reason": "Counts every account user, including role-less Workers, for exact fixture validation. Role counts use IAccessSeedLookup; the #858 fixture port will own the total count.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.RestrictOneWorkerAsync",
-      "reaches": "Access",
-      "tables": ["UserRoleAssignments"],
-      "owner": "Platform",
-      "reason": "Reads ordered assignments and stages the restricted Worker assignment through the scoped context, then writes the Owner-authored audit and saves once. #858 P5 will move this trusted fixture write behind its Access fixture port.",
       "deleteWhen": "#858"
     },
     {

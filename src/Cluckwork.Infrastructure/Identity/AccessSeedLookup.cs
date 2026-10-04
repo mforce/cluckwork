@@ -1,4 +1,5 @@
 using Cluckwork.Application.Features.Users;
+using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +31,12 @@ public sealed class AccessSeedLookup(
         var members = await directory.FindByAccountRoleAsync(accountId, role, ct);
         return members.Select(u => new AccessUserSummary(u.Id, u.Email, u.DisabledAt)).ToArray();
     }
+
+    public Task<bool> OwnerRoleExistsAsync(CancellationToken ct = default) =>
+        db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct);
+
+    public Task<int> CountUsersAsync(Guid accountId, CancellationToken ct = default) =>
+        db.Users.CountAsync(u => u.AccountId == accountId, ct);
 
     private async Task<AccessActor> ActorAsync(ApplicationUser user) =>
         new(user.Id, user.Email, user.DisabledAt, [.. await users.GetRolesAsync(user)]);
