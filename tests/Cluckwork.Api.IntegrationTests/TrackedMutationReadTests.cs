@@ -4,41 +4,17 @@ using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-// #561 review — the write guard's Modified/Deleted checks compare AccountId's
-// ORIGINAL value against the resolved tenant, and that is only meaningful while
-// the original value is the DATABASE's.
-//
-// It stops being the database's the moment an entity reaches SaveChanges
-// detached: DbSet.Update and DbSet.Remove attach the instance and seed its
-// original values from the caller's own current values, so a hand-built stub
-// carrying another tenant's primary key and this tenant's AccountId would pass
-// both halves of the check.
-//
-// Every repository mutation read is a TRACKED read behind the tenant query
-// filter, which is what makes the snapshot trustworthy. Until #562 that was
-// the whole guarantee; since #562 AccountId is a concurrency token and the
-// DATABASE refuses a detached stub's write (DetachedTenantWriteTests), so the
-// tracked read is now defence in depth — the layer that keeps the
-// interceptor's own check meaningful and a detached write from ever being
-// attempted. Flipping one of these reads to AsNoTracking must still fail
-// here rather than pass quietly.
-//
-// TWO tests, because one repository is not the precondition (#561 review round 2):
-//   * FlockRepository_GetByIdAsync_ReturnsATrackedEntity proves the MECHANISM
-//     against a real database — EF really does hand back a tracked entity with a
-//     database snapshot — but for ONE representative only.
-//   * AllMutableRepositoryReads_AreTracked walks EVERY repository that can
-//     mutate and fails if any of their by-id reads opts out of tracking. Round 2
-//     correctly flagged that the first test alone claimed a repository-wide
-//     precondition while pinning 1 of 16, so it would not catch the regression it
-//     documents. Walk everything, exclude deliberately (AGENTS.md).
-//
-// The detached-write behaviour itself is asserted in DetachedTenantWriteTests
-// (refused, since #562), not here.
+// The database-backed Flock read checks one real tracked snapshot. The source
+// guard checks public Task<TEntity> repository reads for AppDbContext DbSet
+// entities and rejects explicit AsNoTracking calls unless the type/member has
+// a documented read-only purpose. It does not prove query filters, collection
+// reads, helper calls or the context's default tracking mode. AccountId's
+// database concurrency token separately guards detached writes (#562).
 [Collection(IntegrationCollection.Name)]
 public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory factory)
 {
@@ -70,130 +46,91 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         Assert.Equal(accountId, db2.Entry(loaded!).Property(nameof(Flock.AccountId)).OriginalValue);
     }
 
-    // Walks every repository that declares AddAsync, Update or Remove and
-    // asserts none of its single-entity reads opts out of change tracking.
-    //
-    // Discovery rather than a hand-kept list, deliberately: a new mutable
-    // repository is covered the moment it is added, which a list would not do —
-    // and a list is the method that produced the 1-of-16 gap in the first place.
-    //
-    // Deliberate exclusion: reads whose name says ReadOnly. Those exist to serve
-    // query paths (DailyEntryRepository.GetReadOnlyAsync,
-    // SalesOrderRepository.GetReadOnlyAsync) and are never fed to a write;
-    // AsNoTracking is correct there. The exclusion is by NAME so that adding one
-    // is a deliberate, visible act.
     [Fact]
     public void AllMutableRepositoryReads_AreTracked()
     {
         var dir = Path.Combine(FindRepoRoot(), "src", "Cluckwork.Infrastructure", "Repositories");
         Assert.True(Directory.Exists(dir), $"Repository directory not found: {dir}");
 
-        // The entity a repository can MUTATE is whatever its AddAsync, Update or
-        // Remove accepts. AddAsync names the aggregate a repository owns even
-        // where it has no Update: handlers mutate the tracked entity a Get*Async
-        // read returned, then save.
-        // Keying on that, rather than on "any Get*Async", is what keeps
-        // read-only PROJECTIONS out of scope: FarmLogoRepository returns
-        // FarmLogoMetadata/FarmLogoContent from AsNoTracking queries and that is
-        // correct — they are never handed to Remove. Only reads returning the
-        // mutable entity itself feed the write path the interceptor guards.
-        var mutates = new Regex(
-            @"public\s+(?:async\s+)?(?:void\s+(?<edit>Update|Remove)|Task\s+AddAsync)\s*\(\s*(?<type>[A-Za-z0-9_]+)\s",
-            RegexOptions.Compiled);
-        var nextMember = new Regex(@"\n    (?:public|private|internal|protected)\s", RegexOptions.Compiled);
+        var entityTypes = typeof(AppDbContext).GetProperties()
+            .Select(p => p.PropertyType)
+            .Where(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(DbSet<>))
+            .Select(t => t.GetGenericArguments()[0])
+            .ToHashSet();
+        Assert.True(entityTypes.Count >= 30, $"Expected at least 30 DbSet entities, found {entityTypes.Count}.");
 
-        // Append-only ledgers add rows but never read one back to change it, so
-        // they have no single-entity read to check. Excluded by NAME, like the
-        // ReadOnly reads above, and only while they really are append-only: no
-        // Update, no Remove and no single-entity read.
-        string[] appendOnlyLedgers =
-        [
-            "BirdMovementRepository.cs",
-            "EggInventoryMovementRepository.cs",
-            "FeedUsageRepository.cs",
-            "InventoryMovementRepository.cs",
-        ];
+        var expectedReads = typeof(AppDbContext).Assembly.GetTypes()
+            .Where(t => t.Namespace == "Cluckwork.Infrastructure.Repositories")
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(m => m.ReturnType.IsGenericType
+                    && m.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
+                    && entityTypes.Contains(m.ReturnType.GetGenericArguments()[0]))
+                .Select(m => (Type: t.Name, Member: m.Name)))
+            .ToArray();
+        Assert.Equal(expectedReads.Length, expectedReads.Distinct().Count());
 
-        var mutableRepositories = new List<string>();
+        var readOnly = new Dictionary<(string Type, string Member), string>
+        {
+            [("AccountRepository", "GetCurrentAsync")] =
+                "FarmModule projects settings and FarmClock reads the time zone; neither mutates the Account.",
+            [("AccountRepository", "GetCurrentSharedLockedAsync")] =
+                "Money-row writers take a fresh currency/policy snapshot under FOR SHARE; they mutate other entities.",
+            [("AccountRepository", "FindBySlugAsync")] =
+                "IdentityProvider resolves the farm code to Id and IsActive before a tenant exists; it never saves this Account.",
+            [("DailyEntryRepository", "GetReadOnlyAsync")] =
+                "EggOperationsModule projects daily-entry details without mutating the entity.",
+            [("SalesOrderRepository", "GetReadOnlyAsync")] =
+                "CommerceModule projects order details without mutating the entity.",
+            [("FlockRepository", "GetReadOnlyAsync")] =
+                "FlockLookup projects lookup details; write handlers use the separate tracked reads.",
+            [("FlockRepository", "GetReadOnlyForFlockScopedWriteAsync")] =
+                "FlockLookup validates eligibility for writes to other entities; an untracked read avoids a stale pre-transaction snapshot (#1022).",
+        };
+
+        var classes = new Regex(@"public\s+sealed\s+class\s+(?<name>[A-Za-z0-9_]+)");
+        var reads = new Regex(@"public\s+(?:async\s+)?Task<(?<entity>[A-Za-z0-9_]+)\??>\s+(?<name>[A-Za-z0-9_]+)\s*\(");
+        var nextMember = new Regex(@"\n    (?:public|private|internal|protected)\s");
+        var noTracking = new Regex(@"\.AsNoTracking(?:WithIdentityResolution)?\s*\(");
+        var entityNames = entityTypes.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var discovered = new HashSet<(string Type, string Member)>();
         var violations = new List<string>();
 
-        foreach (var file in Directory.GetFiles(dir, "*.cs").OrderBy(f => f, StringComparer.Ordinal))
+        foreach (var file in Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
             var text = File.ReadAllText(file);
-            var writers = mutates.Matches(text);
-            var entityTypes = writers
-                .Select(m => m.Groups["type"].Value)
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
-            if (entityTypes.Count == 0) continue;
-
-            var name = Path.GetFileName(file);
-            mutableRepositories.Add(name);
-
-            var reads = new List<Match>();
-            foreach (var entity in entityTypes)
+            var declarations = classes.Matches(text);
+            foreach (Match read in reads.Matches(text))
             {
-                var readPattern = new Regex(
-                    @"public\s+(?:async\s+)?Task<" + Regex.Escape(entity) +
-                    @"\?>\s+(?<name>Get[A-Za-z0-9_]*Async)\s*\(",
-                    RegexOptions.Compiled);
-                reads.AddRange(readPattern.Matches(text)
-                    .Where(m => !m.Groups["name"].Value.Contains("ReadOnly", StringComparison.Ordinal)));
-            }
+                if (!entityNames.Contains(read.Groups["entity"].Value)) continue;
+                var type = declarations.Last(c => c.Index < read.Index).Groups["name"].Value;
+                var key = (Type: type, Member: read.Groups["name"].Value);
+                Assert.True(discovered.Add(key), $"Duplicate repository read: {key.Type}.{key.Member}");
+                if (readOnly.ContainsKey(key)) continue;
 
-            if (appendOnlyLedgers.Contains(name))
-            {
-                var edits = writers.Where(m => m.Groups["edit"].Success).Select(m => m.Groups["edit"].Value).ToList();
-                Assert.True(edits.Count == 0,
-                    $"{name} is listed as an append-only ledger but now declares {string.Join(" and ", edits)}. " +
-                    "Remove it from the list so its reads are checked like any other mutable repository.");
-                Assert.True(reads.Count == 0,
-                    $"{name} is listed as an append-only ledger but now has a single-entity read " +
-                    $"({string.Join(", ", reads.Select(r => r.Groups["name"].Value))}). Remove it from the list.");
-                continue;
-            }
-
-            // Backstop against this guard rotting into a no-op if the
-            // repositories are reshaped so the pattern stops matching.
-            //
-            // Honest about its strength: this assertion is NOT the primary
-            // defence and has not been observed firing. Renaming a read is
-            // caught earlier and harder by the compiler, because each repository
-            // interface that declares GetByIdAsync pins it — the attempt fails
-            // with CS0535 before any test runs. This covers the residue: a mutable
-            // repository whose read is NOT interface-bound (FarmLogoRepository's
-            // GetTrackedAsync) or a future declaration style the regex misses.
-            Assert.True(reads.Count > 0,
-                $"{name} mutates [{string.Join(", ", entityTypes)}] but no tracked single-entity read " +
-                "was found for it. The guard's pattern no longer matches this file — fix the pattern, " +
-                "do not ignore it.");
-
-            foreach (var read in reads)
-            {
                 var after = text[read.Index..];
                 var end = nextMember.Match(after, read.Length);
                 var body = end.Success ? after[..end.Index] : after;
-
-                if (body.Contains("AsNoTracking", StringComparison.Ordinal))
-                    violations.Add($"{name}: {read.Groups["name"].Value}");
+                if (noTracking.IsMatch(body))
+                    violations.Add($"{key.Type}.{key.Member}");
             }
         }
 
-        // Proves the walk actually walked: if discovery breaks, this fails
-        // instead of vacuously passing with an empty set.
-        Assert.True(mutableRepositories.Count >= 10,
-            $"Expected to discover many mutable repositories, found {mutableRepositories.Count}: " +
-            string.Join(", ", mutableRepositories));
-        Assert.Contains("FlockRepository.cs", mutableRepositories);
-        Assert.Contains("CustomerRepository.cs", mutableRepositories);
-        Assert.Contains("FarmLogoRepository.cs", mutableRepositories);
-        Assert.All(appendOnlyLedgers, ledger => Assert.Contains(ledger, mutableRepositories));
+        Assert.True(discovered.SetEquals(expectedReads),
+            "Repository read discovery differs from the compiled public Task<DbSet entity> methods. " +
+            $"Missing: {string.Join(", ", expectedReads.Except(discovered))}; " +
+            $"extra: {string.Join(", ", discovered.Except(expectedReads))}");
+        Assert.All(readOnly, exclusion =>
+        {
+            Assert.Contains(exclusion.Key, discovered);
+            Assert.False(string.IsNullOrWhiteSpace(exclusion.Value));
+        });
+        Assert.True(discovered.Count >= 30, $"Expected at least 30 single-entity reads, found {discovered.Count}.");
+        Assert.Contains(("EggUnitConversionRepository", "GetByIdAsync"), discovered);
+        Assert.Contains(("ProductRepository", "GetMappingAsync"), discovered);
+        Assert.Contains(("AccountRepository", "GetCurrentLockedAsync"), discovered);
 
         Assert.True(violations.Count == 0,
-            "These repositories can mutate, but the read that feeds the write path opts out of change " +
-            "tracking. TenantStampInterceptor compares AccountId's ORIGINAL value against the resolved " +
-            "tenant, and a detached entity carries caller-seeded originals — the database's AccountId " +
-            "token (#562) still refuses the row, but this layer is what keeps that from being reached:\n  " +
+            "Single-entity repository reads opt out of tracking without a documented read-only purpose:\n  " +
             string.Join("\n  ", violations));
     }
 
