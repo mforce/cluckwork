@@ -2,6 +2,47 @@ namespace Cluckwork.Application.Tests.Architecture;
 
 internal static partial class RealModuleLedger
 {
+    internal static readonly TableClaim[] Tables =
+    [
+        new("Access", "AspNetRoleClaims"),
+        new("Access", "AspNetRoles"),
+        new("Access", "AspNetUserClaims"),
+        new("Access", "AspNetUserLogins"),
+        new("Access", "AspNetUserRoles"),
+        new("Access", "AspNetUserTokens"),
+        new("Access", "AspNetUsers"),
+        new("Access", "UserRoleAssignments"),
+        new("Access", "refresh_tokens"),
+        new("Farm", "Accounts"),
+        new("Farm", "FarmLogos"),
+        new("FlockManagement", "BirdMovements"),
+        new("FlockManagement", "Flocks"),
+        new("EggOperations", "DailyEntries"),
+        new("EggOperations", "DailyEntryGrades"),
+        new("EggOperations", "EggGrades"),
+        new("EggOperations", "EggInventoryMovements"),
+        new("EggOperations", "EggLots"),
+        new("Commerce", "Customers"),
+        new("Commerce", "EggUnitConversions"),
+        new("Commerce", "Payments"),
+        new("Commerce", "ProductEggGradeMappings"),
+        new("Commerce", "Products"),
+        new("Commerce", "SalesOrderAllocations"),
+        new("Commerce", "SalesOrderItems"),
+        new("Commerce", "SalesOrders"),
+        new("GeneralInventory", "FeedUsages"),
+        new("GeneralInventory", "InventoryItems"),
+        new("GeneralInventory", "InventoryLots"),
+        new("GeneralInventory", "InventoryMovements"),
+        new("GeneralInventory", "WaterUsages"),
+        new("Finance", "ExpenseCategories"),
+        new("Finance", "Expenses"),
+        new("Platform", "AuditEvents"),
+        new("Platform", "durable_jobs"),
+        new("Platform", "idempotency_records"),
+        new("Platform", "simulation_seed_state"),
+    ];
+
     internal static readonly ForeignKeyCell[] ForeignKeys =
     [
         new("AspNetUsers",
