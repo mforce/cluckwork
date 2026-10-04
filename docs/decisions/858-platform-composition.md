@@ -34,10 +34,14 @@ eight PRs, each with base/head parity and mutation evidence:
 Code outside a module reaches its tables only through types on the module's ledger
 contract. Adapters, jobs, CLI verbs and seeders are all held to this. Seeder-only reads
 and writes go through a fixture port, `I<Module>Fixture` (Access's read port is
-`IAccessSeedLookup`). It lives in the module's Application namespace, is implemented in
-Infrastructure and is listed on the module's `contract` and `implementations`. It is
-registered only inside `AddCluckworkPersistence`'s `!IsProduction()` block, and each member
-returns ids, counts, records or a `Result`, never an entity or a query. Purges join the
+`IAccessSeedLookup`). The port lives in the module's Application namespace and is listed
+on the module's `contract`. Its implementation goes on the module's `implementations` only
+when it sits outside the module's namespaces, as the fixtures in
+`Cluckwork.Infrastructure.Repositories` do. An implementation inside them, such as Access's
+`AccessFixture` and `AccessSeedLookup` in `Cluckwork.Infrastructure.Identity`, already has
+its module's own-table allowance, and listing it fails `CompatibilityExceptionRealTreeTests`.
+The port is registered only inside `AddCluckworkPersistence`'s `!IsProduction()` block,
+and each member returns ids, counts, records or a `Result`, never an entity or a query. Purges join the
 caller's transaction and never commit. Services register in their owner's file under
 `Cluckwork.Api/Hosting/Modules/`, listed once by `AddCluckworkModules`; Access registers in
 `AddCluckworkIdentity`. Break the gate and a cross-farm read or the step-up-free assignment
