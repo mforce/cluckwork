@@ -39,7 +39,12 @@ public static class ModuleLedgerScanner
     internal const int RealTreeFileFloor = 400;
 
     internal static readonly CSharpParseOptions ParseOptions = CSharpParseOptions.Default.WithPreprocessorSymbols(
-        "DEBUG", "TRACE", "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
+#if DEBUG
+        "DEBUG",
+#elif RELEASE
+        "RELEASE",
+#endif
+        "TRACE", "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
         "NET6_0_OR_GREATER", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER");
 
     private const string Prefix = "Cluckwork.";

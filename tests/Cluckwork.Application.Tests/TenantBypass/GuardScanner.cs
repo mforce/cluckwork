@@ -1,3 +1,4 @@
+using Cluckwork.Application.Tests.Architecture;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -154,7 +155,7 @@ public static class GuardScanner
         foreach (var file in files)
         {
             var text = File.ReadAllText(file);
-            var tree = CSharpSyntaxTree.ParseText(text, path: file);
+            var tree = CSharpSyntaxTree.ParseText(text, ModuleLedgerScanner.ParseOptions, path: file);
             var root = tree.GetCompilationUnitRoot();
 
             foreach (var diag in tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
@@ -377,7 +378,7 @@ public static class GuardScanner
         // allow-listed.
         foreach (var file in files)
         {
-            var tree2 = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file);
+            var tree2 = CSharpSyntaxTree.ParseText(File.ReadAllText(file), ModuleLedgerScanner.ParseOptions, path: file);
             var root2 = tree2.GetCompilationUnitRoot();
             foreach (var invocation in root2.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
@@ -813,7 +814,7 @@ public static class GuardScanner
 
         foreach (var file in EnumerateSourceFiles(srcRoot))
         {
-            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file);
+            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), ModuleLedgerScanner.ParseOptions, path: file);
             var root = tree.GetCompilationUnitRoot();
 
             foreach (var access in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())

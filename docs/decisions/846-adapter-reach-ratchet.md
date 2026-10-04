@@ -118,8 +118,11 @@ through an import or to a type in the same namespace or enclosing type. The
 scanner does not bind overloads, generic constraints, assembly references,
 extern aliases, or competing imports. It does not expand imports from another
 file. The existing module-ledger guard rejects global module imports. Both
-walks share the same .NET 10, DEBUG, and TRACE parse symbols; other conditional
-compilation branches are outside this walk.
+walks share `ModuleLedgerScanner.ParseOptions`. The #1052 amendment keeps the
+.NET 10 and TRACE symbols and selects DEBUG or RELEASE to match the test build.
+`SourcePreprocessorTests.RealSourceTree_HasNoInactiveCode` rejects any
+`DisabledTextTrivia` under `src/`, so a conditional branch outside the shared
+parse cannot silently escape the guards.
 
 A simple name without a matching import or local declaration is ignored and
 listed in `UnresolvedTypes`; it is never assigned to an arbitrary imported
