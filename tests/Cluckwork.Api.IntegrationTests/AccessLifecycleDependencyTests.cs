@@ -4,9 +4,11 @@ using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,7 +47,7 @@ public sealed class AccessLifecycleDependencyTests(CluckworkWebApplicationFactor
     [InlineData("suspend-account", true)]
     [InlineData("reactivate-account", true)]
     [InlineData("rename-account", true)]
-    public async Task RealLifecycleVerbNeverConstructsIdentityOrRedis(string verb, bool poisonRedis)
+    public async Task RealLifecycleVerbNeverConstructsIdentityRedisOrUserManager(string verb, bool poisonRedis)
     {
         var email = $"closure-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
@@ -62,6 +64,12 @@ public sealed class AccessLifecycleDependencyTests(CluckworkWebApplicationFactor
         builder.Services.AddCluckworkSharedState(builder.Configuration, ProcessRole.OneShot);
         builder.Services.AddCluckworkFeatures(builder.Configuration);
         var resolutions = 0;
+        builder.Services.RemoveAll<UserManager<ApplicationUser>>();
+        builder.Services.AddScoped<UserManager<ApplicationUser>>(_ =>
+        {
+            resolutions++;
+            throw new InvalidOperationException("UserManager must not be constructed");
+        });
         if (poisonRedis)
         {
             builder.Services.RemoveAll<IConnectionMultiplexer>();

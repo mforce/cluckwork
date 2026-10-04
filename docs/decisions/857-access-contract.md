@@ -43,11 +43,17 @@ assignments, FIFO stock lock. Assignment admission validates step-up before
 target or effective-role reads and keeps the identity target-list read.
 
 `IAccessAccountLifecycle` contains only suspend, reactivate and rename. Its
-constructor graph must not build IdentityProvider or Redis, including when a
-real lifecycle CLI verb is resolved. Bootstrap, recovery and provisioning stay
-on `IAccessOperations`; fixture creation forwards once with
+constructor graph must not build UserManager, IdentityProvider or Redis,
+including when a real lifecycle CLI verb is resolved. Bootstrap, recovery and
+provisioning stay on `IAccessOperations`; fixture creation forwards once with
 `mustChangePassword:false`. The provisioning outcome moves without a copy or
 field conversion.
+
+`IAccessOperations` is for operator CLI verbs and simulation creation. It is
+registered in Production and its creation operation bypasses interactive
+step-up. The contract guard permits other adapters and peers to take this port;
+only review enforces that caller restriction. Interactive creation uses
+`IAccessModule` and retains its handler's proof check.
 
 `IAccessModule` still delegates session and profile operations. A deeper session
 reshape suggested during #1041 review is deferred: splitting the sign-in
@@ -59,6 +65,11 @@ Both seeders read actors through `IAccessSeedLookup`, registered only outside
 Production beside the seeders. The port uses the account directory, UserManager
 and scoped context. Demo's reads must not construct the operations write graph,
 IdentityProvider or Redis. Simulation alone uses `IAccessOperations.CreateUserAsync`.
+
+The fixture read port accepts an explicit account id for cross-farm composition.
+Its registration is absent in Production, but present in Development, Testing
+and Staging. Only review limits its callers to the two seeders; the contract
+guard permits an adapter or peer to take it in those environments.
 
 Email lookup keeps Identity normalization and an explicit account predicate.
 Role members include disabled users and sort by Id. Each seeder selects the
