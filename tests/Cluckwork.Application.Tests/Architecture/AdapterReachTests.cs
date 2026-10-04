@@ -57,8 +57,7 @@ public sealed class AdapterReachTests : IDisposable
         Assert.Contains(Symbol + " -> Farm", failure);
         Assert.Contains("Cluckwork.Temp.Farm.IAccountRepository", failure);
         Assert.Contains("src/Endpoint.cs:2", failure);
-        Assert.Contains("\"symbol\": \"" + Symbol + "\"", failure);
-        Assert.Contains("\"Farm\"", failure);
+        Assert.EndsWith("add the row to RealModuleLedger.Adapters:\nnew(\"" + Symbol + "\", [\"Farm\"]),", failure);
         Assert.Empty(AdapterReachScanner.Evaluate(Scan([Row()])));
     }
 

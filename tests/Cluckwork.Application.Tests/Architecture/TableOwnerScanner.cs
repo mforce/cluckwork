@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -94,8 +93,9 @@ public static class TableOwnerScanner
         foreach (var fk in live)
         {
             if (!ledger.ForeignKeys.Any(row => row.Table == fk.Table && row.Name == fk.Name && row.From == fk.From && row.To == fk.To))
-                violations.Add($"undeclared cross-owner foreign key {fk.Name} on {fk.Table} from {fk.From} to {fk.To} — add " +
-                    JsonSerializer.Serialize(new { table = fk.Table, name = fk.Name, from = fk.From, to = fk.To, reason = "" }));
+                violations.Add($"undeclared cross-owner foreign key {fk.Name} on {fk.Table} from {fk.From} to {fk.To} — add to " +
+                    $"RealModuleLedger.ForeignKeys: new({RealModuleLedger.Quote(fk.Table)}, {RealModuleLedger.Quote(fk.Name)}, " +
+                    $"{RealModuleLedger.Quote(fk.From)}, {RealModuleLedger.Quote(fk.To)}, \"\"),");
         }
         foreach (var row in ledger.ForeignKeys)
         {

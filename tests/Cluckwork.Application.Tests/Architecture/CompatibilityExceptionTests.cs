@@ -88,7 +88,8 @@ public sealed class CompatibilityExceptionTests : IDisposable
         var failure = Assert.Single(Evaluate());
         Assert.Contains($"undeclared compatibility exception {Symbol} -> Finance", failure);
         Assert.Contains("src/Cluckwork.Infrastructure/Probe.cs:6", failure);
-        Assert.Contains($"\"symbol\": \"{Symbol}\", \"reaches\": \"Finance\", \"tables\": [\"Expenses\"]", failure);
+        Assert.EndsWith($"add this row to RealModuleLedger.CompatibilityExceptions and fill in owner, reason and deleteWhen:\n" +
+            $"new(\"{Symbol}\", \"Finance\", [\"Expenses\"], \"\", \"\", \"#\"),", failure);
         Assert.Empty(Evaluate([Row()]));
     }
 

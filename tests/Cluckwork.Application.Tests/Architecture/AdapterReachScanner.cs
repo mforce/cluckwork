@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -309,20 +308,17 @@ public static class AdapterReachScanner
         foreach (var reach in report.Undeclared)
         {
             failures.Add($"undeclared adapter reach {reach.Symbol} -> {reach.Owner} through {reach.Type} " +
-                $"at {reach.File}:{reach.Line}; review and add the JSON row:\n" +
+                $"at {reach.File}:{reach.Line}; review and add the row to RealModuleLedger.Adapters:\n" +
                 RenderAdapters(report.LiveReach.Where(r => r.Symbol == reach.Symbol)));
         }
         return failures;
     }
 
-    internal static string RenderAdapters(IEnumerable<AdapterReach> reaches) =>
-        JsonSerializer.Serialize(reaches.GroupBy(r => r.Symbol, StringComparer.Ordinal)
-            .OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g => new
-            {
-                symbol = g.Key,
-                reaches = g.Select(r => r.Owner).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
-            }), new JsonSerializerOptions { WriteIndented = true });
+    internal static string RenderAdapters(IEnumerable<AdapterReach> reaches) => string.Join("\n", reaches
+        .GroupBy(r => r.Symbol, StringComparer.Ordinal)
+        .OrderBy(g => g.Key, StringComparer.Ordinal)
+        .Select(g => $"new({RealModuleLedger.Quote(g.Key)}, " +
+            $"{RealModuleLedger.List(g.Select(r => r.Owner).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}),"));
 
     private static void ValidateRegistry(ModuleLedger ledger, IReadOnlyDictionary<string, string> kinds, List<string> errors)
     {
