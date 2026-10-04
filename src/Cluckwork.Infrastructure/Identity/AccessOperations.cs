@@ -1,3 +1,4 @@
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Common;
 
@@ -6,7 +7,8 @@ namespace Cluckwork.Infrastructure.Identity;
 public sealed class AccessOperations(
     FirstRunAdminService firstRunAdmin,
     AdminRecoveryService recovery,
-    AccountProvisioner provisioner) : IAccessOperations
+    AccountProvisioner provisioner,
+    IIdentityProvider identity) : IAccessOperations
 {
     public Task<Result<FirstRunAdminOutcome>> BootstrapAdminAsync(string? email, CancellationToken ct) =>
         firstRunAdmin.ProvisionAsync(email, ct);
@@ -19,4 +21,8 @@ public sealed class AccessOperations(
         string? name, string? slug, string? ownerEmail,
         string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct)
         => provisioner.ProvisionAsync(name, slug, ownerEmail, locale, currencyCode, timeZoneId, ct);
+
+    public Task<Result<Guid>> CreateUserAsync(
+        Guid accountId, string email, string password, string? role, string? name, CancellationToken ct) =>
+        identity.CreateUserAsync(accountId, email, password, role, name, mustChangePassword: false, ct: ct);
 }

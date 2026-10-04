@@ -37,7 +37,6 @@ using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -92,13 +91,11 @@ public sealed class SimulationDataSeeder(
     AppDbContext db,
     TenantContext tenant,
     CurrentUserContext currentUser,
-    UserManager<ApplicationUser> users,
-    IAccountUserDirectory directory,
-    IIdentityProvider identity,
+    IAccessSeedLookup access,
+    IAccessOperations operations,
     IFlockModule flockModule,
     IFlockLookup flocks,
     IAuditWriter audit,
-    IUserRoleAssignmentRepository assignments,
     IFarmModule farm,
     IEggOperationsModule eggs,
     ICommerceModule commerce,
@@ -289,11 +286,13 @@ public sealed class SimulationDataSeeder(
             // language already enforces is worse than none, because it implies
             // the branch is reachable.
             //
-            // Roles come from UserManager, never from a literal: SimActor.Roles is
+            // Roles come from Access, never from a literal: SimActor.Roles is
             // an authorization input (FlockScopeGuard), so the fixture must act
             // with the roles this user ACTUALLY holds, not the ones the preflight
             // searched by.
-            var ownerActor = new SimActor(owner.Id, owner.Email!, await RolesOfAsync(owner));
+            var selectedOwner = await access.GetActorAsync(accountId, owner.Id, ct)
+                ?? throw new InvalidOperationException("Simulation seed: the selected Owner cannot be read back.");
+            var ownerActor = new SimActor(selectedOwner.Id, selectedOwner.Email!, selectedOwner.Roles);
             ActAs(ownerActor);
 
             // #279 review (codex re-check): the anchor AND the completion signal
@@ -489,13 +488,13 @@ public sealed class SimulationDataSeeder(
     // were dropped is indistinguishable from "nobody has been made an Owner yet"
     // — and the two have completely different remedies. `bootstrap-admin` cannot
     // repair a missing role; only restoring the base data can.
-    private async Task<(bool RoleExists, ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(
+    private async Task<(bool RoleExists, AccessUserSummary? Owner, int DisabledOwners)> FindOwnerAsync(
         Guid accountId, CancellationToken ct)
     {
         if (!await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct)) return (false, null, 0);
 
         // #532 — see DemoDataSeeder: scoped at the query, not post-filtered.
-        var owners = (await directory.FindByAccountRoleAsync(accountId, Roles.Owner)).ToList();
+        var owners = (await access.ListUsersInRoleAsync(accountId, Roles.Owner, ct)).ToList();
 
         return (true,
                 owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
@@ -631,7 +630,7 @@ public sealed class SimulationDataSeeder(
 
     // #500 — returns the persona, not just its id.
     //
-    // Both branches reconstruct Roles the SAME way, through UserManager, rather
+    // Both branches read actual Roles through Access, rather
     // than the create branch trusting the role name it just passed in. That is
     // deliberate: a persona rebuilt differently on a re-run than on a first run
     // is exactly the silent divergence this fixture's determinism contract
@@ -645,26 +644,26 @@ public sealed class SimulationDataSeeder(
         // (UserStore backs FindByEmailAsync with SingleOrDefaultAsync).
         // SimActor.Roles is an authorization input (#500), so a mis-attributed
         // persona is a tenant-isolation defect, not a cosmetic one.
-        var existing = await directory.FindByAccountEmailAsync(accountId, email, ct);
+        var existing = await access.FindUserByEmailAsync(accountId, email, ct);
         if (existing is null)
         {
             // #360 — the simulation command is a trusted, non-HTTP one-shot
             // caller. Interactive creation is fail-closed in CreateUserHandler;
-            // this seeder uses the lower-level identity port explicitly while
+            // this seeder uses Access fixture creation explicitly while
             // acting as the real Owner resolved by SeedAsync. There is no flag,
             // magic actor id, environment branch, or request-selectable bypass.
             var storedRole = role == CreateUserValidator.WorkerRole ? null : role;
-            var result = await identity.CreateUserAsync(
+            var result = await operations.CreateUserAsync(
                 accountId, email.Trim(), password, storedRole,
                 name: UserName.Normalize(name), ct: ct);
             Require(result, $"create cast user {email}");
 
-            existing = await directory.FindByAccountEmailAsync(accountId, email, ct)
+            existing = await access.FindUserByEmailAsync(accountId, email, ct)
                 ?? throw new InvalidOperationException(
                     $"Simulation seed: cast user {email} was created but cannot be read back.");
         }
 
-        var roles = await RolesOfAsync(existing);
+        var roles = existing.Roles;
 
         // #500 (codex round 4) — a DISABLED cast member is refused, for exactly
         // the reason FindOwnerAsync refuses a disabled Owner one screen up.
@@ -724,11 +723,6 @@ public sealed class SimulationDataSeeder(
 
         return new SimActor(existing.Id, existing.Email!, roles);
     }
-
-    // UserManager hands back IList<string>, which is not an IReadOnlyList<string>
-    // — copied once here so every SimActor is built the same way.
-    private async Task<IReadOnlyList<string>> RolesOfAsync(ApplicationUser user) =>
-        [.. await users.GetRolesAsync(user)];
 
     // --- Minimal flock topology ----------------------------------------
 
@@ -983,7 +977,10 @@ public sealed class SimulationDataSeeder(
         var worker = cast.Workers[0];
         var flockId = flockIds[0];
 
-        var existingAssignments = await assignments.ListByUserAsync(worker.UserId, ct);
+        var existingAssignments = await db.UserRoleAssignments.AsNoTracking()
+            .Where(a => a.UserId == worker.UserId)
+            .OrderBy(a => a.Id)
+            .ToListAsync(ct);
         // Idempotent re-run — the pair, not Empty. See the header.
         if (existingAssignments.Any(a => a.FlockId == flockId)) return (worker.UserId, flockId);
 
@@ -999,7 +996,7 @@ public sealed class SimulationDataSeeder(
 
         var assignment = UserRoleAssignment.Create(
             Guid.NewGuid(), accountId, worker.UserId, farmId: null, houseId: null, flockId);
-        await assignments.AddAsync(assignment, ct);
+        await db.UserRoleAssignments.AddAsync(assignment, ct);
 
         await audit.WriteAsync(
             AuditActions.UserFlockAssign,
@@ -2218,10 +2215,10 @@ public sealed class SimulationDataSeeder(
         Guid accountId, CancellationToken ct)
     {
         var usersTotal = await db.Users.CountAsync(u => u.AccountId == accountId, ct);
-        var ownerCount = (await directory.FindByAccountRoleAsync(accountId, Roles.Owner)).Count;
-        var managerCount = (await directory.FindByAccountRoleAsync(accountId, Roles.Manager)).Count;
-        var salesCount = (await directory.FindByAccountRoleAsync(accountId, Roles.Sales)).Count;
-        var readOnlyCount = (await directory.FindByAccountRoleAsync(accountId, Roles.ReadOnly)).Count;
+        var ownerCount = (await access.ListUsersInRoleAsync(accountId, Roles.Owner, ct)).Count;
+        var managerCount = (await access.ListUsersInRoleAsync(accountId, Roles.Manager, ct)).Count;
+        var salesCount = (await access.ListUsersInRoleAsync(accountId, Roles.Sales, ct)).Count;
+        var readOnlyCount = (await access.ListUsersInRoleAsync(accountId, Roles.ReadOnly, ct)).Count;
         // Workers deliberately carry no role row (SeedCastAsync) — derive by
         // subtraction rather than a role lookup that would always find none.
         var workerCount = usersTotal - ownerCount - managerCount - salesCount - readOnlyCount;

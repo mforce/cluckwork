@@ -43,7 +43,7 @@ inside a body, but nothing else in the body.
   `Resolve` probes the full name first, so the claim outranks the namespace's
   owner wherever a full type name is resolved: the adapter walk, this walk and
   contract validation. A claimed type is also walked as a member of its module.
-  No owner claims a type yet.
+  Access claims the two Common identity ports described below.
 - **Entries name only top-level, non-generic types.** This holds for `contract`,
   `seam` and `types`, and a claimed type may not declare nested types. Each
   breach is a registry error. The syntax walk drops generic arity from both
@@ -55,7 +55,6 @@ inside a body, but nothing else in the body.
   them today. #1013 hit the same arity loss in the compatibility-exception
   scanner.
 - Its own module, Platform code, and modules with no contract are not checked.
-  Today that is Access, until #857 declares its contract.
 
 Break it and a peer that injects another module's repository passes CI, and the
 contract stops meaning anything between modules.
@@ -98,6 +97,16 @@ contract, the claim produced 2 peer violations, both in `ConfirmSaleHandler`.
 step moves `SimulationDataSeeder`'s `CreateUserAsync` onto `IAccessOperations`,
 so the seeder does not become an adapter bypass once Access owns
 `IIdentityProvider`.
+
+## Access claims in #857 E2
+
+#857 E2 folds the planned follow-up into the final Access declaration. Access
+now claims `IIdentityProvider` and `IStepUpGrantService` individually, and
+SimulationDataSeeder creates cast users through `IAccessOperations`. The
+real-tree peer probe rejects a Finance member taking either Common port; the
+claim-presence assertions reject deleting either ownership entry. Access has a
+28-entry aggregate-free contract, and its adapters pass the same walk. The
+previous measurement and deferral above describe the pre-contract baseline.
 
 ## What this does NOT cover
 

@@ -15,6 +15,21 @@ namespace Cluckwork.Api.IntegrationTests;
 public sealed class AccessSeedLookupTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]
+    public async Task SeedReadsPropagateCancellation()
+    {
+        using var scope = factory.Services.CreateScope();
+        var lookup = scope.ServiceProvider.GetRequiredService<IAccessSeedLookup>();
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            lookup.GetActorAsync(Guid.NewGuid(), Guid.NewGuid(), canceled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            lookup.FindUserByEmailAsync(Guid.NewGuid(), "missing@test.local", canceled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            lookup.ListUsersInRoleAsync(Guid.NewGuid(), Roles.Owner, canceled.Token));
+    }
+
+    [Fact]
     public async Task ActorReadsPreserveAccountDisabledStateAndEveryActualRole()
     {
         var email = $"shared-actor-{Guid.NewGuid():N}@test.local";
@@ -71,7 +86,7 @@ public sealed class AccessSeedLookupTests(CluckworkWebApplicationFactory factory
         var lookup = scope.ServiceProvider.GetRequiredService<IAccessSeedLookup>();
         var members = await lookup.ListUsersInRoleAsync(account, Roles.Owner);
         Assert.Equal(expected, members.Select(u => u.Id));
-        Assert.Single(members.Where(u => u.DisabledAt is not null));
+        Assert.Single(members, u => u.DisabledAt is not null);
         var foreign = Assert.Single(await lookup.ListUsersInRoleAsync(otherAccount, Roles.Owner));
         Assert.DoesNotContain(foreign.Id, members.Select(u => u.Id));
     }
@@ -113,14 +128,21 @@ public sealed class AccessSeedLookupTests(CluckworkWebApplicationFactory factory
                 .FindUserByEmailAsync(account, ownerEmail);
             Assert.NotNull(actor);
             scope.ServiceProvider.GetRequiredService<CurrentUserContext>().Resolve(actor.Id, actor.Email!, actor.Roles);
-            var created = await scope.ServiceProvider.GetRequiredService<IAccessOperations>()
-                .CreateUserAsync(account, email, TestHarness.Password, role, "Cast User", CancellationToken.None);
+            var operations = scope.ServiceProvider.GetRequiredService<IAccessOperations>();
+            using var canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                operations.CreateUserAsync(account, "canceled-" + email, TestHarness.Password,
+                    role, "Cast User", canceled.Token));
+            var created = await operations.CreateUserAsync(
+                account, email, TestHarness.Password, role, "Cast User", CancellationToken.None);
             Assert.True(created.IsSuccess);
             userId = created.Value;
             var actual = await scope.ServiceProvider.GetRequiredService<IAccessSeedLookup>().GetActorAsync(account, userId);
             Assert.NotNull(actual);
             Assert.Equal(role is null ? [] : new[] { role }, actual.Roles);
         }
+        Assert.Equal(HttpStatusCode.OK, (await factory.TryLoginAsync(email, TestHarness.Password)).StatusCode);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/me")).StatusCode);
         Assert.Equal(1, await factory.WithTenantScopeAsync(account, db =>

@@ -1,6 +1,43 @@
 {
   "owners": {
-    "Access":           { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Users", "Cluckwork.Infrastructure.Identity"] },
+    "Access":           { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Users", "Cluckwork.Infrastructure.Identity"],
+                          "contract": [
+                            "Cluckwork.Application.Features.Users.IAccessModule",
+                            "Cluckwork.Application.Features.Users.IAccessLookup",
+                            "Cluckwork.Application.Features.Users.ICredentialEpochVerifier",
+                            "Cluckwork.Application.Features.Users.IRefreshTokenPurge",
+                            "Cluckwork.Application.Features.Users.IAccessOperations",
+                            "Cluckwork.Application.Features.Users.IAccessAccountLifecycle",
+                            "Cluckwork.Application.Features.Users.IAccessSeedLookup",
+                            "Cluckwork.Application.Features.Users.CredentialVerdict",
+                            "Cluckwork.Application.Features.Users.UserFlockAssignment",
+                            "Cluckwork.Application.Features.Users.AccessActor",
+                            "Cluckwork.Application.Features.Users.AccessUserSummary",
+                            "Cluckwork.Application.Features.Users.FirstRunAdminOutcome",
+                            "Cluckwork.Application.Features.Users.AdminRecoveryResult",
+                            "Cluckwork.Application.Features.Users.AccountProvisionOutcome",
+                            "Cluckwork.Application.Features.Users.AccountLifecycleOutcome",
+                            "Cluckwork.Application.Features.Users.AccountRenameOutcome",
+                            "Cluckwork.Application.Features.Users.CreateUser.CreateUserCommand",
+                            "Cluckwork.Application.Features.Users.UpdateUser.UpdateUserCommand",
+                            "Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordCommand",
+                            "Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleCommand",
+                            "Cluckwork.Application.Features.Users.ChangeUserEmail.ChangeUserEmailCommand",
+                            "Cluckwork.Application.Features.Users.DisableUser.DisableUserCommand",
+                            "Cluckwork.Application.Features.Users.EnableUser.EnableUserCommand",
+                            "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockCommand",
+                            "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockCommand",
+                            "Cluckwork.Application.Features.Users.SetLanguage.SetLanguageCommand",
+                            "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitCommand",
+                            "Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordCommand"
+                          ],
+                          "types": [
+                            "Cluckwork.Application.Common.IIdentityProvider",
+                            "Cluckwork.Application.Common.IStepUpGrantService"
+                          ],
+                          "implementations": [
+                            "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository"
+                          ] },
     "Farm":             { "kind": "module",   "namespaces": ["Cluckwork.Domain.Accounts", "Cluckwork.Domain.Media", "Cluckwork.Application.Features.Accounts"],
                           "contract": [
                             "Cluckwork.Application.Features.Accounts.IFarmModule",
@@ -1825,12 +1862,52 @@
       "deleteWhen": "#858"
     },
     {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
+      "reaches": "Access",
+      "tables": ["AspNetRoles"],
+      "owner": "Platform",
+      "reason": "Checks the globally provisioned Owner role before demo seeding. The #858 fixture port will own Access prerequisites.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync",
+      "reaches": "Access",
+      "tables": ["AspNetRoles"],
+      "owner": "Platform",
+      "reason": "Checks globally provisioned assignable roles before simulation seeding. The #858 fixture port will own Access prerequisites.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.FindOwnerAsync",
+      "reaches": "Access",
+      "tables": ["AspNetRoles"],
+      "owner": "Platform",
+      "reason": "Distinguishes a missing Owner role from an account with no active Owner before reading account-scoped summaries through IAccessSeedLookup. The #858 fixture port will own this prerequisite.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync",
+      "reaches": "Access",
+      "tables": ["AspNetUsers"],
+      "owner": "Platform",
+      "reason": "Counts every account user, including role-less Workers, for exact fixture validation. Role counts use IAccessSeedLookup; the #858 fixture port will own the total count.",
+      "deleteWhen": "#858"
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.RestrictOneWorkerAsync",
+      "reaches": "Access",
+      "tables": ["UserRoleAssignments"],
+      "owner": "Platform",
+      "reason": "Reads ordered assignments and stages the restricted Worker assignment through the scoped context, then writes the Owner-authored audit and saves once. #858 P5 will move this trusted fixture write behind its Access fixture port.",
+      "deleteWhen": "#858"
+    },
+    {
       "symbol": "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository.ListByNameByUserAsync",
       "reaches": "FlockManagement",
       "tables": ["Flocks"],
       "owner": "Access",
-      "reason": "Left-joins a user's assignments to the filtered Flocks set in one statement, so each assigned flock carries its current name and the flock-scope filter decides which names the caller sees (#613). IFlockLookup.GetDisplayNamesAsync would add a second round trip; the Access slice moves assignments behind its contract.",
-      "deleteWhen": "#857"
+      "reason": "Left-joins a user's assignments to the filtered Flocks set in one statement, so each assigned flock carries its current name and the flock-scope filter decides which names the caller sees (#613). IFlockLookup.GetDisplayNamesAsync would add a second round trip; the assembly split must replace this remaining cross-module join while preserving its one-statement projection (#859).",
+      "deleteWhen": "#859"
     }
   ]
 }

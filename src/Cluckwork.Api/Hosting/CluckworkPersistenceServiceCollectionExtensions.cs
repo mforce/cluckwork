@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
@@ -86,7 +87,10 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
         // Explicit-command seeders (demo/simulation) share the same
         // persistence graph as the serving process.
         if (!environment.IsProduction())
+        {
+            services.AddScoped<IAccessSeedLookup, AccessSeedLookup>();
             services.AddScoped<DemoDataSeeder>();
+        }
 
         services.Configure<SimulationOptions>(
             configuration.GetSection(SimulationOptions.SectionName));

@@ -11,6 +11,8 @@ public interface IAccessLookup
         Guid accountId, Guid userId, CancellationToken ct = default);
 
     // Null means account-wide access: zero rows or any farm-wide row.
+    // Pass the resolved actor's id or an id already verified in this tenant;
+    // this assignment read does not verify membership.
     // Throws when the tenant is unresolved, because the read would then find
     // no rows and grant account-wide access.
     Task<IReadOnlySet<Guid>?> GetAssignedFlocksAsync(
