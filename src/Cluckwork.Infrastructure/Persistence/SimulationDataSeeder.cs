@@ -33,7 +33,6 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
-using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
@@ -100,7 +99,9 @@ public sealed class SimulationDataSeeder(
     IEggOperationsModule eggs,
     ICommerceModule commerce,
     IInventoryModule inventory,
+    IInventoryFixture inventoryFixture,
     IFinanceModule finance,
+    IFinanceFixture financeFixture,
     DailyEntryLockSweep lockSweep,
     IClock clock,
     IServiceScopeFactory scopeFactory,
@@ -1649,8 +1650,7 @@ public sealed class SimulationDataSeeder(
                 ? FeedAdjustmentPageTwoSentinelReason
                 : $"Simulation fixture feed adjustment {added + 1}";
 
-            var exists = await db.InventoryMovements.AnyAsync(
-                m => m.InventoryLotId == feedLotId && m.Date == date, ct);
+            var exists = await inventoryFixture.FeedLotMovementExistsAsync(feedLotId, date, ct);
             if (!exists)
             {
                 var result = await inventory.RecordAdjustmentAsync(new RecordAdjustmentCommand(
@@ -1663,8 +1663,7 @@ public sealed class SimulationDataSeeder(
         // Fail closed rather than silently publish a short band (the probe
         // above only skips rows that already exist, so shortness means the
         // dates stopped being distinct).
-        var count = await db.InventoryMovements.CountAsync(
-            m => m.InventoryLotId == feedLotId && m.Type == InventoryMovementType.Adjustment, ct);
+        var count = await inventoryFixture.CountFeedLotAdjustmentsAsync(feedLotId, ct);
         if (count < FeedAdjustmentCount)
             throw new InvalidOperationException(
                 $"Simulation seed: only {count} feed-lot adjustment rows exist; the fixture " +
@@ -1726,8 +1725,7 @@ public sealed class SimulationDataSeeder(
         Guid accountId, string name, string category, string unit, long defaultUnitCostMinorUnits,
         SimActor actor, CancellationToken ct)
     {
-        var existing = await db.InventoryItems.FirstOrDefaultAsync(i => i.Name == name, ct);
-        if (existing is not null) return existing.Id;
+        if (await inventoryFixture.FindItemIdByNameAsync(name, ct) is Guid existingId) return existingId;
 
         ActAs(actor);
         var result = await inventory.CreateItemAsync(
@@ -1743,8 +1741,7 @@ public sealed class SimulationDataSeeder(
         // The lot check doubles as the idempotency probe: this seeder only
         // ever creates ONE opening lot per item, so "any lot exists" is
         // equivalent to "the opening purchase already ran".
-        if (await db.InventoryLots.AnyAsync(l => l.InventoryItemId == itemId, ct))
-            return (await db.InventoryLots.FirstAsync(l => l.InventoryItemId == itemId, ct)).Id;
+        if (await inventoryFixture.FindLotIdAsync(itemId, ct) is Guid existingLotId) return existingLotId;
 
         ActAs(actor);
         // UnitCostMinorUnits omitted: falls back to the item's default cost
@@ -1760,10 +1757,7 @@ public sealed class SimulationDataSeeder(
         Guid accountId, Guid itemId, Guid lotId, DateOnly date, string type, decimal quantityDelta, string reason,
         SimActor actor, CancellationToken ct)
     {
-        var hasAdjustment = await db.InventoryMovements.AnyAsync(
-            m => m.InventoryLotId == lotId
-                 && (m.Type == InventoryMovementType.Adjustment || m.Type == InventoryMovementType.Discard), ct);
-        if (hasAdjustment) return;
+        if (await inventoryFixture.HasAdjustmentOrDiscardAsync(lotId, ct)) return;
 
         ActAs(actor);
         var result = await inventory.RecordAdjustmentAsync(new RecordAdjustmentCommand(
@@ -1786,9 +1780,7 @@ public sealed class SimulationDataSeeder(
                 // above (day-of-anchor could spuriously read as "future"
                 // against the farm's own, timezone-skewed today).
                 var date = today.AddDays(-d);
-                var exists = await db.FeedUsages.AnyAsync(
-                    u => u.FlockId == flockId && u.InventoryItemId == feedItemId && u.Date == date, ct);
-                if (exists) continue;
+                if (await inventoryFixture.FeedUsageExistsAsync(flockId, feedItemId, date, ct)) continue;
 
                 var result = await inventory.RecordFeedUsageAsync(new RecordFeedUsageCommand(
                     flockId, feedItemId, date, FeedUsagePerFlockPerDay,
@@ -1807,8 +1799,7 @@ public sealed class SimulationDataSeeder(
             for (var d = 1; d <= WaterUsageDays; d++)
             {
                 var date = today.AddDays(-d);
-                var exists = await db.WaterUsages.AnyAsync(u => u.FlockId == flockId && u.Date == date, ct);
-                if (exists) continue;
+                if (await inventoryFixture.WaterUsageExistsAsync(flockId, date, ct)) continue;
 
                 var result = await inventory.RecordWaterUsageAsync(new RecordWaterUsageCommand(
                     flockId, date, WaterUsagePerFlockPerDay, Unit: "L", Source: "Well",
@@ -1889,8 +1880,7 @@ public sealed class SimulationDataSeeder(
     private async Task<Guid> EnsureExpenseCategoryAsync(
         Guid accountId, string name, SimActor actor, CancellationToken ct)
     {
-        var existing = await db.ExpenseCategories.FirstOrDefaultAsync(c => c.Name == name, ct);
-        if (existing is not null) return existing.Id;
+        if (await financeFixture.FindCategoryIdByNameAsync(name, ct) is Guid existingId) return existingId;
 
         ActAs(actor);
         var result = await finance.CreateCategoryAsync(new CreateExpenseCategoryCommand(name), accountId, ct);
@@ -1905,8 +1895,7 @@ public sealed class SimulationDataSeeder(
         // Description is the natural key THIS seeder controls (every entry
         // above is a distinct fixture string) — same convention as
         // FindOrderAsync's (CustomerId, OrderDate) above.
-        var exists = await db.Expenses.AnyAsync(e => e.Description == description, ct);
-        if (exists) return;
+        if (await financeFixture.ExpenseExistsAsync(description, ct)) return;
 
         ActAs(actor);
         var result = await finance.CreateExpenseAsync(new CreateExpenseCommand(
@@ -2251,24 +2240,8 @@ public sealed class SimulationDataSeeder(
 
         var paymentCount = await db.Payments.CountAsync(ct);
 
-        var inventoryItemCount = await db.InventoryItems.CountAsync(ct);
-        var inventoryLotCount = await db.InventoryLots.CountAsync(ct);
-
-        var movementsTotal = await db.InventoryMovements.CountAsync(ct);
-        var purchaseMovements = await db.InventoryMovements.CountAsync(
-            m => m.Type == InventoryMovementType.Purchase, ct);
-        var usageMovements = await db.InventoryMovements.CountAsync(
-            m => m.Type == InventoryMovementType.Usage, ct);
-        var adjustmentMovements = await db.InventoryMovements.CountAsync(
-            m => m.Type == InventoryMovementType.Adjustment, ct);
-        var discardMovements = await db.InventoryMovements.CountAsync(
-            m => m.Type == InventoryMovementType.Discard, ct);
-
-        var feedUsageCount = await db.FeedUsages.CountAsync(ct);
-        var waterUsageCount = await db.WaterUsages.CountAsync(ct);
-
-        var expenseCategoryCount = await db.ExpenseCategories.CountAsync(ct);
-        var expenseCount = await db.Expenses.CountAsync(ct);
+        var inventoryCounts = await inventoryFixture.CountAsync(ct);
+        var financeCounts = await financeFixture.CountAsync(ct);
 
         var counts = new SimulationManifestCounts(
             Accounts: accountCount,
@@ -2285,13 +2258,13 @@ public sealed class SimulationDataSeeder(
             EggLots: eggLotCount,
             SalesOrdersTotal: salesOrdersTotal,
             Payments: paymentCount,
-            InventoryItems: inventoryItemCount,
-            InventoryLots: inventoryLotCount,
-            InventoryMovementsTotal: movementsTotal,
-            FeedUsageRows: feedUsageCount,
-            WaterUsageRows: waterUsageCount,
-            ExpenseCategories: expenseCategoryCount,
-            Expenses: expenseCount);
+            InventoryItems: inventoryCounts.Items,
+            InventoryLots: inventoryCounts.Lots,
+            InventoryMovementsTotal: inventoryCounts.Movements,
+            FeedUsageRows: inventoryCounts.FeedUsages,
+            WaterUsageRows: inventoryCounts.WaterUsages,
+            ExpenseCategories: financeCounts.ExpenseCategories,
+            Expenses: financeCounts.Expenses);
 
         var states = new SimulationLifecycleStates(
             DailyEntries: new SimulationDailyEntryStates(draftEntries, submittedEntries, lockedEntries),
@@ -2299,7 +2272,8 @@ public sealed class SimulationDataSeeder(
             SalesOrders: new SimulationSalesOrderStates(
                 draftOrders, confirmedOrders, shippedOrders, invoicedOrders, cancelledOrders, voidedOrders),
             InventoryMovements: new SimulationInventoryMovementStates(
-                purchaseMovements, usageMovements, adjustmentMovements, discardMovements));
+                inventoryCounts.PurchaseMovements, inventoryCounts.UsageMovements,
+                inventoryCounts.AdjustmentMovements, inventoryCounts.DiscardMovements));
 
         return (counts, states);
     }
