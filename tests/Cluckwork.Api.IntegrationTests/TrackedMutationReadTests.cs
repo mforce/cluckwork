@@ -13,8 +13,8 @@ namespace Cluckwork.Api.IntegrationTests;
 
 // The database-backed Flock read checks one real tracked snapshot. The source
 // guard checks public Task<TEntity> repository reads for AppDbContext DbSet
-// entities and rejects explicit AsNoTracking or AsNoTrackingWithIdentityResolution
-// calls unless the type/member has a documented read-only purpose. It does not
+// entities and rejects AsNoTracking or AsNoTrackingWithIdentityResolution
+// references unless the type/member has a documented read-only purpose. It does not
 // prove query filters, collection reads, private helper calls or the context's
 // default tracking mode. AccountId's database concurrency token separately
 // guards detached writes (#562).
@@ -120,15 +120,8 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
 
                 var body = (SyntaxNode?)method.Body ?? method.ExpressionBody;
                 Assert.NotNull(body);
-                var calls = body.DescendantNodes().OfType<InvocationExpressionSyntax>()
-                    .Select(call => call.Expression switch
-                    {
-                        MemberAccessExpressionSyntax access => access.Name.Identifier.ValueText,
-                        MemberBindingExpressionSyntax binding => binding.Name.Identifier.ValueText,
-                        SimpleNameSyntax name => name.Identifier.ValueText,
-                        _ => null,
-                    });
-                if (calls.Any(name => name is "AsNoTracking" or "AsNoTrackingWithIdentityResolution"))
+                if (body.DescendantNodes().OfType<SimpleNameSyntax>()
+                    .Any(name => name.Identifier.ValueText is "AsNoTracking" or "AsNoTrackingWithIdentityResolution"))
                     violations.Add($"{key.Type}.{key.Member}");
             }
         }
