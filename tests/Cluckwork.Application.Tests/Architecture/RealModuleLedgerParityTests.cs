@@ -15,6 +15,7 @@ public sealed class RealModuleLedgerParityTests
             JsonSerializer.Serialize(new
             {
                 json.CompatibilityExceptions,
+                json.Edges,
                 json.Adapters,
                 json.AdapterRoots,
                 json.Tables,
@@ -25,6 +26,7 @@ public sealed class RealModuleLedgerParityTests
             JsonSerializer.Serialize(new
             {
                 RealModuleLedger.CompatibilityExceptions,
+                RealModuleLedger.Edges,
                 RealModuleLedger.Adapters,
                 RealModuleLedger.AdapterRoots,
                 RealModuleLedger.Tables,
