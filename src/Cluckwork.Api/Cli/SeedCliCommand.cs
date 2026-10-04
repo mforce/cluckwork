@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -105,7 +106,7 @@ public sealed class SeedCliCommand : ICliCommand
         Guid? targetAccountId = null;
         if (farmCode is not null)
         {
-            targetAccountId = await AccountSlugLookup.ResolveAsync(sp, farmCode);
+            targetAccountId = await sp.GetRequiredService<IFarmDirectory>().FindIdBySlugAsync(farmCode);
             if (targetAccountId is null)
             {
                 await WriteErrorAsync(

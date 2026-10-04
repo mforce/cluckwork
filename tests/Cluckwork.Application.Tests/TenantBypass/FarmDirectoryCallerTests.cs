@@ -7,10 +7,10 @@ namespace Cluckwork.Application.Tests.TenantBypass;
 // #858 — IFarmDirectory reads every farm with the tenant filter off, and it is
 // on Farm's contract, so the ledger guards let any adapter take it. This guard
 // keeps the NAME of the directory, or of AccountRepository, out of every file
-// except the operator verbs, the jobs and the directory's own files. It does
-// not follow calls: a forwarder in an allowed place, such as
-// AccountSlugLookup.ResolveAsync until #858 P8 deletes it, hands the directory
-// to callers this walk never sees.
+// except the operator verbs, the jobs and the directory's own and registration
+// files. It does not follow calls: a forwarder in an allowed place would hand
+// the directory to callers this walk never sees, which is why #858 P8 deleted
+// AccountSlugLookup.ResolveAsync and each verb names the directory itself.
 public sealed class FarmDirectoryCallerTests
 {
     private static readonly string[] WatchedNames = ["IFarmDirectory", "AccountRepository"];

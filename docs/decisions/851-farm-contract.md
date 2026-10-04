@@ -12,8 +12,9 @@
 > the directory reads every farm with the tenant filter off, for the operator
 > verbs and the lock sweep only. `DailyEntryLockSweep.RunAsync`,
 > `AccountSlugLookup.ResolveAsync` and `ListAccountsCliCommand.RunAsync` read
-> through it and are no longer compatibility exceptions. #858 P8 records the
-> final state.
+> through it and are no longer compatibility exceptions. #858 P8 deleted the
+> forwarder and records the final state in
+> [`858-platform-composition.md`](858-platform-composition.md).
 
 ## What happened
 
