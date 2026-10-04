@@ -15,11 +15,13 @@ public sealed class RealModuleLedgerParityTests
             JsonSerializer.Serialize(new
             {
                 json.CompatibilityExceptions,
+                json.TableOwnerOverrides,
                 json.AdapterTiers,
             }),
             JsonSerializer.Serialize(new
             {
                 RealModuleLedger.CompatibilityExceptions,
+                RealModuleLedger.TableOwnerOverrides,
                 RealModuleLedger.AdapterTiers,
             }));
     }
