@@ -435,7 +435,7 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
-    public void DebugPreprocessorSymbol_EnablesAUsingEdge()
+    public void DebugPreprocessorSymbol_EnablesAUsingEdgeOnlyInDebugBuilds()
     {
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", """
@@ -446,7 +446,11 @@ public sealed class ModuleLedgerTests : IDisposable
             public class R { }
             """);
 
+#if DEBUG
         Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+#else
+        Assert.Empty(Scan(WriteLedger(string.Empty)).LiveEdges);
+#endif
     }
 
     [Fact]
