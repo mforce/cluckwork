@@ -30,6 +30,24 @@ public sealed class FilterFreeSetIdentityTests : IDisposable
         return GuardScanner.FilterFreeSetIdentity(single);
     }
 
+    [Fact]
+    public void FilterFreeQueryInAnActiveFrameworkConditional_IsSeen()
+    {
+        var occurrences = GuardScanner.ScanFilterFreeSet(WriteSource("""
+            namespace Fixture;
+            public sealed class Repo
+            {
+            #if NET10_0
+                public object Query() => db.Users.ToList();
+            #endif
+            }
+            """), ["Users"]);
+
+        var query = Assert.Single(occurrences);
+        Assert.Equal("Fixture.Repo.Query()", query.EnclosingSymbol);
+        Assert.False(query.PredicateHasAccountId);
+    }
+
     private const string PropertyShell = """
         namespace Fixture;
         public sealed class Repo

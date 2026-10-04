@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Cluckwork.Application.Tests.Architecture;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -21,29 +22,49 @@ public sealed partial class EggLotLockSqlTests
 
         var sites = new List<(string Where, string Sql)>();
         foreach (var file in GuardScanner.EnumerateSourceFiles(src))
-        {
-            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file)).GetRoot();
-            foreach (var node in root.DescendantNodes())
-            {
-                var text = node switch
-                {
-                    InterpolatedStringExpressionSyntax s => string.Concat(s.Contents.Select(c =>
-                        c is InterpolatedStringTextSyntax t ? t.TextToken.ValueText : "{}")),
-                    LiteralExpressionSyntax l when l.IsKind(SyntaxKind.StringLiteralExpression) => l.Token.ValueText,
-                    _ => null,
-                };
-                if (text is null) continue;
-                var sql = Whitespace().Replace(SqlComment().Replace(text, ""), " ").Trim();
-                if (sql.Contains("\"EggLots\"") && sql.Contains("FOR UPDATE"))
-                    sites.Add(($"{Path.GetRelativePath(src, file)}:{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}", sql));
-            }
-        }
+            sites.AddRange(FindLockStatements(File.ReadAllText(file), Path.GetRelativePath(src, file)));
 
         Assert.True(sites.Count >= 3, $"found {sites.Count} FOR UPDATE statements over EggLots, expected at least 3");
         var unordered = sites.Where(s => !s.Sql.EndsWith("ORDER BY \"ProductionDate\", \"Id\" FOR UPDATE", StringComparison.Ordinal))
             .Select(s => $"{s.Where}: {s.Sql}").ToList();
         Assert.True(unordered.Count == 0,
             "FOR UPDATE over EggLots must end ORDER BY \"ProductionDate\", \"Id\":\n" + string.Join("\n", unordered));
+    }
+
+    [Fact]
+    public void UnorderedLockInAnActiveFrameworkConditional_IsSeen()
+    {
+        var sites = FindLockStatements(""""
+            class Repo
+            {
+            #if NET10_0
+                private const string Sql = """SELECT * FROM "EggLots" FOR UPDATE""";
+            #endif
+            }
+            """", "Fixture.cs");
+
+        Assert.Equal("SELECT * FROM \"EggLots\" FOR UPDATE", Assert.Single(sites).Sql);
+    }
+
+    private static List<(string Where, string Sql)> FindLockStatements(string source, string file)
+    {
+        var sites = new List<(string Where, string Sql)>();
+        var root = CSharpSyntaxTree.ParseText(source, ModuleLedgerScanner.ParseOptions).GetRoot();
+        foreach (var node in root.DescendantNodes())
+        {
+            var text = node switch
+            {
+                InterpolatedStringExpressionSyntax s => string.Concat(s.Contents.Select(c =>
+                    c is InterpolatedStringTextSyntax t ? t.TextToken.ValueText : "{}")),
+                LiteralExpressionSyntax l when l.IsKind(SyntaxKind.StringLiteralExpression) => l.Token.ValueText,
+                _ => null,
+            };
+            if (text is null) continue;
+            var sql = Whitespace().Replace(SqlComment().Replace(text, ""), " ").Trim();
+            if (sql.Contains("\"EggLots\"") && sql.Contains("FOR UPDATE"))
+                sites.Add(($"{file}:{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}", sql));
+        }
+        return sites;
     }
 
     [GeneratedRegex(@"--[^\n]*")]

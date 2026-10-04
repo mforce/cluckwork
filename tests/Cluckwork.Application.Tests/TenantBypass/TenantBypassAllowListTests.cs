@@ -80,6 +80,42 @@ public sealed class TenantBypassAllowListTests : IDisposable
         Assert.Contains("IgnoreQueryFilters", failure!);
     }
 
+    [Fact]
+    public void UnlistedBypassInAnActiveFrameworkConditional_Fails()
+    {
+        WriteSource("src/A.cs", """
+            namespace A;
+            public class R
+            {
+            #if NET10_0
+                public object Bad() => db.EggLots.IgnoreQueryFilters();
+            #endif
+            }
+            """);
+        var report = Scan(_tempRoot, WriteAllowList());
+
+        Assert.Contains(GuardScanner.Evaluate(report), failure =>
+            failure.Contains("unexcused bypass [IgnoreQueryFilters]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RawSqlLockInAnActiveFrameworkConditional_RequiresAnAccountPredicate()
+    {
+        WriteSource("src/A.cs", """
+            namespace A;
+            public class R
+            {
+            #if NET10_0
+                public object Bad() => db.EggLots.FromSqlRaw("SELECT * FROM eggs FOR UPDATE");
+            #endif
+            }
+            """);
+        var report = Scan(_tempRoot, WriteAllowList(("A.R.Bad()", "src/A.cs", "fixture")));
+
+        Assert.Contains(GuardScanner.Evaluate(report), failure =>
+            failure.Contains("raw-SQL row lock missing an AccountId predicate (M4)", StringComparison.Ordinal));
+    }
+
     // M8-M2: an allow-listed bypass is excused; deleting the entry makes it
     // unexcused again — same assertion, same lever.
     [Fact]

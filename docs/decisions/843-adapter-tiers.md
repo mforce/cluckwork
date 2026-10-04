@@ -89,8 +89,8 @@ slice changes no `src/` code, CI workflow, or package dependency, and it does
 not ask #806–#809 to call contracts instead of repositories — that remains a
 Track C question this ledger absorbs for now.
 
-The walk still parses every file with one fixed preprocessor symbol list
-(`ModuleLedgerScanner.ParseOptions`), so a project-defined constant's `#if`
+The walk parses every file with one shared preprocessor symbol list
+(`ModuleLedgerScanner.ParseOptions`), so an undeclared project-defined constant's `#if`
 branch is never walked — an inactive branch is invisible to Roslyn's own
 parse, not merely to this scanner. Nothing here reads an inactive branch;
 instead, `ModuleLedgerScanner.UndeclaredDefineConstants` enumerates every
@@ -107,6 +107,12 @@ adding `MCP` to `DefineConstants` reds this check first, which is the prompt
 to add `MCP` to `ParseOptions` too, before the guarded code can hide behind
 it. `$(DefineConstants)` (the MSBuild reference to the inherited value) is
 not itself a symbol and is skipped.
+
+The #1052 amendment also selects DEBUG or RELEASE to match the test build.
+`SourcePreprocessorTests.RealSourceTree_HasNoInactiveCode` rejects
+`DisabledTextTrivia` under `src/`, including inactive alternate branches and
+symbols supplied only through build arguments. Declaring a symbol alone does
+not excuse code that the shared parse still leaves inactive.
 
 ## How it is enforced
 

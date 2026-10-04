@@ -36,9 +36,32 @@ public sealed class ExportSnapshotSourceTests
         Assert.NotEmpty(FindViolations(source.Replace(original, mutated, StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public void ArmInAnActiveFrameworkConditional_NamingAnotherContextIsReported()
+    {
+        var violations = FindViolations("""
+            class ExportQueries(AppDbContext db)
+            {
+                private AppDbContext requestDb = db;
+                private AppDbContext activeDb = db;
+                private static string[] DatasetNames = ["customers"];
+                public object GetDataset(string dataset) => dataset switch
+                {
+            #if NET10_0
+                    "customers" => requestDb.Customers,
+            #else
+                    "customers" => activeDb.Customers,
+            #endif
+                };
+            }
+            """);
+
+        Assert.Equal(["\"customers\" reads through [requestDb], not only activeDb"], violations);
+    }
+
     private static List<string> FindViolations(string source)
     {
-        var type = CSharpSyntaxTree.ParseText(source).GetRoot().DescendantNodes()
+        var type = CSharpSyntaxTree.ParseText(source, ModuleLedgerScanner.ParseOptions).GetRoot().DescendantNodes()
             .OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.ValueText == "ExportQueries");
 
         var contexts = type.Members.OfType<FieldDeclarationSyntax>()
