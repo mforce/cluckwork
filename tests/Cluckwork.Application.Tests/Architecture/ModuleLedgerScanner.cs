@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
@@ -38,14 +39,13 @@ public static class ModuleLedgerScanner
     // Below the 466 files src/ held on 2026-09-14, so growth never reds the gate and a dropped subtree does.
     internal const int RealTreeFileFloor = 400;
 
+    // The symbols this test build compiled with, embedded by the csproj (#1053). src/ shares its
+    // target framework and configuration; UndeclaredDefineConstants catches a project adding its own.
     internal static readonly CSharpParseOptions ParseOptions = CSharpParseOptions.Default.WithPreprocessorSymbols(
-#if DEBUG
-        "DEBUG",
-#elif RELEASE
-        "RELEASE",
-#endif
-        "TRACE", "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
-        "NET6_0_OR_GREATER", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER");
+        typeof(ModuleLedgerScanner).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .SingleOrDefault(attribute => attribute.Key == "DefineConstants")?.Value?
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        ?? throw new InvalidOperationException("The test assembly carries no DefineConstants metadata."));
 
     private const string Prefix = "Cluckwork.";
 

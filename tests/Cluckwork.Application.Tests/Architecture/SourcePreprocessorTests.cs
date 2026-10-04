@@ -34,10 +34,14 @@ public sealed class SourcePreprocessorTests
         Assert.Equal([line], FindInactiveLines(source));
     }
 
-    [Fact]
-    public void ActiveFrameworkRegion_IsAccepted()
+    // NETCOREAPP3_1_OR_GREATER is an SDK compatibility symbol a hand list
+    // omitted (#1053); the guards read the build's own DefineConstants now.
+    [Theory]
+    [InlineData("NET10_0")]
+    [InlineData("NETCOREAPP3_1_OR_GREATER")]
+    public void ActiveFrameworkRegion_IsAccepted(string symbol)
     {
-        Assert.Empty(FindInactiveLines("#if NET10_0\nclass Visible {}\n#endif"));
+        Assert.Empty(FindInactiveLines($"#if {symbol}\nclass Visible {{}}\n#endif"));
     }
 
     [Fact]

@@ -1381,10 +1381,12 @@ public static class GuardScanner
         var files = new List<string>();
         void Walk(string dir)
         {
+            // The SDK excludes only a project's own bin/ and obj/; it compiles
+            // a .cs file anywhere else, node_modules/ included (#1053).
+            var isProjectDir = Directory.EnumerateFiles(dir, "*.csproj").Any();
             foreach (var sub in Directory.GetDirectories(dir))
             {
-                var name = Path.GetFileName(sub);
-                if (name is "bin" or "obj" or "node_modules")
+                if (isProjectDir && Path.GetFileName(sub) is "bin" or "obj")
                 {
                     continue;
                 }

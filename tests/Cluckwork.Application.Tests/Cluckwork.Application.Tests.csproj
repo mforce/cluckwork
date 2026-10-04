@@ -22,4 +22,17 @@
     <ProjectReference Include="..\..\src\Cluckwork.Infrastructure\Cluckwork.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- The source guards parse src/ with the symbols the compiler defines,
+       including the SDK's implicit framework symbols such as
+       NETCOREAPP3_1_OR_GREATER (#1053). They exist only after
+       AddImplicitDefineConstants runs, so embed them from a target. -->
+  <Target Name="EmbedDefineConstants" AfterTargets="AddImplicitDefineConstants" BeforeTargets="GetAssemblyAttributes">
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>DefineConstants</_Parameter1>
+        <_Parameter2>$(DefineConstants)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+
 </Project>
