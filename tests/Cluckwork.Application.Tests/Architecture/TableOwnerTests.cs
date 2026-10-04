@@ -227,6 +227,24 @@ namespace Cluckwork.Application.Tests.Architecture
             finally { File.Delete(path); }
         }
 
+        // Validate rejects a blank name in a record, not only a non-string one in JSON. The scanner's own
+        // checks report the same rows, so the assertion names Validate's message.
+        [Fact]
+        public void BlankTableName_IsRejectedByValidate()
+        {
+            var ledger = ModuleLedger.Validate(Ledger() with { Tables = [.. Ledger().Tables, new("Red", "")] });
+            Assert.Contains("tables has a blank or non-string entry in 'Red'", ledger.RegistryErrors);
+            Assert.Contains("table-owner registry error: tables has a blank or non-string entry in 'Red'", Evaluate(ledger));
+        }
+
+        [Fact]
+        public void BlankForeignKeyName_IsRejectedByValidate()
+        {
+            var ledger = ModuleLedger.Validate(Ledger() with { ForeignKeys = [Ledger().ForeignKeys[0] with { Name = "" }] });
+            Assert.Contains("foreignKeys[0] has a blank or non-string 'name'", ledger.RegistryErrors);
+            Assert.Contains("table-owner registry error: foreignKeys[0] has a blank or non-string 'name'", Evaluate(ledger));
+        }
+
         [Fact]
         public void DuplicateForeignKey_IsRegistryError() =>
             Assert.Contains("table-owner registry error: duplicate foreign-key row 'FK_Children_Parents_ParentId'",
