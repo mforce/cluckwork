@@ -6,6 +6,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-04
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The remaining compatibility exception keeps `deleteWhen: "#859"` and now lives in `RealModuleLedger.Exemptions.cs`; #859 step 1 moved it unchanged and does not remove it.
 
 ## What happened
 

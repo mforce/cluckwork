@@ -5,6 +5,7 @@
 
 **Status:** accepted
 **Date:** 2026-09-15
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 ## What happened
 
@@ -23,9 +24,9 @@ named and dated, before the code that needs it exists.
 
 A tier declares a named privilege a module may not otherwise have, over a
 namespace, tied to the surface that will map it and a review issue that gives
-the exemption an end date. `adapterTiers` in
-`tests/Cluckwork.Application.Tests/Architecture/Data/module-ledger.json` is an
-array of `{ namespace, privilege, surface, reason, reviewBy }` rows; today it
+the exemption an end date. `RealModuleLedger.AdapterTiers` in
+`tests/Cluckwork.Application.Tests/Architecture/RealModuleLedger.Adapters.cs` is an
+array of `AdapterTier(Namespace, Privilege, Surface, Reason, ReviewBy)` rows; today it
 holds one, `Cluckwork.Api.Mcp` → `DirectRepository`, surfaced by `MapMcp`,
 reviewed by `#806`. `AdapterTierScanner` walks every `.cs` under `src/` for a
 type carrying `[McpServerToolType]` (simple, qualified, or `Attribute`-suffixed,
@@ -33,7 +34,7 @@ or reached through a `using X = ...;` alias — a file-level or namespace-block
 alias in the same file, or a `global using` alias declared anywhere in the same
 project) and every invocation of a declared surface call (`MapMcp` today). A tool type
 outside every declared tier namespace is red. A mapped surface with no tier row
-is red, and the failure prints the JSON row to add. A tier row whose surface is
+is red, and the failure prints the C# row to add. A tier row whose surface is
 never invoked and whose namespace holds no type is `Dormant` — informational,
 never red, because the row is meant to be committed before the code exists.
 `privilege` and `surface` are each a closed set, both read from

@@ -1,5 +1,3 @@
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -136,25 +134,14 @@ public static class AdapterTierScanner
         foreach (var call in report.SurfaceWithoutTier)
         {
             failures.Add($"mapped surface {call.Surface} at {call.File}:{call.Line} has no adapterTiers row; " +
-                "review and add the JSON row:\n" + RenderRow(call.Surface));
+                "review and add the row to RealModuleLedger.AdapterTiers:\n" + RenderRow(call.Surface));
         }
         return failures;
     }
 
-    private static readonly JsonSerializerOptions RowOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
-    internal static string RenderRow(string surface) => JsonSerializer.Serialize(new
-    {
-        @namespace = "<the tool namespace>",
-        privilege = AdapterTier.KnownSurfaces[surface],
-        surface,
-        reason = "<why this surface needs the privilege, with a citation>",
-        reviewBy = "<#issue>",
-    }, RowOptions);
+    internal static string RenderRow(string surface) =>
+        $"new(\"<the tool namespace>\", {RealModuleLedger.Quote(AdapterTier.KnownSurfaces[surface])}, " +
+        $"{RealModuleLedger.Quote(surface)}, \"<why this surface needs the privilege, with a citation>\", \"<#issue>\"),";
 
     private sealed record AliasDirective(string Alias, string Target, BaseNamespaceDeclarationSyntax? Block);
 

@@ -5,6 +5,7 @@
 
 **Status:** accepted
 **Date:** 2026-09-14
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 ## What happened
 
@@ -20,7 +21,7 @@ under the existing ledger; Platform owns the domain audit types.
 
 ## The rule
 
-Declare each adapter's set of module-kind owners in `module-ledger.json` and
+Declare each adapter's set of module-kind owners in `RealModuleLedger.Adapters` and
 review any newly reached owner before extending that set. A live owner outside
 the declared set fails the guard, even if the total owner count stays the same.
 Removing a crossing, deleting an adapter, or leaving an unused allowance stays
@@ -159,7 +160,7 @@ second real-tree test. Temporary fixtures use their own adapter count as the
 floor.
 
 An undeclared crossing reports the adapter, owner, crossing type, and
-`file:line`, followed by the generated JSON row to review. Rows and owner lists
+`file:line`, followed by the generated C# row to review. Rows and owner lists
 are sorted ordinally. `Loosenable` never enters the gate's failure list.
 `AdapterReachRealTreeTests.AssertNoLoosenable` is a test-only assertion for an
 explicit pruning pass, and the regular gate prints the pruning list without
