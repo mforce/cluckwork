@@ -5,6 +5,7 @@
 
 **Status:** accepted
 **Date:** 2026-09-14
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 ## What happened
 
@@ -27,7 +28,7 @@ has no owner in the Cluckwork namespace map. They belong to Access under §3.3.
 ## The rule
 
 Declare every distinct EF table exactly once under an existing owner in
-`Architecture/Data/module-ledger.json`. Use the relational table name, qualified
+`RealModuleLedger.Tables`. Use the relational table name, qualified
 by schema when the schema is not `public`. Keep the table owner consistent with
 the CLR namespace's longest matching owner claim, treating exact claims as
 subtree claims for this check. Record any design exception in

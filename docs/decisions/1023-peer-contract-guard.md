@@ -6,6 +6,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-03
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 ## What happened
 
@@ -28,7 +29,7 @@ and `UserRoleAssignment`.
 ## The rule
 
 A module member may take another contracted module's type only when the type is
-in that module's `contract` or `seam` in `module-ledger.json`. The check reads
+in that module's `Contract` or `Seam` in `RealModuleLedger.Owners`. The check reads
 parameter types and service resolutions, the same syntax #849 reads for adapters.
 That includes service resolutions and typed lambda and local-function parameters
 inside a body, but nothing else in the body.

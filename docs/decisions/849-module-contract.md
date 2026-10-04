@@ -5,6 +5,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-01
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 ## What happened
 
@@ -30,7 +31,7 @@ to the module's existing handlers and repositories, and
 `CluckworkFeatureServiceCollectionExtensions` registers it beside them. Contract types carry ids, values and versions: the existing commands,
 `Result`/`Result<T>`, and `*Details` records. They never carry an entity or an
 aggregate, at any depth. List every contract type under
-`owners.<Module>.contract` in `module-ledger.json`. An adapter reaches a
+the module's `Contract` in `RealModuleLedger.Owners`. An adapter reaches a
 contracted module only through those types. It still validates through
 `IValidator<TCommand>`, because the commands are contract types. If an endpoint
 injects a repository again, every owner-level guard stays green while the

@@ -11,8 +11,8 @@ using Cluckwork.Domain.Inventory;
 namespace Cluckwork.Application.Features.Inventory;
 
 // #855: the General Inventory contract. Adapters reach General Inventory only
-// through the types module-ledger.json lists under
-// owners.GeneralInventory.contract.
+// through the types RealModuleLedger.Owners lists in
+// the GeneralInventory row's Contract.
 public interface IInventoryModule
 {
     Task<IReadOnlyList<InventoryItemDetails>> ListItemsAsync(bool includeInactive, CancellationToken ct);

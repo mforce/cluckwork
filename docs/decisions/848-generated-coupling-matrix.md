@@ -4,6 +4,7 @@
 
 **Status:** accepted
 **Date:** 2026-09-14
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 ## What happened
 
@@ -11,7 +12,7 @@ No incident. Design section 3.4 lived only in the #514 epic comments. Seven obse
 
 ## The rule
 
-Generate `tests/Cluckwork.Application.Tests/Architecture/Data/coupling-matrix.md` from `module-ledger.json`, the module-edge walk, the EF-model table walk, and the adapter-reach walk. Do not edit the generated Markdown. The real-tree test rejects any invalid source report before rendering, compares normalized line endings with a fresh render, and checks that live module pairs equal the ledger's edge pairs.
+Generate `tests/Cluckwork.Application.Tests/Architecture/Data/coupling-matrix.md` from `RealModuleLedger`, the module-edge walk, the EF-model table walk, and the adapter-reach walk. Do not edit the generated Markdown. The real-tree test rejects any invalid source report before rendering, compares normalized line endings with a fresh render, and checks that live module pairs equal the ledger's edge pairs.
 
 ## Why not the obvious alternative
 
