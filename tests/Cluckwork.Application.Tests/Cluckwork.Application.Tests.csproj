@@ -10,7 +10,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Architecture/Data/module-ledger.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Architecture/Data/coupling-matrix.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

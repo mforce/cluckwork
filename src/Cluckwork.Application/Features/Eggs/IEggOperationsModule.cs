@@ -12,8 +12,8 @@ using Cluckwork.Domain.Eggs;
 namespace Cluckwork.Application.Features.Eggs;
 
 // #853: the Egg Operations contract for adapters. Adapters reach Egg Operations
-// only through the types module-ledger.json lists under
-// owners.EggOperations.contract; peer modules use the narrower IEggGradeLookup
+// only through the types RealModuleLedger.Owners lists in
+// the EggOperations row's Contract; peer modules use the narrower IEggGradeLookup
 // and IDailyEntryLookup ports.
 public interface IEggOperationsModule
 {

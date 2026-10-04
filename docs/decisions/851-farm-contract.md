@@ -6,6 +6,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-02
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 > **Amended 2026-10-03 (#858 P3, PR #1043):** the contract now also lists
 > `IFarmDirectory`, `FarmTimeZone` and `FarmListing`. Unlike every member below,
@@ -33,8 +34,8 @@ seeder, and sign-in. The count comes from running the #849 adapter check against
 `IFarmModule` in `Cluckwork.Application.Features.Accounts` is Farm's contract. It
 reads the current farm's settings as `FarmSettingsDetails`, reports whether the
 currency may still change, writes settings through `UpdateFarmSettingsCommand`, and
-reads, sets and removes the logo and banner. `owners.Farm.contract` in
-`module-ledger.json` lists the interface and the five records and commands it
+reads, sets and removes the logo and banner. Farm's `Contract` in
+`RealModuleLedger.Owners` lists the interface and the five records and commands it
 carries. Every member acts on the current tenant's farm, so it runs only after
 `TenantContext` is resolved.
 

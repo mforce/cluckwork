@@ -12,7 +12,7 @@
 No incident. On 2026-10-04 the owner narrowed #859 from an assembly split to typed C# registries.
 The evidence was that 64 failed PR runs since #842 included one boundary-guard failure, and that was an
 unsupported handler shape (#874), not an accidental crossing. The rules stay decisions that tests check.
-Only their storage changes. They lived in `Architecture/Data/module-ledger.json`, a tenant-bypass JSON
+Only their storage changes. Before #859 they lived in a JSON module ledger, a tenant-bypass JSON
 allow-list and a TSV of filter-free-set classifications; the rows become C# data in
 `tests/Cluckwork.Application.Tests`.
 
@@ -21,7 +21,7 @@ The plan accepted on 2026-10-04 splits step 1 into three slices, one PR each:
 | Slice | Change | Deletes |
 |---|---|---|
 | S1 | Loader seam: scanners take a `ModuleLedger` or an allow-list instead of a path; one accessor per registry; fixtures build records; `ModuleLedger.Validate` holds every value rule, `Parse` only the JSON shape | nothing |
-| S2 | All nine ledger sections move to `RealModuleLedger.*.cs`, one commit per section, then `module-ledger.json`, `Parse` and the JSON-shape fixtures go | `module-ledger.json` |
+| S2 | All nine ledger sections move to `RealModuleLedger.*.cs`, one commit per section, then the JSON ledger, `Parse` and the JSON-shape fixtures go | the JSON ledger |
 | S3 | The allow-list and the filter-free-set classifications move to `BypassAllowList.cs` and `FilterFreeSetSites.cs` | both tenant files |
 
 ## The rule
@@ -89,3 +89,13 @@ The existing guards: `ModuleLedgerRealTreeTests`, `AdapterReachRealTreeTests`, `
 | M-i | owners | drop `IFinanceModule` from Finance's contract | `AdapterReachRealTreeTests` | "IFinanceModule at src/Cluckwork.Api/Endpoints/Expenses/ExpenseEndpoints.cs" |
 | M-j | edges | drop the first symbol of edge cell 1 | `ModuleLedgerRealTreeTests` | "undeclared cross-owner edge Access -> Commerce" |
 | M-k | adapterRoots | empty `persistenceForbiddenNamespaces` | `AdapterReachRealTreeTests` | "adapter registry error: adapterRoots declares no persistenceForbiddenNamespaces" |
+
+S2 was measured as follows:
+
+- Push 1 copied the rows into the `RealModuleLedger.*.cs` files one section per commit, with a parity test
+  comparing the `System.Text.Json` serialisation of the file's sections and of the C# rows. It passed in CI
+  at `ddfb37ea` (run 37237425922). One-character edits to three rows turned it red.
+- Push 2 switched `RealModuleLedger.Value` to the rows and deleted the file, `Parse` and the parity test.
+  The row mutations above (M-b, M-f1, M-f2, M-f3, M-g, M-h, M-i, M-j and M-k), applied to the C# rows, and
+  the `src/` mutations M-a, M-c and M-d turn the same tests red with the same messages.
+- The coupling matrix regenerates with only its first line changed.

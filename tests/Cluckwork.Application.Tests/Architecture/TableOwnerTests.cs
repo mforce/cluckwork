@@ -85,9 +85,9 @@ namespace Cluckwork.Application.Tests.Architecture
                 f => f.Contains("table 'Parents' owner Red disagrees with CLR namespace owner <unowned>"));
 
         [Fact]
-        public void UndeclaredForeignKey_PrintsJsonRow() =>
-            Assert.Contains("undeclared cross-owner foreign key FK_Children_Parents_ParentId on Children from Blue to Red — add " +
-                "{\"table\":\"Children\",\"name\":\"FK_Children_Parents_ParentId\",\"from\":\"Blue\",\"to\":\"Red\",\"reason\":\"\"}",
+        public void UndeclaredForeignKey_PrintsRow() =>
+            Assert.Contains("undeclared cross-owner foreign key FK_Children_Parents_ParentId on Children from Blue to Red — add to " +
+                "RealModuleLedger.ForeignKeys: new(\"Children\", \"FK_Children_Parents_ParentId\", \"Blue\", \"Red\", \"\"),",
                 Evaluate(Ledger() with { ForeignKeys = [] }));
 
         [Fact]
@@ -202,48 +202,39 @@ namespace Cluckwork.Application.Tests.Architecture
         public void ViewOnlyEntity_IsNotATable() =>
             Assert.Empty(Evaluate(Ledger(), m => m.Entity<Fixtures.ViewRow>().HasNoKey().ToView("ViewRows")));
 
-        [Theory]
-        [InlineData("\"tables\": {\"Unknown\": []}", "tables references unknown owner 'Unknown'")]
-        [InlineData("\"tables\": []", "'tables' must be an object")]
-        [InlineData("\"tables\": {\"Red\": 5}", "has no 'Red' array")]
-        [InlineData("\"tables\": {\"Red\": [null]}", "blank or non-string entry")]
-        [InlineData("\"foreignKeys\": {}", "'foreignKeys' must be an array")]
-        [InlineData("\"foreignKeys\": [42]", "foreignKeys[0] is not an object")]
-        [InlineData("\"foreignKeys\": [{\"name\": 1}]", "blank or non-string 'name'")]
-        [InlineData("\"foreignKeys\": [{\"name\": \"FK\", \"from\": \"Red\", \"to\": \"Blue\", \"reason\": \" \"}]", "blank or non-string 'reason'")]
-        [InlineData("\"tableOwnerOverrides\": {}", "'tableOwnerOverrides' must be an array")]
-        [InlineData("\"tableOwnerOverrides\": [null]", "tableOwnerOverrides[0] is not an object")]
-        [InlineData("\"tableOwnerOverrides\": [{\"table\": \"Parents\"}]", "blank or non-string 'reason'")]
-        public void MalformedRows_AreRegistryErrors(string section, string expected)
+        // Validate's own row checks. The scanner checks some of the same rows, so each assertion names
+        // Validate's message.
+        private static void AssertValidateRejects(ModuleLedger ledger, string expected)
         {
-            var path = Path.GetTempFileName();
-            try
-            {
-                File.WriteAllText(path, "{\"owners\":{},\"edges\":[]," + section + "}");
-                var ledger = ModuleLedger.Validate(ModuleLedger.Parse(path));
-                Assert.Contains(ledger.RegistryErrors, f => f.Contains(expected));
-                Assert.Contains(Evaluate(ledger), f => f.Contains("registry error") && f.Contains(expected));
-            }
-            finally { File.Delete(path); }
-        }
-
-        // Validate rejects a blank name in a record, not only a non-string one in JSON. The scanner's own
-        // checks report the same rows, so the assertion names Validate's message.
-        [Fact]
-        public void BlankTableName_IsRejectedByValidate()
-        {
-            var ledger = ModuleLedger.Validate(Ledger() with { Tables = [.. Ledger().Tables, new("Red", "")] });
-            Assert.Contains("tables has a blank or non-string entry in 'Red'", ledger.RegistryErrors);
-            Assert.Contains("table-owner registry error: tables has a blank or non-string entry in 'Red'", Evaluate(ledger));
+            var validated = ModuleLedger.Validate(ledger);
+            Assert.Contains(expected, validated.RegistryErrors);
+            Assert.Contains($"table-owner registry error: {expected}", Evaluate(validated));
         }
 
         [Fact]
-        public void BlankForeignKeyName_IsRejectedByValidate()
-        {
-            var ledger = ModuleLedger.Validate(Ledger() with { ForeignKeys = [Ledger().ForeignKeys[0] with { Name = "" }] });
-            Assert.Contains("foreignKeys[0] has a blank or non-string 'name'", ledger.RegistryErrors);
-            Assert.Contains("table-owner registry error: foreignKeys[0] has a blank or non-string 'name'", Evaluate(ledger));
-        }
+        public void BlankTableName_IsRejectedByValidate() => AssertValidateRejects(
+            Ledger() with { Tables = [.. Ledger().Tables, new("Red", "")] },
+            "tables has a blank or non-string entry in 'Red'");
+
+        [Fact]
+        public void BlankForeignKeyName_IsRejectedByValidate() => AssertValidateRejects(
+            Ledger() with { ForeignKeys = [Ledger().ForeignKeys[0] with { Name = "" }] },
+            "foreignKeys[0] has a blank or non-string 'name'");
+
+        [Fact]
+        public void BlankForeignKeyReason_IsRejectedByValidate() => AssertValidateRejects(
+            Ledger() with { ForeignKeys = [Ledger().ForeignKeys[0] with { Reason = " " }] },
+            "foreignKeys[0] has a blank or non-string 'reason'");
+
+        [Fact]
+        public void BlankOverrideReason_IsRejectedByValidate() => AssertValidateRejects(
+            Ledger() with { TableOwnerOverrides = [new("Parents", "")] },
+            "tableOwnerOverrides[0] has a blank or non-string 'reason'");
+
+        [Fact]
+        public void UnknownTableOwner_IsRejectedByValidate() => AssertValidateRejects(
+            Ledger() with { Tables = [.. Ledger().Tables, new("Unknown", "Gone")] },
+            "tables references unknown owner 'Unknown'");
 
         [Fact]
         public void DuplicateForeignKey_IsRegistryError() =>
@@ -267,40 +258,6 @@ namespace Cluckwork.Application.Tests.Architecture
             }));
             Assert.Equal(2, report.WalkedTableCount);
             Assert.Empty(TableOwnerScanner.Evaluate(report with { ExpectedTableCountFloor = 2 }));
-        }
-
-        [Fact]
-        public void DuplicateJsonOwnerProperties_PreserveEveryTableClaim()
-        {
-            var path = Path.GetTempFileName();
-            try
-            {
-                File.WriteAllText(path,
-                    """{"owners":{},"edges":[],"tables":{"Red":["First"],"Red":["Second"]}}""");
-                Assert.Equal([new("Red", "First"), new TableClaim("Red", "Second")], ModuleLedger.Validate(ModuleLedger.Parse(path)).Tables);
-            }
-            finally { File.Delete(path); }
-        }
-
-        [Theory]
-        [InlineData("owners", "{}")]
-        [InlineData("edges", "[]")]
-        [InlineData("tables", "{}")]
-        [InlineData("foreignKeys", "[]")]
-        [InlineData("tableOwnerOverrides", "[]")]
-        public void DuplicateTopLevelSection_IsRegistryError(string section, string value)
-        {
-            var path = Path.GetTempFileName();
-            try
-            {
-                var baseline = section == "owners" ? "\"edges\":[],"
-                    : section == "edges" ? "\"owners\":{}," : "\"owners\":{},\"edges\":[],";
-                File.WriteAllText(path, "{" + baseline + $"\"{section}\":{value},\"{section}\":{value}" + "}");
-                var ledger = ModuleLedger.Validate(ModuleLedger.Parse(path));
-                Assert.Contains($"duplicate top-level section '{section}'", ledger.RegistryErrors);
-                Assert.Contains($"table-owner registry error: duplicate top-level section '{section}'", Evaluate(ledger));
-            }
-            finally { File.Delete(path); }
         }
 
         private sealed class FixtureContext(Action<ModelBuilder>? configure) : DbContext

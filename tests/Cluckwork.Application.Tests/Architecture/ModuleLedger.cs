@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Cluckwork.Application.Tests.Architecture;
@@ -83,149 +82,10 @@ public sealed record ModuleLedger(
     public const string ModuleKind = "module";
     public const string PlatformKind = "platform";
 
-    private static readonly JsonDocumentOptions Options = new()
-    {
-        CommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
-
     private static readonly Regex IssuePattern = new("^#[0-9]+$", RegexOptions.Compiled);
 
-    // Reads the JSON into records. Reports only what a record cannot express: a missing file, invalid JSON,
-    // a section or row of the wrong JSON type, a non-string value. Every rule about the values is Validate's.
-    public static ModuleLedger Parse(string path)
-    {
-        if (!File.Exists(path))
-        {
-            return new ModuleLedger([], [], [$"ledger file not found: {path}"]);
-        }
-
-        JsonDocument document;
-        try
-        {
-            document = JsonDocument.Parse(File.ReadAllText(path), Options);
-        }
-        catch (JsonException ex)
-        {
-            return new ModuleLedger([], [], [$"ledger is not valid JSON: {ex.Message}"]);
-        }
-
-        using (document)
-        {
-            var errors = new List<string>();
-            var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
-            {
-                return new ModuleLedger([], [], ["ledger root must be a JSON object with 'owners' and 'edges'"]);
-            }
-
-            foreach (var duplicate in root.EnumerateObject().GroupBy(p => p.Name, StringComparer.Ordinal)
-                         .Where(g => g.Count() > 1))
-                errors.Add($"duplicate top-level section '{duplicate.Key}'");
-
-            var owners = new List<OwnerDefinition>();
-            if (!root.TryGetProperty("owners", out var ownersElement) || ownersElement.ValueKind != JsonValueKind.Object)
-            {
-                errors.Add("ledger has no 'owners' object");
-            }
-            else
-            {
-                foreach (var owner in ownersElement.EnumerateObject())
-                {
-                    owners.Add(ReadOwner(owner, errors));
-                }
-            }
-
-            var edges = new List<EdgeCell>();
-            if (!root.TryGetProperty("edges", out var edgesElement) || edgesElement.ValueKind != JsonValueKind.Array)
-            {
-                errors.Add("ledger has no 'edges' array");
-            }
-            else
-            {
-                var index = 0;
-                foreach (var edge in edgesElement.EnumerateArray())
-                {
-                    edges.Add(ReadEdge(edge, index++, errors));
-                }
-            }
-
-            var tables = new List<TableClaim>();
-            if (root.TryGetProperty("tables", out var tablesElement))
-            {
-                if (tablesElement.ValueKind != JsonValueKind.Object)
-                    errors.Add("ledger 'tables' must be an object");
-                else
-                {
-                    // Validate reports an unknown owner once, at its first claim. JSON reports it per key, so
-                    // a key that adds no claim, or repeats an owner, is reported here.
-                    var reported = new HashSet<string>(StringComparer.Ordinal);
-                    foreach (var owner in tablesElement.EnumerateObject())
-                    {
-                        var claims = ReadArray(owner.Value, owner.Name, "tables", errors);
-                        if ((claims.Count == 0 || !reported.Add(owner.Name)) && !owners.Any(o => o.Name == owner.Name))
-                            errors.Add($"tables references unknown owner '{owner.Name}'");
-                        tables.AddRange(claims.Select(table => new TableClaim(owner.Name, table)));
-                    }
-                }
-            }
-
-            var foreignKeys = ReadRows(root, "foreignKeys", errors, row =>
-                new ForeignKeyCell(StringOrEmpty(row, "table"), StringOrEmpty(row, "name"),
-                    StringOrEmpty(row, "from"), StringOrEmpty(row, "to"), StringOrEmpty(row, "reason")));
-            var overrides = ReadRows(root, "tableOwnerOverrides", errors, row =>
-                new TableOwnerOverride(StringOrEmpty(row, "table"), StringOrEmpty(row, "reason")));
-
-            var adapterRoots = new AdapterRoots([], []);
-            if (root.TryGetProperty("adapterRoots", out var roots))
-            {
-                if (roots.ValueKind != JsonValueKind.Object)
-                {
-                    errors.Add("ledger 'adapterRoots' must be an object");
-                }
-                else
-                {
-                    adapterRoots = new AdapterRoots(
-                        ReadStringArray(roots, "namespaces", "adapterRoots", errors),
-                        ReadStringArray(roots, "types", "adapterRoots", errors))
-                    {
-                        TopLevelPrograms = roots.TryGetProperty("topLevelPrograms", out _)
-                            ? ReadStringArray(roots, "topLevelPrograms", "adapterRoots", errors) : [],
-                        PersistenceForbiddenNamespaces = ReadStringArray(
-                            roots, "persistenceForbiddenNamespaces", "adapterRoots", errors),
-                    };
-                }
-            }
-
-            var adapters = ReadRows(root, "adapters", errors, (row, label) =>
-                new AdapterClaim(StringOrEmpty(row, "symbol"),
-                    row.ValueKind == JsonValueKind.Object
-                        ? ReadStringArray(row, "reaches", label, errors) : []));
-
-            var adapterTiers = ReadRows(root, "adapterTiers", errors, row =>
-                new AdapterTier(StringOrEmpty(row, "namespace"), StringOrEmpty(row, "privilege"),
-                    StringOrEmpty(row, "surface"), StringOrEmpty(row, "reason"), StringOrEmpty(row, "reviewBy")));
-
-            var compatibilityExceptions = ReadRows(root, "compatibilityExceptions", errors, (row, label) =>
-                new CompatibilityException(StringOrEmpty(row, "symbol"), StringOrEmpty(row, "reaches"),
-                    row.ValueKind == JsonValueKind.Object ? ReadStringArray(row, "tables", label, errors) : [],
-                    StringOrEmpty(row, "owner"), StringOrEmpty(row, "reason"), StringOrEmpty(row, "deleteWhen")));
-
-            return new ModuleLedger(owners, edges, errors)
-            {
-                AdapterRoots = adapterRoots,
-                Adapters = adapters,
-                AdapterTiers = adapterTiers,
-                CompatibilityExceptions = compatibilityExceptions,
-                Tables = tables,
-                ForeignKeys = foreignKeys,
-                TableOwnerOverrides = overrides,
-            };
-        }
-    }
-
-    // Every rule about the values, over records however they were built. Returns the ledger with its
-    // errors appended; the records are not changed.
+    // Every rule about the ledger's values. Returns the ledger with its errors appended; the records are not
+    // changed.
     public static ModuleLedger Validate(ModuleLedger ledger)
     {
         var errors = new List<string>(ledger.RegistryErrors);
@@ -296,35 +156,6 @@ public sealed record ModuleLedger(
         return ledger with { RegistryErrors = errors };
     }
 
-    private static IReadOnlyList<T> ReadRows<T>(JsonElement root, string name, List<string> errors,
-        Func<JsonElement, T> read) => ReadRows(root, name, errors, (row, _) => read(row));
-
-    private static IReadOnlyList<T> ReadRows<T>(JsonElement root, string name, List<string> errors,
-        Func<JsonElement, string, T> read)
-    {
-        if (!root.TryGetProperty(name, out var array))
-            return [];
-        if (array.ValueKind != JsonValueKind.Array)
-        {
-            errors.Add($"ledger '{name}' must be an array");
-            return [];
-        }
-
-        var rows = new List<T>();
-        foreach (var row in array.EnumerateArray())
-        {
-            var label = $"{name}[{rows.Count}]";
-            if (row.ValueKind != JsonValueKind.Object)
-                errors.Add($"{label} is not an object");
-            rows.Add(read(row, label));
-        }
-        return rows;
-    }
-
-    // A missing or non-string value reads as empty, and Validate's blank check reports it.
-    private static string StringOrEmpty(JsonElement row, string name) =>
-        (row.ValueKind == JsonValueKind.Object ? ReadString(row, name) : null) ?? string.Empty;
-
     private static void Required(string value, string name, string label, List<string> errors)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -386,27 +217,6 @@ public sealed record ModuleLedger(
         Required(row.Reason, "reason", label, errors);
     }
 
-    private static OwnerDefinition ReadOwner(JsonProperty property, List<string> errors)
-    {
-        var name = property.Name;
-        if (property.Value.ValueKind != JsonValueKind.Object)
-        {
-            errors.Add($"owner '{name}' is not an object");
-            return new OwnerDefinition(name, string.Empty, [], []);
-        }
-
-        var label = $"owner '{name}'";
-        return new OwnerDefinition(name, ReadString(property.Value, "kind") ?? string.Empty,
-            ReadStringArray(property.Value, "namespaces", label, errors),
-            ReadOptionalStringArray(property.Value, "exactNamespaces", label, errors))
-        {
-            Contract = ReadOptionalStringArray(property.Value, "contract", label, errors),
-            Implementations = ReadOptionalStringArray(property.Value, "implementations", label, errors),
-            Seam = ReadOptionalStringArray(property.Value, "seam", label, errors),
-            Types = ReadOptionalStringArray(property.Value, "types", label, errors),
-        };
-    }
-
     private static void ValidateOwner(OwnerDefinition owner, List<string> errors)
     {
         var (name, kind) = (owner.Name, owner.Kind);
@@ -453,21 +263,6 @@ public sealed record ModuleLedger(
         }
     }
 
-    private static EdgeCell ReadEdge(JsonElement element, int index, List<string> errors)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-        {
-            errors.Add($"edges[{index}] is not an object");
-            return new EdgeCell(string.Empty, string.Empty, string.Empty, string.Empty, []);
-        }
-
-        var from = ReadString(element, "from") ?? string.Empty;
-        var to = ReadString(element, "to") ?? string.Empty;
-        return new EdgeCell(from, to, ReadString(element, "kind") ?? string.Empty,
-            ReadString(element, "reason") ?? string.Empty,
-            ReadStringArray(element, "symbols", EdgeLabel(from, to, index), errors));
-    }
-
     private static string EdgeLabel(string from, string to, int index) =>
         string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to) ? $"edges[{index}]" : $"edge {from} -> {to}";
 
@@ -490,47 +285,6 @@ public sealed record ModuleLedger(
         }
 
         NonBlank(edge.Symbols, "symbols", label, errors);
-    }
-
-    private static string? ReadString(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
-
-    private static IReadOnlyList<string> ReadOptionalStringArray(
-        JsonElement element, string name, string label, List<string> errors) =>
-        element.TryGetProperty(name, out _) ? ReadStringArray(element, name, label, errors) : [];
-
-    private static IReadOnlyList<string> ReadStringArray(
-        JsonElement element, string name, string label, List<string> errors)
-    {
-        return ReadArray(element.TryGetProperty(name, out var array) ? array : default, name, label, errors);
-    }
-
-    // Drops and reports a blank or non-string entry, so Validate never sees a blank one from JSON.
-    private static IReadOnlyList<string> ReadArray(
-        JsonElement array, string name, string label, List<string> errors)
-    {
-        if (array.ValueKind != JsonValueKind.Array)
-        {
-            errors.Add($"{label} has no '{name}' array");
-            return [];
-        }
-
-        var values = new List<string>();
-        foreach (var item in array.EnumerateArray())
-        {
-            var value = item.ValueKind == JsonValueKind.String ? item.GetString() : null;
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                errors.Add($"{label} has a blank or non-string entry in '{name}'");
-                continue;
-            }
-
-            values.Add(value);
-        }
-
-        return values;
     }
 
     // Reports each blank entry and returns the rest, which the checks after it count.

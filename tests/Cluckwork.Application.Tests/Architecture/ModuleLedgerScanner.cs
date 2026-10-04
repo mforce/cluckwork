@@ -1,6 +1,4 @@
 using System.Reflection;
-using System.Text;
-using System.Text.Json;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -8,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
-// #842 (epic #514 slice 1) — the cross-owner edge ratchet over src/, read against Data/module-ledger.json.
+// #842 (epic #514 slice 1) — the cross-owner edge ratchet over src/, read against RealModuleLedger.
 
 
 public sealed record CrossOwnerEdge(
@@ -228,7 +226,7 @@ public static class ModuleLedgerScanner
             failures.Add(
                 $"undeclared cross-owner edge {edge.From} -> {edge.To} from {edge.Symbol} " +
                 $"(references {string.Join(", ", edge.ReferencedNamespaces)}) at {edge.File}:{edge.Line} — " +
-                $"add this to module-ledger.json, with a reason naming the port or type it calls:\n{RenderEdges([edge])}");
+                $"add this row to RealModuleLedger.Edges, with a reason naming the port or type it calls:\n{RenderEdges([edge])}");
         }
 
         foreach (var row in report.StaleSymbols)
@@ -551,40 +549,12 @@ public static class ModuleLedgerScanner
         }
     }
 
-    private static string RenderEdges(IReadOnlyList<CrossOwnerEdge> edges)
-    {
-        var builder = new StringBuilder();
-        var cells = edges
-            .GroupBy(e => (e.From, e.To))
-            .OrderBy(g => g.Key.From, StringComparer.Ordinal)
-            .ThenBy(g => g.Key.To, StringComparer.Ordinal)
-            .ToList();
-
-        builder.Append("[\n");
-        for (var i = 0; i < cells.Count; i++)
-        {
-            var cell = cells[i];
-            var symbols = cell.Select(e => e.Symbol).Distinct(StringComparer.Ordinal)
-                .OrderBy(s => s, StringComparer.Ordinal).ToList();
-
-            builder.Append("  {\n");
-            builder.Append($"    \"from\": {Quote(cell.Key.From)}, \"to\": {Quote(cell.Key.To)}, \"kind\": \"R\",\n");
-            builder.Append("    \"reason\": \"\",\n");
-            builder.Append("    \"symbols\": [\n");
-            for (var s = 0; s < symbols.Count; s++)
-            {
-                builder.Append($"      {Quote(symbols[s])}{(s == symbols.Count - 1 ? string.Empty : ",")}\n");
-            }
-
-            builder.Append("    ]\n");
-            builder.Append($"  }}{(i == cells.Count - 1 ? string.Empty : ",")}\n");
-        }
-
-        builder.Append(']');
-        return builder.ToString();
-    }
-
-    private static string Quote(string value) => JsonSerializer.Serialize(value);
+    private static string RenderEdges(IReadOnlyList<CrossOwnerEdge> edges) => string.Join("\n", edges
+        .GroupBy(e => (e.From, e.To))
+        .OrderBy(g => g.Key.From, StringComparer.Ordinal)
+        .ThenBy(g => g.Key.To, StringComparer.Ordinal)
+        .Select(cell => $"new({RealModuleLedger.Quote(cell.Key.From)}, {RealModuleLedger.Quote(cell.Key.To)}, \"R\", \"\", " +
+            $"{RealModuleLedger.List(cell.Select(e => e.Symbol).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}),"));
 
     private static bool IsTypeDeclaration(SyntaxNode node) =>
         node is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax;

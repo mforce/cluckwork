@@ -268,9 +268,9 @@ public static class CompatibilityExceptionScanner
         failures.AddRange(report.Unresolved.Select(e => $"unresolved: {e}"));
         failures.AddRange(report.Undeclared.GroupBy(r => (r.Symbol, r.Reaches)).Select(g =>
             $"undeclared compatibility exception {g.Key.Symbol} -> {g.Key.Reaches} at {g.First().File}:{g.First().Line}. " +
-            "Read through the module's contract, or add this row to compatibilityExceptions and fill in owner, " +
-            $"reason and deleteWhen:\n{{ \"symbol\": \"{g.Key.Symbol}\", \"reaches\": \"{g.Key.Reaches}\", \"tables\": " +
-            $"[{string.Join(", ", g.Select(r => $"\"{r.Table}\""))}], \"owner\": \"\", \"reason\": \"\", \"deleteWhen\": \"#\" }}"));
+            "Read through the module's contract, or add this row to RealModuleLedger.CompatibilityExceptions and fill in " +
+            $"owner, reason and deleteWhen:\nnew({RealModuleLedger.Quote(g.Key.Symbol)}, {RealModuleLedger.Quote(g.Key.Reaches)}, " +
+            $"{RealModuleLedger.List(g.Select(r => r.Table))}, \"\", \"\", \"#\"),"));
         failures.AddRange(report.UnlistedTables.Select(r =>
             $"compatibility exception {r.Symbol} -> {r.Reaches} reads table '{r.Table}' at {r.File}:{r.Line}, which its " +
             "row does not name. Read it through the contract, or add the table and say why in the row's reason"));

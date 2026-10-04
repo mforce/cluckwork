@@ -5,6 +5,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-02
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
 
 ## What happened
 
@@ -55,7 +56,7 @@ a table whose owner has a ledger `contract` is an exception unless one of these 
   computes something before returning the set, is a read. When one member reads a table
   both ways, the stricter classification wins.
 
-Every other read needs a row under `compatibilityExceptions` in `module-ledger.json`.
+Every other read needs a row in `RealModuleLedger.CompatibilityExceptions`.
 A row is keyed by namespace, type and member, never by `file:line` (#632). Type keys
 keep their type parameters, so `ExpenseRepository<T>` is not `ExpenseRepository`. It names
 the module it `reaches`, the `tables` the member reads, an `owner` from the ledger's
