@@ -36,9 +36,7 @@ public sealed record AccountLifecycleOutcome(bool Changed);
 // re-run was a no-op without re-reading the database. Deliberately NOT "the farm is fine".
 public sealed record AccountRenameOutcome(bool Changed);
 
-// #857 — AccountProvisionOutcome's fields, for the provision-account verb. That
-// record stays in Infrastructure because existing suites name it.
-public sealed record ProvisionedAccountDetails(
+public sealed record AccountProvisionOutcome(
     Guid AccountId,
     string Slug,
     string OwnerEmail,

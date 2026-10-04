@@ -56,22 +56,22 @@ public sealed class AccessLookupTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task ListFlockAssignments_ReturnsExactlyThatUsersRows_IncludingAFarmWideRow()
+    public async Task GetAssignedFlocks_ReturnsNullForMixedFarmWideRowsAndOnlyThatUsersAssignedSet()
     {
         var farm = await SeedFarmAsync();
         var (x, _) = await SeedWorkerAsync(farm, farm.FlockA, null);
-        var (y, _) = await SeedWorkerAsync(farm, farm.FlockB);
+        var (y, _) = await SeedWorkerAsync(farm, farm.FlockA, farm.FlockB);
 
         using var scope = factory.Services.CreateScope();
         scope.ResolveTenantAndActor(farm.AccountId);
         var lookup = scope.ServiceProvider.GetRequiredService<IAccessLookup>();
 
-        var forX = await lookup.ListFlockAssignmentsAsync(x);
-        var forY = await lookup.ListFlockAssignmentsAsync(y);
+        var forX = await lookup.GetAssignedFlocksAsync(x);
+        var forY = await lookup.GetAssignedFlocksAsync(y);
 
-        Assert.Equal(new HashSet<Guid?> { farm.FlockA, null }, forX.Select(a => a.FlockId).ToHashSet());
-        Assert.Equal(2, forX.Count);
-        Assert.Equal(new Guid?[] { farm.FlockB }, forY.Select(a => a.FlockId).ToArray());
+        Assert.Null(forX);
+        Assert.Equal(new HashSet<Guid> { farm.FlockA, farm.FlockB }, forY);
+        Assert.Null(await lookup.GetAssignedFlocksAsync(Guid.NewGuid()));
     }
 
     // One email holds a different role in each of two farms. The role read is
@@ -100,7 +100,7 @@ public sealed class AccessLookupTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task ListFlockAssignments_RefusesAnUnresolvedTenant()
+    public async Task GetAssignedFlocks_RefusesAnUnresolvedTenant()
     {
         var farm = await SeedFarmAsync();
         var (worker, _) = await SeedWorkerAsync(farm, farm.FlockA);
@@ -108,7 +108,26 @@ public sealed class AccessLookupTests(CluckworkWebApplicationFactory factory)
         using var scope = factory.Services.CreateScope();
         var lookup = scope.ServiceProvider.GetRequiredService<IAccessLookup>();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => lookup.ListFlockAssignmentsAsync(worker));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => lookup.GetAssignedFlocksAsync(worker));
+    }
+
+    [Fact]
+    public async Task GetAssignedFlocks_UsesTheScopedContextsTenantAndForwardsCancellation()
+    {
+        var farmA = await SeedFarmAsync();
+        var farmB = await SeedFarmAsync();
+        var (workerA, _) = await SeedWorkerAsync(farmA, farmA.FlockA);
+        var (workerB, _) = await SeedWorkerAsync(farmB, farmB.FlockB);
+        using var scope = factory.Services.CreateScope();
+        var lookup = scope.ServiceProvider.GetRequiredService<IAccessLookup>();
+        scope.ResolveTenantAndActor(farmA.AccountId);
+
+        Assert.Equal(new HashSet<Guid> { farmA.FlockA }, await lookup.GetAssignedFlocksAsync(workerA));
+        Assert.Null(await lookup.GetAssignedFlocksAsync(workerB));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            lookup.GetAssignedFlocksAsync(workerA, cancellation.Token));
     }
 
     [Fact]

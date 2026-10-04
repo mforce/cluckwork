@@ -13,14 +13,7 @@ public interface IAccessOperations
     Task<Result<AdminRecoveryResult>> RecoverAdminAsync(
         string? email, Guid? accountId, string? reason, CancellationToken ct);
 
-    Task<Result<ProvisionedAccountDetails>> ProvisionAccountAsync(
+    Task<Result<AccountProvisionOutcome>> ProvisionAccountAsync(
         string? name, string? slug, string? ownerEmail,
         string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct);
-
-    Task<Result<AccountLifecycleOutcome>> SuspendAccountAsync(Guid accountId, string? reason, CancellationToken ct);
-
-    Task<Result<AccountLifecycleOutcome>> ReactivateAccountAsync(Guid accountId, string? reason, CancellationToken ct);
-
-    Task<Result<AccountRenameOutcome>> RenameAccountAsync(
-        string currentSlug, string? newSlug, string? reason, CancellationToken ct);
 }

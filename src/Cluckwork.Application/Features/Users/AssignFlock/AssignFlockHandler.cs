@@ -16,6 +16,7 @@ public sealed class AssignFlockHandler(
     IUserRoleAssignmentRepository assignments,
     IFlockLookup flocks,
     IIdentityProvider identity,
+    IAccessLookup access,
     IUnitOfWork unitOfWork,
     IAuditWriter audit,
     IStepUpGrantService stepUp)
@@ -39,7 +40,7 @@ public sealed class AssignFlockHandler(
         // not ListUsersAsync's raw-string Role: only a plain Worker may be
         // assigned a flock. Retained rows on an elevated user are inert (the
         // scope resolver bypasses them); this refuses NEW writes onto one.
-        var targetRole = await identity.GetEffectiveRoleAsync(accountId, userId, ct);
+        var targetRole = await access.GetEffectiveRoleAsync(accountId, userId, ct);
         if (targetRole != EffectiveAccountRole.Worker)
             return Result.Failure<Guid>(Error.Validation(
                 "Users.FlockAssignmentsWorkerOnly",

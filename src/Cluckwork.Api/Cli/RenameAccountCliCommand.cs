@@ -99,7 +99,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var result = await scope.ServiceProvider.GetRequiredService<IAccessOperations>().RenameAccountAsync(
+            var result = await scope.ServiceProvider.GetRequiredService<IAccessAccountLifecycle>().RenameAccountAsync(
                 current, newSlug.Value, CliDispatcher.ArgValue(args, "--reason"),
                 CancellationToken.None);
             if (result.IsFailure)

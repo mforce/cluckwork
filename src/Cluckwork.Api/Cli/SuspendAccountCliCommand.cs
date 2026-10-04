@@ -44,7 +44,7 @@ public sealed class SuspendAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var result = await scope.ServiceProvider.GetRequiredService<IAccessOperations>().SuspendAccountAsync(
+            var result = await scope.ServiceProvider.GetRequiredService<IAccessAccountLifecycle>().SuspendAccountAsync(
                 accountId.Value, CliDispatcher.ArgValue(args, "--reason"), CancellationToken.None);
             if (result.IsFailure)
             {
