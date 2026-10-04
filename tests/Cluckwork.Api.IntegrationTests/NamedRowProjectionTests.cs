@@ -2,6 +2,7 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
@@ -406,6 +407,75 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
         Assert.Null(byId[f.FarmWideAssignment].FlockName);
     }
 
+    // #859 — the assignment list's output, pinned per viewer before its read
+    // changed shape, so the move from one join to an assignment read plus a
+    // flock-name lookup could not alter a single row. The ids sort in neither
+    // insertion nor flock order, so the order asserted is the assignment-id order.
+    // Every row keeps its flock id; only the name depends on what the viewer may see.
+    [Fact]
+    public async Task FlockAssignmentList_IsIdenticalForEveryViewer()
+    {
+        var (_, f) = await SeedAsync();
+        var accountB = await factory.SeedAccountWithUserAsync($"pj-b-{Guid.NewGuid():N}@test.local");
+        var fb = await SeedGraphAsync(accountB);
+
+        var userId = Guid.NewGuid();
+        var tail = Guid.NewGuid().ToString("N")[..12];
+        Guid Ordered(int rank) => new($"{rank:x8}-0000-4000-8000-{tail}");
+        var goneFlock = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(f.AccountId, async db =>
+        {
+            db.UserRoleAssignments.AddRange(
+                UserRoleAssignment.Create(Ordered(6), f.AccountId, userId, null, null, f.ArchivedFlock),
+                UserRoleAssignment.Create(Ordered(5), f.AccountId, userId, null, null, fb.ActiveFlock),
+                UserRoleAssignment.Create(Ordered(4), f.AccountId, userId, null, null, f.ActiveFlock));
+            await db.SaveChangesAsync();
+            db.UserRoleAssignments.AddRange(
+                UserRoleAssignment.Create(Ordered(3), f.AccountId, userId, f.FarmId, null, null),
+                UserRoleAssignment.Create(Ordered(2), f.AccountId, userId, null, null, f.DepletedFlock),
+                UserRoleAssignment.Create(Ordered(1), f.AccountId, userId, null, null, goneFlock));
+            await db.SaveChangesAsync();
+        });
+
+        var owner = await ListAssignmentsAsync(f.AccountId, userId, scopedTo: null);
+        Assert.Equal(
+        [
+            new UserFlockAssignment(Ordered(1), goneFlock, null),
+            new UserFlockAssignment(Ordered(2), f.DepletedFlock, f.DepletedName),
+            new UserFlockAssignment(Ordered(3), null, null),
+            new UserFlockAssignment(Ordered(4), f.ActiveFlock, f.ActiveName),
+            new UserFlockAssignment(Ordered(5), fb.ActiveFlock, null),
+            new UserFlockAssignment(Ordered(6), f.ArchivedFlock, f.ArchivedName),
+        ], owner);
+
+        var worker = await ListAssignmentsAsync(f.AccountId, userId, scopedTo: [f.ArchivedFlock]);
+        Assert.Equal(
+        [
+            new UserFlockAssignment(Ordered(1), goneFlock, null),
+            new UserFlockAssignment(Ordered(2), f.DepletedFlock, null),
+            new UserFlockAssignment(Ordered(3), null, null),
+            new UserFlockAssignment(Ordered(4), f.ActiveFlock, null),
+            new UserFlockAssignment(Ordered(5), fb.ActiveFlock, null),
+            new UserFlockAssignment(Ordered(6), f.ArchivedFlock, f.ArchivedName),
+        ], worker);
+
+        Assert.Empty(await ListAssignmentsAsync(accountB, userId, scopedTo: null));
+        Assert.Empty(await ListAssignmentsAsync(f.AccountId, Guid.NewGuid(), scopedTo: null));
+    }
+
+    // Resolves the scope the way a request does: tenant and actor first, then the
+    // flock scope, unrestricted for an elevated viewer or narrowed for a Worker.
+    private async Task<IReadOnlyList<UserFlockAssignment>> ListAssignmentsAsync(
+        Guid accountId, Guid userId, IReadOnlyCollection<Guid>? scopedTo)
+    {
+        using var scope = factory.Services.CreateScope()
+            .ResolveTenantAndActor(accountId, roles: scopedTo is null ? null : []);
+        scope.ServiceProvider.GetRequiredService<AppDbContext>().FlockScope
+            .Resolve(unrestricted: scopedTo is null, scopedTo ?? []);
+        return await scope.ServiceProvider.GetRequiredService<IAccessModule>()
+            .ListFlockAssignmentsAsync(userId, CancellationToken.None);
+    }
+
     [Fact]
     public async Task SalesOrderListAndDetail_CarryRowOwnedCustomerName()
     {
@@ -658,7 +728,7 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
     // appears. Dropping the row would read as "this worker has no such assignment",
     // which is a different (and wrong) fact.
     //
-    // Driven at the repository, not over HTTP: the route is Owner-only
+    // Driven at the Access module, not over HTTP: the route is Owner-only
     // (`RequireAuthorization(OwnerOnly)` on the group), so a Worker cannot reach it,
     // and standing up an Owner to read another user's list would test the Owner's
     // unrestricted scope rather than the projection. FlockScope.Resolve is the same
@@ -680,9 +750,8 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
         // which is what the projection must then refuse to name.
         db.FlockScope.Resolve(unrestricted: false, [f.ArchivedFlock]);
 
-        var repo = scope.ServiceProvider
-            .GetRequiredService<Cluckwork.Application.Features.Users.IUserRoleAssignmentRepository>();
-        var scoped = await repo.ListByNameByUserAsync(f.WorkerId);
+        var scoped = await scope.ServiceProvider.GetRequiredService<IAccessModule>()
+            .ListFlockAssignmentsAsync(f.WorkerId, CancellationToken.None);
 
         // Both rows survive, and NEITHER may be named: the marker flock has no
         // assignment row (so no row carries its id), and the Active flock the rows do
