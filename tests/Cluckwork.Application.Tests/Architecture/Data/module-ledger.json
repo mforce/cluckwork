@@ -1466,6 +1466,7 @@
         "Access",
         "Commerce",
         "EggOperations",
+        "Farm",
         "FlockManagement"
       ]
     },
@@ -1512,70 +1513,6 @@
     }
   ],
   "compatibilityExceptions": [
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
-      "reaches": "Commerce",
-      "tables": ["Customers", "SalesOrderItems", "SalesOrders"],
-      "owner": "Platform",
-      "reason": "Deletes a partial demo seed's SalesOrderItems, SalesOrders and Customers for one farm, children before parents, in the same transaction as every other module's demo rows. ICommerceModule has no delete: orders are cancelled or voided, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
-      "reaches": "EggOperations",
-      "tables": ["DailyEntries", "DailyEntryGrades", "EggInventoryMovements", "EggLots"],
-      "owner": "Platform",
-      "reason": "Deletes a partial demo seed's EggInventoryMovements, EggLots, DailyEntryGrades and DailyEntries for one farm, children before parents, in the same transaction as every other module's demo rows. IEggOperationsModule has no delete: entries are voided and lots emptied, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync",
-      "reaches": "FlockManagement",
-      "tables": ["BirdMovements", "Flocks"],
-      "owner": "Platform",
-      "reason": "Deletes a partial demo seed's BirdMovements and Flocks for one farm, children before parents, in the same transaction as every other module's demo rows. IFlockModule has no delete: flocks are archived, never removed. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
-      "reaches": "EggOperations",
-      "tables": ["EggGrades"],
-      "owner": "Platform",
-      "reason": "Checks that the target farm has egg grades before the tenant is resolved, so the verb fails loud on a database without base data. IEggOperationsModule reads only the current farm. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
-      "reaches": "Farm",
-      "tables": ["Accounts"],
-      "owner": "Platform",
-      "reason": "Checks that the target farm's account exists before the tenant is resolved, so the verb fails loud on a database without base data. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedAsync",
-      "reaches": "FlockManagement",
-      "tables": ["Flocks"],
-      "owner": "Platform",
-      "reason": "Checks whether the target farm already has any flock, across the tenant filter, so the demo seed skips a farm that holds data. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedDemoAsync",
-      "reaches": "FlockManagement",
-      "tables": ["Flocks"],
-      "owner": "Platform",
-      "reason": "Loads the demo's historical flock to deplete it on a backdated day, because DepleteFlockHandler stamps the farm's today and that would block the historical entries the demo records next. The Platform composition slice converts jobs, CLI verbs and seeders to module contracts.",
-      "deleteWhen": "#858"
-    },
-    {
-      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync",
-      "reaches": "Access",
-      "tables": ["AspNetRoles"],
-      "owner": "Platform",
-      "reason": "Checks the globally provisioned Owner role before demo seeding. The #858 fixture port will own Access prerequisites.",
-      "deleteWhen": "#858"
-    },
     {
       "symbol": "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository.ListByNameByUserAsync",
       "reaches": "FlockManagement",

@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-// Reads other than ListSaleableGradeNamesAsync rely on the tenant query filter.
+// Reads rely on the tenant query filter; ListSaleableGradeNamesAsync,
+// AnyGradeAsync and the purge ignore it.
 public sealed class EggOperationsFixture(AppDbContext db) : IEggOperationsFixture
 {
     public async Task<IReadOnlyList<string>> ListSaleableGradeNamesAsync(
@@ -34,4 +35,17 @@ public sealed class EggOperationsFixture(AppDbContext db) : IEggOperationsFixtur
             SubmittedEntries: await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Submitted, ct),
             LockedEntries: await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Locked, ct),
             EggLots: await db.EggLots.CountAsync(ct));
+
+    public Task<bool> AnyGradeAsync(Guid accountId, CancellationToken ct = default) =>
+        db.EggGrades
+            .IgnoreQueryFilters()
+            .AnyAsync(g => g.AccountId == accountId, ct);
+
+    public async Task PurgeDailyEntriesAsync(Guid accountId, CancellationToken ct = default)
+    {
+        await db.EggInventoryMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
+        await db.EggLots.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
+        await db.DailyEntryGrades.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
+        await db.DailyEntries.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
+    }
 }

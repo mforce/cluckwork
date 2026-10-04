@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
@@ -14,7 +15,6 @@ using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -42,9 +42,13 @@ public sealed class DemoDataSeeder(
     TenantContext tenant,
     CurrentUserContext currentUser,
     IAccessSeedLookup access,
+    IFarmFixture farmFixture,
     IEggOperationsModule eggs,
+    IEggOperationsFixture eggsFixture,
     IFlockModule flocks,
+    IFlockFixture flockFixture,
     ICommerceModule commerce,
+    ICommerceFixture commerceFixture,
     IFarmClock farmClock,
     ILogger<DemoDataSeeder> logger)
 {
@@ -119,9 +123,7 @@ public sealed class DemoDataSeeder(
             return SeedResult.PrerequisitesMissing(message);
         }
 
-        var anyFlocks = await db.Flocks
-            .IgnoreQueryFilters()
-            .AnyAsync(f => f.AccountId == accountId, ct);
+        var anyFlocks = await flockFixture.AnyFlockAsync(accountId, ct);
         if (anyFlocks)
         {
             const string message = "Demo seed skipped: flocks already exist.";
@@ -201,23 +203,15 @@ public sealed class DemoDataSeeder(
     }
 
     // Cheap existence checks only — this must run BEFORE tenant.Resolve, so
-    // every tenant-scoped query needs IgnoreQueryFilters (same reasoning as the
-    // anyFlocks check below). Roles carry no tenant filter, so db.Roles needs
-    // none.
+    // the fixture reads ignore the tenant filter (same reasoning as the
+    // anyFlocks check). Roles carry no tenant filter.
     private async Task<bool> MissingBaseDataAsync(Guid accountId, CancellationToken ct)
     {
-        var accountExists = await db.Accounts
-            .IgnoreQueryFilters()
-            .AnyAsync(a => a.Id == accountId, ct);
-        if (!accountExists) return true;
+        if (!await farmFixture.AccountExistsAsync(accountId, ct)) return true;
 
-        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct);
-        if (!adminRoleExists) return true;
+        if (!await access.OwnerRoleExistsAsync(ct)) return true;
 
-        var anyGrades = await db.EggGrades
-            .IgnoreQueryFilters()
-            .AnyAsync(g => g.AccountId == accountId, ct);
-        return !anyGrades;
+        return !await eggsFixture.AnyGradeAsync(accountId, ct);
     }
 
     // The handlers commit step by step (ConfirmSale even opens its own
@@ -254,16 +248,14 @@ public sealed class DemoDataSeeder(
             await strategy.ExecuteAsync(async () =>
             {
                 await using var transaction = await db.Database.BeginTransactionAsync();
-                // FK-safe order: children before parents.
-                await db.SalesOrderItems.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.SalesOrders.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.Customers.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.BirdMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.EggInventoryMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.EggLots.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.DailyEntryGrades.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.DailyEntries.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-                await db.Flocks.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                // FK-safe order: children before parents. Bird movements
+                // reference daily entries and flocks, so they go before both;
+                // flocks stay last, as before. The fixtures join this
+                // transaction and never commit.
+                await commerceFixture.PurgeOrdersAndCustomersAsync(accountId);
+                await flockFixture.PurgeBirdMovementsAsync(accountId);
+                await eggsFixture.PurgeDailyEntriesAsync(accountId);
+                await flockFixture.PurgeFlocksAsync(accountId);
                 await transaction.CommitAsync();
             });
             logger.LogInformation("Partial demo data removed; next startup will retry the demo seed.");
@@ -321,9 +313,7 @@ public sealed class DemoDataSeeder(
 
         // Backdated depletion via the domain (the handler stamps "today", which
         // would block the historical entries below).
-        var old = await db.Flocks.FirstAsync(f => f.Id == oldBatch, ct);
-        Check(old.Deplete(today.AddDays(-30)));
-        await db.SaveChangesAsync(ct);
+        Check(await flockFixture.DepleteAsync(oldBatch, today.AddDays(-30), ct));
 
         // --- Submitted entries per active flock, deterministic variation (no
         // Random: reproducible demos). Both active houses carry ~8 months of history so

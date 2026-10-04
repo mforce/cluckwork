@@ -5,8 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Repositories;
 
-// Reads rely on the tenant query filter. The order reads track, as the seeder's
-// did, so a later ConfirmSale in the same context sees the same instance.
+// Reads rely on the tenant query filter; the purge ignores it. The order reads
+// track, as the seeder's did, so a later ConfirmSale in the same context sees
+// the same instance.
 public sealed class CommerceFixture(AppDbContext db) : ICommerceFixture
 {
     public async Task<Guid?> FindProductIdByNameAsync(string name, CancellationToken ct = default) =>
@@ -42,4 +43,11 @@ public sealed class CommerceFixture(AppDbContext db) : ICommerceFixture
             CancelledOrders: await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Cancelled, ct),
             VoidedOrders: await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Voided, ct),
             Payments: await db.Payments.CountAsync(ct));
+
+    public async Task PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct = default)
+    {
+        await db.SalesOrderItems.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
+        await db.SalesOrders.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
+        await db.Customers.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
+    }
 }

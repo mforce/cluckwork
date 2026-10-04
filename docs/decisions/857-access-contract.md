@@ -101,6 +101,10 @@ refuses a farm other than the resolved one. `IAccessSeedLookup` gained the
 Owner-role existence check and the farm's user count. Four of the five Access
 rows are gone; demo's Owner-role prerequisite remains for #858 P6.
 
+**Amended by #858 P6.** The demo seeder reads the Owner-role prerequisite
+through the same `IAccessSeedLookup.OwnerRoleExistsAsync`, so no Access row
+remains.
+
 The #280/#500 parity proof includes demo's exact 977 action/actor rows and
 simulation's exact cast, six products, all count and lifecycle fields, complete
 action-to-actor attribution and worker rotation. Both baseline and new code
