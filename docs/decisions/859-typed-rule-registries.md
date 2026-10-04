@@ -4,7 +4,7 @@
 > [`AGENTS.md`](../../AGENTS.md) and [`src/AGENTS.md`](../../src/AGENTS.md) keep their meaning; this file
 > records how their rows move from three data files into C# without changing behaviour.
 
-**Status:** accepted; step 1 in progress (S1 of three PRs)
+**Status:** accepted
 **Date:** 2026-10-04
 
 ## What happened
@@ -16,7 +16,7 @@ Only their storage changes. Today they live in `Architecture/Data/module-ledger.
 `TenantBypass/Data/tenant-bypass-allowlist.json` and `TenantBypass/Data/filter-free-set-sites.tsv`, and the
 rows become C# data in `tests/Cluckwork.Application.Tests`.
 
-Step 1 ships as three PRs:
+The plan accepted on 2026-10-04 splits step 1 into three slices, one PR each:
 
 | Slice | Change | Deletes |
 |---|---|---|
@@ -54,8 +54,11 @@ that message unreachable.
 - During S1 only, malformed JSON can produce slightly different registry errors, because `Validate` sees
   records, which cannot tell a missing value from an empty one. A missing `kind` reads `kind ''` instead of
   `kind '<missing>'`. A non-object owner, edge or compatibility row also reports the checks its blank
-  placeholder fails. Shape errors are listed before value errors. No test and no real row produces any of
-  these, and S2 deletes the JSON path.
+  placeholder fails. Shape errors are listed before value errors. The changed error sets occur only in
+  synthetic malformed inputs; no real row and no test assertion produces one. The ordering change does
+  reach two existing `TableOwnerTests.MalformedRows` fixtures, `"tables": {"Red": [null]}` and
+  `"tables": {"Red": 5}`, which report the same two errors in reverse order; both assert with `Contains`.
+  S2 deletes the JSON path.
 
 ## How it is enforced
 
