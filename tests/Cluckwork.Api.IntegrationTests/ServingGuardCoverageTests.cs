@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,20 +24,31 @@ namespace Cluckwork.Api.IntegrationTests;
 // — that would be the tautology the registry test was corrected for.
 public sealed class ServingGuardCoverageTests
 {
-    // 1. Guard methods anywhere in Cluckwork.Api.Hosting, not just inside
-    //    ServingBootGuards.
+    // 1. Guard methods anywhere in Cluckwork.Api.Hosting or a namespace below
+    //    it, not just inside ServingBootGuards.
     //
     //    Scoping this to one type was the same "list what I thought of" method
     //    that produced every other miss in this PR: #510's JWT key guard landed
     //    in CluckworkIdentityServiceCollectionExtensions, a THIRD file, and a
     //    ServingBootGuards-only walk could not see it. Walk the namespace and
-    //    exclude deliberately.
+    //    exclude deliberately. Descendants count: #858 moved registration into
+    //    Hosting.Modules, and an exact-namespace walk let an Ensure* guard added
+    //    there go unclassified.
+    private static IEnumerable<Type> HostingTypes()
+    {
+        var hosting = typeof(ServingBootGuards).Namespace!;
+        return typeof(ServingBootGuards).Assembly.GetTypes().Where(t =>
+            t.Namespace == hosting || t.Namespace?.StartsWith(hosting + ".", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public void GuardWalk_ReachesDescendantNamespaces() =>
+        Assert.Contains(typeof(FarmModuleServiceCollectionExtensions), HostingTypes());
+
     [Fact]
     public void EveryServingBootGuardMethod_HasACoveringRow()
     {
-        var guardMethods = typeof(ServingBootGuards).Assembly
-            .GetTypes()
-            .Where(t => t.Namespace == typeof(ServingBootGuards).Namespace)
+        var guardMethods = HostingTypes()
             .SelectMany(t => t.GetMethods(BindingFlags.NonPublic | BindingFlags.Static))
             .Where(m => m.Name.StartsWith("Ensure", StringComparison.Ordinal))
             .Select(m => m.Name)
@@ -152,7 +164,7 @@ public sealed class ServingGuardCoverageTests
     public void EveryValidateOnStartOption_HasACoveringRow()
     {
         var services = new ServiceCollection();
-        services.AddCluckworkFeatures(new ConfigurationBuilder().Build());
+        services.AddCluckworkModules(new ConfigurationBuilder().Build());
 
         var validatedOptionTypes = services
             .Where(d => d.ServiceType.IsGenericType
@@ -208,7 +220,7 @@ public sealed class ServingGuardCoverageTests
     }
 
     // 4. …and the same question asked of the WHOLE source tree, because the
-    //    enumeration above only executes AddCluckworkFeatures. A `.ValidateOnStart()`
+    //    enumeration above only executes AddCluckworkModules. A `.ValidateOnStart()`
     //    added tomorrow to persistence, identity, jobs or anywhere else would be a
     //    new serving-only guard that test cannot see, and `Assert.NotEmpty` would
     //    stay satisfied by the two existing validators (#347 review round 3, codex).
@@ -234,7 +246,7 @@ public sealed class ServingGuardCoverageTests
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["CluckworkFeatureServiceCollectionExtensions.cs"], sites);
+        Assert.Equal(["FarmModuleServiceCollectionExtensions.cs"], sites);
     }
 
     private static string RepositoryRoot()

@@ -220,7 +220,7 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         // .ValidateOnStart() fires from Host.StartAsync, and CliDispatcher
         // operates on the BUILT host without ever starting it. They behave
         // correctly today and are rows precisely because nothing said so: convert
-        // either to an eager check inside AddCluckworkFeatures — the shape #316
+        // either to an eager check inside AddFarmModule — the shape #316
         // had — and it aborts every verb while the rest of this suite stays green.
         // The first derivation missed both because it walked `IsProduction` and
         // explicit `throw` sites, which is "list what I thought of" one

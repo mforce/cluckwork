@@ -10,7 +10,7 @@ record you must read before changing the rule. Persistence edits also read
 ### Application shape
 
 - **Result pattern:** domain/handlers return `Result` / `Result<T>` (see `Domain/Common`). Don't throw for expected failures; throw only for invariant violations such as `Flock.Create` guards.
-- **Handler per feature**, invoked directly from endpoints — **no MediatR**. Register handlers/validators/repos in `Program.cs`.
+- **Handler per feature**, invoked directly from endpoints — **no MediatR**. Register handlers/validators/repos in the owning module's file under `Cluckwork.Api/Hosting/Modules/`; Access's go in `AddCluckworkIdentity` (#858).
 - **Validation:** FluentValidation validators (`*Validator`), one per command; endpoints call `ValidateAsync` and return `ValidationProblem`.
 - **Endpoints:** minimal APIs grouped under `/api/v1/...` via `Map<Feature>Endpoints`; writes require auth + an `Idempotency-Key` (middleware).
 - **Nullable enabled**, no unused usings — both are build-breaking.
