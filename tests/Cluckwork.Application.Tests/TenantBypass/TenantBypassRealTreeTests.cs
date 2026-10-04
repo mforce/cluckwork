@@ -20,15 +20,12 @@ public sealed class TenantBypassRealTreeTests
         Path.Combine(GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found"), "src");
 
-    private static string AllowListPath() =>
-        Path.Combine(AppContext.BaseDirectory, "TenantBypass", "Data", "tenant-bypass-allowlist.json");
-
     // The build gate. Every failure message names the offending site or
     // stale entry, so a red build tells you exactly what to fix or excuse.
     [Fact]
     public void RealSourceTree_AllBypassesAreAllowListed()
     {
-        var report = GuardScanner.Scan(SrcRoot(), AllowListPath());
+        var report = GuardScanner.Scan(SrcRoot(), BypassAllowList.Entries);
         var failures = GuardScanner.Evaluate(report);
         Assert.True(failures.Count == 0,
             "tenant-bypass guard failed:\n  " + string.Join("\n  ", failures));
@@ -41,7 +38,7 @@ public sealed class TenantBypassRealTreeTests
             "Cluckwork.Infrastructure.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, " +
             "string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, " +
             "DateTimeOffset now, string rotatedStamp, CancellationToken ct)";
-        var report = GuardScanner.Scan(SrcRoot(), AllowListPath());
+        var report = GuardScanner.Scan(SrcRoot(), BypassAllowList.Entries);
         var occurrence = Assert.Single(report.Occurrences, candidate =>
             candidate.Kind == BypassKind.RawSql
             && candidate.EnclosingSymbol == symbol
@@ -193,20 +190,15 @@ public sealed class TenantBypassRealTreeTests
             "(#632). Report this as a scanner bug — the signature is supposed to separate them:\n  " +
             string.Join("\n  ", duplicateIdentities));
 
-        // Load the classifications.
-        var tsvPath = Path.Combine(AppContext.BaseDirectory, "TenantBypass", "Data", "filter-free-set-sites.tsv");
-        // symbol <TAB> db.<Set> <TAB> signature <TAB> reason
-        var classified = File.ReadAllLines(tsvPath)
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("#"))
-            .Select(l =>
+        var classified = FilterFreeSetSites.All
+            .Select(site =>
             {
-                var parts = l.Split('\t');
-                Assert.True(parts.Length >= 4 && !string.IsNullOrWhiteSpace(parts[3]),
+                Assert.True(!string.IsNullOrWhiteSpace(site.Reason),
                     "malformed classification row — expected symbol, set, signature and a NON-EMPTY reason " +
                     "separated by tabs. #698 review: a row with a valid identity and a blank reason passed the " +
                     "missing, stale, duplicate and needs-review checks alike, so it excused a filter-free query " +
-                    $"with no reviewed justification at all (#632):\n  {l}");
-                return (Key: string.Join("\t", parts[0], parts[1], parts[2]), Reason: parts[3].Trim());
+                    $"with no reviewed justification at all (#632):\n  {site.Key}\t{site.Reason}");
+                return (site.Key, Reason: site.Reason.Trim());
             })
             .ToList();
 

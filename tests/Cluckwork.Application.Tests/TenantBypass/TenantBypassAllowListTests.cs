@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 
 namespace Cluckwork.Application.Tests.TenantBypass;
 
@@ -47,17 +46,11 @@ public sealed class TenantBypassAllowListTests : IDisposable
         return full;
     }
 
-    private string WriteAllowList(params (string Symbol, string File, string Justification)[] entries)
-    {
-        var path = Path.Combine(_tempRoot, "allowlist.json");
-        var json = JsonSerializer.Serialize(entries
-            .Select(e => new { symbol = e.Symbol, file = e.File, justification = e.Justification }));
-        File.WriteAllText(path, json);
-        return path;
-    }
+    private static AllowListEntry[] Entries(params (string Symbol, string File, string Justification)[] entries) =>
+        entries.Select(e => new AllowListEntry { Symbol = e.Symbol, File = e.File, Justification = e.Justification }).ToArray();
 
-    private static GuardReport Scan(string tempRoot, string allowListPath) =>
-        GuardScanner.Scan(Path.Combine(tempRoot, "src"), allowListPath);
+    private static GuardReport Scan(string tempRoot, IReadOnlyList<AllowListEntry> allowList) =>
+        GuardScanner.Scan(Path.Combine(tempRoot, "src"), allowList);
 
     // M8-M1: a bypass in a non-allow-listed method is UNEXCUSED.
     [Fact]
@@ -71,7 +64,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
                 private static System.Linq.IQueryable<int> Query() => System.Linq.Enumerable.Range(0, 1);
             }
             """);
-        var report = Scan(_tempRoot, WriteAllowList());
+        var report = Scan(_tempRoot, Entries());
 
         var failure = GuardScanner.Evaluate(report).FirstOrDefault(f => f.Contains("unexcused bypass"));
         Assert.False(string.IsNullOrEmpty(failure), "expected an unexcused-bypass failure");
@@ -92,7 +85,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             #endif
             }
             """);
-        var report = Scan(_tempRoot, WriteAllowList());
+        var report = Scan(_tempRoot, Entries());
 
         Assert.Contains(GuardScanner.Evaluate(report), failure =>
             failure.Contains("unexcused bypass [IgnoreQueryFilters]", StringComparison.Ordinal));
@@ -110,7 +103,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             #endif
             }
             """);
-        var report = Scan(_tempRoot, WriteAllowList(("A.R.Bad()", "src/A.cs", "fixture")));
+        var report = Scan(_tempRoot, Entries(("A.R.Bad()", "src/A.cs", "fixture")));
 
         Assert.Contains(GuardScanner.Evaluate(report), failure =>
             failure.Contains("raw-SQL row lock missing an AccountId predicate (M4)", StringComparison.Ordinal));
@@ -131,13 +124,13 @@ public sealed class TenantBypassAllowListTests : IDisposable
             """);
         // The symbol is the scanner's reconstructed display form (Namespace.Type
         // .Method(paramType paramText)) — see GuardScanner.ParameterTypes.
-        var withEntry = Scan(_tempRoot, WriteAllowList(
+        var withEntry = Scan(_tempRoot, Entries(
             ("A.R.Good()", "src/A.cs", "test fixture")));
         var withFailures = GuardScanner.Evaluate(withEntry);
         Assert.True(withFailures.Count == 0,
             "expected excused, got: " + string.Join(" | ", withFailures));
 
-        var withoutEntry = Scan(_tempRoot, WriteAllowList());
+        var withoutEntry = Scan(_tempRoot, Entries());
         Assert.Contains(GuardScanner.Evaluate(withoutEntry), f => f.Contains("unexcused bypass"));
     }
 
@@ -150,7 +143,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             namespace A;
             public class R { public int X() => 1; }
             """);
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("A.R.Gone()", "src/A.cs", "site was deleted but this entry was not")));
 
         var staleFailure = GuardScanner.Evaluate(report).FirstOrDefault(f => f.Contains("stale allow-list entry"));
@@ -210,7 +203,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
                 public System.Linq.IQueryable<int> Use() => Ext.Unfiltered(System.Linq.Enumerable.Range(0, 1));
             }
             """);
-        var report = Scan(_tempRoot, WriteAllowList());
+        var report = Scan(_tempRoot, Entries());
         var failures = GuardScanner.Evaluate(report);
 
         // BOTH sites must be reported, not just the wrapper definition (review
@@ -239,7 +232,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         var occurrence = Assert.Single(report.Occurrences,
@@ -267,7 +260,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         var occurrence = Assert.Single(report.Occurrences,
@@ -295,7 +288,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         var occurrence = Assert.Single(report.Occurrences,
@@ -324,7 +317,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         var occurrence = Assert.Single(report.Occurrences,
@@ -353,7 +346,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         var occurrence = Assert.Single(report.Occurrences,
@@ -380,7 +373,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         Assert.Contains(GuardScanner.Evaluate(report), failure =>
@@ -404,7 +397,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         Assert.Contains(GuardScanner.Evaluate(report), failure =>
@@ -428,7 +421,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
 
         var occurrence = Assert.Single(report.Occurrences,
@@ -452,7 +445,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             }
             """);
 
-        var report = Scan(_tempRoot, WriteAllowList(
+        var report = Scan(_tempRoot, Entries(
             ("LowLevel.Runner.Execute()", "src/LowLevel.cs", "test fixture")));
 
         Assert.Contains(GuardScanner.Evaluate(report), failure =>
@@ -464,7 +457,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
     public void LowLevelRawSqlBuild_RemovalOrMethodMoveFailsClassification()
     {
         const string classifiedSymbol = "LowLevel.Runner.ExecuteAsync()";
-        var allowList = WriteAllowList(
+        var allowList = Entries(
             (classifiedSymbol, "src/LowLevel.cs", "test fixture"));
 
         WriteSource("src/LowLevel.cs", """
