@@ -5,16 +5,19 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
-using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cluckwork.Api.IntegrationTests;
 
 // The database-backed Flock read checks one real tracked snapshot. The source
 // guard checks public Task<TEntity> repository reads for AppDbContext DbSet
-// entities and rejects explicit AsNoTracking calls unless the type/member has
-// a documented read-only purpose. It does not prove query filters, collection
-// reads, helper calls or the context's default tracking mode. AccountId's
-// database concurrency token separately guards detached writes (#562).
+// entities and rejects explicit AsNoTracking or AsNoTrackingWithIdentityResolution
+// calls unless the type/member has a documented read-only purpose. It does not
+// prove query filters, collection reads, private helper calls or the context's
+// default tracking mode. AccountId's database concurrency token separately
+// guards detached writes (#562).
 [Collection(IntegrationCollection.Name)]
 public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory factory)
 {
@@ -87,30 +90,45 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
                 "FlockLookup validates eligibility for writes to other entities; an untracked read avoids a stale pre-transaction snapshot (#1022).",
         };
 
-        var classes = new Regex(@"public\s+sealed\s+class\s+(?<name>[A-Za-z0-9_]+)");
-        var reads = new Regex(@"public\s+(?:async\s+)?Task<(?<entity>[A-Za-z0-9_]+)\??>\s+(?<name>[A-Za-z0-9_]+)\s*\(");
-        var nextMember = new Regex(@"\n    (?:public|private|internal|protected)\s");
-        var noTracking = new Regex(@"\.AsNoTracking(?:WithIdentityResolution)?\s*\(");
         var entityNames = entityTypes.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
         var discovered = new HashSet<(string Type, string Member)>();
         var violations = new List<string>();
 
         foreach (var file in Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
-            var text = File.ReadAllText(file);
-            var declarations = classes.Matches(text);
-            foreach (Match read in reads.Matches(text))
+            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file).GetRoot();
+            Assert.DoesNotContain(root.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+            Assert.DoesNotContain(root.DescendantTrivia(descendIntoTrivia: true),
+                trivia => trivia.IsKind(SyntaxKind.DisabledTextTrivia));
+
+            foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
             {
-                if (!entityNames.Contains(read.Groups["entity"].Value)) continue;
-                var type = declarations.Last(c => c.Index < read.Index).Groups["name"].Value;
-                var key = (Type: type, Member: read.Groups["name"].Value);
+                if (!method.Modifiers.Any(SyntaxKind.PublicKeyword)
+                    || method.ReturnType is not GenericNameSyntax { Identifier.ValueText: "Task" } task)
+                    continue;
+
+                var resultType = task.TypeArgumentList.Arguments.Single();
+                if (resultType is NullableTypeSyntax nullable) resultType = nullable.ElementType;
+                if (resultType is not IdentifierNameSyntax entity
+                    || !entityNames.Contains(entity.Identifier.ValueText))
+                    continue;
+
+                var type = method.Ancestors().OfType<TypeDeclarationSyntax>().First().Identifier.ValueText;
+                var key = (Type: type, Member: method.Identifier.ValueText);
                 Assert.True(discovered.Add(key), $"Duplicate repository read: {key.Type}.{key.Member}");
                 if (readOnly.ContainsKey(key)) continue;
 
-                var after = text[read.Index..];
-                var end = nextMember.Match(after, read.Length);
-                var body = end.Success ? after[..end.Index] : after;
-                if (noTracking.IsMatch(body))
+                var body = (SyntaxNode?)method.Body ?? method.ExpressionBody;
+                Assert.NotNull(body);
+                var calls = body.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                    .Select(call => call.Expression switch
+                    {
+                        MemberAccessExpressionSyntax access => access.Name.Identifier.ValueText,
+                        MemberBindingExpressionSyntax binding => binding.Name.Identifier.ValueText,
+                        SimpleNameSyntax name => name.Identifier.ValueText,
+                        _ => null,
+                    });
+                if (calls.Any(name => name is "AsNoTracking" or "AsNoTrackingWithIdentityResolution"))
                     violations.Add($"{key.Type}.{key.Member}");
             }
         }
