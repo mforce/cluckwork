@@ -216,7 +216,24 @@ jobs:
         run: dotnet restore Cluckwork.sln --locked-mode
 
       - name: Test
-        run: dotnet test ${{ matrix.project }} --configuration Release --no-restore --verbosity normal
+        run: >-
+          dotnet test ${{ matrix.project }} --configuration Release --no-restore --verbosity normal
+          ${{ matrix.group == 'integration' && '--blame-hang-timeout 5m --blame-hang-dump-type mini --results-directory TestResults' || '' }}
+
+      # Deliberately retain dumps of raw process memory and XML for 3 days, unlike
+      # e2e-smoke.yml's credential-artifact stripping. Test credentials are disposable
+      # per run (Testcontainers DB password, ephemeral TestJwtKeys, generated simulation
+      # cast password); this job injects no production secret.
+      - name: Upload integration hang diagnostics
+        if: (failure() || cancelled()) && matrix.group == 'integration'
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-hang-diagnostics
+          path: |
+            TestResults/**/Sequence_*.xml
+            TestResults/**/*.dmp
+          if-no-files-found: ignore
+          retention-days: 3
 
   # No longer runs tests (#775): the four test projects are legs of the `tests`
   # matrix above, so a failing group can cancel the others. What is left here is
