@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Microsoft.AspNetCore.Builder;
@@ -92,7 +93,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var accountId = await AccountSlugLookup.ResolveAsync(scope.ServiceProvider, current);
+            var accountId = await scope.ServiceProvider.GetRequiredService<IFarmDirectory>().FindIdBySlugAsync(current);
             if (accountId is null)
             {
                 await WriteErrorAsync($"No farm with code '{current}'.");

@@ -622,12 +622,6 @@
   },
   "adapters": [
     {
-      "symbol": "Cluckwork.Api.Cli.AccountSlugLookup.ResolveAsync",
-      "reaches": [
-        "Farm"
-      ]
-    },
-    {
       "symbol": "Cluckwork.Api.Cli.BootstrapAdminCliCommand.RunAsync",
       "reaches": [
         "Access"
@@ -648,7 +642,8 @@
     {
       "symbol": "Cluckwork.Api.Cli.ReactivateAccountCliCommand.RunAsync",
       "reaches": [
-        "Access"
+        "Access",
+        "Farm"
       ]
     },
     {
@@ -660,13 +655,21 @@
     {
       "symbol": "Cluckwork.Api.Cli.RenameAccountCliCommand.RunAsync",
       "reaches": [
-        "Access"
+        "Access",
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.SeedCliCommand.RunAsync",
+      "reaches": [
+        "Farm"
       ]
     },
     {
       "symbol": "Cluckwork.Api.Cli.SuspendAccountCliCommand.RunAsync",
       "reaches": [
-        "Access"
+        "Access",
+        "Farm"
       ]
     },
     {

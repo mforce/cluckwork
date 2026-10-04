@@ -1,3 +1,4 @@
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Users;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +29,7 @@ public sealed class ReactivateAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var accountId = await AccountSlugLookup.ResolveAsync(scope.ServiceProvider, slug);
+            var accountId = await scope.ServiceProvider.GetRequiredService<IFarmDirectory>().FindIdBySlugAsync(slug);
             if (accountId is null)
             {
                 await Console.Error.WriteLineAsync($"No farm with code '{slug}'.");

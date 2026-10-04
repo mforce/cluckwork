@@ -37,7 +37,7 @@ public sealed class SuspendAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var accountId = await AccountSlugLookup.ResolveAsync(scope.ServiceProvider, slug);
+            var accountId = await scope.ServiceProvider.GetRequiredService<IFarmDirectory>().FindIdBySlugAsync(slug);
             if (accountId is null)
             {
                 await Console.Error.WriteLineAsync($"No farm with code '{slug}'.");
@@ -77,9 +77,7 @@ public sealed class SuspendAccountCliCommand : ICliCommand
 }
 
 // Shared by seed, suspend-account, reactivate-account and rename-account (#534).
-// The cross-farm read lives in Farm's IFarmDirectory (#858). ResolveAsync only
-// forwards to it, which hides the directory from FarmDirectoryCallerTests; #858
-// P8 inlines it into the four verbs once #857 D has moved them.
+// Each verb resolves the normalized code through Farm's IFarmDirectory (#858).
 internal static class AccountSlugLookup
 {
     // Slugs are stored already-lowercased (Account.ValidateSlug REJECTS uppercase
@@ -89,7 +87,4 @@ internal static class AccountSlugLookup
     // ı would otherwise turn a valid code into one that matches nothing.
     internal static string? Normalize(string? slug) =>
         string.IsNullOrWhiteSpace(slug) ? null : slug.Trim().ToLowerInvariant();
-
-    internal static Task<Guid?> ResolveAsync(IServiceProvider services, string slug) =>
-        services.GetRequiredService<IFarmDirectory>().FindIdBySlugAsync(slug);
 }
