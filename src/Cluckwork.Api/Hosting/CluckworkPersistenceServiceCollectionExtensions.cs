@@ -1,6 +1,10 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Expenses;
+using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Inventory;
+using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
@@ -92,7 +96,12 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
         if (!environment.IsProduction())
         {
             services.AddScoped<IAccessSeedLookup, AccessSeedLookup>();
+            services.AddScoped<IAccessFixture, AccessFixture>();
+            services.AddScoped<ICommerceFixture, CommerceFixture>();
+            services.AddScoped<IEggOperationsFixture, EggOperationsFixture>();
+            services.AddScoped<IFarmFixture, FarmFixture>();
             services.AddScoped<IFinanceFixture, FinanceFixture>();
+            services.AddScoped<IFlockFixture, FlockFixture>();
             services.AddScoped<IInventoryFixture, InventoryFixture>();
             services.AddScoped<DemoDataSeeder>();
         }

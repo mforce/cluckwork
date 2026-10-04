@@ -40,6 +40,11 @@ public sealed class AccessSeedOwnerFailureFactory : CluckworkWebApplicationFacto
             Guid accountId, string role, CancellationToken ct = default) =>
             inner.ListUsersInRoleAsync(accountId, role, ct);
 
+        public Task<bool> OwnerRoleExistsAsync(CancellationToken ct = default) => inner.OwnerRoleExistsAsync(ct);
+
+        public Task<int> CountUsersAsync(Guid accountId, CancellationToken ct = default) =>
+            inner.CountUsersAsync(accountId, ct);
+
         public Task<AccessActor?> GetActorAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
             failure.Throw ? throw new InvalidOperationException("owner read failed") : Task.FromResult<AccessActor?>(null);
     }
