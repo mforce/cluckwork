@@ -12,9 +12,9 @@
 No incident. On 2026-10-04 the owner narrowed #859 from an assembly split to typed C# registries.
 The evidence was that 64 failed PR runs since #842 included one boundary-guard failure, and that was an
 unsupported handler shape (#874), not an accidental crossing. The rules stay decisions that tests check.
-Only their storage changes. Today they live in `Architecture/Data/module-ledger.json`,
-`TenantBypass/Data/tenant-bypass-allowlist.json` and `TenantBypass/Data/filter-free-set-sites.tsv`, and the
-rows become C# data in `tests/Cluckwork.Application.Tests`.
+Only their storage changes. They lived in `Architecture/Data/module-ledger.json`, a tenant-bypass JSON
+allow-list and a TSV of filter-free-set classifications; the rows become C# data in
+`tests/Cluckwork.Application.Tests`.
 
 The plan accepted on 2026-10-04 splits step 1 into three slices, one PR each:
 
@@ -38,7 +38,7 @@ the file's rows, the parity run is repeated in CI before the switch.
 An attribute on each `src/` type would let a row disappear with its type, so a stale row could no longer
 fail. That is a behaviour change. It would also touch about 250 `src/` files and need either Roslyn
 attribute extraction or a reference to `Cluckwork.Api`, which the test project does not have. Tenant-bypass
-approvals must stay apart from the code they excuse, as the JSON is today.
+approvals must stay apart from the code they excuse, as the allow-list rows in the test project are.
 
 Owner names stay strings. `Validate` already rejects an unknown owner with a message; an enum would make
 that message unreachable.

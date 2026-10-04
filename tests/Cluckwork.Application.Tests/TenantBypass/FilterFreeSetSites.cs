@@ -7,20 +7,52 @@ internal sealed record FilterFreeSetSite(string Symbol, string Set, string Signa
     internal string Key => string.Join("\t", Symbol, Set, Signature);
 }
 
-// The one filter-free-set classification list every real-tree test reads (#859).
+// #536 Part 1: the db.<filter-free-set> query-site classifications, the stability baseline for the
+// filter-free-set leg. GuardScanner.ScanFilterFreeSet walks EVERY db.<Table> access where <Table> is a
+// filter-free entity (no global query filter), in two tracks:
+//
+//   TENANT track: sets whose entity carries an AccountId property (Users, RefreshTokens,
+//     IdempotencyRecord). Candidate = a site whose enclosing statement has no "AccountId" compare.
+//   NON-TENANT track: sets whose CLR entity declares no AccountId property (Roles, UserClaims, UserLogins,
+//     UserTokens, RoleClaims, DurableJob, and UserRoles, which since #670 carries a SHADOW AccountId column
+//     the write guards stamp and token, and stays on this stricter track). Candidate = EVERY db.<Table>
+//     access, because there is no AccountId to compare.
+//
+// Review P1-2 added the non-tenant track: the original leg walked only the tenant sets, so a future
+// unscoped query against db.UserRoles, db.Roles or db.DurableJobs would have passed silently.
+//
+// Why a classification list and not a pure shape gate: the shape check cannot tell a by-id, by-hash or
+// caller-scoped query (safe) from an unscoped one (a tenant leak). Reviewer M4/F4 named this: the leg
+// proves "shape, not provenance". So each candidate is recorded with the REASON it is scoped, and
+// TenantBypassRealTreeTests.RealSourceTree_FilterFreeSetSitesAreStableAndClassified fails when a candidate
+// is unclassified, a classified site disappears, or a row is malformed, duplicated or still needs-review.
+// Nothing is silently un-banned.
+//
+// Identity (#632): enclosing symbol, db.<Set> and signature, with NO file or line. Keyed by file:line,
+// edits that left the queries untouched moved rows in #601 (eight IdentityProvider rows), #609/#606
+// (three) and #627 (two db.Roles rows, 457->469 and 500->512). #604 set "revisit after the third
+// occurrence"; #632 was that revisit.
+//   * Symbol: the method in Roslyn display form, exactly as the scanner reports it. Renaming the method,
+//     or moving the query into another one, requires re-pinning: both change which code is asserted safe.
+//   * Signature: 8 hex characters of SHA-256 over the enclosing query's Roslyn TOKENS. Comments are trivia
+//     and drop out, whitespace between tokens is normalized, and every literal is kept exactly. The scope
+//     is the innermost statement, arrow body, accessor, initializer or member declaration containing the
+//     query; an expression-bodied property has no statement, and taking one anyway hashed the bare
+//     `db.Users` and missed the predicate (#698 review). Editing the query, including a value inside a
+//     string literal, changes the signature on purpose: a changed query is a re-review, not a move. A
+//     trailing "#N" appears only for a statement that queries the same set more than once.
+//   Identities must be unique. Two rows with one identity fail the guard rather than one silently
+//   excusing the other.
+//
+// Classifying a new query: run TenantBypassRealTreeTests. Each unclassified candidate prints its three
+// tab-separated identity fields and its file:line. Add a row with those fields copied exactly and a reason
+// naming the scoping mechanism (by-id, by-hash, by-key, scoped-by-join, scoped-by-user-id,
+// global-reference or non-tenant-sweep), or fix the query. The file:line is for finding the code and is
+// not part of the key. The reason is a human assertion, not a machine proof; `needs-review` is the
+// sentinel, and a row carrying it fails the test until the site is classified or the query is fixed.
 internal static class FilterFreeSetSites
 {
-    // symbol <TAB> db.<Set> <TAB> signature <TAB> reason. A row with fewer than four fields reads with blank
-    // fields, so the real-tree test reports it as malformed.
     internal static IReadOnlyList<FilterFreeSetSite> All { get; } =
-        File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "TenantBypass", "Data", "filter-free-set-sites.tsv"))
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("#"))
-            .Select(l => l.Split('\t'))
-            .Select(p => new FilterFreeSetSite(Field(p, 0), Field(p, 1), Field(p, 2), Field(p, 3)))
-            .ToList();
-
-    // #859 parity phase: Data/filter-free-set-sites.tsv as C#. TenantRegistryParityTests holds the two equal.
-    internal static readonly FilterFreeSetSite[] Rows =
     [
         new("Cluckwork.Api.Middleware.IdempotencyMiddleware.TryClaimOrInspectAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, string requestHash, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)",
             "db.IdempotencyRecords", "5a00a5f9",
@@ -131,6 +163,4 @@ internal static class FilterFreeSetSites
             "db.IdempotencyRecords", "d5b16b0c",
             "non-tenant sweep: purges expired records across all tenants (runs under the single-leader gate #271 with no tenant resolved); scoped by expiry, not by account."),
     ];
-
-    private static string Field(string[] parts, int index) => index < parts.Length ? parts[index] : string.Empty;
 }

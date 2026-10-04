@@ -1,13 +1,28 @@
 namespace Cluckwork.Application.Tests.TenantBypass;
 
-// The one tenant-bypass allow-list every real-tree test reads (#859). Nothing else loads the real rows.
+// #536 Part 1: the allow-list. One reviewable row per excused bypass (design M5/M7). The exemption lives
+// apart from the code it excuses, so a bypass and its exemption are never the same keystroke.
+//
+// Rules:
+//  * Symbol names the enclosing method in symbol display form (Namespace.Type.Method(paramTypes)). A call
+//    inside a local function keys as ContainingMethod.Local(localFunctionName) and is NOT covered by the
+//    parent's row.
+//  * A row matching zero sites is STALE and fails the build, so a deleted bypass cannot leave a live
+//    exemption behind.
+//  * Justification is mandatory. An unexplained exemption is the thing the guard exists to prevent.
+public sealed class AllowListEntry
+{
+    public required string Symbol { get; init; }
+
+    public required string File { get; init; }
+
+    public required string Justification { get; init; }
+}
+
+// The one tenant-bypass allow-list every real-tree test reads (#859). Nothing else holds the real rows.
 internal static class BypassAllowList
 {
-    internal static IReadOnlyList<AllowListEntry> Entries { get; } =
-        AllowList.Load(Path.Combine(AppContext.BaseDirectory, "TenantBypass", "Data", "tenant-bypass-allowlist.json"));
-
-    // #859 parity phase: Data/tenant-bypass-allowlist.json as C#. TenantRegistryParityTests holds the two equal.
-    internal static readonly AllowListEntry[] Rows =
+    private static readonly AllowListEntry[] Rows =
     [
         new()
         {
@@ -250,4 +265,11 @@ internal static class BypassAllowList
             Justification = "One unresolved-tenant read covering both the source code and the destination code: the operator CLI runs before any tenant exists, so IgnoreQueryFilters is required rather than defensive. Neither half is an authority — the post-lock fence covers the source by comparing the locked row's slug AND Version against this read's snapshot, and the global IX_Accounts_Slug index plus its unique-violation catch cover the destination (#732).",
         },
     ];
+
+    // A row with a blank field excuses nothing: it is dropped, so its site is reported unexcused.
+    internal static IReadOnlyList<AllowListEntry> Entries { get; } = Rows
+        .Where(e => !string.IsNullOrWhiteSpace(e.Symbol)
+            && !string.IsNullOrWhiteSpace(e.File)
+            && !string.IsNullOrWhiteSpace(e.Justification))
+        .ToList();
 }
