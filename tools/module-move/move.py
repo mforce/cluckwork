@@ -33,7 +33,8 @@ TYPE_KEYWORD = re.compile(
 NAMESPACE = re.compile(r"^namespace\s+([\w.]+)\s*;", re.M)
 # A caller of an extension method names the method, never its class.
 EXTENSION = re.compile(r"\bstatic\b[^;{}=]*?\b(\w+)\s*(?:<[^<>()]*>)?\s*\(\s*this\b")
-USING = re.compile(r"^(global\s+)?using\s+([\w.]+)\s*;[ \t]*\r?\n", re.M)
+# Indented usings sit inside a block namespace.
+USING = re.compile(r"^[ \t]*(global\s+)?using\s+([\w.]+)\s*;[ \t]*\r?\n", re.M)
 
 
 def mask(text):
@@ -211,19 +212,22 @@ def names(code, candidates):
 
 
 def add_using(text, ns):
-    if re.search(rf"^using\s+{re.escape(ns)}\s*;", text, re.M):
+    if re.search(rf"^[ \t]*using\s+{re.escape(ns)}\s*;", text, re.M):
         return text
     nl = "\r\n" if "\r\n" in text else "\n"
     usings = [m for m in USING.finditer(text) if not m.group(1)]
-    line = f"using {ns};{nl}"
+
+    def line(m):
+        return re.match(r"[ \t]*", m.group(0)).group(0) + f"using {ns};{nl}"
+
     for m in usings:
         if m.group(2) > ns:
-            return text[:m.start()] + line + text[m.start():]
+            return text[:m.start()] + line(m) + text[m.start():]
     if usings:
-        return text[:usings[-1].end()] + line + text[usings[-1].end():]
+        return text[:usings[-1].end()] + line(usings[-1]) + text[usings[-1].end():]
     ns_line = NAMESPACE.search(text)
     at = ns_line.start() if ns_line else 0
-    return text[:at] + line + nl + text[at:]
+    return text[:at] + f"using {ns};{nl}" + nl + text[at:]
 
 
 def move(table):
