@@ -155,8 +155,8 @@ public sealed class TenantBypassWalkTests
             """);
         AllowListEntry[] allowList =
         [
-            new() { Symbol = "Probe.Read(DbSet<object> rows)", File = "src/Probe.cs", Justification = "first" },
-            new() { Symbol = "Probe.Read(DbSet<object> rows)", File = "src/Probe.cs", Justification = "second" },
+            new() { Symbol = "Probe.Read(DbSet<object> rows)", File = "src/Probe.cs", Hash = "aaaaaaaa", Justification = "first" },
+            new() { Symbol = "Probe.Read(DbSet<object> rows)", File = "src/Probe.cs", Hash = "bbbbbbbb", Justification = "second" },
         ];
 
         var report = GuardScanner.Scan(src, allowList);

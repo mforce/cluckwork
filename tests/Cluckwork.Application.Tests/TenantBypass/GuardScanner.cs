@@ -40,9 +40,11 @@ public sealed record BypassOccurrence(
     // #632 — the stable half of a filter-free-set site's identity. A hash of
     // the enclosing statement with comments stripped and whitespace collapsed,
     // plus an ordinal for the rare statement that queries one set twice. Only
-    // ScanFilterFreeSet populates it; the allow-list leg keys on the symbol
-    // already and needs nothing here.
-    string? QuerySignature = null);
+    // ScanFilterFreeSet populates it.
+    string? QuerySignature = null,
+    // #1072 — the allow-list leg's hash: the same token hash over the whole
+    // member EnclosingSymbol names. Only Scan populates it.
+    string? MemberHash = null);
 
 public sealed record AllowListMismatch(AllowListEntry Entry, string Reason);
 
@@ -348,7 +350,8 @@ public static class GuardScanner
                     access.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
                     EnclosingSymbolOf(access, file),
                     $"forwards-bypass (property) {rootText}",
-                    PredicateHasAccountId: PredicateHasAccountId(access)));
+                    PredicateHasAccountId: PredicateHasAccountId(access),
+                    MemberHash: MemberHashOf(access)));
             }
 
             // UserManager.Users — a member access, not an invocation. The
@@ -364,7 +367,8 @@ public static class GuardScanner
                         BypassKind.UserManagerUsers, Relative(repoRoot, file),
                         access.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
                         EnclosingSymbolOf(access, file), "UserManager.Users",
-                        PredicateHasAccountId: PredicateHasAccountId(access)));
+                        PredicateHasAccountId: PredicateHasAccountId(access),
+                        MemberHash: MemberHashOf(access)));
                 }
             }
         }
@@ -452,10 +456,26 @@ public static class GuardScanner
                 + "fold them into one entry whose justification covers every occurrence");
         }
 
-        // Excuse matching: file (relative) + symbol must both match exactly.
-        var matches = (BypassOccurrence o, AllowListEntry e) =>
+        // #1072 — one hash, one row. Rows sharing a hash would let a reviewer's
+        // approval of one member read as an approval of the other.
+        foreach (var duplicate in allowList
+            .GroupBy(e => e.Hash, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1))
+        {
+            registryErrors.Add(
+                $"duplicate allow-list hash {duplicate.Key} — rows "
+                + string.Join(", ", duplicate.Select(e => e.Symbol))
+                + " share it; every row must fingerprint its own member");
+        }
+
+        var sameKey = (BypassOccurrence o, AllowListEntry e) =>
             string.Equals(o.File, NormalizePath(e.File), StringComparison.Ordinal)
             && o.EnclosingSymbol == e.Symbol;
+
+        // Excuse matching: file (relative), symbol and member hash must all match
+        // exactly, so an edit to an excused member's tokens un-excuses it.
+        var matches = (BypassOccurrence o, AllowListEntry e) =>
+            sameKey(o, e) && string.Equals(o.MemberHash, e.Hash, StringComparison.Ordinal);
 
         var unexcusedOccurrences = occurrences
             .Where(o => !allowList.Any(e => matches(o, e)))
@@ -466,7 +486,12 @@ public static class GuardScanner
 
         var stale = allowList
             .Where(e => !occurrences.Any(o => matches(o, e)))
-            .Select(e => new AllowListMismatch(e, "entry matches no occurrence in src/"))
+            .Select(e => occurrences.FirstOrDefault(o => sameKey(o, e)) is { } edited
+                ? new AllowListMismatch(e,
+                    $"its member was edited (Hash {e.Hash} is now {edited.MemberHash}); "
+                    + "re-review the bypass, then update the row's Hash")
+                : new AllowListMismatch(e,
+                    "entry matches no occurrence in src/; delete its row from TenantBypass/BypassAllowList.cs"))
             .ToList();
 
         return new GuardReport(occurrences, excusedOccurrences,
@@ -774,12 +799,13 @@ public static class GuardScanner
 
         foreach (var o in report.Unexcused)
         {
-            failures.Add($"unexcused bypass [{o.Kind}] {o.File}:{o.Line} in {o.EnclosingSymbol} ({o.Detail}) — add a row with a justification to TenantBypass/BypassAllowList.cs, or fix the bypass");
+            failures.Add($"unexcused bypass [{o.Kind}] {o.File}:{o.Line} in {o.EnclosingSymbol} ({o.Detail}) — fix the bypass, or add or update its row in TenantBypass/BypassAllowList.cs: "
+                + $"new() {{ Symbol = \"{o.EnclosingSymbol}\", File = \"{o.File}\", Hash = \"{o.MemberHash}\", Justification = \"...\" }}");
         }
 
         foreach (var s in report.StaleEntries)
         {
-            failures.Add($"stale allow-list entry {s.Entry.File} :: {s.Entry.Symbol} — {s.Reason}; delete its row from TenantBypass/BypassAllowList.cs");
+            failures.Add($"stale allow-list entry {s.Entry.File} :: {s.Entry.Symbol} — {s.Reason}");
         }
 
         foreach (var v in report.RawSqlPredicateViolations)
@@ -882,8 +908,6 @@ public static class GuardScanner
                     or BasePropertyDeclarationSyntax)
             ?? (SyntaxNode)access;
 
-        var normalized = NormalizeQueryText(scope);
-
         // The ordinal disambiguates ONE case: a single statement that queries
         // the same set twice (`db.Users.Where(...).Union(db.Users...)`), where
         // the text is identical by construction and no edit could separate
@@ -897,10 +921,41 @@ public static class GuardScanner
             .ToList()
             .FindIndex(m => m.SpanStart == access.SpanStart);
 
-        var hash = System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(normalized));
-        var sig = Convert.ToHexStringLower(hash)[..8];
+        var sig = TokenHash(scope);
         return ordinal > 0 ? $"{sig}#{ordinal}" : sig;
+    }
+
+    // 8 hex characters of SHA-256 over the scope's normalized tokens: the
+    // filter-free-set signature and the allow-list row's Hash (#1072).
+    internal static string TokenHash(SyntaxNode scope) => Sha256Prefix(NormalizeQueryText(scope));
+
+    private static string Sha256Prefix(string text) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(text)))[..8];
+
+    // #1072 — an allow-list row excuses every bypass in the member its Symbol
+    // names, so its Hash covers that whole member. A statement-scoped hash
+    // would miss a predicate held in another statement of the same member,
+    // such as ExecuteLineageFenceAsync's `const string sql`. A bypass inside a
+    // local function hashes the method around it, whose locals it can capture:
+    // passed as a method group (`ExecuteAsync(Query)`) it has no forwarding call
+    // site, so its captured predicate would otherwise go unhashed. The local's
+    // name is hashed too, so its row stays distinct from the row of a method
+    // that calls it directly. Top-level statements and field initializers hash
+    // the whole file.
+    internal static string MemberHashOf(SyntaxNode node)
+    {
+        if (node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>() is { } method)
+        {
+            return node.Ancestors().OfType<LocalFunctionStatementSyntax>().FirstOrDefault() is { } local
+                ? Sha256Prefix($"{local.Identifier.ValueText} {NormalizeQueryText(method)}")
+                : TokenHash(method);
+        }
+
+        return TokenHash(
+            (SyntaxNode?)node.FirstAncestorOrSelf<AccessorDeclarationSyntax>()
+            ?? (SyntaxNode?)node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()
+            ?? node.SyntaxTree.GetRoot());
     }
 
     // Comments out, whitespace uniform, LITERALS UNTOUCHED. #698 review: the
@@ -931,7 +986,8 @@ public static class GuardScanner
         var occurrence = new BypassOccurrence(
             kind, Relative(repoRoot, file),
             invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-            EnclosingSymbolOf(invocation, file), detail);
+            EnclosingSymbolOf(invocation, file), detail,
+            MemberHash: MemberHashOf(invocation));
 
         if (kind == BypassKind.RawSql)
         {
