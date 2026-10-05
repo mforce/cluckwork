@@ -63,7 +63,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
                 {
                     Contract = ["Cluckwork.Temp.Finance.IFinanceModule"], Implementations = implementations ?? [],
                 },
-                new("Insights", "module", ["Cluckwork.Temp.Insights", "Cluckwork.Domain.Flocks"], []),
+                new("Insights", "module", ["Cluckwork.Temp.Insights", "Cluckwork.Domain.Modules.FlockManagement"], []),
             ],
             [new("Insights", "Finance", "R", "test", ["Cluckwork.Temp.Insights.Declared"])],
             [])
