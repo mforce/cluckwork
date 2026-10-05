@@ -97,32 +97,32 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
                 dailyEntryKind: Cluckwork.Domain.Modules.EggOperations.Contracts.DailyEntryKind.Manual);
             db.EggGrades.Add(grade);
 
-            var priced = Domain.Catalog.Product.Create(
+            var priced = Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                 Guid.NewGuid(), accountId, farmId, "Priced export product",
-                Domain.Catalog.ProductType.Egg, Domain.Catalog.ProductUnit.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg, Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg,
                 500, "USD", 2, notes: null);
-            var unpriced = Domain.Catalog.Product.Create(
+            var unpriced = Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                 Guid.NewGuid(), accountId, farmId, "Unpriced export product",
-                Domain.Catalog.ProductType.Egg, Domain.Catalog.ProductUnit.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg, Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg,
                 null, "USD", 2, notes: null);
             db.Products.AddRange(priced, unpriced);
             db.ProductEggGradeMappings.AddRange(
-                Domain.Catalog.ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, priced.Id, grade.Id),
-                Domain.Catalog.ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, unpriced.Id, grade.Id));
+                Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, priced.Id, grade.Id),
+                Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, unpriced.Id, grade.Id));
 
-            var customer = Domain.Sales.Customer.Create(Guid.NewGuid(), accountId, "Export Customer", "555-0000");
+            var customer = Cluckwork.Domain.Modules.Commerce.Sales.Customer.Create(Guid.NewGuid(), accountId, "Export Customer", "555-0000");
             db.Customers.Add(customer);
 
             var orderId = Guid.NewGuid();
-            var order = Domain.Sales.SalesOrder.Create(
+            var order = Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder.Create(
                 orderId, accountId, customer.Id, $"SO-{orderId.ToString()[..8]}",
                 DateOnly.FromDateTime(DateTime.UtcNow.Date), "USD");
-            order.AddItem(priced.Id, Domain.Catalog.ProductType.Egg, grade.Id,
-                Domain.Catalog.ProductUnit.Egg, 1, 5, new Domain.Common.Money(80, "USD", 2),
-                500L, Domain.Sales.ListPriceBasis.Recorded);
-            order.AddItem(unpriced.Id, Domain.Catalog.ProductType.Egg, grade.Id,
-                Domain.Catalog.ProductUnit.Egg, 1, 3, new Domain.Common.Money(80, "USD", 2),
-                null, Domain.Sales.ListPriceBasis.ProductUnpriced);
+            order.AddItem(priced.Id, Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg, grade.Id,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg, 1, 5, new Domain.Common.Money(80, "USD", 2),
+                500L, Cluckwork.Domain.Modules.Commerce.Contracts.ListPriceBasis.Recorded);
+            order.AddItem(unpriced.Id, Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg, grade.Id,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg, 1, 3, new Domain.Common.Money(80, "USD", 2),
+                null, Cluckwork.Domain.Modules.Commerce.Contracts.ListPriceBasis.ProductUnpriced);
             db.SalesOrders.Add(order);
             await db.SaveChangesAsync();
         });

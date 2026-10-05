@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Sales;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

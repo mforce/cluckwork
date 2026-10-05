@@ -513,10 +513,10 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
         using var scope = factory.Services.CreateScope();
         scope.ResolveTenantAndActor(accountId, readOnlyId, readOnlyEmail, roles: [Roles.ReadOnly]);
         var handler = scope.ServiceProvider
-            .GetRequiredService<Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler>();
+            .GetRequiredService<Cluckwork.Application.Modules.Commerce.Sales.ConfirmSale.ConfirmSaleHandler>();
 
         var result = await handler.HandleAsync(
-            new Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleCommand(orderId),
+            new Cluckwork.Application.Modules.Commerce.Contracts.ConfirmSaleCommand(orderId),
             accountId, readOnlyId, CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -524,7 +524,7 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
 
         var order = await factory.WithTenantScopeAsync(accountId, async db =>
             await db.SalesOrders.AsNoTracking().SingleAsync(o => o.Id == orderId));
-        Assert.Equal(Cluckwork.Domain.Sales.SalesOrderStatus.Draft, order.Status);
+        Assert.Equal(Cluckwork.Domain.Modules.Commerce.Contracts.SalesOrderStatus.Draft, order.Status);
     }
 
     // --- exactly one FIFO query, proven by a counting repository spy --------

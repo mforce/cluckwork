@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Catalog;
+using Cluckwork.Domain.Modules.Commerce.Catalog;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

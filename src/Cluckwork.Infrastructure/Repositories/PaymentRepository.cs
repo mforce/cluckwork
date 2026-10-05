@@ -1,6 +1,8 @@
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Sales;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Sales;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

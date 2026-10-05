@@ -1,8 +1,8 @@
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using System.Net;
 using System.Threading;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;

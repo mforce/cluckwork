@@ -1,7 +1,8 @@
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Sales.AddOrderItem;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

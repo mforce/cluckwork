@@ -1,5 +1,6 @@
-using Cluckwork.Application.Features.Sales.ConfirmSale;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Sales.ConfirmSale;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 
 namespace Cluckwork.Application.Tests.Sales;
 

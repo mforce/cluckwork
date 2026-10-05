@@ -1,5 +1,5 @@
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using System.Globalization;
-using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Domain.Tests.Sales;
 

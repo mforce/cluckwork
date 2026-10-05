@@ -1,10 +1,10 @@
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using System.Net;
 using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;

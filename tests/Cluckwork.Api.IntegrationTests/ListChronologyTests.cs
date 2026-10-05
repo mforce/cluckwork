@@ -1,14 +1,15 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Sales;
+using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
-using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Modules.Insights.Repositories;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;

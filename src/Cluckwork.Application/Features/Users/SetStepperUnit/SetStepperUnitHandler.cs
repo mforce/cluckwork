@@ -1,7 +1,7 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Catalog;
-using Cluckwork.Domain.Catalog;
+using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 
 namespace Cluckwork.Application.Features.Users.SetStepperUnit;
 

@@ -1,8 +1,8 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Catalog;
+using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Catalog;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 
 namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 

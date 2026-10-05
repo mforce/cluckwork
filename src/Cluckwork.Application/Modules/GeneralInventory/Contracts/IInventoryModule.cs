@@ -4,7 +4,7 @@ using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 namespace Cluckwork.Application.Modules.GeneralInventory.Contracts;
 
 // #855: the General Inventory contract. Adapters reach General Inventory only
-// through the types marked [ModuleContract("GeneralInventory")].
+// through the types in this Contracts folder.
 public interface IInventoryModule
 {
     Task<IReadOnlyList<InventoryItemDetails>> ListItemsAsync(bool includeInactive, CancellationToken ct);

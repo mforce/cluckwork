@@ -1,9 +1,11 @@
-using Cluckwork.Application.Features.Catalog;
-using Cluckwork.Application.Features.Customers;
-using Cluckwork.Application.Features.Sales;
-using Cluckwork.Domain.Catalog;
+using Cluckwork.Application.Modules.Commerce.Catalog;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Customers;
+using Cluckwork.Application.Modules.Commerce.Sales;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Domain.Modules.Commerce.Catalog;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 
 namespace Cluckwork.Application.Tests.Sales;
 

@@ -1,7 +1,8 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Customers;
-using Cluckwork.Application.Features.Customers.UpdateCustomer;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Customers;
+using Cluckwork.Application.Modules.Commerce.Customers.UpdateCustomer;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 
 namespace Cluckwork.Application.Tests.Customers;
 
