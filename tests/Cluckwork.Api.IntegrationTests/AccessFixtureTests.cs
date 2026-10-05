@@ -16,9 +16,9 @@ namespace Cluckwork.Api.IntegrationTests;
 [Collection(IntegrationCollection.Name)]
 public sealed class AccessFixtureTests(CluckworkWebApplicationFactory factory)
 {
-    private sealed record Farm(Guid AccountId, Guid OwnerId, string OwnerEmail, Guid WorkerId, string WorkerEmail, Guid FlockId);
+    private sealed record SeededFarm(Guid AccountId, Guid OwnerId, string OwnerEmail, Guid WorkerId, string WorkerEmail, Guid FlockId);
 
-    private async Task<Farm> SeedFarmAsync()
+    private async Task<SeededFarm> SeedFarmAsync()
     {
         var ownerEmail = $"fixture-owner-{Guid.NewGuid():N}@test.local";
         var workerEmail = $"fixture-worker-{Guid.NewGuid():N}@test.local";
@@ -28,10 +28,10 @@ public sealed class AccessFixtureTests(CluckworkWebApplicationFactory factory)
         var (ownerId, workerId) = await factory.WithTenantScopeAsync(accountId, async db =>
             (await db.Users.Where(u => u.Email == ownerEmail).Select(u => u.Id).SingleAsync(),
              await db.Users.Where(u => u.Email == workerEmail).Select(u => u.Id).SingleAsync()));
-        return new Farm(accountId, ownerId, ownerEmail, workerId, workerEmail, flockId);
+        return new SeededFarm(accountId, ownerId, ownerEmail, workerId, workerEmail, flockId);
     }
 
-    private async Task AssignAsync(Farm actingFarm, Guid accountId, Guid userId, string email, Guid flockId)
+    private async Task AssignAsync(SeededFarm actingFarm, Guid accountId, Guid userId, string email, Guid flockId)
     {
         using var scope = factory.Services.CreateScope()
             .ResolveTenantAndActor(actingFarm.AccountId, actingFarm.OwnerId, actingFarm.OwnerEmail);

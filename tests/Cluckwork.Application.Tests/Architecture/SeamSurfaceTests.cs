@@ -269,7 +269,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NestedPublicInte
 {
     using Cluckwork.Domain.Flocks;
 
-    public static class Contracts
+    public static class NestedContracts
     {
         public interface INestedQueryFixture
         {
@@ -617,7 +617,7 @@ namespace Cluckwork.Application.Tests.Architecture
         [Fact]
         public void NestedPublicInterface_IsScanned()
         {
-            var failure = Assert.Single(Evaluate<NestedPublicInterfaceFixtures.Contracts.INestedQueryFixture>());
+            var failure = Assert.Single(Evaluate<NestedPublicInterfaceFixtures.NestedContracts.INestedQueryFixture>());
             Assert.Contains("INestedQueryFixture.Get", failure);
         }
 
