@@ -117,6 +117,6 @@ becomes injectable in Production. Skip the contract and the ledger guards fail.
   `SaveChanges` on the same scoped context flushes the tracked depletion. `main` had the
   same blind spot before the move.
 - **`Loosenable` is reported, not enforced** (#846). It is empty at this record's date,
-  but a future unused reach stays green.
+  but a future unused reach stays green. #1073 has since made it a gate failure.
 - **No assembly boundary.** Everything here is a ledger walk over one assembly per layer;
   #859 owns any split.

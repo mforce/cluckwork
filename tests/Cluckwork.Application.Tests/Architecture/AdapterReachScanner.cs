@@ -311,6 +311,13 @@ public static class AdapterReachScanner
                 $"at {reach.File}:{reach.Line}; review and add the row to RealModuleLedger.Adapters:\n" +
                 RenderAdapters(report.LiveReach.Where(r => r.Symbol == reach.Symbol)));
         }
+        foreach (var claim in report.Loosenable)
+        {
+            var live = RenderAdapters(report.LiveReach.Where(r => r.Symbol == claim.Symbol));
+            failures.Add($"unused adapter reach {claim.Symbol} -> [{string.Join(", ", claim.Reaches)}]; " +
+                (live.Length == 0 ? "it reaches no module, so delete its row from RealModuleLedger.Adapters"
+                    : $"remove those owners from its RealModuleLedger.Adapters row:\n{live}"));
+        }
         return failures;
     }
 
