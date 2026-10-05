@@ -151,7 +151,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         // keeps this query's cost tied to the report's range and flock count
         // rather than to the farm's full history.
         var flocks = await db.Flocks
-            .Where<Cluckwork.Domain.Flocks.Flock>(f => f.PlacementDate <= to
+            .Where<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>(f => f.PlacementDate <= to
                      && (f.DepletedOn == null || f.DepletedOn >= from)
                      && (f.ArchivedOn == null || f.ArchivedOn >= from)
                      && (flockId == null || f.Id == flockId.Value))

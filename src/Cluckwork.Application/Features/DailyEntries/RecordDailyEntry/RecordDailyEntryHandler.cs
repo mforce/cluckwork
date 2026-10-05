@@ -1,10 +1,10 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.EggGrades;
-using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Flocks;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;

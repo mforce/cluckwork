@@ -1,8 +1,9 @@
+using Cluckwork.Domain.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

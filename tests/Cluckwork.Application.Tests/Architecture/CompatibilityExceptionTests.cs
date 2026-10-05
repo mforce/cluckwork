@@ -16,7 +16,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
         {
             public DbSet<Expense> Expenses => Set<Expense>();
             public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
-            public DbSet<Cluckwork.Domain.Flocks.Flock> Flocks => Set<Cluckwork.Domain.Flocks.Flock>();
+            public DbSet<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock> Flocks => Set<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>();
         }
         """;
 

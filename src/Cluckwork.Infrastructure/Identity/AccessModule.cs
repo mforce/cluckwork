@@ -1,5 +1,4 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
@@ -12,6 +11,7 @@ using Cluckwork.Application.Features.Users.SetLanguage;
 using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Application.Features.Users.SetUserPassword;
 using Cluckwork.Application.Features.Users.UpdateUser;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
 using Microsoft.Extensions.Options;
 

@@ -1,0 +1,32 @@
+using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
+
+namespace Cluckwork.Application.Modules.FlockManagement.Flocks.UpdateFlock;
+
+public sealed class UpdateFlockHandler(
+    IFlockRepository flocks,
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
+{
+    public async Task<Result> HandleAsync(UpdateFlockCommand command, CancellationToken ct)
+    {
+        var flock = await flocks.GetByIdAsync(command.FlockId, ct);
+        if (flock is null)
+            return Result.Failure(Error.NotFound(nameof(Flock), command.FlockId));
+
+        var result = flock.Update(
+            command.Name, command.Breed, command.PlacementDate, command.InitialCount);
+        if (result.IsFailure)
+            return result;
+
+        flocks.Update(flock);
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync(AuditActions.FlockUpdate, "Flock", flock.Id,
+            reason: null, details: null, ct: ct);
+
+        await unitOfWork.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+}

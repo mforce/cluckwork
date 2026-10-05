@@ -53,7 +53,7 @@ public sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
             .OnDelete(DeleteBehavior.Restrict);
 
         // The optional flock link must never dangle (feed/water pattern).
-        builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
+        builder.HasOne<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>()
             .WithMany()
             .HasForeignKey(e => e.FlockId)
             .OnDelete(DeleteBehavior.Restrict);

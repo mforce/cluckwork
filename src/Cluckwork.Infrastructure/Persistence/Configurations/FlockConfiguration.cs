@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Flocks;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

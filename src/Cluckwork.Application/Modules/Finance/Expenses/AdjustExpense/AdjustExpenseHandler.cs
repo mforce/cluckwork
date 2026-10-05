@@ -1,6 +1,6 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Modules.Finance.Contracts;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;

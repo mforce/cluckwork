@@ -31,7 +31,7 @@
 
 **⚠️ CRITICAL**: Complete this phase before starting story implementation.
 
-- [X] T003 [P] Define only the standalone `FlockEligibility`, `FlockReference`, and `CustomerReference` read types in `src/Cluckwork.Application/Features/Flocks/FlockEligibility.cs`, `src/Cluckwork.Application/Features/Flocks/FlockReference.cs`, and `src/Cluckwork.Application/Features/Customers/CustomerReference.cs`; defer repository interface members to the story tasks that implement them so this checkpoint compiles.
+- [X] T003 [P] Define only the standalone `FlockEligibility`, `FlockReference`, and `CustomerReference` read types in `src/Cluckwork.Application/Modules/FlockManagement/Contracts/FlockEligibility.cs`, `src/Cluckwork.Application/Modules/FlockManagement/Contracts/FlockReference.cs`, and `src/Cluckwork.Application/Features/Customers/CustomerReference.cs`; defer repository interface members to the story tasks that implement them so this checkpoint compiles.
 - [X] T004 [P] Add the shared picker transport, selection-transition, and `PickerSnapshot<T>` TypeScript contracts to `web/src/components/NamedEntityPicker.tsx`, exposing no generic catalog API beyond this component.
 - [X] T005 [P] Add only the typed flock/customer discovery and exact-read request contracts to `web/src/api/cluckwork.ts` without changing existing caller defaults or adding the six US4 row fields early.
 
@@ -56,8 +56,8 @@
 
 ### Implementation for User Story 1
 
-- [X] T010 [P] [US1] Add the discovery member to `src/Cluckwork.Application/Features/Flocks/IFlockRepository.cs` and implement scoped eligibility, trimmed literal three-argument `ILike`, escaped search patterns, stable `Name, Id` order, and server paging in `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs`.
-- [X] T011 [US1] Parse `search`, the three exact eligibility values, nullable legacy `includeArchived`, and conflicting/unknown validation failures against the T010 repository contract in `src/Cluckwork.Api/Endpoints/Flocks/FlockEndpoints.cs` while retaining existing limit/offset clamps and bare-array responses.
+- [X] T010 [P] [US1] Add the discovery member to `src/Cluckwork.Application/Modules/FlockManagement/Flocks/IFlockRepository.cs` and implement scoped eligibility, trimmed literal three-argument `ILike`, escaped search patterns, stable `Name, Id` order, and server paging in `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs`.
+- [X] T011 [US1] Parse `search`, the three exact eligibility values, nullable legacy `includeArchived`, and conflicting/unknown validation failures against the T010 repository contract in `src/Cluckwork.Api/Modules/FlockManagement/Flocks/FlockEndpoints.cs` while retaining existing limit/offset clamps and bare-array responses.
 - [X] T012 [P] [US1] Implement scoped trimmed literal customer search and stable `Name, Id` paging in `src/Cluckwork.Infrastructure/Repositories/CustomerRepository.cs`, `src/Cluckwork.Application/Features/Customers/ICustomerRepository.cs`, and `src/Cluckwork.Api/Endpoints/Customers/CustomerEndpoints.cs`.
 - [X] T013 [US1] Implement the typed 50-row list helpers and compatibility-preserving query serialization in `web/src/api/cluckwork.ts`, making `web/src/api/listFlocks.test.ts` and `web/src/api/listCustomers.test.ts` pass.
 - [X] T014 [US1] Implement the fixed 250 ms discovery debounce, replacement paging, append/deduplication, Load more, active option, and commit behavior in `web/src/components/NamedEntityPicker.tsx` and style it with existing tokens in `web/src/styles.css`.
@@ -144,7 +144,7 @@
 
 ### Implementation for User Story 4
 
-- [X] T044 [US4] Implement scoped bulk flock-reference reads and restrict movement aggregation to returned flock IDs in `src/Cluckwork.Application/Features/Flocks/IFlockRepository.cs`, `src/Cluckwork.Application/Features/Flocks/IBirdMovementRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/BirdMovementRepository.cs`, and `src/Cluckwork.Api/Endpoints/Flocks/FlockEndpoints.cs`.
+- [X] T044 [US4] Implement scoped bulk flock-reference reads and restrict movement aggregation to returned flock IDs in `src/Cluckwork.Application/Modules/FlockManagement/Flocks/IFlockRepository.cs`, `src/Cluckwork.Application/Modules/FlockManagement/Flocks/IBirdMovementRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/BirdMovementRepository.cs`, and `src/Cluckwork.Api/Modules/FlockManagement/Flocks/FlockEndpoints.cs`.
 - [X] T045 [P] [US4] Add `flockName`/`flockStatus` to Daily Entry list/detail projection through one scoped bulk read in `src/Cluckwork.Api/Endpoints/DailyEntries/DailyEntryEndpoints.cs` and `src/Cluckwork.Infrastructure/Repositories/DailyEntryRepository.cs`.
 - [X] T046 [P] [US4] Add row-owned `flockName` to Feed and Water list projections in `src/Cluckwork.Api/Endpoints/Inventory/InventoryEndpoints.cs`, `src/Cluckwork.Api/Endpoints/Water/WaterUsageEndpoints.cs`, `src/Cluckwork.Infrastructure/Repositories/FeedUsageRepository.cs`, and `src/Cluckwork.Infrastructure/Repositories/WaterUsageRepository.cs`.
 - [X] T047 [P] [US4] Return nullable assignment `flockName` from one scoped left join while keeping the list unpaged in `src/Cluckwork.Application/Features/Users/IUserRoleAssignmentRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs`, and `src/Cluckwork.Api/Endpoints/Users/UserEndpoints.cs`.

@@ -1,4 +1,5 @@
-using Cluckwork.Domain.Flocks;
+using Cluckwork.Domain.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
 namespace Cluckwork.Domain.Tests.Flocks;
 

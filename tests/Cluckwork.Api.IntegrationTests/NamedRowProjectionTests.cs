@@ -1,14 +1,15 @@
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.Finance.Expenses;
+using Cluckwork.Domain.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Customers;
-using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;

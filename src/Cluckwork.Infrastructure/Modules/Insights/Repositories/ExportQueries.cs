@@ -107,14 +107,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
     public ExportDataset? GetDataset(string dataset)
         => dataset switch
         {
-            "flocks" => Rows<Cluckwork.Domain.Flocks.Flock>(activeDb.Flocks.AsNoTracking()
+            "flocks" => Rows<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>(activeDb.Flocks.AsNoTracking()
                     .OrderBy(x => x.PlacementDate).ThenBy(x => x.Id),
                 ["id", "farmId", "houseId", "name", "breed", "placementDate",
                  "initialCount", "status", "depletedOn", "archivedOn", "version"],
                 x => [x.Id, x.FarmId, x.HouseId, x.Name, x.Breed, x.PlacementDate,
                       x.InitialCount, x.Status, x.DepletedOn, x.ArchivedOn, x.Version]),
 
-            "bird-movements" => Rows<Cluckwork.Domain.Flocks.BirdMovement>(activeDb.BirdMovements.AsNoTracking()
+            "bird-movements" => Rows<Cluckwork.Domain.Modules.FlockManagement.Flocks.BirdMovement>(activeDb.BirdMovements.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "date", "type", "quantity", "note", "dailyEntryId"],
                 x => [x.Id, x.FlockId, x.Date, x.Type, x.Quantity, x.Note, x.DailyEntryId]),

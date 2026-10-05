@@ -81,7 +81,7 @@ public sealed class FeedUsageConfiguration : IEntityTypeConfiguration<FeedUsage>
         builder.Property(u => u.CreatedAtUtc).IsRequired();
         builder.Property(u => u.Version).IsConcurrencyToken();
 
-        builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
+        builder.HasOne<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>()
             .WithMany()
             .HasForeignKey(u => u.FlockId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -127,7 +127,7 @@ public sealed class WaterUsageConfiguration : IEntityTypeConfiguration<WaterUsag
         builder.Property(u => u.CreatedAtUtc).IsRequired();
         builder.Property(u => u.Version).IsConcurrencyToken();
 
-        builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
+        builder.HasOne<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>()
             .WithMany()
             .HasForeignKey(u => u.FlockId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -169,7 +169,7 @@ public sealed class InventoryMovementConfiguration : IEntityTypeConfiguration<In
             .HasForeignKey(m => m.InventoryLotId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
+        builder.HasOne<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>()
             .WithMany()
             .HasForeignKey(m => m.FlockId)
             .OnDelete(DeleteBehavior.Restrict);

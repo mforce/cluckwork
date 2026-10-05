@@ -4,7 +4,6 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;

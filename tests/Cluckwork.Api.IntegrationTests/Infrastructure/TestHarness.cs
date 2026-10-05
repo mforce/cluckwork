@@ -261,7 +261,7 @@ internal static class TestHarness
         var flockId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Flocks.Add(Cluckwork.Domain.Flocks.Flock.Create(
+            db.Flocks.Add(Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock.Create(
                 flockId, accountId, farmId, houseId ?? Guid.NewGuid(),
                 $"Flock-{flockId.ToString()[..8]}", "Test Breed",
                 DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(-30), initialCount: 100));

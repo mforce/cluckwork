@@ -1,8 +1,9 @@
-using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Application.Features.Sales.RecordPayment;
 using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
 using Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
+using Cluckwork.Application.Modules.FlockManagement.Flocks.UpdateFlock;
 
 namespace Cluckwork.Application.Tests.Common;
 

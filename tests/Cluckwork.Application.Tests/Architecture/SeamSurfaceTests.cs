@@ -5,7 +5,7 @@
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.QueryableReturn
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IQueryableReturnFixture
     {
@@ -66,7 +66,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.EfMetadataNested
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.DtoWithQueryableProperty
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public sealed class DtoWithQueryableProperty
     {
@@ -81,7 +81,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.DtoWithQueryable
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ConcreteAggregateReturn
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IConcreteAggregateReturnFixture
     {
@@ -92,7 +92,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ConcreteAggregat
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.PagedResultReturn
 {
     using Cluckwork.Application.Common;
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IPagedResultReturnFixture
     {
@@ -102,7 +102,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.PagedResultRetur
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractDerivedCase
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public abstract record Outcome
     {
@@ -120,7 +120,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractDerivedC
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractCrossAssemblyCase
 {
     using Cluckwork.Domain.Common;
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     // Domain's Result, subclassed in another assembly and returned as a Result.
     public sealed class FlockCarryingResult(Flock flock) : Result(true, Error.None)
@@ -136,7 +136,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractCrossAss
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMember
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public sealed class FieldPayload
     {
@@ -258,7 +258,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.MoneyReturn
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedGenericBase
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IReader<T>
     {
@@ -272,7 +272,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedGeneric
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NestedPublicInterface
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public static class NestedContracts
     {
@@ -285,7 +285,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NestedPublicInte
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.IndexerParameter
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IIndexerParameterFixture
     {
@@ -295,7 +295,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.IndexerParameter
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.EventHandlerType
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IEventHandlerTypeFixture
     {
@@ -305,7 +305,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.EventHandlerType
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.QueryableImplementation
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IQueryableImplementationFixture
     {
@@ -315,7 +315,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.QueryableImpleme
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NamedDelegate
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public delegate IQueryable<Flock> QueryFactory();
 
@@ -327,7 +327,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NamedDelegate
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.GenericConstraint
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IGenericConstraintFixture
     {
@@ -337,7 +337,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.GenericConstrain
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.UnusedGenericConstraint
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IUnusedGenericConstraintFixture
     {
@@ -362,7 +362,6 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.SelfExpandingGen
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ExternalBase
 {
-    using Cluckwork.Domain.Flocks;
 
     public interface IReader<T>
     {
@@ -372,7 +371,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ExternalBase
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedExternalMember
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IInheritedExternalMemberFixture : ExternalBase.IReader<Flock>
     {
@@ -381,7 +380,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedExterna
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InterfaceConstraint
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IInterfaceConstraintFixture<T> where T : IQueryable<Flock>
     {
@@ -390,7 +389,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InterfaceConstra
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.StaticAbstractOperator
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public interface IStaticAbstractOperatorFixture<TSelf> where TSelf : IStaticAbstractOperatorFixture<TSelf>
     {
@@ -400,7 +399,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.StaticAbstractOp
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.FunctionPointer
 {
-    using Cluckwork.Domain.Flocks;
+    using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
     public unsafe interface IFunctionPointerFixture
     {
@@ -527,7 +526,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<ConcreteAggregateReturnFixtures.IConcreteAggregateReturnFixture>());
             Assert.Contains("IConcreteAggregateReturnFixture.List", failure);
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Fact]
@@ -535,7 +534,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<PagedResultReturnFixtures.IPagedResultReturnFixture>());
             Assert.Contains("IPagedResultReturnFixture.Page", failure);
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Fact]
@@ -552,7 +551,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(SeamSurfaceScanner.Evaluate(SeamSurfaceScanner.ScanContracts([fixture], 1)));
             Assert.Contains("Payload -> ", failure);
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Fact]
@@ -560,7 +559,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.IRepositoryContractFixture>());
             Assert.Contains("RepositoryEnvelope.Repository", failure);
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Theory]
@@ -571,7 +570,7 @@ namespace Cluckwork.Application.Tests.Architecture
             // A record's own Equals and Clone also reach the hierarchy, so one leak can report more than once.
             var failures = SeamSurfaceScanner.Evaluate(SeamSurfaceScanner.ScanContracts([fixture], 1));
             Assert.NotEmpty(failures);
-            Assert.All(failures, f => Assert.Contains("exposes Cluckwork.Domain.Flocks.Flock via", f));
+            Assert.All(failures, f => Assert.Contains("exposes Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock via", f));
             Assert.All(failures, f => Assert.Contains("Leaky.Flock", f));
         }
 
@@ -580,7 +579,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<ContractCrossAssemblyCaseFixtures.IDepleteContractFixture>());
             Assert.Contains("Result -> FlockCarryingResult -> FlockCarryingResult.Flock", failure);
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Fact]
@@ -588,7 +587,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.HandlerContractFixture>());
             Assert.Contains("HandlerContractFixture..ctor", failure);
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Fact]
@@ -596,7 +595,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.ILookupContractFixture>());
             Assert.Contains("IFlockLookup", failure);
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Theory]
@@ -607,7 +606,7 @@ namespace Cluckwork.Application.Tests.Architecture
         public void Contract_AggregateBehindAStaticFieldConstraintOrInheritedInterface_IsAViolation(Type fixture)
         {
             var failure = Assert.Single(SeamSurfaceScanner.Evaluate(SeamSurfaceScanner.ScanContracts([fixture], 1)));
-            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", failure);
         }
 
         [Fact]
@@ -691,7 +690,7 @@ namespace Cluckwork.Application.Tests.Architecture
         [Fact]
         public void ConstraintOnTheInterfaceOwnTypeParameter_IsAViolation()
         {
-            var failure = Assert.Single(Evaluate<InterfaceConstraintFixtures.IInterfaceConstraintFixture<IQueryable<Cluckwork.Domain.Flocks.Flock>>>());
+            var failure = Assert.Single(Evaluate<InterfaceConstraintFixtures.IInterfaceConstraintFixture<IQueryable<Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock>>>());
             Assert.Contains("IInterfaceConstraintFixture`1.<T>", failure);
             Assert.Contains("IQueryable", failure);
         }

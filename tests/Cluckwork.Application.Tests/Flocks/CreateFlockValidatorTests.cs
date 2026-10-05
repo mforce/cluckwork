@@ -1,4 +1,5 @@
-using Cluckwork.Application.Features.Flocks.CreateFlock;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
+using Cluckwork.Application.Modules.FlockManagement.Flocks.CreateFlock;
 using Cluckwork.Application.Tests.Common;
 
 namespace Cluckwork.Application.Tests.Flocks;
