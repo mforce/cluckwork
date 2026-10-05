@@ -14,7 +14,7 @@ The table is finite and explicit, one entry per file (after split, per type):
      "move":  {"src/.../ProductionDay.cs": "src/Cluckwork.Application/Modules/Insights/Contracts/ProductionDay.cs"},
      "replace": {"src/.../Insights.cs": [["old literal", "new literal"]]}}
 
-`move` rewrites, in every .cs file under src/, tests/ and tools/: fully and partially qualified names of each moved
+`move` rewrites, in every .cs file under src/, tests/ and tools/ except historical migrations and their Designer files: fully and partially qualified names of each moved
 type (code, strings and comments alike, so registry rows follow), `using` directives (adds the new namespace where a
 moved type or one of its extension methods is named, adds the namespaces a moved file lost as ancestors, drops a using whose namespace emptied), and
 project-relative paths of moved files, also in Markdown outside docs/decisions and docs/plans. `replace` covers what
@@ -177,7 +177,9 @@ def code_files():
         for dirpath, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in ("bin", "obj", "node_modules")]
             for f in files:
-                if f.endswith(".cs"):
+                # A migration and its Designer model are the historical targets EF replays (#407); only the current
+                # snapshot follows a moved entity.
+                if f.endswith(".cs") and (not dirpath.endswith("/Migrations") or f.endswith("ModelSnapshot.cs")):
                     yield os.path.join(dirpath, f)
 
 
