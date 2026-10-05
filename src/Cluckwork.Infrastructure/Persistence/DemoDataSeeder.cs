@@ -14,6 +14,7 @@ using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -149,9 +150,22 @@ public sealed class DemoDataSeeder(
             return SeedResult.Failed("Demo seed: the selected Owner cannot be read back.");
         currentUser.Resolve(actor.Id, actor.Email!, actor.Roles);
 
+        var grades = (await eggs.ListActiveGradesAsync(SeedDefaults.FarmId, ct))
+            .Where(g => g.IsSaleable)
+            .ToDictionary(g => g.Name, g => g.Id);
+
+        // Outside the try on purpose: a failure there runs the cleanup, which
+        // purges every customer and order of the farm, the Owner's included.
+        var existingProducts = await MatchExistingProductsAsync(grades, ct);
+        if (existingProducts.IsFailure)
+        {
+            logger.LogError(existingProducts.Error.Description);
+            return SeedResult.Failed(existingProducts.Error.Description);
+        }
+
         try
         {
-            await SeedDemoAsync(accountId, ct);
+            await SeedDemoAsync(accountId, grades, existingProducts.Value, ct);
             const string message = "Demo data seeded.";
             logger.LogInformation(message);
             return SeedResult.Seeded(message);
@@ -258,11 +272,11 @@ public sealed class DemoDataSeeder(
                 await flockFixture.PurgeFlocksAsync(accountId);
                 await transaction.CommitAsync();
             });
-            logger.LogInformation("Partial demo data removed; next startup will retry the demo seed.");
+            logger.LogInformation("Partial demo data removed; re-run `seed --profile demo` to retry.");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Demo seed cleanup failed; the next startup will skip demo seeding.");
+            logger.LogError(ex, "Demo seed cleanup failed; a re-run may report the demo as already seeded.");
         }
     }
 
@@ -286,7 +300,8 @@ public sealed class DemoDataSeeder(
     // at most one egg a day. Deterministic: no Random, reproducible demos.
     private static int EggsOnDay(int liveBirds, int d) => liveBirds * (86 + (d * 7) % 9) / 100;
 
-    private async Task SeedDemoAsync(Guid accountId, CancellationToken ct)
+    private async Task SeedDemoAsync(
+        Guid accountId, Dictionary<string, Guid> grades, Dictionary<string, Guid> products, CancellationToken ct)
     {
         // The farm's own today, not the UTC date: the Dashboard's Today panel
         // reads by the farm clock, and the demo farm is provisioned in
@@ -297,9 +312,6 @@ public sealed class DemoDataSeeder(
         // above, so the clock reads this farm's TimeZoneId.
         var today = await farmClock.TodayAsync(ct);
 
-        var grades = (await eggs.ListActiveGradesAsync(SeedDefaults.FarmId, ct))
-            .Where(g => g.IsSaleable)
-            .ToDictionary(g => g.Name, g => g.Id);
         if (grades.Count == 0)
             throw new InvalidOperationException("Demo seed needs the default egg grades.");
 
@@ -372,19 +384,12 @@ public sealed class DemoDataSeeder(
         Require(await commerce.CreateCustomerAsync(new CreateCustomerCommand(
             "Hotel Paraíso", "555-0142"), accountId, ct));
 
-        // --- Products (#99): sales sell products, not raw grades. Prices are
-        // per individual egg (unit Egg → factor 1), preserving the old demo math.
-        // The catalog is deliberately partial — Small has no product either, so
-        // the Stock screen shows a realistic mix of sellable and unlisted grades.
-        var largeEggs = Require(await commerce.CreateProductAsync(new CreateProductCommand(
-            "Large Eggs", "Egg", "Egg", 45, grades["Large"], null), accountId, ct));
-        var mediumEggs = Require(await commerce.CreateProductAsync(new CreateProductCommand(
-            "Medium Eggs", "Egg", "Egg", 38, grades["Medium"], null), accountId, ct));
-        // #396: the cracked counter now mints its own lot at submit, so the demo
-        // carries a discounted product for it — otherwise the feature reads as
-        // stock appearing that nothing can ever sell. Priced below Small.
-        Require(await commerce.CreateProductAsync(new CreateProductCommand(
-            "Cracked Eggs", "Egg", "Egg", 18, grades["Cracked"], "Sold at a discount"), accountId, ct));
+        // --- Products: a retry reuses the ones a failed run created (#1075).
+        foreach (var demo in DemoProducts.Where(d => !products.ContainsKey(d.Name)))
+            products[demo.Name] = Require(await commerce.CreateProductAsync(new CreateProductCommand(
+                demo.Name, "Egg", "Egg", demo.PriceMinorUnits, grades[demo.Grade], demo.Notes), accountId, ct));
+        var largeEggs = products["Large Eggs"];
+        var mediumEggs = products["Medium Eggs"];
 
         // --- Orders: one confirmed (exercises FIFO allocation), one open draft.
         var confirmed = Require(await commerce.CreateSalesOrderAsync(new CreateSalesOrderCommand(
@@ -400,6 +405,49 @@ public sealed class DemoDataSeeder(
             kcc, today), accountId, ct));
         Require(await commerce.AddOrderItemAsync(new AddOrderItemCommand(
             draft, largeEggs, 240, null, null), accountId, ct));
+    }
+
+    private sealed record DemoProduct(string Name, long PriceMinorUnits, string Grade, string? Notes);
+
+    // Products (#99): sales sell products, not raw grades. Prices are per
+    // individual egg (unit Egg → factor 1), preserving the old demo math. The
+    // catalog is deliberately partial — Small has no product either, so the
+    // Stock screen shows a realistic mix of sellable and unlisted grades.
+    private static readonly DemoProduct[] DemoProducts =
+    [
+        new("Large Eggs", 45, "Large", null),
+        new("Medium Eggs", 38, "Medium", null),
+        // #396: the cracked counter now mints its own lot at submit, so the demo
+        // carries a discounted product for it — otherwise the feature reads as
+        // stock appearing that nothing can ever sell. Priced below Small.
+        new("Cracked Eggs", 18, "Cracked", "Sold at a discount"),
+    ];
+
+    // Partial-seed cleanup keeps products, so a retry finds the ones a failed
+    // run created (#1075). Reuse only an exact demo definition: the orders'
+    // fixed quantities assume unit Egg, the demo's grade and a price. Names
+    // compare case-insensitively, like the catalog's unique lower(Name) index.
+    private async Task<Result<Dictionary<string, Guid>>> MatchExistingProductsAsync(
+        Dictionary<string, Guid> grades, CancellationToken ct)
+    {
+        var catalog = await commerce.ListProductsAsync(includeInactive: true, ct);
+        var matched = new Dictionary<string, Guid>();
+        foreach (var demo in DemoProducts)
+        {
+            var existing = catalog.FirstOrDefault(p => string.Equals(p.Name, demo.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing is null)
+                continue;
+            if (existing is not { ProductType: ProductType.Egg, DefaultUnit: ProductUnit.Egg, Active: true }
+                || existing.DefaultPriceMinorUnits != demo.PriceMinorUnits
+                || existing.EggGradeId != grades.GetValueOrDefault(demo.Grade))
+                return Result.Failure<Dictionary<string, Guid>>(Error.Conflict("Demo.ProductMismatch",
+                    $"Demo seed stopped before writing anything: this farm already has a product named " +
+                    $"'{existing.Name}' that is not the demo's (an active Egg product sold per Egg, " +
+                    $"mapped to the {demo.Grade} grade, priced at {demo.PriceMinorUnits} minor units). " +
+                    "Rename that product, then re-run `seed --profile demo`."));
+            matched[demo.Name] = existing.Id;
+        }
+        return matched;
     }
 
     private static Guid Require(Result<Guid> result)

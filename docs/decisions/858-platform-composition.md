@@ -116,9 +116,6 @@ becomes injectable in Production. Skip the contract and the ledger guards fail.
 - **`IFlockFixture.DepleteAsync`'s own save is not observable.** The next handler's
   `SaveChanges` on the same scoped context flushes the tracked depletion. `main` had the
   same blind spot before the move.
-- **Demo cleanup never deletes Products.** A demo seed that fails after creating them
-  cannot be retried (`Product.DuplicateName`). This defect predates #858 and is kept out
-  of it.
 - **`Loosenable` is reported, not enforced** (#846). It is empty at this record's date,
   but a future unused reach stays green.
 - **No assembly boundary.** Everything here is a ledger walk over one assembly per layer;
