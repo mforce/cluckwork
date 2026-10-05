@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.Eggs;
 
 // Seed fixture reads and writes; registered beside the seeders outside Production.
+[ModuleContract("EggOperations")]
 public interface IEggOperationsFixture
 {
     // Ignores the tenant filter; the seeder calls it before resolving the tenant.
@@ -19,6 +20,7 @@ public interface IEggOperationsFixture
     Task PurgeDailyEntriesAsync(Guid accountId, CancellationToken ct = default);
 }
 
+[ModuleContract("EggOperations")]
 public sealed record EggOperationsFixtureCounts(
     int DailyEntries,
     int DraftEntries,

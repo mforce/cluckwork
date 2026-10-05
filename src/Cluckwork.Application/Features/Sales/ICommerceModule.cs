@@ -18,8 +18,9 @@ using Cluckwork.Domain.Sales;
 namespace Cluckwork.Application.Features.Sales;
 
 // #854: the Commerce contract for adapters. Adapters reach Commerce only
-// through the types ModuleOwners.cs lists in the Commerce row's Contract;
+// through the types marked [ModuleContract("Commerce")];
 // peer modules use the narrower IEggUnitConversionLookup port.
+[ModuleContract("Commerce")]
 public interface ICommerceModule
 {
     // The EntityType Commerce writes on a sales order's audit rows; provenance reads key by it.
@@ -83,25 +84,31 @@ public interface ICommerceModule
     Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(CancellationToken ct);
 }
 
+[ModuleContract("Commerce")]
 public sealed record ProductDetails(
     Guid Id, string Name, ProductType ProductType, ProductUnit DefaultUnit, long? DefaultPriceMinorUnits,
     string CurrencyCode, int CurrencyMinorUnit, Guid? EggGradeId, string? Notes, bool Active, int Version);
 
+[ModuleContract("Commerce")]
 public sealed record CustomerDetails(
     Guid Id, string Name, string Phone, string? Email, string? Address, string? Note, int Version);
 
+[ModuleContract("Commerce")]
 public sealed record SalesOrderDetails(
     Guid Id, Guid CustomerId, string ReferenceNumber, DateOnly OrderDate, SalesOrderStatus Status,
     Money TotalAmount, string? VoidReason, IReadOnlyList<SalesOrderItemDetails> Items,
     DiscountReasonCode? DiscountReasonCode, string? DiscountReasonNote);
 
+[ModuleContract("Commerce")]
 public sealed record SalesOrderItemDetails(
     Guid Id, Guid ProductId, Guid EggGradeId, ProductUnit Unit, int BaseUnitFactor, int Quantity,
     int QuantityBase, Money UnitPrice, long? ListUnitPriceMinorUnits, ListPriceBasis ListPriceBasis);
 
 // What the order still owes; see SalesOrderListRow.
+[ModuleContract("Commerce")]
 public sealed record SalesOrderListItem(SalesOrderDetails Order, long? OutstandingMinorUnits);
 
+[ModuleContract("Commerce")]
 public sealed record PaymentDetails(
     Guid Id, Guid SalesOrderId, Guid CustomerId, DateOnly PaymentDate, long AmountMinorUnits,
     string CurrencyCode, int CurrencyMinorUnit, PaymentMethod Method, string? ReferenceNumber,

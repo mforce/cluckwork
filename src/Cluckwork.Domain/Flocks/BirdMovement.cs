@@ -54,4 +54,5 @@ public sealed class BirdMovement : AggregateRoot<Guid>, ICreatedRecord
     }
 }
 
+[ModuleContract("FlockManagement")]
 public enum BirdMovementType { Mortality, Cull, Adjustment }

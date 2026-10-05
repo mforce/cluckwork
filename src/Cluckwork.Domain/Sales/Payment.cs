@@ -78,4 +78,5 @@ public sealed class Payment : AggregateRoot<Guid>, IMutableRecord
     }
 }
 
+[ModuleContract("Commerce")]
 public enum PaymentMethod { Cash, Check, Card, BankTransfer, MobilePayment, Other }

@@ -7,6 +7,7 @@ namespace Cluckwork.Application.Features.Flocks;
 //
 // The default is ActiveAndDepleted: that is what every caller that says nothing
 // gets today, and the compatibility rule is that it keeps getting exactly that.
+[ModuleContract("FlockManagement")]
 public enum FlockEligibility
 {
     // Active only — new worker assignments.

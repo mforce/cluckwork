@@ -326,6 +326,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>, IMutableRecord
     }
 }
 
+[ModuleContract("Commerce")]
 public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
 
 // #727 — where one line sits against the farm's discount ceiling.
@@ -358,6 +359,7 @@ public readonly record struct CeilingBreach(
 
 // #721 — why an order was sold below list. Persisted BY NAME, so reordering
 // these members cannot silently relabel historical rows.
+[ModuleContract("Commerce")]
 public enum DiscountReasonCode
 {
     /// <summary>A bulk order earned a lower unit price.</summary>
@@ -410,6 +412,7 @@ public static class DiscountReason
 //
 // PreDating is written by the backfill only. Nothing in the application ever
 // sets it — a row the code writes always knows its own basis.
+[ModuleContract("Commerce")]
 public enum ListPriceBasis
 {
     /// <summary>A comparable list price was captured; ListUnitPriceMinorUnits is non-null.</summary>

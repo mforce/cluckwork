@@ -121,4 +121,5 @@ public sealed class Flock : AggregateRoot<Guid>, IMutableRecord
     };
 }
 
+[ModuleContract("FlockManagement")]
 public enum FlockStatus { Active, Depleted, Archived }

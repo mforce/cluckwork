@@ -4,6 +4,7 @@ namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 // UnitSystem and FirstDayOfWeek travel as strings because the API serializes
 // enums by name everywhere else (order status, movement type, water source);
 // the validator proves they parse before the handler converts them.
+[ModuleContract("Farm")]
 public sealed record UpdateFarmSettingsCommand(
     string Name,
     string TimeZoneId,

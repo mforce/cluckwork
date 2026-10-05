@@ -1,5 +1,6 @@
 namespace Cluckwork.Application.Features.Customers.CreateCustomer;
 
+[ModuleContract("Commerce")]
 public sealed record CreateCustomerCommand(
     string Name,
     string Phone,

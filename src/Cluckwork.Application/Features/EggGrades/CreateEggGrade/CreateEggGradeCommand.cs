@@ -1,5 +1,6 @@
 namespace Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 
+[ModuleContract("EggOperations")]
 public sealed record CreateEggGradeCommand(
     string Name,
     string GradeType,

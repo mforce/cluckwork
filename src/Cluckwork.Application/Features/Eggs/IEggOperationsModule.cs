@@ -12,9 +12,9 @@ using Cluckwork.Domain.Eggs;
 namespace Cluckwork.Application.Features.Eggs;
 
 // #853: the Egg Operations contract for adapters. Adapters reach Egg Operations
-// only through the types ModuleOwners.cs lists in
-// the EggOperations row's Contract; peer modules use the narrower IEggGradeLookup
+// only through the types marked [ModuleContract("EggOperations")]; peer modules use the narrower IEggGradeLookup
 // and IDailyEntryLookup ports.
+[ModuleContract("EggOperations")]
 public interface IEggOperationsModule
 {
     // The EntityType Egg Operations writes on its audit rows; provenance reads key by it.
@@ -65,6 +65,7 @@ public interface IEggOperationsModule
         RecordEggLotMovementCommand command, Guid accountId, CancellationToken ct);
 }
 
+[ModuleContract("EggOperations")]
 public sealed record DailyEntryDetails(
     Guid Id, Guid FarmId, Guid HouseId, Guid FlockId, DateOnly Date, DailyEntryStatus Status,
     int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
@@ -72,14 +73,17 @@ public sealed record DailyEntryDetails(
     int Version, string? AdjustReason, string? VoidReason, DateTimeOffset? LockedAtUtc,
     string? AdjustedFromJson);
 
+[ModuleContract("EggOperations")]
 public sealed record EggGradeDetails(
     Guid Id, Guid FarmId, string Name, EggGradeType GradeType, int SortOrder, bool IsSaleable,
     DailyEntryKind DailyEntryKind, bool Active, int? LowStockFloor);
 
+[ModuleContract("EggOperations")]
 public sealed record EggLotDetails(
     Guid Id, Guid EggGradeId, DateOnly ProductionDate, int QuantityProduced, int QuantityAvailable,
     DateOnly? RestrictedUntil, Guid? DailyEntryId);
 
+[ModuleContract("EggOperations")]
 public sealed record EggLotMovementDetails(
     Guid Id, EggMovementType MovementType, int QuantityDelta, string ReferenceType, Guid ReferenceId,
     string? Reason, DateTimeOffset CreatedAtUtc);

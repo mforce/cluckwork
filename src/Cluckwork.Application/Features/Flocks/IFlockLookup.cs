@@ -5,6 +5,7 @@ namespace Cluckwork.Application.Features.Flocks;
 // #852: Flock Management's read port for peer modules and adapters. Every read
 // keeps the tenant and flock-scope query filters (#613) except
 // GetForFlockScopedWriteAsync, which reinstates AccountId itself (#388).
+[ModuleContract("FlockManagement")]
 public interface IFlockLookup
 {
     Task<FlockDetails?> GetAsync(Guid id, CancellationToken ct);
@@ -23,6 +24,7 @@ public interface IFlockLookup
     Task<FlockNameResolution> ResolveByNameAsync(string name, CancellationToken ct);
 }
 
+[ModuleContract("FlockManagement")]
 public sealed record FlockDetails(
     Guid Id,
     Guid FarmId,
@@ -39,6 +41,7 @@ public sealed record FlockDetails(
     public bool CanRecordProductionOn(DateOnly date) => Flock.CanRecordProductionOn(Status, DepletedOn, date);
 }
 
+[ModuleContract("FlockManagement")]
 public abstract record FlockNameResolution
 {
     private FlockNameResolution() { }

@@ -4,6 +4,7 @@ using Cluckwork.Application.Features.Reports;
 
 namespace Cluckwork.Application.Features.Insights;
 
+[ModuleContract("Insights")]
 public interface IInsightsModule : IReportQueries, IExportQueries
 {
     Task<IReadOnlyList<AuditEventRead>> ListAuditEventsAsync(

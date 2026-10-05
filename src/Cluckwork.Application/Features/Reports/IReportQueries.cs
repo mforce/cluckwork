@@ -69,12 +69,14 @@ public interface IReportQueries
 //   It is carried rather than left implicit so the rate is reproducible from
 //   the payload; without it, `TotalEggs / RecordedHenDays` silently disagrees
 //   with the percentage beside it on exactly the contradictory days.
+[ModuleContract("Insights")]
 public sealed record ProductionDay(
     DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
     int Sellable, int FromCounts, int Deaths,
     int RecordedFlocks, int ExpectedFlocks, int MissingFlocks,
     long HenDays, long RecordedHenDays, int RatedEggs, decimal? HenDayPct);
 
+[ModuleContract("Insights")]
 public sealed record GradeTotal(Guid EggGradeId, string Name, int Quantity);
 
 // `TotalRecordedHenDays` and `TotalRatedEggs` are `PeriodHenDayPct`'s exact
@@ -82,6 +84,7 @@ public sealed record GradeTotal(Guid EggGradeId, string Name, int Quantity);
 // reproducible from the payload rather than being a number nobody can check.
 // `TotalRecordedHenDays` equals `TotalHenDays` on a period every flock
 // recorded, and the gap between them is exactly what is missing.
+[ModuleContract("Insights")]
 public sealed record ProductionReport(
     IReadOnlyList<ProductionDay> Days,
     int TotalEggs, int TotalSellable, int TotalFromCounts, int TotalDeaths,
@@ -92,19 +95,23 @@ public sealed record ProductionReport(
 // About the period's ORDERS (order date in range): revenue is their confirmed
 // totals; paid is settled payments attached to THOSE orders whenever they were
 // received — so outstanding = revenue − paid is the period's open AR.
+[ModuleContract("Insights")]
 public sealed record SalesSummary(
     int ConfirmedCount, long RevenueMinorUnits, long PaidMinorUnits,
     long OutstandingMinorUnits, int VoidedCount,
     string CurrencyCode, int CurrencyMinorUnit);
 
+[ModuleContract("Insights")]
 public sealed record ExpenseCategoryTotal(Guid ExpenseCategoryId, string Name, long TotalMinorUnits);
 
+[ModuleContract("Insights")]
 public sealed record ExpenseSummary(
     IReadOnlyList<ExpenseCategoryTotal> Categories, long GrandTotalMinorUnits,
     string CurrencyCode, int CurrencyMinorUnit);
 
 // "Basic" deliberately: confirmed revenue − recorded expenses, no COGS or
 // inventory valuation. Both operands shipped so the figure is auditable.
+[ModuleContract("Insights")]
 public sealed record ProfitReport(
     long RevenueMinorUnits, long ExpensesMinorUnits, long ProfitMinorUnits,
     string CurrencyCode, int CurrencyMinorUnit);
