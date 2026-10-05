@@ -2,14 +2,6 @@ using Cluckwork.Domain.Modules.Commerce.Contracts;
 
 namespace Cluckwork.Application.Common;
 
-public sealed record FarmSignIn(Guid AccountId, bool IsActive);
-
-public enum RefreshTokenRevocationOutcome
-{
-    OutOfScope,
-    InScope,
-}
-
 // Port — abstraction over ASP.NET Core Identity + JWT. Swap to Keycloak/Entra
 // in a future IIdentityProvider implementation without touching Application.
 public interface IIdentityProvider
@@ -194,21 +186,3 @@ public interface IIdentityProvider
         Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default);
 }
 
-public sealed record TokenPair(
-    string AccessToken,
-    string RefreshToken,
-    DateTimeOffset AccessTokenExpiry,
-    // #532 — the farm the token pair belongs to. Login/ChangeOwnPassword know it
-    // at mint time; Refresh recovers it from the stored token row. The
-    // per-farm refresh cookie (#532 per-farm rename) needs it to know WHICH
-    // cookie name to write, because the token value itself is opaque.
-    Guid AccountId);
-
-// #356 — DisabledAt is null for an active user. Exposed on the LIST rather
-// than filtered out of it: an Owner cannot re-enable someone they cannot see.
-public sealed record UserSummary(
-    Guid Id, string Email, string? DisplayName, string Role, DateTimeOffset? DisabledAt);
-
-public sealed record UserProfile(
-    Guid Id, string Email, string? DisplayName, string Role, string? Language,
-    EggUnit? PreferredStepperUnit);
