@@ -30,7 +30,6 @@ namespace Cluckwork.Application.Modules.Insights.Contracts;
 // keying the whole result off the creation. Refusing to invent a creator and
 // throwing away a change we can prove are separate decisions; only the first
 // was intended (adversarial review of PR #503).
-[ModuleContract("Insights")]
 public sealed record EntityProvenance(
     string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
     string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,

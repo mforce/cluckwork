@@ -45,7 +45,6 @@ namespace Cluckwork.Application.Modules.Insights.Contracts;
 //   It is carried rather than left implicit so the rate is reproducible from
 //   the payload; without it, `TotalEggs / RecordedHenDays` silently disagrees
 //   with the percentage beside it on exactly the contradictory days.
-[ModuleContract("Insights")]
 public sealed record ProductionDay(
     DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
     int Sellable, int FromCounts, int Deaths,

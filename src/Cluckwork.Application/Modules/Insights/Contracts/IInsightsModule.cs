@@ -3,7 +3,6 @@ using Cluckwork.Application.Modules.Insights.Reports;
 
 namespace Cluckwork.Application.Modules.Insights.Contracts;
 
-[ModuleContract("Insights")]
 public interface IInsightsModule : IReportQueries, IExportQueries
 {
     Task<IReadOnlyList<AuditEventRead>> ListAuditEventsAsync(
