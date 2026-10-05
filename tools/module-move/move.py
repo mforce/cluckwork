@@ -347,7 +347,7 @@ def move(table):
 
 
 def ide0005(out):
-    """Builds the solution with IDE0005 reported, writing one `path:using line` per unnecessary using to out. IDE0005
+    """Builds the solution with IDE0005 reported, writing `path:line:using text` per unnecessary using to out. IDE0005
     needs documentation files, and reports one diagnostic per run of usings, so the runs are read from SARIF."""
     with open(".editorconfig", encoding="utf-8") as f:
         editorconfig = f.read()
@@ -381,26 +381,42 @@ def ide0005(out):
                 region = location["region"]
                 for number in range(region["startLine"], region.get("endLine", region["startLine"]) + 1):
                     if source[number - 1].strip().startswith(("using ", "global using ")):
-                        lines.add(f"{path}:{source[number - 1].strip()}")
+                        lines.add(f"{path}:{number}:{source[number - 1].strip()}")
     with open(out, "w", encoding="utf-8") as f:
         f.write("".join(entry + "\n" for entry in sorted(lines)))
     print(f"{len(lines)} unnecessary usings -> {out}")
 
 
 def prune(table, base, head):
-    """Drops the using lines flagged in head but not in base, reading a moved file's base entries at its new path."""
+    """Deletes the unused usings head flags beyond base's, per file and using text, by line number: a file with block
+    namespaces can repeat a using, and only the flagged occurrence goes. A moved file's base entries count at its new
+    path."""
     moved = {src: dst for src, dst in table.get("move", {}).items() if not os.path.exists(src)}
-    with open(base, encoding="utf-8") as f:
-        old = {moved.get(path, path) + ":" + line
-               for path, line in (e.split(":", 1) for e in f.read().split("\n") if e)}
-    with open(head, encoding="utf-8") as f:
-        new = [entry for entry in f.read().split("\n") if entry and entry not in old]
-    for entry in new:
-        path, line = entry.split(":", 1)
+
+    def entries(log):
+        with open(log, encoding="utf-8") as f:
+            for entry in f.read().split("\n"):
+                if entry:
+                    path, number, line = entry.split(":", 2)
+                    yield moved.get(path, path), int(number), line
+
+    allowed = {}
+    for path, _, line in entries(base):
+        allowed[(path, line)] = allowed.get((path, line), 0) + 1
+    doomed = {}
+    for path, number, line in sorted(entries(head)):
+        if allowed.get((path, line), 0):
+            allowed[(path, line)] -= 1
+        else:
+            doomed.setdefault(path, []).append((number, line))
+    for path, found in doomed.items():
         text, bom = read(path)
-        text = re.sub(rf"^[ \t]*{re.escape(line)}[ \t]*\r?\n", "", text, count=1, flags=re.M)
-        write(path, text.lstrip("\r\n"), bom)
-        print(f"prune {path}: {line}")
+        lines = text.splitlines(keepends=True)
+        for number, line in sorted(found, reverse=True):
+            assert lines[number - 1].strip() == line, (path, number, line)
+            del lines[number - 1]
+            print(f"prune {path}:{number}: {line}")
+        write(path, "".join(lines).lstrip("\r\n"), bom)
 
 
 def marks():
