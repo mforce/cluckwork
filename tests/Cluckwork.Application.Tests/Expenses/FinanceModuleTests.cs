@@ -1,6 +1,7 @@
-using Cluckwork.Application.Features.Expenses;
+using Cluckwork.Application.Modules.Finance.Contracts;
+using Cluckwork.Application.Modules.Finance.Expenses;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 
 namespace Cluckwork.Application.Tests.Expenses;
 

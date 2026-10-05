@@ -1,13 +1,16 @@
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Application.Modules.Finance.Contracts;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 using FluentValidation;
 
-namespace Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
+namespace Cluckwork.Application.Modules.Finance.Expenses.CreateExpenseCategory;
 
-public sealed class UpdateExpenseCategoryValidator : AbstractValidator<UpdateExpenseCategoryCommand>
+public sealed class CreateExpenseCategoryValidator : AbstractValidator<CreateExpenseCategoryCommand>
 {
-    public UpdateExpenseCategoryValidator()
+    public CreateExpenseCategoryValidator()
     {
         RuleFor(c => c.Name)
+            // NotEmpty alone lets whitespace-only through, which would throw in
+            // ExpenseCategory.Create and surface as a 500 instead of a 400.
             .Must(n => !string.IsNullOrWhiteSpace(n))
             .WithMessage("Category name is required.")
             .WithErrorCode("ExpenseCategory.Name.Required")

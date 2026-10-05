@@ -1,8 +1,9 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Domain.Common;
 
-namespace Cluckwork.Application.Features.Expenses.AdjustExpense;
+namespace Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
 
 public sealed class AdjustExpenseHandler(
     IExpenseRepository expenses,
@@ -51,7 +52,7 @@ public sealed class AdjustExpenseHandler(
         if (result.IsFailure) return result;
 
         // Same SaveChanges as the change (#93): commits or fails with it.
-        await audit.WriteAsync(AuditActions.ExpenseAdjust, nameof(Cluckwork.Domain.Expenses.Expense), expense.Id,
+        await audit.WriteAsync(AuditActions.ExpenseAdjust, nameof(Cluckwork.Domain.Modules.Finance.Expenses.Expense), expense.Id,
             reason: null,
             new { previousAmountMinorUnits = previousAmount, newAmountMinorUnits = expense.AmountMinorUnits }, ct);
 

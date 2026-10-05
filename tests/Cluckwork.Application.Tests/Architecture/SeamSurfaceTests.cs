@@ -15,7 +15,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.QueryableReturn
 
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.DbSetReturn
 {
-    using Cluckwork.Domain.Expenses;
+    using Cluckwork.Domain.Modules.Finance.Expenses;
     using Microsoft.EntityFrameworkCore;
 
     public interface IDbSetReturnFixture

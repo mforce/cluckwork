@@ -755,7 +755,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("EggLots");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Expenses.Expense", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Finance.Expenses.Expense", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -831,7 +831,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("Expenses");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Expenses.ExpenseCategory", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2100,9 +2100,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Expenses.Expense", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Finance.Expenses.Expense", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Expenses.ExpenseCategory", null)
+                    b.HasOne("Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory", null)
                         .WithMany()
                         .HasForeignKey("ExpenseCategoryId")
                         .OnDelete(DeleteBehavior.Restrict)

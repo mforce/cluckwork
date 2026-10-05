@@ -1,8 +1,9 @@
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Common;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 using FluentValidation;
 
-namespace Cluckwork.Application.Features.Expenses.AdjustExpense;
+namespace Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
 
 public sealed class AdjustExpenseValidator : AbstractValidator<AdjustExpenseCommand>
 {

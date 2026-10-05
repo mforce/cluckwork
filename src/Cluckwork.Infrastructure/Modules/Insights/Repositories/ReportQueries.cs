@@ -361,7 +361,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         DateOnly from, DateOnly to, CancellationToken ct = default)
     {
         var perCategory = await db.Expenses
-            .Where<Cluckwork.Domain.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
+            .Where<Cluckwork.Domain.Modules.Finance.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
             .GroupBy(e => e.ExpenseCategoryId)
             .Select(g => new { CategoryId = g.Key, Total = g.Sum(e => e.AmountMinorUnits) })
             .ToListAsync(ct);
@@ -388,7 +388,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                      && o.OrderDate >= from && o.OrderDate <= to)
             .SumAsync(o => o.TotalAmount.MinorUnits, ct);
         var expenses = await db.Expenses
-            .Where<Cluckwork.Domain.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
+            .Where<Cluckwork.Domain.Modules.Finance.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
             .SumAsync(e => e.AmountMinorUnits, ct);
 
         var (code, minor) = await AccountCurrencyAsync(ct);

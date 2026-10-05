@@ -1,7 +1,7 @@
+using Cluckwork.Domain.Modules.Finance.Expenses;
 using System.Data;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

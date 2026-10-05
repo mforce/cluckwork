@@ -1,6 +1,5 @@
-namespace Cluckwork.Application.Features.Expenses.AdjustExpense;
+namespace Cluckwork.Application.Modules.Finance.Contracts;
 
-[ModuleContract("Finance")]
 public sealed record AdjustExpenseCommand(
     Guid ExpenseId,
     int Version,

@@ -15,7 +15,7 @@ answer is the same one:
 - `src/Cluckwork.Api/Modules/Insights/Audit/AuditEndpoints.cs:29-30` — `ListAuditEvents` takes
   `DateOnly? from` / `DateOnly? to`; `IAuditEventRepository.ListAsync` carries them through.
   `web/src/routes/AuditPage.tsx:132` simply never sends them.
-- `src/Cluckwork.Api/Endpoints/Expenses/ExpenseEndpoints.cs:122-134` — `ListExpenses` takes
+- `src/Cluckwork.Api/Modules/Finance/Expenses/ExpenseEndpoints.cs:122-134` — `ListExpenses` takes
   `from`/`to`, and `IExpenseRepository.ListAsync`/`SumAsync` both filter on them. `ExpensesPage.tsx:145`
   already *converts its month into exactly that pair* (`monthRange`) before calling the API.
 

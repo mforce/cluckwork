@@ -1,9 +1,8 @@
+using Cluckwork.Application.Modules.Finance.Contracts;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -111,7 +110,7 @@ public sealed class ExceptionHandlerReExecutionTests(ExceptionReExecutionFactory
         var categoryId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.ExpenseCategories.Add(Cluckwork.Domain.Expenses.ExpenseCategory.Create(
+            db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
                 categoryId, accountId, Cluckwork.Domain.Accounts.SeedDefaults.FarmId, "Probe-Category"));
             await db.SaveChangesAsync();
         });

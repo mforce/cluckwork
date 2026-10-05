@@ -76,18 +76,18 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         var flockAExpenseId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.ExpenseCategories.Add(Cluckwork.Domain.Expenses.ExpenseCategory.Create(
+            db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
                 categoryId, accountId, farmId, "Feed"));
             // Farm-wide (FlockId null).
-            db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
+            db.Expenses.Add(Cluckwork.Domain.Modules.Finance.Expenses.Expense.Create(
                 farmWideExpenseId, accountId, farmId, categoryId, Today,
                 "Farm-wide expense", 1000, "USD", 2, flockId: null));
             // Flock-B expense.
-            db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
+            db.Expenses.Add(Cluckwork.Domain.Modules.Finance.Expenses.Expense.Create(
                 flockBExpenseId, accountId, farmId, categoryId, Today,
                 "B expense", 2000, "USD", 2, flockId: flockB));
             // Flock-A expense.
-            db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
+            db.Expenses.Add(Cluckwork.Domain.Modules.Finance.Expenses.Expense.Create(
                 flockAExpenseId, accountId, farmId, categoryId, Today,
                 "A expense", 3000, "USD", 2, flockId: flockA));
             await db.SaveChangesAsync();
@@ -403,7 +403,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
             db.InventoryItems.Add(InventoryItem.Create(
                 itemId, fix.AccountId, fix.FarmId, "Own tenant guard feed",
                 InventoryCategory.Feed, "kg", Money.Zero("USD")));
-            db.ExpenseCategories.Add(Cluckwork.Domain.Expenses.ExpenseCategory.Create(
+            db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
                 categoryId, fix.AccountId, fix.FarmId, "Own tenant guard expense"));
             db.BirdMovements.Add(BirdMovement.Create(
                 ownBirdId, fix.AccountId, fix.FlockA, Today,
@@ -421,7 +421,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
                 ownWaterId, fix.AccountId, fix.FlockA, Today,
                 1m, "L", WaterSource.Municipal,
                 meterStart: null, meterEnd: null));
-            db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
+            db.Expenses.Add(Cluckwork.Domain.Modules.Finance.Expenses.Expense.Create(
                 ownExpenseId, fix.AccountId, fix.FarmId, categoryId, Today,
                 "Own tenant guard expense", 100, "USD", 2, flockId: fix.FlockA));
             await db.SaveChangesAsync();
@@ -444,7 +444,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
             db.InventoryItems.Add(InventoryItem.Create(
                 itemId, foreignAccountId, foreignFarmId, "Foreign tenant guard feed",
                 InventoryCategory.Feed, "kg", Money.Zero("USD")));
-            db.ExpenseCategories.Add(Cluckwork.Domain.Expenses.ExpenseCategory.Create(
+            db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
                 categoryId, foreignAccountId, foreignFarmId, "Foreign tenant guard expense"));
             db.BirdMovements.Add(BirdMovement.Create(
                 foreignBirdId, foreignAccountId, foreignFlockId, Today,
@@ -462,7 +462,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
                 foreignWaterId, foreignAccountId, foreignFlockId, Today,
                 1m, "L", WaterSource.Municipal,
                 meterStart: null, meterEnd: null));
-            db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
+            db.Expenses.Add(Cluckwork.Domain.Modules.Finance.Expenses.Expense.Create(
                 foreignExpenseId, foreignAccountId, foreignFarmId, categoryId, Today,
                 "Foreign tenant guard expense", 100, "USD", 2,
                 flockId: foreignFlockId));

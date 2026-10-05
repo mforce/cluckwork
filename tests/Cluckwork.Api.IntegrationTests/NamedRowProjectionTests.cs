@@ -1,3 +1,4 @@
+using Cluckwork.Domain.Modules.Finance.Expenses;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Customers;
@@ -7,7 +8,6 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;

@@ -1,15 +1,11 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Expenses;
-using Cluckwork.Application.Features.Expenses.AdjustExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
-using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
+using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
-namespace Cluckwork.Api.Endpoints.Expenses;
+namespace Cluckwork.Api.Modules.Finance.Expenses;
 
 // Money data is admin-only end to end (#87): the agreed split keeps production
 // data open to workers and money behind the Admin role, so BOTH groups below

@@ -1,8 +1,9 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
+using Cluckwork.Application.Modules.Finance.Contracts;
+using Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

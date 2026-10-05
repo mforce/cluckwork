@@ -9,7 +9,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     private static readonly string[] FinanceTables = ["Expenses", "ExpenseCategories"];
 
     private const string FixtureDb = """
-        using Cluckwork.Domain.Expenses;
+        using Cluckwork.Domain.Modules.Finance.Expenses;
         using Microsoft.EntityFrameworkCore;
         namespace Cluckwork.Temp;
         public class FixtureDb(DbContextOptions options) : DbContext(options)
@@ -37,7 +37,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
 
     private void WriteProbe(string body, string ns = "Cluckwork.Temp", string bases = "") => WriteSource(
         "Cluckwork.Infrastructure/Probe.cs", $$"""
-            using Cluckwork.Domain.Expenses;
+            using Cluckwork.Domain.Modules.Finance.Expenses;
             using Microsoft.EntityFrameworkCore;
             namespace {{ns}};
             public class Probe(Cluckwork.Temp.FixtureDb db) {{bases}}
@@ -59,7 +59,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
         var ledger = ModuleLedger.Validate(new ModuleLedger(
             [
                 new("Hub", "platform", ["Cluckwork.Temp"], []),
-                new("Finance", "module", ["Cluckwork.Domain.Expenses", "Cluckwork.Temp.Finance"], [])
+                new("Finance", "module", ["Cluckwork.Domain.Modules.Finance", "Cluckwork.Temp.Finance"], [])
                 {
                     Contract = ["Cluckwork.Temp.Finance.IFinanceModule"], Implementations = implementations ?? [],
                 },
@@ -298,7 +298,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
             public static class Helper
             {
                 public static int Count<T>(Microsoft.EntityFrameworkCore.DbContext db) where T : class => db.Set<T>().Count();
-                public static int Run(FixtureDb db) => Count<Cluckwork.Domain.Expenses.Expense>(db);
+                public static int Run(FixtureDb db) => Count<Cluckwork.Domain.Modules.Finance.Expenses.Expense>(db);
             }
             """);
 
@@ -320,7 +320,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     public void ReadInAProjectReferencingTheSemanticProject_IsBoundSemantically(string body)
     {
         WriteApi($$"""
-            using E = Cluckwork.Domain.Expenses.Expense;
+            using E = Cluckwork.Domain.Modules.Finance.Expenses.Expense;
             namespace Cluckwork.Temp.Cli;
             public class Verb(Cluckwork.Temp.FixtureDb db)
             {
@@ -341,7 +341,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
             public record Totals(int Expenses);
             public class Verb
             {
-                public object Run(Totals totals) => (totals.Expenses, nameof(Cluckwork.Domain.Expenses.Expense), new HashSet<int>());
+                public object Run(Totals totals) => (totals.Expenses, nameof(Cluckwork.Domain.Modules.Finance.Expenses.Expense), new HashSet<int>());
             }
             """);
 

@@ -1,7 +1,8 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Domain.Common;
 
-namespace Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
+namespace Cluckwork.Application.Modules.Finance.Expenses.UpdateExpenseCategory;
 
 public sealed class UpdateExpenseCategoryHandler(
     IExpenseCategoryRepository categories,
@@ -32,7 +33,7 @@ public sealed class UpdateExpenseCategoryHandler(
 
         // Same SaveChanges as the change (#93).
         await audit.WriteAsync(AuditActions.ExpenseCategoryUpdate,
-            nameof(Cluckwork.Domain.Expenses.ExpenseCategory), category.Id,
+            nameof(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory), category.Id,
             reason: null, new { category.Name, category.Active }, ct);
 
         await unitOfWork.SaveChangesAsync(ct);

@@ -1,4 +1,4 @@
-using Cluckwork.Application.Features.Expenses;
+using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
