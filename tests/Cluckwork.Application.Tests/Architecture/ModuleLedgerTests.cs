@@ -201,6 +201,60 @@ public sealed class ModuleLedgerTests : IDisposable
         Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R", 3), (edge.From, edge.To, edge.Symbol, edge.Line));
     }
 
+    [Theory]
+    [InlineData("""
+        namespace Cluckwork.Temp.Blue;
+        public class B { public static implicit operator int(B value) => 1; }
+        """, "public static Cluckwork.Temp.Blue.B Value { get; } = new();", "int n = H.Value; return n;")]
+    [InlineData("""
+        namespace Cluckwork.Temp.Blue;
+        public class B : System.Collections.IEnumerable
+        {
+            public void Add(int item) { }
+            public System.Collections.IEnumerator GetEnumerator() => throw new System.NotSupportedException();
+        }
+        """, "public sealed class Bag : Cluckwork.Temp.Blue.B { }", "var bag = new H.Bag { 1 }; return 0;")]
+    [InlineData("""
+        namespace Cluckwork.Temp.Blue;
+        public class B { public Cursor GetEnumerator() => new(); }
+        public class Cursor { public int Current => 0; public bool MoveNext() => false; }
+        """, "public static Cluckwork.Temp.Blue.B Value { get; } = new();", "foreach (var item in H.Value) { return item; } return 0;")]
+    public void CompilerChosenCall_IsAnEdge(string blue, string hubMember, string body)
+    {
+        WriteSource("src/Blue.cs", blue);
+        WriteSource("src/Hub.cs", $$"""
+            namespace Cluckwork.Temp.Hub;
+            public class H { {{hubMember}} }
+            """);
+        WriteSource("src/Red.cs", $$"""
+            namespace Cluckwork.Temp.Red;
+            using Cluckwork.Temp.Hub;
+            public class R { public int Go() { {{body}} } }
+            """);
+
+        var report = Scan(Ledger([]));
+
+        Assert.Empty(report.ParseErrors);
+        var edge = Assert.Single(report.LiveEdges);
+        Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R"), (edge.From, edge.To, edge.Symbol));
+    }
+
+    [Fact]
+    public void SiblingAssemblyOlderThanItsSource_MakesTheWalkUntrusted()
+    {
+        WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");
+        WriteSource("src/Cluckwork.Domain/Fresh.cs", "namespace Cluckwork.Temp.Hub;\npublic class Fresh { }\n");
+        var source = Path.Combine(_tempRoot, "src", "Cluckwork.Domain", "Fresh.cs");
+        var assembly = Path.Combine(AppContext.BaseDirectory, "Cluckwork.Domain.dll");
+
+        File.SetLastWriteTimeUtc(source, File.GetLastWriteTimeUtc(assembly).AddMinutes(1));
+        var failure = Assert.Single(Evaluate(Ledger([])));
+        Assert.Contains("Cluckwork.Domain.dll is older than src/Cluckwork.Domain/Fresh.cs", failure);
+
+        File.SetLastWriteTimeUtc(source, File.GetLastWriteTimeUtc(assembly).AddMinutes(-1));
+        Assert.Empty(Evaluate(Ledger([])));
+    }
+
     [Fact]
     public void ClaimedType_ChargesItsReferencesToItsClaimant()
     {

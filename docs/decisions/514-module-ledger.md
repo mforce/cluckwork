@@ -51,9 +51,9 @@ Keying on owner makes them vanish: both ends of each are the same owner.
 **Rows keyed by `file:line`.** #632 measured what that costs: three unrelated changes
 re-pinned rows whose code nobody touched, and the re-pinning is the moment a reviewer
 stops reading and starts pasting. Rows here key on the fully-qualified top-level type.
-A file-level `using` is attributed to every top-level type in that file, because
-every one of them compiles against it, so extracting a record to its own file leaves
-a stale row that says exactly which type stopped depending on what.
+A reference is charged to the top-level type whose code makes it, so moving the
+code that uses another module out of a type leaves a stale row that says exactly
+which type stopped depending on what.
 
 **A new `Cluckwork.Architecture.Tests` project**, as the design's §8 proposed. The
 Application test project already carries `Microsoft.CodeAnalysis.CSharp` and a walker
@@ -86,7 +86,11 @@ three real references, among them `FarmModule` reading `DiscountCeiling.Percent`
 walk now compiles each project holding a module-owned file, with the parse options,
 implicit usings and references `CompatibilityExceptionScanner` uses, and charges every
 type a node binds to, or the type declaring the member it binds to, to the node's
-top-level type. Using directives are skipped, so an unused import is not an edge. A
+top-level type. That includes calls the compiler chooses without a name in the source:
+user-defined conversions, collection-initializer `Add` and the `foreach` enumerator
+pattern. Inferred generic arguments are not charged unless a name binds to them. A
+sibling project's built assembly older than that project's newest source fails the
+walk, because stale metadata can bind a member to the wrong type without a diagnostic. Using directives are skipped, so an unused import is not an edge. A
 claimed type's references belong to its claimant. A compile error in a module-owned
 file fails the walk, except CS8795, the stub of a source-generated partial method.
 Files only Platform owns are never bound, which is why `Cluckwork.Api`, whose packages

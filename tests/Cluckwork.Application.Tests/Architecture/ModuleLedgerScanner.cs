@@ -142,6 +142,8 @@ public static class ModuleLedgerScanner
             scanned.Add((tree, relative, project, attributions));
         }
 
+        AddStaleAssemblies(parseErrors, srcFull, repoRoot);
+
         // Only a module's references can be edges, so a file no module owns is never bound and
         // its compile errors cannot hide one.
         foreach (var project in scanned.GroupBy(s => s.Project))
@@ -356,6 +358,7 @@ public static class ModuleLedgerScanner
 
     // Every type a node binds to, or the type declaring the member it binds to, charged to the
     // top-level type that holds the node. Using directives are skipped: an import is not a use.
+    // Inferred generic arguments are not charged unless a name binds to them.
     private static void RecordEdges(
         SemanticModel model,
         CompilationUnitSyntax root,
@@ -365,7 +368,7 @@ public static class ModuleLedgerScanner
         IReadOnlyDictionary<string, string> ownerKinds,
         List<CrossOwnerEdge> edges)
     {
-        foreach (var node in root.DescendantNodes(n => n is not UsingDirectiveSyntax).OfType<ExpressionSyntax>())
+        foreach (var node in root.DescendantNodes(n => n is not UsingDirectiveSyntax))
         {
             var enclosing = node.Ancestors().LastOrDefault(IsTypeDeclaration);
             var from = attributions.FirstOrDefault(a => a.Scope == enclosing) ?? attributions[0];
@@ -374,7 +377,7 @@ public static class ModuleLedgerScanner
                 continue;
             }
 
-            foreach (var type in ReferencedTypes(model.GetSymbolInfo(node).Symbol))
+            foreach (var type in BoundSymbols(model, node).SelectMany(ReferencedTypes))
             {
                 var outermost = type.OriginalDefinition;
                 while (outermost.ContainingType is { } parent)
@@ -394,6 +397,23 @@ public static class ModuleLedgerScanner
         }
     }
 
+    // GetSymbolInfo names what the source spells; the compiler also calls conversion operators,
+    // collection-initializer Adds and the foreach enumerator pattern on its own.
+    private static IEnumerable<ISymbol?> BoundSymbols(SemanticModel model, SyntaxNode node) => node switch
+    {
+        ExpressionSyntax expression =>
+        [
+            model.GetSymbolInfo(expression).Symbol,
+            model.GetConversion(expression).MethodSymbol,
+            expression.Parent.IsKind(SyntaxKind.CollectionInitializerExpression)
+                ? model.GetCollectionInitializerSymbolInfo(expression).Symbol
+                : null,
+        ],
+        CommonForEachStatementSyntax loop when model.GetForEachStatementInfo(loop) is var info =>
+            [info.GetEnumeratorMethod, info.MoveNextMethod, info.CurrentProperty, info.DisposeMethod, info.ElementConversion.MethodSymbol],
+        _ => [],
+    };
+
     private static IEnumerable<INamedTypeSymbol> ReferencedTypes(ISymbol? symbol) => symbol switch
     {
         ITypeSymbol type => TypesIn(type),
@@ -408,6 +428,23 @@ public static class ModuleLedgerScanner
         IPointerTypeSymbol pointer => TypesIn(pointer.PointedAtType),
         _ => [],
     };
+
+    // A project is compiled from source against its siblings' built assemblies; an assembly older
+    // than its own source can bind a member to the wrong type and still produce no diagnostic.
+    private static void AddStaleAssemblies(List<string> errors, string srcFull, string repoRoot)
+    {
+        foreach (var project in Directory.GetDirectories(srcFull))
+        {
+            var assembly = Path.Combine(AppContext.BaseDirectory, Path.GetFileName(project) + ".dll");
+            var newest = GuardScanner.EnumerateSourceFiles(project).MaxBy(File.GetLastWriteTimeUtc);
+            if (File.Exists(assembly) && newest is not null
+                && File.GetLastWriteTimeUtc(newest) > File.GetLastWriteTimeUtc(assembly))
+            {
+                errors.Add($"{Path.GetFileName(assembly)} is older than {Relative(repoRoot, newest)} — " +
+                    "the walk would bind stale metadata; rebuild the test project");
+            }
+        }
+    }
 
     // A bound file's diagnostics repeat its parse errors; the report drops the copies.
     private static void AddErrors(List<string> errors, string relative, IEnumerable<Diagnostic> diagnostics) =>
