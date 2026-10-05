@@ -230,14 +230,18 @@ def add_using(text, ns):
     return text[:at] + f"using {ns};{nl}" + nl + text[at:]
 
 
-def block(usings, i):
-    """The namespaces of the contiguous run of using lines around usings[i]."""
-    lo = hi = i
-    while lo > 0 and usings[lo - 1].end() == usings[lo].start():
-        lo -= 1
+def block_start(usings, i):
+    while i > 0 and usings[i - 1].end() == usings[i].start():
+        i -= 1
+    return i
+
+
+def block_usings(usings, i):
+    """The contiguous run of using lines around usings[i]."""
+    lo = hi = block_start(usings, i)
     while hi + 1 < len(usings) and usings[hi].end() == usings[hi + 1].start():
         hi += 1
-    return {m.group(2) for m in usings[lo:hi + 1]}
+    return usings[lo:hi + 1]
 
 
 def move(table):
@@ -311,12 +315,15 @@ def move(table):
             if sees_old and names(code, moved | extensions):
                 text = add_using(text, new)
         usings = list(USING.finditer(text))
+        seen = {}
         for i in reversed(range(len(usings))):
             m = usings[i]
             if m.group(2) in emptied:
-                present = block(usings, i)
-                lines = [m.group(0).replace(m.group(2), new, 1) for new in renamed.get(m.group(2), []) if new not in present]
-                text = text[:m.start()] + "".join(lines) + text[m.end():]
+                present = seen.setdefault(block_start(usings, i), {u.group(2) for u in block_usings(usings, i)})
+                news = [new for new in renamed.get(m.group(2), [])
+                        if new not in present and not (own and (own == new or own.startswith(new + ".")))]
+                present.update(news)
+                text = text[:m.start()] + "".join(m.group(0).replace(m.group(2), new, 1) for new in news) + text[m.end():]
         if text != original:
             write(path, text, bom)
 
