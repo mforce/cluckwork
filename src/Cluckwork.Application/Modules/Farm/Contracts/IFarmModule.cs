@@ -7,7 +7,7 @@ using Cluckwork.Domain.Modules.Farm.Accounts;
 namespace Cluckwork.Application.Modules.Farm.Contracts;
 
 // #851: the Farm module's contract. Adapters reach Farm only through the types
-// marked [ModuleContract("Farm")]. Every member reads or
+// in this Contracts folder. Every member reads or
 // writes the current tenant's farm, so it runs only after TenantContext is
 // resolved and never establishes identity: sign-in resolves its farm code
 // through IIdentityProvider instead.
