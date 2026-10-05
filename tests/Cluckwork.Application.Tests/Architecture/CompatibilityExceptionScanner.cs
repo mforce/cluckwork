@@ -41,7 +41,7 @@ public static class CompatibilityExceptionScanner
     private const string DbSetDefinition = "Microsoft.EntityFrameworkCore.DbSet<TEntity>";
 
     // The implicit usings of Microsoft.NET.Sdk, then the ones Microsoft.NET.Sdk.Web adds.
-    private const string ImplicitUsings = """
+    internal const string ImplicitUsings = """
         global using System;
         global using System.Collections.Generic;
         global using System.IO;
@@ -107,14 +107,14 @@ public static class CompatibilityExceptionScanner
             ModuleLedgerScanner.Resolve(index, ns.ToDisplayString(), declared: true)?.Owner;
 
         var files = GuardScanner.EnumerateSourceFiles(Path.Combine(srcFull, SemanticProject));
-        var compilation = Compile(SemanticProject, files, ImplicitUsings, References());
+        var compilation = Compile(SemanticProject, files.Select(Parse), ImplicitUsings, References(SemanticProject));
         var compileErrors = compilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .Select(d => $"{Relative(repoRoot, d.Location.SourceTree?.FilePath ?? "")}:{Line(d.Location)}: {d.Id} {d.GetMessage()}")
             .ToList();
         var lenient = ProjectsReferencing(srcFull, SemanticProject)
-            .Select(p => Compile(p, GuardScanner.EnumerateSourceFiles(Path.Combine(srcFull, p)),
-                ImplicitUsings + WebImplicitUsings, References().Append(compilation.ToMetadataReference())))
+            .Select(p => Compile(p, GuardScanner.EnumerateSourceFiles(Path.Combine(srcFull, p)).Select(Parse),
+                ImplicitUsings + WebImplicitUsings, References(SemanticProject).Append(compilation.ToMetadataReference())))
             .ToList();
 
         var reads = new List<DbSetRead>();
@@ -334,11 +334,13 @@ public static class CompatibilityExceptionScanner
         }
     }
 
-    private static CSharpCompilation Compile(string assembly, IEnumerable<string> files, string implicitUsings,
+    internal static SyntaxTree Parse(string file) =>
+        CSharpSyntaxTree.ParseText(File.ReadAllText(file), ModuleLedgerScanner.ParseOptions, file);
+
+    internal static CSharpCompilation Compile(string assembly, IEnumerable<SyntaxTree> trees, string implicitUsings,
         IEnumerable<MetadataReference> references) =>
         CSharpCompilation.Create(assembly,
-            files.Select(f => CSharpSyntaxTree.ParseText(File.ReadAllText(f), ModuleLedgerScanner.ParseOptions, f))
-                .Append(CSharpSyntaxTree.ParseText(implicitUsings, ModuleLedgerScanner.ParseOptions)),
+            trees.Append(CSharpSyntaxTree.ParseText(implicitUsings, ModuleLedgerScanner.ParseOptions)),
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
@@ -401,11 +403,11 @@ public static class CompatibilityExceptionScanner
         return member is null ? type : $"{type}.{member}";
     }
 
-    private static IEnumerable<MetadataReference> References()
+    internal static IEnumerable<MetadataReference> References(string compiled)
     {
         var platform = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
         return platform.Concat(Directory.GetFiles(AppContext.BaseDirectory, "*.dll"))
-            .Where(p => Path.GetFileNameWithoutExtension(p) != SemanticProject)
+            .Where(p => Path.GetFileNameWithoutExtension(p) != compiled)
             .Distinct(StringComparer.Ordinal)
             .Select(p => MetadataReference.CreateFromFile(p));
     }

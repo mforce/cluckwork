@@ -31,8 +31,8 @@ Every reference from one business module's namespaces to another's is declared i
 (`From`, `To`, `Kind`, `Reason`) that lists the fully-qualified top-level types
 realising it. `ModuleLedgerRealTreeTests` walks every `.cs` under `src/` with Roslyn
 and fails on an undeclared edge, a stale row (a listed type that no longer references
-the other owner), a namespace no owner claims, a parse error, or a file count below
-the floor. Add a cross-module dependency and the build tells you which cell to extend
+the other owner), a namespace no owner claims, a parse error, a compile error in a
+module-owned file, or a file count below the floor. Add a cross-module dependency and the build tells you which cell to extend
 and prints the C# row to paste; remove one and the build tells you which row to delete.
 Break the guard by widening a cell's reason instead of reading the code, and the
 ledger stops being a document anyone reads.
@@ -51,9 +51,9 @@ Keying on owner makes them vanish: both ends of each are the same owner.
 **Rows keyed by `file:line`.** #632 measured what that costs: three unrelated changes
 re-pinned rows whose code nobody touched, and the re-pinning is the moment a reviewer
 stops reading and starts pasting. Rows here key on the fully-qualified top-level type.
-A file-level `using` is attributed to every top-level type in that file, because
-every one of them compiles against it, so extracting a record to its own file leaves
-a stale row that says exactly which type stopped depending on what.
+A reference is charged to the top-level type whose code makes it, so moving the
+code that uses another module out of a type leaves a stale row that says exactly
+which type stopped depending on what.
 
 **A new `Cluckwork.Architecture.Tests` project**, as the design's §8 proposed. The
 Application test project already carries `Microsoft.CodeAnalysis.CSharp` and a walker
@@ -79,12 +79,24 @@ says who it belongs to. `Cluckwork.Infrastructure` and `Cluckwork.Api` stay subt
 claims on purpose: their sub-namespaces are adapters and persistence, and a new
 endpoint folder is Platform by rule.
 
-**Compiling `src/` for a semantic model.** The walk is syntax-only. It sees `using`
-directives and qualified names; it cannot resolve a bare identifier to its namespace.
-An unused `using` therefore counts as a dependency, which is honest: it is one the
-compiler would accept. A reference reachable only through a bare identifier and a
-`global using` cannot occur today, because both `GlobalUsings.cs` files import only
-`Cluckwork.Domain.Common`, which Platform owns.
+**A syntax-only walk (replaced in #1071).** The first walk read `using` directives and
+qualified names. It charged a file's imports to every top-level type in the file and
+never bound a member access, so the ledger carried six rows no code realised and missed
+three real references, among them `FarmModule` reading `DiscountCeiling.Percent`. The
+walk now compiles each project holding a module-owned file, with the parse options,
+implicit usings and references `CompatibilityExceptionScanner` uses, and charges every
+type a node binds to, or the type declaring the member it binds to, to the node's
+top-level type. That includes calls the compiler chooses without a name in the source:
+user-defined conversions, collection-initializer `Add` and the `foreach` enumerator
+pattern. Inferred generic arguments are not charged unless a name binds to them. A
+sibling project's built assembly older than that project's newest source fails the
+walk, because stale metadata can bind a member to the wrong type without a diagnostic. Using directives are skipped, so an unused import is not an edge. A
+claimed type's references belong to its claimant. A compile error in a module-owned
+file fails the walk, except CS8795, the stub of a source-generated partial method.
+Files only Platform owns are never bound, which is why `Cluckwork.Api`, whose packages
+the test project does not reference, costs nothing. The `global using` rule stays for
+the syntax walks: the adapter-reach and peer-contract guards still resolve names
+through a file's own imports.
 
 ## What this does NOT cover
 

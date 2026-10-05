@@ -12,7 +12,7 @@ public sealed class CouplingMatrixRealTreeTests
         var repoRoot = GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("repo root not found");
         var ledger = RealModuleLedger.Value;
-        var edgeReport = ModuleLedgerScanner.Scan(Path.Combine(repoRoot, "src"), ledger);
+        var edgeReport = ModuleLedgerRealTreeTests.Report.Value;
         var adapterReport = AdapterReachScanner.Scan(Path.Combine(repoRoot, "src"), ledger);
         var tableReport = ScanTables(ledger);
         var regenerated = RenderChecked(ledger, edgeReport, tableReport, adapterReport);
@@ -30,10 +30,8 @@ public sealed class CouplingMatrixRealTreeTests
     [Fact]
     public void RealTree_GeneratedModuleCellCensusMatchesLedgerEdges()
     {
-        var repoRoot = GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
-            ?? throw new InvalidOperationException("repo root not found");
         var ledger = RealModuleLedger.Value;
-        var report = ModuleLedgerScanner.Scan(Path.Combine(repoRoot, "src"), ledger);
+        var report = ModuleLedgerRealTreeTests.Report.Value;
         var generated = CouplingMatrix.LiveModulePairs(ledger, report).OrderBy(pair => pair.From, StringComparer.Ordinal)
             .ThenBy(pair => pair.To, StringComparer.Ordinal).ToArray();
         var declared = ledger.Edges.Select(edge => (edge.From, edge.To)).OrderBy(pair => pair.From, StringComparer.Ordinal)
