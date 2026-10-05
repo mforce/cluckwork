@@ -16,7 +16,7 @@ The table is finite and explicit, one entry per file (after split, per type):
 
 `move` rewrites, in every .cs file under src/, tests/ and tools/ except historical migrations and their Designer files: fully and partially qualified names of each moved
 type (code, strings and comments alike, so registry rows follow), `using` directives (adds the new namespace where a
-moved type or one of its extension methods is named, adds the namespaces a moved file lost as ancestors, drops a using whose namespace emptied), and
+moved type or one of its extension methods is named, adds the namespaces a moved file lost as ancestors, renames a using whose namespace emptied into one place and drops it otherwise), and
 project-relative paths of moved files, also in Markdown outside docs/decisions and docs/plans. `replace` covers what
 cannot be derived, such as a rules file's namespace roots. Run `split` and `move` from the repository root.
 """
@@ -230,6 +230,16 @@ def add_using(text, ns):
     return text[:at] + f"using {ns};{nl}" + nl + text[at:]
 
 
+def block(usings, i):
+    """The namespaces of the contiguous run of using lines around usings[i]."""
+    lo = hi = i
+    while lo > 0 and usings[lo - 1].end() == usings[lo].start():
+        lo -= 1
+    while hi + 1 < len(usings) and usings[hi].end() == usings[hi + 1].start():
+        hi += 1
+    return {m.group(2) for m in usings[lo:hi + 1]}
+
+
 def move(table):
     before = index()
     moves = []
@@ -242,6 +252,10 @@ def move(table):
     for _, _, old, _, moved, _ in moves:
         remaining[old] -= moved
     emptied = {ns for ns, t in remaining.items() if not t}
+    # An emptied namespace whose types all went to one place is renamed, not dropped, so a using inside a string
+    # (a test fixture compiled against the real assemblies) follows too.
+    renamed = {old: {new for _, _, o, new, _, _ in moves if o == old} for old in emptied}
+    renamed = {old: news.pop() for old, news in renamed.items() if len(news) == 1}
 
     for src, dst, old, new, _, _ in moves:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -296,9 +310,13 @@ def move(table):
             sees_old = old in visible or (was and (was == old or was.startswith(old + ".")))
             if sees_old and names(code, moved | extensions):
                 text = add_using(text, new)
-        for m in reversed(list(USING.finditer(text))):
+        usings = list(USING.finditer(text))
+        for i in reversed(range(len(usings))):
+            m = usings[i]
             if m.group(2) in emptied:
-                text = text[:m.start()] + text[m.end():]
+                new = renamed.get(m.group(2))
+                keep = new and new not in block(usings, i)
+                text = text[:m.start()] + (m.group(0).replace(m.group(2), new, 1) if keep else "") + text[m.end():]
         if text != original:
             write(path, text, bom)
 
