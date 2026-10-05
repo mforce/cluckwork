@@ -116,7 +116,7 @@ public sealed class AdapterReachTests : IDisposable
                 }
             }
             """);
-        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()])));
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
         Assert.Contains("forbidden persistence type Cluckwork.Infrastructure.Persistence.AppDbContext", failure);
         Assert.Contains(Symbol, failure);
         Assert.Contains("src/Endpoint.cs:4", failure);
@@ -473,7 +473,7 @@ public sealed class AdapterReachTests : IDisposable
     {
         WriteSource("Endpoint.cs", $$"""
             namespace Cluckwork.Temp.Endpoints;
-            public class Endpoint { public void Run({{type}} db) { } }
+            public class Endpoint { public void Run({{type}} db, Cluckwork.Temp.Farm.Account account) { } }
             """);
 
         var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()])));
@@ -513,36 +513,55 @@ public sealed class AdapterReachTests : IDisposable
     }
 
     [Fact]
-    public void RemovedCrossing_StaysGreenAndCanBeAssertedForPruning()
+    public void RemovedCrossing_FailsUntilItsOwnerIsRemovedFromTheRow()
     {
         WriteSource("Endpoint.cs", """
             namespace Cluckwork.Temp.Endpoints;
             public class Endpoint { public void Run(Cluckwork.Temp.Farm.Account account, Cluckwork.Temp.Flocks.Flock flock) { } }
             """);
         AdapterClaim[] rows = [Row(reaches: ["Farm", "FlockManagement"])];
-        Assert.Empty(Scan(rows).Loosenable);
+        Assert.Empty(AdapterReachScanner.Evaluate(Scan(rows)));
         WriteSource("Endpoint.cs", """
             namespace Cluckwork.Temp.Endpoints;
             public class Endpoint { public void Run(Cluckwork.Temp.Farm.Account account) { } }
             """);
-        var report = Scan(rows);
-        Assert.Empty(AdapterReachScanner.Evaluate(report));
-        var loosenable = Assert.Single(report.Loosenable);
-        Assert.Equal(Symbol, loosenable.Symbol);
-        Assert.Equal(["FlockManagement"], loosenable.Reaches);
-        var failure = Assert.Throws<Xunit.Sdk.TrueException>(() => AdapterReachRealTreeTests.AssertNoLoosenable(report));
-        Assert.Contains(Symbol + " -> FlockManagement", failure.Message);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(rows)));
+        Assert.Contains("unused adapter reach " + Symbol + " -> [FlockManagement]", failure);
+        Assert.EndsWith("row:\nnew(\"" + Symbol + "\", [\"Farm\"]),", failure);
+        Assert.Empty(AdapterReachScanner.Evaluate(Scan([Row()])));
     }
 
     [Theory]
     [InlineData("public void Run() { }")]
     [InlineData("")]
-    public void EmptyOrDeletedAdapterRow_IsLoosenable(string member)
+    public void RowForAnAdapterReachingNothing_FailsUntilDeleted(string member)
     {
         WriteSource("Endpoint.cs", "namespace Cluckwork.Temp.Endpoints; public class Endpoint { " + member + " }");
-        var report = Scan([Row()]);
-        Assert.Empty(AdapterReachScanner.Evaluate(report));
-        Assert.Equal(["Farm"], Assert.Single(report.Loosenable).Reaches);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()])));
+        Assert.Equal("unused adapter reach " + Symbol + " -> [Farm]; it reaches no module, so delete its row from RealModuleLedger.Adapters",
+            failure);
+        Assert.Empty(AdapterReachScanner.Evaluate(Scan()));
+    }
+
+    [Theory]
+    [InlineData("namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run([AsParameters] Cluckwork.Temp.Requests.Bundle bundle) { } }")]
+    [InlineData("namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run() { group.MapGet(\"/\", ([Microsoft.AspNetCore.Http.AsParametersAttribute] Cluckwork.Temp.Requests.Bundle bundle) => bundle); } }")]
+    [InlineData("using Bind = Microsoft.AspNetCore.Http.AsParametersAttribute; namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run([Bind] Cluckwork.Temp.Requests.Bundle bundle) { } }")]
+    public void AsParametersBundle_FailsClosedInsteadOfReadingAsUnusedReach(string endpoint)
+    {
+        WriteSource("Bundle.cs", "namespace Cluckwork.Temp.Requests; public class Bundle { public Cluckwork.Temp.Farm.Account Account { get; set; } = null!; }");
+        WriteSource("Endpoint.cs", endpoint);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()])));
+        Assert.StartsWith("[AsParameters] parameter bundle in " + Symbol + " at src/Endpoint.cs:1;", failure);
+        Assert.Equal(failure, Assert.Single(AdapterReachScanner.Evaluate(Scan())));
+    }
+
+    [Fact]
+    public void AsParametersBundledPersistence_FailsOnAnEndpoint()
+    {
+        WriteSource("Bundle.cs", "namespace Cluckwork.Temp.Requests; public class Bundle { public AppDbContext Db { get; set; } = null!; }");
+        WriteSource("Endpoint.cs", "namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run([AsParameters] Cluckwork.Temp.Requests.Bundle bundle) { } }");
+        Assert.StartsWith("[AsParameters] parameter bundle in " + Symbol, Assert.Single(AdapterReachScanner.Evaluate(Scan())));
     }
 
     [Fact]

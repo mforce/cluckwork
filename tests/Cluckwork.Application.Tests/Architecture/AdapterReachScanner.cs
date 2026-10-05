@@ -22,6 +22,7 @@ public sealed record AdapterReachReport(
     public IReadOnlyList<string> RouteErrors { get; init; } = [];
     public IReadOnlyList<AdapterReach> ContractBypasses { get; init; } = [];
     public IReadOnlyList<string> AliasErrors { get; init; } = [];
+    public IReadOnlyList<string> BindingErrors { get; init; } = [];
 }
 
 public static class AdapterReachScanner
@@ -152,6 +153,8 @@ public static class AdapterReachScanner
         var programCount = 0;
         var routeErrors = new List<string>();
         var aliasErrors = new List<string>();
+        var bindingErrors = new List<string>();
+        var opaque = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var root in roots)
         {
@@ -205,6 +208,14 @@ public static class AdapterReachScanner
         {
             var file = Relative(repoRoot, node.SyntaxTree.FilePath);
             var imports = ImportsOf(node);
+            foreach (var parameter in Parameters(node).Where(p => p.AttributeLists.SelectMany(l => l.Attributes)
+                .Any(a => ExpandAlias(a.Name, imports)?.Split('.')[^1] is "AsParameters" or "AsParametersAttribute")))
+            {
+                bindingErrors.Add($"[AsParameters] parameter {parameter.Identifier.ValueText} in {symbol} at {file}:" +
+                    $"{parameter.GetLocation().GetLineSpan().StartLinePosition.Line + 1}; the walk cannot see its " +
+                    "property types, so declare each dependency as its own handler parameter");
+                opaque.Add(symbol);
+            }
             foreach (var syntax in AdapterTypes(node))
             {
                 foreach (var named in NamedTypes(syntax))
@@ -270,7 +281,7 @@ public static class AdapterReachScanner
         var reachedSymbols = ordered.Select(r => r.Symbol).ToHashSet(StringComparer.Ordinal);
         var loosenable = peers ? [] : ledger.Adapters.Select(a => new AdapterClaim(a.Symbol,
                 a.Reaches.Where(owner => !reached.Contains((a.Symbol, owner))).Order(StringComparer.Ordinal).ToArray()))
-            .Where(a => a.Reaches.Count > 0 || !reachedSymbols.Contains(a.Symbol))
+            .Where(a => (a.Reaches.Count > 0 || !reachedSymbols.Contains(a.Symbol)) && !opaque.Contains(a.Symbol))
             .OrderBy(a => a.Symbol, StringComparer.Ordinal).ToList();
         var floor = GuardScanner.FindRepoRoot(AppContext.BaseDirectory) is { } realRoot
             && srcFull == Path.Combine(realRoot, "src") ? (peers ? RealTreePeerFloor : RealTreeAdapterFloor) : count;
@@ -280,6 +291,7 @@ public static class AdapterReachScanner
             TopLevelProgramAdapterCount = programCount,
             RouteErrors = routeErrors,
             AliasErrors = aliasErrors,
+            BindingErrors = bindingErrors,
             ContractBypasses = ordered.Where(r => allowed.TryGetValue(r.Owner, out var types) && !types.Contains(r.Type)
                 && (!peers || (ModuleLedgerScanner.Resolve(claims, r.Symbol, declared: false)?.Owner is { } from
                     && kinds[from] == ModuleLedger.ModuleKind && from != r.Owner))).ToList(),
@@ -299,6 +311,7 @@ public static class AdapterReachScanner
         }
         failures.AddRange(report.RouteErrors);
         failures.AddRange(report.AliasErrors);
+        failures.AddRange(report.BindingErrors);
         failures.AddRange(report.PersistenceViolations);
         foreach (var bypass in report.ContractBypasses)
         {
@@ -310,6 +323,13 @@ public static class AdapterReachScanner
             failures.Add($"undeclared adapter reach {reach.Symbol} -> {reach.Owner} through {reach.Type} " +
                 $"at {reach.File}:{reach.Line}; review and add the row to RealModuleLedger.Adapters:\n" +
                 RenderAdapters(report.LiveReach.Where(r => r.Symbol == reach.Symbol)));
+        }
+        foreach (var claim in report.Loosenable)
+        {
+            var live = RenderAdapters(report.LiveReach.Where(r => r.Symbol == claim.Symbol));
+            failures.Add($"unused adapter reach {claim.Symbol} -> [{string.Join(", ", claim.Reaches)}]; " +
+                (live.Length == 0 ? "it reaches no module, so delete its row from RealModuleLedger.Adapters"
+                    : $"remove those owners from its RealModuleLedger.Adapters row:\n{live}"));
         }
         return failures;
     }
@@ -410,15 +430,15 @@ public static class AdapterReachScanner
 
     private static IEnumerable<TypeSyntax> AdapterTypes(SyntaxNode node)
     {
-        if (node is TypeDeclarationSyntax primary)
-        {
-            return primary.ParameterList!.Parameters.Select(p => p.Type).OfType<TypeSyntax>();
-        }
-
-        // Nested handler parameters belong to the enclosing adapter, including anonymous methods and local functions.
-        return node.DescendantNodesAndSelf().OfType<ParameterSyntax>().Select(p => p.Type).OfType<TypeSyntax>()
-            .Concat(node.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().SelectMany(ServiceTypes));
+        var parameterTypes = Parameters(node).Select(p => p.Type).OfType<TypeSyntax>();
+        return node is TypeDeclarationSyntax ? parameterTypes
+            : parameterTypes.Concat(node.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().SelectMany(ServiceTypes));
     }
+
+    // Nested handler parameters belong to the enclosing adapter, including anonymous methods and local functions.
+    private static IEnumerable<ParameterSyntax> Parameters(SyntaxNode node) => node is TypeDeclarationSyntax primary
+        ? primary.ParameterList!.Parameters
+        : node.DescendantNodesAndSelf().OfType<ParameterSyntax>();
 
     private static SimpleNameSyntax? CalledName(InvocationExpressionSyntax call) => call.Expression switch
     {

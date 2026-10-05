@@ -6,6 +6,8 @@
 **Status:** accepted
 **Date:** 2026-09-14
 **Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
+**Amendment (2026-10-05, #1073):** an unused allowance now fails the gate. Shrinking
+a row is required, not optional; the sections below describe the enforced rule.
 
 ## What happened
 
@@ -24,8 +26,9 @@ under the existing ledger; Platform owns the domain audit types.
 Declare each adapter's set of module-kind owners in `RealModuleLedger.Adapters` and
 review any newly reached owner before extending that set. A live owner outside
 the declared set fails the guard, even if the total owner count stays the same.
-Removing a crossing, deleting an adapter, or leaving an unused allowance stays
-green and appears in `Loosenable` for pruning. Platform owners do not count.
+A declared owner the adapter no longer reaches also fails, as does a row whose
+adapter reaches no module or no longer exists. Remove the owner, or the row, in
+the same change that removes the crossing. Platform owners do not count.
 Reject `AppDbContext`, `DbContext`, `DbSet`, and `IQueryable` in endpoint parameters
 or service resolutions regardless of declared reach. This persistence ban applies
 under `Cluckwork.Api.Endpoints` and to direct route handlers selected by
@@ -66,8 +69,9 @@ from 397 to 400 walked adapters.
 This is a ceiling, not a ban on reaching multiple modules. An immediate ban
 would require more than forty exemptions before it could pass on this tree.
 The ceiling records the current reach and requires review when it grows.
-An allowance remains usable until someone prunes it; the guard does not store
-a historical minimum outside Git.
+Until #1073, an unused allowance stayed green and remained usable until someone
+pruned it; #858 pruned the accumulated rows by hand. The gate now requires each
+row to equal the adapter's live reach.
 
 The adapter definition deliberately over-approximates runtime entry points.
 Private endpoint helpers and request-record constructors count even when the
@@ -100,7 +104,11 @@ resolution for `GetService`, `GetRequiredService`, `GetServices`,
 fields, properties, arbitrary object creation, service types passed through
 variables instead of `typeof`, reflection, inferred types, dependency
 forwarding, or the transitive dependencies of an injected handler. Primary constructors
-contribute their parameter types, not field initializers.
+contribute their parameter types, not field initializers. Because properties are
+not read, an `[AsParameters]` parameter fails the walk (#1073), whether written
+simply, qualified or through a file alias. Its bundled services would otherwise
+read as unused reach, and a bundled `AppDbContext` would escape the endpoint ban.
+Declare each dependency as its own handler parameter.
 
 Top-level method-group resolution follows visible local functions, named
 source types, static imports, and same-file partial `Program` methods. All
@@ -161,12 +169,11 @@ floor.
 
 An undeclared crossing reports the adapter, owner, crossing type, and
 `file:line`, followed by the generated C# row to review. Rows and owner lists
-are sorted ordinally. `Loosenable` never enters the gate's failure list.
-`AdapterReachRealTreeTests.AssertNoLoosenable` is a test-only assertion for an
-explicit pruning pass, and the regular gate prints the pruning list without
-asserting that it is empty.
+are sorted ordinally. Each `Loosenable` entry is a failure naming the adapter
+and the unused owners, followed by the row regenerated from live reach, or an
+instruction to delete the row when the adapter reaches no module.
 
-Run the gate and print its measured count and pruning list with:
+Run the gate and print its measured count with:
 
 ```sh
 dotnet test tests/Cluckwork.Application.Tests \
@@ -185,7 +192,7 @@ Mutation 6 predates the mapping-method key and records the former
 |---|---|---|
 | Add `IProductRepository products` to `ListExpenses` | RED, `ListExpenses -> Commerce` | `1-commerce-parameter.txt` |
 | Add `AppDbContext db` to `ListExpenses` | RED, forbidden persistence type at `ListExpenses` | `2-endpoint-dbcontext.txt` |
-| Remove `IFlockRepository flocks` from `ListExpenses` | GREEN, `Loosenable` names `ListExpenses -> FlockManagement` | `3-remove-flock-parameter.txt` |
+| Remove `IFlockRepository flocks` from `ListExpenses` | GREEN at #846, `Loosenable` names `ListExpenses -> FlockManagement`; RED since #1073 | `3-remove-flock-parameter.txt` |
 | Resolve `CreateFlockHandler` in `MigrateCliCommand.RunAsync` | RED, `MigrateCliCommand.RunAsync -> FlockManagement` | `4-cli-flock-service.txt` |
 | Add `AppDbContext db` to the inline deactivate handler in `MapEggGradeEndpoints` | RED, forbidden persistence type at `EggGradeEndpoints.cs:37` | `5-lambda-dbcontext.txt` |
 | Add `app.MapGet("/probe", (AppDbContext db) => Results.Ok())` before `app.Run()` | RED, forbidden persistence type in `Cluckwork.Api.Program./probe` at `Program.cs:573` | `6-program-mapget-dbcontext.txt` |
