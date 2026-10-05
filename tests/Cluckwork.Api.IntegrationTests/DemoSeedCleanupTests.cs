@@ -151,6 +151,18 @@ public sealed class DemoSeedCleanupTests(DemoSeedCleanupFactory factory) : IClas
     }
 
     [Fact]
+    public async Task LateFailure_LeavesTheFarmReseedable()
+    {
+        var accountId = await ProvisionFarmAsync();
+        Assert.Equal(SeedStatus.Failed, (await SeedAsync(accountId, failDraftLine: true)).Status);
+        Assert.True(factory.Faults.DraftLineFailed);
+
+        var retry = await SeedAsync(accountId, failDraftLine: false);
+
+        Assert.True(retry.Status == SeedStatus.Seeded, retry.Message);
+    }
+
+    [Fact]
     public async Task FailedDelete_RollsBackEveryEarlierDelete()
     {
         var accountId = await ProvisionFarmAsync();

@@ -258,11 +258,11 @@ public sealed class DemoDataSeeder(
                 await flockFixture.PurgeFlocksAsync(accountId);
                 await transaction.CommitAsync();
             });
-            logger.LogInformation("Partial demo data removed; next startup will retry the demo seed.");
+            logger.LogInformation("Partial demo data removed; re-run `seed --profile demo` to retry.");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Demo seed cleanup failed; the next startup will skip demo seeding.");
+            logger.LogError(ex, "Demo seed cleanup failed; a re-run will report the demo as already seeded.");
         }
     }
 
@@ -376,15 +376,12 @@ public sealed class DemoDataSeeder(
         // per individual egg (unit Egg → factor 1), preserving the old demo math.
         // The catalog is deliberately partial — Small has no product either, so
         // the Stock screen shows a realistic mix of sellable and unlisted grades.
-        var largeEggs = Require(await commerce.CreateProductAsync(new CreateProductCommand(
-            "Large Eggs", "Egg", "Egg", 45, grades["Large"], null), accountId, ct));
-        var mediumEggs = Require(await commerce.CreateProductAsync(new CreateProductCommand(
-            "Medium Eggs", "Egg", "Egg", 38, grades["Medium"], null), accountId, ct));
+        var largeEggs = await EnsureProductAsync("Large Eggs", 45, grades["Large"], null, accountId, ct);
+        var mediumEggs = await EnsureProductAsync("Medium Eggs", 38, grades["Medium"], null, accountId, ct);
         // #396: the cracked counter now mints its own lot at submit, so the demo
         // carries a discounted product for it — otherwise the feature reads as
         // stock appearing that nothing can ever sell. Priced below Small.
-        Require(await commerce.CreateProductAsync(new CreateProductCommand(
-            "Cracked Eggs", "Egg", "Egg", 18, grades["Cracked"], "Sold at a discount"), accountId, ct));
+        await EnsureProductAsync("Cracked Eggs", 18, grades["Cracked"], "Sold at a discount", accountId, ct);
 
         // --- Orders: one confirmed (exercises FIFO allocation), one open draft.
         var confirmed = Require(await commerce.CreateSalesOrderAsync(new CreateSalesOrderCommand(
@@ -401,6 +398,14 @@ public sealed class DemoDataSeeder(
         Require(await commerce.AddOrderItemAsync(new AddOrderItemCommand(
             draft, largeEggs, 240, null, null), accountId, ct));
     }
+
+    // Partial-seed cleanup keeps products (#1075): a retry after a late failure
+    // reuses the ones the failed run created.
+    private async Task<Guid> EnsureProductAsync(
+        string name, long priceMinorUnits, Guid eggGradeId, string? notes, Guid accountId, CancellationToken ct) =>
+        await commerceFixture.FindProductIdByNameAsync(name, ct)
+        ?? Require(await commerce.CreateProductAsync(new CreateProductCommand(
+            name, "Egg", "Egg", priceMinorUnits, eggGradeId, notes), accountId, ct));
 
     private static Guid Require(Result<Guid> result)
     {
