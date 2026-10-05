@@ -330,7 +330,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
             dir = dir.Parent;
         Assert.NotNull(dir);
         var serviceSource = await File.ReadAllTextAsync(
-            Path.Combine(dir!.FullName, "src", "Cluckwork.Infrastructure", "Identity", "AccountSuspensionService.cs"));
+            Path.Combine(dir!.FullName, "src", "Cluckwork.Infrastructure", "Modules", "Access", "Identity", "AccountSuspensionService.cs"));
         // Find every SaveChanges call site. The needle includes the receiver
         // dot: the file carries "SaveChanges" in a COMMENT (line 193, "before
         // The comment above ("before SaveChanges, so the row lands") is not a

@@ -212,7 +212,7 @@ A does not exist for form B, and vice versa.
 ### 4. The knobs
 
 All bind from the `Simulation` section
-([`SimulationOptions.cs`](../../src/Cluckwork.Infrastructure/Identity/SimulationOptions.cs));
+([`SimulationOptions.cs`](../../src/Cluckwork.Infrastructure/Persistence/SimulationOptions.cs));
 as environment variables the separator is `__`.
 
 | Key | Default | What it does |

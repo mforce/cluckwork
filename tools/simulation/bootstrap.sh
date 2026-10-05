@@ -71,7 +71,7 @@ command -v python3 >/dev/null 2>&1 || { echo "bootstrap.sh requires python3 on P
 
 # --- Cast shape ------------------------------------------------------------
 # Mirrors SimulationOptions' own defaults (Managers=1, Sales=1, Workers=3,
-# ReadOnly=4 — src/Cluckwork.Infrastructure/Identity/SimulationOptions.cs).
+# ReadOnly=4 — src/Cluckwork.Infrastructure/Persistence/SimulationOptions.cs).
 # Written explicitly into .env.sim below (Simulation__Managers etc.) so this
 # script's cast list can never silently drift from what the app actually
 # seeds — the counts here are the ONE source of truth for both files.
