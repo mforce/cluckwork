@@ -158,5 +158,3 @@ public sealed class SubmitDailyEntryHandler(
         activeFarmGrades.SingleOrDefault(g => g.DailyEntryKind == kind && g.IsSaleable)?.Id;
 }
 
-[ModuleContract("EggOperations")]
-public sealed record SubmitDailyEntryResponse(Guid Id, string Status, IReadOnlyList<Guid> EggLotIds);

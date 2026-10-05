@@ -250,5 +250,3 @@ public sealed class AdjustDailyEntryHandler(
     }
 }
 
-[ModuleContract("EggOperations")]
-public sealed record AdjustDailyEntryResponse(Guid Id, string Status, int Version);

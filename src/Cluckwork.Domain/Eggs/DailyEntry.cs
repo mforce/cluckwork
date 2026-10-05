@@ -310,9 +310,6 @@ public sealed class DailyEntry : AggregateRoot<Guid>, IMutableRecord
     }
 }
 
-[ModuleContract("EggOperations")]
-public enum DailyEntryStatus { Draft, Submitted, Locked, ManagerAdjusted, Voided }
-
 // Input value for recording production by grade. References an EggGrade row
 // (spec §9.2); the handler validates the ids against the account's active
 // saleable grades before this reaches the aggregate.
