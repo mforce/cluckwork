@@ -5,7 +5,6 @@ namespace Cluckwork.Application.Modules.EggOperations.Contracts;
 // the grade name lookup is async, and whether the message may name the grade
 // or amount at all depends on caller privacy, which this pure planner does
 // not decide.
-[ModuleContract("EggOperations")]
 public sealed record SaleAllocationPlan(
     bool IsComplete,
     IReadOnlyList<PlannedEggLotDraw> Draws,

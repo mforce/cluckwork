@@ -2,7 +2,6 @@ namespace Cluckwork.Application.Modules.EggOperations.Contracts;
 
 // The movement as written plus the lot's post-movement balance, so the SPA
 // can show the resulting stock without a second read.
-[ModuleContract("EggOperations")]
 public sealed record RecordEggLotMovementResult(
     Guid MovementId,
     Guid EggLotId,

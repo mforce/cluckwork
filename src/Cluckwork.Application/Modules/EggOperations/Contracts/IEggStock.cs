@@ -4,7 +4,6 @@ namespace Cluckwork.Application.Modules.EggOperations.Contracts;
 // lots inside the caller's transaction and never saves, like IMortalityLedger,
 // so a confirm or a void commits its lot, ledger and order rows together. It
 // refuses to run outside a transaction.
-[ModuleContract("EggOperations")]
 public interface IEggStock
 {
     // ONE FOR UPDATE over every available lot of these grades, farm-wide, in
@@ -25,7 +24,6 @@ public interface IEggStock
 // to a savepoint taken before it was created: PostgreSQL releases the locks and
 // the id stays the same. Nothing in src/ creates such a savepoint; EF's own
 // SaveChanges savepoint comes after the locks.
-[ModuleContract("EggOperations")]
 public interface IEggStockReservation
 {
     // Plans over the locked lots' current availability, or only the lots from

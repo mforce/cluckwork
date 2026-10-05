@@ -10,5 +10,4 @@ namespace Cluckwork.Domain.Modules.EggOperations.Contracts;
 // is (a size, a quality, a custom one) and is the farm's own taxonomy, while
 // this says WHERE THE NUMBER COMES FROM and is the app's wiring. A farm can
 // have many Quality grades; only one of them can be the Cracked counter's.
-[ModuleContract("EggOperations")]
 public enum DailyEntryKind { Manual, Cracked, Dirty }

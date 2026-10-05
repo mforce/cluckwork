@@ -1,7 +1,6 @@
 namespace Cluckwork.Application.Modules.EggOperations.Contracts;
 
 // #853: Egg Operations' grade read port for peer modules and adapters.
-[ModuleContract("EggOperations")]
 public interface IEggGradeLookup
 {
     // A missing key is a grade outside the tenant or never created.

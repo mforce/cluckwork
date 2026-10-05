@@ -1,6 +1,5 @@
 namespace Cluckwork.Application.Modules.EggOperations.Contracts;
 
-[ModuleContract("EggOperations")]
 public sealed record StockByGrade(
     Guid EggGradeId, string GradeName, int SortOrder, int Available, int Restricted,
     // #911 — the grade's low-stock floor in eggs, null when it has none.

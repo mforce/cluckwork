@@ -1,6 +1,5 @@
 namespace Cluckwork.Application.Modules.EggOperations.Contracts;
 
-[ModuleContract("EggOperations")]
 public sealed record UpdateEggGradeCommand(
     Guid EggGradeId,
     string Name,
