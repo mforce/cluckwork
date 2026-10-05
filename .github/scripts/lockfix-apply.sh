@@ -5,7 +5,7 @@
 # PR checkout under `pr/`, and commits+pushes iff ONLY lock files changed.
 set -euo pipefail
 
-# The classifier prints the allowlist; keep the 9 paths here in lockstep with
+# The classifier prints the allowlist; keep the 10 paths here in lockstep with
 # LOCK_FILES in lockfix.mjs (the classifier is the enforcing check).
 LOCKS=(
   "src/Cluckwork.Domain/packages.lock.json"
@@ -13,6 +13,7 @@ LOCKS=(
   "src/Cluckwork.Infrastructure/packages.lock.json"
   "src/Cluckwork.Api/packages.lock.json"
   "src/Cluckwork.AppHost/packages.lock.json"
+  "src/Cluckwork.Analyzers/packages.lock.json"
   "tests/Cluckwork.Domain.Tests/packages.lock.json"
   "tests/Cluckwork.Application.Tests/packages.lock.json"
   "tests/Cluckwork.Api.IntegrationTests/packages.lock.json"

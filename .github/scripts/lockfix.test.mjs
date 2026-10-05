@@ -14,8 +14,8 @@ import { changedPaths, classify, LOCK_FILES } from "./lockfix.mjs";
 // the stream is NUL-terminated per record.
 const z = (...records) => records.map((r) => r + "\0").join("");
 
-test("the allowlist is exactly the 9 solution lock files", () => {
-  assert.equal(LOCK_FILES.length, 9);
+test("the allowlist is exactly the 10 solution lock files", () => {
+  assert.equal(LOCK_FILES.length, 10);
   assert.ok(LOCK_FILES.every((p) => p.endsWith("/packages.lock.json")));
 });
 
@@ -30,7 +30,7 @@ test("the allowlist covers every project in Cluckwork.sln", () => {
   const projects = [...sln.matchAll(/Project\("[^"]+"\) = "[^"]+", "([^"]+\.csproj)"/g)]
     .map((m) => m[1].replaceAll("\\", "/").replace(/[^/]+\.csproj$/, "packages.lock.json"))
     .sort();
-  assert.ok(projects.length >= 9, `parsed only ${projects.length} projects from the sln`);
+  assert.ok(projects.length >= 10, `parsed only ${projects.length} projects from the sln`);
   assert.deepEqual([...LOCK_FILES].sort(), projects);
 });
 

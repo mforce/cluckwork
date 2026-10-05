@@ -31,7 +31,8 @@ WORKDIR /src
 # Management), so both must precede restore — without the second the csproj
 # files reference packages with no version and the restore fails (NU1010).
 # Only the SERVING projects are restored here (not the test projects),
-# so only their four lock files are needed. Copying just these inputs (not the
+# so only their four lock files are needed, plus the module-edge analyzer
+# they all reference (#859). Copying just these inputs (not the
 # full source tree) keeps the restore layer cached across source-only changes.
 COPY Directory.Build.props Directory.Packages.props ./
 COPY Cluckwork.sln ./
@@ -39,6 +40,7 @@ COPY src/Cluckwork.Domain/Cluckwork.Domain.csproj src/Cluckwork.Domain/packages.
 COPY src/Cluckwork.Application/Cluckwork.Application.csproj src/Cluckwork.Application/packages.lock.json src/Cluckwork.Application/
 COPY src/Cluckwork.Infrastructure/Cluckwork.Infrastructure.csproj src/Cluckwork.Infrastructure/packages.lock.json src/Cluckwork.Infrastructure/
 COPY src/Cluckwork.Api/Cluckwork.Api.csproj src/Cluckwork.Api/packages.lock.json src/Cluckwork.Api/
+COPY src/Cluckwork.Analyzers/Cluckwork.Analyzers.csproj src/Cluckwork.Analyzers/packages.lock.json src/Cluckwork.Analyzers/
 RUN dotnet restore src/Cluckwork.Api/Cluckwork.Api.csproj --locked-mode
 COPY . .
 RUN dotnet publish src/Cluckwork.Api/Cluckwork.Api.csproj -c Release -o /out --no-restore
