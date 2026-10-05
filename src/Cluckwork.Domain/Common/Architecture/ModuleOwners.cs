@@ -285,6 +285,7 @@ using Cluckwork.Domain.Common.Architecture;
         "Cluckwork.Infrastructure",
         "Cluckwork.Api",
         "Cluckwork.AppHost",
+        "Cluckwork.Analyzers",
     ],
     ExactNamespaces = [
         "Cluckwork.Domain",

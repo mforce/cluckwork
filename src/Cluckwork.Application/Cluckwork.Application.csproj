@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Cluckwork.Domain\Cluckwork.Domain.csproj" />
+    <!-- #859: module-edge diagnostics (CW1000-CW1003) while editing and building. -->
+    <ProjectReference Include="..\Cluckwork.Analyzers\Cluckwork.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>
