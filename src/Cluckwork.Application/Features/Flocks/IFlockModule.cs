@@ -7,7 +7,7 @@ using Cluckwork.Domain.Flocks;
 namespace Cluckwork.Application.Features.Flocks;
 
 // #852: the Flock Management contract for adapters. Adapters reach Flock
-// Management only through the types RealModuleLedger.Owners lists in
+// Management only through the types ModuleOwners.cs lists in
 // the FlockManagement row's Contract; peer modules use the narrower IFlockLookup
 // and IMortalityLedger ports.
 public interface IFlockModule

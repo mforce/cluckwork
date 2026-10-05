@@ -8,7 +8,7 @@ using Cluckwork.Domain.Expenses;
 namespace Cluckwork.Application.Features.Expenses;
 
 // #849: the Finance module's contract. Adapters reach Finance only through the
-// types RealModuleLedger.Owners lists in the Finance row's Contract.
+// types ModuleOwners.cs lists in the Finance row's Contract.
 public interface IFinanceModule
 {
     // The EntityType Finance writes on an expense's audit rows; provenance reads key by it.

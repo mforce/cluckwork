@@ -1,10 +1,27 @@
+using System.Reflection;
+using Cluckwork.Domain.Common.Architecture;
 using Microsoft.CodeAnalysis.CSharp;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
-// The one module ledger every real-tree test reads (#859). Its rows are the RealModuleLedger.*.cs files.
+// The one module ledger every real-tree test reads (#859). Its rows are the RealModuleLedger.*.cs files, plus the
+// owner and edge rows in src/Cluckwork.Domain/Common/Architecture, which the module-edge analyzer reads too.
 internal static partial class RealModuleLedger
 {
+    internal static readonly OwnerDefinition[] Owners = [.. typeof(ModuleOwnerAttribute).Assembly
+        .GetCustomAttributes<ModuleOwnerAttribute>()
+        .Select(o => new OwnerDefinition(o.Name, o.Kind, o.Namespaces, o.ExactNamespaces)
+        {
+            Contract = o.Contract,
+            Implementations = o.Implementations,
+            Seam = o.Seam,
+            Types = o.Types,
+        })];
+
+    internal static readonly EdgeCell[] Edges = [.. typeof(ModuleEdgeAttribute).Assembly
+        .GetCustomAttributes<ModuleEdgeAttribute>()
+        .Select(e => new EdgeCell(e.From, e.To, e.Kind, e.Reason, e.Symbols))];
+
     // Lazy, because the order of static field initializers across partial files is not defined; Build runs on
     // first access, after every row array is set.
     private static readonly Lazy<ModuleLedger> Built = new(Build);

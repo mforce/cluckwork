@@ -18,7 +18,7 @@ using Cluckwork.Domain.Sales;
 namespace Cluckwork.Application.Features.Sales;
 
 // #854: the Commerce contract for adapters. Adapters reach Commerce only
-// through the types RealModuleLedger.Owners lists in the Commerce row's Contract;
+// through the types ModuleOwners.cs lists in the Commerce row's Contract;
 // peer modules use the narrower IEggUnitConversionLookup port.
 public interface ICommerceModule
 {

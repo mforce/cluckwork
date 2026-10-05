@@ -11,7 +11,7 @@ using Cluckwork.Domain.Inventory;
 namespace Cluckwork.Application.Features.Inventory;
 
 // #855: the General Inventory contract. Adapters reach General Inventory only
-// through the types RealModuleLedger.Owners lists in
+// through the types ModuleOwners.cs lists in
 // the GeneralInventory row's Contract.
 public interface IInventoryModule
 {

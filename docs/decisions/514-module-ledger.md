@@ -7,6 +7,7 @@
 **Status:** accepted
 **Date:** 2026-09-14
 **Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The rule and its checks are unchanged.
+**Mechanism note (2026-10-05, #859):** the owner and edge rows moved again, to assembly attributes in `src/Cluckwork.Domain/Common/Architecture`, so the module-edge analyzer can read them; the tests read them by reflection. See [the module-edge analyzer](859-typed-rule-registries.md#the-module-edge-analyzer).
 
 ## What happened
 
@@ -27,13 +28,13 @@ seeds default egg grades). A list maintained by recall goes stale; a walk does n
 ## The rule
 
 Every reference from one business module's namespaces to another's is declared in
-`tests/Cluckwork.Application.Tests/Architecture/RealModuleLedger.Edges.cs`, as a cell
+`src/Cluckwork.Domain/Common/Architecture/ModuleEdges.cs`, as a cell
 (`From`, `To`, `Kind`, `Reason`) that lists the fully-qualified top-level types
 realising it. `ModuleLedgerRealTreeTests` walks every `.cs` under `src/` with Roslyn
 and fails on an undeclared edge, a stale row (a listed type that no longer references
 the other owner), a namespace no owner claims, a parse error, a compile error in a
 module-owned file, or a file count below the floor. Add a cross-module dependency and the build tells you which cell to extend
-and prints the C# row to paste; remove one and the build tells you which row to delete.
+and prints the row to paste; remove one and the build tells you which row to delete.
 Break the guard by widening a cell's reason instead of reading the code, and the
 ledger stops being a document anyone reads.
 

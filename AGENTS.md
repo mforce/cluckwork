@@ -45,6 +45,7 @@ src/
   Cluckwork.Infrastructure   EF Core, Identity/JWT, repositories, seeding, jobs
   Cluckwork.Api             minimal-API endpoints, middleware, Program.cs
   Cluckwork.AppHost         .NET Aspire local orchestration — dev only, never a deploy path
+  Cluckwork.Analyzers       module-edge analyzer (CW1000-CW1003): build and editor feedback, never shipped
 web/                        React/Vite SPA (see web/README.md)
 deploy/                     docker-compose (.yml prod, .dev.yml dev DB), .env.example
 specs/                      product + technical specs, wireframes

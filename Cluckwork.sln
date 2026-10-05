@@ -13,6 +13,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cluckwork.Api", "src/Cluckw
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cluckwork.AppHost", "src/Cluckwork.AppHost/Cluckwork.AppHost.csproj", "{10000001-0000-0000-0000-000000000008}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cluckwork.Analyzers", "src/Cluckwork.Analyzers/Cluckwork.Analyzers.csproj", "{10000001-0000-0000-0000-00000000000A}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cluckwork.Domain.Tests", "tests/Cluckwork.Domain.Tests/Cluckwork.Domain.Tests.csproj", "{10000001-0000-0000-0000-000000000005}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cluckwork.Application.Tests", "tests/Cluckwork.Application.Tests/Cluckwork.Application.Tests.csproj", "{10000001-0000-0000-0000-000000000006}"
@@ -47,6 +49,10 @@ Global
 		{10000001-0000-0000-0000-000000000008}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{10000001-0000-0000-0000-000000000008}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{10000001-0000-0000-0000-000000000008}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10000001-0000-0000-0000-00000000000A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10000001-0000-0000-0000-00000000000A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10000001-0000-0000-0000-00000000000A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10000001-0000-0000-0000-00000000000A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{10000001-0000-0000-0000-000000000005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{10000001-0000-0000-0000-000000000005}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{10000001-0000-0000-0000-000000000005}.Release|Any CPU.ActiveCfg = Release|Any CPU
