@@ -1,4 +1,5 @@
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
@@ -10,7 +11,6 @@ using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;

@@ -1,10 +1,11 @@
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;

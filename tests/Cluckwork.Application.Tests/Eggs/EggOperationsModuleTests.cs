@@ -1,10 +1,11 @@
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.EggOperations.DailyEntries;
+using Cluckwork.Application.Modules.EggOperations.EggGrades;
+using Cluckwork.Application.Modules.EggOperations.EggLots;
+using Cluckwork.Application.Modules.EggOperations.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using System.Reflection;
-using Cluckwork.Application.Features.DailyEntries;
-using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
-using Cluckwork.Application.Features.EggGrades;
-using Cluckwork.Application.Features.EggLots;
-using Cluckwork.Application.Features.Eggs;
-using Cluckwork.Domain.Eggs;
 
 namespace Cluckwork.Application.Tests.Eggs;
 

@@ -1,5 +1,6 @@
-using Cluckwork.Application.Features.EggLots;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.EggOperations.EggLots;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 
 namespace Cluckwork.Application.Tests.Sales;
 

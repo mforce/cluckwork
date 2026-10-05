@@ -1,4 +1,5 @@
-using Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.EggOperations.EggLots.RecordEggLotMovement;
 
 namespace Cluckwork.Application.Tests.EggLots;
 

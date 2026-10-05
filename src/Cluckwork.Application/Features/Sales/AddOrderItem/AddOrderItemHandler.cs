@@ -1,7 +1,7 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Catalog;
-using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Sales;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;

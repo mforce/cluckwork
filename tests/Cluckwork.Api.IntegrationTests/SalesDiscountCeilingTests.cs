@@ -403,7 +403,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
         var (saleMovements, versionAfter) = await factory.WithTenantScopeAsync(
             farm.AccountId, async db => (
                 await db.EggInventoryMovements.CountAsync(
-                    m => m.MovementType == Domain.Eggs.EggMovementType.Sale),
+                    m => m.MovementType == Cluckwork.Domain.Modules.EggOperations.Contracts.EggMovementType.Sale),
                 (await db.SalesOrders.AsNoTracking().SingleAsync(o => o.Id == orderId)).Version));
         Assert.Equal(1, saleMovements);
         Assert.Equal(versionBefore + 1, versionAfter);

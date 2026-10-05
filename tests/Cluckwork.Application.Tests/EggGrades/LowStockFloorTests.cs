@@ -1,8 +1,8 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.EggGrades;
-using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
-using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
-using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.EggOperations.EggGrades;
+using Cluckwork.Application.Modules.EggOperations.EggGrades.CreateEggGrade;
+using Cluckwork.Application.Modules.EggOperations.EggGrades.UpdateEggGrade;
 using Cluckwork.Domain.Accounts;
 
 namespace Cluckwork.Application.Tests.EggGrades;

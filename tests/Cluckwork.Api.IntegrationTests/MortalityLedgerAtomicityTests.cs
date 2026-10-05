@@ -1,8 +1,9 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
-using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.EggOperations.DailyEntries.SubmitDailyEntry;
+using Cluckwork.Application.Modules.EggOperations.DailyEntries.VoidDailyEntry;
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

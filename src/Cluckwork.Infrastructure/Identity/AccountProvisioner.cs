@@ -4,7 +4,7 @@ using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

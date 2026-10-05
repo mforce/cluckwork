@@ -50,12 +50,12 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
 
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.EggGrades.Add(Domain.Eggs.EggGrade.Create(
-                Guid.NewGuid(), accountId, farmId, "Cracked", Domain.Eggs.EggGradeType.Quality,
-                60, isSaleable: true, dailyEntryKind: Domain.Eggs.DailyEntryKind.Cracked));
-            db.EggGrades.Add(Domain.Eggs.EggGrade.Create(
-                Guid.NewGuid(), accountId, farmId, "Dirty", Domain.Eggs.EggGradeType.Quality,
-                61, isSaleable: false, dailyEntryKind: Domain.Eggs.DailyEntryKind.Dirty));
+            db.EggGrades.Add(Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade.Create(
+                Guid.NewGuid(), accountId, farmId, "Cracked", Cluckwork.Domain.Modules.EggOperations.Contracts.EggGradeType.Quality,
+                60, isSaleable: true, dailyEntryKind: Cluckwork.Domain.Modules.EggOperations.Contracts.DailyEntryKind.Cracked));
+            db.EggGrades.Add(Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade.Create(
+                Guid.NewGuid(), accountId, farmId, "Dirty", Cluckwork.Domain.Modules.EggOperations.Contracts.EggGradeType.Quality,
+                61, isSaleable: false, dailyEntryKind: Cluckwork.Domain.Modules.EggOperations.Contracts.DailyEntryKind.Dirty));
             await db.SaveChangesAsync();
         });
 

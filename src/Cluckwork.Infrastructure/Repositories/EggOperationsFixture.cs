@@ -1,6 +1,6 @@
-using Cluckwork.Application.Features.Eggs;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

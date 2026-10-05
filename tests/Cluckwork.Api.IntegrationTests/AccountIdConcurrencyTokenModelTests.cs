@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;

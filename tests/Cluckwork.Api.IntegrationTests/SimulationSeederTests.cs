@@ -1,3 +1,4 @@
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
@@ -9,7 +10,6 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;

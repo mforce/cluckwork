@@ -1,6 +1,6 @@
 using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Application.Modules.Insights.Reports;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

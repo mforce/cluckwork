@@ -439,7 +439,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("ProductEggGradeMappings");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.DailyEntry", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -532,7 +532,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("DailyEntries");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.DailyEntryGrade", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntryGrade", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -571,7 +571,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("DailyEntryGrades");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.EggGrade", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -635,7 +635,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.EggInventoryMovement", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.EggInventoryMovement", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -690,7 +690,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("EggInventoryMovements");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.EggLot", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2054,7 +2054,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Catalog.ProductEggGradeMapping", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.EggGrade", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade", null)
                         .WithMany()
                         .HasForeignKey("EggGradeId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2067,33 +2067,33 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.DailyEntryGrade", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntryGrade", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", null)
                         .WithMany("Grades")
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Cluckwork.Domain.Eggs.EggGrade", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade", null)
                         .WithMany()
                         .HasForeignKey("EggGradeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.EggInventoryMovement", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.EggInventoryMovement", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.EggLot", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot", null)
                         .WithMany()
                         .HasForeignKey("EggLotId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.EggLot", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.EggGrade", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade", null)
                         .WithMany()
                         .HasForeignKey("EggGradeId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2116,7 +2116,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Modules.FlockManagement.Flocks.BirdMovement", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", null)
                         .WithMany()
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2130,7 +2130,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.FeedUsage", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", null)
                         .WithMany()
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2270,7 +2270,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.WaterUsage", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", null)
                         .WithMany()
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2338,7 +2338,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Sales.SalesOrderAllocation", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.EggLot", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot", null)
                         .WithMany()
                         .HasForeignKey("EggLotId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2359,7 +2359,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Sales.SalesOrderItem", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.EggGrade", null)
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade", null)
                         .WithMany()
                         .HasForeignKey("EggGradeId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2475,7 +2475,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Eggs.DailyEntry", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", b =>
                 {
                     b.Navigation("Grades");
                 });

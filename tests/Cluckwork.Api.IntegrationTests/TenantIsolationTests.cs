@@ -1,6 +1,6 @@
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Eggs;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;

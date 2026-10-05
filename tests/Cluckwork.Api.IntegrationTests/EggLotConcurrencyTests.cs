@@ -46,7 +46,7 @@ public sealed class EggLotConcurrencyTests(CluckworkWebApplicationFactory factor
         var (saleMovements, ledgerSum) = await factory.WithTenantScopeAsync(accountId, async db =>
         {
             var movements = await db.EggInventoryMovements.ToListAsync();
-            return (movements.Count(m => m.MovementType == Cluckwork.Domain.Eggs.EggMovementType.Sale),
+            return (movements.Count(m => m.MovementType == Cluckwork.Domain.Modules.EggOperations.Contracts.EggMovementType.Sale),
                     movements.Sum(m => m.QuantityDelta));
         });
         Assert.Equal(1, saleMovements);
@@ -88,7 +88,7 @@ public sealed class EggLotConcurrencyTests(CluckworkWebApplicationFactory factor
         Assert.Equal(50, allocated); // drawn exactly once, never twice
 
         var saleMovements = await factory.WithTenantScopeAsync(accountId, async db =>
-            await db.EggInventoryMovements.CountAsync(m => m.MovementType == Cluckwork.Domain.Eggs.EggMovementType.Sale));
+            await db.EggInventoryMovements.CountAsync(m => m.MovementType == Cluckwork.Domain.Modules.EggOperations.Contracts.EggMovementType.Sale));
         Assert.Equal(1, saleMovements);
     }
 }

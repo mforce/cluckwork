@@ -1,5 +1,5 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
 using Microsoft.Extensions.Logging;

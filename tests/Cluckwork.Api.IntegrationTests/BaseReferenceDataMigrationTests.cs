@@ -1,7 +1,8 @@
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;

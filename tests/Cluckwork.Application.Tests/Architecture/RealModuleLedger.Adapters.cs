@@ -70,41 +70,41 @@ internal static partial class RealModuleLedger
         new("Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.ListCustomers", ["Commerce"]),
         new("Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.ToResponse", ["Commerce"]),
         new("Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.UpdateCustomer", ["Commerce"]),
-        new("Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.AdjustDailyEntry", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.GetDailyEntry", [
+        new("Cluckwork.Api.Modules.EggOperations.DailyEntries.DailyEntryEndpoints.AdjustDailyEntry", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.DailyEntries.DailyEntryEndpoints.GetDailyEntry", [
             "EggOperations",
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.ListDailyEntries", [
+        new("Cluckwork.Api.Modules.EggOperations.DailyEntries.DailyEntryEndpoints.ListDailyEntries", [
             "EggOperations",
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.RecordDailyEntry", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.SubmitDailyEntry", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.ToResponse", [
+        new("Cluckwork.Api.Modules.EggOperations.DailyEntries.DailyEntryEndpoints.RecordDailyEntry", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.DailyEntries.DailyEntryEndpoints.SubmitDailyEntry", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.DailyEntries.DailyEntryEndpoints.ToResponse", [
             "EggOperations",
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.VoidDailyEntry", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.CreateEggGrade", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.GetEggGrade", [
+        new("Cluckwork.Api.Modules.EggOperations.DailyEntries.DailyEntryEndpoints.VoidDailyEntry", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.EggGrades.EggGradeEndpoints.CreateEggGrade", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.EggGrades.EggGradeEndpoints.GetEggGrade", [
             "EggOperations",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.ListEggGrades", [
+        new("Cluckwork.Api.Modules.EggOperations.EggGrades.EggGradeEndpoints.ListEggGrades", [
             "EggOperations",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.MapEggGradeEndpoints", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.SetActive", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.ToResponse", [
+        new("Cluckwork.Api.Modules.EggOperations.EggGrades.EggGradeEndpoints.MapEggGradeEndpoints", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.EggGrades.EggGradeEndpoints.SetActive", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.EggGrades.EggGradeEndpoints.ToResponse", [
             "EggOperations",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.UpdateEggGrade", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.EggGrades.EggGradeEndpoints.UpdateEggGrade", ["EggOperations"]),
         new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.AdjustExpense", [
             "Finance",
             "FlockManagement",
@@ -208,10 +208,10 @@ internal static partial class RealModuleLedger
         ]),
         new("Cluckwork.Api.Endpoints.Sales.SaleEndpoints.UpdateOrderItem", ["Commerce"]),
         new("Cluckwork.Api.Endpoints.Sales.SaleEndpoints.VoidSale", ["Commerce"]),
-        new("Cluckwork.Api.Endpoints.Stock.StockEndpoints.GetStock", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.Stock.StockEndpoints.ListLotMovements", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.Stock.StockEndpoints.ListLots", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.Stock.StockEndpoints.RecordLotMovement", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.Stock.StockEndpoints.GetStock", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.Stock.StockEndpoints.ListLotMovements", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.Stock.StockEndpoints.ListLots", ["EggOperations"]),
+        new("Cluckwork.Api.Modules.EggOperations.Stock.StockEndpoints.RecordLotMovement", ["EggOperations"]),
         new("Cluckwork.Api.Endpoints.Users.UserEndpoints.AssignFlock", ["Access"]),
         new("Cluckwork.Api.Endpoints.Users.UserEndpoints.ChangeUserEmail", ["Access"]),
         new("Cluckwork.Api.Endpoints.Users.UserEndpoints.ChangeUserRole", ["Access"]),

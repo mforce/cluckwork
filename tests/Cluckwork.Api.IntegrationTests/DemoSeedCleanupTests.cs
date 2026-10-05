@@ -1,8 +1,8 @@
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
-using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;

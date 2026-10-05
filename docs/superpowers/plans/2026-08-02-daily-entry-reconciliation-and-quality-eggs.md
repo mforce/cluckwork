@@ -25,7 +25,7 @@ PR #395.
 ### Task 1: Persist quality-condition identity and official-entry snapshots
 
 **Files:**
-- Modify: `src/Cluckwork.Domain/Eggs/EggGrade.cs`, `src/Cluckwork.Domain/Eggs/DailyEntry.cs`
+- Modify: `src/Cluckwork.Domain/Modules/EggOperations/Eggs/EggGrade.cs`, `src/Cluckwork.Domain/Modules/EggOperations/Eggs/DailyEntry.cs`
 - Modify: EF configurations and the hand-maintained `InitialCreate` (hand-edited, never regenerated) — **no second migration**, see Global Constraints
 - Modify: base-reference seed SQL and migration security/base-data tests
 - Modify: `src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs` — add the two quality snapshot ids to the `daily-entries` projection and `DailyEntryKind` to the `egg-grades` projection, so a full account export can still reconstruct which grade a condition counter represented
@@ -53,8 +53,8 @@ PR #395.
 ### Task 3: Extend the API contract and align Daily Entry and adjustment UI
 
 **Files:**
-- Modify: `src/Cluckwork.Api/Endpoints/DailyEntries/DailyEntryEndpoints.cs` — `DailyEntryResponse` gains the two quality snapshot ids
-- Modify: `src/Cluckwork.Api/Endpoints/EggGrades/EggGradeEndpoints.cs` — `EggGradeResponse` gains `DailyEntryKind`
+- Modify: `src/Cluckwork.Api/Modules/EggOperations/DailyEntries/DailyEntryEndpoints.cs` — `DailyEntryResponse` gains the two quality snapshot ids
+- Modify: `src/Cluckwork.Api/Modules/EggOperations/EggGrades/EggGradeEndpoints.cs` — `EggGradeResponse` gains `DailyEntryKind`
 - Modify: `web/src/api/cluckwork.ts` — mirror both DTO changes in the `DailyEntry` and `EggGrade` TypeScript contracts
 - Modify: `web/src/routes/DailyEntryPage.tsx`, `web/src/routes/HistoryPage.tsx`, shared dialog/styles if needed
 - Modify: `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts`

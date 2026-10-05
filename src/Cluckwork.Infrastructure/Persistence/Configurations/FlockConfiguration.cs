@@ -51,7 +51,7 @@ public sealed class BirdMovementConfiguration : IEntityTypeConfiguration<BirdMov
             .HasForeignKey(e => e.FlockId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Cluckwork.Domain.Eggs.DailyEntry>()
+        builder.HasOne<Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry>()
             .WithMany()
             .HasForeignKey(e => e.DailyEntryId)
             .OnDelete(DeleteBehavior.Restrict);
