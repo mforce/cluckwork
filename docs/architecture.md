@@ -91,10 +91,10 @@ all** — it never generated anything to reverse. States and guards live in
 `Infrastructure/Jobs/DailyEntryLockSweep.cs`, picks each farm's cutoff
 (`Submitted` entries strictly older than 7 farm-local days) and locks them
 through `IEggOperationsModule`; the lock loop itself is
-`Application/Features/DailyEntries/LockDueDailyEntries/LockDueDailyEntriesHandler.cs`.
+`Application/Modules/EggOperations/DailyEntries/LockDueDailyEntries/LockDueDailyEntriesHandler.cs`.
 
 `Submit` is the transition that creates stock — in one transaction with the
-state change (`Application/Features/DailyEntries/SubmitDailyEntry/`):
+state change (`Application/Modules/EggOperations/DailyEntries/SubmitDailyEntry/`):
 
 ```mermaid
 flowchart LR
