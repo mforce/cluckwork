@@ -104,7 +104,11 @@ resolution for `GetService`, `GetRequiredService`, `GetServices`,
 fields, properties, arbitrary object creation, service types passed through
 variables instead of `typeof`, reflection, inferred types, dependency
 forwarding, or the transitive dependencies of an injected handler. Primary constructors
-contribute their parameter types, not field initializers.
+contribute their parameter types, not field initializers. Because properties are
+not read, an `[AsParameters]` parameter fails the walk (#1073), whether written
+simply, qualified or through a file alias. Its bundled services would otherwise
+read as unused reach, and a bundled `AppDbContext` would escape the endpoint ban.
+Declare each dependency as its own handler parameter.
 
 Top-level method-group resolution follows visible local functions, named
 source types, static imports, and same-file partial `Program` methods. All

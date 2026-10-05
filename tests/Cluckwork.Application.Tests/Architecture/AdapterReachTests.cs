@@ -543,6 +543,27 @@ public sealed class AdapterReachTests : IDisposable
         Assert.Empty(AdapterReachScanner.Evaluate(Scan()));
     }
 
+    [Theory]
+    [InlineData("namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run([AsParameters] Cluckwork.Temp.Requests.Bundle bundle) { } }")]
+    [InlineData("namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run() { group.MapGet(\"/\", ([Microsoft.AspNetCore.Http.AsParametersAttribute] Cluckwork.Temp.Requests.Bundle bundle) => bundle); } }")]
+    [InlineData("using Bind = Microsoft.AspNetCore.Http.AsParametersAttribute; namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run([Bind] Cluckwork.Temp.Requests.Bundle bundle) { } }")]
+    public void AsParametersBundle_FailsClosedInsteadOfReadingAsUnusedReach(string endpoint)
+    {
+        WriteSource("Bundle.cs", "namespace Cluckwork.Temp.Requests; public class Bundle { public Cluckwork.Temp.Farm.Account Account { get; set; } = null!; }");
+        WriteSource("Endpoint.cs", endpoint);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan([Row()])));
+        Assert.StartsWith("[AsParameters] parameter bundle in " + Symbol + " at src/Endpoint.cs:1;", failure);
+        Assert.Equal(failure, Assert.Single(AdapterReachScanner.Evaluate(Scan())));
+    }
+
+    [Fact]
+    public void AsParametersBundledPersistence_FailsOnAnEndpoint()
+    {
+        WriteSource("Bundle.cs", "namespace Cluckwork.Temp.Requests; public class Bundle { public AppDbContext Db { get; set; } = null!; }");
+        WriteSource("Endpoint.cs", "namespace Cluckwork.Temp.Endpoints; public class Endpoint { public void Run([AsParameters] Cluckwork.Temp.Requests.Bundle bundle) { } }");
+        Assert.StartsWith("[AsParameters] parameter bundle in " + Symbol, Assert.Single(AdapterReachScanner.Evaluate(Scan())));
+    }
+
     [Fact]
     public void PlatformReach_IsIgnored()
     {
