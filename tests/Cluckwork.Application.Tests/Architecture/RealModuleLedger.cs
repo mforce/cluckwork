@@ -13,7 +13,6 @@ internal static partial class RealModuleLedger
 
     private static ModuleLedger Build() => ModuleLedger.Validate(new ModuleLedger(Owners, Edges, [])
     {
-        Tables = Tables,
         ForeignKeys = ForeignKeys,
         TableOwnerOverrides = TableOwnerOverrides,
         AdapterRoots = AdapterRoots,
