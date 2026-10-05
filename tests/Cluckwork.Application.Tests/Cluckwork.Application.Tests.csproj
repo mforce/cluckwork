@@ -7,6 +7,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,6 +19,7 @@
     <ProjectReference Include="..\..\src\Cluckwork.Domain\Cluckwork.Domain.csproj" />
     <ProjectReference Include="..\..\src\Cluckwork.Application\Cluckwork.Application.csproj" />
     <ProjectReference Include="..\..\src\Cluckwork.Infrastructure\Cluckwork.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Cluckwork.Analyzers\Cluckwork.Analyzers.csproj" />
   </ItemGroup>
 
   <!-- The source guards parse src/ with the symbols the compiler defines,
