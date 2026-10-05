@@ -6,7 +6,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-04
-**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. The remaining compatibility exception keeps `deleteWhen: "#859"` and now lives in `RealModuleLedger.Exemptions.cs`; #859 step 1 moved it unchanged and does not remove it.
+**Mechanism note (2026-10-04, #859):** the ledger rows now live in the `RealModuleLedger.*.cs` files in `tests/Cluckwork.Application.Tests/Architecture`, not in a JSON file. #859 step 1 moved the remaining compatibility exception unchanged; #859's last slice deleted it, so `CompatibilityExceptions` is empty (see [859](859-typed-rule-registries.md#the-last-compatibility-exception)).
 
 ## What happened
 
@@ -50,11 +50,11 @@ becomes injectable in Production. Skip the contract and the ledger guards fail.
 
 ## End state
 
-- **`compatibilityExceptions`:** one row, and none names #858.
-  `UserRoleAssignmentRepository.ListByNameByUserAsync` left-joins the filtered `Flocks` set
-  in one statement, so the flock-scope filter decides which names a caller sees (#613).
-  Replacing it with `IFlockLookup.GetDisplayNamesAsync` adds a round trip, so the assembly
-  split owns it (#859).
+- **`compatibilityExceptions`:** one row at #858's end, and none named #858.
+  `UserRoleAssignmentRepository.ListByNameByUserAsync` left-joined the filtered `Flocks` set
+  in one statement, so the flock-scope filter decided which names a caller saw (#613).
+  #859 replaced it with `IFlockLookup.GetDisplayNamesAsync`, accepting the extra round trip,
+  and deleted the row.
 - **Contracts:** every seeded module's contract lists its fixture port. These are Access
   (`IAccessSeedLookup`, `IAccessFixture`), Farm, Flock Management, Egg Operations,
   Commerce, General Inventory and Finance. Farm also lists `IFarmDirectory`. Insights

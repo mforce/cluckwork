@@ -46,8 +46,8 @@ that message unreachable.
 ## What this does NOT cover
 
 - The remaining compatibility exception, `UserRoleAssignmentRepository.ListByNameByUserAsync` with
-  `deleteWhen: "#859"`, moves byte-identical. Removing it is still #859's job (see
-  [858](858-platform-composition.md)).
+  `deleteWhen: "#859"`, moves byte-identical. The last slice removes it; see
+  [The last compatibility exception](#the-last-compatibility-exception).
 - No analyzer, no assembly split and no policy change. Known ledger gaps (`FarmModule` reading
   `DiscountCeiling`, Access reaching Commerce through `IIdentityProvider`, seven import-scope rows) stay as
   they are.
@@ -99,3 +99,42 @@ S2 was measured as follows:
   The row mutations above (M-b, M-f1, M-f2, M-f3, M-g, M-h, M-i, M-j and M-k), applied to the C# rows, and
   the `src/` mutations M-a, M-c and M-d turn the same tests red with the same messages.
 - The coupling matrix regenerates with only its first line changed.
+
+## The last compatibility exception
+
+`UserRoleAssignmentRepository.ListByNameByUserAsync` (Access) left-joined a user's assignments to Flock
+Management's filtered `Flocks` set, so the flock-scope filter (#613) decided which flock names a caller
+saw. The owner approved the replacement on 2026-10-04: `AccessModule.ListFlockAssignmentsAsync` reads
+the assignments through `IUserRoleAssignmentRepository.ListByUserAsync`, then names their flocks with
+one `IFlockLookup.GetDisplayNamesAsync` call bounded to the list's distinct flock ids. The repository
+method, its query tag and the exception row are deleted, `CompatibilityExceptions` is empty, and the
+Access to Flock Management edge names `AccessModule`. The owner declined a name cache: names are
+per farm and per viewer, a rename must show at once, and #271 allows one serving instance with no
+shared cache to invalidate.
+
+`GetDisplayNamesAsync` is ordinary LINQ over the filtered `Flocks` set, as the join was, so both reads
+apply the same `AccountId AND flock-scope` predicate:
+
+| | SQL |
+|---|---|
+| Before | one statement: `UserRoleAssignments` `LEFT JOIN (SELECT Id, Name FROM Flocks WHERE AccountId = @tenant AND (@unrestricted OR Id = ANY(@assigned)))`, ordered by assignment id |
+| After | `SELECT * FROM UserRoleAssignments WHERE AccountId = @tenant AND UserId = @userId ORDER BY Id`, then `SELECT Id, Name, Status FROM Flocks WHERE AccountId = @tenant AND (@unrestricted OR Id = ANY(@assigned)) AND Id = ANY(@ids)` |
+
+The differences are the second round trip, which the owner accepted; the `Id = ANY(@ids)` bound to the
+list's flock ids; full assignment rows instead of two columns; and no flock read when no assignment
+names a flock. The two statements do not share one snapshot, so a flock renamed between them shows its
+newer name.
+
+`NamedRowProjectionTests.FlockAssignmentList_IsIdenticalForEveryViewer` was written first and passed
+against the join. It pins the exact rows, in assignment-id order, for an Owner, a Worker scoped to one
+flock, another farm and a user with no assignments, over farm-wide, Active, Archived, Depleted, missing
+and other-farm flock rows. A row keeps its flock id whether or not the viewer may see the name.
+`AssignmentNames_AreOneBoundedFlockReferenceRead` replaces the single-`LEFT JOIN` shape guard.
+
+| Mutation | Red test | Message |
+|---|---|---|
+| The lookup drops the flock-scope filter but keeps the tenant | `FlockAssignmentList_IsIdenticalForEveryViewer`, `AssignmentProjection_RespectsFlockScopeForAWorker` | the scoped Worker sees the Depleted and Active names |
+| One flock id left out of the lookup | `AssignmentNames_AreOneBoundedFlockReferenceRead` and two assignment-name tests | expected 3 bound ids, actual 2 |
+| One lookup per row | `AssignmentNames_AreOneBoundedFlockReferenceRead` | three tagged flock reads where one is expected |
+| The exception row restored | `CompatibilityExceptionRealTreeTests` | "stale compatibility exception … (its trigger was #859)" |
+| The repository joins `Flocks` again | `CompatibilityExceptionRealTreeTests` | "undeclared compatibility exception …ListByNameByUserAsync -> FlockManagement" |

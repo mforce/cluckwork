@@ -29,8 +29,4 @@ internal static class ReferenceMarkers
     // Net-birds-per-flock aggregate bounded to returned flock ids
     // (BirdMovementRepository).
     public const string MovementAggregate = "cluckwork-movement-aggregate";
-
-    // The assignment-to-flock left-join projection
-    // (UserRoleAssignmentRepository).
-    public const string AssignmentProjection = "cluckwork-assignment-projection";
 }
