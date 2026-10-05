@@ -8,7 +8,6 @@ namespace Cluckwork.Domain.Modules.Commerce.Contracts;
 //
 // PreDating is written by the backfill only. Nothing in the application ever
 // sets it — a row the code writes always knows its own basis.
-[ModuleContract("Commerce")]
 public enum ListPriceBasis
 {
     /// <summary>A comparable list price was captured; ListUnitPriceMinorUnits is non-null.</summary>

@@ -2,7 +2,6 @@ namespace Cluckwork.Domain.Modules.Commerce.Contracts;
 
 // #721 — why an order was sold below list. Persisted BY NAME, so reordering
 // these members cannot silently relabel historical rows.
-[ModuleContract("Commerce")]
 public enum DiscountReasonCode
 {
     /// <summary>A bulk order earned a lower unit price.</summary>

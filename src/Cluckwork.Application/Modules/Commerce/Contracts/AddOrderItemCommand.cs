@@ -11,7 +11,6 @@ namespace Cluckwork.Application.Modules.Commerce.Contracts;
 // exists to prevent. When supplied and different from the current definition,
 // the write is refused (SalesOrder.UnitDefinitionChanged). Optional: raw API
 // callers and the seeders, which show no preview, skip the check with null.
-[ModuleContract("Commerce")]
 public sealed record AddOrderItemCommand(
     Guid SalesOrderId, Guid ProductId, int Quantity,
     string? Unit, long? UnitPriceMinorUnits, int? ExpectedEggsPerUnit = null,

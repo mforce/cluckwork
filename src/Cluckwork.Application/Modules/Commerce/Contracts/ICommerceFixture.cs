@@ -1,7 +1,6 @@
 namespace Cluckwork.Application.Modules.Commerce.Contracts;
 
 // Seed fixture reads and writes; registered beside the seeders outside Production.
-[ModuleContract("Commerce")]
 public interface ICommerceFixture
 {
     Task<Guid?> FindProductIdByNameAsync(string name, CancellationToken ct = default);
@@ -27,7 +26,6 @@ public interface ICommerceFixture
     Task PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct = default);
 }
 
-[ModuleContract("Commerce")]
 public sealed record CommerceFixtureCounts(
     int Customers,
     int SalesOrders,
