@@ -5,6 +5,7 @@ internal static partial class RealModuleLedger
     internal static readonly AdapterRoots AdapterRoots = new(
         [
             "Cluckwork.Api.Endpoints",
+            "Cluckwork.Api.Modules",
             "Cluckwork.Api.Cli",
             "Cluckwork.Infrastructure.Jobs",
         ],
@@ -14,7 +15,7 @@ internal static partial class RealModuleLedger
         ])
     {
         TopLevelPrograms = ["Cluckwork.Api"],
-        PersistenceForbiddenNamespaces = ["Cluckwork.Api.Endpoints"],
+        PersistenceForbiddenNamespaces = ["Cluckwork.Api.Endpoints", "Cluckwork.Api.Modules"],
     };
 
     internal static readonly AdapterClaim[] Adapters =

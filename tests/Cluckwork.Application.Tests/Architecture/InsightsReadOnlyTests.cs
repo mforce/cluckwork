@@ -57,8 +57,12 @@ public sealed class InsightsReadOnlyTests
     [Fact]
     public void Endpoints_DoNotUseTheReadSessionPortsDirectly()
     {
-        var files = GuardScanner.EnumerateSourceFiles(Path.Combine(RepoRoot, "src", "Cluckwork.Api", "Endpoints"));
-        Assert.NotEmpty(files);
+        // The whole Api project, so an endpoint moved under Modules (#1087) is still read. Only the module's
+        // registration may name the ports, wherever it sits.
+        var files = GuardScanner.EnumerateSourceFiles(Path.Combine(RepoRoot, "src", "Cluckwork.Api"))
+            .Where(f => Path.GetFileName(f) != "InsightsModuleServiceCollectionExtensions.cs")
+            .ToList();
+        Assert.True(files.Count >= 80, $"read only {files.Count} Api source files");
         foreach (var file in files)
             Assert.False(NamesReadSessionPort(File.ReadAllText(file)), file);
     }

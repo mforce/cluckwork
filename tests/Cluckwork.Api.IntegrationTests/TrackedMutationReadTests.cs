@@ -52,8 +52,14 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
     [Fact]
     public void AllMutableRepositoryReads_AreTracked()
     {
-        var dir = Path.Combine(FindRepoRoot(), "src", "Cluckwork.Infrastructure", "Repositories");
-        Assert.True(Directory.Exists(dir), $"Repository directory not found: {dir}");
+        // Repositories/ today, and Modules/<Owner>/Repositories/ once a module moves (#1087).
+        var infrastructure = Path.Combine(FindRepoRoot(), "src", "Cluckwork.Infrastructure");
+        var repositoryFiles = Directory.GetFiles(infrastructure, "*.cs", SearchOption.AllDirectories)
+            .Where(f => IsRepositoryFolder(
+                Path.GetRelativePath(infrastructure, Path.GetDirectoryName(f)!).Split(Path.DirectorySeparatorChar)))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.NotEmpty(repositoryFiles);
 
         var entityTypes = typeof(AppDbContext).GetProperties()
             .Select(p => p.PropertyType)
@@ -63,7 +69,8 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         Assert.True(entityTypes.Count >= 30, $"Expected at least 30 DbSet entities, found {entityTypes.Count}.");
 
         var expectedReads = typeof(AppDbContext).Assembly.GetTypes()
-            .Where(t => t.Namespace == "Cluckwork.Infrastructure.Repositories")
+            .Where(t => t.Namespace?.StartsWith("Cluckwork.Infrastructure.", StringComparison.Ordinal) == true
+                && IsRepositoryFolder(t.Namespace["Cluckwork.Infrastructure.".Length..].Split('.')))
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(m => m.ReturnType.IsGenericType
                     && m.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
@@ -94,7 +101,7 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         var discovered = new HashSet<(string Type, string Member)>();
         var violations = new List<string>();
 
-        foreach (var file in Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+        foreach (var file in repositoryFiles)
         {
             var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file).GetRoot();
             Assert.DoesNotContain(root.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
@@ -144,6 +151,11 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
             "Single-entity repository reads opt out of tracking without a documented read-only purpose:\n  " +
             string.Join("\n  ", violations));
     }
+
+    // Segments of a folder below the Infrastructure project, or of a namespace below Cluckwork.Infrastructure;
+    // subfolders count, as they did before #1087.
+    private static bool IsRepositoryFolder(string[] segments) =>
+        segments is ["Repositories", ..] or ["Modules", _, "Repositories", ..];
 
     private static string FindRepoRoot()
     {

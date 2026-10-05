@@ -175,6 +175,11 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMe
 
     public sealed record LookupEnvelope(IFlockLookup Lookup);
 
+    public sealed class HandlerContractFixture(IFlockStore flocks)
+    {
+        public Task<Guid> HandleAsync(Guid id) => Task.FromResult(flocks is null ? Guid.Empty : id);
+    }
+
     public sealed record StaticFieldEnvelope
     {
         public static Flock? Entity;
@@ -269,7 +274,7 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NestedPublicInte
 {
     using Cluckwork.Domain.Flocks;
 
-    public static class Contracts
+    public static class NestedContracts
     {
         public interface INestedQueryFixture
         {
@@ -579,6 +584,14 @@ namespace Cluckwork.Application.Tests.Architecture
         }
 
         [Fact]
+        public void Contract_RepositoryInAConstructor_IsAViolation()
+        {
+            var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.HandlerContractFixture>());
+            Assert.Contains("HandlerContractFixture..ctor", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+        }
+
+        [Fact]
         public void Contract_NestedInterfaceSignature_IsWalked()
         {
             var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.ILookupContractFixture>());
@@ -617,7 +630,7 @@ namespace Cluckwork.Application.Tests.Architecture
         [Fact]
         public void NestedPublicInterface_IsScanned()
         {
-            var failure = Assert.Single(Evaluate<NestedPublicInterfaceFixtures.Contracts.INestedQueryFixture>());
+            var failure = Assert.Single(Evaluate<NestedPublicInterfaceFixtures.NestedContracts.INestedQueryFixture>());
             Assert.Contains("INestedQueryFixture.Get", failure);
         }
 

@@ -18,19 +18,19 @@ public sealed class AccessLookupTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record FlockRow(Guid Id);
 
-    private sealed record Farm(Guid AccountId, Guid FarmId, Guid FlockA, Guid FlockB);
+    private sealed record SeededFarm(Guid AccountId, Guid FarmId, Guid FlockA, Guid FlockB);
 
-    private async Task<Farm> SeedFarmAsync()
+    private async Task<SeededFarm> SeedFarmAsync()
     {
         var accountId = await factory.SeedAccountWithUserAsync($"o-{Guid.NewGuid():N}@test.local");
         var farmId = Guid.NewGuid();
-        return new Farm(accountId, farmId,
+        return new SeededFarm(accountId, farmId,
             await factory.SeedFlockAsync(accountId, farmId),
             await factory.SeedFlockAsync(accountId, farmId));
     }
 
     // A null flock seeds a farm-wide row: FlockId null, FarmId set.
-    private async Task<(Guid Id, string Email)> SeedWorkerAsync(Farm farm, params Guid?[] flocks)
+    private async Task<(Guid Id, string Email)> SeedWorkerAsync(SeededFarm farm, params Guid?[] flocks)
     {
         var accountId = farm.AccountId;
         var email = $"w-{Guid.NewGuid():N}@test.local";

@@ -187,6 +187,16 @@ public static class SeamSurfaceScanner
                 Check(handler, evt.Name);
             }
         }
+
+        // A contract class's public constructor is surface too: a handler moved into Contracts/ (#1087) takes its
+        // repositories there.
+        if (rules.IsContract)
+        {
+            foreach (var parameter in declaring.GetConstructors().SelectMany(c => c.GetParameters()))
+            {
+                Check(parameter.ParameterType, ".ctor");
+            }
+        }
     }
 
     // One visited set per method, so a type parameter reached both as a
