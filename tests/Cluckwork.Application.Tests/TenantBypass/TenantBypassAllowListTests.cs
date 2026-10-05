@@ -550,6 +550,33 @@ public sealed class TenantBypassAllowListTests : IDisposable
             && f.Contains($"Symbol = \"A.R.Read(Guid accountId)\", File = \"src/A.cs\", Hash = \"{newHash}\"", StringComparison.Ordinal));
     }
 
+    // A local function passed as a method group is not a forwarding call site, so only its own row excuses
+    // it, and that row must still see the predicate it captures from the enclosing method.
+    [Fact]
+    public void EditingAPredicateCapturedByALocalBypass_UnexcusesIt()
+    {
+        const string member = """
+            namespace A;
+            public class R
+            {
+                public Task<Flock?> Read(Guid id, Guid accountId, CancellationToken ct)
+                {
+                    System.Linq.Expressions.Expression<Func<Flock, bool>> predicate = f => f.AccountId == accountId;
+                    Task<Flock?> Query() => db.Flocks.IgnoreQueryFilters().Where(predicate).FirstOrDefaultAsync(f => f.Id == id, ct);
+                    return db.Database.CreateExecutionStrategy().ExecuteAsync(Query);
+                }
+            }
+            """;
+        WriteSource("src/A.cs", member);
+        var allowList = Entries(("A.R.Read.Local(Query)", "src/A.cs", "fixture"));
+        Assert.Empty(GuardScanner.Evaluate(Scan(_tempRoot, allowList)));
+
+        WriteSource("src/A.cs", member.Replace("f => f.AccountId == accountId", "f => f.AccountId == f.AccountId", StringComparison.Ordinal));
+
+        Assert.Contains(GuardScanner.Evaluate(Scan(_tempRoot, allowList)), f =>
+            f.Contains("stale allow-list entry src/A.cs :: A.R.Read.Local(Query) — its member was edited", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void TwoRowsSharingAHash_FailClosed()
     {

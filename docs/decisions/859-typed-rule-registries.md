@@ -150,9 +150,12 @@ when file, symbol and hash all match.
 characters of SHA-256 over the Roslyn tokens, joined by single spaces, with literals kept exactly.
 Comments and whitespace are trivia, so they change nothing. Only the scope differs. A filter-free-set
 site hashes its innermost statement, because its key names one query. An allow-list row excuses every
-bypass in its member, so its hash covers the member its symbol names: the innermost local function,
-otherwise the method, otherwise the property accessor or property, otherwise the whole file for
-top-level statements and field initializers. A statement scope would have missed
+bypass in its member, so its hash covers the method its symbol names, otherwise the property accessor
+or property, otherwise the whole file for top-level statements and field initializers. A row for a
+local function (`Method.Local(Query)`) hashes the whole method around it, because the function can
+capture that method's locals. Passed as a method group, as in `ExecuteAsync(Query)`, it has no
+forwarding call site, so hashing only the function would leave a captured `Expression` predicate
+outside the fingerprint (security review of #1077). A statement scope would have missed
 `ExecuteLineageFenceAsync`, whose SQL is a `const string sql` declared in another statement, and any
 `Where` applied to an unfiltered query in a later statement. Each member has one hash, so no ordinal is
 needed. No attribute exclusion exists in the #632 hasher, so attributes on the member count as tokens.
@@ -171,6 +174,8 @@ and marks the old row stale with both hashes. Two rows sharing a hash are a regi
 | Two rows given one hash | not applicable | red: `duplicate allow-list hash cfe394af` |
 | Uniqueness check removed from `GuardScanner.Scan` | not applicable | `TwoRowsSharingAHash_FailClosed` red |
 | Hash dropped from excuse matching | not applicable | `EditingAnAllowListedMember_UnexcusesItUnlessOnlyTriviaChanged` red on its three token edits |
+| `GetByIdForFlockScopedWriteAsync` refactored into a local `Query()` passed to `ExecuteAsync(Query)`, its `.Local(Query)` row pinned, then only the captured `Expression` predicate edited | not applicable | red: stale `.Local(Query)` row (green when the hash covered only the local function) |
+| Hash scope put back to the innermost local function | not applicable | `EditingAPredicateCapturedByALocalBypass_UnexcusesIt` red |
 
 The hash proves only that a reviewer saw these tokens. It does not see inputs outside the member, such
 as a class-level constant, a helper the member calls or a wrapper in another file. Forwarding wrappers

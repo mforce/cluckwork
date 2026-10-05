@@ -7,10 +7,11 @@ namespace Cluckwork.Application.Tests.TenantBypass;
 //  * Symbol names the enclosing method in symbol display form (Namespace.Type.Method(paramTypes)). A call
 //    inside a local function keys as ContainingMethod.Local(localFunctionName) and is NOT covered by the
 //    parent's row.
-//  * Hash is GuardScanner.TokenHash over that whole member: 8 hex characters of SHA-256 over its Roslyn tokens,
-//    the #632 filter-free-set hasher. Comments and whitespace drop out; every other token, literals included,
-//    counts. Editing the member un-excuses its bypasses until a reviewer re-reads it and pastes the new Hash
-//    the failure prints (#1072). No two rows may share a Hash.
+//  * Hash is GuardScanner.TokenHash over that whole member, or over the whole method around a local function,
+//    whose locals it can capture: 8 hex characters of SHA-256 over its Roslyn tokens, the #632 filter-free-set
+//    hasher. Comments and whitespace drop out; every other token, literals included, counts. Editing the
+//    member un-excuses its bypasses until a reviewer re-reads it and pastes the new Hash the failure prints
+//    (#1072). No two rows may share a Hash.
 //  * A row matching zero sites is STALE and fails the build, so a deleted bypass cannot leave a live
 //    exemption behind.
 //  * Justification is mandatory. An unexplained exemption is the thing the guard exists to prevent.

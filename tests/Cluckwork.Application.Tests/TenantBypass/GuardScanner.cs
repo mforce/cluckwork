@@ -934,24 +934,16 @@ public static class GuardScanner
     // #1072 — an allow-list row excuses every bypass in the member its Symbol
     // names, so its Hash covers that whole member. A statement-scoped hash
     // would miss a predicate held in another statement of the same member,
-    // such as ExecuteLineageFenceAsync's `const string sql`.
-    internal static string MemberHashOf(SyntaxNode node) => TokenHash(EnclosingMemberOf(node));
-
-    // The member EnclosingSymbolOf names: the innermost local function inside
-    // a method, else the method, else the property accessor or property, else
-    // the whole file for top-level statements and field initializers.
-    internal static SyntaxNode EnclosingMemberOf(SyntaxNode node)
-    {
-        if (node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>() is { } method)
-        {
-            return node.Ancestors().OfType<LocalFunctionStatementSyntax>()
-                .FirstOrDefault(lf => lf.Span.Contains(node.Span)) ?? (SyntaxNode)method;
-        }
-
-        return (SyntaxNode?)node.FirstAncestorOrSelf<AccessorDeclarationSyntax>()
-            ?? (SyntaxNode?)node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()
-            ?? node.SyntaxTree.GetRoot();
-    }
+    // such as ExecuteLineageFenceAsync's `const string sql`. A bypass inside a
+    // local function hashes the method around it, whose locals it can capture:
+    // passed as a method group (`ExecuteAsync(Query)`) it has no forwarding call
+    // site, so its captured predicate would otherwise go unhashed. Top-level
+    // statements and field initializers hash the whole file.
+    internal static string MemberHashOf(SyntaxNode node) => TokenHash(
+        (SyntaxNode?)node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>()
+        ?? (SyntaxNode?)node.FirstAncestorOrSelf<AccessorDeclarationSyntax>()
+        ?? (SyntaxNode?)node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()
+        ?? node.SyntaxTree.GetRoot());
 
     // Comments out, whitespace uniform, LITERALS UNTOUCHED. #698 review: the
     // first version ran regexes over `scope.ToString()`, which reads `//`
@@ -1001,21 +993,18 @@ public static class GuardScanner
     // covered by the parent method's allow-list entry (design M7).
     internal static string EnclosingSymbolOf(SyntaxNode node, string file)
     {
-        switch (EnclosingMemberOf(node))
+        var method = node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>();
+        if (method is null)
         {
-            case LocalFunctionStatementSyntax local:
-                var parent = local.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>()!;
-                return $"{SymbolPrefix(parent, file)}.{MethodName(parent)}.Local({local.Identifier.ValueText})";
-            case BaseMethodDeclarationSyntax method:
-                return $"{SymbolPrefix(method, file)}.{MethodName(method)}({ParameterTypes(method)})";
-            case AccessorDeclarationSyntax or BasePropertyDeclarationSyntax:
-                // #698 review — a query in an expression-bodied PROPERTY has no
-                // BaseMethodDeclarationSyntax ancestor, and used to land in the
-                // top-level case: every such site in one file keyed as the same
-                // "<file>.<top-level>", so two of them could not be told apart
-                // and neither could be located. Name the property (and the
-                // accessor, when there is one) the way a method is named.
-                var property = node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()!;
+            // #698 review — a query in an expression-bodied PROPERTY has no
+            // BaseMethodDeclarationSyntax ancestor, and used to land here: every
+            // such site in one file keyed as the same "<file>.<top-level>",
+            // so two of them could not be told apart and neither could be
+            // located. Name the property (and the accessor, when there is one)
+            // the way a method is named.
+            var property = node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>();
+            if (property is not null)
+            {
                 var name = property switch
                 {
                     PropertyDeclarationSyntax prop => prop.Identifier.ValueText,
@@ -1026,11 +1015,21 @@ public static class GuardScanner
                 var accessor = node.FirstAncestorOrSelf<AccessorDeclarationSyntax>();
                 var suffix = accessor is null ? string.Empty : $".{accessor.Keyword.ValueText}";
                 return $"{SymbolPrefix(property, file)}.{name}{suffix}";
-            default:
-                // Top-level statements or static initializers: name them as such
-                // rather than pretending a method exists.
-                return $"<{Path.GetFileName(file)}>.<top-level>";
+            }
+
+            // Top-level statements or static initializers: name them as such
+            // rather than pretending a method exists.
+            return $"<{Path.GetFileName(file)}>.<top-level>";
         }
+
+        var local = node.Ancestors().OfType<LocalFunctionStatementSyntax>()
+            .FirstOrDefault(lf => lf.Span.Contains(node.Span));
+        if (local is not null)
+        {
+            return $"{SymbolPrefix(method, file)}.{MethodName(method)}.Local({local.Identifier.ValueText})";
+        }
+
+        return $"{SymbolPrefix(method, file)}.{MethodName(method)}({ParameterTypes(method)})";
     }
 
     private static string MethodName(BaseMethodDeclarationSyntax method)
