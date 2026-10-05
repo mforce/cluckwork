@@ -7,8 +7,6 @@ public sealed class CompatibilityExceptionTests : IDisposable
     private readonly string _tempRoot = Directory.CreateTempSubdirectory("compatibility-exception-").FullName;
     private const string Symbol = "Cluckwork.Temp.Probe.Run";
     private static readonly string[] FinanceTables = ["Expenses", "ExpenseCategories"];
-    private static readonly TableClaim[] Tables =
-        [new("Finance", "Expenses"), new("Finance", "ExpenseCategories"), new("Insights", "Flocks")];
 
     private const string FixtureDb = """
         using Cluckwork.Domain.Expenses;
@@ -56,7 +54,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     }
 
     private IReadOnlyList<string> Evaluate(IReadOnlyList<CompatibilityException>? rows = null,
-        IReadOnlyList<string>? implementations = null, IReadOnlyList<TableClaim>? tables = null)
+        IReadOnlyList<string>? implementations = null, IReadOnlyList<TableOwnerOverride>? overrides = null)
     {
         var ledger = ModuleLedger.Validate(new ModuleLedger(
             [
@@ -65,12 +63,12 @@ public sealed class CompatibilityExceptionTests : IDisposable
                 {
                     Contract = ["Cluckwork.Temp.Finance.IFinanceModule"], Implementations = implementations ?? [],
                 },
-                new("Insights", "module", ["Cluckwork.Temp.Insights"], []),
+                new("Insights", "module", ["Cluckwork.Temp.Insights", "Cluckwork.Domain.Flocks"], []),
             ],
             [new("Insights", "Finance", "R", "test", ["Cluckwork.Temp.Insights.Declared"])],
             [])
         {
-            Tables = tables ?? Tables,
+            TableOwnerOverrides = overrides ?? [],
             CompatibilityExceptions = rows ?? [],
         });
         return CompatibilityExceptionScanner.Evaluate(CompatibilityExceptionScanner.Scan(Path.Combine(_tempRoot, "src"), ledger));
@@ -130,7 +128,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
         WriteProbe("return db.ExpenseCategories.Count();");
 
         Assert.Single(Evaluate());
-        Assert.Empty(Evaluate(tables: [new("Finance", "Expenses"), new("Insights", "Flocks"), new("Insights", "ExpenseCategories")]));
+        Assert.Empty(Evaluate(overrides: [new("ExpenseCategories", "Insights", "test")]));
     }
 
     [Fact]
@@ -252,7 +250,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
     [InlineData("Finance", "Expenses", "", "test", "#858", "blank or non-string 'owner'")]
     [InlineData("Finance", "Expenses", "Hub", "", "#858", "blank or non-string 'reason'")]
     [InlineData("Finance", "", "Hub", "test", "#858", "names no tables")]
-    [InlineData("Finance", "Flocks", "Hub", "test", "#858", "do not give to Finance")]
+    [InlineData("Finance", "Flocks", "Hub", "test", "#858", "whose table owner is not Finance")]
     [InlineData("Finance", "Expenses", "Hub", "test", "2026-12-31", "never a date")]
     [InlineData("Finance", "Expenses", "Nobody", "test", "#858", "unknown owner 'Nobody'")]
     [InlineData("Insights", "Flocks", "Hub", "test", "#858", "declares no contract")]

@@ -27,11 +27,9 @@ public sealed record OwnerDefinition(
 
 public sealed record EdgeCell(string From, string To, string Kind, string Reason, IReadOnlyList<string> Symbols);
 
-public sealed record TableClaim(string Owner, string Table);
-
 public sealed record ForeignKeyCell(string Table, string Name, string From, string To, string Reason);
 
-public sealed record TableOwnerOverride(string Table, string Reason);
+public sealed record TableOwnerOverride(string Table, string Owner, string Reason);
 
 public sealed record AdapterRoots(IReadOnlyList<string> Namespaces, IReadOnlyList<string> Types)
 {
@@ -64,7 +62,6 @@ public sealed record ModuleLedger(
     IReadOnlyList<EdgeCell> Edges,
     IReadOnlyList<string> RegistryErrors)
 {
-    public IReadOnlyList<TableClaim> Tables { get; init; } = [];
     public IReadOnlyList<ForeignKeyCell> ForeignKeys { get; init; } = [];
     public IReadOnlyList<TableOwnerOverride> TableOwnerOverrides { get; init; } = [];
 
@@ -96,13 +93,6 @@ public sealed record ModuleLedger(
         for (var index = 0; index < ledger.Edges.Count; index++)
             ValidateEdge(ledger.Edges[index], index, errors);
 
-        foreach (var claims in ledger.Tables.GroupBy(t => t.Owner, StringComparer.Ordinal))
-        {
-            if (!ledger.Owners.Any(o => o.Name == claims.Key))
-                errors.Add($"tables references unknown owner '{claims.Key}'");
-            NonBlank(claims.Select(c => c.Table).ToList(), claims.Key, "tables", errors);
-        }
-
         for (var index = 0; index < ledger.ForeignKeys.Count; index++)
         {
             var (fk, label) = (ledger.ForeignKeys[index], $"foreignKeys[{index}]");
@@ -117,6 +107,7 @@ public sealed record ModuleLedger(
         {
             var (row, label) = (ledger.TableOwnerOverrides[index], $"tableOwnerOverrides[{index}]");
             Required(row.Table, "table", label, errors);
+            Required(row.Owner, "owner", label, errors);
             Required(row.Reason, "reason", label, errors);
         }
 

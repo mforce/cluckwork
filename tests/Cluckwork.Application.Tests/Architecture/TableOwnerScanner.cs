@@ -12,6 +12,9 @@ public sealed record TableOwnerReport(
     IReadOnlyList<string> Violations)
 {
     public int ExpectedTableCountFloor { get; init; } = 30;
+
+    // Table -> owner: the override's owner, else the CLR namespace's module owner. A table with no single owner is absent.
+    public IReadOnlyDictionary<string, string> Owners { get; init; } = new Dictionary<string, string>();
 }
 
 public static class TableOwnerScanner
@@ -22,9 +25,6 @@ public static class TableOwnerScanner
         var violations = new List<string>();
         var kinds = ledger.Owners.GroupBy(o => o.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First().Kind, StringComparer.Ordinal);
-        var claims = ledger.Tables.GroupBy(t => t.Table, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.Select(t => t.Owner).Distinct(StringComparer.Ordinal)
-                .Order(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
         // Every table an entity maps to: its primary table plus any SplitToTable fragment.
         var mapped = model.GetEntityTypes()
             .SelectMany(e => TableStoreObjects(e).Select(t => (Table: Qualify(t.Name, t.Schema), Entity: e)))
@@ -33,10 +33,9 @@ public static class TableOwnerScanner
         var tableNames = mapped.Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
         ValidateRegistry(ledger, kinds, tableNames, errors);
 
-        string? Owner(string? table) => table is not null && claims.TryGetValue(table, out var owners)
-            && owners.Length == 1 && kinds.ContainsKey(owners[0]) ? owners[0] : null;
-
-        var overridden = ledger.TableOwnerOverrides.Select(o => o.Table).ToHashSet(StringComparer.Ordinal);
+        var overrides = ledger.TableOwnerOverrides.GroupBy(o => o.Table, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Owner, StringComparer.Ordinal);
+        var tableOwners = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var table in mapped)
         {
             // Shared owned values and join dictionaries do not reclassify their enclosing table.
@@ -44,25 +43,33 @@ public static class TableOwnerScanner
             var entities = table.Select(p => p.Entity).Where(e => !e.IsOwned() && !e.HasSharedClrType).ToList();
             if (entities.Count == 0)
                 entities = table.Select(p => p.Entity).ToList();
-            if (!claims.TryGetValue(table.Key, out var owners))
-                violations.Add($"table '{table.Key}' (entity {entities[0].Name}) has no owner");
-            else if (owners.Length > 1)
-                violations.Add($"table '{table.Key}' claimed by {string.Join(", ", owners)}");
-            else if (!overridden.Contains(table.Key))
+            var resolved = entities.Select(e => (Entity: e, Owners: ResolveOwners(e.ClrType.Namespace, ledger))).ToList();
+            var namespaceOwners = resolved.SelectMany(r => r.Owners).Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal).ToArray();
+            var unowned = resolved.FirstOrDefault(r => r.Owners.Length == 0).Entity;
+            // Platform's claims are a free hub, so a move into one is invisible to every other guard (#1074).
+            var platform = resolved.FirstOrDefault(r => r.Owners.Any(o => kinds[o] == ModuleLedger.PlatformKind)).Entity;
+            if (overrides.TryGetValue(table.Key, out var overrideOwner))
             {
-                foreach (var entity in entities)
-                {
-                    var namespaceOwners = ResolveOwners(entity.ClrType.Namespace, ledger);
-                    if (namespaceOwners.Length != 1 || namespaceOwners[0] != owners[0])
-                        violations.Add($"table '{table.Key}' owner {owners[0]} disagrees with CLR namespace owner " +
-                            $"{(namespaceOwners.Length == 0 ? "<unowned>" : string.Join(", ", namespaceOwners))} " +
-                            $"(entity {entity.Name})");
-                }
+                if (unowned is null && platform is null && namespaceOwners is [var only] && only == overrideOwner)
+                    violations.Add($"table-owner override '{table.Key}' restates its CLR namespace owner {only}");
+                tableOwners[table.Key] = overrideOwner;
             }
+            else if (unowned is not null)
+                violations.Add($"table '{table.Key}' (entity {unowned.Name}) has no owner");
+            else if (platform is not null)
+                violations.Add($"table '{table.Key}' (entity {platform.Name}) resolves to a Platform namespace, which never " +
+                    "derives a table owner — move the entity into a module namespace, or add to " +
+                    $"RealModuleLedger.TableOwnerOverrides: new({RealModuleLedger.Quote(table.Key)}, \"Platform\", \"\"),");
+            else if (namespaceOwners.Length > 1)
+                violations.Add($"table '{table.Key}' claimed by " +
+                    string.Join(", ", resolved.Select(r => $"{string.Join(", ", r.Owners)} (entity {r.Entity.Name})")));
+            else
+                tableOwners[table.Key] = namespaceOwners[0];
         }
 
-        foreach (var row in ledger.Tables.Where(t => !tableNames.Contains(t.Table)))
-            violations.Add($"stale table row '{row.Table}' under owner {row.Owner}");
+        string? Owner(string? table) => table is not null && tableOwners.TryGetValue(table, out var owner)
+            && kinds.ContainsKey(owner) ? owner : null;
 
         var foreignKeys = new List<CrossOwnerForeignKey>();
         foreach (var entity in model.GetEntityTypes())
@@ -107,7 +114,7 @@ public static class TableOwnerScanner
                     string.Join(", ", matches.Select(f => $"{f.From} to {f.To}")));
         }
 
-        return new TableOwnerReport(mapped.Count, live, errors, violations);
+        return new TableOwnerReport(mapped.Count, live, errors, violations) { Owners = tableOwners };
     }
 
     public static IReadOnlyList<string> Evaluate(TableOwnerReport report)
@@ -147,15 +154,6 @@ public static class TableOwnerScanner
     {
         foreach (var duplicate in ledger.Owners.GroupBy(o => o.Name).Where(g => g.Count() > 1))
             errors.Add($"duplicate owner '{duplicate.Key}'");
-        foreach (var row in ledger.Tables)
-        {
-            if (!kinds.ContainsKey(row.Owner))
-                errors.Add($"table '{row.Table}' references unknown owner '{row.Owner}'");
-            if (string.IsNullOrWhiteSpace(row.Table))
-                errors.Add($"blank table under owner {row.Owner}");
-        }
-        foreach (var duplicate in ledger.Tables.GroupBy(t => (t.Owner, t.Table)).Where(g => g.Count() > 1))
-            errors.Add($"table '{duplicate.Key.Table}' listed twice under owner {duplicate.Key.Owner}");
         foreach (var row in ledger.ForeignKeys)
         {
             if (string.IsNullOrWhiteSpace(row.Table) || string.IsNullOrWhiteSpace(row.Name) || string.IsNullOrWhiteSpace(row.Reason))
@@ -172,6 +170,8 @@ public static class TableOwnerScanner
                 errors.Add($"table-owner override '{row.Table}' has a blank reason");
             if (!tableNames.Contains(row.Table))
                 errors.Add($"stale table-owner override '{row.Table}'");
+            if (!kinds.ContainsKey(row.Owner))
+                errors.Add($"table-owner override '{row.Table}' references unknown owner '{row.Owner}'");
         }
         foreach (var duplicate in ledger.TableOwnerOverrides.GroupBy(o => o.Table).Where(g => g.Count() > 1))
             errors.Add($"duplicate table-owner override '{duplicate.Key}'");

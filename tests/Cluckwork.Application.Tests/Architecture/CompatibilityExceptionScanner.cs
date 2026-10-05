@@ -69,19 +69,22 @@ public static class CompatibilityExceptionScanner
         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
-    // Entity CLR type -> every table it maps to, from the real model, so a read is classified by the
-    // ledger's table owner rather than the entity's namespace (UserRoleAssignment is the counterexample).
-    private static readonly Lazy<IReadOnlyDictionary<string, string[]>> EntityTables = new(() =>
+    private static readonly Lazy<IModel> RealModel = new(() =>
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Database=unreachable;Username=unreachable;Password=unreachable")
             .EnableServiceProviderCaching(false).Options;
         using var context = new AppDbContext(options, new TenantContext(), new FlockScope());
-        return context.Model.GetEntityTypes()
+        return context.Model;
+    });
+
+    // Entity CLR type -> every table it maps to, from the real model, so a read is classified by the
+    // table's owner rather than the entity's namespace (UserRoleAssignment is the counterexample).
+    private static readonly Lazy<IReadOnlyDictionary<string, string[]>> EntityTables = new(() =>
+        RealModel.Value.GetEntityTypes()
             .Where(e => !e.HasSharedClrType && !e.IsOwned())
             .ToDictionary(e => ClrKey(e.ClrType), e => QueriedTables(e).Distinct(StringComparer.Ordinal).ToArray(),
-                StringComparer.Ordinal);
-    });
+                StringComparer.Ordinal));
 
     // A query of a set also loads its owned values and, for a base type, its derived types,
     // and EF joins their tables when they are mapped apart from the principal's.
@@ -99,8 +102,7 @@ public static class CompatibilityExceptionScanner
         var index = ModuleLedgerScanner.BuildNamespaceIndex(ledger, registryErrors);
         var contracted = ledger.Owners.Where(o => o.Contract.Count > 0)
             .ToDictionary(o => o.Name, StringComparer.Ordinal);
-        var tableOwners = ledger.Tables.GroupBy(t => t.Table, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First().Owner, StringComparer.Ordinal);
+        var tableOwners = TableOwnerScanner.Scan(RealModel.Value, ledger).Owners;
         ValidateRows(ledger, contracted, tableOwners, registryErrors);
 
         string? OwnerOf(INamespaceSymbol ns) =>
@@ -297,8 +299,8 @@ public static class CompatibilityExceptionScanner
 
             foreach (var table in row.Tables.Where(t => tableOwners.GetValueOrDefault(t) != row.Reaches))
             {
-                errors.Add($"compatibilityExceptions row '{row.Symbol}' names table '{table}', which the ledger's " +
-                    $"tables do not give to {row.Reaches}");
+                errors.Add($"compatibilityExceptions row '{row.Symbol}' names table '{table}', whose table owner " +
+                    $"is not {row.Reaches}");
             }
         }
 

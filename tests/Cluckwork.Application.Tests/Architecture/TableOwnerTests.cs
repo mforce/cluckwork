@@ -10,7 +10,6 @@ namespace Cluckwork.Application.Tests.Architecture
             [new("Red", "module", ["Cluckwork.Application.Tests.Architecture.TableOwnerFixtures"], []),
              new("Blue", "module", [], ["Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue"])], [], [])
         {
-            Tables = [new("Red", "Parents"), new("Blue", "Children")],
             ForeignKeys = [new("Children", "FK_Children_Parents_ParentId", "Blue", "Red", "a child references its parent")],
         };
 
@@ -32,43 +31,58 @@ namespace Cluckwork.Application.Tests.Architecture
         }
 
         [Fact]
-        public void MissingTable_HasNoOwner() =>
-            Assert.Contains(Evaluate(Ledger() with { Tables = [new("Red", "Parents")] }),
-                f => f == "table 'Children' (entity Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue.Models.Child) has no owner");
+        public void EachTable_IsOwnedByItsEntitysNamespaceOwner() =>
+            Assert.Equal(new Dictionary<string, string> { ["Children"] = "Blue", ["Parents"] = "Red" }, Scan(Ledger()).Owners);
 
         [Fact]
-        public void TableClaimedByTwoOwners_NamesBoth() =>
-            Assert.Contains("table 'Children' claimed by Blue, Red", Evaluate(Ledger() with
-                { Tables = [.. Ledger().Tables, new("Red", "Children")] }));
+        public void NamespaceClaimedByTwoOwners_NamesBoth() =>
+            Assert.Contains("table 'Children' claimed by Blue, Green (entity Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue.Models.Child)",
+                Evaluate(Ledger() with
+                {
+                    Owners = [.. Ledger().Owners, new("Green", "module", ["Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue"], [])],
+                }));
 
         [Fact]
-        public void UnmappedTable_IsStale() =>
-            Assert.Contains("stale table row 'Gone' under owner Red", Evaluate(Ledger() with
-                { Tables = [.. Ledger().Tables, new("Red", "Gone")] }));
+        public void EntityMovedToAnotherOwnersNamespace_ReownsItsTable()
+        {
+            var moved = Ledger() with { Owners = [Ledger().Owners[0], Ledger().Owners[1] with { ExactNamespaces = ["Elsewhere"] }] };
+
+            Assert.Equal("Red", Scan(moved).Owners["Children"]);
+            Assert.Contains("stale foreign-key row 'FK_Children_Parents_ParentId' on Children from Blue to Red", Evaluate(moved));
+        }
 
         [Fact]
-        public void UnknownTableOwner_IsRegistryError() =>
-            Assert.Contains("table-owner registry error: table 'Gone' references unknown owner 'Unknown'",
-                Evaluate(Ledger() with { Tables = [.. Ledger().Tables, new("Unknown", "Gone")] }));
-
-        [Fact]
-        public void TableRepeatedUnderOneOwner_IsRegistryError() =>
-            Assert.Contains("table-owner registry error: table 'Parents' listed twice under owner Red",
-                Evaluate(Ledger() with { Tables = [.. Ledger().Tables, new("Red", "Parents")] }));
-
-        [Fact]
-        public void NamespaceOwnerMismatch_NamesBothOwners() =>
-            Assert.Contains(Evaluate(Ledger() with { Tables = [new("Red", "Parents"), new("Red", "Children")] }),
-                f => f.Contains("table 'Children' owner Red disagrees with CLR namespace owner Blue"));
-
-        [Fact]
-        public void ReasonedOverride_AllowsNamespaceMismatch() =>
-            Assert.Empty(Evaluate(Ledger() with
+        public void ReasonedOverride_DecidesTheOwner()
+        {
+            var ledger = Ledger() with
             {
-                Tables = [new("Red", "Parents"), new("Red", "Children")],
                 ForeignKeys = [],
-                TableOwnerOverrides = [new("Children", "fixture design assigns children to Red")],
-            }));
+                TableOwnerOverrides = [new("Children", "Red", "fixture design assigns children to Red")],
+            };
+
+            Assert.Empty(Evaluate(ledger));
+            Assert.Equal("Red", Scan(ledger).Owners["Children"]);
+        }
+
+        [Fact]
+        public void OverrideRestatingTheNamespaceOwner_Fails() =>
+            Assert.Contains("table-owner override 'Children' restates its CLR namespace owner Blue",
+                Evaluate(Ledger() with { TableOwnerOverrides = [new("Children", "Blue", "redundant")] }));
+
+        [Fact]
+        public void OverrideOfUnmappedTable_IsStale() =>
+            Assert.Contains("table-owner registry error: stale table-owner override 'Gone'",
+                Evaluate(Ledger() with { TableOwnerOverrides = [new("Gone", "Red", "removed")] }));
+
+        [Fact]
+        public void DuplicateOverride_IsRegistryError() =>
+            Assert.Contains("table-owner registry error: duplicate table-owner override 'Children'",
+                Evaluate(Ledger() with { TableOwnerOverrides = [new("Children", "Red", "one"), new("Children", "Red", "two")] }));
+
+        [Fact]
+        public void UnknownOverrideOwner_IsRegistryError() =>
+            Assert.Contains("table-owner registry error: table-owner override 'Children' references unknown owner 'Unknown'",
+                Evaluate(Ledger() with { TableOwnerOverrides = [new("Children", "Unknown", "typo")] }));
 
         [Fact]
         public void LongestPrefixAndExactClaims_ResolveDescendantNamespaces() =>
@@ -79,10 +93,9 @@ namespace Cluckwork.Application.Tests.Architecture
             }));
 
         [Fact]
-        public void UnclaimedClrNamespace_FailsClosed() =>
-            Assert.Contains(Evaluate(Ledger() with
-                { Owners = [new("Red", "module", ["Elsewhere"], []), Ledger().Owners[1]] }),
-                f => f.Contains("table 'Parents' owner Red disagrees with CLR namespace owner <unowned>"));
+        public void UnclaimedClrNamespace_HasNoOwner() =>
+            Assert.Contains("table 'Parents' (entity Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Parent) has no owner",
+                Evaluate(Ledger() with { Owners = [new("Red", "module", ["Elsewhere"], []), Ledger().Owners[1]] }));
 
         [Fact]
         public void UndeclaredForeignKey_PrintsRow() =>
@@ -114,16 +127,28 @@ namespace Cluckwork.Application.Tests.Architecture
             {
                 Owners = Ledger().Owners.Select(o => o.Name == platform ? o with { Kind = "platform" } : o).ToList(),
                 ForeignKeys = [],
+                TableOwnerOverrides = [new(platform == "Red" ? "Parents" : "Children", platform, "fixture hub table")],
             };
             Assert.Empty(Evaluate(ledger));
             Assert.Empty(Scan(ledger).CrossOwnerForeignKeys);
         }
 
         [Fact]
+        public void PlatformNamespace_NeverDerivesAnOwner()
+        {
+            var ledger = Ledger() with { Owners = [Ledger().Owners[0] with { Kind = "platform" }, Ledger().Owners[1]], ForeignKeys = [] };
+
+            Assert.Contains("table 'Parents' (entity Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Parent) resolves to a " +
+                "Platform namespace, which never derives a table owner — move the entity into a module namespace, or add to " +
+                "RealModuleLedger.TableOwnerOverrides: new(\"Parents\", \"Platform\", \"\"),", Evaluate(ledger));
+            Assert.DoesNotContain("Parents", Scan(ledger).Owners.Keys);
+            Assert.Empty(Evaluate(ledger with { TableOwnerOverrides = [new("Parents", "Red", "fixture hub table")] }));
+        }
+
+        [Fact]
         public void SplitTableFragment_IsDiscovered() =>
-            Assert.Contains(Evaluate(Ledger(), m => m.Entity<Fixtures.Parent>()
-                .SplitToTable("ParentDetails", t => t.Property(p => p.Name))),
-                f => f.StartsWith("table 'ParentDetails' ") && f.EndsWith("has no owner"));
+            Assert.Equal("Red", Scan(Ledger(), m => m.Entity<Fixtures.Parent>()
+                .SplitToTable("ParentDetails", t => t.Property(p => p.Name))).Owners["ParentDetails"]);
 
         [Theory]
         [InlineData(null, "ChildDetails")]
@@ -132,7 +157,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             void SplitChild(ModelBuilder m) => m.Entity<Fixtures.Blue.Models.Child>()
                 .SplitToTable("ChildDetails", schema, t => t.Property(c => c.ParentId));
-            var ledger = Ledger() with { Tables = [.. Ledger().Tables, new("Blue", table)] };
+            var ledger = Ledger();
             var report = Scan(ledger, SplitChild);
 
             Assert.Equal(new CrossOwnerForeignKey(table, "FK_Children_Parents_ParentId", "Blue", "Red"),
@@ -153,7 +178,7 @@ namespace Cluckwork.Application.Tests.Architecture
             void SecondDependent(ModelBuilder m) => m.Entity<Fixtures.Blue.Models.Other>().ToTable("Others")
                 .HasOne<Fixtures.Parent>().WithMany().HasForeignKey(o => o.ParentId)
                 .HasConstraintName("FK_Children_Parents_ParentId");
-            var ledger = Ledger() with { Tables = [.. Ledger().Tables, new("Blue", "Others")] };
+            var ledger = Ledger();
 
             Assert.Contains(Evaluate(ledger, SecondDependent),
                 f => f.StartsWith("undeclared cross-owner foreign key FK_Children_Parents_ParentId on Others"));
@@ -176,9 +201,9 @@ namespace Cluckwork.Application.Tests.Architecture
         }
 
         [Fact]
-        public void DistinctOwnedTable_IsStillDiscovered() =>
-            Assert.Contains(Evaluate(Ledger(), m => m.Entity<Fixtures.Parent>().OwnsOne(p => p.Value,
-                owned => owned.ToTable("OwnedValues"))), f => f.StartsWith("table 'OwnedValues' ") && f.EndsWith("has no owner"));
+        public void DistinctOwnedTable_IsOwnedByTheOwnedTypesNamespace() =>
+            Assert.Equal("Blue", Scan(Ledger(), m => m.Entity<Fixtures.Parent>().OwnsOne(p => p.Value,
+                owned => owned.ToTable("OwnedValues"))).Owners["OwnedValues"]);
 
         [Fact]
         public void DistinctShadowJoinTable_IsStillDiscovered() =>
@@ -191,8 +216,7 @@ namespace Cluckwork.Application.Tests.Architecture
 
         [Fact]
         public void NonPublicSchema_QualifiesTableName() =>
-            Assert.Empty(Evaluate(Ledger() with { Tables = [new("Red", "farm.Parents"), new("Blue", "Children")] },
-                m => m.Entity<Fixtures.Parent>().ToTable("Parents", "farm")));
+            Assert.Equal("Red", Scan(Ledger(), m => m.Entity<Fixtures.Parent>().ToTable("Parents", "farm")).Owners["farm.Parents"]);
 
         [Fact]
         public void PublicSchema_UsesUnqualifiedTableName() =>
@@ -212,11 +236,6 @@ namespace Cluckwork.Application.Tests.Architecture
         }
 
         [Fact]
-        public void BlankTableName_IsRejectedByValidate() => AssertValidateRejects(
-            Ledger() with { Tables = [.. Ledger().Tables, new("Red", "")] },
-            "tables has a blank or non-string entry in 'Red'");
-
-        [Fact]
         public void BlankForeignKeyName_IsRejectedByValidate() => AssertValidateRejects(
             Ledger() with { ForeignKeys = [Ledger().ForeignKeys[0] with { Name = "" }] },
             "foreignKeys[0] has a blank or non-string 'name'");
@@ -228,13 +247,13 @@ namespace Cluckwork.Application.Tests.Architecture
 
         [Fact]
         public void BlankOverrideReason_IsRejectedByValidate() => AssertValidateRejects(
-            Ledger() with { TableOwnerOverrides = [new("Parents", "")] },
+            Ledger() with { TableOwnerOverrides = [new("Parents", "Blue", "")] },
             "tableOwnerOverrides[0] has a blank or non-string 'reason'");
 
         [Fact]
-        public void UnknownTableOwner_IsRejectedByValidate() => AssertValidateRejects(
-            Ledger() with { Tables = [.. Ledger().Tables, new("Unknown", "Gone")] },
-            "tables references unknown owner 'Unknown'");
+        public void BlankOverrideOwner_IsRejectedByValidate() => AssertValidateRejects(
+            Ledger() with { TableOwnerOverrides = [new("Parents", " ", "fixture")] },
+            "tableOwnerOverrides[0] has a blank or non-string 'owner'");
 
         [Fact]
         public void DuplicateForeignKey_IsRegistryError() =>
@@ -244,7 +263,7 @@ namespace Cluckwork.Application.Tests.Architecture
         [Fact]
         public void BlankOverrideReason_IsRegistryError() =>
             Assert.Contains("table-owner registry error: table-owner override 'Children' has a blank reason",
-                Evaluate(Ledger() with { TableOwnerOverrides = [new("Children", " ")] }));
+                Evaluate(Ledger() with { TableOwnerOverrides = [new("Children", "Red", " ")] }));
 
         [Fact]
         public void SharedJoinMappingOntoDeclaredTable_DoesNotReclassifyIt()
