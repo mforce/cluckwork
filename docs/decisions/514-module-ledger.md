@@ -28,7 +28,7 @@ seeds default egg grades). A list maintained by recall goes stale; a walk does n
 ## The rule
 
 Every reference from one business module's namespaces to another's is declared in
-`src/Cluckwork.Domain/Common/Architecture/ModuleEdges.cs`, as a cell
+its `from` owner's `src/Cluckwork.Domain/Common/Architecture/Modules/<Owner>.cs`, as a cell
 (`From`, `To`, `Kind`, `Reason`) that lists the fully-qualified top-level types
 realising it. `ModuleLedgerRealTreeTests` walks every `.cs` under `src/` with Roslyn
 and fails on an undeclared edge, a stale row (a listed type that no longer references

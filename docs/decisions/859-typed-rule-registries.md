@@ -202,7 +202,7 @@ elsewhere, so an edited row takes effect in the editor without rebuilding the an
 `RealModuleLedger.Owners` and `Edges` read the same attributes by reflection, so every test keeps its logic
 and assertions and only its data source moved. A parity test compared the reflected rows with the C# rows,
 in order, by `System.Text.Json` serialisation, and passed before the old files were deleted; a
-one-character reason edit turned it red. It ran locally, not in CI. The adapter, table, tier and
+one-character reason edit turned it red. It ran locally, not in CI. [Module rules beside the code](#module-rules-beside-the-code) later split both files. The adapter, table, tier and
 compatibility rows stay in `RealModuleLedger.*.cs` because no analyzer reads them.
 
 Rejected shapes: a data file passed as `AdditionalFiles` brings back the file format this record removed and
@@ -247,3 +247,49 @@ that turns it red.
 What this does not cover: live squiggles in a GUI IDE were not observed; CW1002 is a compilation-end
 diagnostic, so an IDE shows it only with full-solution analysis on. A new module project must add the
 analyzer's `ProjectReference` itself.
+
+## Module rules beside the code
+
+On 2026-10-05 the owner decided that a module rule lives next to the code it describes, and stays central
+only when it describes a relationship. The two row files above were split on that line. Behaviour did not
+change. No incident.
+
+**Contract types carry their own mark.** Each of the 160 contract types declares `[ModuleContract("<Owner>")]`
+in its own file, so the owner rows lost their `Contract` lists. `RealModuleLedger` collects the marked types
+of Domain, Application and Infrastructure by reflection and lists each owner's contract in ordinal order.
+The hand-written order was not kept; no test reads it. The owner name stays explicit rather than derived
+from the namespace, so the existing "not in a namespace the owner owns" check still means something. A
+mark naming an owner with no `[ModuleOwner]` row is a registry error. `Inherited = false` keeps a marked
+record's nested subclasses out of the contract. The analyzer reads no contract today, before or after this
+change, so the contract rules are still test-only.
+
+**One rules class per owner.** `src/Cluckwork.Domain/Common/Architecture/Modules/<Owner>.cs` holds one
+`internal static class <Owner>ModuleRules { }` carrying that owner's `[ModuleOwner]` row (namespaces,
+implementations, seam, claimed types) and its outgoing `[ModuleEdge]` cells. An edge is filed with its
+`from` owner, because the code that realises it is in that owner's namespaces. A cell on another owner's
+class is a registry error. The suffix keeps clear of the existing `<Owner>Module` facade classes such as
+`AccessModule` and `FarmModule`. The classes sit in `Cluckwork.Domain.Common.Architecture`, so no new
+namespace segment is added (#985). Domain and Application gained a global using of that namespace,
+which is Platform, for the marks.
+
+**Order.** Reflection does not promise declaration order, so `RealModuleLedger` sets it. It orders owners
+by design 3.4, which the coupling matrix's rows and columns follow, and orders edges by `from`, then `to`.
+That was already the order of the old rows. The analyzer finds the rules classes by walking Domain's types
+from source or metadata, so an edited row still takes effect without rebuilding it. The CW1001 and CW1002
+messages and the test's undeclared-edge message now name `Modules/<from>.cs` and print `[ModuleEdge(...)]`.
+
+| Check | Result |
+|---|---|
+| Owners, namespaces, implementations, seams, claimed types and contract sets | identical to the base, compared as JSON with a temporary dump test run on both trees |
+| Edge cells | identical to the base, all 22, in order |
+| Analyzer edges vs `ModuleLedgerRealTreeTests`' `LiveEdges` | 73 and 73, identical |
+| Coupling matrix regenerated | no content change |
+
+| Mutation | `dotnet build src/Cluckwork.Api` | Existing test, built with `-p:RunAnalyzers=false` |
+|---|---|---|
+| `[ModuleContract]` removed from `IFlockLookup` | green, as before this change | `PeerContractRealTreeTests` and `AdapterReachRealTreeTests`: contract bypass |
+| `[ModuleContract("Farm")]` on `IFlockRepository` | green, as before | `AdapterReachRealTreeTests`: not in a namespace 'Farm' owns |
+| `[ModuleContract("Fram")]`, no such owner | green | `ModuleLedgerRealTreeTests`: names owner 'Fram', which has no ModuleOwner row |
+| FlockManagement -> Farm cell deleted | CW1001, naming `Modules/FlockManagement.cs` | `ModuleLedgerRealTreeTests`: undeclared edge |
+| `UpdateEggGradeHandler` added to EggOperations -> Farm | CW1002, naming `Modules/EggOperations.cs` | same test: stale ledger row |
+| FlockManagement -> Farm cell moved onto `FarmModuleRules` | green | `ModuleLedgerRealTreeTests`: cell sits on the wrong class |
