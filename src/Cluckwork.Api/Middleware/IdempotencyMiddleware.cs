@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;

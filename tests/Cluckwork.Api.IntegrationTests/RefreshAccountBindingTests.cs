@@ -1,7 +1,7 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

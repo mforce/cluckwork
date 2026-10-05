@@ -1,13 +1,13 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;

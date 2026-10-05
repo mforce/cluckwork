@@ -266,7 +266,7 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
     [Fact]
     public void EveryConfigSection_IsEitherProbedOrDeliberatelyExcluded()
     {
-        var sections = new[] { typeof(Program).Assembly, typeof(Cluckwork.Infrastructure.Identity.JwtOptions).Assembly }
+        var sections = new[] { typeof(Program).Assembly, typeof(Cluckwork.Infrastructure.Modules.Access.Identity.JwtOptions).Assembly }
             .SelectMany(a => a.GetTypes())
             .Select(t => t.GetField("SectionName", BindingFlags.Public | BindingFlags.Static))
             .Where(f => f is { IsLiteral: true, FieldType: { } ft } && ft == typeof(string))

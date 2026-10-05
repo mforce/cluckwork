@@ -1,9 +1,9 @@
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using System.Text.Json;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

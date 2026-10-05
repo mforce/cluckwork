@@ -1,13 +1,12 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
-using Cluckwork.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 

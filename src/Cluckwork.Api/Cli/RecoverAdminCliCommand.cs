@@ -1,4 +1,4 @@
-using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 

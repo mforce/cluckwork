@@ -50,9 +50,9 @@ Run:
 
 ```bash
 git ls-files \
-  src/Cluckwork.Application/Features/Users/ChangeUserEmail/ChangeUserEmailCommand.cs \
-  src/Cluckwork.Application/Features/Users/ChangeUserEmail/ChangeUserEmailValidator.cs \
-  src/Cluckwork.Application/Features/Users/ChangeUserEmail/ChangeUserEmailHandler.cs \
+  src/Cluckwork.Application/Modules/Access/Contracts/ChangeUserEmailCommand.cs \
+  src/Cluckwork.Application/Modules/Access/Users/ChangeUserEmail/ChangeUserEmailValidator.cs \
+  src/Cluckwork.Application/Modules/Access/Users/ChangeUserEmail/ChangeUserEmailHandler.cs \
   tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailTests.cs \
   tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailRaceTests.cs
 ```
@@ -86,15 +86,15 @@ Expected: branch is `feat/change-user-email`, based on the recorded baseline SHA
 
 **Files:**
 
-- Create: `src/Cluckwork.Application/Features/Users/ChangeUserEmail/ChangeUserEmailCommand.cs`
-- Create: `src/Cluckwork.Application/Features/Users/ChangeUserEmail/ChangeUserEmailValidator.cs`
-- Create: `src/Cluckwork.Application/Features/Users/ChangeUserEmail/ChangeUserEmailHandler.cs`
+- Create: `src/Cluckwork.Application/Modules/Access/Contracts/ChangeUserEmailCommand.cs`
+- Create: `src/Cluckwork.Application/Modules/Access/Users/ChangeUserEmail/ChangeUserEmailValidator.cs`
+- Create: `src/Cluckwork.Application/Modules/Access/Users/ChangeUserEmail/ChangeUserEmailHandler.cs`
 - Create: `tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailTests.cs`
 - Create: `tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailRaceTests.cs`
-- Modify: `src/Cluckwork.Application/Common/IIdentityProvider.cs`
+- Modify: `src/Cluckwork.Application/Modules/Access/Users/IIdentityProvider.cs`
 - Modify: `src/Cluckwork.Application/Common/AuditActions.cs`
-- Modify: `src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs`
-- Modify: `src/Cluckwork.Api/Endpoints/Users/UserEndpoints.cs`
+- Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs`
+- Modify: `src/Cluckwork.Api/Modules/Access/Users/UserEndpoints.cs`
 - Modify: `src/Cluckwork.Api/Hosting/CluckworkFeatureServiceCollectionExtensions.cs`
 - Modify: `tests/Cluckwork.Application.Tests/TenantBypass/Data/filter-free-set-sites.tsv`
 - Modify: `web/src/i18n/enums.ts`
@@ -294,8 +294,8 @@ Expected: focused tests pass; build ends `0 Warning(s) 0 Error(s)`.
 - [ ] **Step 9: Commit the backend vertical slice.**
 
 ```bash
-git add src/Cluckwork.Application src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs \
-  src/Cluckwork.Api/Endpoints/Users/UserEndpoints.cs \
+git add src/Cluckwork.Application src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs \
+  src/Cluckwork.Api/Modules/Access/Users/UserEndpoints.cs \
   src/Cluckwork.Api/Hosting/CluckworkFeatureServiceCollectionExtensions.cs \
   tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailTests.cs \
   tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailRaceTests.cs \

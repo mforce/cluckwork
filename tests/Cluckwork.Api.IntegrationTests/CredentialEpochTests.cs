@@ -1,13 +1,13 @@
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

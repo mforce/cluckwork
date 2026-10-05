@@ -47,8 +47,8 @@ public sealed class GlobalUserLookupGuardTests
     // guessing (Recovery.Ambiguous).
     private static readonly string[] AllowedFiles =
     [
-        "Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs",
-        "Cluckwork.Infrastructure/Identity/AdminRecoveryService.cs",
+        "Cluckwork.Infrastructure/Modules/Access/Identity/AccountUserDirectory.cs",
+        "Cluckwork.Infrastructure/Modules/Access/Identity/AdminRecoveryService.cs",
     ];
 
     // True when fileName[start..start+length) is all ASCII digits. Validating

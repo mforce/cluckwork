@@ -1,6 +1,6 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using System.Net;
 using System.Text.Json;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 

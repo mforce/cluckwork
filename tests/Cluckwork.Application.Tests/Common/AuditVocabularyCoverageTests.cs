@@ -448,7 +448,7 @@ public sealed class AuditVocabularyCoverageTests
     //   string parameter, and the forwarder's callers were actually checked.
     private static readonly HashSet<(string File, string Parameter)> KnownIndirectActionCallSites =
     [
-        ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", "auditAction"),
+        ("Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs", "auditAction"),
     ];
 
     // Fails closed on anything but a direct AuditActions.X reference, a

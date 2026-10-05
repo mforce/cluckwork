@@ -1,9 +1,9 @@
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;

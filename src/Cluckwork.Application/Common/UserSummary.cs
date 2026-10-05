@@ -1,5 +1,3 @@
-using Cluckwork.Domain.Modules.Commerce.Contracts;
-
 namespace Cluckwork.Application.Common;
 
 // #356 — DisabledAt is null for an active user. Exposed on the LIST rather

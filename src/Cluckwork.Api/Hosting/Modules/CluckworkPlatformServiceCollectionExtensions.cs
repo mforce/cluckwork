@@ -22,12 +22,12 @@ internal static class CluckworkPlatformServiceCollectionExtensions
         // #309 — the login DTO validator lives in the Api assembly (it validates
         // the Api LoginRequest). MAX-length only; see LoginRequestValidator.
         services.AddScoped<
-            IValidator<Cluckwork.Api.Endpoints.Auth.LoginRequest>,
-            Cluckwork.Api.Endpoints.Auth.LoginRequestValidator>();
+            IValidator<Cluckwork.Api.Modules.Access.Auth.LoginRequest>,
+            Cluckwork.Api.Modules.Access.Auth.LoginRequestValidator>();
         // #308
         services.AddScoped<
-            IValidator<Cluckwork.Api.Endpoints.Auth.StepUpRequest>,
-            Cluckwork.Api.Endpoints.Auth.StepUpRequestValidator>();
+            IValidator<Cluckwork.Api.Modules.Access.Auth.StepUpRequest>,
+            Cluckwork.Api.Modules.Access.Auth.StepUpRequestValidator>();
 
         // #307 — lease duration / max-wait bounds for the idempotency claim protocol.
         services.Configure<IdempotencyOptions>(

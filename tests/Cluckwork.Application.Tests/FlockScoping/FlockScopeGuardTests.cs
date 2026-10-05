@@ -1,5 +1,5 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;

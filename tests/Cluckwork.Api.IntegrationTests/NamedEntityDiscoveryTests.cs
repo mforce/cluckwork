@@ -1,9 +1,9 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using System.Net;
 using System.Text.Json;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -1049,7 +1049,7 @@ public sealed class NamedEntityDiscoveryTests(CluckworkWebApplicationFactory fac
         stepUp.EnsureSuccessStatusCode();
         request.Headers.Add(
             AuthEndpoints.StepUpHeaderName,
-            (await stepUp.Content.ReadFromJsonAsync<Cluckwork.Api.Endpoints.Auth.StepUpResponse>())!.Token);
+            (await stepUp.Content.ReadFromJsonAsync<Cluckwork.Api.Modules.Access.Auth.StepUpResponse>())!.Token);
         return await client.SendAsync(request);
     }
 }

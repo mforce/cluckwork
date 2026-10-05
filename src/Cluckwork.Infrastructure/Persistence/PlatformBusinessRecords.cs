@@ -1,6 +1,6 @@
 using Cluckwork.Domain.Auditing;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.AspNetCore.Identity;
 
 namespace Cluckwork.Infrastructure.Persistence;

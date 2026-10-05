@@ -1,7 +1,8 @@
-using Cluckwork.Application.Features.Users;
-using Cluckwork.Application.Features.Users.ChangeOwnPassword;
-using Cluckwork.Application.Features.Users.CreateUser;
-using Cluckwork.Application.Features.Users.SetUserPassword;
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Application.Modules.Access.Users.ChangeOwnPassword;
+using Cluckwork.Application.Modules.Access.Users.CreateUser;
+using Cluckwork.Application.Modules.Access.Users.SetUserPassword;
 
 namespace Cluckwork.Application.Tests.Validation;
 

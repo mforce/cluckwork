@@ -1626,7 +1626,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("SalesOrderItems");
                 });
 
-            modelBuilder.Entity("Cluckwork.Infrastructure.Identity.ApplicationRole", b =>
+            modelBuilder.Entity("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationRole", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1653,7 +1653,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetRoles", (string)null);
                 });
 
-            modelBuilder.Entity("Cluckwork.Infrastructure.Identity.ApplicationUser", b =>
+            modelBuilder.Entity("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1768,7 +1768,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Cluckwork.Infrastructure.Identity.RefreshToken", b =>
+            modelBuilder.Entity("Cluckwork.Infrastructure.Modules.Access.Identity.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2408,7 +2408,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Infrastructure.Identity.ApplicationUser", b =>
+            modelBuilder.Entity("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", b =>
                 {
                     b.HasOne("Cluckwork.Domain.Accounts.Account", null)
                         .WithMany()
@@ -2419,7 +2419,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
-                    b.HasOne("Cluckwork.Infrastructure.Identity.ApplicationRole", null)
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationRole", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2428,7 +2428,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
-                    b.HasOne("Cluckwork.Infrastructure.Identity.ApplicationUser", null)
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2437,7 +2437,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
                 {
-                    b.HasOne("Cluckwork.Infrastructure.Identity.ApplicationUser", null)
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2446,19 +2446,19 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
                 {
-                    b.HasOne("Cluckwork.Infrastructure.Identity.ApplicationRole", null)
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationRole", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Cluckwork.Infrastructure.Identity.ApplicationUser", null)
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Cluckwork.Infrastructure.Identity.ApplicationUser", null)
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId", "AccountId")
                         .HasPrincipalKey("Id", "AccountId")
@@ -2468,7 +2468,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
-                    b.HasOne("Cluckwork.Infrastructure.Identity.ApplicationUser", null)
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)

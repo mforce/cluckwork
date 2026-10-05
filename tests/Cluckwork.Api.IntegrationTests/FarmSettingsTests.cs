@@ -880,7 +880,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     {
         using var scope = factory.Services.CreateScope();
         var users = scope.ServiceProvider
-            .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Cluckwork.Infrastructure.Identity.ApplicationUser>>();
+            .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser>>();
         var user = await users.FindByEmailAsync(email)
             ?? throw new InvalidOperationException($"No user {email}");
 

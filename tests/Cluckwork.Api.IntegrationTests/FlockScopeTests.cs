@@ -1,3 +1,4 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.EggOperations.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
@@ -10,7 +11,6 @@ using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using System.Net;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;

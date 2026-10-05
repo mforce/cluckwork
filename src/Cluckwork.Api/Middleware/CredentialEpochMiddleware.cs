@@ -1,6 +1,6 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
-using Cluckwork.Application.Features.Users;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 

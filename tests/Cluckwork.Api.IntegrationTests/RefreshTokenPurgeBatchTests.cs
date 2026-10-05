@@ -1,7 +1,7 @@
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Collections.Concurrent;
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;

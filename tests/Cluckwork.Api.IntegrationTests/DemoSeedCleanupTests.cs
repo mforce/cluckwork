@@ -1,11 +1,11 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;

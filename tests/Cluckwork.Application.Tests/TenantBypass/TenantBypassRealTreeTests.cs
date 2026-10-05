@@ -1,4 +1,3 @@
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,7 +34,7 @@ public sealed class TenantBypassRealTreeTests
     public void AtomicLogoutCte_BothUpdateArmsRetainOwnerScope()
     {
         const string symbol =
-            "Cluckwork.Infrastructure.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, " +
+            "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, " +
             "string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, " +
             "DateTimeOffset now, string rotatedStamp, CancellationToken ct)";
         var report = GuardScanner.Scan(SrcRoot(), BypassAllowList.Entries);

@@ -1,7 +1,8 @@
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using System.Net;
 using System.Net.Http.Headers;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
@@ -62,10 +63,10 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         using var throwingFactory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
             {
-                services.AddScoped<Cluckwork.Infrastructure.Identity.IdentityProvider>();
+                services.AddScoped<Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider>();
                 services.AddScoped<IIdentityProvider>(sp =>
                     new ChangePasswordThrowingIdentityProvider(
-                        sp.GetRequiredService<Cluckwork.Infrastructure.Identity.IdentityProvider>()));
+                        sp.GetRequiredService<Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider>()));
             }));
 
         var accountId = Guid.NewGuid();
@@ -86,7 +87,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var loginResponse = await loginClient.PostAsJsonAsync(
             "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         loginResponse.EnsureSuccessStatusCode();
-        var token = (await loginResponse.Content.ReadFromJsonAsync<Cluckwork.Api.Endpoints.Auth.AccessTokenResponse>())!.AccessToken;
+        var token = (await loginResponse.Content.ReadFromJsonAsync<Cluckwork.Api.Modules.Access.Auth.AccessTokenResponse>())!.AccessToken;
 
         var client = throwingFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -188,7 +189,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
             new { currentPassword = TestHarness.Password, newPassword });
         Assert.Equal(HttpStatusCode.OK, changeResponse.StatusCode);
         var newAccessToken = (await changeResponse.Content
-            .ReadFromJsonAsync<Cluckwork.Api.Endpoints.Auth.AccessTokenResponse>())!.AccessToken;
+            .ReadFromJsonAsync<Cluckwork.Api.Modules.Access.Auth.AccessTokenResponse>())!.AccessToken;
 
         var freshClient = factory.CreateAuthedClient(newAccessToken);
         var flocksResponse = await freshClient.GetAsync("/api/v1/flocks");

@@ -1,4 +1,3 @@
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 
 namespace Cluckwork.Api.Middleware;
