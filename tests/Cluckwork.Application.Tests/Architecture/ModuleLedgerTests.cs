@@ -62,8 +62,8 @@ public sealed class ModuleLedgerTests : IDisposable
         Assert.Contains("Red -> Blue", failure!);
         Assert.Contains("Cluckwork.Temp.Red.R", failure!);
         Assert.Contains("Cluckwork.Temp.Blue", failure!);
-        Assert.Contains("add this row to RealModuleLedger.Edges", failure!);
-        Assert.EndsWith("\nnew(\"Red\", \"Blue\", \"R\", \"\", [\"Cluckwork.Temp.Red.R\"]),", failure!);
+        Assert.Contains("add this row to src/Cluckwork.Domain/Common/Architecture/ModuleEdges.cs", failure!);
+        Assert.EndsWith("\n[assembly: ModuleEdge(\"Red\", \"Blue\", \"R\", \"\", \"Cluckwork.Temp.Red.R\")]", failure!);
     }
 
     [Fact]

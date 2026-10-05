@@ -256,7 +256,7 @@ public static class ModuleLedgerScanner
             failures.Add(
                 $"undeclared cross-owner edge {edge.From} -> {edge.To} from {edge.Symbol} " +
                 $"(references {string.Join(", ", edge.ReferencedNamespaces)}) at {edge.File}:{edge.Line} — " +
-                $"add this row to RealModuleLedger.Edges, with a reason naming the port or type it calls:\n{RenderEdges([edge])}");
+                $"add this row to src/Cluckwork.Domain/Common/Architecture/ModuleEdges.cs, with a reason naming the port or type it calls:\n{RenderEdges([edge])}");
         }
 
         foreach (var row in report.StaleSymbols)
@@ -609,8 +609,8 @@ public static class ModuleLedgerScanner
         .GroupBy(e => (e.From, e.To))
         .OrderBy(g => g.Key.From, StringComparer.Ordinal)
         .ThenBy(g => g.Key.To, StringComparer.Ordinal)
-        .Select(cell => $"new({RealModuleLedger.Quote(cell.Key.From)}, {RealModuleLedger.Quote(cell.Key.To)}, \"R\", \"\", " +
-            $"{RealModuleLedger.List(cell.Select(e => e.Symbol).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}),"));
+        .Select(cell => $"[assembly: ModuleEdge({RealModuleLedger.Quote(cell.Key.From)}, {RealModuleLedger.Quote(cell.Key.To)}, \"R\", \"\", " +
+            $"{string.Join(", ", cell.Select(e => e.Symbol).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(RealModuleLedger.Quote))})]"));
 
     private static bool IsTypeDeclaration(SyntaxNode node) =>
         node is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax;
