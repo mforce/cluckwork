@@ -207,7 +207,12 @@ internal sealed class FakeOtlpCollector : IDisposable
                 // The accept itself is deliberately OUTSIDE the absorbing catch below. A listener-level
                 // failure here is not a client disconnect, and absorbing it would spin this loop
                 // forever while every waiter timed out with no cause; it must reach Fault instead.
-                currentContext = await _listener.GetContextAsync();
+                // The accept is raced against termination because the managed listener can orphan
+                // it: Dispose drains its accept queue before marking itself closed, so an accept
+                // issued in between is never completed, and awaiting it alone parks this loop forever.
+                var accept = _listener.GetContextAsync();
+                if (await Task.WhenAny(accept, _terminal.Task) != accept) return;
+                currentContext = await accept;
 
                 var identifiedAsExport = false;
                 try
@@ -288,6 +293,7 @@ internal sealed class FakeOtlpCollector : IDisposable
         // Dispose() then removes it a SECOND time, which re-binds the port in between. Anything that
         // grabbed the port meanwhile turns that re-bind into an "Address already in use" from Dispose().
         ((IDisposable)_listener).Dispose();
-        _serveTask.GetAwaiter().GetResult();
+        if (!_serveTask.Wait(TimeSpan.FromSeconds(10)))
+            throw new TimeoutException("the OTLP collector's serve loop did not stop within 10 s of disposal");
     }
 }
