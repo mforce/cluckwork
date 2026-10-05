@@ -127,9 +127,22 @@ namespace Cluckwork.Application.Tests.Architecture
             {
                 Owners = Ledger().Owners.Select(o => o.Name == platform ? o with { Kind = "platform" } : o).ToList(),
                 ForeignKeys = [],
+                TableOwnerOverrides = [new(platform == "Red" ? "Parents" : "Children", platform, "fixture hub table")],
             };
             Assert.Empty(Evaluate(ledger));
             Assert.Empty(Scan(ledger).CrossOwnerForeignKeys);
+        }
+
+        [Fact]
+        public void PlatformNamespace_NeverDerivesAnOwner()
+        {
+            var ledger = Ledger() with { Owners = [Ledger().Owners[0] with { Kind = "platform" }, Ledger().Owners[1]], ForeignKeys = [] };
+
+            Assert.Contains("table 'Parents' (entity Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Parent) resolves to a " +
+                "Platform namespace, which never derives a table owner — move the entity into a module namespace, or add to " +
+                "RealModuleLedger.TableOwnerOverrides: new(\"Parents\", \"Platform\", \"\"),", Evaluate(ledger));
+            Assert.DoesNotContain("Parents", Scan(ledger).Owners.Keys);
+            Assert.Empty(Evaluate(ledger with { TableOwnerOverrides = [new("Parents", "Red", "fixture hub table")] }));
         }
 
         [Fact]

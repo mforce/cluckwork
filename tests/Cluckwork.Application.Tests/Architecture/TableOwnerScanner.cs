@@ -13,7 +13,7 @@ public sealed record TableOwnerReport(
 {
     public int ExpectedTableCountFloor { get; init; } = 30;
 
-    // Table -> owner: the override's owner, else the CLR namespace's. A table with no single owner is absent.
+    // Table -> owner: the override's owner, else the CLR namespace's module owner. A table with no single owner is absent.
     public IReadOnlyDictionary<string, string> Owners { get; init; } = new Dictionary<string, string>();
 }
 
@@ -47,14 +47,20 @@ public static class TableOwnerScanner
             var namespaceOwners = resolved.SelectMany(r => r.Owners).Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal).ToArray();
             var unowned = resolved.FirstOrDefault(r => r.Owners.Length == 0).Entity;
+            // Platform's claims are a free hub, so a move into one is invisible to every other guard (#1074).
+            var platform = resolved.FirstOrDefault(r => r.Owners.Any(o => kinds[o] == ModuleLedger.PlatformKind)).Entity;
             if (overrides.TryGetValue(table.Key, out var overrideOwner))
             {
-                if (unowned is null && namespaceOwners is [var only] && only == overrideOwner)
+                if (unowned is null && platform is null && namespaceOwners is [var only] && only == overrideOwner)
                     violations.Add($"table-owner override '{table.Key}' restates its CLR namespace owner {only}");
                 tableOwners[table.Key] = overrideOwner;
             }
             else if (unowned is not null)
                 violations.Add($"table '{table.Key}' (entity {unowned.Name}) has no owner");
+            else if (platform is not null)
+                violations.Add($"table '{table.Key}' (entity {platform.Name}) resolves to a Platform namespace, which never " +
+                    "derives a table owner — move the entity into a module namespace, or add to " +
+                    $"RealModuleLedger.TableOwnerOverrides: new({RealModuleLedger.Quote(table.Key)}, \"Platform\", \"\"),");
             else if (namespaceOwners.Length > 1)
                 violations.Add($"table '{table.Key}' claimed by " +
                     string.Join(", ", resolved.Select(r => $"{string.Join(", ", r.Owners)} (entity {r.Entity.Name})")));
