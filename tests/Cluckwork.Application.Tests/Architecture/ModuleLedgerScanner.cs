@@ -127,22 +127,50 @@ public static class ModuleLedgerScanner
         var rawEdges = new List<CrossOwnerEdge>();
         var unowned = new SortedDictionary<string, string>(StringComparer.Ordinal);
         var globalModuleImports = new List<GlobalModuleImport>();
+        var scanned = new List<(SyntaxTree Tree, string Relative, string Project, List<Attribution> Attributions)>();
 
         foreach (var file in files)
         {
             var relative = Relative(repoRoot, file);
-            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file),
-                ParseOptions, file);
+            var tree = CompatibilityExceptionScanner.Parse(file);
             var root = tree.GetCompilationUnitRoot();
+            AddErrors(parseErrors, relative, tree.GetDiagnostics());
+            var project = ProjectRootNamespace(srcFull, file);
 
-            foreach (var diagnostic in tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
+            var attributions = ScanFile(root, relative, project, namespaceOwners, ownerKinds, claimedTypeNamespaces,
+                unowned, globalModuleImports);
+            scanned.Add((tree, relative, project, attributions));
+        }
+
+        // Only a module's references can be edges, so a file no module owns is never bound and
+        // its compile errors cannot hide one.
+        foreach (var project in scanned.GroupBy(s => s.Project))
+        {
+            var bound = project.Where(s => s.Attributions.Any(a => a.Owner is { } owner && !IsPlatform(ownerKinds, owner))).ToList();
+            if (bound.Count == 0)
             {
-                var line = diagnostic.Location.GetLineSpan().StartLinePosition.Line + 1;
-                parseErrors.Add($"{relative}:{line}: {diagnostic.Id} {diagnostic.GetMessage()}");
+                continue;
             }
 
-            ScanFile(root, relative, ProjectRootNamespace(srcFull, file), namespaceOwners, ownerKinds, claimedTypeNamespaces,
-                rawEdges, unowned, globalModuleImports);
+            var compilation = CompatibilityExceptionScanner.Compile(project.Key, project.Select(s => s.Tree),
+                CompatibilityExceptionScanner.ImplicitUsings, CompatibilityExceptionScanner.References(project.Key));
+            var results = bound.AsParallel().AsOrdered().Select(file =>
+            {
+                var model = compilation.GetSemanticModel(file.Tree);
+                var errors = new List<string>();
+                var edges = new List<CrossOwnerEdge>();
+                // A source generator implements a partial method (CS8795); the stub hides no reference.
+                AddErrors(errors, file.Relative, model.GetDiagnostics().Where(d => d.Id != "CS8795"));
+
+                RecordEdges(model, file.Tree.GetCompilationUnitRoot(), file.Relative, file.Attributions,
+                    namespaceOwners, ownerKinds, edges);
+                return (errors, edges);
+            }).ToList();
+            foreach (var (errors, edges) in results)
+            {
+                parseErrors.AddRange(errors);
+                rawEdges.AddRange(edges);
+            }
         }
 
         var liveEdges = Collapse(rawEdges);
@@ -184,14 +212,14 @@ public static class ModuleLedgerScanner
                 .ToList(),
             unowned.Values.ToList(),
             globalModuleImports,
-            parseErrors,
+            parseErrors.Distinct(StringComparer.Ordinal).ToList(),
             registryErrors,
             files.Count,
             floor);
     }
 
     /// <summary>
-    /// Evaluates a report as a build gate: no parse errors, no registry errors,
+    /// Evaluates a report as a build gate: no parse or compile errors, no registry errors,
     /// the file-count floor holds, no unowned namespace, no undeclared edge and
     /// no stale ledger row. Returns the failure messages (empty = pass).
     /// </summary>
@@ -201,7 +229,7 @@ public static class ModuleLedgerScanner
 
         if (report.ParseErrors.Count > 0)
         {
-            failures.Add($"scan produced {report.ParseErrors.Count} parse error(s) — the walk cannot be trusted:\n  " +
+            failures.Add($"scan produced {report.ParseErrors.Count} parse or compile error(s) — the walk cannot be trusted:\n  " +
                          string.Join("\n  ", report.ParseErrors.Take(10)));
         }
 
@@ -219,7 +247,7 @@ public static class ModuleLedgerScanner
         failures.AddRange(report.UnownedNamespaces);
 
         failures.AddRange(report.GlobalModuleImports.Select(import =>
-            $"global using of module namespace '{import.Namespace}' in {import.File}:{import.Line} — a global import hides every dependency on it from this walk; import it per file instead"));
+            $"global using of module namespace '{import.Namespace}' in {import.File}:{import.Line} — a global import hides every dependency on it from the syntax walks; import it per file instead"));
 
         foreach (var edge in report.UndeclaredEdges)
         {
@@ -237,14 +265,13 @@ public static class ModuleLedgerScanner
         return failures;
     }
 
-    private static void ScanFile(
+    private static List<Attribution> ScanFile(
         CompilationUnitSyntax root,
         string relative,
         string rootNamespace,
         IReadOnlyDictionary<string, Claim> namespaceOwners,
         IReadOnlyDictionary<string, string> ownerKinds,
         IReadOnlySet<string> claimedTypeNamespaces,
-        List<CrossOwnerEdge> edges,
         SortedDictionary<string, string> unowned,
         List<GlobalModuleImport> globalModuleImports)
     {
@@ -257,7 +284,7 @@ public static class ModuleLedgerScanner
             .Select(n => n.Name.ToString())
             .FirstOrDefault() ?? rootNamespace;
 
-        var attributions = new List<(SyntaxNode? Scope, string Symbol, string? Owner)>();
+        var attributions = new List<Attribution>();
         foreach (var type in topLevelTypes)
         {
             var declared = NamespaceOf(type, rootNamespace);
@@ -273,7 +300,9 @@ public static class ModuleLedgerScanner
             var symbol = IsFileLocal(type)
                 ? $"{declared}.{Identifier(type)}@{relative}"
                 : $"{declared}.{Identifier(type)}";
-            attributions.Add((type, symbol, owner?.Owner));
+            // #1023: a claimed type belongs to its claimant, not to its namespace's owner.
+            var claimant = namespaceOwners.TryGetValue(symbol, out var claim) ? claim.Owner : owner?.Owner;
+            attributions.Add(new(type, symbol, claimant));
         }
 
         if (attributions.Count == 0)
@@ -285,53 +314,14 @@ public static class ModuleLedgerScanner
                     $"unowned namespace '{fileNamespace}' declared in {relative} — every namespace in src/ must be claimed by exactly one ledger owner");
             }
 
-            attributions.Add((null, $"<file>:{relative}", owner?.Owner));
+            attributions.Add(new(null, $"<file>:{relative}", owner?.Owner));
         }
 
-        // A relative name resolves against the namespace of the node that uses
-        // it, which in a multi-block file is not always the first one declared.
-        void Record(string dotted, int line, string enclosingNamespace, IEnumerable<(SyntaxNode? Scope, string Symbol, string? Owner)> targets)
+        foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>().Where(d => d.GlobalKeyword != default))
         {
-            var resolved = ResolveReferenced(namespaceOwners, dotted, enclosingNamespace);
-            var to = resolved;
-            if (to is null)
-            {
-                if (dotted.StartsWith(Prefix, StringComparison.Ordinal))
-                {
-                    RecordUnowned(unowned, dotted,
-                        $"unowned namespace '{dotted}' referenced from {relative}:{line} — every referenced Cluckwork namespace must be claimed by exactly one ledger owner");
-                }
-                return;
-            }
-
-            foreach (var target in targets)
-            {
-                if (target.Owner is null || target.Owner == to.Value.Owner)
-                {
-                    continue;
-                }
-
-                if (IsPlatform(ownerKinds, target.Owner) || IsPlatform(ownerKinds, to.Value.Owner))
-                {
-                    continue;
-                }
-
-                edges.Add(new CrossOwnerEdge(
-                    target.Owner, to.Value.Owner, target.Symbol, [to.Value.Namespace], relative, line));
-            }
-        }
-
-        foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
-        {
-            // A directive inside a namespace block scopes to the types declared in
-            // that block; one at compilation-unit level scopes to the whole file.
-            var scope = directive.Parent is BaseNamespaceDeclarationSyntax block
-                ? attributions.Where(a => a.Scope is not null && a.Scope.Ancestors().Contains(block)).ToList()
-                : attributions;
-            // A single-identifier import (`using Sales;` inside a namespace) is a
-            // relative namespace name too. A single-identifier ALIAS target may
-            // name a type in the same namespace instead, and a syntax walk cannot
-            // tell which, so it is left alone.
+            // A single-identifier import is a namespace name too. A single-identifier ALIAS
+            // target may name a type instead, and a syntax walk cannot tell which, so it is
+            // left alone.
             var names = directive.DescendantNodes()
                 .Where(node => node is QualifiedNameSyntax or MemberAccessExpressionSyntax)
                 .Where(IsOutermostDotted)
@@ -345,11 +335,8 @@ public static class ModuleLedgerScanner
 
             foreach (var dotted in names.Distinct(StringComparer.Ordinal))
             {
-                var directiveNamespace = directive.Parent is BaseNamespaceDeclarationSyntax
-                    ? NamespaceOf(directive, rootNamespace)
-                    : fileNamespace;
-                var resolved = ResolveReferenced(namespaceOwners, dotted, directiveNamespace);
-                if (directive.GlobalKeyword != default && resolved is { } owner
+                var resolved = ResolveReferenced(namespaceOwners, dotted, fileNamespace);
+                if (resolved is { } owner
                     && ownerKinds.TryGetValue(owner.Owner, out var kind)
                     && (kind == ModuleLedger.ModuleKind || IsRootAlias(directive, owner.Namespace)))
                 {
@@ -357,45 +344,77 @@ public static class ModuleLedgerScanner
                 }
                 // #1023: the peer walk resolves a simple name through its own file's imports only, so a global
                 // import would hide a claimed type from it.
-                else if (directive.GlobalKeyword != default && claimedTypeNamespaces.Contains(dotted))
+                else if (claimedTypeNamespaces.Contains(dotted))
                 {
                     globalModuleImports.Add(new GlobalModuleImport(dotted, relative, LineOf(directive)));
                 }
-
-                Record(dotted, LineOf(directive), directiveNamespace, scope);
             }
         }
 
-        foreach (var node in root.DescendantNodes())
+        return attributions;
+    }
+
+    // Every type a node binds to, or the type declaring the member it binds to, charged to the
+    // top-level type that holds the node. Using directives are skipped: an import is not a use.
+    private static void RecordEdges(
+        SemanticModel model,
+        CompilationUnitSyntax root,
+        string relative,
+        IReadOnlyList<Attribution> attributions,
+        IReadOnlyDictionary<string, Claim> namespaceOwners,
+        IReadOnlyDictionary<string, string> ownerKinds,
+        List<CrossOwnerEdge> edges)
+    {
+        foreach (var node in root.DescendantNodes(n => n is not UsingDirectiveSyntax).OfType<ExpressionSyntax>())
         {
-            if (node is not (QualifiedNameSyntax or MemberAccessExpressionSyntax)
-                || !IsOutermostDotted(node)
-                || node.FirstAncestorOrSelf<UsingDirectiveSyntax>() is not null)
-            {
-                continue;
-            }
-
-            if (node.FirstAncestorOrSelf<BaseNamespaceDeclarationSyntax>() is { } namespaceDeclaration &&
-                namespaceDeclaration.Name.Span.Contains(node.Span))
-            {
-                continue;
-            }
-
-            if (DottedText(node) is not string dotted)
-            {
-                continue;
-            }
-
             var enclosing = node.Ancestors().LastOrDefault(IsTypeDeclaration);
-            var target = attributions.FirstOrDefault(a => a.Scope == enclosing);
-            if (target.Symbol is null)
+            var from = attributions.FirstOrDefault(a => a.Scope == enclosing) ?? attributions[0];
+            if (from.Owner is null || IsPlatform(ownerKinds, from.Owner))
             {
-                target = attributions[0];
+                continue;
             }
 
-            Record(dotted, LineOf(node), NamespaceOf(node, rootNamespace), [target]);
+            foreach (var type in ReferencedTypes(model.GetSymbolInfo(node).Symbol))
+            {
+                var outermost = type.OriginalDefinition;
+                while (outermost.ContainingType is { } parent)
+                {
+                    outermost = parent;
+                }
+
+                if (outermost.TypeKind == TypeKind.Error || outermost.ContainingNamespace.IsGlobalNamespace
+                    || Resolve(namespaceOwners, $"{outermost.ContainingNamespace.ToDisplayString()}.{outermost.Name}", declared: false) is not { } to
+                    || to.Owner == from.Owner || IsPlatform(ownerKinds, to.Owner))
+                {
+                    continue;
+                }
+
+                edges.Add(new CrossOwnerEdge(from.Owner, to.Owner, from.Symbol, [to.Namespace], relative, LineOf(node)));
+            }
         }
     }
+
+    private static IEnumerable<INamedTypeSymbol> ReferencedTypes(ISymbol? symbol) => symbol switch
+    {
+        ITypeSymbol type => TypesIn(type),
+        IMethodSymbol or IPropertySymbol or IFieldSymbol or IEventSymbol => TypesIn(symbol.ContainingType),
+        _ => [],
+    };
+
+    private static IEnumerable<INamedTypeSymbol> TypesIn(ITypeSymbol type) => type switch
+    {
+        INamedTypeSymbol named => named.TypeArguments.SelectMany(TypesIn).Prepend(named),
+        IArrayTypeSymbol array => TypesIn(array.ElementType),
+        IPointerTypeSymbol pointer => TypesIn(pointer.PointedAtType),
+        _ => [],
+    };
+
+    // A bound file's diagnostics repeat its parse errors; the report drops the copies.
+    private static void AddErrors(List<string> errors, string relative, IEnumerable<Diagnostic> diagnostics) =>
+        errors.AddRange(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => $"{relative}:{LineOf(d.Location)}: {d.Id} {d.GetMessage()}"));
+
+    private sealed record Attribution(SyntaxNode? Scope, string Symbol, string? Owner);
 
     private static void RecordUnowned(SortedDictionary<string, string> unowned, string key, string message)
     {
@@ -607,8 +626,9 @@ public static class ModuleLedgerScanner
 
     private static string? Join(string? left, string right) => left is null ? null : $"{left}.{right}";
 
-    private static int LineOf(SyntaxNode node) =>
-        node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+    private static int LineOf(SyntaxNode node) => LineOf(node.GetLocation());
+
+    private static int LineOf(Location location) => location.GetLineSpan().StartLinePosition.Line + 1;
 
     internal static string ProjectRootNamespace(string srcFull, string file)
     {

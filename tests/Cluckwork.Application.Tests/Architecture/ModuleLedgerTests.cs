@@ -145,59 +145,75 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
-    public void ReferencedNamespaceNoOwnerClaims_IsUnowned()
+    public void UnboundName_InAModuleType_MakesTheWalkUntrusted_ButNotInAPlatformType()
     {
         WriteSource("src/Red.cs", """
             namespace Cluckwork.Temp.Red;
-            using Cluckwork.Temp.Green;
-            public class R { }
+            public class R { public Cluckwork.Temp.Green.G? Held; }
             """);
 
         var failure = Evaluate(Ledger([]))
-            .FirstOrDefault(f => f.Contains("referenced from"));
+            .FirstOrDefault(f => f.Contains("the walk cannot be trusted"));
 
-        Assert.False(string.IsNullOrEmpty(failure), "expected an unowned referenced-namespace failure");
-        Assert.Contains("Cluckwork.Temp.Green", failure!);
-        Assert.Contains("src/Red.cs", failure!);
+        Assert.False(string.IsNullOrEmpty(failure), "expected a compile-error failure");
+        Assert.Contains("src/Red.cs:2: CS0234", failure!);
+
+        WriteSource("src/Red.cs", """
+            namespace Cluckwork.Temp.Hub;
+            public class R { public Cluckwork.Temp.Green.G? Held; }
+            """);
+        Assert.Empty(Evaluate(Ledger([])));
     }
 
     [Fact]
-    public void FileLevelUsing_AttributesToEveryTopLevelType()
+    public void UsingWithNoUse_IsGreen()
     {
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", """
             namespace Cluckwork.Temp.Red;
             using Cluckwork.Temp.Blue;
-            public class First { }
-            public class Second { }
+            using Bs = System.Collections.Generic.List<Cluckwork.Temp.Blue.B>;
+            public class R { }
             """);
 
-        var report = Scan(Ledger([]));
-
-        Assert.Equal(
-            ["Cluckwork.Temp.Red.First", "Cluckwork.Temp.Red.Second"],
-            report.LiveEdges.Select(e => e.Symbol));
+        Assert.Empty(Evaluate(Ledger([])));
     }
 
     [Fact]
-    public void UsingInsideANamespaceBlock_ScopesToThatBlockOnly()
+    public void MemberAccessOnly_IsAnEdge()
     {
-        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Blue.cs", """
+            namespace Cluckwork.Temp.Blue;
+            public class B { public string Label => "b"; }
+            """);
+        WriteSource("src/Hub.cs", """
+            namespace Cluckwork.Temp.Hub;
+            public class H { public static Cluckwork.Temp.Blue.B Current { get; } = new(); }
+            """);
         WriteSource("src/Red.cs", """
-            namespace Cluckwork.Temp.Red
-            {
-                using Cluckwork.Temp.Blue;
-                public class Inside { }
-            }
-            namespace Cluckwork.Temp.Red
-            {
-                public class Sibling { }
-            }
+            namespace Cluckwork.Temp.Red;
+            using Cluckwork.Temp.Hub;
+            public class R { public string Go() => H.Current.Label; }
             """);
 
-        var report = Scan(Ledger([]));
+        var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
 
-        Assert.Equal("Cluckwork.Temp.Red.Inside", Assert.Single(report.LiveEdges).Symbol);
+        Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R", 3), (edge.From, edge.To, edge.Symbol, edge.Line));
+    }
+
+    [Fact]
+    public void ClaimedType_ChargesItsReferencesToItsClaimant()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Hub.cs", """
+            namespace Cluckwork.Temp.Hub;
+            public interface IPort { Cluckwork.Temp.Blue.B Get(); }
+            """);
+        OwnerDefinition[] claimed = [Owners[0] with { Types = ["Cluckwork.Temp.Hub.IPort"] }, Owners[1], Owners[2]];
+
+        var edge = Assert.Single(Scan(Ledger([], claimed)).LiveEdges);
+
+        Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Hub.IPort"), (edge.From, edge.To, edge.Symbol));
     }
 
     [Fact]
@@ -223,12 +239,12 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Hub.cs", """
             namespace Cluckwork.Temp.Hub;
             using Cluckwork.Temp.Red;
-            public class H { }
+            public class H { public R? Held; }
             """);
         WriteSource("src/Red.cs", """
             namespace Cluckwork.Temp.Red;
             using Cluckwork.Temp.Hub;
-            public class R { }
+            public class R { public H? Held; }
             """);
 
         Assert.Empty(Scan(Ledger([])).LiveEdges);
@@ -325,7 +341,7 @@ public sealed class ModuleLedgerTests : IDisposable
     public void CompoundUsingAlias_IsAnEdge()
     {
         WriteSource("src/Blue.cs", BlueSource);
-        WriteSource("src/Red.cs", "using Bs = System.Collections.Generic.List<Cluckwork.Temp.Blue.B>; namespace Cluckwork.Temp.Red; public class R { }");
+        WriteSource("src/Red.cs", "using Bs = System.Collections.Generic.List<Cluckwork.Temp.Blue.B>; namespace Cluckwork.Temp.Red; public class R { public Bs? Held; }");
 
         var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
         Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
@@ -358,7 +374,7 @@ public sealed class ModuleLedgerTests : IDisposable
     public void GenericTopLevelTypes_HaveDistinctSymbols()
     {
         WriteSource("src/Blue.cs", BlueSource);
-        WriteSource("src/Red.cs", "using Cluckwork.Temp.Blue; namespace Cluckwork.Temp.Red; public class R { } public class R<T> { }");
+        WriteSource("src/Red.cs", "using Cluckwork.Temp.Blue; namespace Cluckwork.Temp.Red; public class R { B? Held; } public class R<T> { B? Held; }");
 
         Assert.Equal(["Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R<>"], Scan(Ledger([])).LiveEdges.Select(edge => edge.Symbol));
     }
@@ -386,10 +402,10 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
-    public void Net10PreprocessorSymbol_EnablesAUsingEdge()
+    public void Net10PreprocessorSymbol_EnablesAnEdge()
     {
         WriteSource("src/Blue.cs", BlueSource);
-        WriteSource("src/Red.cs", "#if NET10_0\nusing Cluckwork.Temp.Blue;\n#endif\nnamespace Cluckwork.Temp.Red; public class R { }");
+        WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red; public class R {\n#if NET10_0\nCluckwork.Temp.Blue.B? Held;\n#endif\n}");
 
         var edge = Assert.Single(Scan(Ledger([])).LiveEdges);
         Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
@@ -412,12 +428,12 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/One.cs", """
             namespace Cluckwork.Temp.Red;
             using Cluckwork.Temp.Blue;
-            file class Probe { }
+            file class Probe { B? Held; }
             """);
         WriteSource("src/Two.cs", """
             namespace Cluckwork.Temp.Red;
             using Cluckwork.Temp.Blue;
-            file class Probe { }
+            file class Probe { B? Held; }
             """);
 
         Assert.Equal(
@@ -426,15 +442,17 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
-    public void DebugPreprocessorSymbol_EnablesAUsingEdgeOnlyInDebugBuilds()
+    public void DebugPreprocessorSymbol_EnablesAnEdgeOnlyInDebugBuilds()
     {
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", """
             namespace Cluckwork.Temp.Red;
+            public class R
+            {
             #if DEBUG
-            using Cluckwork.Temp.Blue;
+                Cluckwork.Temp.Blue.B? Held;
             #endif
-            public class R { }
+            }
             """);
 
 #if DEBUG
@@ -492,7 +510,7 @@ public sealed class ModuleLedgerTests : IDisposable
             namespace Cluckwork.Temp.Red
             {
                 using Blue;
-                public class R { }
+                public class R { public B? Held; }
             }
             """);
 
