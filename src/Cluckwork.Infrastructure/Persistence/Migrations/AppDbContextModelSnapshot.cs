@@ -869,7 +869,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("ExpenseCategories");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Flocks.BirdMovement", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.FlockManagement.Flocks.BirdMovement", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -924,7 +924,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("BirdMovements");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Flocks.Flock", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2108,20 +2108,20 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
+                    b.HasOne("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Flocks.BirdMovement", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.FlockManagement.Flocks.BirdMovement", b =>
                 {
                     b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
                         .WithMany()
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
+                    b.HasOne("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2135,7 +2135,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
+                    b.HasOne("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2251,7 +2251,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Inventory.InventoryMovement", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
+                    b.HasOne("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2275,7 +2275,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
+                    b.HasOne("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")
                         .OnDelete(DeleteBehavior.Restrict)

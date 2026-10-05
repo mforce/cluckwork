@@ -1,5 +1,5 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 

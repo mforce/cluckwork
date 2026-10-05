@@ -239,7 +239,7 @@ public static class InventoryEndpoints
     }
 
     private static async Task<IResult> ListFeedUsage(
-        IInventoryModule inventory, Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        IInventoryModule inventory, Cluckwork.Application.Modules.FlockManagement.Contracts.IFlockLookup flocks,
         TenantContext tenant, CancellationToken ct,
         Guid? flockId = null, DateOnly? from = null, DateOnly? to = null,
         int? limit = null, int? offset = null)

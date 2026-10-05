@@ -1,4 +1,6 @@
 using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Domain.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using System.Net;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -8,7 +10,6 @@ using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
@@ -987,7 +988,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
             // B is seeded Active; say so, because the EF twin's control depends
             // on it surviving the Active-or-Depleted eligibility predicate.
             Assert.Equal(FlockStatus.Active, b.Status);
-            var ab = Cluckwork.Domain.Flocks.Flock.Create(
+            var ab = Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock.Create(
                 archivedB, fix.AccountId, fix.FarmId, Guid.NewGuid(),
                 "Zzz Bravo Archived", "Test Breed", new DateOnly(2026, 1, 1), 50);
             ab.Deplete(new DateOnly(2026, 2, 1));

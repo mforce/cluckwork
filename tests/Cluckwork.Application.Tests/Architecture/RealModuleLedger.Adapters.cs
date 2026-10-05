@@ -134,25 +134,25 @@ internal static partial class RealModuleLedger
         new("Cluckwork.Api.Modules.Insights.Export.ExportEndpoints.ExportAll", ["Insights"]),
         new("Cluckwork.Api.Modules.Insights.Export.ExportEndpoints.ExportDataset", ["Insights"]),
         new("Cluckwork.Api.Modules.Insights.Export.ExportEndpoints.WriteZipAsync", ["Insights"]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ArchiveFlock", ["FlockManagement"]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.CreateFlock", ["FlockManagement"]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.DepleteFlock", ["FlockManagement"]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.GetFlock", [
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.ArchiveFlock", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.CreateFlock", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.DepleteFlock", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.GetFlock", [
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ListFlocks", [
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.ListFlocks", [
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ListMovements", ["FlockManagement"]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ReactivateFlock", ["FlockManagement"]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.RecordMovement", ["FlockManagement"]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ToResponse", [
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.ListMovements", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.ReactivateFlock", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.RecordMovement", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.ToResponse", [
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.UpdateFlock", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.FlockManagement.Flocks.FlockEndpoints.UpdateFlock", ["FlockManagement"]),
         new("Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.CreateItem", ["GeneralInventory"]),
         new("Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.GetItem", ["GeneralInventory"]),
         new("Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.ListFeedUsage", [

@@ -16,7 +16,7 @@ The table is finite and explicit, one entry per file (after split, per type):
 
 `move` rewrites, in every .cs file under src/, tests/ and tools/ except historical migrations and their Designer files: fully and partially qualified names of each moved
 type (code, strings and comments alike, so registry rows follow), `using` directives (adds the new namespace where a
-moved type or one of its extension methods is named, adds the namespaces a moved file lost as ancestors, renames a using whose namespace emptied into one place and drops it otherwise), and
+moved type or one of its extension methods is named, adds the namespaces a moved file lost as ancestors, replaces a using whose namespace emptied with usings of the places its types went), and
 project-relative paths of moved files, also in Markdown outside docs/decisions and docs/plans. `replace` covers what
 cannot be derived, such as a rules file's namespace roots. Run `split` and `move` from the repository root.
 """
@@ -230,14 +230,18 @@ def add_using(text, ns):
     return text[:at] + f"using {ns};{nl}" + nl + text[at:]
 
 
-def block(usings, i):
-    """The namespaces of the contiguous run of using lines around usings[i]."""
-    lo = hi = i
-    while lo > 0 and usings[lo - 1].end() == usings[lo].start():
-        lo -= 1
+def block_start(usings, i):
+    while i > 0 and usings[i - 1].end() == usings[i].start():
+        i -= 1
+    return i
+
+
+def block_usings(usings, i):
+    """The contiguous run of using lines around usings[i]."""
+    lo = hi = block_start(usings, i)
     while hi + 1 < len(usings) and usings[hi].end() == usings[hi + 1].start():
         hi += 1
-    return {m.group(2) for m in usings[lo:hi + 1]}
+    return usings[lo:hi + 1]
 
 
 def move(table):
@@ -252,10 +256,10 @@ def move(table):
     for _, _, old, _, moved, _ in moves:
         remaining[old] -= moved
     emptied = {ns for ns, t in remaining.items() if not t}
-    # An emptied namespace whose types all went to one place is renamed, not dropped, so a using inside a string
-    # (a test fixture compiled against the real assemblies) follows too.
-    renamed = {old: {new for _, _, o, new, _, _ in moves if o == old} for old in emptied}
-    renamed = {old: news.pop() for old, news in renamed.items() if len(news) == 1}
+    # A using of an emptied namespace becomes a using of each place its types went, in the same block, so a using
+    # inside a string (a test fixture compiled against the real assemblies) or a block namespace follows too.
+    # prune drops the ones compiled code does not need.
+    renamed = {old: sorted({new for _, _, o, new, _, _ in moves if o == old}) for old in emptied}
 
     for src, dst, old, new, _, _ in moves:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -311,12 +315,15 @@ def move(table):
             if sees_old and names(code, moved | extensions):
                 text = add_using(text, new)
         usings = list(USING.finditer(text))
+        seen = {}
         for i in reversed(range(len(usings))):
             m = usings[i]
             if m.group(2) in emptied:
-                new = renamed.get(m.group(2))
-                keep = new and new not in block(usings, i)
-                text = text[:m.start()] + (m.group(0).replace(m.group(2), new, 1) if keep else "") + text[m.end():]
+                present = seen.setdefault(block_start(usings, i), {u.group(2) for u in block_usings(usings, i)})
+                news = [new for new in renamed.get(m.group(2), [])
+                        if new not in present and not (own and (own == new or own.startswith(new + ".")))]
+                present.update(news)
+                text = text[:m.start()] + "".join(m.group(0).replace(m.group(2), new, 1) for new in news) + text[m.end():]
         if text != original:
             write(path, text, bom)
 
@@ -340,7 +347,7 @@ def move(table):
 
 
 def ide0005(out):
-    """Builds the solution with IDE0005 reported, writing one `path:using line` per unnecessary using to out. IDE0005
+    """Builds the solution with IDE0005 reported, writing `path:line:using text` per unnecessary using to out. IDE0005
     needs documentation files, and reports one diagnostic per run of usings, so the runs are read from SARIF."""
     with open(".editorconfig", encoding="utf-8") as f:
         editorconfig = f.read()
@@ -374,26 +381,42 @@ def ide0005(out):
                 region = location["region"]
                 for number in range(region["startLine"], region.get("endLine", region["startLine"]) + 1):
                     if source[number - 1].strip().startswith(("using ", "global using ")):
-                        lines.add(f"{path}:{source[number - 1].strip()}")
+                        lines.add(f"{path}:{number}:{source[number - 1].strip()}")
     with open(out, "w", encoding="utf-8") as f:
         f.write("".join(entry + "\n" for entry in sorted(lines)))
     print(f"{len(lines)} unnecessary usings -> {out}")
 
 
 def prune(table, base, head):
-    """Drops the using lines flagged in head but not in base, reading a moved file's base entries at its new path."""
+    """Deletes the unused usings head flags beyond base's, per file and using text, by line number: a file with block
+    namespaces can repeat a using, and only the flagged occurrence goes. A moved file's base entries count at its new
+    path."""
     moved = {src: dst for src, dst in table.get("move", {}).items() if not os.path.exists(src)}
-    with open(base, encoding="utf-8") as f:
-        old = {moved.get(path, path) + ":" + line
-               for path, line in (e.split(":", 1) for e in f.read().split("\n") if e)}
-    with open(head, encoding="utf-8") as f:
-        new = [entry for entry in f.read().split("\n") if entry and entry not in old]
-    for entry in new:
-        path, line = entry.split(":", 1)
+
+    def entries(log):
+        with open(log, encoding="utf-8") as f:
+            for entry in f.read().split("\n"):
+                if entry:
+                    path, number, line = entry.split(":", 2)
+                    yield moved.get(path, path), int(number), line
+
+    allowed = {}
+    for path, _, line in entries(base):
+        allowed[(path, line)] = allowed.get((path, line), 0) + 1
+    doomed = {}
+    for path, number, line in sorted(entries(head)):
+        if allowed.get((path, line), 0):
+            allowed[(path, line)] -= 1
+        else:
+            doomed.setdefault(path, []).append((number, line))
+    for path, found in doomed.items():
         text, bom = read(path)
-        text = re.sub(rf"^[ \t]*{re.escape(line)}[ \t]*\r?\n", "", text, count=1, flags=re.M)
-        write(path, text.lstrip("\r\n"), bom)
-        print(f"prune {path}: {line}")
+        lines = text.splitlines(keepends=True)
+        for number, line in sorted(found, reverse=True):
+            assert lines[number - 1].strip() == line, (path, number, line)
+            del lines[number - 1]
+            print(f"prune {path}:{number}: {line}")
+        write(path, "".join(lines).lstrip("\r\n"), bom)
 
 
 def marks():

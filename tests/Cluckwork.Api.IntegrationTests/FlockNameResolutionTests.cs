@@ -1,7 +1,8 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Flocks;
+using Cluckwork.Domain.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 

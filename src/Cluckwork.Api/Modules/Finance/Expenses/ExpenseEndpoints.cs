@@ -107,7 +107,7 @@ public static class ExpenseEndpoints
 
     private static async Task<IResult> ListExpenses(
         IFinanceModule finance,
-        Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        Cluckwork.Application.Modules.FlockManagement.Contracts.IFlockLookup flocks,
         IFarmModule farm,
         IInsightsModule audit,
         TenantContext tenant,
@@ -148,7 +148,7 @@ public static class ExpenseEndpoints
 
     private static async Task<IResult> GetExpense(
         Guid id, IFinanceModule finance,
-        Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        Cluckwork.Application.Modules.FlockManagement.Contracts.IFlockLookup flocks,
         IInsightsModule audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -187,7 +187,7 @@ public static class ExpenseEndpoints
         AdjustExpenseRequest request,
         IFinanceModule finance,
         IValidator<AdjustExpenseCommand> validator,
-        Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        Cluckwork.Application.Modules.FlockManagement.Contracts.IFlockLookup flocks,
         IInsightsModule audit,
         TenantContext tenant,
         CancellationToken ct)
@@ -238,7 +238,7 @@ public static class ExpenseEndpoints
     // and costs no query at all; a set of one keeps the same read as the list
     // route so the two can never answer differently.
     private static async Task<string?> FlockNameAsync(
-        Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        Cluckwork.Application.Modules.FlockManagement.Contracts.IFlockLookup flocks,
         Guid? flockId, CancellationToken ct) =>
         flockId is null
             ? null

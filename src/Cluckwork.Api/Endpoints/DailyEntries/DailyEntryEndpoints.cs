@@ -1,7 +1,7 @@
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using System.Text.Json;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
-using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
 using Cluckwork.Application.Features.Eggs;
@@ -56,7 +56,7 @@ public static class DailyEntryEndpoints
         Guid id,
         IEggOperationsModule eggs,
         Cluckwork.Application.Modules.Insights.Contracts.IInsightsModule audit,
-        Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        Cluckwork.Application.Modules.FlockManagement.Contracts.IFlockLookup flocks,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -76,7 +76,7 @@ public static class DailyEntryEndpoints
     private static async Task<IResult> ListDailyEntries(
         IEggOperationsModule eggs,
         Cluckwork.Application.Modules.Insights.Contracts.IInsightsModule audit,
-        Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
+        Cluckwork.Application.Modules.FlockManagement.Contracts.IFlockLookup flocks,
         TenantContext tenant,
         CancellationToken ct,
         Guid? flockId = null,

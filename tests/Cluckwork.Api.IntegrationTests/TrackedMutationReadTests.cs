@@ -1,6 +1,6 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Flocks;
-using Cluckwork.Domain.Flocks;
+using Cluckwork.Application.Modules.FlockManagement.Flocks;
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

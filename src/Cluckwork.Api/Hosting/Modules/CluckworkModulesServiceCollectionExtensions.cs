@@ -1,4 +1,5 @@
 using Cluckwork.Api.Modules.Finance;
+using Cluckwork.Api.Modules.FlockManagement;
 using Cluckwork.Api.Modules.Insights;
 
 namespace Cluckwork.Api.Hosting.Modules;

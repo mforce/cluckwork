@@ -1,6 +1,6 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

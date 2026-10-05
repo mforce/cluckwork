@@ -1,7 +1,7 @@
+using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using System.Linq.Expressions;
 using System.Reflection;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
