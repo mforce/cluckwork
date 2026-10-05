@@ -1,9 +1,9 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
-using Cluckwork.Application.Features.Insights;
+using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 
-namespace Cluckwork.Api.Endpoints.Reports;
+namespace Cluckwork.Api.Modules.Insights.Reports;
 
 // #91 — core reports. Production is open to every signed-in user (workers
 // record it, workers may read it); the money summaries are AdminOnly, reads

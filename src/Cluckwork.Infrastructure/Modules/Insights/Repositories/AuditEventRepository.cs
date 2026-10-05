@@ -1,11 +1,11 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Audit;
-using Cluckwork.Application.Features.Insights;
+using Cluckwork.Application.Modules.Insights.Audit;
+using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cluckwork.Infrastructure.Insights;
+namespace Cluckwork.Infrastructure.Modules.Insights.Repositories;
 
 public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) : IAuditEventRepository
 {

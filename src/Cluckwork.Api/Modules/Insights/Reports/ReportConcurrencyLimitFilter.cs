@@ -1,7 +1,7 @@
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.RateLimiting;
 
-namespace Cluckwork.Api.Endpoints.Reports;
+namespace Cluckwork.Api.Modules.Insights.Reports;
 
 // #311/#545 — caps concurrently in-flight report queries per account so one
 // account firing many overlapping report requests cannot drive unbounded DB/CPU

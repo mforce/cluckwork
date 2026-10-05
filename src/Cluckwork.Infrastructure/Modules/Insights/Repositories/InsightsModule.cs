@@ -1,9 +1,9 @@
-using Cluckwork.Application.Features.Audit;
-using Cluckwork.Application.Features.Export;
-using Cluckwork.Application.Features.Insights;
-using Cluckwork.Application.Features.Reports;
+using Cluckwork.Application.Modules.Insights.Audit;
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Application.Modules.Insights.Export;
+using Cluckwork.Application.Modules.Insights.Reports;
 
-namespace Cluckwork.Infrastructure.Insights;
+namespace Cluckwork.Infrastructure.Modules.Insights.Repositories;
 
 public sealed class InsightsModule(
     IReportQueries reports, IExportQueries exports, IAuditEventRepository audit) : IInsightsModule

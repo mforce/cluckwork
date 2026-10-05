@@ -4,7 +4,7 @@
 //
 // ================== WHERE THE BOUND ACTUALLY LIVES ==================
 //
-// `src/Cluckwork.Api/Endpoints/Reports/ReportEndpoints.cs`:
+// `src/Cluckwork.Api/Modules/Insights/Reports/ReportEndpoints.cs`:
 //
 //     private const int MaxRangeDays = 366;
 //     if (t.DayNumber - f.DayNumber >= MaxRangeDays)

@@ -1,14 +1,14 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Export;
 using Cluckwork.Application.Features.Sales;
+using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
+using Cluckwork.Infrastructure.Modules.Insights.Repositories;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Repositories;
 
 namespace Cluckwork.Api.IntegrationTests;

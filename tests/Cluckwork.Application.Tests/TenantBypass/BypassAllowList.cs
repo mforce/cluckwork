@@ -138,8 +138,8 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Insights.AuditEventRepository.GetProvenanceChunkAsync(string entityType, Guid[] ids, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Insights/AuditEventRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Insights.Repositories.AuditEventRepository.GetProvenanceChunkAsync(string entityType, Guid[] ids, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Insights/Repositories/AuditEventRepository.cs",
             Hash = "939dd727",
             Justification = "Audit provenance selects only AuditEvents. Each of the created, latest and promoted SQL statements scopes AccountId, EntityType and EntityId before any self-join; IgnoreQueryFilters prevents EF from composing its global filter onto those tenant-scoped raw queries.",
         },
@@ -292,8 +292,8 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Insights.AuditEventRepository.GetProvenanceAsync(string entityType, IReadOnlyCollection<Guid> entityIds, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Insights/AuditEventRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Insights.Repositories.AuditEventRepository.GetProvenanceAsync(string entityType, IReadOnlyCollection<Guid> entityIds, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Insights/Repositories/AuditEventRepository.cs",
             Hash = "f0aa4b72",
             Justification = "Caller of GetProvenanceChunkAsync. Each wrapped AuditEvents query applies AccountId, EntityType and EntityId before its self-joins; the forwarding method chunks entity ids without changing that scope.",
         },

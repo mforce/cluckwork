@@ -12,7 +12,7 @@ answer is the same one:
 
 **The API already supports a date range on both screens.**
 
-- `src/Cluckwork.Api/Endpoints/Audit/AuditEndpoints.cs:29-30` — `ListAuditEvents` takes
+- `src/Cluckwork.Api/Modules/Insights/Audit/AuditEndpoints.cs:29-30` — `ListAuditEvents` takes
   `DateOnly? from` / `DateOnly? to`; `IAuditEventRepository.ListAsync` carries them through.
   `web/src/routes/AuditPage.tsx:132` simply never sends them.
 - `src/Cluckwork.Api/Endpoints/Expenses/ExpenseEndpoints.cs:122-134` — `ListExpenses` takes

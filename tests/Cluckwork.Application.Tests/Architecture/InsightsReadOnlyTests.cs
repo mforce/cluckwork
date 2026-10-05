@@ -1,9 +1,9 @@
+using Cluckwork.Application.Modules.Insights.Audit;
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Application.Modules.Insights.Export;
+using Cluckwork.Application.Modules.Insights.Reports;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using Cluckwork.Application.Features.Audit;
-using Cluckwork.Application.Features.Export;
-using Cluckwork.Application.Features.Insights;
-using Cluckwork.Application.Features.Reports;
 using Cluckwork.Application.Tests.TenantBypass;
 using Cluckwork.Domain.Common;
 using Microsoft.CodeAnalysis;
@@ -32,7 +32,7 @@ public sealed class InsightsReadOnlyTests
     public void ReadSession_UsesOnlyApprovedPersistenceOperations()
     {
         var files = GuardScanner.EnumerateSourceFiles(
-            Path.Combine(RepoRoot, "src", "Cluckwork.Infrastructure", "Insights"));
+            Path.Combine(RepoRoot, "src", "Cluckwork.Infrastructure", "Modules", "Insights", "Repositories"));
         Assert.True(files.Count >= 4, "Insights read-session source is missing");
         var violations = FindUnapprovedOperations(files.Select(File.ReadAllText));
         Assert.True(violations.Count == 0, string.Join("\n", violations));

@@ -1,9 +1,8 @@
 using Cluckwork.Api.Validation;
-using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 using Cluckwork.Application.Features.Eggs;
-using Cluckwork.Application.Features.Insights;
+using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 

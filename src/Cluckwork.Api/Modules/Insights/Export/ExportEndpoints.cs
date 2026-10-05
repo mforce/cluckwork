@@ -1,11 +1,11 @@
+using Cluckwork.Application.Modules.Insights.Contracts;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Text.Json;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Insights;
 using Cluckwork.Infrastructure.Persistence;
 
-namespace Cluckwork.Api.Endpoints.Export;
+namespace Cluckwork.Api.Modules.Insights.Export;
 
 // #95 — manual backup (spec §17.5). Read-only, admin-only (group policy in
 // Program.cs): exports are a bulk copy of the account, money data included.

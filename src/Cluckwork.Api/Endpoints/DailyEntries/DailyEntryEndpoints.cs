@@ -55,7 +55,7 @@ public static class DailyEntryEndpoints
     private static async Task<IResult> GetDailyEntry(
         Guid id,
         IEggOperationsModule eggs,
-        Cluckwork.Application.Features.Insights.IInsightsModule audit,
+        Cluckwork.Application.Modules.Insights.Contracts.IInsightsModule audit,
         Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
         TenantContext tenant,
         CancellationToken ct)
@@ -75,7 +75,7 @@ public static class DailyEntryEndpoints
 
     private static async Task<IResult> ListDailyEntries(
         IEggOperationsModule eggs,
-        Cluckwork.Application.Features.Insights.IInsightsModule audit,
+        Cluckwork.Application.Modules.Insights.Contracts.IInsightsModule audit,
         Cluckwork.Application.Features.Flocks.IFlockLookup flocks,
         TenantContext tenant,
         CancellationToken ct,
@@ -105,7 +105,7 @@ public static class DailyEntryEndpoints
 
     private static DailyEntryResponse ToResponse(
         DailyEntryDetails e,
-        Cluckwork.Application.Features.Audit.EntityProvenance? p,
+        Cluckwork.Application.Modules.Insights.Contracts.EntityProvenance? p,
         FlockReference? flock = null) => new(
         e.Id, e.FarmId, e.HouseId, e.FlockId, e.Date, e.Status.ToString(),
         e.TotalEggs, e.CrackedEggs, e.DirtyEggs, e.DiscardedEggs, e.MortalityCount,

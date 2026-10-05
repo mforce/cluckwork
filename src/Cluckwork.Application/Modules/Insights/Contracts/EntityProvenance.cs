@@ -1,4 +1,4 @@
-namespace Cluckwork.Application.Features.Audit;
+namespace Cluckwork.Application.Modules.Insights.Contracts;
 
 // #494 — derived from the audit trail, never stored. Creation is the entity's
 // "*.Create" event, identified by its ACTION and NOT by being earliest on the
@@ -30,7 +30,6 @@ namespace Cluckwork.Application.Features.Audit;
 // keying the whole result off the creation. Refusing to invent a creator and
 // throwing away a change we can prove are separate decisions; only the first
 // was intended (adversarial review of PR #503).
-[ModuleContract("Insights")]
 public sealed record EntityProvenance(
     string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
     string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,

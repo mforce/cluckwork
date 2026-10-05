@@ -1,10 +1,9 @@
 using Cluckwork.Api.Validation;
-using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
-using Cluckwork.Application.Features.Insights;
+using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 

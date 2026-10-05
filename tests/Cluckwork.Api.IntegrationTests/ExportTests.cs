@@ -1,3 +1,6 @@
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Application.Modules.Insights.Export;
+using Cluckwork.Infrastructure.Modules.Insights.Repositories;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
@@ -5,10 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Export;
-using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Insights;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;

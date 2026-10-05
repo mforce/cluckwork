@@ -1,6 +1,6 @@
-using Cluckwork.Application.Features.Insights;
+using Cluckwork.Application.Modules.Insights.Contracts;
 
-namespace Cluckwork.Application.Features.Audit;
+namespace Cluckwork.Application.Modules.Insights.Audit;
 
 // Read side of the audit trail (#93). Append happens through IAuditWriter;
 // there is intentionally no update/remove surface anywhere.

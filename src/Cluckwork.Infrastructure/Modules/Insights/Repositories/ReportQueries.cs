@@ -1,10 +1,11 @@
-using Cluckwork.Application.Features.Reports;
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Application.Modules.Insights.Reports;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cluckwork.Infrastructure.Insights;
+namespace Cluckwork.Infrastructure.Modules.Insights.Repositories;
 
 public sealed class ReportQueries(AppDbContext db) : IReportQueries
 {
