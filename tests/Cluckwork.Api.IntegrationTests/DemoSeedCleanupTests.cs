@@ -1,5 +1,12 @@
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Catalog.CreateProduct;
+using Cluckwork.Application.Features.Customers.CreateCustomer;
+using Cluckwork.Application.Features.Eggs;
+using Cluckwork.Application.Features.Sales;
+using Cluckwork.Application.Features.Users;
+using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -160,6 +167,49 @@ public sealed class DemoSeedCleanupTests(DemoSeedCleanupFactory factory) : IClas
         var retry = await SeedAsync(accountId, failDraftLine: false);
 
         Assert.True(retry.Status == SeedStatus.Seeded, retry.Message);
+    }
+
+    // The Owner's own "Large Eggs" and one customer, on a farm with no flocks.
+    private async Task<Guid> CreateOwnerCatalogAsync(Guid accountId, string unit, string grade)
+    {
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        services.GetRequiredService<TenantContext>().Resolve(accountId);
+        var access = services.GetRequiredService<IAccessSeedLookup>();
+        var owner = (await access.ListUsersInRoleAsync(accountId, Roles.Owner)).Single();
+        var actor = await access.GetActorAsync(accountId, owner.Id);
+        services.GetRequiredService<CurrentUserContext>().Resolve(actor!.Id, actor.Email!, actor.Roles);
+
+        var gradeId = (await services.GetRequiredService<IEggOperationsModule>()
+            .ListActiveGradesAsync(SeedDefaults.FarmId, CancellationToken.None)).Single(g => g.Name == grade).Id;
+        var commerce = services.GetRequiredService<ICommerceModule>();
+        var product = await commerce.CreateProductAsync(
+            new CreateProductCommand("Large Eggs", "Egg", unit, 45, gradeId, null), accountId, CancellationToken.None);
+        Assert.True(product.IsSuccess);
+        Assert.True((await commerce.CreateCustomerAsync(
+            new CreateCustomerCommand("Owner's customer", "555-0199"), accountId, CancellationToken.None)).IsSuccess);
+        return product.Value;
+    }
+
+    [Theory]
+    [InlineData("Dozen", "Large")]
+    [InlineData("Egg", "Small")]
+    public async Task OwnersDifferentSameNameProduct_StopsTheSeedBeforeAnyWrite(string unit, string grade)
+    {
+        var accountId = await ProvisionFarmAsync();
+        var productId = await CreateOwnerCatalogAsync(accountId, unit, grade);
+
+        var result = await SeedAsync(accountId, failDraftLine: false);
+
+        Assert.Equal(SeedStatus.Failed, result.Status);
+        Assert.Contains("'Large Eggs'", result.Message);
+        // The customer surviving shows the cleanup never ran.
+        Assert.All(await CountRowsAsync(accountId),
+            row => Assert.Equal(row.Key == "Customers" ? 1 : 0, row.Value));
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var product = await db.Products.IgnoreQueryFilters().SingleAsync(p => p.AccountId == accountId);
+        Assert.Equal((productId, Enum.Parse<ProductUnit>(unit)), (product.Id, product.DefaultUnit));
     }
 
     [Fact]
