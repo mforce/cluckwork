@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Inventory;
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

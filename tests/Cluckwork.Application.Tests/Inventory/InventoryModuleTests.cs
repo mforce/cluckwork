@@ -1,6 +1,7 @@
-using Cluckwork.Application.Features.Inventory;
+using Cluckwork.Application.Modules.GeneralInventory.Contracts;
+using Cluckwork.Application.Modules.GeneralInventory.Inventory;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Inventory;
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 
 namespace Cluckwork.Application.Tests.Inventory;
 

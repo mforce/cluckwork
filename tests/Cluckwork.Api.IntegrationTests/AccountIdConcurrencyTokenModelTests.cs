@@ -1,5 +1,5 @@
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Inventory;
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

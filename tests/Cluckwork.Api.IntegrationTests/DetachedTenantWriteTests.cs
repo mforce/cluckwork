@@ -1,7 +1,7 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Inventory;
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;

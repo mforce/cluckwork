@@ -307,9 +307,9 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
                 case "inventory-update":
                 case "purchase":
                     var itemId = Guid.NewGuid();
-                    db.InventoryItems.Add(Domain.Inventory.InventoryItem.Create(
+                    db.InventoryItems.Add(Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryItem.Create(
                         itemId, accountId, SeedDefaults.FarmId, "Race Feed",
-                        Domain.Inventory.InventoryCategory.Feed, "kg", defaultUnitCost: null));
+                        Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryCategory.Feed, "kg", defaultUnitCost: null));
                     seeded = seeded with { ItemId = itemId };
                     break;
             }
@@ -346,18 +346,18 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
                         seeded.ProductId, "Race Tray", "Tray", 700, seeded.GradeId, null), CancellationToken.None);
                 return update.IsSuccess ? null : update.Error.Code;
             case "inventory-create":
-                var item = await services.GetRequiredService<Application.Features.Inventory.CreateInventoryItem.CreateInventoryItemHandler>()
-                    .HandleAsync(new Application.Features.Inventory.CreateInventoryItem.CreateInventoryItemCommand(
+                var item = await services.GetRequiredService<Cluckwork.Application.Modules.GeneralInventory.Inventory.CreateInventoryItem.CreateInventoryItemHandler>()
+                    .HandleAsync(new Cluckwork.Application.Modules.GeneralInventory.Contracts.CreateInventoryItemCommand(
                         "Raced Grit", "Supplement", "kg", 900), accountId, CancellationToken.None);
                 return item.IsSuccess ? null : item.Error.Code;
             case "inventory-update":
-                var priced = await services.GetRequiredService<Application.Features.Inventory.UpdateInventoryItem.UpdateInventoryItemHandler>()
-                    .HandleAsync(new Application.Features.Inventory.UpdateInventoryItem.UpdateInventoryItemCommand(
+                var priced = await services.GetRequiredService<Cluckwork.Application.Modules.GeneralInventory.Inventory.UpdateInventoryItem.UpdateInventoryItemHandler>()
+                    .HandleAsync(new Cluckwork.Application.Modules.GeneralInventory.Contracts.UpdateInventoryItemCommand(
                         seeded.ItemId, "Race Feed", "kg", 1200), accountId, CancellationToken.None);
                 return priced.IsSuccess ? null : priced.Error.Code;
             case "purchase":
-                var purchase = await services.GetRequiredService<Application.Features.Inventory.RecordPurchase.RecordPurchaseHandler>()
-                    .HandleAsync(new Application.Features.Inventory.RecordPurchase.RecordPurchaseCommand(
+                var purchase = await services.GetRequiredService<Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordPurchase.RecordPurchaseHandler>()
+                    .HandleAsync(new Cluckwork.Application.Modules.GeneralInventory.Contracts.RecordPurchaseCommand(
                         seeded.ItemId, today, 25m, 4_500, null, null, null), accountId, CancellationToken.None);
                 return purchase.IsSuccess ? null : purchase.Error.Code;
             default:

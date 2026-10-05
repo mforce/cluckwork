@@ -1,7 +1,7 @@
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
