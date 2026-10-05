@@ -163,6 +163,19 @@ public sealed class DemoDataSeeder(
             return SeedResult.Failed(existingProducts.Error.Description);
         }
 
+        // #1081 — the cleanup purges every customer, order and line of the farm.
+        // With no flocks, only the demo can have written its flock-rooted rows,
+        // but anyone can write customers, and every order needs one.
+        if (await commerceFixture.AnyCustomerAsync(ct))
+        {
+            const string message =
+                "Demo seed stopped before writing anything: this farm already has customers, and a failed " +
+                "demo seed removes every customer and sales order of the farm. Seed a farm with no customers " +
+                "or flocks, such as a new one from `provision-account`.";
+            logger.LogError(message);
+            return SeedResult.Failed(message);
+        }
+
         try
         {
             await SeedDemoAsync(accountId, grades, existingProducts.Value, ct);
@@ -231,10 +244,8 @@ public sealed class DemoDataSeeder(
     // The handlers commit step by step (ConfirmSale even opens its own
     // transaction, so one outer transaction can't wrap the whole seed). If a
     // later step fails, committed rows would otherwise trip the empty-catalog
-    // guard forever with a half-seeded demo. Cleanup is safe on a fresh
-    // database: the flock guard proves the flock-rooted rows are ours, and
-    // nothing else writes customers/orders into a fresh account before this
-    // seeder's first run.
+    // guard forever with a half-seeded demo. The flock and customer guards
+    // prove every row it deletes is ours.
     private async Task CleanupPartialSeedAsync(Guid accountId)
     {
         try

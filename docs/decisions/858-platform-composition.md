@@ -90,7 +90,7 @@ becomes injectable in Production. Skip the contract and the ledger guards fail.
 | No other reads of a module's tables, and no stale rows | `CompatibilityExceptionRealTreeTests` (#850) |
 | No fixture port resolves in Production, in either process role or with no environment set | `FixturePortRegistrationTests`. It runs the real `Cluckwork.Api.dll` in a child process per case and discovers `I*Fixture` by name, with a floor of 7 |
 | The flock assignment refuses another farm's user, flock or tenant; keeps the Owner actor and flock-name audit; saves once | `AccessFixtureTests`, `AccessSeedAssignmentAtomicityTests` |
-| Demo cleanup empties the farm, rolls back on a failed delete, and spares other farms | `DemoSeedCleanupTests` |
+| Demo cleanup empties the farm, rolls back on a failed delete, and spares other farms; the seed refuses a farm that already has customers, so the cleanup never deletes the Owner's sales (#1081) | `DemoSeedCleanupTests` |
 | `IFarmDirectory` is named only by operator verbs, jobs, and its own and registration files | `FarmDirectoryCallerTests` |
 | Every `Ensure*` boot guard under `Cluckwork.Api.Hosting`, including `Modules`, has a row | `ServingGuardCoverageTests` |
 | Seed parity | Manifest counts and fingerprint, rerun and persona tests in `SimulationSeederTests`, `DemoSeedTests` |

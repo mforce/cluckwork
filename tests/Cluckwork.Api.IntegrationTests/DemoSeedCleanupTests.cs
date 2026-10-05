@@ -4,6 +4,8 @@ using Cluckwork.Application.Features.Catalog.CreateProduct;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Sales;
+using Cluckwork.Application.Features.Sales.AddOrderItem;
+using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
@@ -169,26 +171,33 @@ public sealed class DemoSeedCleanupTests(DemoSeedCleanupFactory factory) : IClas
         Assert.True(retry.Status == SeedStatus.Seeded, retry.Message);
     }
 
-    // The Owner's own "Large Eggs" and one customer, on a farm with no flocks.
-    private async Task<Guid> CreateOwnerCatalogAsync(Guid accountId, string unit, string grade)
+    private async Task<IServiceScope> OwnerScopeAsync(Guid accountId)
     {
-        using var scope = factory.Services.CreateScope();
+        var scope = factory.Services.CreateScope();
         var services = scope.ServiceProvider;
         services.GetRequiredService<TenantContext>().Resolve(accountId);
         var access = services.GetRequiredService<IAccessSeedLookup>();
         var owner = (await access.ListUsersInRoleAsync(accountId, Roles.Owner)).Single();
         var actor = await access.GetActorAsync(accountId, owner.Id);
         services.GetRequiredService<CurrentUserContext>().Resolve(actor!.Id, actor.Email!, actor.Roles);
+        return scope;
+    }
 
+    // The Owner's own "Large Eggs" and one customer, on a farm with no flocks.
+    private async Task<(Guid Product, Guid Customer)> CreateOwnerCatalogAsync(Guid accountId, string unit, string grade)
+    {
+        using var scope = await OwnerScopeAsync(accountId);
+        var services = scope.ServiceProvider;
         var gradeId = (await services.GetRequiredService<IEggOperationsModule>()
             .ListActiveGradesAsync(SeedDefaults.FarmId, CancellationToken.None)).Single(g => g.Name == grade).Id;
         var commerce = services.GetRequiredService<ICommerceModule>();
         var product = await commerce.CreateProductAsync(
             new CreateProductCommand("Large Eggs", "Egg", unit, 45, gradeId, null), accountId, CancellationToken.None);
         Assert.True(product.IsSuccess);
-        Assert.True((await commerce.CreateCustomerAsync(
-            new CreateCustomerCommand("Owner's customer", "555-0199"), accountId, CancellationToken.None)).IsSuccess);
-        return product.Value;
+        var customer = await commerce.CreateCustomerAsync(
+            new CreateCustomerCommand("Owner's customer", "555-0199"), accountId, CancellationToken.None);
+        Assert.True(customer.IsSuccess);
+        return (product.Value, customer.Value);
     }
 
     [Theory]
@@ -197,7 +206,7 @@ public sealed class DemoSeedCleanupTests(DemoSeedCleanupFactory factory) : IClas
     public async Task OwnersDifferentSameNameProduct_StopsTheSeedBeforeAnyWrite(string unit, string grade)
     {
         var accountId = await ProvisionFarmAsync();
-        var productId = await CreateOwnerCatalogAsync(accountId, unit, grade);
+        var (productId, _) = await CreateOwnerCatalogAsync(accountId, unit, grade);
 
         var result = await SeedAsync(accountId, failDraftLine: false);
 
@@ -210,6 +219,34 @@ public sealed class DemoSeedCleanupTests(DemoSeedCleanupFactory factory) : IClas
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var product = await db.Products.IgnoreQueryFilters().SingleAsync(p => p.AccountId == accountId);
         Assert.Equal((productId, Enum.Parse<ProductUnit>(unit)), (product.Id, product.DefaultUnit));
+    }
+
+    // #1081 — no fault injection: the demo's daily entries need Small, so the
+    // seed fails late after the Owner deactivates it.
+    [Fact]
+    public async Task OwnersSales_SurviveAFailedSeed()
+    {
+        var accountId = await ProvisionFarmAsync();
+        var (productId, customerId) = await CreateOwnerCatalogAsync(accountId, "Egg", "Large");
+        using (var scope = await OwnerScopeAsync(accountId))
+        {
+            var services = scope.ServiceProvider;
+            var commerce = services.GetRequiredService<ICommerceModule>();
+            var order = await commerce.CreateSalesOrderAsync(
+                new CreateSalesOrderCommand(customerId, new DateOnly(2026, 1, 5)), accountId, CancellationToken.None);
+            Assert.True(order.IsSuccess);
+            Assert.True((await commerce.AddOrderItemAsync(
+                new AddOrderItemCommand(order.Value, productId, 12, null, null), accountId, CancellationToken.None)).IsSuccess);
+            var eggs = services.GetRequiredService<IEggOperationsModule>();
+            var small = (await eggs.ListActiveGradesAsync(SeedDefaults.FarmId, CancellationToken.None)).Single(g => g.Name == "Small");
+            Assert.True((await eggs.SetGradeActiveAsync(small.Id, false, CancellationToken.None)).IsSuccess);
+        }
+
+        var result = await SeedAsync(accountId, failDraftLine: false);
+
+        Assert.Equal(SeedStatus.Failed, result.Status);
+        Assert.All(await CountRowsAsync(accountId), row => Assert.Equal(
+            row.Key is "Customers" or "SalesOrders" or "SalesOrderItems" ? 1 : 0, row.Value));
     }
 
     [Fact]
