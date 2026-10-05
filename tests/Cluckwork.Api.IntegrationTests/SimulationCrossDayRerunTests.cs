@@ -1,10 +1,10 @@
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using System.IO;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;

@@ -205,14 +205,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.CurrencyCode, x.CurrencyMinorUnit, x.Method, x.ReferenceNumber,
                       x.Note, x.Voided, x.VoidReason, x.Version]),
 
-            "inventory-items" => Rows<Cluckwork.Domain.Inventory.InventoryItem>(activeDb.InventoryItems.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
+            "inventory-items" => Rows<Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryItem>(activeDb.InventoryItems.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
                 ["id", "farmId", "name", "category", "unit", "defaultUnitCostMinorUnits",
                  "currencyCode", "currencyMinorUnit", "active", "version"],
                 x => [x.Id, x.FarmId, x.Name, x.Category, x.Unit, x.DefaultUnitCost?.MinorUnits,
                       x.DefaultUnitCost?.CurrencyCode, x.DefaultUnitCost?.CurrencyMinorUnit,
                       x.Active, x.Version]),
 
-            "inventory-lots" => Rows<Cluckwork.Domain.Inventory.InventoryLot>(activeDb.InventoryLots.AsNoTracking()
+            "inventory-lots" => Rows<Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryLot>(activeDb.InventoryLots.AsNoTracking()
                     .OrderByBusinessChronology(x => x.ReceivedDate),
                 ["id", "inventoryItemId", "receivedDate", "lotNumber", "expiryDate",
                  "quantityReceived", "quantityAvailable", "unitCostMinorUnits",
@@ -221,14 +221,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.QuantityReceived, x.QuantityAvailable, x.UnitCost.MinorUnits,
                       x.UnitCost.CurrencyCode, x.UnitCost.CurrencyMinorUnit, x.Version]),
 
-            "inventory-movements" => Rows<Cluckwork.Domain.Inventory.InventoryMovement>(activeDb.InventoryMovements.AsNoTracking()
+            "inventory-movements" => Rows<Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryMovement>(activeDb.InventoryMovements.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "inventoryItemId", "inventoryLotId", "date", "type", "quantityDelta",
                  "unit", "flockId", "note", "createdAtUtc", "referenceType", "referenceId"],
                 x => [x.Id, x.InventoryItemId, x.InventoryLotId, x.Date, x.Type, x.QuantityDelta,
                       x.Unit, x.FlockId, x.Note, x.CreatedAtUtc, x.ReferenceType, x.ReferenceId]),
 
-            "feed-usages" => Rows<Cluckwork.Domain.Inventory.FeedUsage>(activeDb.FeedUsages.AsNoTracking()
+            "feed-usages" => Rows<Cluckwork.Domain.Modules.GeneralInventory.Inventory.FeedUsage>(activeDb.FeedUsages.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "inventoryItemId", "date", "quantity", "unit",
                  "estimatedCostMinorUnits", "currencyCode", "currencyMinorUnit",
@@ -238,7 +238,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.EstimatedCost.CurrencyMinorUnit, x.DailyEntryId, x.Note,
                       x.CreatedAtUtc, x.Version]),
 
-            "water-usages" => Rows<Cluckwork.Domain.Inventory.WaterUsage>(activeDb.WaterUsages.AsNoTracking()
+            "water-usages" => Rows<Cluckwork.Domain.Modules.GeneralInventory.Inventory.WaterUsage>(activeDb.WaterUsages.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "date", "quantity", "unit", "source", "meterStart",
                  "meterEnd", "note", "dailyEntryId", "createdAtUtc", "version"],

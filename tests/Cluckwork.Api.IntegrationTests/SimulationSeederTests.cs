@@ -1,5 +1,6 @@
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using System.IO;
 using System.Net.Http.Json;
 using System.Text;
@@ -9,7 +10,6 @@ using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Eggs;
-using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;

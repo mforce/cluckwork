@@ -986,7 +986,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("Flocks");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.FeedUsage", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.FeedUsage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1049,7 +1049,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("FeedUsages");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.InventoryItem", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryItem", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1099,7 +1099,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("InventoryItems");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.InventoryLot", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryLot", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1158,7 +1158,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("InventoryLots");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.InventoryMovement", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryMovement", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1229,7 +1229,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("InventoryMovements");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.WaterUsage", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.WaterUsage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2128,7 +2128,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.FeedUsage", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.FeedUsage", b =>
                 {
                     b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
                         .WithMany()
@@ -2141,7 +2141,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Cluckwork.Domain.Inventory.InventoryItem", null)
+                    b.HasOne("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryItem", null)
                         .WithMany()
                         .HasForeignKey("InventoryItemId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2178,7 +2178,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.InventoryItem", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryItem", b =>
                 {
                     b.OwnsOne("Cluckwork.Domain.Common.Money", "DefaultUnitCost", b1 =>
                         {
@@ -2210,9 +2210,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Navigation("DefaultUnitCost");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.InventoryLot", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryLot", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Inventory.InventoryItem", null)
+                    b.HasOne("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryItem", null)
                         .WithMany()
                         .HasForeignKey("InventoryItemId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2249,26 +2249,26 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.InventoryMovement", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryMovement", b =>
                 {
                     b.HasOne("Cluckwork.Domain.Modules.FlockManagement.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Cluckwork.Domain.Inventory.InventoryItem", null)
+                    b.HasOne("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryItem", null)
                         .WithMany()
                         .HasForeignKey("InventoryItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Cluckwork.Domain.Inventory.InventoryLot", null)
+                    b.HasOne("Cluckwork.Domain.Modules.GeneralInventory.Inventory.InventoryLot", null)
                         .WithMany()
                         .HasForeignKey("InventoryLotId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Inventory.WaterUsage", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.GeneralInventory.Inventory.WaterUsage", b =>
                 {
                     b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
                         .WithMany()

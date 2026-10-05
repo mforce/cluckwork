@@ -1,5 +1,5 @@
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Inventory;
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 
 namespace Cluckwork.Domain.Tests.Inventory;
 

@@ -1,6 +1,6 @@
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Inventory;
-using Cluckwork.Domain.Inventory;
+using Cluckwork.Application.Modules.GeneralInventory.Inventory;
+using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
