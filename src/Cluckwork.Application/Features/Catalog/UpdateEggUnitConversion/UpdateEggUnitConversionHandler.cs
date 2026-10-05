@@ -4,9 +4,6 @@ using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion;
 
-[ModuleContract("Commerce")]
-public sealed record UpdateEggUnitConversionCommand(Guid ConversionId, int EggsPerUnit, bool Active);
-
 public sealed class UpdateEggUnitConversionHandler(
     IEggUnitConversionRepository conversions,
     IUnitOfWork unitOfWork,

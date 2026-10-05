@@ -24,31 +24,6 @@ public interface ISalesOrderRepository
         SalesOrderListFilter filter, int limit, int offset, CancellationToken ct = default);
 }
 
-// #769 — how much of the settlement figure this read may touch. An enum rather
-// than a `bool includeOutstanding` + `bool unpaidOnly` pair because that pair
-// makes "hide the money but filter by it" representable, and answering a
-// question the caller may not see the answer to is the defect this issue
-// exists to end.
-[ModuleContract("Commerce")]
-public enum SettlementScope
-{
-    // No settlement figure and no settlement predicate. The query must not
-    // name Payments at all — a structural gate, not a null applied afterwards.
-    Hidden,
-
-    // Every row carries its outstanding figure; no settlement predicate.
-    Visible,
-
-    // Every row carries its outstanding figure AND the page is restricted to
-    // orders still owing money.
-    UnpaidOnly,
-}
-
-[ModuleContract("Commerce")]
-public sealed record SalesOrderListFilter(
-    SalesOrderStatus? Status, Guid? CustomerId, DateOnly? From, DateOnly? To,
-    SettlementScope Settlement);
-
 // The order plus what it still owes: confirmed total − non-voided payments.
 // NULL for anything not Confirmed (payments attach to confirmed orders only,
 // so "outstanding" is undefined there and a 0 would read as settled) and for a

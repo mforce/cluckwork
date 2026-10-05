@@ -326,9 +326,6 @@ public sealed class SalesOrder : AggregateRoot<Guid>, IMutableRecord
     }
 }
 
-[ModuleContract("Commerce")]
-public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
-
 // #727 — where one line sits against the farm's discount ceiling.
 public enum LineCeilingStatus
 {
@@ -356,23 +353,6 @@ public readonly record struct CeilingBreach(
     Guid EggGradeId,
     LineCeilingStatus Status,
     decimal? DiscountPercent);
-
-// #721 — why an order was sold below list. Persisted BY NAME, so reordering
-// these members cannot silently relabel historical rows.
-[ModuleContract("Commerce")]
-public enum DiscountReasonCode
-{
-    /// <summary>A bulk order earned a lower unit price.</summary>
-    Volume,
-    /// <summary>The goods were sold cheap because of their condition.</summary>
-    DamagedStock,
-    /// <summary>A standing customer's negotiated price.</summary>
-    LongStandingCustomer,
-    /// <summary>A manager authorised the price off the catalogue.</summary>
-    ManagerApproved,
-    /// <summary>Anything else. Meaningless without a note, so a note is required.</summary>
-    Other,
-}
 
 public static class DiscountReason
 {
@@ -402,27 +382,6 @@ public static class DiscountReason
         code = parsed;
         return true;
     }
-}
-
-// #720 — why a line's ListUnitPriceMinorUnits is what it is. NULL alone cannot
-// say, and #727 gates an approval on the difference: for ProductUnpriced and
-// NotComparable, "no comparable list price" is a RECORDED FACT and no discount
-// is computable; for PreDating it means "we do not know", and the line may have
-// been deeply discounted. Those two need opposite treatment.
-//
-// PreDating is written by the backfill only. Nothing in the application ever
-// sets it — a row the code writes always knows its own basis.
-[ModuleContract("Commerce")]
-public enum ListPriceBasis
-{
-    /// <summary>A comparable list price was captured; ListUnitPriceMinorUnits is non-null.</summary>
-    Recorded,
-    /// <summary>The product had no default price at all.</summary>
-    ProductUnpriced,
-    /// <summary>The product's currency code or minor unit did not match the order's.</summary>
-    NotComparable,
-    /// <summary>The row predates the column. Backfill only — never written by the application.</summary>
-    PreDating,
 }
 
 public sealed class SalesOrderItem : Entity<Guid>, IMutableRecord

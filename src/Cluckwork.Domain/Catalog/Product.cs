@@ -119,11 +119,3 @@ public sealed class Product : AggregateRoot<Guid>, IMutableRecord
     }
 }
 
-[ModuleContract("Commerce")]
-public enum ProductType { Egg, LiveBird, Meat, Chick, Pullet, Manure, Service, Other }
-
-// Spec §10.1 default_unit values. "Egg" is the individual egg (maps to the
-// "Individual" conversion row); packed units resolve through
-// EggUnitConversion at sale time (part 2).
-[ModuleContract("Commerce")]
-public enum ProductUnit { Egg, Dozen, Flat, Tray, Carton, Case, Bird, Lb, Kg, Package, Other }

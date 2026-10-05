@@ -61,5 +61,3 @@ public sealed class EggUnitConversion : AggregateRoot<Guid>, IMutableRecord
     ];
 }
 
-[ModuleContract("Commerce")]
-public enum EggUnit { Individual, Dozen, Flat, Tray, Carton, Case, Other }
