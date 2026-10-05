@@ -1,4 +1,4 @@
-namespace Cluckwork.Domain.Expenses;
+namespace Cluckwork.Domain.Modules.Finance.Expenses;
 
 // A single money-out record (spec §16, Phase 1.1 "basic expenses" cut).
 // Currency is copied from the account at creation and never changes — an

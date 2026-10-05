@@ -1,12 +1,13 @@
-using Cluckwork.Application.Features.Expenses.AdjustExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
-using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
+using Cluckwork.Application.Modules.Finance.Contracts;
+using Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
+using Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;
+using Cluckwork.Application.Modules.Finance.Expenses.CreateExpenseCategory;
+using Cluckwork.Application.Modules.Finance.Expenses.UpdateExpenseCategory;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 
-namespace Cluckwork.Application.Features.Expenses;
+namespace Cluckwork.Application.Modules.Finance.Expenses;
 
 public sealed class FinanceModule(
     IExpenseCategoryRepository categories,

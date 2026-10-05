@@ -279,7 +279,7 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
 
         Task InsertCategoryAsync(Guid id) => factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Add(Domain.Expenses.ExpenseCategory.Create(id, accountId, farmId, $"snapshot-{id:N}"));
+            db.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(id, accountId, farmId, $"snapshot-{id:N}"));
             await db.SaveChangesAsync();
         });
 

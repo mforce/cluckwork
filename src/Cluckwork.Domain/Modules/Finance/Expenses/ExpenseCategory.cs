@@ -1,4 +1,4 @@
-namespace Cluckwork.Domain.Expenses;
+namespace Cluckwork.Domain.Modules.Finance.Expenses;
 
 // Expense category lookup (spec §16) — per-farm buckets ("Feed", "Vet",
 // "Repairs"). Expenses reference these rows; deactivating a category hides it

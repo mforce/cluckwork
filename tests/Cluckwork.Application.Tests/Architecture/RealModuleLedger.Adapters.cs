@@ -105,31 +105,31 @@ internal static partial class RealModuleLedger
             "Insights",
         ]),
         new("Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.UpdateEggGrade", ["EggOperations"]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.AdjustExpense", [
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.AdjustExpense", [
             "Finance",
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.CreateCategory", ["Finance"]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.CreateExpense", ["Finance"]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.FlockNameAsync", ["FlockManagement"]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.GetExpense", [
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.CreateCategory", ["Finance"]),
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.CreateExpense", ["Finance"]),
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.FlockNameAsync", ["FlockManagement"]),
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.GetExpense", [
             "Finance",
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.ListCategories", ["Finance"]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.ListExpenses", [
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.ListCategories", ["Finance"]),
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.ListExpenses", [
             "Farm",
             "Finance",
             "FlockManagement",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.ToResponse", [
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.ToResponse", [
             "Finance",
             "Insights",
         ]),
-        new("Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.UpdateCategory", ["Finance"]),
+        new("Cluckwork.Api.Modules.Finance.Expenses.ExpenseEndpoints.UpdateCategory", ["Finance"]),
         new("Cluckwork.Api.Modules.Insights.Export.CsvExport.WriteAsync", ["Insights"]),
         new("Cluckwork.Api.Modules.Insights.Export.ExportEndpoints.ExportAll", ["Insights"]),
         new("Cluckwork.Api.Modules.Insights.Export.ExportEndpoints.ExportDataset", ["Insights"]),

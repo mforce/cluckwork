@@ -245,12 +245,12 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 x => [x.Id, x.FlockId, x.Date, x.Quantity, x.Unit, x.Source, x.MeterStart,
                       x.MeterEnd, x.Note, x.DailyEntryId, x.CreatedAtUtc, x.Version]),
 
-            "expense-categories" => Rows<Cluckwork.Domain.Expenses.ExpenseCategory>(activeDb.ExpenseCategories.AsNoTracking()
+            "expense-categories" => Rows<Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory>(activeDb.ExpenseCategories.AsNoTracking()
                     .OrderBy(x => x.Name).ThenBy(x => x.Id),
                 ["id", "farmId", "name", "active", "version"],
                 x => [x.Id, x.FarmId, x.Name, x.Active, x.Version]),
 
-            "expenses" => Rows<Cluckwork.Domain.Expenses.Expense>(activeDb.Expenses.AsNoTracking()
+            "expenses" => Rows<Cluckwork.Domain.Modules.Finance.Expenses.Expense>(activeDb.Expenses.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 ["id", "farmId", "expenseCategoryId", "date", "description",
                  "amountMinorUnits", "currencyCode", "currencyMinorUnit",

@@ -22,7 +22,7 @@ public sealed class PeerContractRealTreeTests(ITestOutputHelper output)
             r.Symbol == "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler.ctor"
             && r.Type == "Cluckwork.Application.Features.EggLots.IEggStock");
         Assert.Contains(report.LiveReach, r =>
-            r.Symbol == "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseHandler.ctor"
+            r.Symbol == "Cluckwork.Application.Modules.Finance.Expenses.CreateExpense.CreateExpenseHandler.ctor"
             && r.Type == "Cluckwork.Application.Features.Accounts.IAccountRepository");
         var failures = AdapterReachScanner.Evaluate(report);
         Assert.True(failures.Count == 0, "peer contract guard failed:\n" + string.Join("\n", failures));

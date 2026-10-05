@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

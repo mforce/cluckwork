@@ -1,4 +1,4 @@
-namespace Cluckwork.Application.Features.Expenses;
+namespace Cluckwork.Application.Modules.Finance.Contracts;
 
 // Simulation fixture reads; registered beside the seeders outside Production.
 [ModuleContract("Finance")]

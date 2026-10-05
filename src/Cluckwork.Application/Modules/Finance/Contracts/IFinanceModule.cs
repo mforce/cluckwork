@@ -1,11 +1,7 @@
-using Cluckwork.Application.Features.Expenses.AdjustExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
-using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 
-namespace Cluckwork.Application.Features.Expenses;
+namespace Cluckwork.Application.Modules.Finance.Contracts;
 
 // #849: the Finance module's contract. Adapters reach Finance only through the
 // types marked [ModuleContract("Finance")].

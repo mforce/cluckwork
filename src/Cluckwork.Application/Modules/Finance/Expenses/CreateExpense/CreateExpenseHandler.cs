@@ -1,11 +1,12 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 
-namespace Cluckwork.Application.Features.Expenses.CreateExpense;
+namespace Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;
 
 public sealed class CreateExpenseHandler(
     IExpenseRepository expenses,

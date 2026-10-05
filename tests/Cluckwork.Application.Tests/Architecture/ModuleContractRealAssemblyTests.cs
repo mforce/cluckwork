@@ -25,6 +25,6 @@ public sealed class ModuleContractRealAssemblyTests
             types!, minimumInterfaceFloor: 1, knownAssemblies: [.. Assemblies, typeof(AppDbContext).Assembly]);
         var failures = SeamSurfaceScanner.Evaluate(report);
         Assert.True(failures.Count == 0, "module contract guard failed:\n  " + string.Join("\n  ", failures));
-        Assert.Contains("Cluckwork.Application.Features.Expenses.IFinanceModule", report.InspectedInterfaces);
+        Assert.Contains("Cluckwork.Application.Modules.Finance.Contracts.IFinanceModule", report.InspectedInterfaces);
     }
 }

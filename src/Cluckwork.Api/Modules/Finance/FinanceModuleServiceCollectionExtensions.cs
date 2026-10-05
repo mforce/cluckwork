@@ -1,12 +1,13 @@
-using Cluckwork.Application.Features.Expenses;
-using Cluckwork.Application.Features.Expenses.AdjustExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
-using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
+using Cluckwork.Application.Modules.Finance.Contracts;
+using Cluckwork.Application.Modules.Finance.Expenses;
+using Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
+using Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;
+using Cluckwork.Application.Modules.Finance.Expenses.CreateExpenseCategory;
+using Cluckwork.Application.Modules.Finance.Expenses.UpdateExpenseCategory;
 using Cluckwork.Infrastructure.Repositories;
 using FluentValidation;
 
-namespace Cluckwork.Api.Hosting.Modules;
+namespace Cluckwork.Api.Modules.Finance;
 
 internal static class FinanceModuleServiceCollectionExtensions
 {

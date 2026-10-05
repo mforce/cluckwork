@@ -1,3 +1,4 @@
+using Cluckwork.Application.Modules.Finance.Contracts;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,9 +10,6 @@ using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.Eggs;
-using Cluckwork.Application.Features.Expenses;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;

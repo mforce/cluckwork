@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 
 namespace Cluckwork.Domain.Tests.Expenses;
 

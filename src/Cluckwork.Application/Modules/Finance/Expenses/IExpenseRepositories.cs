@@ -1,6 +1,6 @@
-using Cluckwork.Domain.Expenses;
+using Cluckwork.Domain.Modules.Finance.Expenses;
 
-namespace Cluckwork.Application.Features.Expenses;
+namespace Cluckwork.Application.Modules.Finance.Expenses;
 
 public interface IExpenseCategoryRepository
 {

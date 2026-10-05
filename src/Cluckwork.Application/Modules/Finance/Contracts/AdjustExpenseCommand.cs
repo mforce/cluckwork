@@ -1,7 +1,9 @@
-namespace Cluckwork.Application.Features.Expenses.CreateExpense;
+namespace Cluckwork.Application.Modules.Finance.Contracts;
 
 [ModuleContract("Finance")]
-public sealed record CreateExpenseCommand(
+public sealed record AdjustExpenseCommand(
+    Guid ExpenseId,
+    int Version,
     Guid ExpenseCategoryId,
     DateOnly Date,
     string Description,
