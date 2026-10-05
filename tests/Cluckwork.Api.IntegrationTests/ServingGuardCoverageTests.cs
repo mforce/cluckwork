@@ -33,17 +33,24 @@ public sealed class ServingGuardCoverageTests
     //    ServingBootGuards-only walk could not see it. Walk the namespace and
     //    exclude deliberately. Descendants count: #858 moved registration into
     //    Hosting.Modules, and an exact-namespace walk let an Ensure* guard added
-    //    there go unclassified.
-    private static IEnumerable<Type> HostingTypes()
-    {
-        var hosting = typeof(ServingBootGuards).Namespace!;
-        return typeof(ServingBootGuards).Assembly.GetTypes().Where(t =>
-            t.Namespace == hosting || t.Namespace?.StartsWith(hosting + ".", StringComparison.Ordinal) == true);
-    }
+    //    there go unclassified. #1087 moves each module's registration to
+    //    Cluckwork.Api.Modules.<Owner>, so that root is walked too.
+    private static readonly string[] GuardRoots = [typeof(ServingBootGuards).Namespace!, "Cluckwork.Api.Modules"];
+
+    private static bool UnderGuardRoot(string? ns) =>
+        GuardRoots.Any(root => ns == root || ns?.StartsWith(root + ".", StringComparison.Ordinal) == true);
+
+    private static IEnumerable<Type> HostingTypes() =>
+        typeof(ServingBootGuards).Assembly.GetTypes().Where(t => UnderGuardRoot(t.Namespace));
 
     [Fact]
     public void GuardWalk_ReachesDescendantNamespaces() =>
         Assert.Contains(typeof(FarmModuleServiceCollectionExtensions), HostingTypes());
+
+    [Theory]
+    [InlineData("Cluckwork.Api.Hosting.Modules")]
+    [InlineData("Cluckwork.Api.Modules.Farm")]
+    public void GuardWalk_ReachesModuleRegistrationNamespaces(string ns) => Assert.True(UnderGuardRoot(ns));
 
     [Fact]
     public void EveryServingBootGuardMethod_HasACoveringRow()

@@ -14,7 +14,8 @@ public sealed class SeamSurfaceRealAssemblyTests
     {
         var report = SeamSurfaceScanner.Scan(
             ApplicationAssembly,
-            ["Cluckwork.Application.Features", "Cluckwork.Application.Common"],
+            // The whole assembly, so a feature moved under Modules (#1087) or any new root is still walked.
+            ["Cluckwork.Application"],
             minimumInterfaceFloor: 30);
 
         var failures = SeamSurfaceScanner.Evaluate(report);
