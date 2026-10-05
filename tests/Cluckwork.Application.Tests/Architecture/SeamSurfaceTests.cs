@@ -175,6 +175,11 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractNestedMe
 
     public sealed record LookupEnvelope(IFlockLookup Lookup);
 
+    public sealed class HandlerContractFixture(IFlockStore flocks)
+    {
+        public Task<Guid> HandleAsync(Guid id) => Task.FromResult(flocks is null ? Guid.Empty : id);
+    }
+
     public sealed record StaticFieldEnvelope
     {
         public static Flock? Entity;
@@ -575,6 +580,14 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(EvaluateContract<ContractCrossAssemblyCaseFixtures.IDepleteContractFixture>());
             Assert.Contains("Result -> FlockCarryingResult -> FlockCarryingResult.Flock", failure);
+            Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
+        }
+
+        [Fact]
+        public void Contract_RepositoryInAConstructor_IsAViolation()
+        {
+            var failure = Assert.Single(EvaluateContract<ContractNestedMemberFixtures.HandlerContractFixture>());
+            Assert.Contains("HandlerContractFixture..ctor", failure);
             Assert.Contains("Cluckwork.Domain.Flocks.Flock", failure);
         }
 
