@@ -29,6 +29,7 @@ public interface ISalesOrderRepository
 // makes "hide the money but filter by it" representable, and answering a
 // question the caller may not see the answer to is the defect this issue
 // exists to end.
+[ModuleContract("Commerce")]
 public enum SettlementScope
 {
     // No settlement figure and no settlement predicate. The query must not
@@ -43,6 +44,7 @@ public enum SettlementScope
     UnpaidOnly,
 }
 
+[ModuleContract("Commerce")]
 public sealed record SalesOrderListFilter(
     SalesOrderStatus? Status, Guid? CustomerId, DateOnly? From, DateOnly? To,
     SettlementScope Settlement);

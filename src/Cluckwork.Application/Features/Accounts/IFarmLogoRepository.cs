@@ -36,10 +36,13 @@ public interface IFarmLogoRepository
     void Remove(FarmLogo logo);
 }
 
+[ModuleContract("Farm")]
 public sealed record FarmLogoMetadata(
     string ContentType, string ContentHash, int Width, int Height, int ByteLength, DateTimeOffset UpdatedAt);
 
+[ModuleContract("Farm")]
 public sealed record FarmLogoContent(
     byte[] Content, string ContentType, string ContentHash, DateTimeOffset UpdatedAt);
 
+[ModuleContract("Farm")]
 public sealed record FarmBrandingHashes(string? LogoContentHash, string? BannerContentHash);

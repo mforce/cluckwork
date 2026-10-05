@@ -1,11 +1,12 @@
 namespace Cluckwork.Domain.Common.Architecture;
 
 // The module map (#514, #842, #859): one owner row per module and one edge cell per cross-owner dependency,
-// declared in ModuleOwners.cs and ModuleEdges.cs. Domain is the one assembly every module compilation
-// references, so the module-edge analyzer reads these rows from source or metadata, and the architecture tests
-// read them by reflection through RealModuleLedger. Owner names stay strings (#859).
+// both on one <Owner>ModuleRules class in Modules/<Owner>.cs, and [ModuleContract] on each contract type. Domain is
+// the one assembly every module compilation references, so the module-edge analyzer reads these rows from source or
+// metadata, and the architecture tests read them by reflection through RealModuleLedger. Owner names stay strings
+// (#859).
 
-[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
+[AttributeUsage(AttributeTargets.Class)]
 public sealed class ModuleOwnerAttribute(string name, string kind) : Attribute
 {
     public string Name { get; } = name;
@@ -15,9 +16,6 @@ public sealed class ModuleOwnerAttribute(string name, string kind) : Attribute
     public string[] Namespaces { get; set; } = [];
 
     public string[] ExactNamespaces { get; set; } = [];
-
-    // #849: when non-empty, adapters may reach this owner only through these types.
-    public string[] Contract { get; set; } = [];
 
     // #850: types outside the module's namespaces trusted to read its tables.
     public string[] Implementations { get; set; } = [];
@@ -30,8 +28,15 @@ public sealed class ModuleOwnerAttribute(string name, string kind) : Attribute
     public string[] Types { get; set; } = [];
 }
 
+// #849: adapters may reach a contracted owner only through the types marked with its name.
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Enum, Inherited = false)]
+public sealed class ModuleContractAttribute(string owner) : Attribute
+{
+    public string Owner { get; } = owner;
+}
+
 // Symbols are the top-level from-side types realising the edge.
-[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class ModuleEdgeAttribute(string from, string to, string kind, string reason, params string[] symbols) : Attribute
 {
     public string From { get; } = from;

@@ -9,4 +9,5 @@ namespace Cluckwork.Application.Features.Flocks;
 //
 // Never stored on the referring aggregate: Daily Entry, Feed Usage, Water
 // Usage, User assignment and Expense responses project it; they do not own it.
+[ModuleContract("FlockManagement")]
 public sealed record FlockReference(Guid Id, string Name, FlockStatus Status);

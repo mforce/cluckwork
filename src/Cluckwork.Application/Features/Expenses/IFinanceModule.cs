@@ -8,7 +8,8 @@ using Cluckwork.Domain.Expenses;
 namespace Cluckwork.Application.Features.Expenses;
 
 // #849: the Finance module's contract. Adapters reach Finance only through the
-// types ModuleOwners.cs lists in the Finance row's Contract.
+// types marked [ModuleContract("Finance")].
+[ModuleContract("Finance")]
 public interface IFinanceModule
 {
     // The EntityType Finance writes on an expense's audit rows; provenance reads key by it.
@@ -30,11 +31,14 @@ public interface IFinanceModule
     Task<Result> AdjustExpenseAsync(AdjustExpenseCommand command, CancellationToken ct);
 }
 
+[ModuleContract("Finance")]
 public sealed record ExpenseCategoryDetails(Guid Id, Guid FarmId, string Name, bool Active);
 
+[ModuleContract("Finance")]
 public sealed record ExpenseDetails(
     Guid Id, Guid FarmId, Guid ExpenseCategoryId, DateOnly Date, string Description,
     long AmountMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
     Guid? FlockId, string? Note, int Version);
 
+[ModuleContract("Finance")]
 public sealed record ExpenseListPage(IReadOnlyList<ExpenseDetails> Items, long TotalMinorUnits);

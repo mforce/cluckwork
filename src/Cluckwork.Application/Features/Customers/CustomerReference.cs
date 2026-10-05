@@ -6,4 +6,5 @@ namespace Cluckwork.Application.Features.Customers;
 // in one grouped lookup rather than from loaded picker results (#512).
 //
 // Never stored on Sales Order — the order response projects it.
+[ModuleContract("Commerce")]
 public sealed record CustomerReference(Guid Id, string Name);

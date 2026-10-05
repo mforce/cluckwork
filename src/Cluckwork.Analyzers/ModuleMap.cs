@@ -3,11 +3,11 @@ using Microsoft.CodeAnalysis;
 
 namespace Cluckwork.Analyzers;
 
-// The [assembly: ModuleOwner] and [assembly: ModuleEdge] rows of Cluckwork.Domain, read from source when compiling
-// Domain and from metadata everywhere else, so an edited row takes effect without rebuilding the analyzer.
+// The [ModuleOwner] and [ModuleEdge] rows on Cluckwork.Domain's <Owner>ModuleRules classes, read from source when
+// compiling Domain and from metadata everywhere else, so an edited row takes effect without rebuilding the analyzer.
 internal sealed class ModuleMap
 {
-    internal const string EdgesFile = "src/Cluckwork.Domain/Common/Architecture/ModuleEdges.cs";
+    internal const string RulesDirectory = "src/Cluckwork.Domain/Common/Architecture/Modules/";
 
     private const string Namespace = "Cluckwork.Domain.Common.Architecture.";
 
@@ -31,7 +31,7 @@ internal sealed class ModuleMap
 
         var map = new ModuleMap();
         var edges = ImmutableArray.CreateBuilder<(string, string, ImmutableArray<string>)>();
-        foreach (var attribute in domain.GetAttributes())
+        foreach (var attribute in TypesIn(domain.GlobalNamespace).SelectMany(type => type.GetAttributes()))
         {
             var args = attribute.ConstructorArguments;
             switch (attribute.AttributeClass?.ToDisplayString())
@@ -72,6 +72,11 @@ internal sealed class ModuleMap
         return map._claims.Count == 0 ? null : map;
     }
 
+    private static IEnumerable<INamedTypeSymbol> TypesIn(INamespaceSymbol ns) =>
+        ns.GetTypeMembers().Concat(ns.GetNamespaceMembers().SelectMany(TypesIn));
+
+    internal static string RulesFile(string owner) => $"{RulesDirectory}{owner}.cs";
+
     internal bool IsPlatform(string owner) => _platform.Contains(owner);
 
     internal bool IsDeclared(string from, string to, string symbol) => _declared.Contains((from, to, symbol));
@@ -102,6 +107,6 @@ internal sealed class ModuleMap
 
     internal string Fix(string from, string to, string symbol) =>
         Edges.Any(cell => cell.From == from && cell.To == to)
-            ? $"add \"{symbol}\" to the ModuleEdge(\"{from}\", \"{to}\", ...) row in {EdgesFile}, and extend its reason"
-            : $"add this row to {EdgesFile}, with a reason naming the port or type it calls: [assembly: ModuleEdge(\"{from}\", \"{to}\", \"R\", \"\", \"{symbol}\")]";
+            ? $"add \"{symbol}\" to the ModuleEdge(\"{from}\", \"{to}\", ...) row in {RulesFile(from)}, and extend its reason"
+            : $"add this row to {RulesFile(from)}, with a reason naming the port or type it calls: [ModuleEdge(\"{from}\", \"{to}\", \"R\", \"\", \"{symbol}\")]";
 }

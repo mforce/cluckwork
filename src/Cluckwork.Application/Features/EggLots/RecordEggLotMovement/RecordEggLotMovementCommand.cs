@@ -5,6 +5,7 @@ namespace Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
 // a recount may find eggs). QuantityDelta is the signed change to the lot's
 // available quantity, matching the ledger row it becomes. Reason is
 // mandatory — corrections without a why are audit holes.
+[ModuleContract("EggOperations")]
 public sealed record RecordEggLotMovementCommand(
     Guid EggLotId,
     string MovementType,

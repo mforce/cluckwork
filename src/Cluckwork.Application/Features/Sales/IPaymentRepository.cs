@@ -24,5 +24,6 @@ public interface IPaymentRepository
     Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(CancellationToken ct = default);
 }
 
+[ModuleContract("Commerce")]
 public sealed record CustomerBalance(
     Guid CustomerId, long ConfirmedTotalMinorUnits, long PaidMinorUnits);

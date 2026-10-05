@@ -51,7 +51,7 @@ public sealed class ModuleEdgeAnalyzerTests
             """);
         test.ExpectedDiagnostics.Add(new DiagnosticResult("CW1002", DiagnosticSeverity.Error).WithArguments(
             "Red", "Blue", "Cluckwork.Application.Red.R",
-            "no reference in src/ realises this edge; delete the symbol from its ModuleEdge row in src/Cluckwork.Domain/Common/Architecture/ModuleEdges.cs, or restore the dependency it was written for"));
+            "no reference in src/ realises this edge; delete the symbol from its ModuleEdge row in src/Cluckwork.Domain/Common/Architecture/Modules/Red.cs, or restore the dependency it was written for"));
         return test.RunAsync();
     }
 
@@ -72,7 +72,7 @@ public sealed class ModuleEdgeAnalyzerTests
             """).RunAsync();
 
     private static string Edge(string symbol) =>
-        $"[assembly: ModuleEdge(\"Red\", \"Blue\", \"R\", \"Red reads Blue.\", \"{symbol}\")]";
+        $"[ModuleEdge(\"Red\", \"Blue\", \"R\", \"Red reads Blue.\", \"{symbol}\")]";
 
     private static CSharpAnalyzerTest<ModuleEdgeAnalyzer, DefaultVerifier> Fixture(string edges, string source)
     {
@@ -81,10 +81,13 @@ public sealed class ModuleEdgeAnalyzerTests
             "src/Cluckwork.Domain/Common/Architecture/ModuleMapAttributes.cs"));
         var map = $"""
             using Cluckwork.Domain.Common.Architecture;
-            [assembly: ModuleOwner("Red", "module", Namespaces = ["Cluckwork.Application.Red"])]
-            [assembly: ModuleOwner("Blue", "module", Namespaces = ["Cluckwork.Domain.Blue"])]
-            [assembly: ModuleOwner("Platform", "platform", Namespaces = ["Cluckwork.Domain.Common"], ExactNamespaces = ["Cluckwork.Domain", "Cluckwork.Application"])]
+            [ModuleOwner("Red", "module", Namespaces = ["Cluckwork.Application.Red"])]
             {edges}
+            internal static class RedModuleRules;
+            [ModuleOwner("Blue", "module", Namespaces = ["Cluckwork.Domain.Blue"])]
+            internal static class BlueModuleRules;
+            [ModuleOwner("Platform", "platform", Namespaces = ["Cluckwork.Domain.Common"], ExactNamespaces = ["Cluckwork.Domain", "Cluckwork.Application"])]
+            internal static class PlatformModuleRules;
             """;
 
         var domain = new ProjectState("Cluckwork.Domain", LanguageNames.CSharp, "/domain/", "cs");

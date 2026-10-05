@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.DailyEntries;
 
 // #853: Egg Operations' daily-entry read port for peer modules.
+[ModuleContract("EggOperations")]
 public interface IDailyEntryLookup
 {
     // The live (non-Voided) entry for this day. The caller must run

@@ -3,8 +3,10 @@ using Cluckwork.Domain.Eggs;
 namespace Cluckwork.Application.Features.EggLots;
 
 // One line of a sale: the caller's line id, its grade and the eggs it needs.
+[ModuleContract("EggOperations")]
 public sealed record SaleDemandLine(Guid LineId, Guid EggGradeId, int Quantity);
 
+[ModuleContract("EggOperations")]
 public sealed record PlannedEggLotDraw(Guid LineId, Guid EggLotId, int Quantity);
 
 // #612 — whether the plan covered the whole order, and — when it did not —
@@ -12,6 +14,7 @@ public sealed record PlannedEggLotDraw(Guid LineId, Guid EggLotId, int Quantity)
 // the grade name lookup is async, and whether the message may name the grade
 // or amount at all depends on caller privacy, which this pure planner does
 // not decide.
+[ModuleContract("EggOperations")]
 public sealed record SaleAllocationPlan(
     bool IsComplete,
     IReadOnlyList<PlannedEggLotDraw> Draws,

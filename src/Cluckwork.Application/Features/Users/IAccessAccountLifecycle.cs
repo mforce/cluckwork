@@ -2,6 +2,7 @@ using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Features.Users;
 
+[ModuleContract("Access")]
 public interface IAccessAccountLifecycle
 {
     Task<Result<AccountLifecycleOutcome>> SuspendAccountAsync(Guid accountId, string? reason, CancellationToken ct);

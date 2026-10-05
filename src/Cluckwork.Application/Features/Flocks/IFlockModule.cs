@@ -7,9 +7,10 @@ using Cluckwork.Domain.Flocks;
 namespace Cluckwork.Application.Features.Flocks;
 
 // #852: the Flock Management contract for adapters. Adapters reach Flock
-// Management only through the types ModuleOwners.cs lists in
-// the FlockManagement row's Contract; peer modules use the narrower IFlockLookup
+// Management only through the types marked
+// [ModuleContract("FlockManagement")]; peer modules use the narrower IFlockLookup
 // and IMortalityLedger ports.
+[ModuleContract("FlockManagement")]
 public interface IFlockModule
 {
     // The EntityType Flock Management writes on a flock's audit rows; provenance reads key by it.
@@ -43,5 +44,6 @@ public interface IFlockModule
         Guid flockId, int limit, int offset, CancellationToken ct);
 }
 
+[ModuleContract("FlockManagement")]
 public sealed record BirdMovementDetails(
     Guid Id, Guid FlockId, DateOnly Date, BirdMovementType Type, int Quantity, string? Note);

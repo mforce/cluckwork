@@ -2,6 +2,7 @@ namespace Cluckwork.Application.Features.Inventory.RecordAdjustment;
 
 // Type: "Adjustment" (signed correction) or "Discard" (write-off, negative
 // only). Reason is mandatory — corrections without a why are audit holes.
+[ModuleContract("GeneralInventory")]
 public sealed record RecordAdjustmentCommand(
     Guid InventoryItemId,
     Guid InventoryLotId,

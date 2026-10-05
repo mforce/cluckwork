@@ -33,9 +33,12 @@ public sealed class LockDueDailyEntriesHandler(
     }
 }
 
+[ModuleContract("EggOperations")]
 public sealed record DailyEntryLockPass(
     IReadOnlyList<LockedDailyEntry> Locked, IReadOnlyList<RefusedDailyEntryLock> Refused);
 
+[ModuleContract("EggOperations")]
 public sealed record LockedDailyEntry(Guid Id, Guid FlockId, DateOnly Date);
 
+[ModuleContract("EggOperations")]
 public sealed record RefusedDailyEntryLock(Guid Id, Error Error);

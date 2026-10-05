@@ -5,6 +5,7 @@ namespace Cluckwork.Application.Features.Users;
 // path, so all its fields are non-null, whereas AlreadyProvisioned() here returns
 // a value with nothing populated. Copying its non-nullable `string Slug` across
 // would make the idempotent branch unrepresentable.
+[ModuleContract("Access")]
 public sealed record FirstRunAdminOutcome(
     bool WasAlreadyProvisioned,
     string? Email,
@@ -26,16 +27,20 @@ public sealed record FirstRunAdminOutcome(
 // is populated and none are nullable. The slug is read off `lockedAccount`
 // (already loaded FOR UPDATE in the transaction, no new query) and printed by
 // recover-admin because #532 made the farm code a required login input.
+[ModuleContract("Access")]
 public sealed record AdminRecoveryResult(string Email, Guid AccountId, string Slug, string TemporaryPassword);
 
 // Changed = "this command transitioned the farm", so a verb can report a no-op
 // re-run without going back to the database to work out what it did.
+[ModuleContract("Access")]
 public sealed record AccountLifecycleOutcome(bool Changed);
 
 // Changed = "this command changed the code", so the verb can tell an operator their
 // re-run was a no-op without re-reading the database. Deliberately NOT "the farm is fine".
+[ModuleContract("Access")]
 public sealed record AccountRenameOutcome(bool Changed);
 
+[ModuleContract("Access")]
 public sealed record AccountProvisionOutcome(
     Guid AccountId,
     string Slug,

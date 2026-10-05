@@ -6,6 +6,7 @@ namespace Cluckwork.Application.Features.Users;
 // authority is shell access to the deployment. Each member forwards to the
 // existing service, so validation, locks, audit rows and generated passwords
 // are theirs, unchanged. HTTP adapters use IAccessModule instead.
+[ModuleContract("Access")]
 public interface IAccessOperations
 {
     Task<Result<FirstRunAdminOutcome>> BootstrapAdminAsync(string? email, CancellationToken ct);

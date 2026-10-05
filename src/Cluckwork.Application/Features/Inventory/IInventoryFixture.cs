@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.Inventory;
 
 // Simulation fixture reads; registered beside the seeders outside Production.
+[ModuleContract("GeneralInventory")]
 public interface IInventoryFixture
 {
     Task<Guid?> FindItemIdByNameAsync(string name, CancellationToken ct = default);
@@ -20,6 +21,7 @@ public interface IInventoryFixture
     Task<InventoryFixtureCounts> CountAsync(CancellationToken ct = default);
 }
 
+[ModuleContract("GeneralInventory")]
 public sealed record InventoryFixtureCounts(
     int Items,
     int Lots,
