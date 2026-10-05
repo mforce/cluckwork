@@ -1,6 +1,5 @@
 namespace Cluckwork.Application.Modules.GeneralInventory.Contracts;
 
-[ModuleContract("GeneralInventory")]
 public sealed record RecordPurchaseCommand(
     Guid InventoryItemId,
     DateOnly ReceivedDate,

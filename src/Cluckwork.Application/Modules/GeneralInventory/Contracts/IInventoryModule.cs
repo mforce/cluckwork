@@ -5,7 +5,6 @@ namespace Cluckwork.Application.Modules.GeneralInventory.Contracts;
 
 // #855: the General Inventory contract. Adapters reach General Inventory only
 // through the types marked [ModuleContract("GeneralInventory")].
-[ModuleContract("GeneralInventory")]
 public interface IInventoryModule
 {
     Task<IReadOnlyList<InventoryItemDetails>> ListItemsAsync(bool includeInactive, CancellationToken ct);
@@ -41,27 +40,22 @@ public interface IInventoryModule
         Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset, CancellationToken ct);
 }
 
-[ModuleContract("GeneralInventory")]
 public sealed record InventoryItemDetails(
     Guid Id, Guid FarmId, string Name, InventoryCategory Category, string Unit,
     Money? DefaultUnitCost, decimal QuantityOnHand, bool Active, int Version);
 
-[ModuleContract("GeneralInventory")]
 public sealed record InventoryLotDetails(
     Guid Id, Guid InventoryItemId, DateOnly ReceivedDate, string? LotNumber, DateOnly? ExpiryDate,
     decimal QuantityReceived, decimal QuantityAvailable, Money UnitCost, int Version);
 
-[ModuleContract("GeneralInventory")]
 public sealed record InventoryMovementDetails(
     Guid Id, Guid InventoryItemId, Guid? InventoryLotId, DateOnly Date, InventoryMovementType Type,
     decimal QuantityDelta, string Unit, Guid? FlockId, string? Note, string? ReferenceType, Guid? ReferenceId);
 
-[ModuleContract("GeneralInventory")]
 public sealed record FeedUsageDetails(
     Guid Id, Guid FlockId, Guid InventoryItemId, DateOnly Date, decimal Quantity, string Unit,
     Money EstimatedCost, string? Note, Guid? DailyEntryId, int Version);
 
-[ModuleContract("GeneralInventory")]
 public sealed record WaterUsageDetails(
     Guid Id, Guid FlockId, DateOnly Date, decimal Quantity, string Unit, WaterSource Source,
     decimal? MeterStart, decimal? MeterEnd, string? Note, Guid? DailyEntryId, int Version);

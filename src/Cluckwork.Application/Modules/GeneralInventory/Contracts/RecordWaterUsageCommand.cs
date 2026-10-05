@@ -2,7 +2,6 @@ namespace Cluckwork.Application.Modules.GeneralInventory.Contracts;
 
 // Quantity may be omitted when meters are given (derived as end − start);
 // when both are present they must agree. Unit defaults to liters.
-[ModuleContract("GeneralInventory")]
 public sealed record RecordWaterUsageCommand(
     Guid FlockId,
     DateOnly Date,
