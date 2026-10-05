@@ -4,7 +4,6 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // for every interactive user creation regardless of Role. It rides a header,
 // never the request body proper, but the command carries it alongside the rest
 // of the form data the handler needs.
-[ModuleContract("Access")]
 public sealed record CreateUserCommand(
     string Email,
     string Password,

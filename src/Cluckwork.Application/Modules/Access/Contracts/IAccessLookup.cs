@@ -4,7 +4,6 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // fresh, on the caller's scoped context, so a caller inside a transaction reads
 // inside it: ConfirmSaleHandler reads the role and the assignments after its
 // account and order locks (#612, #727). Nothing here is cached.
-[ModuleContract("Access")]
 public interface IAccessLookup
 {
     // Null when the user is not an ACTIVE member of the account (#612).

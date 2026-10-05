@@ -1,7 +1,6 @@
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
 // Fixture actor reads; registered beside the seeders outside Production.
-[ModuleContract("Access")]
 public interface IAccessSeedLookup
 {
     Task<AccessActor?> FindUserByEmailAsync(Guid accountId, string email, CancellationToken ct = default);
@@ -18,8 +17,6 @@ public interface IAccessSeedLookup
     Task<int> CountUsersAsync(Guid accountId, CancellationToken ct = default);
 }
 
-[ModuleContract("Access")]
 public sealed record AccessActor(Guid Id, string? Email, DateTimeOffset? DisabledAt, IReadOnlyList<string> Roles);
 
-[ModuleContract("Access")]
 public sealed record AccessUserSummary(Guid Id, string? Email, DateTimeOffset? DisabledAt);

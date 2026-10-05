@@ -3,7 +3,6 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // Simulation fixture write; registered beside the seeders outside Production.
 // The trusted seeder holds no step-up grant, so this skips the interactive
 // AssignFlockHandler's step-up and Worker-role checks, and nothing else.
-[ModuleContract("Access")]
 public interface IAccessFixture
 {
     // Assigns the flock to the farm's user unless already assigned, writes the

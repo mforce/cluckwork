@@ -7,7 +7,6 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // and a failed read must throw rather than return a verdict.
 // CredentialEpochFreshReadTests exercises each of those rules on the paths it
 // drives; it cannot prove them for every implementation, so review still must.
-[ModuleContract("Access")]
 public interface ICredentialEpochVerifier
 {
     Task<CredentialVerdict> VerifyAsync(
@@ -16,7 +15,6 @@ public interface ICredentialEpochVerifier
 
 // Zero is deliberately not Current: a default(CredentialVerdict), whether from a
 // swallowed exception, a test double or an uninitialised local, must refuse.
-[ModuleContract("Access")]
 public enum CredentialVerdict
 {
     None = 0,

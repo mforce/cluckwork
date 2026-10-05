@@ -7,7 +7,6 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // caller's own profile, flock assignments, and sessions. Each member forwards
 // to the existing handler or identity service, so step-up checks, locks, audit
 // rows, tokens and errors are theirs, unchanged. Peers use IAccessLookup instead.
-[ModuleContract("Access")]
 public interface IAccessModule
 {
     Task<Result<Guid>> CreateUserAsync(
@@ -79,5 +78,4 @@ public interface IAccessModule
 // #512 T047 — an assignment with its flock's CURRENT name. FlockName is null for
 // a farm-wide assignment (FlockId null) and for a flock this caller may not see
 // or that no longer resolves; FlockId is kept either way.
-[ModuleContract("Access")]
 public sealed record UserFlockAssignment(Guid Id, Guid? FlockId, string? FlockName);
