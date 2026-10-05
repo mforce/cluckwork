@@ -577,6 +577,30 @@ public sealed class TenantBypassAllowListTests : IDisposable
             f.Contains("stale allow-list entry src/A.cs :: A.R.Read.Local(Query) — its member was edited", StringComparison.Ordinal));
     }
 
+    // A direct call to a local query needs two rows, the local bypass and its forwarding caller, and both hash
+    // the same method; their hashes must still differ or the uniqueness check rejects a valid approval.
+    [Fact]
+    public void ALocalBypassAndItsDirectCaller_CanBothBeApproved()
+    {
+        WriteSource("src/A.cs", """
+            namespace A;
+            public class R
+            {
+                public Task<Flock?> Read(Guid id, Guid accountId, CancellationToken ct)
+                {
+                    System.Linq.Expressions.Expression<Func<Flock, bool>> predicate = f => f.AccountId == accountId;
+                    Task<Flock?> Query() => db.Flocks.IgnoreQueryFilters().Where(predicate).FirstOrDefaultAsync(f => f.Id == id, ct);
+                    return Query();
+                }
+            }
+            """);
+        var allowList = Entries(
+            ("A.R.Read(Guid id, Guid accountId, CancellationToken ct)", "src/A.cs", "caller"),
+            ("A.R.Read.Local(Query)", "src/A.cs", "local"));
+
+        Assert.Empty(GuardScanner.Evaluate(Scan(_tempRoot, allowList)));
+    }
+
     [Fact]
     public void TwoRowsSharingAHash_FailClosed()
     {

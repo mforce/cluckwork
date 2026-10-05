@@ -155,7 +155,9 @@ or property, otherwise the whole file for top-level statements and field initial
 local function (`Method.Local(Query)`) hashes the whole method around it, because the function can
 capture that method's locals. Passed as a method group, as in `ExecuteAsync(Query)`, it has no
 forwarding call site, so hashing only the function would leave a captured `Expression` predicate
-outside the fingerprint (security review of #1077). A statement scope would have missed
+outside the fingerprint (security review of #1077). The function's name is hashed before the method's
+tokens, so its row stays distinct from the row of a method that calls it directly; without the name,
+both rows took one hash and the uniqueness check refused a valid pair (re-review of #1077). A statement scope would have missed
 `ExecuteLineageFenceAsync`, whose SQL is a `const string sql` declared in another statement, and any
 `Where` applied to an unfiltered query in a later statement. Each member has one hash, so no ordinal is
 needed. No attribute exclusion exists in the #632 hasher, so attributes on the member count as tokens.
@@ -176,6 +178,8 @@ and marks the old row stale with both hashes. Two rows sharing a hash are a regi
 | Hash dropped from excuse matching | not applicable | `EditingAnAllowListedMember_UnexcusesItUnlessOnlyTriviaChanged` red on its three token edits |
 | `GetByIdForFlockScopedWriteAsync` refactored into a local `Query()` passed to `ExecuteAsync(Query)`, its `.Local(Query)` row pinned, then only the captured `Expression` predicate edited | not applicable | red: stale `.Local(Query)` row (green when the hash covered only the local function) |
 | Hash scope put back to the innermost local function | not applicable | `EditingAPredicateCapturedByALocalBypass_UnexcusesIt` red |
+| The same method calls `Query()` directly; its row and the `.Local(Query)` row both pinned | not applicable | green, hashes `cf7a373c` and `18d622e7`; then the captured predicate edited: both rows stale |
+| The local's name dropped from its hash | not applicable | `ALocalBypassAndItsDirectCaller_CanBothBeApproved` red (duplicate hash) |
 
 The hash proves only that a reviewer saw these tokens. It does not see inputs outside the member, such
 as a class-level constant, a helper the member calls or a wrapper in another file. Forwarding wrappers

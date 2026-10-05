@@ -927,9 +927,11 @@ public static class GuardScanner
 
     // 8 hex characters of SHA-256 over the scope's normalized tokens: the
     // filter-free-set signature and the allow-list row's Hash (#1072).
-    internal static string TokenHash(SyntaxNode scope) =>
+    internal static string TokenHash(SyntaxNode scope) => Sha256Prefix(NormalizeQueryText(scope));
+
+    private static string Sha256Prefix(string text) =>
         Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(NormalizeQueryText(scope))))[..8];
+            System.Text.Encoding.UTF8.GetBytes(text)))[..8];
 
     // #1072 — an allow-list row excuses every bypass in the member its Symbol
     // names, so its Hash covers that whole member. A statement-scoped hash
@@ -937,13 +939,24 @@ public static class GuardScanner
     // such as ExecuteLineageFenceAsync's `const string sql`. A bypass inside a
     // local function hashes the method around it, whose locals it can capture:
     // passed as a method group (`ExecuteAsync(Query)`) it has no forwarding call
-    // site, so its captured predicate would otherwise go unhashed. Top-level
-    // statements and field initializers hash the whole file.
-    internal static string MemberHashOf(SyntaxNode node) => TokenHash(
-        (SyntaxNode?)node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>()
-        ?? (SyntaxNode?)node.FirstAncestorOrSelf<AccessorDeclarationSyntax>()
-        ?? (SyntaxNode?)node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()
-        ?? node.SyntaxTree.GetRoot());
+    // site, so its captured predicate would otherwise go unhashed. The local's
+    // name is hashed too, so its row stays distinct from the row of a method
+    // that calls it directly. Top-level statements and field initializers hash
+    // the whole file.
+    internal static string MemberHashOf(SyntaxNode node)
+    {
+        if (node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>() is { } method)
+        {
+            return node.Ancestors().OfType<LocalFunctionStatementSyntax>().FirstOrDefault() is { } local
+                ? Sha256Prefix($"{local.Identifier.ValueText} {NormalizeQueryText(method)}")
+                : TokenHash(method);
+        }
+
+        return TokenHash(
+            (SyntaxNode?)node.FirstAncestorOrSelf<AccessorDeclarationSyntax>()
+            ?? (SyntaxNode?)node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()
+            ?? node.SyntaxTree.GetRoot());
+    }
 
     // Comments out, whitespace uniform, LITERALS UNTOUCHED. #698 review: the
     // first version ran regexes over `scope.ToString()`, which reads `//`
