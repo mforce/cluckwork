@@ -1,4 +1,5 @@
-using Cluckwork.Application.Features.Sales.RecordPayment;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Sales.RecordPayment;
 using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
 using Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;

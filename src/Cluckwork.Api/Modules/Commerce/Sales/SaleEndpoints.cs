@@ -1,0 +1,462 @@
+using Cluckwork.Api.Validation;
+using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using FluentValidation;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+
+namespace Cluckwork.Api.Modules.Commerce.Sales;
+
+public static class SaleEndpoints
+{
+    private const int DefaultPageSize = 100;
+    private const int MaxPageSize = 500;
+
+    public static RouteGroupBuilder MapSaleEndpoints(this RouteGroupBuilder group)
+    {
+        group.MapPost("/", CreateSalesOrder)
+            .WithName("CreateSalesOrder")
+            .WithSummary("Create a draft sales order for a customer (currency snapshotted from the account).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        group.MapPost("/{id:guid}/items", AddOrderItem)
+            .WithName("AddOrderItem")
+            .WithSummary("Add a graded line item to a draft order.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        group.MapPut("/{id:guid}/items/{itemId:guid}", UpdateOrderItem)
+            .WithName("UpdateOrderItem")
+            .WithSummary("Edit a line's quantity/unit price on a draft order.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        group.MapDelete("/{id:guid}/items/{itemId:guid}", RemoveOrderItem)
+            .WithName("RemoveOrderItem")
+            .WithSummary("Remove a line from a draft order.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        group.MapPost("/{id:guid}/cancel", CancelSalesOrder)
+            .WithName("CancelSalesOrder")
+            .WithSummary("Cancel a draft order (preserved as Cancelled, not deleted).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        group.MapPost("/{id:guid}/confirm", ConfirmSale)
+            .WithName("ConfirmSale")
+            .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).")
+            // #721 — the body is optional, and `*/*` is load-bearing. A typed
+            // body parameter alone attaches application/json Accepts metadata,
+            // which the consumes matcher turns into a route constraint, so a
+            // POST with NO Content-Type stops matching and Program.cs's
+            // `/api/{**rest}` catch-all answers 404. That is what every existing
+            // caller sends. Pinned by Confirm_WithNoContentTypeAtAll_StillConfirms.
+            .Accepts<ConfirmSaleRequest>(isOptional: true, contentType: "application/json", "*/*")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        // Voiding undoes a confirmed sale — admin-only (#73). The draft
+        // lifecycle (create/edit/cancel/confirm) stays open: workers sell.
+        group.MapPost("/{id:guid}/void", VoidSale)
+            .WithName("VoidSale")
+            .WithSummary("Void a confirmed order, returning allocated stock to its source egg lots.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
+
+        // Order book carries financials (totals + line pricing). Gate the reads
+        // to the sell-flow tier — workers build orders, ReadOnly is fenced out —
+        // matching the writes above and the money reads on /payments (#127).
+        group.MapGet("/{id:guid}", GetSalesOrder)
+            .WithName("GetSalesOrder")
+            .WithSummary("Get a sales order with its line items.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        group.MapGet("/", ListSalesOrders)
+            .WithName("ListSalesOrders")
+            .WithSummary("List sales orders, newest first (optional status/customer/unpaid filters, paged).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
+        return group;
+    }
+
+    private static async Task<IResult> CreateSalesOrder(
+        CreateSalesOrderRequest request,
+        ICommerceModule commerce,
+        IValidator<CreateSalesOrderCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new CreateSalesOrderCommand(request.CustomerId, request.OrderDate);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await commerce.CreateSalesOrderAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess)
+            return Results.Created($"/api/v1/sales/{result.Value}", new { Id = result.Value });
+        return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+            ? Results.NotFound()
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
+    private static async Task<IResult> AddOrderItem(
+        Guid id,
+        AddOrderItemRequest request,
+        ICommerceModule commerce,
+        IValidator<AddOrderItemCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new AddOrderItemCommand(
+            id, request.ProductId, request.Quantity, request.Unit, request.UnitPriceMinorUnits,
+            request.ExpectedEggsPerUnit, request.ExpectedListUnitPriceMinorUnits,
+            request.ExpectedListPriceIsUnset);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await commerce.AddOrderItemAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess)
+            return Results.Created($"/api/v1/sales/{id}", new { OrderId = id, ItemId = result.Value });
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        var status = result.Error.Code == "SalesOrder.NotDraft"
+            ? StatusCodes.Status409Conflict
+            : StatusCodes.Status422UnprocessableEntity;
+        return Results.Problem(result.Error.Description, statusCode: status, title: result.Error.Code);
+    }
+
+    private static IResult MapItemMutationFailure(Cluckwork.Domain.Common.Error error)
+    {
+        if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return error.Code == "SalesOrder.NotDraft"
+            ? Results.Problem(error.Description, statusCode: StatusCodes.Status409Conflict, title: error.Code)
+            : Results.Problem(error.Description, statusCode: 422, title: error.Code);
+    }
+
+    private static async Task<IResult> UpdateOrderItem(
+        Guid id,
+        Guid itemId,
+        UpdateOrderItemRequest request,
+        ICommerceModule commerce,
+        IValidator<UpdateOrderItemCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new UpdateOrderItemCommand(id, itemId, request.Quantity, request.UnitPriceMinorUnits);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await commerce.UpdateOrderItemAsync(command, ct);
+        return result.IsSuccess ? Results.NoContent() : MapItemMutationFailure(result.Error);
+    }
+
+    private static async Task<IResult> RemoveOrderItem(
+        Guid id,
+        Guid itemId,
+        ICommerceModule commerce,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var result = await commerce.RemoveOrderItemAsync(id, itemId, ct);
+        return result.IsSuccess ? Results.NoContent() : MapItemMutationFailure(result.Error);
+    }
+
+    private static async Task<IResult> CancelSalesOrder(
+        Guid id,
+        ICommerceModule commerce,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var result = await commerce.CancelSalesOrderAsync(id, ct);
+        if (result.IsSuccess) return Results.NoContent();
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return result.Error.Code == "SalesOrder.NotDraft"
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
+    private static async Task<IResult> GetSalesOrder(
+        Guid id, ICommerceModule commerce, IEggGradeLookup grades, IInsightsModule audit,
+        IAuthorizationService authorization, ClaimsPrincipal caller,
+        TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var order = await commerce.GetSalesOrderAsync(id, ct);
+        if (order is null) return Results.NotFound();
+        var provenance = await audit.GetProvenanceAsync(ICommerceModule.SalesOrderAuditEntityType, [id], ct);
+        // Detail and list must answer identically (#512): same read, one id.
+        var customer = (await commerce.GetCustomerNamesAsync([order.CustomerId], ct))
+            .GetValueOrDefault(order.CustomerId);
+        // #769 — same figure, same tier, same NULL-off-Confirmed rule as the
+        // list. Leaving this null while the list carries it would make the two
+        // surfaces disagree about the same order, which #512 forbids.
+        long? outstanding = null;
+        if (order.Status == SalesOrderStatus.Confirmed && await MaySeeMoneyAsync(authorization, caller))
+            outstanding = order.TotalAmount.MinorUnits
+                - await commerce.SumNonVoidedPaymentsAsync(id, ct);
+        var gradeNames = await grades.GetDisplayNamesAsync(order.Items.Select(i => i.EggGradeId).Distinct().ToList(), ct);
+        return Results.Ok(ToResponse(
+            order, provenance.GetValueOrDefault(id), gradeNames, customer, outstanding));
+    }
+
+    // #769 — the money tier is AuthPolicies.SalesAccess, asked through the
+    // authorization service rather than re-encoded as a Roles.* predicate.
+    // /sales/{id}/payments, the record-payment route and /customers/balances
+    // already require that SAME policy, and only this endpoint needs to derive
+    // a hint from it, so a second encoding (the Roles.MayExceedDiscountCeiling
+    // shape, where a handler and an endpoint both decide and must not drift)
+    // would buy nothing and would let this column disagree with
+    // /customers/balances about who may see money. This route is NOT a fourth
+    // SalesAccess route: GET /api/v1/sales is SalesFlow, so a Worker reaches
+    // the list itself, and the policy asked here gates only the figure and the
+    // unpaid filter. Widening the money tier moves this one policy — never this
+    // route's own gate.
+    //
+    // ClaimsPrincipal, not HttpContext: an HttpContext parameter makes the
+    // handler body-capable, and BodyReadingEndpointTests then demands a row in
+    // ReviewedAsNotReadingTheBody for a GET that has no body to read. The
+    // principal is the only thing the policy needs.
+    private static async Task<bool> MaySeeMoneyAsync(
+        IAuthorizationService authorization, ClaimsPrincipal caller) =>
+        (await authorization.AuthorizeAsync(caller, AuthPolicies.SalesAccess)).Succeeded;
+
+    private static async Task<IResult> ListSalesOrders(
+        ICommerceModule commerce,
+        IEggGradeLookup grades,
+        IInsightsModule audit,
+        IAuthorizationService authorization, ClaimsPrincipal caller,
+        TenantContext tenant, CancellationToken ct,
+        string? status = null, Guid? customerId = null,
+        DateOnly? from = null, DateOnly? to = null,
+        int? limit = null, int? offset = null, bool? unpaid = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        SalesOrderStatus? statusFilter = null;
+        if (status is not null)
+        {
+            // IsDefined too: TryParse accepts any numeric ("999" parses fine).
+            if (!Enum.TryParse<SalesOrderStatus>(status, ignoreCase: true, out var parsed)
+                || !Enum.IsDefined(parsed))
+                return ValidationResponse.Problem(new Dictionary<string, string[]>
+                {
+                    ["status"] = [$"Unknown status '{status}'."]
+                });
+            statusFilter = parsed;
+        }
+
+        var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
+        var skip = Math.Max(offset ?? 0, 0);
+
+        // #769 — the route stays SalesFlow (workers build orders, so they must
+        // keep reaching the list), and the MONEY inside the response is gated
+        // separately. `unpaid=true` from outside the tier is refused outright
+        // rather than ignored: silently dropping it would answer a different
+        // question than the one asked, which is the exact defect this issue
+        // exists to end.
+        var maySeeMoney = await MaySeeMoneyAsync(authorization, caller);
+        if (unpaid == true && !maySeeMoney)
+            return Results.Problem(
+                "Filtering orders by what they still owe is the Sales tier (Owner, Manager, Sales).",
+                statusCode: StatusCodes.Status403Forbidden, title: "Auth.Forbidden");
+        var settlement = !maySeeMoney ? SettlementScope.Hidden
+            : unpaid == true ? SettlementScope.UnpaidOnly
+            : SettlementScope.Visible;
+
+        var list = await commerce.ListSalesOrdersAsync(
+            new SalesOrderListFilter(statusFilter, customerId, from, to, settlement),
+            take, skip, ct);
+        var provenance = await audit.GetProvenanceAsync(
+            ICommerceModule.SalesOrderAuditEntityType, list.Select(r => r.Order.Id).ToList(), ct);
+        // #512 T048 — one scoped bulk customer read for the page, not one per
+        // order. A missing key means the customer left this tenant, which the
+        // tenant filter makes unreachable on a scoped route; the row then carries
+        // a null name rather than an identifier fragment.
+        var names = await commerce.GetCustomerNamesAsync(
+            list.Select(r => r.Order.CustomerId).ToList(), ct);
+        var gradeNames = await grades.GetDisplayNamesAsync(
+            list.SelectMany(r => r.Order.Items).Select(i => i.EggGradeId).Distinct().ToList(), ct);
+        return Results.Ok(list.Select(r => ToResponse(
+            r.Order, provenance.GetValueOrDefault(r.Order.Id), gradeNames,
+            names.GetValueOrDefault(r.Order.CustomerId), r.OutstandingMinorUnits)));
+    }
+
+    private static SalesOrderResponse ToResponse(
+        SalesOrderDetails o, EntityProvenance? p, IReadOnlyDictionary<Guid, string> gradeNames,
+        CustomerReference? customer = null,
+        long? outstandingMinorUnits = null) => new(
+        o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
+        o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
+        o.VoidReason,
+        o.Items.Select(i => new SalesOrderItemResponse(
+            i.Id, i.ProductId, i.EggGradeId, gradeNames.GetValueOrDefault(i.EggGradeId) ?? "", i.Unit.ToString(), i.BaseUnitFactor,
+            i.Quantity, i.QuantityBase,
+            i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit,
+            i.ListUnitPriceMinorUnits, i.ListPriceBasis.ToString())).ToList(),
+        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
+        p?.MadeOfficialAtUtc,
+        customer?.Name,
+        o.DiscountReasonCode?.ToString(), o.DiscountReasonNote,
+        outstandingMinorUnits);
+
+    private static async Task<IResult> VoidSale(
+        Guid id,
+        VoidSaleRequest request,
+        ICommerceModule commerce,
+        IValidator<VoidSaleCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved)
+            return Results.Unauthorized();
+
+        var command = new VoidSaleCommand(id, request.Reason);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await commerce.VoidSaleAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess)
+            return Results.Ok(result.Value);
+
+        // TenantMismatch → NotFound: don't reveal foreign-tenant existence.
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+            || result.Error.Code == "Tenant.Mismatch")
+            return Results.NotFound();
+
+        // Wrong lifecycle state is a genuine conflict; everything else
+        // (missing allocation provenance, restore invariants) is a 422.
+        var status = result.Error.Code is "SalesOrder.NotConfirmed" or "SalesOrder.AlreadyVoided"
+            ? StatusCodes.Status409Conflict
+            : StatusCodes.Status422UnprocessableEntity;
+        return Results.Problem(result.Error.Description, statusCode: status, title: result.Error.Code);
+    }
+
+    private static async Task<IResult> ConfirmSale(
+        Guid id,
+        ConfirmSaleRequest? request,
+        ICommerceModule commerce,
+        IValidator<ConfirmSaleCommand> validator,
+        TenantContext tenant,
+        ICurrentUser currentUser,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved || !currentUser.IsResolved)
+            return Results.Unauthorized();
+
+        var command = new ConfirmSaleCommand(
+            id, request?.DiscountReasonCode, request?.DiscountReasonNote);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await commerce.ConfirmSaleAsync(
+            command, tenant.AccountId, currentUser.UserId, ct);
+
+        // TenantMismatch is surfaced as NotFound to avoid revealing that the
+        // resource exists but belongs to a different tenant.
+        if (!result.IsSuccess)
+        {
+            if (result.Error.Code.EndsWith(".NotFound") || result.Error.Code == "Tenant.Mismatch")
+                return Results.NotFound();
+
+            // #612 — a caller whose role changed WHILE queued behind the
+            // Account lock is refused post-lock, before the generic 409/422
+            // branch below, so it returns 403 rather than a business-rule 422.
+            if (result.Error.Code == "Auth.Forbidden")
+                return Results.Problem(
+                    result.Error.Description, statusCode: StatusCodes.Status403Forbidden,
+                    title: result.Error.Code);
+
+            // SalesOrder.NotDraft is a genuine state conflict (409); all other domain
+            // errors (insufficient stock, withdrawal restriction, no items) are
+            // business-rule violations that belong on 422 Unprocessable Entity.
+            var status = result.Error.Code == "SalesOrder.NotDraft"
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status422UnprocessableEntity;
+
+            return Results.Problem(result.Error.Description, statusCode: status, title: result.Error.Code);
+        }
+
+        return Results.Ok(result.Value);
+    }
+}
+
+// CurrencyMinorUnit included so clients render non-2-decimal currencies (JPY,
+// KWD) correctly instead of assuming cents.
+public sealed record SalesOrderResponse(
+    Guid Id, Guid CustomerId, string ReferenceNumber, DateOnly OrderDate, string Status,
+    long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
+    string? VoidReason,
+    IReadOnlyList<SalesOrderItemResponse> Items,
+    // #494 provenance, derived from the audit trail: null together for a
+    // record created before that shipped (no backfill).
+    string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
+    // #494 — when the order was confirmed, i.e. when its stock was allocated.
+    // Carried separately because a self-confirm is excluded from LastChanged*.
+    DateTimeOffset? MadeOfficialAtUtc,
+    // #512 US4 — the customer's CURRENT name, additive, so a sales list row reads
+    // as a customer rather than an id. Null only when the customer is outside the
+    // caller's tenant.
+    string? CustomerName = null,
+    // #721 — why this order was sold below list. Both NULL on an order confirmed
+    // before that shipped (no backfill), which reads as "not recorded", never as
+    // "no discount". The code is the enum MEMBER NAME; the SPA renders it
+    // through i18n/enums.ts and never displays it raw.
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null,
+    // #769 — what this order still owes: confirmed total − non-voided
+    // payments. NULL means the figure does not exist for this row, and it has
+    // exactly two causes: the order is not Confirmed (payments attach to
+    // confirmed orders only, so a 0 would read as settled), or the caller is
+    // outside the money tier — for whom the repository never queries Payments
+    // at all. One field, never a paid companion: paid is total − outstanding,
+    // so there is no second number to drift.
+    long? OutstandingMinorUnits = null);
+
+public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
+
+public sealed record VoidSaleRequest(string Reason);
+
+// Optional on purpose: every existing caller POSTs /confirm with no body at all.
+// See the `.Accepts` call on the route for why the wildcard content type there
+// is what makes that keep working.
+public sealed record ConfirmSaleRequest(
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
+
+public sealed record AddOrderItemRequest(
+    Guid ProductId, int Quantity, string? Unit, long? UnitPriceMinorUnits,
+    int? ExpectedEggsPerUnit = null, long? ExpectedListUnitPriceMinorUnits = null,
+    bool ExpectedListPriceIsUnset = false);
+
+public sealed record UpdateOrderItemRequest(int Quantity, long UnitPriceMinorUnits);
+
+// Quantity is selling units; QuantityBase is individual eggs (Quantity ×
+// BaseUnitFactor, snapshotted at line creation — spec §10.5/§9.7).
+public sealed record SalesOrderItemResponse(
+    Guid Id, Guid ProductId, Guid EggGradeId, string EggGradeName, string Unit, int BaseUnitFactor,
+    int Quantity, int QuantityBase,
+    long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
+    // #720 — the list price this line was sold against, in the SAME currency
+    // and minor unit as UnitPriceMinorUnits above. NULL is one of three
+    // states, and ListPriceBasis below is what names which; read surfaces
+    // render it as text, never as 0.
+    long? ListUnitPriceMinorUnits,
+    // #773 — WHY ListUnitPriceMinorUnits is what it is, as the enum MEMBER
+    // NAME, like DiscountReasonCode (#721). Required and never defaulted: the
+    // domain decides the value and its basis in one expression so they cannot
+    // disagree (AddOrderItemHandler.cs:142), and a default here would be the
+    // one place they could. The SPA renders it through i18n/enums.ts, never raw.
+    string ListPriceBasis);

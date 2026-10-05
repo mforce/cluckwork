@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Catalog;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using FluentValidation;
 
 namespace Cluckwork.Application.Features.Users.SetStepperUnit;

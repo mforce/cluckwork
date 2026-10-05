@@ -1,5 +1,5 @@
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using System.Text.RegularExpressions;
-using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Application.Tests.Sales;
 

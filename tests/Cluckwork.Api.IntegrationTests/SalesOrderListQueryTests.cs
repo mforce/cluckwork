@@ -1,6 +1,5 @@
+using Cluckwork.Application.Modules.Commerce.Contracts;
 using System.Text.RegularExpressions;
-using Cluckwork.Application.Features.Sales;
-using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;

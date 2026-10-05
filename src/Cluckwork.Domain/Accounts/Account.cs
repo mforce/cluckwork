@@ -1,6 +1,6 @@
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using System.Text.RegularExpressions;
-using Cluckwork.Domain.Catalog;
-using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Domain.Accounts;
 

@@ -1,5 +1,5 @@
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Microsoft.AspNetCore.Identity;
 
 namespace Cluckwork.Infrastructure.Identity;

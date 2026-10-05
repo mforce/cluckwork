@@ -1,12 +1,12 @@
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Commerce.Catalog;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
-using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Providers;

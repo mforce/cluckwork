@@ -1,14 +1,10 @@
+using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Catalog.CreateProduct;
-using Cluckwork.Application.Features.Customers.CreateCustomer;
-using Cluckwork.Application.Features.Sales;
-using Cluckwork.Application.Features.Sales.AddOrderItem;
-using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;

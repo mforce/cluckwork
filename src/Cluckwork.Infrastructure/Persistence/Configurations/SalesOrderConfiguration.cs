@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Sales;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -38,7 +38,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
         builder.HasIndex(o => new { o.AccountId, o.ReferenceNumber }).IsUnique();
 
         // Customers with order history cannot be deleted from under them.
-        builder.HasOne<Cluckwork.Domain.Sales.Customer>()
+        builder.HasOne<Cluckwork.Domain.Modules.Commerce.Sales.Customer>()
             .WithMany()
             .HasForeignKey(o => o.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -82,7 +82,7 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
         // The sold product must not disappear from under historical lines
         // (#99); product rows are deactivate-only anyway.
         builder.Property(i => i.ProductId).IsRequired();
-        builder.HasOne<Cluckwork.Domain.Catalog.Product>()
+        builder.HasOne<Cluckwork.Domain.Modules.Commerce.Catalog.Product>()
             .WithMany()
             .HasForeignKey(i => i.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -160,17 +160,17 @@ public sealed class SalesOrderAllocationConfiguration : IEntityTypeConfiguration
     }
 }
 
-public sealed class CustomerConfiguration : IEntityTypeConfiguration<Cluckwork.Domain.Sales.Customer>
+public sealed class CustomerConfiguration : IEntityTypeConfiguration<Cluckwork.Domain.Modules.Commerce.Sales.Customer>
 {
-    public void Configure(EntityTypeBuilder<Cluckwork.Domain.Sales.Customer> builder)
+    public void Configure(EntityTypeBuilder<Cluckwork.Domain.Modules.Commerce.Sales.Customer> builder)
     {
         builder.HasKey(c => c.Id);
         builder.Property(c => c.AccountId).IsRequired();
-        builder.Property(c => c.Name).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxNameLength).IsRequired();
-        builder.Property(c => c.Phone).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxPhoneLength).IsRequired();
-        builder.Property(c => c.Email).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxEmailLength);
-        builder.Property(c => c.Address).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxAddressLength);
-        builder.Property(c => c.Note).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxNoteLength);
+        builder.Property(c => c.Name).HasMaxLength(Cluckwork.Domain.Modules.Commerce.Sales.Customer.MaxNameLength).IsRequired();
+        builder.Property(c => c.Phone).HasMaxLength(Cluckwork.Domain.Modules.Commerce.Sales.Customer.MaxPhoneLength).IsRequired();
+        builder.Property(c => c.Email).HasMaxLength(Cluckwork.Domain.Modules.Commerce.Sales.Customer.MaxEmailLength);
+        builder.Property(c => c.Address).HasMaxLength(Cluckwork.Domain.Modules.Commerce.Sales.Customer.MaxAddressLength);
+        builder.Property(c => c.Note).HasMaxLength(Cluckwork.Domain.Modules.Commerce.Sales.Customer.MaxNoteLength);
         builder.Property(c => c.Version).IsConcurrencyToken();
 
         builder.HasIndex(c => new { c.AccountId, c.Name });

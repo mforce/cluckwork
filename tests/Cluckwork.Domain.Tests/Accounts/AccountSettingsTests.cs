@@ -1,7 +1,7 @@
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 
 namespace Cluckwork.Domain.Tests.Accounts;
 

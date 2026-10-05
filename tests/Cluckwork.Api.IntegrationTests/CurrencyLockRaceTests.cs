@@ -39,7 +39,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
             // does the same); ChangeCurrencyCommand's DefaultStepperUnit defaults to
             // Individual, and UpdateFarmSettingsHandler now confirms that unit has an
             // active conversion before it ever reaches the lock this suite races.
-            db.EggUnitConversions.AddRange(Cluckwork.Domain.Catalog.EggUnitConversion.Defaults(accountId));
+            db.EggUnitConversions.AddRange(Cluckwork.Domain.Modules.Commerce.Catalog.EggUnitConversion.Defaults(accountId));
             await db.SaveChangesAsync();
         });
         return accountId;
@@ -279,7 +279,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
                     break;
                 case "sales-order":
                     var customerId = Guid.NewGuid();
-                    db.Customers.Add(Domain.Sales.Customer.Create(customerId, accountId, "Race Buyer", "555-0100"));
+                    db.Customers.Add(Cluckwork.Domain.Modules.Commerce.Sales.Customer.Create(customerId, accountId, "Race Buyer", "555-0100"));
                     seeded = seeded with { CustomerId = customerId };
                     break;
                 case "product-create":
@@ -294,12 +294,12 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
                         // Unpriced on purpose: pricing it is the transition
                         // that stamps the currency.
                         var productId = Guid.NewGuid();
-                        db.Products.Add(Domain.Catalog.Product.Create(
+                        db.Products.Add(Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                             productId, accountId, SeedDefaults.FarmId, "Race Tray",
-                            Domain.Catalog.ProductType.Egg, Domain.Catalog.ProductUnit.Tray,
+                            Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg, Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Tray,
                             defaultPriceMinorUnits: null, "USD", 2, notes: null));
-                        db.Set<Domain.Catalog.ProductEggGradeMapping>().Add(
-                            Domain.Catalog.ProductEggGradeMapping.Create(
+                        db.Set<Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping>().Add(
+                            Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(
                                 Guid.NewGuid(), accountId, productId, gradeId));
                         seeded = seeded with { ProductId = productId };
                     }
@@ -331,18 +331,18 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
                     accountId, CancellationToken.None);
                 return expense.IsSuccess ? null : expense.Error.Code;
             case "sales-order":
-                var order = await services.GetRequiredService<Application.Features.Sales.CreateSalesOrder.CreateSalesOrderHandler>()
-                    .HandleAsync(new Application.Features.Sales.CreateSalesOrder.CreateSalesOrderCommand(
+                var order = await services.GetRequiredService<Cluckwork.Application.Modules.Commerce.Sales.CreateSalesOrder.CreateSalesOrderHandler>()
+                    .HandleAsync(new Cluckwork.Application.Modules.Commerce.Contracts.CreateSalesOrderCommand(
                         seeded.CustomerId, today), accountId, CancellationToken.None);
                 return order.IsSuccess ? null : order.Error.Code;
             case "product-create":
-                var product = await services.GetRequiredService<Application.Features.Catalog.CreateProduct.CreateProductHandler>()
-                    .HandleAsync(new Application.Features.Catalog.CreateProduct.CreateProductCommand(
+                var product = await services.GetRequiredService<Cluckwork.Application.Modules.Commerce.Catalog.CreateProduct.CreateProductHandler>()
+                    .HandleAsync(new Cluckwork.Application.Modules.Commerce.Contracts.CreateProductCommand(
                         "Raced Dozen", "Egg", "Dozen", 550, seeded.GradeId, null), accountId, CancellationToken.None);
                 return product.IsSuccess ? null : product.Error.Code;
             case "product-update":
-                var update = await services.GetRequiredService<Application.Features.Catalog.UpdateProduct.UpdateProductHandler>()
-                    .HandleAsync(new Application.Features.Catalog.UpdateProduct.UpdateProductCommand(
+                var update = await services.GetRequiredService<Cluckwork.Application.Modules.Commerce.Catalog.UpdateProduct.UpdateProductHandler>()
+                    .HandleAsync(new Cluckwork.Application.Modules.Commerce.Contracts.UpdateProductCommand(
                         seeded.ProductId, "Race Tray", "Tray", 700, seeded.GradeId, null), CancellationToken.None);
                 return update.IsSuccess ? null : update.Error.Code;
             case "inventory-create":

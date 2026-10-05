@@ -84,7 +84,7 @@ public sealed class EggLotConcurrencyTests(CluckworkWebApplicationFactory factor
             var lot = await db.EggLots.AsNoTracking().SingleAsync();
             return (order.Status, lot.QuantityAvailable);
         });
-        Assert.Equal(Cluckwork.Domain.Sales.SalesOrderStatus.Confirmed, status);
+        Assert.Equal(Cluckwork.Domain.Modules.Commerce.Contracts.SalesOrderStatus.Confirmed, status);
         Assert.Equal(50, allocated); // drawn exactly once, never twice
 
         var saleMovements = await factory.WithTenantScopeAsync(accountId, async db =>

@@ -1,0 +1,48 @@
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using FluentValidation;
+
+namespace Cluckwork.Application.Modules.Commerce.Sales.AddOrderItem;
+
+public sealed class AddOrderItemValidator : AbstractValidator<AddOrderItemCommand>
+{
+    public AddOrderItemValidator()
+    {
+        RuleFor(x => x.ProductId).NotEmpty().WithErrorCode("OrderItem.ProductId.Required");
+        RuleFor(x => x.Quantity).GreaterThan(0).WithErrorCode("OrderItem.Quantity.Positive");
+        // Same whitelist as the catalog: only units that resolve to eggs.
+        RuleFor(x => x.Unit)
+            .Must(u => u is null || Cluckwork.Application.Modules.Commerce.Catalog.CreateProduct.CreateProductValidator.IsEggUnit(u))
+            .WithMessage("Egg products sell per egg, dozen, flat, tray, carton, or case.")
+            .WithErrorCode("OrderItem.Unit.Allowed");
+        RuleFor(x => x.UnitPriceMinorUnits).GreaterThanOrEqualTo(0)
+            .WithErrorCode("OrderItem.UnitPrice.NonNegative")
+            .When(x => x.UnitPriceMinorUnits is not null);
+        // #445 — a previewed factor is a real conversion's EggsPerUnit, which
+        // the domain floors at 1; zero/negative can only be a caller bug.
+        RuleFor(x => x.ExpectedEggsPerUnit).GreaterThan(0)
+            .WithErrorCode("OrderItem.ExpectedEggsPerUnit.Positive")
+            .When(x => x.ExpectedEggsPerUnit is not null);
+        // #720 — GreaterThanOrEqualTo, NOT GreaterThan like its sibling above.
+        // A conversion factor is floored at 1, but a list price of ZERO is a
+        // legal product price (Product.cs rejects only negatives), so a
+        // GreaterThan(0) rule here would refuse a valid expectation for a
+        // zero-priced product. This matches UnitPriceMinorUnits' own rule.
+        RuleFor(x => x.ExpectedListUnitPriceMinorUnits).GreaterThanOrEqualTo(0)
+            .WithErrorCode("OrderItem.ExpectedListUnitPrice.NonNegative")
+            .When(x => x.ExpectedListUnitPriceMinorUnits is not null);
+        // A caller cannot both name an expected price and say it saw none.
+        RuleFor(x => x)
+            .Must(x => !(x.ExpectedListPriceIsUnset && x.ExpectedListUnitPriceMinorUnits is not null))
+            .WithName("ExpectedListPriceIsUnset")
+            .WithMessage("Cannot expect an unset list price and a value at the same time.")
+            .WithErrorCode("OrderItem.ExpectedListPrice.Contradictory");
+        // quantity * price must not overflow long (Money.Multiply is unchecked) —
+        // wrap-around would store a negative line/order total.
+        RuleFor(x => x)
+            .Must(x => x.UnitPriceMinorUnits is not { } p || x.Quantity <= 0
+                       || p <= long.MaxValue / x.Quantity)
+            .WithName("UnitPriceMinorUnits")
+            .WithMessage("Line total exceeds the supported amount range.")
+            .WithErrorCode("OrderItem.UnitPrice.WithinRange");
+    }
+}

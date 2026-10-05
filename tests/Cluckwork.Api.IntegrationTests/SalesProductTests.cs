@@ -357,12 +357,12 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var foreign = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+            db.Products.Add(Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                 foreign, accountId, farmId, "Yen-priced dozen",
-                Cluckwork.Domain.Catalog.ProductType.Egg,
-                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg,
                 defaultPriceMinorUnits: 12_34, "JPY", 0, notes: null));
-            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(
                 Guid.NewGuid(), accountId, foreign, grades["Large"]));
             await db.SaveChangesAsync();
         });
@@ -391,12 +391,12 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var skewed = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+            db.Products.Add(Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                 skewed, accountId, farmId, "Skewed-scale eggs",
-                Cluckwork.Domain.Catalog.ProductType.Egg,
-                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg,
                 defaultPriceMinorUnits: 1234, "USD", 0, notes: null));
-            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(
                 Guid.NewGuid(), accountId, skewed, grades["Large"]));
             await db.SaveChangesAsync();
         });
@@ -532,12 +532,12 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var skewed = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+            db.Products.Add(Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                 skewed, accountId, farmId, "Skewed-scale eggs",
-                Cluckwork.Domain.Catalog.ProductType.Egg,
-                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg,
                 defaultPriceMinorUnits: 1234, "USD", 0, notes: null));
-            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(
                 Guid.NewGuid(), accountId, skewed, grades["Large"]));
             await db.SaveChangesAsync();
         });

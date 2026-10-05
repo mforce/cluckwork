@@ -1,3 +1,4 @@
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using System.Collections.Concurrent;
@@ -5,7 +6,6 @@ using System.Linq;
 using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -44,7 +44,7 @@ internal static class TestHarness
             // Every account carries the packed-unit defaults (#97) — mirrors the
             // startup seeder's SeedDefaultEggUnitConversionsAsync.
             db.EggUnitConversions.AddRange(
-                Cluckwork.Domain.Catalog.EggUnitConversion.Defaults(accountId));
+                Cluckwork.Domain.Modules.Commerce.Catalog.EggUnitConversion.Defaults(accountId));
             await db.SaveChangesAsync();
         });
 
@@ -241,13 +241,13 @@ internal static class TestHarness
         var productId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+            db.Products.Add(Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                 productId, accountId, farmId,
                 name ?? $"Product-{productId.ToString()[..8]}",
-                Cluckwork.Domain.Catalog.ProductType.Egg,
-                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg,
+                Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg,
                 defaultPriceMinorUnits, "USD", 2, notes: null));
-            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(
                 Guid.NewGuid(), accountId, productId, eggGradeId));
             await db.SaveChangesAsync();
         });
@@ -324,18 +324,18 @@ internal static class TestHarness
             {
                 // #99: lines carry a product; seed one per grade line (unit Egg,
                 // factor 1 — quantities unchanged).
-                var product = Cluckwork.Domain.Catalog.Product.Create(
+                var product = Cluckwork.Domain.Modules.Commerce.Catalog.Product.Create(
                     Guid.NewGuid(), accountId, Guid.NewGuid(),
                     $"P-{Guid.NewGuid():N}"[..20],
-                    Cluckwork.Domain.Catalog.ProductType.Egg,
-                    Cluckwork.Domain.Catalog.ProductUnit.Egg, null, "USD", 2, null);
+                    Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg,
+                    Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg, null, "USD", 2, null);
                 db.Products.Add(product);
-                db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                db.ProductEggGradeMappings.Add(Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(
                     Guid.NewGuid(), accountId, product.Id, eggGradeId));
-                order.AddItem(product.Id, Cluckwork.Domain.Catalog.ProductType.Egg, eggGradeId,
-                    Cluckwork.Domain.Catalog.ProductUnit.Egg, 1, quantity,
+                order.AddItem(product.Id, Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg, eggGradeId,
+                    Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg, 1, quantity,
                     Cluckwork.Domain.Common.Money.Zero("USD"),
-                    null, Cluckwork.Domain.Sales.ListPriceBasis.ProductUnpriced);
+                    null, Cluckwork.Domain.Modules.Commerce.Contracts.ListPriceBasis.ProductUnpriced);
             }
             db.SalesOrders.Add(order);
             await db.SaveChangesAsync();

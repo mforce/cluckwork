@@ -1,0 +1,12 @@
+namespace Cluckwork.Application.Modules.Commerce.Contracts;
+
+// The two discount fields default so the seeders, which construct this command
+// directly, keep compiling and keep confirming their at-list orders (#394).
+[ModuleContract("Commerce")]
+public sealed record ConfirmSaleCommand(
+    Guid SalesOrderId,
+    string? DiscountReasonCode = null,
+    string? DiscountReasonNote = null);
+
+[ModuleContract("Commerce")]
+public sealed record ConfirmSaleResponse(Guid SalesOrderId, string Status);

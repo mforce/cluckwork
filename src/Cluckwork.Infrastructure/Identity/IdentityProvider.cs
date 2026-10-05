@@ -1,7 +1,7 @@
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;

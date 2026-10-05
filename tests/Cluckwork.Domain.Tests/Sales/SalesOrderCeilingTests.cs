@@ -1,7 +1,7 @@
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using System.Reflection;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Sales;
 
 namespace Cluckwork.Domain.Tests.Sales;
 

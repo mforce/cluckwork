@@ -1,5 +1,5 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;

@@ -1,11 +1,13 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Sales;
-using Cluckwork.Application.Features.Sales.ConfirmSale;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Sales;
+using Cluckwork.Application.Modules.Commerce.Sales.ConfirmSale;
 using Cluckwork.Application.Modules.EggOperations.EggLots;
 using Cluckwork.Application.Modules.EggOperations.Eggs;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
-using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

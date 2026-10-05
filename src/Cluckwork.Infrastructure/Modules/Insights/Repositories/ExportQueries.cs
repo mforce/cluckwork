@@ -158,7 +158,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 x => [x.Id, x.FlockId, x.ProductionDate, x.EggGradeId, x.QuantityProduced,
                       x.QuantityAvailable, x.DailyEntryId, x.RestrictedUntil, x.Version]),
 
-            "customers" => Rows<Cluckwork.Domain.Sales.Customer>(activeDb.Customers.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
+            "customers" => Rows<Cluckwork.Domain.Modules.Commerce.Sales.Customer>(activeDb.Customers.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id),
                 ["id", "name", "phone", "email", "address", "note"],
                 x => [x.Id, x.Name, x.Phone, x.Email, x.Address, x.Note]),
 
@@ -166,7 +166,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
             // ListPriceBasis joined the line below: this is the full-fidelity
             // export of the table, and the reason is a column on it. The
             // discount TOTALS a report would show stay with #725.
-            "sales-orders" => Rows<Cluckwork.Domain.Sales.SalesOrder>(activeDb.SalesOrders.AsNoTracking()
+            "sales-orders" => Rows<Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder>(activeDb.SalesOrders.AsNoTracking()
                     .OrderByBusinessChronology(x => x.OrderDate),
                 ["id", "referenceNumber", "customerId", "status", "orderDate",
                  "totalMinorUnits", "currencyCode", "currencyMinorUnit", "voidReason",
@@ -180,7 +180,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
             // full-fidelity export of the table this column turned into a permanent
             // money record, for an auditor or a #727 approver. Not #725's scope —
             // that owns discount TOTALS in reports, not raw column fidelity here.
-            "sales-order-items" => Rows<Cluckwork.Domain.Sales.SalesOrderItem>(activeDb.SalesOrderItems.AsNoTracking()
+            "sales-order-items" => Rows<Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem>(activeDb.SalesOrderItems.AsNoTracking()
                     .OrderBy(x => x.SalesOrderId).ThenBy(x => x.Id),
                 ["id", "salesOrderId", "productId", "productTypeSnapshot", "eggGradeId",
                  "unit", "baseUnitFactor", "quantity", "quantityBase",
@@ -191,12 +191,12 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.UnitPrice.MinorUnits, x.UnitPrice.CurrencyCode, x.UnitPrice.CurrencyMinorUnit,
                       x.ListUnitPriceMinorUnits, x.ListPriceBasis]),
 
-            "sales-order-allocations" => Rows<Cluckwork.Domain.Sales.SalesOrderAllocation>(activeDb.SalesOrderAllocations.AsNoTracking()
+            "sales-order-allocations" => Rows<Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderAllocation>(activeDb.SalesOrderAllocations.AsNoTracking()
                     .OrderBy(x => x.SalesOrderId).ThenBy(x => x.Id),
                 ["id", "salesOrderId", "salesOrderItemId", "eggLotId", "quantity", "releasedOnUtc"],
                 x => [x.Id, x.SalesOrderId, x.SalesOrderItemId, x.EggLotId, x.Quantity, x.ReleasedOnUtc]),
 
-            "payments" => Rows<Cluckwork.Domain.Sales.Payment>(activeDb.Payments.AsNoTracking()
+            "payments" => Rows<Cluckwork.Domain.Modules.Commerce.Sales.Payment>(activeDb.Payments.AsNoTracking()
                     .OrderByBusinessChronology(x => x.PaymentDate),
                 ["id", "salesOrderId", "customerId", "paymentDate", "amountMinorUnits",
                  "currencyCode", "currencyMinorUnit", "method", "referenceNumber",

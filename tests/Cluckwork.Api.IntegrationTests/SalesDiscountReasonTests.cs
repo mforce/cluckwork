@@ -103,7 +103,7 @@ public sealed class SalesDiscountReasonTests(CluckworkWebApplicationFactory fact
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             var stored = await db.SalesOrders.AsNoTracking().SingleAsync(o => o.Id == orderId);
-            Assert.Equal(Domain.Sales.DiscountReasonCode.DamagedStock, stored.DiscountReasonCode);
+            Assert.Equal(Cluckwork.Domain.Modules.Commerce.Contracts.DiscountReasonCode.DamagedStock, stored.DiscountReasonCode);
             Assert.Equal("hail damage", stored.DiscountReasonNote);
         });
     }
@@ -183,7 +183,7 @@ public sealed class SalesDiscountReasonTests(CluckworkWebApplicationFactory fact
         var confirm = await ConfirmAsync(client, orderId, new
         {
             discountReasonCode = "Other",
-            discountReasonNote = new string('x', Domain.Sales.SalesOrder.MaxDiscountReasonNoteLength + 1),
+            discountReasonNote = new string('x', Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder.MaxDiscountReasonNoteLength + 1),
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, confirm.StatusCode);

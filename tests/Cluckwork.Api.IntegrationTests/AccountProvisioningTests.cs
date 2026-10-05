@@ -1,10 +1,10 @@
+using Cluckwork.Domain.Modules.Commerce.Catalog;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;

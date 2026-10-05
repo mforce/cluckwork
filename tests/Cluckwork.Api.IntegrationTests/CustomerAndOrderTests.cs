@@ -733,7 +733,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 
         var response = await client.PutWithKeyAsync(
             $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
-            new { version = 0, name = new string('a', Cluckwork.Domain.Sales.Customer.MaxNameLength + 1), phone = "555-0000" });
+            new { version = 0, name = new string('a', Cluckwork.Domain.Modules.Commerce.Sales.Customer.MaxNameLength + 1), phone = "555-0000" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());

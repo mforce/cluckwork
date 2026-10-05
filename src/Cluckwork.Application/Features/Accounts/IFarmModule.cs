@@ -2,8 +2,8 @@ using Cluckwork.Application.Features.Accounts.RemoveFarmBanner;
 using Cluckwork.Application.Features.Accounts.RemoveFarmLogo;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 
 namespace Cluckwork.Application.Features.Accounts;
 

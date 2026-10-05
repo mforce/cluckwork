@@ -1,5 +1,5 @@
-using Cluckwork.Application.Features.Sales;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

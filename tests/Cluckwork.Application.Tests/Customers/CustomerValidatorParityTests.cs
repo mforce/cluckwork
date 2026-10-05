@@ -1,6 +1,7 @@
-using Cluckwork.Application.Features.Customers.CreateCustomer;
-using Cluckwork.Application.Features.Customers.UpdateCustomer;
-using Cluckwork.Domain.Sales;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Customers.CreateCustomer;
+using Cluckwork.Application.Modules.Commerce.Customers.UpdateCustomer;
+using Cluckwork.Domain.Modules.Commerce.Sales;
 using FluentValidation.Results;
 
 namespace Cluckwork.Application.Tests.Customers;
