@@ -19,7 +19,7 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
 
     internal static readonly DiagnosticDescriptor MapMissing = new(
         "CW1000", "Module map unavailable",
-        "{0} runs the module-edge analyzer but reads no [assembly: ModuleOwner] rows from Cluckwork.Domain",
+        "{0} runs the module-edge analyzer but reads no [ModuleOwner] rows from Cluckwork.Domain",
         "Architecture", DiagnosticSeverity.Error, isEnabledByDefault: true, customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     internal static readonly DiagnosticDescriptor Undeclared = new(
@@ -34,7 +34,7 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
 
     internal static readonly DiagnosticDescriptor Unowned = new(
         "CW1003", "Unowned namespace",
-        "unowned namespace '{0}'; every namespace in src/ must be claimed by exactly one owner in src/Cluckwork.Domain/Common/Architecture/ModuleOwners.cs",
+        $"unowned namespace '{{0}}'; every namespace in src/ must be claimed by exactly one owner in {ModuleMap.RulesDirectory}",
         "Architecture", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MapMissing, Undeclared, Stale, Unowned];
@@ -79,7 +79,7 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
                     if (stale)
                     {
                         end.ReportDiagnostic(Diagnostic.Create(Stale, Location.None, from, to, symbol,
-                            $"no reference in src/ realises this edge; delete the symbol from its ModuleEdge row in {ModuleMap.EdgesFile}, or restore the dependency it was written for"));
+                            $"no reference in src/ realises this edge; delete the symbol from its ModuleEdge row in {ModuleMap.RulesFile(from)}, or restore the dependency it was written for"));
                     }
                 }
             }
