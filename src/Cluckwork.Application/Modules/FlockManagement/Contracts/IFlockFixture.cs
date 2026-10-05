@@ -3,7 +3,6 @@ using Cluckwork.Domain.Common;
 namespace Cluckwork.Application.Modules.FlockManagement.Contracts;
 
 // Seed fixture reads and writes; registered beside the seeders outside Production.
-[ModuleContract("FlockManagement")]
 public interface IFlockFixture
 {
     Task<bool> BirdMovementExistsAsync(Guid flockId, DateOnly date, CancellationToken ct = default);
@@ -28,7 +27,6 @@ public interface IFlockFixture
     Task PurgeFlocksAsync(Guid accountId, CancellationToken ct = default);
 }
 
-[ModuleContract("FlockManagement")]
 public sealed record FlockFixtureCounts(
     int Flocks,
     int ActiveFlocks,

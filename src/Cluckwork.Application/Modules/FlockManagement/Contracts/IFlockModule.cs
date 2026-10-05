@@ -8,7 +8,6 @@ namespace Cluckwork.Application.Modules.FlockManagement.Contracts;
 // Management only through the types marked
 // [ModuleContract("FlockManagement")]; peer modules use the narrower IFlockLookup
 // and IMortalityLedger ports.
-[ModuleContract("FlockManagement")]
 public interface IFlockModule
 {
     // The EntityType Flock Management writes on a flock's audit rows; provenance reads key by it.
@@ -42,6 +41,5 @@ public interface IFlockModule
         Guid flockId, int limit, int offset, CancellationToken ct);
 }
 
-[ModuleContract("FlockManagement")]
 public sealed record BirdMovementDetails(
     Guid Id, Guid FlockId, DateOnly Date, BirdMovementType Type, int Quantity, string? Note);

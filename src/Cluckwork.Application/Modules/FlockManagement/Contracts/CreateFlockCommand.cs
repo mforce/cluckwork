@@ -4,7 +4,6 @@ namespace Cluckwork.Application.Modules.FlockManagement.Contracts;
 // created under the seeded default farm/house — the client cannot supply
 // arbitrary (and unvalidated) farm/house ids. Add farm/house selection once
 // those aggregates + their tenant scoping exist.
-[ModuleContract("FlockManagement")]
 public sealed record CreateFlockCommand(
     string Name,
     string Breed,
