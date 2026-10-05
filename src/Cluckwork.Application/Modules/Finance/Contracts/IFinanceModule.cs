@@ -4,7 +4,7 @@ using Cluckwork.Domain.Modules.Finance.Expenses;
 namespace Cluckwork.Application.Modules.Finance.Contracts;
 
 // #849: the Finance module's contract. Adapters reach Finance only through the
-// types marked [ModuleContract("Finance")].
+// types in this Contracts folder.
 public interface IFinanceModule
 {
     // The EntityType Finance writes on an expense's audit rows; provenance reads key by it.

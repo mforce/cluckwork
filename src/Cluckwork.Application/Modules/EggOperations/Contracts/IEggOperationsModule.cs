@@ -4,7 +4,7 @@ using Cluckwork.Domain.Modules.EggOperations.Eggs;
 namespace Cluckwork.Application.Modules.EggOperations.Contracts;
 
 // #853: the Egg Operations contract for adapters. Adapters reach Egg Operations
-// only through the types marked [ModuleContract("EggOperations")]; peer modules use the narrower IEggGradeLookup
+// only through the types in this Contracts folder; peer modules use the narrower IEggGradeLookup
 // and IDailyEntryLookup ports.
 public interface IEggOperationsModule
 {

@@ -4,7 +4,7 @@ using Cluckwork.Domain.Modules.Commerce.Sales;
 namespace Cluckwork.Application.Modules.Commerce.Contracts;
 
 // #854: the Commerce contract for adapters. Adapters reach Commerce only
-// through the types marked [ModuleContract("Commerce")];
+// through the types in this Contracts folder;
 // peer modules use the narrower IEggUnitConversionLookup port.
 [ModuleContract("Commerce")]
 public interface ICommerceModule
