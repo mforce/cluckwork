@@ -1,8 +1,8 @@
+using Cluckwork.Infrastructure.Modules.Insights.Repositories;
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Insights;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 

@@ -1,12 +1,11 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.AdjustExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
-using Cluckwork.Application.Features.Insights;
+using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 

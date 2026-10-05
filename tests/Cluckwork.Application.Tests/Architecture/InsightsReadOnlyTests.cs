@@ -1,9 +1,9 @@
+using Cluckwork.Application.Modules.Insights.Audit;
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Application.Modules.Insights.Export;
+using Cluckwork.Application.Modules.Insights.Reports;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using Cluckwork.Application.Features.Audit;
-using Cluckwork.Application.Features.Export;
-using Cluckwork.Application.Features.Insights;
-using Cluckwork.Application.Features.Reports;
 using Cluckwork.Application.Tests.TenantBypass;
 using Cluckwork.Domain.Common;
 using Microsoft.CodeAnalysis;

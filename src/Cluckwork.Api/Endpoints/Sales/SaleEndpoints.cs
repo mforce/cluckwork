@@ -1,14 +1,13 @@
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Application.Features.Sales.VoidSale;
+using Cluckwork.Application.Modules.Insights.Contracts;
 using FluentValidation;
-using Cluckwork.Application.Features.Insights;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Application.Features.Customers;

@@ -1,3 +1,5 @@
+using Cluckwork.Api.Modules.Insights;
+
 namespace Cluckwork.Api.Hosting.Modules;
 
 // #858 — one registration file per owner. Access registers through

@@ -1,0 +1,403 @@
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Application.Modules.Insights.Reports;
+using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Sales;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Modules.Insights.Repositories;
+
+public sealed class ReportQueries(AppDbContext db) : IReportQueries
+{
+    // Official entries only: Draft isn't submitted, Voided vacated its day (#82).
+    private static readonly DailyEntryStatus[] OfficialStatuses =
+        [DailyEntryStatus.Submitted, DailyEntryStatus.Locked, DailyEntryStatus.ManagerAdjusted];
+
+    public async Task<ProductionReport> GetProductionAsync(
+        DateOnly from, DateOnly to, Guid? flockId = null, CancellationToken ct = default)
+    {
+        // #916 — every query below carries the same `flockId == null || …`
+        // conjunct, so a null scope leaves the SQL semantically what it was and
+        // a set scope narrows the eggs and the EXPOSURE together. Narrowing one
+        // without the other is the #780 defect in miniature: a farm-wide
+        // denominator under one flock's eggs rates that flock at a fraction of
+        // its real lay. The bird-movement queries below need no conjunct —
+        // they are already bounded by `flockIds`, which this filter shrinks.
+        //
+        // Grouped by (date, flock, HOUSE), not by date (#780). Three figures
+        // below need to know WHICH unit filed rather than how many did, and two
+        // of them were wrong when this only knew the count:
+        //
+        //  - the lay rate's numerator has to come from the same flocks as its
+        //    denominator, or a flock whose birds are absent from the exposure
+        //    still puts eggs in the rate. A depletion backdated after an entry
+        //    was filed did exactly that, turning a correct 80% into 160%;
+        //  - "did every flock file" is a question about the flock at ITS OWN
+        //    house, because the daily entry's natural key is
+        //    (Account, Farm, House, Flock, Date). Counting distinct flocks let
+        //    a flock that filed from some other house satisfy the expectation.
+        //
+        // Bounded by (days × flocks × houses) over a range the endpoint already
+        // caps at 366 days, so this is the same order as the day loop below.
+        var perUnit = await db.DailyEntries
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
+                && (flockId == null || e.FlockId == flockId.Value))
+            .GroupBy(e => new { e.Date, e.FlockId, e.HouseId })
+            .Select(g => new
+            {
+                g.Key.Date,
+                g.Key.FlockId,
+                g.Key.HouseId,
+                Total = g.Sum(e => e.TotalEggs),
+                Cracked = g.Sum(e => e.CrackedEggs),
+                Dirty = g.Sum(e => e.DirtyEggs),
+                Discarded = g.Sum(e => e.DiscardedEggs),
+                // #396 — only the conditions this entry actually RESOLVED to a
+                // grade. A null snapshot means those eggs were a loss on that
+                // day, and summing the raw counters instead would invent stock
+                // the farm never had — most visibly for entries recorded before
+                // this feature, whose conditions were never saleable at all.
+                FromCounts = g.Sum(e =>
+                    (e.CrackedGradeId != null ? e.CrackedEggs : 0)
+                    + (e.DirtyGradeId != null ? e.DirtyEggs : 0)),
+                Deaths = g.Sum(e => e.MortalityCount),
+            })
+            .ToListAsync(ct);
+
+        // These are OFFICIAL entries (the Where above): Submitted, Locked,
+        // ManagerAdjusted. Deliberately stricter than the Dashboard's own
+        // `entryFor`, which counts a Draft — a report figure should rest on the
+        // same rows every other figure in the row rests on, so a day holding
+        // only a Draft reads as unrecorded here and as captured on the tiles.
+        var unitsByDay = perUnit
+            .GroupBy(x => x.Date)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Period grade totals (per-day × per-grade would bloat the payload).
+        var gradeTotals = await db.DailyEntryGrades
+            .Where(g => db.DailyEntries.Any(e =>
+                e.Id == g.DailyEntryId && e.Date >= from && e.Date <= to
+                && OfficialStatuses.Contains(e.Status)
+                && (flockId == null || e.FlockId == flockId.Value)))
+            .GroupBy(g => g.EggGradeId)
+            .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+            .ToListAsync(ct);
+
+        // #396 — condition-backed production has NO DailyEntryGrade row and
+        // never can: ConditionGradeGuard refuses a manual line naming a
+        // condition grade precisely so one day cannot produce two lots for one
+        // grade. So a breakdown built from DailyEntryGrades alone omits every
+        // cracked and dirty egg that this same response counts as produced
+        // stock in FromCounts/TotalFromCounts — the "By grade" table would sum
+        // to the hand-graded remainder while the header reported more. Fold the
+        // snapshot-backed counters in under the grade each entry actually
+        // resolved to, keyed on the SNAPSHOT (never the live grade catalog), so
+        // the breakdown reconciles with the stock that exists.
+        //
+        // Two queries rather than one: the counters live in different columns
+        // under different snapshot keys, so a single GROUP BY cannot express it
+        // without a UNION EF would not translate.
+        //
+        // `Counter > 0` mirrors SubmitDailyEntryHandler's own lot condition —
+        // a snapshot is recorded even on a zero-cracked day, and counting those
+        // would put a grade in the breakdown the farm holds no stock under,
+        // which reads as an empty grade rather than as absence.
+        var crackedTotals = await db.DailyEntries
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
+                && e.CrackedGradeId != null && e.CrackedEggs > 0
+                && (flockId == null || e.FlockId == flockId.Value))
+            .GroupBy(e => e.CrackedGradeId!.Value)
+            .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(e => e.CrackedEggs) })
+            .ToListAsync(ct);
+
+        var dirtyTotals = await db.DailyEntries
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
+                && e.DirtyGradeId != null && e.DirtyEggs > 0
+                && (flockId == null || e.FlockId == flockId.Value))
+            .GroupBy(e => e.DirtyGradeId!.Value)
+            .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(e => e.DirtyEggs) })
+            .ToListAsync(ct);
+
+        // Accumulate rather than assign. A condition grade cannot collide with
+        // a DailyEntryGrade row today (the guard above), but Cracked and Dirty
+        // could in principle be bound to the SAME grade id by a farm that
+        // pointed both kinds at one catalog row — accumulating keeps that
+        // arithmetic right instead of silently dropping one counter.
+        var combined = new Dictionary<Guid, int>();
+        foreach (var t in gradeTotals)
+            combined[t.EggGradeId] = combined.GetValueOrDefault(t.EggGradeId) + t.Quantity;
+        foreach (var t in crackedTotals.Concat(dirtyTotals))
+            combined[t.EggGradeId] = combined.GetValueOrDefault(t.EggGradeId) + t.Quantity;
+
+        var gradeNames = await db.EggGrades
+            .Where(g => combined.Keys.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, g => g.Name, ct);
+
+        // Hen-days (spec §19.3): the farm's bird count on each day, summed over
+        // the range, per flock so lifecycle can terminate a flock's
+        // contribution. A flock counts on day D only while placed and not yet
+        // depleted/archived (a depletion writes NO removal movement — without
+        // the terminator its remaining birds would count forever; codex review
+        // of #92). Start-of-day convention: the day's deaths do not shrink that
+        // day's denominator (industry hen-day practice), so a flock's count on
+        // D is initial − removals BEFORE D.
+        //
+        // #311: a flock whose lifecycle has fully ended before `from` (either
+        // terminator date < from) contributes 0 to every day in [from, to] —
+        // `ended` below is true for the whole window regardless of the other
+        // terminator — so it's excluded here rather than loaded and walked.
+        // This, together with bounding BirdMovements below by flock + date
+        // instead of loading the account's whole bird-movement ledger, is what
+        // keeps this query's cost tied to the report's range and flock count
+        // rather than to the farm's full history.
+        var flocks = await db.Flocks
+            .Where<Cluckwork.Domain.Flocks.Flock>(f => f.PlacementDate <= to
+                     && (f.DepletedOn == null || f.DepletedOn >= from)
+                     && (f.ArchivedOn == null || f.ArchivedOn >= from)
+                     && (flockId == null || f.Id == flockId.Value))
+            .Select(f => new
+            {
+                f.Id,
+                // #780 — the house this flock owes its count from. A daily
+                // entry's natural key names a house, so "did this flock file"
+                // is only answerable against the pair.
+                f.HouseId,
+                f.PlacementDate,
+                f.InitialCount,
+                f.DepletedOn,
+                f.ArchivedOn,
+            })
+            .ToListAsync(ct);
+        var flockIds = flocks.Select(f => f.Id).ToList();
+
+        // Opening balance per flock (removals strictly before `from`) — one
+        // SQL-side aggregate per flock, not every historical row.
+        var openingRemovals = flockIds.Count == 0
+            ? new Dictionary<Guid, long>()
+            : await db.BirdMovements
+                .Where(m => flockIds.Contains(m.FlockId) && m.Date < from)
+                .GroupBy(m => m.FlockId)
+                .Select(g => new { FlockId = g.Key, Quantity = g.Sum(m => (long)m.Quantity) })
+                .ToDictionaryAsync(x => x.FlockId, x => x.Quantity, ct);
+
+        // Per-day removals WITHIN the window only — bounded by (days × flocks)
+        // in this report's range, not by the account's all-time movement count.
+        var removalsByFlockDay = flockIds.Count == 0
+            ? new Dictionary<Guid, Dictionary<DateOnly, long>>()
+            : (await db.BirdMovements
+                .Where(m => flockIds.Contains(m.FlockId) && m.Date >= from && m.Date <= to)
+                .GroupBy(m => new { m.FlockId, m.Date })
+                .Select(g => new { g.Key.FlockId, g.Key.Date, Quantity = g.Sum(m => (long)m.Quantity) })
+                .ToListAsync(ct))
+                .GroupBy(x => x.FlockId)
+                .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.Date, x => x.Quantity));
+
+        var days = new List<ProductionDay>();
+        // Per flock: birds at start of `from` = initial − removals strictly
+        // before `from`; then walk, applying each day's removals AFTER counting.
+        var flockCounts = flocks.ToDictionary(
+            f => f.Id,
+            f => f.InitialCount - openingRemovals.GetValueOrDefault(f.Id));
+        // Eggs that the lay rate is allowed to divide. Accumulated beside the
+        // period totals because it must come from the same flock set as
+        // `totalRecordedHenDays`, and nothing downstream can reconstruct it.
+        var totalRatedEggs = 0;
+        for (var d = from; d <= to; d = d.AddDays(1))
+        {
+            var units = unitsByDay.GetValueOrDefault(d) ?? [];
+            // Which FLOCKS filed, not which (flock, house) pairs. Matching the
+            // pair was tried and reverted: `RecordDailyEntryHandler` says houses
+            // "aren't aggregates yet — phantom ids until Phase 2's House model",
+            // and declines to check the entry's house against the flock's, while
+            // `CreateFlockHandler` gives every flock the same
+            // `SeedDefaults.HouseId`. So the rule could never fire on real data
+            // and rested entirely on an unvalidated caller-supplied field — a
+            // client sending any other id turned a submitted day into "no
+            // entry". Pair it when houses are real and the write path checks it.
+            var filed = units.Select(u => u.FlockId).ToHashSet();
+
+            long henDays = 0;
+            // The exposure the lay rate is actually computed over: only the
+            // flocks that filed. A flock that filed nothing produced no eggs as
+            // far as this report knows, so its birds must not sit in the
+            // denominator — that is what made an unrecorded day read as a day of
+            // zero production (#780), and it does the same to a day where one
+            // flock of three forgot.
+            long recordedHenDays = 0;
+            var expectedFlocks = 0;
+            // Expected flocks that did NOT file. Completeness cannot be a
+            // comparison of the two COUNTS: since a flock that filed counts
+            // whether or not the ledger says it was live, expected {A, B} with
+            // filings {A, C} gives 2 and 2 — equal counts over different sets,
+            // so B's missing filing reads as a complete day and its shortfall
+            // enters Peak and Avg. Comparing identities is the only thing that
+            // answers "did everyone who owed a count file one".
+            var missingFlocks = 0;
+            // The flocks whose birds ARE in the denominator. The numerator is
+            // then taken from exactly these, so the two cannot disagree.
+            var rated = new HashSet<Guid>();
+            foreach (var f in flocks)
+            {
+                var ended = (f.DepletedOn is { } dep && d > dep)
+                            || (f.ArchivedOn is { } arc && d > arc);
+                if (f.PlacementDate <= d && !ended)
+                {
+                    var birds = Math.Max(flockCounts[f.Id], 0);
+                    henDays += birds;
+                    expectedFlocks++;
+                    // `birds > 0` is load-bearing, not defensive. A flock whose
+                    // removals have over-run its placement — a mistyped
+                    // mortality, which nothing on the write path bounds —
+                    // contributes no exposure, so admitting its eggs to the
+                    // numerator divides by a denominator they are not in. That
+                    // reported 160% on a farm laying 80%.
+                    if (filed.Contains(f.Id))
+                    {
+                        // `birds > 0` is load-bearing for the RATE, not for
+                        // whether the flock filed: a flock with no birds still
+                        // answered for itself, it just contributes no exposure.
+                        if (birds > 0)
+                        {
+                            recordedHenDays += birds;
+                            rated.Add(f.Id);
+                        }
+                    }
+                    else
+                    {
+                        missingFlocks++;
+                    }
+                }
+                var todaysRemovals = removalsByFlockDay.GetValueOrDefault(f.Id)?.GetValueOrDefault(d) ?? 0L;
+                flockCounts[f.Id] -= todaysRemovals;
+            }
+
+            // Counted from the entries, NOT from the lifecycle walk above: a
+            // flock that filed has filed, whether or not the bird ledger agrees
+            // it was live. Deriving it from the walk made `recordedFlocks <=
+            // expectedFlocks` hold by construction, so a placement date
+            // corrected forward past its own entries collapsed the day to
+            // (0, 0) — and the strip then drew a day with real submitted eggs
+            // as "no flocks". `isComplete` uses `>=` precisely because these
+            // two can legitimately disagree.
+            var recordedFlocks = filed.Count;
+
+            // Every official egg of the day, whatever filed it — the report's
+            // egg column must not silently drop a row.
+            var total = units.Sum(u => u.Total);
+            var cracked = units.Sum(u => u.Cracked);
+            var dirty = units.Sum(u => u.Dirty);
+            var discarded = units.Sum(u => u.Discarded);
+            var sellable = total - cracked - dirty - discarded;
+            // The rate's numerator, restricted to the flocks whose birds are in
+            // its denominator. A flock outside its own lifecycle window — a
+            // depletion backdated after its entry was filed — has eggs here and
+            // no birds there, and dividing one by the other reported 160% on
+            // data the previous code rated correctly at 80%. Its eggs stay in
+            // `total` above and out of the rate.
+            var ratedEggs = units.Where(u => rated.Contains(u.FlockId)).Sum(u => u.Total);
+            totalRatedEggs += ratedEggs;
+
+            days.Add(new ProductionDay(
+                d, total, cracked, dirty, discarded,
+                sellable, units.Sum(u => u.FromCounts), units.Sum(u => u.Deaths),
+                recordedFlocks, expectedFlocks, missingFlocks,
+                henDays, recordedHenDays, ratedEggs,
+                // Over the exposure that filed, never over the calendar. null,
+                // not 0, when nothing filed — a day with no evidence has no lay
+                // rate, and printing 0.0% is the claim #780 removed.
+                recordedHenDays > 0 ? Math.Round(ratedEggs * 100m / recordedHenDays, 1) : null));
+            if (d == DateOnly.MaxValue) break; // AddDays would overflow
+        }
+
+        var totalEggs = days.Sum(x => x.TotalEggs);
+        var totalHenDays = days.Sum(x => x.HenDays);
+        var totalRecordedHenDays = days.Sum(x => x.RecordedHenDays);
+        return new ProductionReport(
+            days,
+            totalEggs,
+            days.Sum(x => x.Sellable),
+            days.Sum(x => x.FromCounts),
+            days.Sum(x => x.Deaths),
+            totalHenDays,
+            totalRecordedHenDays,
+            totalRatedEggs,
+            // Same numerator and denominator rule as the per-day figure, so the
+            // period total and the rows it summarises cannot tell different
+            // stories — and so the period cannot exceed 100% where no row does.
+            totalRecordedHenDays > 0 ? Math.Round(totalRatedEggs * 100m / totalRecordedHenDays, 1) : null,
+            combined
+                .Select(t => new GradeTotal(
+                    t.Key, gradeNames.GetValueOrDefault(t.Key, "?"), t.Value))
+                .OrderByDescending(t => t.Quantity)
+                .ToList());
+    }
+
+
+    public async Task<SalesSummary> GetSalesAsync(
+        DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var confirmed = await db.SalesOrders
+            .Where(o => o.Status == SalesOrderStatus.Confirmed
+                     && o.OrderDate >= from && o.OrderDate <= to)
+            .Select(o => new { o.Id, Total = o.TotalAmount.MinorUnits })
+            .ToListAsync(ct);
+
+        var orderIds = confirmed.Select(o => o.Id).ToList();
+        var paid = orderIds.Count == 0 ? 0L : await db.Payments
+            .Where(p => !p.Voided && orderIds.Contains(p.SalesOrderId))
+            .SumAsync(p => p.AmountMinorUnits, ct);
+
+        var voidedCount = await db.SalesOrders
+            .CountAsync(o => o.Status == SalesOrderStatus.Voided
+                          && o.OrderDate >= from && o.OrderDate <= to, ct);
+
+        var revenue = confirmed.Sum(o => o.Total);
+        var (code, minor) = await AccountCurrencyAsync(ct);
+        return new SalesSummary(
+            confirmed.Count, revenue, paid, revenue - paid, voidedCount, code, minor);
+    }
+
+    public async Task<ExpenseSummary> GetExpensesAsync(
+        DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var perCategory = await db.Expenses
+            .Where<Cluckwork.Domain.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
+            .GroupBy(e => e.ExpenseCategoryId)
+            .Select(g => new { CategoryId = g.Key, Total = g.Sum(e => e.AmountMinorUnits) })
+            .ToListAsync(ct);
+        var names = await db.ExpenseCategories
+            .Where(c => perCategory.Select(p => p.CategoryId).Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+
+        var (code, minor) = await AccountCurrencyAsync(ct);
+        return new ExpenseSummary(
+            perCategory
+                .Select(p => new ExpenseCategoryTotal(
+                    p.CategoryId, names.GetValueOrDefault(p.CategoryId, "?"), p.Total))
+                .OrderByDescending(p => p.TotalMinorUnits)
+                .ToList(),
+            perCategory.Sum(p => p.Total),
+            code, minor);
+    }
+
+    public async Task<ProfitReport> GetProfitAsync(
+        DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var revenue = await db.SalesOrders
+            .Where(o => o.Status == SalesOrderStatus.Confirmed
+                     && o.OrderDate >= from && o.OrderDate <= to)
+            .SumAsync(o => o.TotalAmount.MinorUnits, ct);
+        var expenses = await db.Expenses
+            .Where<Cluckwork.Domain.Expenses.Expense>(e => e.Date >= from && e.Date <= to)
+            .SumAsync(e => e.AmountMinorUnits, ct);
+
+        var (code, minor) = await AccountCurrencyAsync(ct);
+        return new ProfitReport(revenue, expenses, revenue - expenses, code, minor);
+    }
+
+    private async Task<(string Code, int Minor)> AccountCurrencyAsync(CancellationToken ct)
+    {
+        Cluckwork.Domain.Accounts.Account? account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(ct);
+        return (account?.DefaultCurrencyCode ?? "", account?.DefaultCurrencyMinorUnit ?? 2);
+    }
+}

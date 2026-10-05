@@ -1,0 +1,118 @@
+using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Modules.Insights.Contracts;
+using Cluckwork.Infrastructure.Persistence;
+
+namespace Cluckwork.Api.Modules.Insights.Reports;
+
+// #91 — core reports. Production is open to every signed-in user (workers
+// record it, workers may read it); the money summaries are AdminOnly, reads
+// included (#87/#89 split).
+public static class ReportEndpoints
+{
+    // Guard: a report over decades of days would build a giant payload row by
+    // row. One year covers every report the phase needs.
+    private const int MaxRangeDays = 366;
+
+    public static RouteGroupBuilder MapReportEndpoints(this RouteGroupBuilder group)
+    {
+        // #311 — caps concurrently in-flight report queries per account.
+        group.AddEndpointFilter<ReportConcurrencyLimitFilter>();
+
+        group.MapGet("/production", Production)
+            .WithName("ProductionReport")
+            .WithSummary("Per-day production across the range: eggs, losses, sellable, deaths, hen-day % (spec §19.3), plus period totals and grade breakdown. Optional flockId narrows every figure to one flock.");
+
+        group.MapGet("/sales", Sales)
+            .WithName("SalesSummaryReport")
+            .WithSummary("Confirmed orders in the range: count, revenue, settled payments, outstanding; voided count.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
+
+        group.MapGet("/expenses", Expenses)
+            .WithName("ExpenseSummaryReport")
+            .WithSummary("Per-category expense totals and grand total for the range.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
+
+        group.MapGet("/profit", Profit)
+            .WithName("ProfitReport")
+            .WithSummary("Basic profit for the range: confirmed revenue minus recorded expenses (no COGS).")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
+
+        return group;
+    }
+
+    // `today` is passed in rather than read from the clock here: it is the FARM's
+    // today (#155), so both the default window and the future guard line up with
+    // the dates the capture screens will accept. Computing it from UTC in here
+    // shifted a Los Angeles farm's default "last 7 days" a day ahead, and
+    // rejected an Auckland farm's legitimate today as being in the future.
+    private static IResult? ValidateRange(
+        DateOnly today, DateOnly? from, DateOnly? to, out DateOnly f, out DateOnly t)
+    {
+        // Default: the last 7 days (inclusive).
+        f = from ?? today.AddDays(-6);
+        t = to ?? today;
+        if (f > t)
+            return Results.Problem("'from' must not be after 'to'.",
+                statusCode: 400, title: "Report.InvalidRange");
+        if (t.DayNumber - f.DayNumber >= MaxRangeDays)
+            return Results.Problem($"Range cannot exceed {MaxRangeDays} days.",
+                statusCode: 400, title: "Report.RangeTooLarge");
+        // Reports describe the past; also guards the DateOnly.MaxValue walk
+        // (codex review of #92).
+        if (t > today)
+            return Results.Problem("'to' cannot be in the future.",
+                statusCode: 400, title: "Report.FutureRange");
+        return null;
+    }
+
+    private static async Task<IResult> Production(
+        IInsightsModule reports, IFlockLookup flocks, TenantContext tenant,
+        IFarmClock farmClock, CancellationToken ct,
+        DateOnly? from = null, DateOnly? to = null, Guid? flockId = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
+        if (bad is not null) return bad;
+        // #916 — the same existence check flock detail uses, and for the same
+        // reason it is enough: `GetByIdAsync` reads through the model's
+        // structural `AccountId AND flock-scope` query filters (#613), so
+        // another farm's flock, a flock outside this Worker's scope, and a
+        // flock that never existed all resolve to null and all answer 404.
+        // Which of the three it was is deliberately not distinguishable.
+        // Nothing here is a write, so `FlockScopeGuard` does not apply (#787).
+        if (flockId is not null && await flocks.GetAsync(flockId.Value, ct) is null)
+            return Results.NotFound();
+        return Results.Ok(await reports.GetProductionAsync(f, t, flockId, ct));
+    }
+
+    private static async Task<IResult> Sales(
+        IInsightsModule reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
+        DateOnly? from = null, DateOnly? to = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
+        if (bad is not null) return bad;
+        return Results.Ok(await reports.GetSalesAsync(f, t, ct));
+    }
+
+    private static async Task<IResult> Expenses(
+        IInsightsModule reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
+        DateOnly? from = null, DateOnly? to = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
+        if (bad is not null) return bad;
+        return Results.Ok(await reports.GetExpensesAsync(f, t, ct));
+    }
+
+    private static async Task<IResult> Profit(
+        IInsightsModule reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
+        DateOnly? from = null, DateOnly? to = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
+        if (bad is not null) return bad;
+        return Results.Ok(await reports.GetProfitAsync(f, t, ct));
+    }
+}
