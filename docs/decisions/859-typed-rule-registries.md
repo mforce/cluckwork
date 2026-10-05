@@ -48,7 +48,8 @@ that message unreachable.
 - The remaining compatibility exception, `UserRoleAssignmentRepository.ListByNameByUserAsync` with
   `deleteWhen: "#859"`, moves byte-identical. The last slice removes it; see
   [The last compatibility exception](#the-last-compatibility-exception).
-- No analyzer, no assembly split and no policy change. Known ledger gaps (`FarmModule` reading
+- No analyzer, no assembly split and no policy change. The analyzer came later; see
+  [The module-edge analyzer](#the-module-edge-analyzer). Known ledger gaps (`FarmModule` reading
   `DiscountCeiling`, Access reaching Commerce through `IIdentityProvider`, seven import-scope rows) stay as
   they are.
 - During S1 only, malformed JSON can produce slightly different registry errors, because `Validate` sees
@@ -184,3 +185,65 @@ and marks the old row stale with both hashes. Two rows sharing a hash are a regi
 The hash proves only that a reviewer saw these tokens. It does not see inputs outside the member, such
 as a class-level constant, a helper the member calls or a wrapper in another file. Forwarding wrappers
 keep their own rows, each with its own hash.
+
+## The module-edge analyzer
+
+On 2026-10-05 the owner added a Roslyn analyzer for compile-time and editor feedback on module edges and
+namespace ownership only. Every architecture test stays as it was and remains the CI authority; the tests
+never call the analyzer. The spike that preceded this (base `17e37869`) and its review measured the design
+below. No incident.
+
+**One copy of the rows.** The analyzer cannot read the test project, so the owner and edge rows moved from
+`RealModuleLedger.Owners.cs` and `RealModuleLedger.Edges.cs` to assembly attributes in
+`src/Cluckwork.Domain/Common/Architecture`: `ModuleOwners.cs` (whole owner rows, contract, seam and
+implementation lists included) and `ModuleEdges.cs`. Domain is the one assembly every module compilation
+references. The analyzer reads the attributes from source while compiling Domain and from metadata
+elsewhere, so an edited row takes effect in the editor without rebuilding the analyzer.
+`RealModuleLedger.Owners` and `Edges` read the same attributes by reflection, so every test keeps its logic
+and assertions and only its data source moved. A parity test compared the reflected rows with the C# rows,
+in order, by `System.Text.Json` serialisation, and passed before the old files were deleted; a
+one-character reason edit turned it red. It ran locally, not in CI. The adapter, table, tier and
+compatibility rows stay in `RealModuleLedger.*.cs` because no analyzer reads them.
+
+Rejected shapes: a data file passed as `AdditionalFiles` brings back the file format this record removed and
+needs a parser on both sides; a C# file compiled into both the analyzer and the tests bakes the rows into
+the analyzer, so an editor shows stale diagnostics until it reloads the analyzer.
+
+**What it reports.** `src/Cluckwork.Analyzers` ports `ModuleLedgerScanner`'s attribution and #1071's
+semantic walk: CW1001 an undeclared edge, with the row to paste; CW1002 a stale symbol; CW1003 an unowned
+namespace; CW1000 a compilation that reads no map. A symbol that exists in no assembly is reported only by
+`Cluckwork.Api`, the compilation that references every module. The registry validation, the global-using
+rule and the file floor stay test-only. The spike's suppression barriers and its measurement toggle were
+not shipped: the tests are the authority, so silencing a CW id loses only the early warning.
+
+**Roslyn.** A compiler refuses an analyzer built against a newer Roslyn than itself (CS9057). The central
+`Microsoft.CodeAnalysis.CSharp` pin dropped from 5.9.0 to 5.0.0, the compiler in SDK 10.0.1xx; nothing in
+the tests needed 5.9. `Microsoft.CodeAnalysis.CSharp.Analyzer.Testing` asks for Workspaces 1.0.1, a .NET
+Framework build, so `Microsoft.CodeAnalysis.CSharp.Workspaces` is pinned to 5.0.0 beside it.
+
+| Check | Result |
+|---|---|
+| Parity on the real tree | the analyzer's realised edges equal `ModuleLedgerRealTreeTests`' `LiveEdges`: 73 and 73, `diff` identical |
+| SDK 10.0.112, compiler `5.0.0-2.26422.108` | clean build green; Finance mutation red with CW1001 |
+| SDK 10.0.401, compiler `5.9.0-1.26423.113` | same |
+| Docker `build` stage, pinned SDK 10.0.401 | clean exit 0; Finance mutation exit 1 with CW1001 |
+| `dotnet format analyzers Cluckwork.sln --verify-no-changes --diagnostics CW1001 CW1002 CW1003 --severity error` | clean exit 0; mutated exit 2 with CW1001. Pointed at a single project it skips referenced projects and reports nothing |
+| Full rebuild, `dotnet build src/Cluckwork.Api --no-incremental`, 6 alternating pairs after one warm-up pair | median 3.87 s with, 3.79 s without (+0.08 s, 2 %); analyzer CPU about 1.6 s per build across the four compilations, mostly in parallel |
+| `Cluckwork.Domain.dll`, Release | 125,952 to 156,160 bytes, the rows' strings |
+
+| Mutation | `dotnet build src/Cluckwork.Api` | Existing test, built with `-p:RunAnalyzers=false` |
+|---|---|---|
+| Finance `CreateExpenseHandler` gets `typeof(Domain.Sales.DiscountCeiling)` | CW1001 Finance -> Commerce, with the row to paste | `ModuleLedgerRealTreeTests`: undeclared cross-owner edge |
+| `EggGradeFloorPolicy` removed from its EggOperations -> Farm row while in use | CW1001, naming the row to extend | same test: undeclared edge |
+| `UpdateEggGradeHandler`, which does not reference Farm, added to that row | CW1002 from Application | same test: stale ledger row |
+| `GoneHandler`, which exists nowhere, added to that row | CW1002 from Api | same test: stale ledger row |
+| New type in `Cluckwork.Application.Features.Nowhere` | CW1003 | same test: unowned namespace |
+
+The analyzer's own tests run the analyzer over a two-project fixture whose Domain compiles the real
+`ModuleMapAttributes.cs`: undeclared edge, declared edge, member-access-only reference, stale row, unowned
+namespace, and an unused `using` plus `using static` that stays clean. Each has a mutation of the analyzer
+that turns it red.
+
+What this does not cover: live squiggles in a GUI IDE were not observed; CW1002 is a compilation-end
+diagnostic, so an IDE shows it only with full-solution analysis on. A new module project must add the
+analyzer's `ProjectReference` itself.
