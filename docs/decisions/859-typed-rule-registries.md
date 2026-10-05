@@ -138,3 +138,40 @@ and other-farm flock rows. A row keeps its flock id whether or not the viewer ma
 | One lookup per row | `AssignmentNames_AreOneBoundedFlockReferenceRead` | three tagged flock reads where one is expected |
 | The exception row restored | `CompatibilityExceptionRealTreeTests` | "stale compatibility exception … (its trigger was #859)" |
 | The repository joins `Flocks` again | `CompatibilityExceptionRealTreeTests` | "undeclared compatibility exception …ListByNameByUserAsync -> FlockManagement" |
+
+## Allow-list rows carry a token hash (#1072)
+
+This section records a policy change made after #859; the moves above changed no policy. Each
+`BypassAllowList` row was keyed by file and symbol, so an edit to an excused query, including one that
+widened its predicate, kept CI green. Each row now also carries `Hash`, and a row excuses a bypass only
+when file, symbol and hash all match.
+
+`Hash` is `GuardScanner.TokenHash`, the #632 hasher behind the filter-free-set signatures: 8 hex
+characters of SHA-256 over the Roslyn tokens, joined by single spaces, with literals kept exactly.
+Comments and whitespace are trivia, so they change nothing. Only the scope differs. A filter-free-set
+site hashes its innermost statement, because its key names one query. An allow-list row excuses every
+bypass in its member, so its hash covers the member its symbol names: the innermost local function,
+otherwise the method, otherwise the property accessor or property, otherwise the whole file for
+top-level statements and field initializers. A statement scope would have missed
+`ExecuteLineageFenceAsync`, whose SQL is a `const string sql` declared in another statement, and any
+`Where` applied to an unfiltered query in a later statement. Each member has one hash, so no ordinal is
+needed. No attribute exclusion exists in the #632 hasher, so attributes on the member count as tokens.
+
+An edit to the member un-excuses its bypasses. The failure prints the row to paste, with the new hash,
+and marks the old row stale with both hashes. Two rows sharing a hash are a registry error.
+
+| Mutation | Base | Head |
+|---|---|---|
+| `FlockRepository.GetByIdForFlockScopedWriteAsync`: `f.AccountId == accountId` becomes `f.AccountId == f.AccountId` | green | red: stale `cfe394af → 4c0a1894`, unexcused with the row |
+| `AccountRepository.GetCurrentLockedAsync`: SQL literal `"Id" = {tenant.AccountId}` gains `OR TRUE` | green | red: stale, unexcused `IgnoreQueryFilters` and `RawSql` |
+| `AccountProvisioner.ProvisionAsync`: `account.Slug == input.Slug` becomes `== "default-farm"` | green | red |
+| `ExecuteLineageFenceAsync`: the `const sql` gets `"RevokedAt" IS NOT NULL` | green | red |
+| Comment lines added inside the `FlockRepository` query | green | green |
+| The same query reflowed onto one line | green | green |
+| Two rows given one hash | not applicable | red: `duplicate allow-list hash cfe394af` |
+| Uniqueness check removed from `GuardScanner.Scan` | not applicable | `TwoRowsSharingAHash_FailClosed` red |
+| Hash dropped from excuse matching | not applicable | `EditingAnAllowListedMember_UnexcusesItUnlessOnlyTriviaChanged` red on its three token edits |
+
+The hash proves only that a reviewer saw these tokens. It does not see inputs outside the member, such
+as a class-level constant, a helper the member calls or a wrapper in another file. Forwarding wrappers
+keep their own rows, each with its own hash.

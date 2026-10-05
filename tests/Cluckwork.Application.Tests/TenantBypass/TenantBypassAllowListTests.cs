@@ -46,8 +46,18 @@ public sealed class TenantBypassAllowListTests : IDisposable
         return full;
     }
 
-    private static AllowListEntry[] Entries(params (string Symbol, string File, string Justification)[] entries) =>
-        entries.Select(e => new AllowListEntry { Symbol = e.Symbol, File = e.File, Justification = e.Justification }).ToArray();
+    // Each row's Hash is pinned to its member as written so far, as a reviewer pastes it from the guard's output.
+    private AllowListEntry[] Entries(params (string Symbol, string File, string Justification)[] entries)
+    {
+        var scanned = entries.Length == 0 ? [] : Scan(_tempRoot, []).Occurrences;
+        return entries.Select(e => new AllowListEntry
+        {
+            Symbol = e.Symbol,
+            File = e.File,
+            Hash = scanned.FirstOrDefault(o => o.EnclosingSymbol == e.Symbol && o.File == e.File)?.MemberHash ?? "00000000",
+            Justification = e.Justification,
+        }).ToArray();
+    }
 
     private static GuardReport Scan(string tempRoot, IReadOnlyList<AllowListEntry> allowList) =>
         GuardScanner.Scan(Path.Combine(tempRoot, "src"), allowList);
@@ -457,9 +467,6 @@ public sealed class TenantBypassAllowListTests : IDisposable
     public void LowLevelRawSqlBuild_RemovalOrMethodMoveFailsClassification()
     {
         const string classifiedSymbol = "LowLevel.Runner.ExecuteAsync()";
-        var allowList = Entries(
-            (classifiedSymbol, "src/LowLevel.cs", "test fixture"));
-
         WriteSource("src/LowLevel.cs", """
             namespace LowLevel;
             public class Runner
@@ -467,6 +474,8 @@ public sealed class TenantBypassAllowListTests : IDisposable
                 public Task<bool> ExecuteAsync() => Task.FromResult(true);
             }
             """);
+        var allowList = Entries(
+            (classifiedSymbol, "src/LowLevel.cs", "test fixture"));
         var removed = Scan(_tempRoot, allowList);
         Assert.Contains(GuardScanner.Evaluate(removed), failure =>
             failure.Contains("stale allow-list entry", StringComparison.Ordinal)
@@ -492,6 +501,72 @@ public sealed class TenantBypassAllowListTests : IDisposable
         Assert.Contains(movedFailures, failure =>
             failure.Contains("unexcused bypass", StringComparison.Ordinal)
             && failure.Contains("LowLevel.Runner.MovedAsync()", StringComparison.Ordinal));
+    }
+
+    // #1072: the row's Hash covers the whole member, so the predicate in a later statement and the SQL in a
+    // const are fingerprinted too. Comments and whitespace are trivia and leave the row valid.
+    private const string ReviewedMember = """
+        namespace A;
+        public class R
+        {
+            public object Read(Guid accountId)
+            {
+                const string sql = "DELETE FROM accounts WHERE AccountId = @a";
+                db.Database.ExecuteSqlRaw(sql);
+                var rows = db.Accounts.IgnoreQueryFilters();
+                // reviewed
+                return rows.Where(a => a.Id == accountId && a.Slug == "main");
+            }
+        }
+        """;
+
+    [Theory]
+    [InlineData("a.Id == accountId", "a.Id == a.Id", false)]
+    [InlineData("\"main\"", "\"other\"", false)]
+    [InlineData("AccountId = @a", "TRUE", false)]
+    [InlineData("// reviewed", "// reviewed again", true)]
+    [InlineData("a.Id == accountId", "a.Id   ==\n accountId", true)]
+    public void EditingAnAllowListedMember_UnexcusesItUnlessOnlyTriviaChanged(string find, string replace, bool stillExcused)
+    {
+        WriteSource("src/A.cs", ReviewedMember);
+        var allowList = Entries(("A.R.Read(Guid accountId)", "src/A.cs", "fixture"));
+        Assert.Empty(GuardScanner.Evaluate(Scan(_tempRoot, allowList)));
+
+        WriteSource("src/A.cs", ReviewedMember.Replace(find, replace, StringComparison.Ordinal));
+        var report = Scan(_tempRoot, allowList);
+        var failures = GuardScanner.Evaluate(report);
+
+        if (stillExcused)
+        {
+            Assert.Empty(failures);
+            return;
+        }
+
+        var newHash = report.Occurrences.Select(o => o.MemberHash).Distinct().Single();
+        Assert.NotEqual(allowList[0].Hash, newHash);
+        Assert.Contains(failures, f => f.Contains("stale allow-list entry", StringComparison.Ordinal)
+            && f.Contains($"its member was edited (Hash {allowList[0].Hash} is now {newHash})", StringComparison.Ordinal));
+        Assert.Contains(failures, f => f.Contains("unexcused bypass", StringComparison.Ordinal)
+            && f.Contains($"Symbol = \"A.R.Read(Guid accountId)\", File = \"src/A.cs\", Hash = \"{newHash}\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TwoRowsSharingAHash_FailClosed()
+    {
+        const string member = """
+            namespace A;
+            public class R { public int Read() => Query().IgnoreQueryFilters().Count(); }
+            """;
+        WriteSource("src/A.cs", member);
+        WriteSource("src/B.cs", member);
+        var allowList = Entries(
+            ("A.R.Read()", "src/A.cs", "fixture"),
+            ("A.R.Read()", "src/B.cs", "fixture"));
+
+        var report = Scan(_tempRoot, allowList);
+
+        Assert.Equal(allowList[0].Hash, allowList[1].Hash);
+        Assert.Contains(report.RegistryErrors, e => e.Contains($"duplicate allow-list hash {allowList[0].Hash}", StringComparison.Ordinal));
     }
 
     [Fact]
