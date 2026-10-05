@@ -57,10 +57,10 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
 
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.EggGrades.Add(Domain.Eggs.EggGrade.Create(
+            db.EggGrades.Add(Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade.Create(
                 Guid.NewGuid(), accountId, farmId, "Cracked",
-                Domain.Eggs.EggGradeType.Quality, 50, isSaleable: true,
-                dailyEntryKind: Domain.Eggs.DailyEntryKind.Cracked));
+                Cluckwork.Domain.Modules.EggOperations.Contracts.EggGradeType.Quality, 50, isSaleable: true,
+                dailyEntryKind: Cluckwork.Domain.Modules.EggOperations.Contracts.DailyEntryKind.Cracked));
             await db.SaveChangesAsync();
         });
 
@@ -91,10 +91,10 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
 
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            var grade = Domain.Eggs.EggGrade.Create(
+            var grade = Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade.Create(
                 Guid.NewGuid(), accountId, farmId, "Export Grade",
-                Domain.Eggs.EggGradeType.Size, 60, isSaleable: true,
-                dailyEntryKind: Domain.Eggs.DailyEntryKind.Manual);
+                Cluckwork.Domain.Modules.EggOperations.Contracts.EggGradeType.Size, 60, isSaleable: true,
+                dailyEntryKind: Cluckwork.Domain.Modules.EggOperations.Contracts.DailyEntryKind.Manual);
             db.EggGrades.Add(grade);
 
             var priced = Domain.Catalog.Product.Create(

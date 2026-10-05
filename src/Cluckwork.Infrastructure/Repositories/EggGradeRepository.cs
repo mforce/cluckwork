@@ -1,5 +1,5 @@
-using Cluckwork.Application.Features.EggGrades;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Application.Modules.EggOperations.EggGrades;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

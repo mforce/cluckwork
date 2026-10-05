@@ -1,6 +1,6 @@
+using Cluckwork.Application.Modules.EggOperations.DailyEntries.RecordDailyEntry;
 using System.Reflection;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Tests.Common;
 using FluentValidation;
 using FluentValidation.Validators;

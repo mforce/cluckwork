@@ -1,4 +1,5 @@
-using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.EggOperations.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Tests.Common;
 
 namespace Cluckwork.Application.Tests.DailyEntries;

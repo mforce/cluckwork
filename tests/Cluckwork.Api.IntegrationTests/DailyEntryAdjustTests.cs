@@ -1,7 +1,7 @@
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.EntityFrameworkCore;

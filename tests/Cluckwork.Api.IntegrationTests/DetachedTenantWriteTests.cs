@@ -1,6 +1,6 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Microsoft.EntityFrameworkCore;
 

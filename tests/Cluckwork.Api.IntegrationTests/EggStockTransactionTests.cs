@@ -1,7 +1,7 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.EggLots;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

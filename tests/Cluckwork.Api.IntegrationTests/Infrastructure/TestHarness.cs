@@ -1,9 +1,10 @@
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
@@ -289,8 +290,8 @@ internal static class TestHarness
             // Seeded lots keep the #101 ledger invariant: their opening
             // balance exists as an explicit Production movement, exactly as
             // the real submit path writes it.
-            db.EggInventoryMovements.Add(Cluckwork.Domain.Eggs.EggInventoryMovement.Create(
-                Guid.NewGuid(), accountId, id, Cluckwork.Domain.Eggs.EggMovementType.Production,
+            db.EggInventoryMovements.Add(Cluckwork.Domain.Modules.EggOperations.Eggs.EggInventoryMovement.Create(
+                Guid.NewGuid(), accountId, id, Cluckwork.Domain.Modules.EggOperations.Contracts.EggMovementType.Production,
                 quantity, "DailyEntry", dailyEntryId ?? Guid.NewGuid()));
             db.EggLots.Add(lot);
             await db.SaveChangesAsync();

@@ -1,3 +1,4 @@
+using Cluckwork.Api.Modules.EggOperations;
 using Cluckwork.Api.Modules.Finance;
 using Cluckwork.Api.Modules.FlockManagement;
 using Cluckwork.Api.Modules.GeneralInventory;

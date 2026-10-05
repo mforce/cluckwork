@@ -6,12 +6,12 @@ using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Application.Features.Sales.VoidSale;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.Insights.Contracts;
 using FluentValidation;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Application.Features.Customers;
-using Cluckwork.Application.Features.EggGrades;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 

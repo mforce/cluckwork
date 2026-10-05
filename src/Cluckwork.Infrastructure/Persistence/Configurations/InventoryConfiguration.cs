@@ -93,7 +93,7 @@ public sealed class FeedUsageConfiguration : IEntityTypeConfiguration<FeedUsage>
 
         // Reserved column, but keep the FK honest from day one — a dangling
         // DailyEntryId would poison the future integration silently.
-        builder.HasOne<Cluckwork.Domain.Eggs.DailyEntry>()
+        builder.HasOne<Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry>()
             .WithMany()
             .HasForeignKey(u => u.DailyEntryId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -132,7 +132,7 @@ public sealed class WaterUsageConfiguration : IEntityTypeConfiguration<WaterUsag
             .HasForeignKey(u => u.FlockId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Cluckwork.Domain.Eggs.DailyEntry>()
+        builder.HasOne<Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry>()
             .WithMany()
             .HasForeignKey(u => u.DailyEntryId)
             .OnDelete(DeleteBehavior.Restrict);

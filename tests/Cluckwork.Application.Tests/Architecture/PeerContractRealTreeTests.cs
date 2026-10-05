@@ -20,7 +20,7 @@ public sealed class PeerContractRealTreeTests(ITestOutputHelper output)
         Assert.Equal(800, report.ExpectedAdapterCountFloor);
         Assert.Contains(report.LiveReach, r =>
             r.Symbol == "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler.ctor"
-            && r.Type == "Cluckwork.Application.Features.EggLots.IEggStock");
+            && r.Type == "Cluckwork.Application.Modules.EggOperations.Contracts.IEggStock");
         Assert.Contains(report.LiveReach, r =>
             r.Symbol == "Cluckwork.Application.Modules.Finance.Expenses.CreateExpense.CreateExpenseHandler.ctor"
             && r.Type == "Cluckwork.Application.Features.Accounts.IAccountRepository");

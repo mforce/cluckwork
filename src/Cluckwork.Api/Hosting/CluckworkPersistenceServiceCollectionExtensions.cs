@@ -1,8 +1,8 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;

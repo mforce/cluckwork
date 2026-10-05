@@ -1,10 +1,10 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.EggLots;
-using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Application.Modules.EggOperations.EggLots;
+using Cluckwork.Application.Modules.EggOperations.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

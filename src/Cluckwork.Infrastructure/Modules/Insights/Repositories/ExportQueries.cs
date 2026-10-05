@@ -119,7 +119,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 ["id", "flockId", "date", "type", "quantity", "note", "dailyEntryId"],
                 x => [x.Id, x.FlockId, x.Date, x.Type, x.Quantity, x.Note, x.DailyEntryId]),
 
-            "daily-entries" => Rows<Cluckwork.Domain.Eggs.DailyEntry>(activeDb.DailyEntries.AsNoTracking()
+            "daily-entries" => Rows<Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry>(activeDb.DailyEntries.AsNoTracking()
                     .OrderByBusinessChronology(x => x.Date),
                 // #396 — the two snapshot ids ride next to the counters they
                 // explain. Without them an export records that a day had 40
@@ -136,12 +136,12 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.CrackedGradeId, x.DirtyGradeId,
                       x.AdjustReason, x.AdjustedFromJson, x.VoidReason, x.LockedAtUtc, x.Version]),
 
-            "daily-entry-grades" => Rows<Cluckwork.Domain.Eggs.DailyEntryGrade>(activeDb.DailyEntryGrades.AsNoTracking()
+            "daily-entry-grades" => Rows<Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntryGrade>(activeDb.DailyEntryGrades.AsNoTracking()
                     .OrderBy(x => x.DailyEntryId).ThenBy(x => x.Id),
                 ["id", "dailyEntryId", "eggGradeId", "quantity"],
                 x => [x.Id, x.DailyEntryId, x.EggGradeId, x.Quantity]),
 
-            "egg-grades" => Rows<Cluckwork.Domain.Eggs.EggGrade>(activeDb.EggGrades.AsNoTracking()
+            "egg-grades" => Rows<Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade>(activeDb.EggGrades.AsNoTracking()
                     .OrderBy(x => x.SortOrder).ThenBy(x => x.Id),
                 // #396 — dailyEntryKind is what makes the snapshot ids above
                 // interpretable: it is the only field saying WHICH counter a
@@ -151,7 +151,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 x => [x.Id, x.FarmId, x.Name, x.GradeType, x.SortOrder, x.IsSaleable,
                       x.DailyEntryKind, x.Active, x.Version]),
 
-            "egg-lots" => Rows<Cluckwork.Domain.Eggs.EggLot>(activeDb.EggLots.AsNoTracking()
+            "egg-lots" => Rows<Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot>(activeDb.EggLots.AsNoTracking()
                     .OrderByBusinessChronology(x => x.ProductionDate),
                 ["id", "flockId", "productionDate", "eggGradeId", "quantityProduced",
                  "quantityAvailable", "dailyEntryId", "restrictedUntil", "version"],
@@ -259,7 +259,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.AmountMinorUnits, x.CurrencyCode, x.CurrencyMinorUnit,
                       x.FlockId, x.Note, x.Version]),
 
-            "egg-inventory-movements" => Rows<Cluckwork.Domain.Eggs.EggInventoryMovement>(activeDb.EggInventoryMovements.AsNoTracking()
+            "egg-inventory-movements" => Rows<Cluckwork.Domain.Modules.EggOperations.Eggs.EggInventoryMovement>(activeDb.EggInventoryMovements.AsNoTracking()
                     .OrderByCreationChronology(),
                 ["id", "eggLotId", "movementType", "quantityDelta",
                  "referenceType", "referenceId", "reason", "createdAtUtc"],

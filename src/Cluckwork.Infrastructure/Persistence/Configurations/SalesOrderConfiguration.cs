@@ -74,7 +74,7 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
 
         // Same integrity as egg lots: grade rows must not disappear from under
         // historical sales lines.
-        builder.HasOne<Cluckwork.Domain.Eggs.EggGrade>()
+        builder.HasOne<Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade>()
             .WithMany()
             .HasForeignKey(i => i.EggGradeId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -150,7 +150,7 @@ public sealed class SalesOrderAllocationConfiguration : IEntityTypeConfiguration
 
         // The source lot must not disappear from under an active allocation —
         // its quantities could then never be restored.
-        builder.HasOne<Cluckwork.Domain.Eggs.EggLot>()
+        builder.HasOne<Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot>()
             .WithMany()
             .HasForeignKey(a => a.EggLotId)
             .OnDelete(DeleteBehavior.Restrict);

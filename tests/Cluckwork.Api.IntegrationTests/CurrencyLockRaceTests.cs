@@ -285,9 +285,9 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
                 case "product-create":
                 case "product-update":
                     var gradeId = Guid.NewGuid();
-                    db.EggGrades.Add(Domain.Eggs.EggGrade.Create(
+                    db.EggGrades.Add(Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade.Create(
                         gradeId, accountId, SeedDefaults.FarmId, "Race Grade",
-                        Domain.Eggs.EggGradeType.Size, 1, isSaleable: true));
+                        Cluckwork.Domain.Modules.EggOperations.Contracts.EggGradeType.Size, 1, isSaleable: true));
                     seeded = seeded with { GradeId = gradeId };
                     if (handlerKey == "product-update")
                     {

@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 
 namespace Cluckwork.Domain.Tests.Eggs;
 

@@ -13,7 +13,7 @@ public sealed class RecordWaterUsageHandler(
     IWaterUsageRepository waterUsages,
     IFlockLookup flocks,
     IFlockScopeGuard flockScope,
-    Cluckwork.Application.Features.DailyEntries.IDailyEntryLookup dailyEntries,
+    Cluckwork.Application.Modules.EggOperations.Contracts.IDailyEntryLookup dailyEntries,
     IUnitOfWork unitOfWork,
     IFarmClock farmClock,
     ILogger<RecordWaterUsageHandler> logger)

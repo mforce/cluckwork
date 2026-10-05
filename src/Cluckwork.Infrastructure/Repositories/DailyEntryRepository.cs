@@ -1,5 +1,6 @@
-using Cluckwork.Application.Features.DailyEntries;
-using Cluckwork.Domain.Eggs;
+using Cluckwork.Application.Modules.EggOperations.DailyEntries;
+using Cluckwork.Domain.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
