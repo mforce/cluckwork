@@ -15,7 +15,7 @@ public sealed class ExportSnapshotSourceTests
 {
     private static string ExportQueriesPath => Path.Combine(
         GuardScanner.FindRepoRoot(AppContext.BaseDirectory) ?? throw new InvalidOperationException("repo root not found"),
-        "src", "Cluckwork.Infrastructure", "Insights", "ExportQueries.cs");
+        "src", "Cluckwork.Infrastructure", "Modules", "Insights", "Repositories", "ExportQueries.cs");
 
     [Fact]
     public void EveryDatasetArm_NamesTheSnapshotFieldDirectly()

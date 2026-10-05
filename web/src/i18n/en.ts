@@ -2620,7 +2620,7 @@ export const en = {
   // admin-only). `export` is in TRANSLATED_NAMESPACES, same as
   // `audit`/`history`: es/tl are machine-drafted (#182), pending native
   // review. CSV column headers and file contents are generated SERVER-side
-  // (Cluckwork.Api/Endpoints/Export/CsvExport.cs) and are NOT
+  // (Cluckwork.Api/Modules/Insights/Export/CsvExport.cs) and are NOT
   // client strings — out of scope here. Only the visible page copy below
   // (headings, buttons, and the dataset picker's own labels) is externalized;
   // the download filenames (`cluckwork-${d}.csv`, "cluckwork-backup.zip")
