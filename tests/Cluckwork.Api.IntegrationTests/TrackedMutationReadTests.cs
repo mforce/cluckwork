@@ -152,9 +152,10 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
             string.Join("\n  ", violations));
     }
 
-    // Segments of a folder below the Infrastructure project, or of a namespace below Cluckwork.Infrastructure.
+    // Segments of a folder below the Infrastructure project, or of a namespace below Cluckwork.Infrastructure;
+    // subfolders count, as they did before #1087.
     private static bool IsRepositoryFolder(string[] segments) =>
-        segments is ["Repositories"] or ["Modules", _, "Repositories"];
+        segments is ["Repositories", ..] or ["Modules", _, "Repositories", ..];
 
     private static string FindRepoRoot()
     {
