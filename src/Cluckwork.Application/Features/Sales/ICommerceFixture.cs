@@ -19,6 +19,8 @@ public interface ICommerceFixture
 
     Task<CommerceFixtureCounts> CountAsync(CancellationToken ct = default);
 
+    Task<bool> AnyCustomerAsync(CancellationToken ct = default);
+
     // Demo cleanup: deletes every row of the farm, ignoring the tenant filter.
     // Runs inside the caller's transaction and never commits.
     Task PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct = default);

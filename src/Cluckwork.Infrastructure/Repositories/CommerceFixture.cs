@@ -44,6 +44,8 @@ public sealed class CommerceFixture(AppDbContext db) : ICommerceFixture
             VoidedOrders: await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Voided, ct),
             Payments: await db.Payments.CountAsync(ct));
 
+    public Task<bool> AnyCustomerAsync(CancellationToken ct = default) => db.Customers.AnyAsync(ct);
+
     public async Task PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct = default)
     {
         await db.SalesOrderItems.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync(ct);
