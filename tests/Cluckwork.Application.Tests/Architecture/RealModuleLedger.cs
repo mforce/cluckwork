@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common.Architecture;
 using Cluckwork.Infrastructure.Persistence;
@@ -7,8 +8,8 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Cluckwork.Application.Tests.Architecture;
 
 // The one module ledger every real-tree test reads (#859). Its rows are the RealModuleLedger.*.cs files, plus the
-// owner and edge rows on the <Owner>ModuleRules classes in src/Cluckwork.Domain/Common/Architecture/Modules and the
-// [ModuleContract] types, which the module-edge analyzer reads too.
+// owner and edge rows on the <Owner>ModuleRules classes in src/Cluckwork.Domain/Common/Architecture/Modules, which the
+// module-edge analyzer reads too, and the contract types (DeriveContracts).
 internal static partial class RealModuleLedger
 {
     // Design 3.4's order, which the coupling matrix's rows and columns follow; an unlisted owner sorts last.
@@ -19,23 +20,42 @@ internal static partial class RealModuleLedger
         [.. typeof(ModuleOwnerAttribute).Assembly.GetTypes()
             .Where(t => t.IsDefined(typeof(ModuleOwnerAttribute)) || t.IsDefined(typeof(ModuleEdgeAttribute)))];
 
-    private static readonly ILookup<string, string> Contracts = new[]
+    // Declared before Contracts: static initializers run in textual order.
+    private static readonly Regex ContractsNamespace =
+        new(@"^Cluckwork\.(?:Domain|Application)\.Modules\.(?<owner>[^.]+)\.Contracts$", RegexOptions.CultureInvariant);
+
+    private static readonly (ILookup<string, string> Types, string[] Errors) Contracts = DeriveContracts(new[]
         {
             typeof(ModuleOwnerAttribute).Assembly, typeof(IUnitOfWork).Assembly,
             typeof(AppDbContext).Assembly,
         }
-        .SelectMany(a => a.GetTypes())
-        .Select(t => (Type: t.FullName!, t.GetCustomAttribute<ModuleContractAttribute>()?.Owner))
-        .Where(c => c.Owner is not null)
-        .OrderBy(c => c.Type, StringComparer.Ordinal)
-        .ToLookup(c => c.Owner!, c => c.Type, StringComparer.Ordinal);
+        .SelectMany(a => a.GetTypes()));
+
+    // A contract type carries [ModuleContract] or, since #1087, sits top-level in
+    // Cluckwork.{Domain,Application}.Modules.<Owner>.Contracts. A nested type never inherits its parent's status.
+    // While both exist a type may carry only one: its module slice deletes the mark when it moves the type.
+    internal static (ILookup<string, string> Types, string[] Errors) DeriveContracts(IEnumerable<Type> types)
+    {
+        var contracts = types
+            .Select(t => (Type: t.FullName!,
+                Mark: t.GetCustomAttribute<ModuleContractAttribute>()?.Owner,
+                Folder: t.IsNested ? null : ContractsNamespace.Match(t.Namespace ?? "") is { Success: true } m
+                    ? m.Groups["owner"].Value
+                    : null))
+            .Where(c => c.Mark is not null || c.Folder is not null)
+            .OrderBy(c => c.Type, StringComparer.Ordinal)
+            .ToList();
+        return (contracts.ToLookup(c => (c.Mark ?? c.Folder)!, c => c.Type, StringComparer.Ordinal),
+            [.. contracts.Where(c => c.Mark is not null && c.Folder is not null)
+                .Select(c => $"contract type '{c.Type}' sits in a Contracts namespace and also carries [ModuleContract]; delete the mark")]);
+    }
 
     internal static readonly OwnerDefinition[] Owners = [.. RuleTypes
         .Select(t => t.GetCustomAttribute<ModuleOwnerAttribute>()).OfType<ModuleOwnerAttribute>()
         .OrderBy(o => (uint)Array.IndexOf(OwnerOrder, o.Name))
         .Select(o => new OwnerDefinition(o.Name, o.Kind, o.Namespaces, o.ExactNamespaces)
         {
-            Contract = [.. Contracts[o.Name]],
+            Contract = [.. Contracts.Types[o.Name]],
             Implementations = o.Implementations,
             Seam = o.Seam,
             Types = o.Types,
@@ -49,7 +69,8 @@ internal static partial class RealModuleLedger
     // A row the reflection above would drop or misfile.
     private static readonly string[] RuleErrors =
     [
-        .. Contracts.Where(g => !Owners.Any(o => o.Name == g.Key))
+        .. Contracts.Errors,
+        .. Contracts.Types.Where(g => !Owners.Any(o => o.Name == g.Key))
             .SelectMany(g => g.Select(type => $"contract type '{type}' names owner '{g.Key}', which has no ModuleOwner row")),
         .. RuleTypes.SelectMany(t => t.GetCustomAttributes<ModuleEdgeAttribute>()
             .Where(e => e.From != t.GetCustomAttribute<ModuleOwnerAttribute>()?.Name)
