@@ -59,7 +59,7 @@ public sealed class CompatibilityExceptionTests : IDisposable
         var ledger = ModuleLedger.Validate(new ModuleLedger(
             [
                 new("Hub", "platform", ["Cluckwork.Temp"], []),
-                new("Finance", "module", ["Cluckwork.Domain.Expenses", "Cluckwork.Temp.Finance"], [])
+                new("Finance", "module", ["Cluckwork.Domain.Modules.Finance", "Cluckwork.Temp.Finance"], [])
                 {
                     Contract = ["Cluckwork.Temp.Finance.IFinanceModule"], Implementations = implementations ?? [],
                 },
