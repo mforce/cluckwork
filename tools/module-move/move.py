@@ -16,7 +16,7 @@ The table is finite and explicit, one entry per file (after split, per type):
 
 `move` rewrites, in every .cs file under src/, tests/ and tools/ except historical migrations and their Designer files: fully and partially qualified names of each moved
 type (code, strings and comments alike, so registry rows follow), `using` directives (adds the new namespace where a
-moved type or one of its extension methods is named, adds the namespaces a moved file lost as ancestors, renames a using whose namespace emptied into one place and drops it otherwise), and
+moved type or one of its extension methods is named, adds the namespaces a moved file lost as ancestors, replaces a using whose namespace emptied with usings of the places its types went), and
 project-relative paths of moved files, also in Markdown outside docs/decisions and docs/plans. `replace` covers what
 cannot be derived, such as a rules file's namespace roots. Run `split` and `move` from the repository root.
 """
@@ -252,10 +252,10 @@ def move(table):
     for _, _, old, _, moved, _ in moves:
         remaining[old] -= moved
     emptied = {ns for ns, t in remaining.items() if not t}
-    # An emptied namespace whose types all went to one place is renamed, not dropped, so a using inside a string
-    # (a test fixture compiled against the real assemblies) follows too.
-    renamed = {old: {new for _, _, o, new, _, _ in moves if o == old} for old in emptied}
-    renamed = {old: news.pop() for old, news in renamed.items() if len(news) == 1}
+    # A using of an emptied namespace becomes a using of each place its types went, in the same block, so a using
+    # inside a string (a test fixture compiled against the real assemblies) or a block namespace follows too.
+    # prune drops the ones compiled code does not need.
+    renamed = {old: sorted({new for _, _, o, new, _, _ in moves if o == old}) for old in emptied}
 
     for src, dst, old, new, _, _ in moves:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -314,9 +314,9 @@ def move(table):
         for i in reversed(range(len(usings))):
             m = usings[i]
             if m.group(2) in emptied:
-                new = renamed.get(m.group(2))
-                keep = new and new not in block(usings, i)
-                text = text[:m.start()] + (m.group(0).replace(m.group(2), new, 1) if keep else "") + text[m.end():]
+                present = block(usings, i)
+                lines = [m.group(0).replace(m.group(2), new, 1) for new in renamed.get(m.group(2), []) if new not in present]
+                text = text[:m.start()] + "".join(lines) + text[m.end():]
         if text != original:
             write(path, text, bom)
 
