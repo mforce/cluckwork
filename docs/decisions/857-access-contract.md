@@ -119,3 +119,7 @@ generic arguments. Method-body type uses and Platform helper indirection retain
 #1023's documented limits. The compatibility rows acknowledge remaining
 composition reads; they do not authorize a broader security bypass. #858 owns
 fixture composition and #859 owns the remaining cross-module join.
+
+## Amendment, 2026-10-06: the contract folder and the login records (#1087, #1103)
+
+The Boundary table above predates #1087. Access's contract is now every top-level type in `src/Cluckwork.Application/Modules/Access/Contracts/` (namespace `Cluckwork.Application.Modules.Access.Contracts`); Access has no Domain contract folder. `IIdentityProvider` and `IStepUpGrantService` live in `Application/Modules/Access/Users/`, outside the contract. #1103 moved seven types from `Application/Common` into the contract unchanged: `FarmSignIn`, `RefreshTokenRevocationOutcome`, `TokenPair`, `UserSummary`, `UserProfile`, `StepUpGrant` and `StepUpErrorCodes`. Six appear in `IAccessModule` signatures, and the HTTP adapters map `StepUpErrorCodes.Required` to a response, so all seven are Access's public API rather than Platform's shared kernel. The contract went from 29 to 36 top-level declarations. `UserProfile.PreferredStepperUnit` keeps Commerce's published `EggUnit` enum, declared on the existing Access -> Commerce edge, as Farm's `FarmSettingsDetails` does; `AuthEndpoints.LegacyUpgradeResult` gained an adapter row for its existing `TokenPair` parameter.

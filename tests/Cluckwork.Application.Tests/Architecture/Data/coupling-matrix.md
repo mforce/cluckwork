@@ -4,7 +4,7 @@
 
 | from / to | Access | Farm | FlockManagement | EggOperations | Commerce | GeneralInventory | Finance | Insights | Platform |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Access | — | W (21) fk:1 | R (3) | W (1) | W (7) | — | — | — | P |
+| Access | — | W (21) fk:1 | R (3) | W (1) | W (8) | — | — | — | P |
 | Farm | — | — | — | — | R (6) | — | — | — | P |
 | FlockManagement | — | R (1) | — | R (1) fk:1 | — | — | — | — | P |
 | EggOperations | — | R (3) | W (4) | — | — | — | — | — | P |
@@ -12,7 +12,7 @@
 | GeneralInventory | — | R (6) | R (6) fk:3 | R (4) fk:2 | — | — | — | — | P |
 | Finance | — | R (4) | R (3) fk:1 | — | — | — | — | — | P |
 | Insights | — | R (1) | R (2) | R (2) | R (2) | R (1) | R (2) | — | P |
-| Platform | A (28) | A (25) | A (23) | A (25) | A (31) | A (18) | A (9) | A (25) | — |
+| Platform | A (29) | A (25) | A (23) | A (25) | A (31) | A (18) | A (9) | A (25) | — |
 
 ## Cross-owner foreign keys
 
@@ -36,7 +36,7 @@
 |---|---|---|---|
 | Access | Farm | R | W (21) fk:1 |
 | Access | EggOperations | — | W (1) |
-| Access | Commerce | — | W (7) |
+| Access | Commerce | — | W (8) |
 | Farm | Commerce | — | R (6) |
 | FlockManagement | EggOperations | — | R (1) fk:1 |
 | Commerce | Access | — | R (1) |
@@ -63,7 +63,7 @@ After-commit events and read-model queries are not syntactically observable, and
 | GeneralInventory | Insights | E | — |
 | Finance | Insights | E | — |
 | Insights | Platform | Q/P | P |
-| Platform/adapters | Access | W | A (28) |
+| Platform/adapters | Access | W | A (29) |
 | Platform/adapters | Farm | W | A (25) |
 | Platform/adapters | FlockManagement | W | A (23) |
 | Platform/adapters | EggOperations | W | A (25) |

@@ -1,4 +1,5 @@
 using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;

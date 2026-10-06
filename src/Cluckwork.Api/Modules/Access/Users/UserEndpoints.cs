@@ -187,7 +187,7 @@ public static class UserEndpoints
         // 403 (authenticated, but lacking the required additional proof),
         // distinct from the 422s below used for ordinary validation/domain
         // failures.
-        return result.Error.Code == Cluckwork.Application.Common.StepUpErrorCodes.Required
+        return result.Error.Code == StepUpErrorCodes.Required
             ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code)
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
@@ -251,7 +251,7 @@ public static class UserEndpoints
         // regardless of the target's role. A missing/invalid grant is a 403,
         // checked before the generic NotFound/422 mapping below, so a
         // proof-less caller cannot distinguish user ids.
-        if (result.Error.Code == Cluckwork.Application.Common.StepUpErrorCodes.Required)
+        if (result.Error.Code == StepUpErrorCodes.Required)
             return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
@@ -299,7 +299,7 @@ public static class UserEndpoints
         // locked transaction. A missing/invalid grant, or a stale actor no
         // longer Owner, is a 403 (authenticated, but lacking a required proof
         // of current authorization) — distinct from the 404/409/422s below.
-        if (result.Error.Code is Cluckwork.Application.Common.StepUpErrorCodes.Required or "Auth.Forbidden")
+        if (result.Error.Code is StepUpErrorCodes.Required or "Auth.Forbidden")
             return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
@@ -327,7 +327,7 @@ public static class UserEndpoints
 
         var result = await access.ChangeUserEmailAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
-        if (result.Error.Code is Cluckwork.Application.Common.StepUpErrorCodes.Required or "Auth.Forbidden")
+        if (result.Error.Code is StepUpErrorCodes.Required or "Auth.Forbidden")
             return Results.Problem(result.Error.Description,
                 statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
@@ -405,7 +405,7 @@ public static class UserEndpoints
     private static IResult MapUserStateResult(Result result)
     {
         if (result.IsSuccess) return Results.NoContent();
-        if (result.Error.Code is Cluckwork.Application.Common.StepUpErrorCodes.Required or "Auth.Forbidden")
+        if (result.Error.Code is StepUpErrorCodes.Required or "Auth.Forbidden")
             return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();

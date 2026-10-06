@@ -1,4 +1,4 @@
-namespace Cluckwork.Application.Common;
+namespace Cluckwork.Application.Modules.Access.Contracts;
 
 public enum RefreshTokenRevocationOutcome
 {
