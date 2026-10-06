@@ -137,3 +137,7 @@ assertion. Five mutations were recorded red before the claim was made (an undecl
 `using` in a Flocks handler, a deleted Farm → Commerce cell, a symbol no file
 realises, a floor above the file count, a new `Cluckwork.Domain.Foo` namespace no
 owner claims); their output is attached to the PR that landed this record.
+
+## Amendment, 2026-10-06: module folders replace the namespace lists (#1087)
+
+Each module's code now lives under `Modules/<Owner>/` in Domain, Application and Infrastructure, and its `[ModuleOwner]` row claims those fixed roots, `Cluckwork.{Domain,Application,Infrastructure}.Modules.<Owner>`, instead of a list of feature namespaces. Adding a feature folder needs no row. Any namespace outside the roots and the Platform list is unowned: a leftover `Cluckwork.Application.Features.*` fails `ModuleLedgerRealTreeTests` and CW1003. Edge cells, reasons and the free Platform hub are unchanged. The `types` and `implementations` lists are gone (#1087 S10): no owner used either after the move.

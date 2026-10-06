@@ -144,3 +144,7 @@ audit kept the contract narrow, and the seeder's conversion belongs to #858.
   `Set<T>()` helper, a generic `ExpenseRepository<T>` beside the listed type, a
   `DbSet` getter that counts before returning the set, and `SalesOrder.TotalAmount`
   mapped to a Finance-owned table of its own.
+
+## Amendment, 2026-10-06: no `Implementations` allowance (#1087)
+
+Repositories moved into their modules (`Infrastructure/Modules/<Owner>/Repositories`, #1087 S9), so they read their tables as the module's own code. The `Implementations` list and the "declared implementation" allowance are deleted (S10). A read is allowed for the module's own types, a type its edge's `Symbols` names, and a `DbSet` property whose whole body is `Set<T>()`; every other read still needs a compatibility-exception row.

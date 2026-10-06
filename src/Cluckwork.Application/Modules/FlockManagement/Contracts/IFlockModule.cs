@@ -5,9 +5,8 @@ using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 namespace Cluckwork.Application.Modules.FlockManagement.Contracts;
 
 // #852: the Flock Management contract for adapters. Adapters reach Flock
-// Management only through the types marked
-// [ModuleContract("FlockManagement")]; peer modules use the narrower IFlockLookup
-// and IMortalityLedger ports.
+// Management only through the types in this Contracts folder; peer modules use
+// the narrower IFlockLookup and IMortalityLedger ports.
 public interface IFlockModule
 {
     // The EntityType Flock Management writes on a flock's audit rows; provenance reads key by it.

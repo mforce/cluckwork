@@ -154,3 +154,7 @@ previous measurement and deferral above describe the pre-contract baseline.
   homonym of a seam type, a generic claimed type, a claimed type with a nested
   class, and a nested claim behind a global import. Each now fails
   `PeerContractRealTreeTests` with a registry error naming the entry.
+
+## Amendment, 2026-10-06: no type claims (#1087)
+
+Access's two identity ports moved into Access's own namespace (`Application/Modules/Access/Users`, #1087 S8), so no owner claims a type in a Platform namespace any more. The `types` list, its registry checks and the analyzer's reading of it are deleted (S10); the claim-related failures listed above no longer exist. The seam (`Seam`) and the peer walk are unchanged.
