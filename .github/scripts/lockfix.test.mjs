@@ -27,7 +27,8 @@ test("the allowlist is exactly the 10 solution lock files", () => {
 // what this allowlist exists to replace.
 test("the allowlist covers every project in Cluckwork.slnx", () => {
   const slnx = readFileSync(new URL("../../Cluckwork.slnx", import.meta.url), "utf8")
-    .replace(/<!--[\s\S]*?-->/g, "");
+    // Keep a separator so removing a comment cannot assemble a project tag.
+    .replace(/<!--[\s\S]*?-->/g, " ");
   const projects = [...slnx.matchAll(/<Project\b[^>]*\bPath\s*=\s*["']([^"']+)["'][^>]*>/g)]
     .map((m) => m[1].replaceAll("\\", "/").replace(/[^/]+\.csproj$/, "packages.lock.json"))
     .sort();
