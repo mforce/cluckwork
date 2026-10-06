@@ -13,7 +13,7 @@ internal static partial class RealModuleLedger
             "FK_BirdMovements_DailyEntries_DailyEntryId",
             "FlockManagement",
             "EggOperations",
-            "mortality movements retain daily-entry provenance; daily-entry handlers append through Flock Management's IMortalityLedger port (#852), and no Flock Management code references Egg Operations, so this constraint is schema-only (design 3.3)"),
+            "mortality movements retain daily-entry provenance; daily-entry handlers append through Flock Management's IMortalityLedger port (#852). BirdMovementConfiguration, which declares this constraint, is the only Flock Management code that references Egg Operations, through the FlockManagement -> EggOperations edge cell (#1087 S9); the constraint stays schema-only (design 3.3)"),
         new("Expenses",
             "FK_Expenses_Flocks_FlockId",
             "Finance",

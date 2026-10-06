@@ -1,0 +1,89 @@
+using Cluckwork.Domain.Modules.Farm.Accounts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Modules.Farm.Configurations;
+
+// The account row carries the farm's §4.5 localization settings until a farms
+// aggregate exists (#123). Everything the settings screen writes is length- and
+// concurrency-bounded here.
+public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
+{
+    public void Configure(EntityTypeBuilder<Account> builder)
+    {
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.AccountId).IsRequired();
+        builder.Property(e => e.Name).HasMaxLength(Account.MaxNameLength).IsRequired();
+
+        // #531 — the farm code. Stored already-normalized (lowercase), so a
+        // plain unique index is sufficient (no lower("Slug") expression index).
+        builder.Property(e => e.Slug).HasMaxLength(Account.SlugMaxLength).IsRequired();
+        builder.HasIndex(e => e.Slug).IsUnique();
+        builder.Property(e => e.TimeZoneId).HasMaxLength(Account.MaxTimeZoneIdLength).IsRequired();
+        builder.Property(e => e.Locale).HasMaxLength(Account.MaxLocaleLength).IsRequired();
+        builder.Property(e => e.DefaultCurrencyCode).HasMaxLength(3).IsRequired();
+        builder.Property(e => e.DefaultCurrencySymbol).HasMaxLength(CurrencyCatalog.MaxSymbolLength);
+        builder.Property(e => e.UnitSystem)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .IsRequired();
+        builder.Property(e => e.FirstDayOfWeek)
+            .HasConversion<string>()
+            .HasMaxLength(16);
+        builder.Property(e => e.DefaultStepperUnit)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .IsRequired();
+        // #612 — named-enum column, same shape as UnitSystem/DefaultStepperUnit
+        // above. Stored as the enum member name so the wire value and the
+        // stored value never drift.
+        builder.Property(e => e.WorkerSaleAllocationPolicy)
+            .HasConversion<string>()
+            .HasMaxLength(24)
+            .IsRequired();
+        builder.Property(e => e.DateFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
+        builder.Property(e => e.TimeFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
+
+        // Stored as the palette id string, not an enum: the same id is written
+        // straight into the DOM as data-brand and matched by exact-match CSS,
+        // and a retired palette must remain readable rather than break
+        // materialisation (#149).
+        builder.Property(e => e.Brand)
+            .HasMaxLength(FarmBrands.MaxLength)
+            .IsRequired();
+
+        // #727 — the range fails closed in BOTH layers, per #673's precedent.
+        // Account.MaxDiscount calls DiscountCeiling.FromBasisPoints, which
+        // THROWS outside 0–10 000, and that getter is read on the
+        // role-agnostic GET /account every authenticated page load hits — so a
+        // single out-of-range row would 500 the whole farm, including the
+        // Settings screen that would correct it. The application range-check in
+        // Account.UpdateSettings is a guard on the write path; this makes the
+        // getter's throw unreachable rather than merely unlikely, and #732
+        // records that raw UPDATEs against this table do happen.
+        builder.ToTable(t => t.HasCheckConstraint(
+            "CK_Accounts_MaxDiscountBasisPoints",
+            "\"MaxDiscountBasisPoints\" IS NULL "
+                + "OR \"MaxDiscountBasisPoints\" BETWEEN 0 AND 10000"));
+
+        builder.Property(e => e.Version).IsConcurrencyToken();
+
+        // Derived from the stored symbol/code — not a column.
+        builder.Ignore(e => e.CurrencySymbol);
+
+        // Same: derived from MaxDiscountBasisPoints (#727). The basis-points
+        // column itself needs no configuration — a plain nullable int, whose
+        // NULL is the legal "no ceiling" default.
+        builder.Ignore(e => e.MaxDiscount);
+
+        // #283 Part 1 — the default single-farm account is static reference
+        // data, seeded via idempotent raw SQL in the InitialCreate migration
+        // (originally #283's AddBaseReferenceDataAndMustChangePassword,
+        // carried by hand through #245's squash), NOT via EF's HasData().
+        // HasData would bake the row into the MODEL, so a later model-diff
+        // would emit UpdateData/DeleteData against an account the farm has
+        // since renamed in Settings. Raw SQL seeds once and then leaves the
+        // row alone — see the migration file for the WHERE NOT EXISTS guard
+        // (PR #339 review).
+    }
+}

@@ -1,7 +1,7 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
+using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Application.Tests.FlockScoping;

@@ -11,11 +11,12 @@ using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
+using Cluckwork.Infrastructure.Modules.EggOperations.Repositories;
+using Cluckwork.Infrastructure.Modules.FlockManagement.Repositories;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

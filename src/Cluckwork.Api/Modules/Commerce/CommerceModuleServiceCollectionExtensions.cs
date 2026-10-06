@@ -12,7 +12,7 @@ using Cluckwork.Application.Modules.Commerce.Sales.RemoveOrderItem;
 using Cluckwork.Application.Modules.Commerce.Sales.UpdateOrderItem;
 using Cluckwork.Application.Modules.Commerce.Sales.VoidPayment;
 using Cluckwork.Application.Modules.Commerce.Sales.VoidSale;
-using Cluckwork.Infrastructure.Repositories;
+using Cluckwork.Infrastructure.Modules.Commerce.Repositories;
 using FluentValidation;
 
 namespace Cluckwork.Api.Modules.Commerce;

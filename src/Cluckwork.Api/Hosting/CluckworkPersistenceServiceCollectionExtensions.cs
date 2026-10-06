@@ -8,11 +8,16 @@ using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
+using Cluckwork.Infrastructure.Modules.Commerce.Repositories;
+using Cluckwork.Infrastructure.Modules.EggOperations.Repositories;
+using Cluckwork.Infrastructure.Modules.Farm.Repositories;
+using Cluckwork.Infrastructure.Modules.Finance.Repositories;
+using Cluckwork.Infrastructure.Modules.FlockManagement.Repositories;
+using Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
-using Cluckwork.Infrastructure.Repositories;
 using Cluckwork.Infrastructure.Time;
 using Microsoft.EntityFrameworkCore;
 

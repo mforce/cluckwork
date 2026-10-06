@@ -29,7 +29,7 @@ public sealed class TenantBypassWalkTests
         // The walk must include the known bypass-heavy files. If any of these
         // disappears from the walk, the exclusion logic is eating real source.
         var known = files.Select(f => f.Replace('\\', '/'));
-        Assert.Contains(known, f => f.EndsWith("src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs"));
+        Assert.Contains(known, f => f.EndsWith("src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs"));
         Assert.Contains(known, f => f.EndsWith("src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs"));
     }
 

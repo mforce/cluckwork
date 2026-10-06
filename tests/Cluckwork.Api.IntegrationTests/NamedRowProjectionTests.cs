@@ -145,13 +145,13 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
     private Task<IReadOnlyDictionary<Guid, FlockReference>> FlockNamesAsync(
         Guid accountId, IReadOnlyCollection<Guid> ids) =>
         factory.WithTenantScopeAsync(accountId, async db =>
-            await new Cluckwork.Infrastructure.Repositories.FlockRepository(db)
+            await new Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockRepository(db)
                 .GetDisplayNamesAsync(ids));
 
     private Task<IReadOnlyDictionary<Guid, CustomerReference>> CustomerNamesAsync(
         Guid accountId, IReadOnlyCollection<Guid> ids) =>
         factory.WithTenantScopeAsync(accountId, async db =>
-            await new Cluckwork.Infrastructure.Repositories.CustomerRepository(db)
+            await new Cluckwork.Infrastructure.Modules.Commerce.Repositories.CustomerRepository(db)
                 .GetDisplayNamesAsync(ids));
 
     private static async Task<List<T>> GetPagedAsync<T>(HttpClient client, string routeWithQuery)
@@ -707,7 +707,7 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
         var flocks = await factory.WithTenantScopeAsync(f.AccountId, async db =>
         {
             db.FlockScope.Resolve(unrestricted: false, [f.ActiveFlock]);
-            return await new Cluckwork.Infrastructure.Repositories.FlockRepository(db)
+            return await new Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockRepository(db)
                 .GetDisplayNamesAsync([f.ActiveFlock, f.ArchivedFlock, f.MovementFlock]);
         });
 

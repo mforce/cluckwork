@@ -4,19 +4,14 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Domain.Modules.EggOperations",
         "Cluckwork.Application.Modules.EggOperations",
-    ],
-    Implementations = [
-        "Cluckwork.Infrastructure.Repositories.EggOperationsFixture",
-        "Cluckwork.Infrastructure.Repositories.DailyEntryRepository",
-        "Cluckwork.Infrastructure.Repositories.EggGradeRepository",
-        "Cluckwork.Infrastructure.Repositories.EggInventoryMovementRepository",
-        "Cluckwork.Infrastructure.Repositories.EggLotRepository",
+        "Cluckwork.Infrastructure.Modules.EggOperations",
     ])]
 [ModuleEdge(
     "EggOperations", "Farm", "R",
-    "CreateEggGradeHandler attaches a new grade to Domain.Accounts.SeedDefaults.FarmId, the single-farm stand-in for the farm the grade belongs to; EggGradeFloorPolicy resolves the caller's effective role through Domain.Accounts.Roles to decide whether a grade's low-stock floor may move (#911, Owner-only per #729). Design 3.4 row Egg Ops -> Farm = R.",
+    "CreateEggGradeHandler attaches a new grade to Domain.Accounts.SeedDefaults.FarmId, the single-farm stand-in for the farm the grade belongs to; EggGradeFloorPolicy resolves the caller's effective role through Domain.Accounts.Roles to decide whether a grade's low-stock floor may move (#911, Owner-only per #729). Design 3.4 row Egg Ops -> Farm = R. EggOperationsFixture counts the simulation fixture's daily entries at SeedDefaults.FarmId and SeedDefaults.HouseId (#858, #1087 S9).",
     "Cluckwork.Application.Modules.EggOperations.EggGrades.CreateEggGrade.CreateEggGradeHandler",
-    "Cluckwork.Application.Modules.EggOperations.EggGrades.EggGradeFloorPolicy")]
+    "Cluckwork.Application.Modules.EggOperations.EggGrades.EggGradeFloorPolicy",
+    "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggOperationsFixture")]
 [ModuleEdge(
     "EggOperations", "FlockManagement", "W",
     "Daily entry is the mortality writer: SubmitDailyEntryHandler, AdjustDailyEntryHandler and VoidDailyEntryHandler append bird-movement rows through Flock Management's IMortalityLedger port, which adds the row to the caller's unit of work and never saves, so it commits with the entry itself (#54, #69, #852). Every daily-entry handler reads the flock through the IFlockLookup port to check CanRecordProductionOn for the entry's date. Design 3.4 row Egg Ops -> Flock = W.",
