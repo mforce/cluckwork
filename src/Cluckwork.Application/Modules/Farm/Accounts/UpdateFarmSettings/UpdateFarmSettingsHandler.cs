@@ -2,7 +2,6 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
-using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 
 namespace Cluckwork.Application.Modules.Farm.Accounts.UpdateFarmSettings;

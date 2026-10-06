@@ -1,6 +1,5 @@
 using Cluckwork.Application.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
-using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using System.Globalization;
 using FluentValidation;
