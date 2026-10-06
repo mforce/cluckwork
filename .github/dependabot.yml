@@ -74,6 +74,13 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
+    # Microsoft.EntityFrameworkCore.Design pulls Microsoft.CodeAnalysis.Workspaces.MSBuild,
+    # which pins Workspaces.Common to its own Roslyn version exactly. Moving
+    # these two ahead of EF fails restore with NU1608 (#1110). Lift the hold
+    # when EF Core Design ships on the newer Roslyn.
+    ignore:
+      - dependency-name: "Microsoft.CodeAnalysis.CSharp"
+      - dependency-name: "Microsoft.CodeAnalysis.CSharp.Workspaces"
     groups:
       nuget-minor-patch:
         patterns: ["*"]
