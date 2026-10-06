@@ -54,7 +54,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     private async Task<(string Email, Guid Id)> SeedSecondOwnerAsync(HttpClient admin, Guid accountId)
     {
         var email = $"coowner-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner);
+        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Owner);
         return (email, (await FindUserAsync(admin, email)).Id);
     }
 

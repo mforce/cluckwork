@@ -1,4 +1,4 @@
-namespace Cluckwork.Domain.Modules.Farm.Accounts;
+namespace Cluckwork.Domain.Modules.Farm.Contracts;
 
 // #103 (+#84) — the one place role names live. Spec §5.1 roles shipped this
 // phase; Vet/Consultant is deferred until a health module exists to gate.
@@ -49,16 +49,4 @@ public static class Roles
     /// </remarks>
     public static bool MayExceedDiscountCeiling(EffectiveAccountRole role) =>
         role is EffectiveAccountRole.Owner or EffectiveAccountRole.Manager;
-}
-
-// #612 — only a plain Worker is ever flock-scoped. Owner, Manager, Sales,
-// ReadOnly and Denied all bypass assignment rows entirely.
-public enum EffectiveAccountRole
-{
-    Worker,
-    ReadOnly,
-    Sales,
-    Manager,
-    Owner,
-    Denied,
 }

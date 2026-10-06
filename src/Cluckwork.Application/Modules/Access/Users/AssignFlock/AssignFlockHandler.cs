@@ -3,6 +3,7 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 
 namespace Cluckwork.Application.Modules.Access.Users.AssignFlock;
 

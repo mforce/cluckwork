@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Cluckwork.Application.Modules.Farm.Accounts;
+namespace Cluckwork.Application.Modules.Farm.Contracts;
 
 public static class FarmSettingsRules
 {

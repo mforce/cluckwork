@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Farm.Media;
 using System.Net;
 using System.Net.Http.Headers;

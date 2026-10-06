@@ -1,4 +1,4 @@
-namespace Cluckwork.Domain.Modules.Farm.Accounts;
+namespace Cluckwork.Domain.Modules.Farm.Contracts;
 
 // #612 — how a restricted plain Worker's sale confirmation may draw stock.
 // Only a plain Worker is affected; Owner, Manager, Sales, ReadOnly and

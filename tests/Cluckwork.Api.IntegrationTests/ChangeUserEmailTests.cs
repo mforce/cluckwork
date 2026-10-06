@@ -298,7 +298,7 @@ public sealed class ChangeUserEmailTests(CluckworkWebApplicationFactory factory)
     public async Task SelfChange_WithAnotherActiveOwner_Succeeds()
     {
         var (owner, accountId, _, ownerId, _) = await OwnerAsync();
-        await SeedUserAsync(accountId, Unique("co-owner"), Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner);
+        await SeedUserAsync(accountId, Unique("co-owner"), Cluckwork.Domain.Modules.Farm.Contracts.Roles.Owner);
         var newEmail = Unique("new-owner");
 
         var response = await ChangeEmailAsync(owner, ownerId, newEmail, await StepUpAsync(owner));

@@ -2,7 +2,7 @@ using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Application.Modules.Access.Users.ChangeUserEmail;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Data.Common;
 using System.Net;

@@ -1,7 +1,7 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Commerce.Repositories;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;

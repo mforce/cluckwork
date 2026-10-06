@@ -1,5 +1,5 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 
 namespace Cluckwork.Application.Modules.EggOperations.EggGrades;
 

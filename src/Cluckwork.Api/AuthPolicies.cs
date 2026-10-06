@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 
 namespace Cluckwork.Api;
 

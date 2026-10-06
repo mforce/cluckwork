@@ -1,11 +1,11 @@
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using System.Security.Cryptography;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Modules.Farm.Accounts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

@@ -111,7 +111,7 @@ public sealed class ExceptionHandlerReExecutionTests(ExceptionReExecutionFactory
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
-                categoryId, accountId, Cluckwork.Domain.Modules.Farm.Accounts.SeedDefaults.FarmId, "Probe-Category"));
+                categoryId, accountId, Cluckwork.Domain.Modules.Farm.Contracts.SeedDefaults.FarmId, "Probe-Category"));
             await db.SaveChangesAsync();
         });
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));

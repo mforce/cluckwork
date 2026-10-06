@@ -4,6 +4,7 @@ using Cluckwork.Application.Modules.EggOperations.EggLots;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.EggOperations.Repositories;
 using System.Net;
 using System.Net.Http.Json;

@@ -38,7 +38,7 @@ public sealed class SimulationSeedCommandFixture : CluckworkWebApplicationFactor
     {
         await base.InitializeAsync();
         await this.SeedUserAsync(
-            Cluckwork.Domain.Modules.Farm.Accounts.SeedDefaults.AccountId, AdminEmail, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner);
+            Cluckwork.Domain.Modules.Farm.Contracts.SeedDefaults.AccountId, AdminEmail, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Owner);
     }
 }
 

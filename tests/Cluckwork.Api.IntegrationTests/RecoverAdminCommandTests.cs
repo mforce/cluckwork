@@ -1,7 +1,7 @@
 using Cluckwork.Application.Modules.Access.Users;
-using Cluckwork.Domain.Modules.Farm.Accounts;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
