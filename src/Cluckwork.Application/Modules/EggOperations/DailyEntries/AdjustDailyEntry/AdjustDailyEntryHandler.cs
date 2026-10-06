@@ -7,7 +7,6 @@ using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
-using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Application.Modules.EggOperations.DailyEntries.AdjustDailyEntry;
@@ -50,7 +49,7 @@ public sealed class AdjustDailyEntryHandler(
         var flock = await flocks.GetAsync(entry.FlockId, ct);
         if (flock is null)
             return Result.Failure<AdjustDailyEntryResponse>(
-                Error.NotFound(nameof(Flock), entry.FlockId)).LogFailure(logger, "AdjustDailyEntry");
+                Error.NotFound(IFlockModule.FlockAuditEntityType, entry.FlockId)).LogFailure(logger, "AdjustDailyEntry");
         if (!flock.CanRecordProductionOn(entry.Date))
             return Result.Failure<AdjustDailyEntryResponse>(Error.Validation(
                 "DailyEntry.FlockNotActive",
