@@ -1,7 +1,7 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using FluentValidation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;

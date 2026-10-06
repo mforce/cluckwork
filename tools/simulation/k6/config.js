@@ -15,7 +15,7 @@ export const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8081';
 
 // Presence-only CSRF guard the API requires on /auth/refresh — any value is
 // accepted, but the header must be present. See
-// src/Cluckwork.Api/Endpoints/Auth/AuthCookies.cs (CsrfHeaderName).
+// src/Cluckwork.Api/Modules/Access/Auth/AuthCookies.cs (CsrfHeaderName).
 export const CSRF_HEADER_NAME = 'X-Cluckwork-Auth';
 export const CSRF_HEADER_VALUE = '1';
 

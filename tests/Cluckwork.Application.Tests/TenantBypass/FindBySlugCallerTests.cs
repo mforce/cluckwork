@@ -18,7 +18,7 @@ public sealed class FindBySlugCallerTests
     private const string Member = "FindBySlugAsync";
 
     private const string Login =
-        "Cluckwork.Infrastructure.Identity.IdentityProvider.ResolveFarmCodeAsync(string farmCode, CancellationToken ct)";
+        "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.ResolveFarmCodeAsync(string farmCode, CancellationToken ct)";
 
     [Fact]
     public void OnlyLoginCallsTheCrossFarmSlugLookup()

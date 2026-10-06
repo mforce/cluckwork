@@ -1,6 +1,7 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Users.ChangeUserRole;
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Application.Modules.Access.Users.ChangeUserRole;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -81,7 +82,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         using var scope = factory.Services.CreateScope();
         scope.ResolveTenantAndActor(accountId, actingUserId);
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
-        var storedRole = role == Cluckwork.Application.Features.Users.CreateUser.CreateUserValidator.WorkerRole
+        var storedRole = role == Cluckwork.Application.Modules.Access.Users.CreateUser.CreateUserValidator.WorkerRole
             ? null
             : role;
         return await identity.ChangeUserRoleAsync(

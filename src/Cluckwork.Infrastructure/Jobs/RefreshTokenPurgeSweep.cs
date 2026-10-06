@@ -1,4 +1,4 @@
-using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

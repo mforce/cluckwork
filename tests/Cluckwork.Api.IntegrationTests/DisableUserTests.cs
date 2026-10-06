@@ -1,6 +1,6 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using System.Net;
 using System.Net.Http.Json;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +51,7 @@ public sealed class DisableUserTests(CluckworkWebApplicationFactory factory)
         scope.ServiceProvider
             .GetRequiredService<Cluckwork.Infrastructure.Persistence.TenantContext>()
             .Resolve(accountId);
-        var identity = scope.ServiceProvider.GetRequiredService<Cluckwork.Application.Common.IIdentityProvider>();
+        var identity = scope.ServiceProvider.GetRequiredService<Cluckwork.Application.Modules.Access.Users.IIdentityProvider>();
         var user = (await identity.ListUsersAsync(accountId)).Single(u => u.Email == email);
         return (email, user.Id);
     }
@@ -316,7 +316,7 @@ public sealed class DisableUserTests(CluckworkWebApplicationFactory factory)
             .GetRequiredService<Cluckwork.Infrastructure.Persistence.TenantContext>()
             .Resolve(accountId);
         var stepUp = scope.ServiceProvider
-            .GetRequiredService<Cluckwork.Application.Common.IStepUpGrantService>();
+            .GetRequiredService<Cluckwork.Application.Modules.Access.Users.IStepUpGrantService>();
 
         Assert.True((await stepUp.ValidateAsync(accountId, targetId, targetGrant, CancellationToken.None)).IsFailure,
             "a step-up grant issued before the disable must not survive a re-enable");

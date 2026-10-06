@@ -1,9 +1,9 @@
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using System.Net.Http.Json;
-using Cluckwork.Api.Endpoints.Auth;
-using Cluckwork.Application.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -330,7 +330,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
             dir = dir.Parent;
         Assert.NotNull(dir);
         var serviceSource = await File.ReadAllTextAsync(
-            Path.Combine(dir!.FullName, "src", "Cluckwork.Infrastructure", "Identity", "AccountSuspensionService.cs"));
+            Path.Combine(dir!.FullName, "src", "Cluckwork.Infrastructure", "Modules", "Access", "Identity", "AccountSuspensionService.cs"));
         // Find every SaveChanges call site. The needle includes the receiver
         // dot: the file carries "SaveChanges" in a COMMENT (line 193, "before
         // The comment above ("before SaveChanges, so the row lands") is not a

@@ -1,6 +1,6 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.IntegrationTests.SharedState;
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.AspNetCore.Identity;

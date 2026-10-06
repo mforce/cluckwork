@@ -1,11 +1,12 @@
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using System.Net.Http.Headers;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.AspNetCore.Identity;

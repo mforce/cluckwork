@@ -1,5 +1,6 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;

@@ -1,9 +1,9 @@
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

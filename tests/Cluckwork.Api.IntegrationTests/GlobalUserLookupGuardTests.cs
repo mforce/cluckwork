@@ -47,8 +47,8 @@ public sealed class GlobalUserLookupGuardTests
     // guessing (Recovery.Ambiguous).
     private static readonly string[] AllowedFiles =
     [
-        "Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs",
-        "Cluckwork.Infrastructure/Identity/AdminRecoveryService.cs",
+        "Cluckwork.Infrastructure/Modules/Access/Identity/AccountUserDirectory.cs",
+        "Cluckwork.Infrastructure/Modules/Access/Identity/AdminRecoveryService.cs",
     ];
 
     // True when fileName[start..start+length) is all ASCII digits. Validating
@@ -104,7 +104,7 @@ public sealed class GlobalUserLookupGuardTests
 
             // Force underMigrations = false by renaming to a non-migration name
             // in a non-Migrations directory, proving the guard CAUGHT it there.
-            var prodDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Identity");
+            var prodDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Modules", "Access", "Identity");
             var prodPath = Path.Combine(prodDir, "20990101000000_TempExemptionTest.cs");
             File.Move(filePath, prodPath);
             var caughtOffenders = ScanFiles([prodPath]);
@@ -119,7 +119,7 @@ public sealed class GlobalUserLookupGuardTests
         }
         finally
         {
-            foreach (var p in new[] { filePath, Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Identity", "20990101000000_TempExemptionTest.cs") })
+            foreach (var p in new[] { filePath, Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Modules", "Access", "Identity", "20990101000000_TempExemptionTest.cs") })
                 if (File.Exists(p)) File.Delete(p);
         }
     }

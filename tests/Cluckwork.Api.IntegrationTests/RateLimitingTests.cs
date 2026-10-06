@@ -1,5 +1,5 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using System.Net;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

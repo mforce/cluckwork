@@ -1,7 +1,7 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using System.Diagnostics;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Users;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 

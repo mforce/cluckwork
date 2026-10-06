@@ -1,14 +1,26 @@
+using Cluckwork.Application.Modules.Access.Users;
+
 namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class AccessOwnershipClaimTests
 {
+    // The two Identity ports left Application.Common for Access's own namespace (#1087), so Access owns them
+    // through a namespace claim, not a type claim.
     [Theory]
-    [InlineData("Cluckwork.Application.Common.IIdentityProvider")]
-    [InlineData("Cluckwork.Application.Common.IStepUpGrantService")]
-    public void CommonIdentityPortRemainsOwnedByContractedAccess(string type)
+    [InlineData(typeof(IIdentityProvider))]
+    [InlineData(typeof(IStepUpGrantService))]
+    public void IdentityPortIsOwnedByContractedAccessThroughItsNamespace(Type type)
     {
-        var access = Assert.Single(RealModuleLedger.Value.Owners, owner => owner.Name == "Access");
+        var ledger = RealModuleLedger.Value;
+        var access = Assert.Single(ledger.Owners, owner => owner.Name == "Access");
         Assert.NotEmpty(access.Contract);
-        Assert.Contains(type, access.Types);
+
+        var errors = new List<string>();
+        var index = ModuleLedgerScanner.BuildNamespaceIndex(ledger, errors);
+        Assert.Empty(errors);
+        var owner = ModuleLedgerScanner.Resolve(index, type.FullName!, declared: true);
+        Assert.NotNull(owner);
+        Assert.Equal("Access", owner.Value.Owner);
+        Assert.True(index[owner.Value.Namespace].Subtree, $"{type.FullName} must be owned through a namespace");
     }
 }

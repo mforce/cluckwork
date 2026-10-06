@@ -1,5 +1,5 @@
-using Cluckwork.Api.Endpoints.Auth;
-using Cluckwork.Application.Features.Users;
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Users;
 
 namespace Cluckwork.Api.IntegrationTests;
 

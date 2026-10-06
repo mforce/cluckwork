@@ -1,8 +1,8 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
 using Cluckwork.Api.Middleware;
-using Cluckwork.Application.Features.Users;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 

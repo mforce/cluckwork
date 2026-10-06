@@ -1,7 +1,7 @@
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Security.Claims;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;

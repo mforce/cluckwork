@@ -1,10 +1,11 @@
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Application.Modules.Access.Users.DisableUser;
+using Cluckwork.Application.Modules.Access.Users.EnableUser;
 using System.Net;
 using System.Net.Http.Json;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Users.DisableUser;
-using Cluckwork.Application.Features.Users.EnableUser;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -672,7 +673,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
             Content = JsonContent.Create(new { reason = (string?)null }),
         };
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
-        request.Headers.Add(Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName, stepUpToken);
+        request.Headers.Add(Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.StepUpHeaderName, stepUpToken);
         var inFlight = Task.Run(() => client.SendAsync(request));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(inFlight, pid),
             "the request must park on the account lock after passing authorization");

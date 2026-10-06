@@ -33,43 +33,43 @@ internal static class BypassAllowList
     [
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.AccountProvisioner.ProvisionAsync(string? name, string? slug, string? ownerEmail, string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/AccountProvisioner.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.AccountProvisioner.ProvisionAsync(string? name, string? slug, string? ownerEmail, string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountProvisioner.cs",
             Hash = "e99bb5a2",
             Justification = "Provisions a NEW account; checks the global slug for a collision before any tenant exists. Runs at unresolved tenant by design (#533).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.CredentialEpochVerifier.VerifyAsync(Guid userId, Guid accountId, int tokenEpoch, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/CredentialEpochVerifier.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.CredentialEpochVerifier.VerifyAsync(Guid userId, Guid accountId, int tokenEpoch, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/CredentialEpochVerifier.cs",
             Hash = "f24c7872",
             Justification = "DEFENSIVE bypass: reads the user's own account to check IsActive. The read is scoped to the JWT's account id; IgnoreQueryFilters makes it work even before TenantContext resolves. #364 fail-closed guarantee. Moved here from CredentialEpochMiddleware.InvokeAsync by #857, query unchanged.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionAsync(string? email, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.FirstRunAdminService.ProvisionAsync(string? email, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/FirstRunAdminService.cs",
             Hash = "dd08f719",
             Justification = "First-run admin bootstraps the DEFAULT account; checks for an existing Owner at unresolved tenant by design (#283).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.FirstRunAdminService.HoldsProvisioningLockAsync(CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.FirstRunAdminService.HoldsProvisioningLockAsync(CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/FirstRunAdminService.cs",
             Hash = "673eed0b",
             Justification = "Raw SQL advisory lock for first-run; not tenant-scoped (it is a process-level boot guard, #283).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)",
-            File = "src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs",
             Hash = "8ac33f82",
             Justification = "Refresh-token rotation reads the account to verify it is active; scoped to the token's account id, IgnoreQueryFilters because TenantContext may be unresolved during the auth handshake.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, DateTimeOffset now, string rotatedStamp, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, DateTimeOffset now, string rotatedStamp, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs",
             Hash = "aec72489",
             Justification = "Low-level raw-SQL data-modifying CTE for logout lineage fencing. Both refresh-token UPDATE arms are explicitly constrained by UserId, AccountId, and IssuedEpoch; the dedicated atomic-logout CTE guard pins both arms and the builder-to-RelationalCommand execution seam.",
         },
@@ -285,8 +285,8 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string accountSlug, string email, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string accountSlug, string email, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/FirstRunAdminService.cs",
             Hash = "28ffc7ff",
             Justification = "Caller of HoldsProvisioningLockAsync (a forwarding wrapper). First-run admin bootstrap runs at unresolved tenant by design (#283); the provisioning lock is a process-level advisory lock, not tenant-scoped.",
         },
@@ -299,15 +299,15 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.AccountRenameService.RenameAsync(string currentSlug, string? newSlug, string? reason, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/AccountRenameService.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.AccountRenameService.RenameAsync(string currentSlug, string? newSlug, string? reason, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountRenameService.cs",
             Hash = "b43347b9",
             Justification = "Caller of ResolveSlugsAsync (a forwarding wrapper). Operator CLI resolves the source farm by its globally unique code AND checks the destination code's availability in that one read, before any tenant is resolved. The service's locked read is tenant-keyed; the global IX_Accounts_Slug index and its unique-violation catch remain authoritative for the destination (#732). Same justified call site as AccountSlugLookup.ResolveAsync (#536).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Identity.AccountRenameService.ResolveSlugsAsync(string currentSlug, string target, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Identity/AccountRenameService.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.AccountRenameService.ResolveSlugsAsync(string currentSlug, string target, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountRenameService.cs",
             Hash = "3b4358c4",
             Justification = "One unresolved-tenant read covering both the source code and the destination code: the operator CLI runs before any tenant exists, so IgnoreQueryFilters is required rather than defensive. Neither half is an authority — the post-lock fence covers the source by comparing the locked row's slug AND Version against this read's snapshot, and the global IX_Accounts_Slug index plus its unique-violation catch cover the destination (#732).",
         },

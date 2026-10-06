@@ -24,9 +24,9 @@
 ### Task 1: Storage, migration, and token issuance
 
 **Files:**
-- Modify: `src/Cluckwork.Infrastructure/Identity/ApplicationUser.cs`
-- Modify: `src/Cluckwork.Infrastructure/Identity/RefreshToken.cs`
-- Modify: `src/Cluckwork.Infrastructure/Identity/JwtTokenService.cs`
+- Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/ApplicationUser.cs`
+- Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/RefreshToken.cs`
+- Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/JwtTokenService.cs`
 - Modify: `src/Cluckwork.Infrastructure/Persistence/Configurations/ApplicationUserConfiguration.cs`
 - Modify: `src/Cluckwork.Infrastructure/Persistence/Migrations/20260801190854_InitialCreate.cs`
 - Modify: `src/Cluckwork.Infrastructure/Persistence/Migrations/AppDbContextModelSnapshot.cs`
@@ -45,8 +45,8 @@
 **Files:**
 - Create: `src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs`
 - Modify: `src/Cluckwork.Api/Program.cs`
-- Modify: `src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs`
-- Modify: `src/Cluckwork.Infrastructure/Identity/StepUpGrantService.cs`
+- Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs`
+- Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/StepUpGrantService.cs`
 - Test: `tests/Cluckwork.Api.IntegrationTests/CredentialEpochTests.cs`
 
 **Interfaces:**

@@ -1,12 +1,12 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.Http.Headers;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

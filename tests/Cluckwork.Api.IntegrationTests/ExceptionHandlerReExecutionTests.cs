@@ -1,9 +1,9 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Finance.Contracts;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.AspNetCore.Hosting;

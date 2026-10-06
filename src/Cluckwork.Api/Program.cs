@@ -1,13 +1,13 @@
 using Cluckwork.Api;
 using Cluckwork.Api.Cli;
 using Cluckwork.Api.Endpoints.Accounts;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.ClientErrors;
-using Cluckwork.Api.Endpoints.Me;
-using Cluckwork.Api.Endpoints.Users;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.Middleware;
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Api.Modules.Access.Me;
+using Cluckwork.Api.Modules.Access.Users;
 using Cluckwork.Api.Modules.Commerce.Catalog;
 using Cluckwork.Api.Modules.Commerce.Customers;
 using Cluckwork.Api.Modules.Commerce.Sales;

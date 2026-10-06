@@ -1,5 +1,4 @@
-using Cluckwork.Application.Features.Users;
-using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 

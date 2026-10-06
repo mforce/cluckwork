@@ -1,7 +1,7 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,7 +44,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         using var scope = factory.Services.CreateScope();
         var tenant = scope.ServiceProvider.GetRequiredService<Cluckwork.Infrastructure.Persistence.TenantContext>();
         tenant.Resolve(accountId);
-        var identity = scope.ServiceProvider.GetRequiredService<Cluckwork.Application.Common.IIdentityProvider>();
+        var identity = scope.ServiceProvider.GetRequiredService<Cluckwork.Application.Modules.Access.Users.IIdentityProvider>();
         var user = (await identity.ListUsersAsync(accountId)).Single(u => u.Email == email);
         return (email, user.Id);
     }
@@ -443,7 +443,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         using var scope = factory.Services.CreateScope();
         scope.ServiceProvider.GetRequiredService<Cluckwork.Infrastructure.Persistence.TenantContext>()
             .Resolve(accountId);
-        var stepUpService = scope.ServiceProvider.GetRequiredService<Cluckwork.Application.Common.IStepUpGrantService>();
+        var stepUpService = scope.ServiceProvider.GetRequiredService<Cluckwork.Application.Modules.Access.Users.IStepUpGrantService>();
         var validated = await stepUpService.ValidateAsync(accountId, targetId, targetGrant, CancellationToken.None);
 
         Assert.True(validated.IsFailure, "a step-up grant issued before the role change must not survive it");

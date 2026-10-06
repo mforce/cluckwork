@@ -1,6 +1,6 @@
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;

@@ -1,13 +1,14 @@
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Application.Modules.Access.Users.CreateUser;
+using Cluckwork.Application.Modules.Access.Users.SetLanguage;
+using Cluckwork.Application.Modules.Access.Users.SetStepperUnit;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Security.Cryptography;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Security;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Users;
-using Cluckwork.Application.Features.Users.CreateUser;
-using Cluckwork.Application.Features.Users.SetLanguage;
-using Cluckwork.Application.Features.Users.SetStepperUnit;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
 using FluentValidation;
@@ -176,48 +177,48 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             UserRoleAssignmentRepository>();
         services.AddScoped<IValidator<CreateUserCommand>, CreateUserValidator>();
         services.AddScoped<
-            IValidator<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserCommand>,
-            Cluckwork.Application.Features.Users.UpdateUser.UpdateUserValidator>();
+            IValidator<Cluckwork.Application.Modules.Access.Contracts.UpdateUserCommand>,
+            Cluckwork.Application.Modules.Access.Users.UpdateUser.UpdateUserValidator>();
         services.AddScoped<
-            IValidator<Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordCommand>,
-            Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordValidator>();
+            IValidator<Cluckwork.Application.Modules.Access.Contracts.SetUserPasswordCommand>,
+            Cluckwork.Application.Modules.Access.Users.SetUserPassword.SetUserPasswordValidator>();
         services.AddScoped<
-            IValidator<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordCommand>,
-            Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordValidator>();
+            IValidator<Cluckwork.Application.Modules.Access.Contracts.ChangeOwnPasswordCommand>,
+            Cluckwork.Application.Modules.Access.Users.ChangeOwnPassword.ChangeOwnPasswordValidator>();
         services.AddScoped<
-            IValidator<Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleCommand>,
-            Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleValidator>();
+            IValidator<Cluckwork.Application.Modules.Access.Contracts.ChangeUserRoleCommand>,
+            Cluckwork.Application.Modules.Access.Users.ChangeUserRole.ChangeUserRoleValidator>();
         services.AddScoped<
-            IValidator<Cluckwork.Application.Features.Users.ChangeUserEmail.ChangeUserEmailCommand>,
-            Cluckwork.Application.Features.Users.ChangeUserEmail.ChangeUserEmailValidator>();
+            IValidator<Cluckwork.Application.Modules.Access.Contracts.ChangeUserEmailCommand>,
+            Cluckwork.Application.Modules.Access.Users.ChangeUserEmail.ChangeUserEmailValidator>();
         // #356 — disable carries an optional reason; enable carries no body at
         // all and therefore has no validator.
         services.AddScoped<
-            IValidator<Cluckwork.Application.Features.Users.DisableUser.DisableUserCommand>,
-            Cluckwork.Application.Features.Users.DisableUser.DisableUserValidator>();
+            IValidator<Cluckwork.Application.Modules.Access.Contracts.DisableUserCommand>,
+            Cluckwork.Application.Modules.Access.Users.DisableUser.DisableUserValidator>();
         services.AddScoped<IValidator<SetLanguageCommand>, SetLanguageValidator>();
         services.AddScoped<IValidator<SetStepperUnitCommand>, SetStepperUnitValidator>();
         services.AddScoped<CreateUserHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.UpdateUser.UpdateUserHandler>();
+            Cluckwork.Application.Modules.Access.Users.UpdateUser.UpdateUserHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordHandler>();
+            Cluckwork.Application.Modules.Access.Users.SetUserPassword.SetUserPasswordHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
+            Cluckwork.Application.Modules.Access.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleHandler>();
+            Cluckwork.Application.Modules.Access.Users.ChangeUserRole.ChangeUserRoleHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.ChangeUserEmail.ChangeUserEmailHandler>();
+            Cluckwork.Application.Modules.Access.Users.ChangeUserEmail.ChangeUserEmailHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.DisableUser.DisableUserHandler>();
+            Cluckwork.Application.Modules.Access.Users.DisableUser.DisableUserHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.EnableUser.EnableUserHandler>();
+            Cluckwork.Application.Modules.Access.Users.EnableUser.EnableUserHandler>();
         services.AddScoped<SetLanguageHandler>();
         services.AddScoped<SetStepperUnitHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();
+            Cluckwork.Application.Modules.Access.Users.AssignFlock.AssignFlockHandler>();
         services.AddScoped<
-            Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler>();
+            Cluckwork.Application.Modules.Access.Users.AssignFlock.UnassignFlockHandler>();
     }
 
     // Serving-only (#347). A one-shot verb neither issues nor validates a token,
