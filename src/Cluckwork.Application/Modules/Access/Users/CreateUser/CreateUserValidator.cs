@@ -25,7 +25,7 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
             .MinimumLength(12)
             .WithErrorCode("User.Password.MinLength")
             // #309 — bound the credential ahead of the PBKDF2 hash.
-            .MaximumLength(Cluckwork.Application.Modules.Access.Users.PasswordRules.MaxLength)
+            .MaximumLength(Cluckwork.Application.Modules.Access.Contracts.PasswordRules.MaxLength)
             .WithErrorCode("User.Password.MaxLength");
         RuleFor(x => x.Role)
             .Must(r => r == WorkerRole || Cluckwork.Domain.Modules.Farm.Accounts.Roles.Assignable.Contains(r))
@@ -33,7 +33,7 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
             .WithErrorCode("User.Role.Allowed");
         // #163 — Name is optional; only its length is bounded.
         RuleFor(x => x.Name)
-            .MaximumLength(Cluckwork.Application.Modules.Access.Users.UserName.MaxLength)
+            .MaximumLength(Cluckwork.Application.Modules.Access.Contracts.UserName.MaxLength)
             .WithErrorCode("User.Name.MaxLength")
             .When(x => x.Name is not null);
     }

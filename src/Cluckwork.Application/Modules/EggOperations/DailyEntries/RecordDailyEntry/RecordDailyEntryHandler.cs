@@ -4,7 +4,6 @@ using Cluckwork.Application.Modules.EggOperations.EggGrades;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
-using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Application.Modules.EggOperations.DailyEntries.RecordDailyEntry;
@@ -34,7 +33,7 @@ public sealed class RecordDailyEntryHandler(
         // names — ids are caller-supplied and only tenant-checked otherwise.
         var flock = await flocks.GetForFlockScopedWriteAsync(command.FlockId, accountId, ct);
         if (flock is null)
-            return Result.Failure<Guid>(Error.NotFound(nameof(Flock), command.FlockId))
+            return Result.Failure<Guid>(Error.NotFound(IFlockModule.FlockAuditEntityType, command.FlockId))
                 .LogFailure(logger, "RecordDailyEntry");
         // Farm only: houses aren't aggregates yet (phantom ids until Phase 2's
         // House model) — add the HouseId match when they are.

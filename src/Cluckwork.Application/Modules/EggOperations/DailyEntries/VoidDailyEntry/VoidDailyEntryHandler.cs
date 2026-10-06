@@ -7,7 +7,6 @@ using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
-using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Application.Modules.EggOperations.DailyEntries.VoidDailyEntry;
@@ -44,7 +43,7 @@ public sealed class VoidDailyEntryHandler(
         var flock = await flocks.GetAsync(entry.FlockId, ct);
         if (flock is null)
             return Result.Failure<VoidDailyEntryResponse>(
-                Error.NotFound(nameof(Flock), entry.FlockId)).LogFailure(logger, "VoidDailyEntry");
+                Error.NotFound(IFlockModule.FlockAuditEntityType, entry.FlockId)).LogFailure(logger, "VoidDailyEntry");
         if (!flock.CanRecordProductionOn(entry.Date))
             return Result.Failure<VoidDailyEntryResponse>(Error.Validation(
                 "DailyEntry.FlockNotActive",

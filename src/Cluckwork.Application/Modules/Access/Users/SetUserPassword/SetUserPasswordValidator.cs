@@ -10,10 +10,10 @@ public sealed class SetUserPasswordValidator : AbstractValidator<SetUserPassword
         RuleFor(x => x.NewPassword)
             .Must(v => !string.IsNullOrWhiteSpace(v)).WithMessage("A new password is required.")
             .WithErrorCode("User.NewPassword.Required")
-            .MinimumLength(Cluckwork.Application.Modules.Access.Users.PasswordRules.MinLength)
+            .MinimumLength(Cluckwork.Application.Modules.Access.Contracts.PasswordRules.MinLength)
             .WithErrorCode("User.NewPassword.MinLength")
             // #309 — bound the credential ahead of the PBKDF2 hash.
-            .MaximumLength(Cluckwork.Application.Modules.Access.Users.PasswordRules.MaxLength)
+            .MaximumLength(Cluckwork.Application.Modules.Access.Contracts.PasswordRules.MaxLength)
             .WithErrorCode("User.NewPassword.MaxLength");
     }
 }

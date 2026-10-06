@@ -1,4 +1,4 @@
-namespace Cluckwork.Application.Modules.Access.Users;
+namespace Cluckwork.Application.Modules.Access.Contracts;
 
 // #163 — one place for the display-name rule shared by create and update: trim
 // surrounding whitespace, and treat blank as "no name" (null) so a cleared field
