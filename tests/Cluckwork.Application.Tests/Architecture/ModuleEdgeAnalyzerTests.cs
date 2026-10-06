@@ -71,7 +71,8 @@ public sealed class ModuleEdgeAnalyzerTests
             public sealed class R;
             """).RunAsync();
 
-    // #1116: CW1004. Blue publishes a contract with a public and an internal nested type, a private type, a seam type
+    // #1116: CW1004. Blue publishes a contract with a public and an internal nested type, a public type nested in an
+    // internal one, a private type, a seam type
     // and a port its contract interface inherits. Red is a peer module with a declared edge; Cluckwork.Api.Modules is an
     // adapter root.
     private const string ReachSource = """
@@ -80,6 +81,7 @@ public sealed class ModuleEdgeAnalyzerTests
         {
             public sealed class Pub { public sealed class Nested; internal sealed class Hidden; }
             public interface IBlueModule : Cluckwork.Domain.Modules.Blue.Inner.IBlueQueries;
+            internal static class Root { public sealed class Child; }
         }
         namespace Cluckwork.Domain.Modules.Blue.Inner
         {
@@ -114,6 +116,12 @@ public sealed class ModuleEdgeAnalyzerTests
     public Task InternalNestedTypeOfAContract_IsNotContract() => Reach("""
         namespace Cluckwork.Application.Modules.Red;
         public sealed class R { public object Go() => typeof({|CW1004:Cluckwork.Domain.Modules.Blue.Contracts.Pub.Hidden|}); }
+        """).RunAsync();
+
+    [Fact]
+    public Task PublicNestedTypeOfAnInternalContractsType_IsNotContract() => Reach("""
+        namespace Cluckwork.Application.Modules.Red;
+        public sealed class R { public object Go() => typeof({|CW1004:Cluckwork.Domain.Modules.Blue.Contracts.Root.Child|}); }
         """).RunAsync();
 
     [Fact]

@@ -25,3 +25,9 @@ public abstract record ContractFixtureResolution
         public sealed record Reachable;
     }
 }
+
+// A top-level type keeps its contract status whatever its accessibility; its public nested type is not reachable.
+internal static class ContractFixtureInternalRoot
+{
+    public sealed record Child;
+}

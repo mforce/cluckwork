@@ -278,10 +278,16 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
             : binding.Parent is InvocationExpressionSyntax { Parent: ConditionalAccessExpressionSyntax call } invocation
                 && call.WhenNotNull == invocation ? call.Expression : null;
 
-    // A nested type is hidden when it or a type enclosing it is not public.
+    // A nested type is hidden unless it and every type enclosing it, the outermost included, are public. A top-level
+    // type is never hidden: its contract status does not depend on its accessibility.
     private static bool Hidden(INamedTypeSymbol type)
     {
-        for (var current = type; current.ContainingType is not null; current = current.ContainingType)
+        if (type.ContainingType is null)
+        {
+            return false;
+        }
+
+        for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
         {
             if (current.DeclaredAccessibility != Accessibility.Public)
             {

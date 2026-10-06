@@ -12,6 +12,7 @@ public sealed class ContractDerivationTests
         Assert.Equal(
             [
                 typeof(ContractFixtureCommand).FullName!,
+                typeof(ContractFixtureInternalRoot).FullName!,
                 typeof(ContractFixtureResolution).FullName!,
                 typeof(ContractFixtureResolution.Found).FullName!,
                 typeof(ContractFixtureResolution.Missing).FullName!,

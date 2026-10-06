@@ -36,18 +36,9 @@ internal static partial class RealModuleLedger
         .OrderBy(c => c.Type, StringComparer.Ordinal)
         .ToLookup(c => c.Owner!, c => c.Type, StringComparer.Ordinal);
 
-    private static bool Hidden(Type type)
-    {
-        for (var current = type; current.IsNested; current = current.DeclaringType!)
-        {
-            if (!current.IsNestedPublic)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    // Type.IsVisible is public reach through every enclosing type, the outermost included; a top-level type is
+    // never hidden.
+    private static bool Hidden(Type type) => type.IsNested && !type.IsVisible;
 
     internal static readonly OwnerDefinition[] Owners = [.. RuleTypes
         .Select(t => t.GetCustomAttribute<ModuleOwnerAttribute>()).OfType<ModuleOwnerAttribute>()
