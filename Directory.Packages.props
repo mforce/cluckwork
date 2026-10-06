@@ -28,7 +28,7 @@
          built against a Roslyn no newer than itself, and 5.0.0 ships with SDK 10.0.1xx, the oldest
          band in use; raising this fails every build on that band with CS9057. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
     <!-- The analyzer test library asks for Workspaces >= 1.0.1, a .NET Framework build; pin it to the Roslyn above. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.*" />
