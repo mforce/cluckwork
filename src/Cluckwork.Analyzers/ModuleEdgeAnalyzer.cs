@@ -38,10 +38,9 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
         "Architecture", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
     // #1116: a module may name a peer's contract or seam; an adapter only a contract. Structural exemptions only.
-    // Info until the cleanup brings tools/architecture/cw1004-census.sh to zero; then it becomes an Error.
     internal static readonly DiagnosticDescriptor NonContract = new(
         "CW1004", "Non-contract peer reach", "{0} '{1}' reaches {2}'s non-contract type '{3}'",
-        "Architecture", DiagnosticSeverity.Info, isEnabledByDefault: true);
+        "Architecture", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MapMissing, Undeclared, Stale, Unowned, NonContract];
 
