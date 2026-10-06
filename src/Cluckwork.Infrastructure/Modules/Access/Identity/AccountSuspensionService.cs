@@ -1,6 +1,6 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -202,7 +202,7 @@ public sealed class AccountSuspensionService(
             if (stateChanged)
                 await audit.WriteAsync(
                     suspending ? AuditActions.AccountSuspend : AuditActions.AccountReactivate,
-                    nameof(Domain.Accounts.Account), accountId,
+                    nameof(Cluckwork.Domain.Modules.Farm.Accounts.Account), accountId,
                     reason: reason,
                     // The same accountability payload break-glass records, and
                     // for the same reason: the actor names the COMMAND, not a

@@ -1,6 +1,7 @@
-using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Application.Modules.Farm.Accounts;
+using Cluckwork.Application.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 
 namespace Cluckwork.Application.Tests.Accounts;
 
@@ -12,7 +13,7 @@ public sealed class FarmModuleTests
 
     private static Account Account()
     {
-        var account = Cluckwork.Domain.Accounts.Account.Create(
+        var account = Cluckwork.Domain.Modules.Farm.Accounts.Account.Create(
             AccountId, "Hilltop Farm", "hilltop", "Asia/Kuwait", "USD", "es");
         var updated = account.UpdateSettings(
             "Hilltop Farm", "Asia/Kuwait", "es", "KWD", UnitSystem.Imperial, DayOfWeek.Saturday,

@@ -5,7 +5,7 @@ namespace Cluckwork.Application.Modules.Access.Users.CreateUser;
 
 public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
 {
-    public const string AdminRole = Cluckwork.Domain.Accounts.Roles.Owner;
+    public const string AdminRole = Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner;
     public const string WorkerRole = "Worker";
 
     public CreateUserValidator()
@@ -28,7 +28,7 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
             .MaximumLength(Cluckwork.Application.Modules.Access.Users.PasswordRules.MaxLength)
             .WithErrorCode("User.Password.MaxLength");
         RuleFor(x => x.Role)
-            .Must(r => r == WorkerRole || Cluckwork.Domain.Accounts.Roles.Assignable.Contains(r))
+            .Must(r => r == WorkerRole || Cluckwork.Domain.Modules.Farm.Accounts.Roles.Assignable.Contains(r))
             .WithMessage("Role must be Admin (owner), Manager, Sales, ReadOnly, or Worker.")
             .WithErrorCode("User.Role.Allowed");
         // #163 — Name is optional; only its length is bounded.

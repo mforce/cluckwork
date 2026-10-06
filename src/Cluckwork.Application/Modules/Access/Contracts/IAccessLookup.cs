@@ -7,7 +7,7 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 public interface IAccessLookup
 {
     // Null when the user is not an ACTIVE member of the account (#612).
-    Task<Cluckwork.Domain.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
+    Task<Cluckwork.Domain.Modules.Farm.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
         Guid accountId, Guid userId, CancellationToken ct = default);
 
     // Null means account-wide access: zero rows or any farm-wide row.

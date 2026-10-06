@@ -45,8 +45,8 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
         // #612 — only a plain Worker is ever flock-scoped. Owner, Manager,
         // Sales, ReadOnly and Denied all bypass assignment rows entirely —
         // their route permissions are a separate, untouched surface.
-        if (Cluckwork.Domain.Accounts.Roles.ResolveEffective(user.Roles)
-            != Cluckwork.Domain.Accounts.EffectiveAccountRole.Worker)
+        if (Cluckwork.Domain.Modules.Farm.Accounts.Roles.ResolveEffective(user.Roles)
+            != Cluckwork.Domain.Modules.Farm.Accounts.EffectiveAccountRole.Worker)
         {
             scope.Resolve(true, []);
             await next(context);

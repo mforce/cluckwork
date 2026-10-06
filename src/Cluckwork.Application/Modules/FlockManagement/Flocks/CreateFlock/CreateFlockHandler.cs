@@ -1,7 +1,7 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
 namespace Cluckwork.Application.Modules.FlockManagement.Flocks.CreateFlock;

@@ -53,7 +53,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     private async Task<(string Email, Guid Id)> SeedSecondOwnerAsync(HttpClient admin, Guid accountId)
     {
         var email = $"coowner-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Accounts.Roles.Owner);
+        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner);
         return (email, (await FindUserAsync(admin, email)).Id);
     }
 
@@ -862,7 +862,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
         var beforeRevoke = timeProvider.GetUtcNow();

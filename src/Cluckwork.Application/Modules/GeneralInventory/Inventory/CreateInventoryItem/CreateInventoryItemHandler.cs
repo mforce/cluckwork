@@ -1,8 +1,8 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 
 namespace Cluckwork.Application.Modules.GeneralInventory.Inventory.CreateInventoryItem;

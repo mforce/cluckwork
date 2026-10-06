@@ -82,6 +82,6 @@ internal static partial class RealModuleLedger
         new("simulation_seed_state", "Platform",
             "The simulation seed's per-account bookmark belongs to the seed verb, not to a module (#279)."),
         new("UserRoleAssignments", "Access",
-            "Design 3.3 assigns flock role assignments to Access; the CLR type remains in Cluckwork.Domain.Accounts, owned by Farm. No namespace move is authorized by this ledger."),
+            "Design 3.3 assigns flock role assignments to Access; the CLR type remains in Cluckwork.Domain.Modules.Farm.Accounts, owned by Farm. No namespace move is authorized by this ledger."),
     ];
 }

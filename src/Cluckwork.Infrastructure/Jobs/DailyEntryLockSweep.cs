@@ -1,6 +1,6 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
+using Cluckwork.Application.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -11,8 +11,8 @@ import { forgetBannerFor } from "../lib/bannerCache";
 // profile uses.
 const KEY = "cluckwork.farmCodes";
 
-// An independent COPY of Account.SlugPattern (src/Cluckwork.Domain/Accounts/
-// Account.cs:36) in a different language — nothing here enforces that the two
+// An independent COPY of Account.SlugPattern (src/Cluckwork.Domain/Modules/Farm/
+// Accounts/Account.cs:42) in a different language — nothing here enforces that the two
 // stay in sync. Drift is fail-safe in the security sense: neither direction can
 // make an INVALID code acceptable. But the two directions cost very differently.
 // (a) JS looser than the server: an over-permissive cached or URL value reaches

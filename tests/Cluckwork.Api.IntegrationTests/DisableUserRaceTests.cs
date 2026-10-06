@@ -44,7 +44,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
     {
         var accountId = await factory.SeedAccountWithUserAsync(emails[0]);
         foreach (var email in emails.Skip(1))
-            await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Accounts.Roles.Owner);
+            await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner);
         return accountId;
     }
 
@@ -102,7 +102,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
             from ur in db.UserRoles
             join r in db.Roles on ur.RoleId equals r.Id
             join u in db.Users on ur.UserId equals u.Id
-            where r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+            where r.Name == Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner
                 && u.AccountId == accountId
                 && u.DisabledAt == null
             select u.Id).CountAsync());

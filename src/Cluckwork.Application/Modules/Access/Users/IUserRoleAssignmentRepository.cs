@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 
 namespace Cluckwork.Application.Modules.Access.Users;
 

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Cluckwork.Api.Configuration;
-using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Hosting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

@@ -1,5 +1,5 @@
-using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Media;
+using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Media;
 
 namespace Cluckwork.Domain.Tests.Accounts;
 

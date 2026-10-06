@@ -66,7 +66,7 @@ public sealed class UserRoleTenantWriteTests(CluckworkWebApplicationFactory fact
         return await factory.WithTenantScopeAsync(accountA, async db =>
         {
             var userB = await db.Users.IgnoreQueryFilters().Where(u => u.Email == emailB).Select(u => u.Id).SingleAsync();
-            var ownerRoleId = await db.Roles.Where(r => r.Name == Cluckwork.Domain.Accounts.Roles.Owner).Select(r => r.Id).SingleAsync();
+            var ownerRoleId = await db.Roles.Where(r => r.Name == Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner).Select(r => r.Id).SingleAsync();
             var probeRoleId = await db.Roles.Where(r => r.Name == ProbeRole).Select(r => r.Id).SingleAsync();
             return new TwoFarms(accountA, accountB, userB, ownerRoleId, probeRoleId);
         });

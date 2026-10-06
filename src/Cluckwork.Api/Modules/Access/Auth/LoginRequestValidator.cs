@@ -1,5 +1,5 @@
 using Cluckwork.Application.Modules.Access.Users;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using FluentValidation;
 
 namespace Cluckwork.Api.Modules.Access.Auth;

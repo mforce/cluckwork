@@ -1,6 +1,5 @@
 using Cluckwork.Api;
 using Cluckwork.Api.Cli;
-using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.ClientErrors;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Hosting.Modules;
@@ -14,6 +13,7 @@ using Cluckwork.Api.Modules.Commerce.Sales;
 using Cluckwork.Api.Modules.EggOperations.DailyEntries;
 using Cluckwork.Api.Modules.EggOperations.EggGrades;
 using Cluckwork.Api.Modules.EggOperations.Stock;
+using Cluckwork.Api.Modules.Farm.Accounts;
 using Cluckwork.Api.Modules.Finance.Expenses;
 using Cluckwork.Api.Modules.FlockManagement.Flocks;
 using Cluckwork.Api.Modules.GeneralInventory.Inventory;

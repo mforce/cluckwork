@@ -1,5 +1,6 @@
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
@@ -10,7 +11,6 @@ using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;

@@ -1,7 +1,7 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Finance.Contracts;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 
 namespace Cluckwork.Application.Modules.Finance.Expenses.CreateExpenseCategory;
