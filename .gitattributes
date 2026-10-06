@@ -24,6 +24,11 @@ docs/schema/**        linguist-generated=true
 **/packages.lock.json linguist-generated=true
 **/package-lock.json  linguist-generated=true
 
+# graphify writes graph.json pretty-printed (~1M lines, ~40 MB), so a refresh
+# diff is too large for GitHub to render. `-diff` makes git treat it as binary;
+# the delta counts in the refresh PR body are the review.
+graphify-out/graph.json linguist-generated=true -diff
+
 # Binary — never diffed, never line-ending-normalised.
 *.png binary
 *.jpg binary
