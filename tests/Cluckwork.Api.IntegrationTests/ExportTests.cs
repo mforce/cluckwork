@@ -1,6 +1,6 @@
 using Cluckwork.Application.Modules.Insights.Contracts;
 using Cluckwork.Application.Modules.Insights.Export;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Insights.Repositories;
 using System.IO.Compression;
 using System.Net;

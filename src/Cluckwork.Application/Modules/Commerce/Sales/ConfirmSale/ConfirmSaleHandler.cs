@@ -4,10 +4,11 @@ using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Sales;
-using Cluckwork.Domain.Modules.Farm.Accounts;
 using System.Globalization;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Application.Modules.Commerce.Sales.ConfirmSale;

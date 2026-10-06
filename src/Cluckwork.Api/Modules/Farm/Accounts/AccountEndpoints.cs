@@ -4,6 +4,7 @@ using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Validation;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.Extensions.Options;

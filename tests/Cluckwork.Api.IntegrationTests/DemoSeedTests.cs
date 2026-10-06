@@ -1,5 +1,4 @@
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
-using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net.Http.Headers;

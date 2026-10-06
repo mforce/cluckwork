@@ -99,7 +99,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         // needs locale/currency/timezone as much as an owner does.
         var (_, accountId, _) = await AdminAsync();
         var viewerEmail = $"v-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, viewerEmail, Cluckwork.Domain.Modules.Farm.Accounts.Roles.ReadOnly);
+        await factory.SeedUserAsync(accountId, viewerEmail, Cluckwork.Domain.Modules.Farm.Contracts.Roles.ReadOnly);
         var viewer = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(viewerEmail));
 
         var account = await GetAccountAsync(viewer);
@@ -208,8 +208,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     // Every role that is not the gate gets its own case. A broad "non-owner"
     // assertion can miss a single role that remains admitted.
     [Theory]
-    [InlineData(Cluckwork.Domain.Modules.Farm.Accounts.Roles.Sales)]
-    [InlineData(Cluckwork.Domain.Modules.Farm.Accounts.Roles.ReadOnly)]
+    [InlineData(Cluckwork.Domain.Modules.Farm.Contracts.Roles.Sales)]
+    [InlineData(Cluckwork.Domain.Modules.Farm.Contracts.Roles.ReadOnly)]
     public async Task SettingsWrite_IsRefusedTo(string role)
     {
         var (admin, accountId, _) = await AdminAsync();
@@ -231,7 +231,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         var current = await GetAccountAsync(admin);
 
         var email = $"m-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Manager);
+        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Manager);
         var manager = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync(SettingsPath)).StatusCode);
@@ -620,7 +620,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
 
         var email = $"m-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(
-            accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Manager);
+            accountId, email, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Manager);
         var manager = factory.CreateAuthedClient(
             await factory.LoginForAccessTokenAsync(email));
 

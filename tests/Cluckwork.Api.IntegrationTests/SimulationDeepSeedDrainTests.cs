@@ -1,7 +1,6 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
-using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;

@@ -3,6 +3,7 @@ using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -56,7 +57,7 @@ internal static class TestHarness
     public static Task SeedUserAsync(
         this CluckworkWebApplicationFactory factory, Guid accountId, string email, bool asAdmin) =>
         factory.SeedUserAsync(accountId, email,
-            asAdmin ? Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner : null);
+            asAdmin ? Cluckwork.Domain.Modules.Farm.Contracts.Roles.Owner : null);
 
     // #103 — seed a user with any role (null = plain worker).
     public static async Task SeedUserAsync(
@@ -99,7 +100,7 @@ internal static class TestHarness
     // (rather than another SeedUserAsync overload) because this is a rare,
     // deliberately-flagged shape, not a general seeding knob.
     public static async Task<Guid> SeedUserPendingPasswordChangeAsync(
-        this CluckworkWebApplicationFactory factory, Guid accountId, string email, string? role = Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner)
+        this CluckworkWebApplicationFactory factory, Guid accountId, string email, string? role = Cluckwork.Domain.Modules.Farm.Contracts.Roles.Owner)
     {
         using var scope = factory.Services.CreateScope();
         // #670 — a role write happens under a resolved tenant, as in production.
