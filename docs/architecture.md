@@ -1,14 +1,118 @@
-# Architecture — the two orders that matter
+# App architecture and components
 
-Two things in this system are **ordered**, easy to get wrong, and described in
-prose that nobody can hold in their head: the request pipeline, and the egg
-loop's state machine. Both are drawn here, from the code rather than from the
-prose — every claim below was read out of the files named beside it.
+Start with the deployment, then the code layers, then the feature modules.
+For implementation detail, jump to the [request pipeline](#the-request-pipeline),
+[egg loop](#the-egg-loop), or [module coupling matrix](../tests/Cluckwork.Application.Tests/Architecture/Data/coupling-matrix.md).
+Rules live in [`src/AGENTS.md`](../src/AGENTS.md); their reasoning lives in [`decisions/`](decisions/).
 
-Layering (`Api` → `Application`/`Infrastructure` → `Domain`, and `Domain`
-depends on nothing) is in [the README](../README.md#architecture). The rules
-these diagrams illustrate live in [`src/AGENTS.md`](../src/AGENTS.md); the reasoning
-behind each lives in [`docs/decisions/`](decisions/).
+## Deployment
+
+The reference production stack has one serving API container. It serves both
+SPA assets and API requests. The React SPA runs in the browser.
+
+```mermaid
+flowchart LR
+    browser["Browser<br/>React SPA"] -->|HTTPS| proxy["Traefik<br/>TLS routing"]
+    proxy -->|HTTP| api[".NET API<br/>SPA assets + /api/v1"]
+    api --> db[("Postgres<br/>persistent data")]
+    api --> redis[("Redis<br/>shared state")]
+```
+
+| Component | Responsibility |
+|---|---|
+| Browser | Runs the React UI and sends API requests |
+| Traefik | Routes HTTPS traffic in Compose's `prod` profile |
+| .NET API | Serves the SPA and endpoints; runs background jobs and sweeps |
+| Postgres | Stores farm data, Identity, audit records and jobs; coordinates the job leader lease |
+| Redis | Shares claims, rate-limit counters and report leases |
+
+Before the API starts, a separate `migrate` container applies the schema and
+exits. Local Compose access bypasses Traefik at `http://localhost:8080`.
+For Vite and Aspire, see the [development runbook](runbooks/aspire-local-development.md).
+Redis fallback behavior is covered by the [single-instance rule](../src/AGENTS.md#deploy-invariant-exactly-one-serving-api-instance-271).
+
+Sources: [`Compose`](../deploy/docker-compose.yml),
+[`Dockerfile`](../src/Cluckwork.Api/Dockerfile),
+[`Program.cs`](../src/Cluckwork.Api/Program.cs),
+[`DurableJobWorker`](../src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs).
+
+## Code layers
+
+Solid arrows are runtime project references; Domain has none. Each project
+keeps one folder per module, `Modules/<Module>/`, beside the shared Platform
+code. The dashed links are build and development references only.
+
+```mermaid
+flowchart LR
+    subgraph runtime["Runtime projects"]
+        api["Api"] --> application["Application"]
+        api --> infrastructure["Infrastructure"]
+        api --> domain["Domain"]
+        infrastructure --> application
+        infrastructure --> domain
+        application --> domain
+    end
+    apphost["AppHost<br/>local dev stack"] -. dev host .-> api
+    runtime -. "analyzer (all four)" .-> analyzers["Analyzers<br/>module-edge analyzer"]
+```
+
+| Project | Responsibility |
+|---|---|
+| Api | `Modules/<Module>/` endpoints (Platform-owned adapters that use only the module's contract); middleware, CLI and registration |
+| Application | `Modules/<Module>/` handlers, validators and repository interfaces; each module's public types in `Contracts/` |
+| Infrastructure | `Modules/<Module>/` repositories, EF configurations and Identity; persistence core, jobs and seeding |
+| Domain | `Modules/<Module>/` aggregates and value objects, with contract enums in `Contracts/`; results and auditing |
+| Analyzers | Reports undeclared module edges at compile time; ships no runtime assembly |
+| AppHost | Starts the local Aspire stack; never a deploy path |
+
+Sources: [`Api`](../src/Cluckwork.Api/Cluckwork.Api.csproj),
+[`Application`](../src/Cluckwork.Application/Cluckwork.Application.csproj),
+[`Infrastructure`](../src/Cluckwork.Infrastructure/Cluckwork.Infrastructure.csproj),
+[`Domain`](../src/Cluckwork.Domain/Cluckwork.Domain.csproj),
+[`AppHost`](../src/Cluckwork.AppHost/Cluckwork.AppHost.csproj).
+
+## Feature modules
+
+This is a grouped inventory of responsibilities, not a dependency graph. Each
+module owns a `Modules/<Module>/` folder in every project it spans. Endpoints
+and other modules reach it through its `Contracts/` (Farm also declares a small seam). Platform is the shared hub any
+module may use.
+
+```mermaid
+flowchart LR
+    subgraph administration["Farm administration"]
+        direction TB
+        Access["Access<br/>users and Identity"]
+        Farm["Farm<br/>account settings and media"]
+        Access ~~~ Farm
+    end
+    subgraph operations["Farm operations"]
+        direction TB
+        FlockManagement["FlockManagement<br/>flocks and bird movements"]
+        EggOperations["EggOperations<br/>daily entries, grades and lots"]
+        GeneralInventory["GeneralInventory<br/>inventory, feed and water"]
+        FlockManagement ~~~ EggOperations ~~~ GeneralInventory
+    end
+    subgraph business["Sales and expenses"]
+        direction TB
+        Commerce["Commerce<br/>catalog, customers and sales"]
+        Finance["Finance<br/>expenses and categories"]
+        Commerce ~~~ Finance
+    end
+    subgraph reporting["Reporting"]
+        direction TB
+        Insights["Insights<br/>audit, reports and exports"]
+    end
+    Platform["Platform<br/>shared hosting, persistence and common code"]
+    administration ~~~ operations ~~~ business ~~~ reporting
+    reporting ~~~ Platform
+```
+
+The group headings organize the diagram; the module names come from the
+[module rules](../src/Cluckwork.Domain/Common/Architecture/Modules/), and
+`CouplingMatrixRealTreeTests` fails when this diagram names a different set of
+owners. For read/write dependencies, foreign keys and adapter reach, use the
+generated [coupling matrix](../tests/Cluckwork.Application.Tests/Architecture/Data/coupling-matrix.md).
 
 ## The request pipeline
 

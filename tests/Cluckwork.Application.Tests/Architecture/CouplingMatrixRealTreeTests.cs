@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Cluckwork.Application.Tests.TenantBypass;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,24 @@ public sealed class CouplingMatrixRealTreeTests
             .ThenBy(pair => pair.To, StringComparer.Ordinal).ToArray();
 
         Assert.Equal(declared, generated);
+    }
+
+    // docs/architecture.md groups the modules by responsibility without arrows; this keeps its node set equal to the
+    // ledger's owners, so a module added, renamed or removed in the rules cannot be missed there.
+    [Fact]
+    public void RealTree_FeatureModuleDiagramNamesExactlyTheLedgerOwners()
+    {
+        var repoRoot = GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
+            ?? throw new InvalidOperationException("repo root not found");
+        var document = File.ReadAllText(Path.Combine(repoRoot, "docs", "architecture.md"));
+        var section = Regex.Match(document, @"^## Feature modules\r?\n.*?```mermaid\r?\n(.*?)```",
+            RegexOptions.Singleline | RegexOptions.Multiline);
+        Assert.True(section.Success, "docs/architecture.md has no mermaid block under '## Feature modules'");
+        var named = Regex.Matches(section.Groups[1].Value, @"^\s*(\w+)\[", RegexOptions.Multiline)
+            .Select(match => match.Groups[1].Value).Order(StringComparer.Ordinal).ToArray();
+        var owners = RealModuleLedger.Value.Owners.Select(owner => owner.Name).Order(StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(owners, named);
     }
 
     private static TableOwnerReport ScanTables(ModuleLedger ledger)

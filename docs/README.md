@@ -4,7 +4,7 @@ Four kinds of document, four different questions.
 
 | Directory | Answers | Audience |
 |---|---|---|
-| [`architecture.md`](architecture.md) | *What order do things happen in?* | Anyone touching middleware or an aggregate's states |
+| [`architecture.md`](architecture.md) | *What are the components, dependencies and runtime flows?* | Anyone learning the app or changing its structure |
 | [`runbooks/`](runbooks/) | *How do I operate it under pressure?* | Whoever is on the host at 03:00 |
 | [`decisions/`](decisions/) | *Why is it shaped this way?* | Anyone about to "simplify" a rule |
 | [`schema/`](schema/) | *What is actually in the database?* | Generated — never hand-edited (#417) |
