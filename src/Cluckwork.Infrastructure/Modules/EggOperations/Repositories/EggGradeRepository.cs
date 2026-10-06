@@ -1,0 +1,46 @@
+using Cluckwork.Application.Modules.EggOperations.EggGrades;
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Modules.EggOperations.Repositories;
+
+public sealed class EggGradeRepository(AppDbContext db) : IEggGradeRepository
+{
+    // Reads rely on the tenant query filter (AccountId == current tenant).
+    public Task<EggGrade?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+        db.EggGrades.FirstOrDefaultAsync(g => g.Id == id, ct);
+
+    public async Task<IReadOnlyList<EggGrade>> ListActiveAsync(Guid? farmId = null, CancellationToken ct = default) =>
+        await db.EggGrades
+            .AsNoTracking()
+            .Where(g => g.Active && (farmId == null || g.FarmId == farmId))
+            .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<EggGrade>> ListAllAsync(CancellationToken ct = default) =>
+        await db.EggGrades
+            .AsNoTracking()
+            .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, string>> GetDisplayNamesAsync(
+        IReadOnlyCollection<Guid> gradeIds, CancellationToken ct = default) =>
+        await db.EggGrades.AsNoTracking()
+            .Where(g => gradeIds.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, g => g.Name, ct);
+
+    public Task<bool> NameExistsAsync(
+        Guid farmId, string name, Guid? excludeId = null, CancellationToken ct = default)
+    {
+        var normalized = name.Trim().ToLower();
+        return db.EggGrades.AnyAsync(
+            g => g.FarmId == farmId
+                 && g.Name.ToLower() == normalized
+                 && (excludeId == null || g.Id != excludeId),
+            ct);
+    }
+
+    public async Task AddAsync(EggGrade entity, CancellationToken ct = default) =>
+        await db.EggGrades.AddAsync(entity, ct);
+}

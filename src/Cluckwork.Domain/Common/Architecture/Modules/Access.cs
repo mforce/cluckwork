@@ -6,7 +6,7 @@ namespace Cluckwork.Domain.Common.Architecture;
         "Cluckwork.Infrastructure.Modules.Access",
     ],
     Implementations = [
-        "Cluckwork.Infrastructure.Repositories.UserRoleAssignmentRepository",
+        "Cluckwork.Infrastructure.Modules.Access.Repositories.UserRoleAssignmentRepository",
     ])]
 [ModuleEdge(
     "Access", "Commerce", "W",

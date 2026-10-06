@@ -47,7 +47,7 @@
 - [ ] **Step 2: Add the package + project reference; regenerate locks; build green.**
   `dotnet restore --locked-mode` after editing csproj must pass; if the lock is stale, `dotnet restore` then commit the updated locks. Build must end `0 Warning(s) 0 Error(s)`.
 - [ ] **Step 2b: Probe the discovery API** (review M1): throwaway fact asserting `model.GetEntityTypes().Single(e => e.ClrType == typeof(Account)).GetDeclaredQueryFilters()` is non-empty and `typeof(ApplicationUser)`'s is empty/null. Delete the probe after it passes; the floor test (Step 1) keeps the pin.
-- [ ] **Step 3: Red test — walk finds the known occurrences.** `Walk_FindsEveryBannedOccurrenceInSource`: run the scanner against the repo's real `src/` with the empty allow-list; assert the `IgnoreQueryFilters` occurrence count is **≥ 36** (current baseline: 36 code occurrences, 16 in comments — comments must NOT count) and that `src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs` appears. Record the RED reason (count 0 / exception).
+- [ ] **Step 3: Red test — walk finds the known occurrences.** `Walk_FindsEveryBannedOccurrenceInSource`: run the scanner against the repo's real `src/` with the empty allow-list; assert the `IgnoreQueryFilters` occurrence count is **≥ 36** (current baseline: 36 code occurrences, 16 in comments — comments must NOT count) and that `src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs` appears. Record the RED reason (count 0 / exception).
 - [ ] **Step 4: Implement `GuardScanner` minimally** to pass. Banned kinds (ALL of them — review M3: the design's Identity ban had no implementing task):
   - `IgnoreQueryFilters` invocations (any receiver);
   - `FromSql*`/`ExecuteSql*`/`SqlQuery` invocations;

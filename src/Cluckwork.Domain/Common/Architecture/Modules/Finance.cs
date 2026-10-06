@@ -4,11 +4,12 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Domain.Modules.Finance",
         "Cluckwork.Application.Modules.Finance",
+        "Cluckwork.Infrastructure.Modules.Finance",
     ],
     Implementations = [
-        "Cluckwork.Infrastructure.Repositories.ExpenseCategoryRepository",
-        "Cluckwork.Infrastructure.Repositories.ExpenseRepository",
-        "Cluckwork.Infrastructure.Repositories.FinanceFixture",
+        "Cluckwork.Infrastructure.Modules.Finance.Repositories.ExpenseCategoryRepository",
+        "Cluckwork.Infrastructure.Modules.Finance.Repositories.ExpenseRepository",
+        "Cluckwork.Infrastructure.Modules.Finance.Repositories.FinanceFixture",
     ])]
 [ModuleEdge(
     "Finance", "Farm", "R",

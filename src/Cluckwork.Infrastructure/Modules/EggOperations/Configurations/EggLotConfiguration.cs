@@ -1,0 +1,33 @@
+using Cluckwork.Domain.Modules.EggOperations.Eggs;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cluckwork.Infrastructure.Modules.EggOperations.Configurations;
+
+public sealed class EggLotConfiguration : IEntityTypeConfiguration<EggLot>
+{
+    public void Configure(EntityTypeBuilder<EggLot> builder)
+    {
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.AccountId).IsRequired();
+        builder.Property(e => e.FlockId).IsRequired();
+        builder.Property(e => e.EggGradeId).IsRequired();
+
+        builder.HasOne<EggGrade>()
+            .WithMany()
+            .HasForeignKey(e => e.EggGradeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(e => e.QuantityProduced).IsRequired();
+        builder.Property(e => e.QuantityAvailable).IsRequired();
+        builder.Property(e => e.Version).IsConcurrencyToken();
+
+        // Index supporting FIFO allocation queries
+        builder.HasIndex(e => new { e.AccountId, e.EggGradeId, e.ProductionDate, e.QuantityAvailable })
+            .HasDatabaseName("IX_EggLots_Allocation");
+
+        // Entry adjust/void locks lots by their generating entry (#69).
+        // ID-only reference by convention (no FK) — null on pre-link lots.
+        builder.HasIndex(e => e.DailyEntryId)
+            .HasDatabaseName("IX_EggLots_DailyEntryId");
+    }
+}

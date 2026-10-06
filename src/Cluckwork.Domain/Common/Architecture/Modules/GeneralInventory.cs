@@ -4,14 +4,15 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Domain.Modules.GeneralInventory",
         "Cluckwork.Application.Modules.GeneralInventory",
+        "Cluckwork.Infrastructure.Modules.GeneralInventory",
     ],
     Implementations = [
-        "Cluckwork.Infrastructure.Repositories.FeedUsageRepository",
-        "Cluckwork.Infrastructure.Repositories.InventoryFixture",
-        "Cluckwork.Infrastructure.Repositories.InventoryItemRepository",
-        "Cluckwork.Infrastructure.Repositories.InventoryLotRepository",
-        "Cluckwork.Infrastructure.Repositories.InventoryMovementRepository",
-        "Cluckwork.Infrastructure.Repositories.WaterUsageRepository",
+        "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.FeedUsageRepository",
+        "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.InventoryFixture",
+        "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.InventoryItemRepository",
+        "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.InventoryLotRepository",
+        "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.InventoryMovementRepository",
+        "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.WaterUsageRepository",
     ])]
 [ModuleEdge(
     "GeneralInventory", "EggOperations", "R",

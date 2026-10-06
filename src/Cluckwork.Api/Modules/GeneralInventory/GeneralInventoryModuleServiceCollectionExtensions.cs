@@ -7,7 +7,7 @@ using Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordPurchase;
 using Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordWaterUsage;
 using Cluckwork.Application.Modules.GeneralInventory.Inventory.UpdateInventoryItem;
 using Cluckwork.Application.Modules.GeneralInventory.Inventory.UpdateWaterUsage;
-using Cluckwork.Infrastructure.Repositories;
+using Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories;
 using FluentValidation;
 
 namespace Cluckwork.Api.Modules.GeneralInventory;

@@ -75,64 +75,64 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.EggOperationsFixture.ListSaleableGradeNamesAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/EggOperationsFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggOperationsFixture.ListSaleableGradeNamesAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggOperationsFixture.cs",
             Hash = "2caae988",
             Justification = "Non-Production simulation fixture port (#858); the seeder calls it at unresolved tenant by design (#279), scoped to the seeded account via explicit AccountId.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.FarmFixture.AccountExistsAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/FarmFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.FarmFixture.AccountExistsAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/FarmFixture.cs",
             Hash = "12f8f221",
             Justification = "Non-Production simulation fixture port (#858); checks one farm's existence by id before the tenant is resolved, and the second, pristine farm's existence while the seeder's tenant is the primary farm (#279).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.FarmFixture.CountAccountsAsync(CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/FarmFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.FarmFixture.CountAccountsAsync(CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/FarmFixture.cs",
             Hash = "1b637014",
             Justification = "Non-Production simulation fixture port (#858); the manifest certifies exactly two farms on the deployment, so the count spans every farm by design (#279).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.AccountRepository.GetCurrentSharedLockedAsync(CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.AccountRepository.GetCurrentSharedLockedAsync(CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/AccountRepository.cs",
             Hash = "ac2376cc",
             Justification = "FOR SHARE lock on the current tenant's account row; the raw SQL carries WHERE \"Id\" = {tenant.AccountId} (the lock must be inside the raw SQL or it would lock every tenant's row, #162).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.AccountRepository.GetCurrentLockedAsync(CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.AccountRepository.GetCurrentLockedAsync(CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/AccountRepository.cs",
             Hash = "7ca724a5",
             Justification = "FOR UPDATE lock on the current tenant's account row; the raw SQL carries WHERE \"Id\" = {tenant.AccountId} (#162).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.AccountRepository.FindBySlugAsync(string slug, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.AccountRepository.FindBySlugAsync(string slug, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/AccountRepository.cs",
             Hash = "bb7e30c6",
             Justification = "Resolves an account by its global slug (slugs are unique across farms) for farm-code login, before any tenant is resolved. Only login may call it (FindBySlugCallerTests, #1053).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.AccountRepository.ListTimeZonesAsync(CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.AccountRepository.ListTimeZonesAsync(CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/AccountRepository.cs",
             Hash = "87a3545f",
             Justification = "IFarmDirectory (#858): lists every farm's id and time zone for the daily-entry lock sweep, which runs with no tenant resolved under the single-leader gate (#271) and then resolves one tenant scope per farm. Only the operator verbs and jobs may call the directory (FarmDirectoryCallerTests).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.AccountRepository.ListAsync(CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.AccountRepository.ListAsync(CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/AccountRepository.cs",
             Hash = "9ddba700",
             Justification = "IFarmDirectory (#858): list-accounts prints every farm's code, name and active state for the operator; no tenant is resolved. Only the operator verbs and jobs may call the directory (FarmDirectoryCallerTests).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.AccountRepository.FindIdBySlugAsync(string slug, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Farm.Repositories.AccountRepository.FindIdBySlugAsync(string slug, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/AccountRepository.cs",
             Hash = "878bff76",
             Justification = "IFarmDirectory (#858): the operator verbs resolve a farm by its global code (slugs are unique across farms) before any tenant is resolved. Only the operator verbs and jobs may call the directory (FarmDirectoryCallerTests).",
         },
@@ -145,120 +145,120 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.DailyEntryRepository.GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/DailyEntryRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.DailyEntryRepository.GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/DailyEntryRepository.cs",
             Hash = "0c8e7a59",
             Justification = "#388 write-side authorization lookup: bypasses the combined tenant+flock query filter so an OWN-account unassigned draft reaches FlockScopeGuard (preserving the 422 contract), then reinstates tenant isolation explicitly with e.AccountId == accountId so a foreign-account id still reads as null. READ endpoints never call this method and stay symmetric 404.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.FlockRepository.GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockRepository.GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockRepository.cs",
             Hash = "cfe394af",
             Justification = "#388 post-authorization lifecycle lookup: after live FlockScopeGuard succeeds, bypasses the request-start flock snapshot so a newly assigned flock is lifecycle-checked; explicitly reinstates AccountId so foreign ids remain null. Read endpoints never call it.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.FlockRepository.GetReadOnlyForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockRepository.GetReadOnlyForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockRepository.cs",
             Hash = "34fd3754",
             Justification = "#1022 untracked twin of GetByIdForFlockScopedWriteAsync, same query plus AsNoTracking, for IFlockLookup's snapshot reads: after live FlockScopeGuard succeeds, bypasses the request-start flock snapshot and explicitly reinstates AccountId so foreign ids remain null. Read endpoints never call it.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.DailyEntryRepository.FindByNaturalKeyForFlockScopedWriteAsync(Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/DailyEntryRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.DailyEntryRepository.FindByNaturalKeyForFlockScopedWriteAsync(Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/DailyEntryRepository.cs",
             Hash = "64d57feb",
             Justification = "#388 post-live-guard write/provenance natural-key lookup: bypasses the request-start flock snapshot so RecordDailyEntry, RecordFeedUsage and RecordWaterUsage see a newly assigned sibling's live entry state; reinstates AccountId explicitly and keeps the full natural key plus non-Voided predicate. Read endpoints never call it.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetAvailableFifoLockedAsync(Guid accountId, IReadOnlyList<Guid> eggGradeIds, DateOnly allocationDate, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggLotRepository.GetAvailableFifoLockedAsync(Guid accountId, IReadOnlyList<Guid> eggGradeIds, DateOnly allocationDate, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs",
             Hash = "7e62c706",
             Justification = "FIFO sale-allocation lock; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement so only this tenant's lots are locked (#313).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetByIdsLockedAsync(Guid accountId, IReadOnlyList<Guid> lotIds, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggLotRepository.GetByIdsLockedAsync(Guid accountId, IReadOnlyList<Guid> lotIds, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs",
             Hash = "6ba7c407",
             Justification = "Void-restore lock on specific lots; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement (#60, #313).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetByDailyEntryLockedAsync(Guid accountId, Guid dailyEntryId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggLotRepository.GetByDailyEntryLockedAsync(Guid accountId, Guid dailyEntryId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs",
             Hash = "12c16148",
             Justification = "Locks the lots generated by a daily entry; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.InventoryItemRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/InventoryItemRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.InventoryItemRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryItemRepository.cs",
             Hash = "03d9c68f",
             Justification = "FOR UPDATE on an inventory item; the raw SQL carries WHERE \"Id\" = {id} AND \"AccountId\" = {accountId} so a foreign-tenant id matches no row and the lock is never attempted against it (#313).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.InventoryLotRepository.GetAvailableFifoLockedAsync(Guid accountId, Guid inventoryItemId, DateOnly asOfDate, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.InventoryLotRepository.GetAvailableFifoLockedAsync(Guid accountId, Guid inventoryItemId, DateOnly asOfDate, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryLotRepository.cs",
             Hash = "213d24c4",
             Justification = "FIFO inventory-allocation lock; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.InventoryLotRepository.GetByIdLockedAsync(Guid accountId, Guid lotId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories.InventoryLotRepository.GetByIdLockedAsync(Guid accountId, Guid lotId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryLotRepository.cs",
             Hash = "53bda742",
             Justification = "FOR UPDATE on an inventory lot; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.SalesOrderRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/SalesOrderRepository.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Commerce.Repositories.SalesOrderRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/SalesOrderRepository.cs",
             Hash = "5ffbb895",
             Justification = "FOR UPDATE on a sales order; the raw SQL carries WHERE \"Id\" = {id} AND \"AccountId\" = {accountId} so a foreign-tenant id matches no row (#313).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.CommerceFixture.PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/CommerceFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.Commerce.Repositories.CommerceFixture.PurgeOrdersAndCustomersAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/CommerceFixture.cs",
             Hash = "f1dac703",
             Justification = "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's order lines, orders and customers inside the seeder's transaction, scoped by explicit AccountId (#280).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.EggOperationsFixture.AnyGradeAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/EggOperationsFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggOperationsFixture.AnyGradeAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggOperationsFixture.cs",
             Hash = "c1dc6262",
             Justification = "Non-Production demo fixture port (#858); the demo seeder's base-data check runs at unresolved tenant by design (#280), scoped by explicit AccountId.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.EggOperationsFixture.PurgeDailyEntriesAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/EggOperationsFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggOperationsFixture.PurgeDailyEntriesAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggOperationsFixture.cs",
             Hash = "e9b0e8f1",
             Justification = "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's egg movements, lots, entry grades and entries inside the seeder's transaction, scoped by explicit AccountId (#280).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.FlockFixture.AnyFlockAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/FlockFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockFixture.AnyFlockAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockFixture.cs",
             Hash = "5babdd1e",
             Justification = "Non-Production demo fixture port (#858); the demo seeder's already-seeded check runs at unresolved tenant by design (#280), scoped by explicit AccountId.",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.FlockFixture.PurgeBirdMovementsAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/FlockFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockFixture.PurgeBirdMovementsAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockFixture.cs",
             Hash = "3b782865",
             Justification = "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's bird movements inside the seeder's transaction, scoped by explicit AccountId (#280).",
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Repositories.FlockFixture.PurgeFlocksAsync(Guid accountId, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Repositories/FlockFixture.cs",
+            Symbol = "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockFixture.PurgeFlocksAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockFixture.cs",
             Hash = "6523050a",
             Justification = "Non-Production demo fixture port (#858); demo partial-seed cleanup deletes the farm's flocks inside the seeder's transaction, after Egg Operations' purge, scoped by explicit AccountId (#280).",
         },

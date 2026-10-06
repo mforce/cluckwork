@@ -4,11 +4,12 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Domain.Modules.FlockManagement",
         "Cluckwork.Application.Modules.FlockManagement",
+        "Cluckwork.Infrastructure.Modules.FlockManagement",
     ],
     Implementations = [
-        "Cluckwork.Infrastructure.Repositories.BirdMovementRepository",
-        "Cluckwork.Infrastructure.Repositories.FlockFixture",
-        "Cluckwork.Infrastructure.Repositories.FlockRepository",
+        "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.BirdMovementRepository",
+        "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockFixture",
+        "Cluckwork.Infrastructure.Modules.FlockManagement.Repositories.FlockRepository",
     ])]
 [ModuleEdge(
     "FlockManagement", "Farm", "R",

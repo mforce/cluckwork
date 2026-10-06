@@ -1,7 +1,10 @@
 using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Application.Modules.Farm.Contracts;
-using Cluckwork.Infrastructure.Repositories;
+using Cluckwork.Infrastructure.Modules.Commerce.Repositories;
+using Cluckwork.Infrastructure.Modules.Farm.Repositories;
+using Cluckwork.Infrastructure.Modules.Finance.Repositories;
+using Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories;
 using FluentValidation;
 using Microsoft.Extensions.Options;
 

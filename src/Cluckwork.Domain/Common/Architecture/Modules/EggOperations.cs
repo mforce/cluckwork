@@ -4,13 +4,14 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Domain.Modules.EggOperations",
         "Cluckwork.Application.Modules.EggOperations",
+        "Cluckwork.Infrastructure.Modules.EggOperations",
     ],
     Implementations = [
-        "Cluckwork.Infrastructure.Repositories.EggOperationsFixture",
-        "Cluckwork.Infrastructure.Repositories.DailyEntryRepository",
-        "Cluckwork.Infrastructure.Repositories.EggGradeRepository",
-        "Cluckwork.Infrastructure.Repositories.EggInventoryMovementRepository",
-        "Cluckwork.Infrastructure.Repositories.EggLotRepository",
+        "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggOperationsFixture",
+        "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.DailyEntryRepository",
+        "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggGradeRepository",
+        "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggInventoryMovementRepository",
+        "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggLotRepository",
     ])]
 [ModuleEdge(
     "EggOperations", "Farm", "R",

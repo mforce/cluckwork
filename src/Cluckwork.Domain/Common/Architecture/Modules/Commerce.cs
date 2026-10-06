@@ -4,15 +4,16 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Domain.Modules.Commerce",
         "Cluckwork.Application.Modules.Commerce",
+        "Cluckwork.Infrastructure.Modules.Commerce",
     ],
     Implementations = [
-        "Cluckwork.Infrastructure.Repositories.CustomerRepository",
-        "Cluckwork.Infrastructure.Repositories.CommerceFixture",
-        "Cluckwork.Infrastructure.Repositories.EggUnitConversionRepository",
-        "Cluckwork.Infrastructure.Repositories.PaymentRepository",
-        "Cluckwork.Infrastructure.Repositories.ProductRepository",
-        "Cluckwork.Infrastructure.Repositories.SalesOrderAllocationRepository",
-        "Cluckwork.Infrastructure.Repositories.SalesOrderRepository",
+        "Cluckwork.Infrastructure.Modules.Commerce.Repositories.CustomerRepository",
+        "Cluckwork.Infrastructure.Modules.Commerce.Repositories.CommerceFixture",
+        "Cluckwork.Infrastructure.Modules.Commerce.Repositories.EggUnitConversionRepository",
+        "Cluckwork.Infrastructure.Modules.Commerce.Repositories.PaymentRepository",
+        "Cluckwork.Infrastructure.Modules.Commerce.Repositories.ProductRepository",
+        "Cluckwork.Infrastructure.Modules.Commerce.Repositories.SalesOrderAllocationRepository",
+        "Cluckwork.Infrastructure.Modules.Commerce.Repositories.SalesOrderRepository",
     ])]
 [ModuleEdge(
     "Commerce", "Access", "R",

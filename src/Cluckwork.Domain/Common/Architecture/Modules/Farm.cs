@@ -4,11 +4,12 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Domain.Modules.Farm",
         "Cluckwork.Application.Modules.Farm",
+        "Cluckwork.Infrastructure.Modules.Farm",
     ],
     Implementations = [
-        "Cluckwork.Infrastructure.Repositories.AccountRepository",
-        "Cluckwork.Infrastructure.Repositories.FarmFixture",
-        "Cluckwork.Infrastructure.Repositories.FarmLogoRepository",
+        "Cluckwork.Infrastructure.Modules.Farm.Repositories.AccountRepository",
+        "Cluckwork.Infrastructure.Modules.Farm.Repositories.FarmFixture",
+        "Cluckwork.Infrastructure.Modules.Farm.Repositories.FarmLogoRepository",
     ],
     Seam = [
         "Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository",

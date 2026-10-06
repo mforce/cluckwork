@@ -27,7 +27,7 @@
 - Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/ApplicationUser.cs`
 - Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/RefreshToken.cs`
 - Modify: `src/Cluckwork.Infrastructure/Modules/Access/Identity/JwtTokenService.cs`
-- Modify: `src/Cluckwork.Infrastructure/Persistence/Configurations/ApplicationUserConfiguration.cs`
+- Modify: `src/Cluckwork.Infrastructure/Modules/Access/Configurations/ApplicationUserConfiguration.cs`
 - Modify: `src/Cluckwork.Infrastructure/Persistence/Migrations/20260801190854_InitialCreate.cs`
 - Modify: `src/Cluckwork.Infrastructure/Persistence/Migrations/AppDbContextModelSnapshot.cs`
 - Test: `tests/Cluckwork.Api.IntegrationTests/CredentialEpochTests.cs`

@@ -10,7 +10,7 @@ using Cluckwork.Application.Modules.EggOperations.EggGrades.SetEggGradeActive;
 using Cluckwork.Application.Modules.EggOperations.EggGrades.UpdateEggGrade;
 using Cluckwork.Application.Modules.EggOperations.EggLots;
 using Cluckwork.Application.Modules.EggOperations.EggLots.RecordEggLotMovement;
-using Cluckwork.Infrastructure.Repositories;
+using Cluckwork.Infrastructure.Modules.EggOperations.Repositories;
 using FluentValidation;
 
 namespace Cluckwork.Api.Modules.EggOperations;

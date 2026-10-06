@@ -1,7 +1,7 @@
 using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Infrastructure.Modules.Commerce.Repositories;
 using System.Text.RegularExpressions;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;

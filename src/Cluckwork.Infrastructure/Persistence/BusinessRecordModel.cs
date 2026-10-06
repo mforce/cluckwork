@@ -1,5 +1,9 @@
 using Cluckwork.Domain.Common;
-using Cluckwork.Infrastructure.Persistence.Configurations;
+using Cluckwork.Infrastructure.Modules.Commerce.Configurations;
+using Cluckwork.Infrastructure.Modules.EggOperations.Configurations;
+using Cluckwork.Infrastructure.Modules.Finance.Configurations;
+using Cluckwork.Infrastructure.Modules.FlockManagement.Configurations;
+using Cluckwork.Infrastructure.Modules.GeneralInventory.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

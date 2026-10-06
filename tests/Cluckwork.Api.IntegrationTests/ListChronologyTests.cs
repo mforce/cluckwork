@@ -10,9 +10,13 @@ using Cluckwork.Domain.Modules.Finance.Expenses;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
+using Cluckwork.Infrastructure.Modules.Commerce.Repositories;
+using Cluckwork.Infrastructure.Modules.EggOperations.Repositories;
+using Cluckwork.Infrastructure.Modules.Finance.Repositories;
+using Cluckwork.Infrastructure.Modules.FlockManagement.Repositories;
+using Cluckwork.Infrastructure.Modules.GeneralInventory.Repositories;
 using Cluckwork.Infrastructure.Modules.Insights.Repositories;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Repositories;
 
 namespace Cluckwork.Api.IntegrationTests;
 

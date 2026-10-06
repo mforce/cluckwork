@@ -120,7 +120,7 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
 - `src/Cluckwork.Infrastructure/Persistence/AppDbContextDesignTimeFactory.cs` (add `FlockScope` to manual `AppDbContext` construction at line 85)
 - `src/Cluckwork.Api/Program.cs` (register `FlockScope` as scoped, add middleware)
 - `src/Cluckwork.Api/Hosting/CluckworkFeatureServiceCollectionExtensions.cs` (register `FlockScope` as scoped)
-- `src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs` (add flock-scope predicates to raw-SQL call sites at lines 66, 85 — P1-3; line 38 (`GetAvailableFifoLockedAsync`) stays farm-wide, corrected 2026-08-27 per #611 round 1 / #612)
+- `src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs` (add flock-scope predicates to raw-SQL call sites at lines 66, 85 — P1-3; line 38 (`GetAvailableFifoLockedAsync`) stays farm-wide, corrected 2026-08-27 per #611 round 1 / #612)
 - `src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs` (add `FlockScope` to manual `AppDbContext` construction at line 76)
 - `tests/**` (update direct `AppDbContext` constructions in test factories)
 - `specs/product/GLOSSARY.md` (flock scoping definition)
@@ -128,8 +128,8 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
 - `tools/simulation/ui/...` (#277 Playwright E2E spec — Worker persona read assertions)
 
 **Do-not-touch:**
-- `src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs` — deliberate exclusion, not an oversight: `InventoryLots` has no `FlockId` column; feed's flock linkage lives on the already-filtered `FeedUsage`/`InventoryMovement` rows, so no predicate exists to add.
-- `src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs` (the existing `FlockScopeGuard` — the query filter is a second layer, not a replacement. **Corrected 2026-08-28:** the write path's *authorization* decision (`FlockScopeGuard`) was already correct at slice start; its post-guard *reads* were not — see §5's `GetByIdForFlockScopedWriteAsync`/`FindByNaturalKeyForFlockScopedWriteAsync` entry for the shipped fix.)
+- `src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryLotRepository.cs` — deliberate exclusion, not an oversight: `InventoryLots` has no `FlockId` column; feed's flock linkage lives on the already-filtered `FeedUsage`/`InventoryMovement` rows, so no predicate exists to add.
+- `src/Cluckwork.Infrastructure/Modules/Access/Repositories/UserRoleAssignmentRepository.cs` (the existing `FlockScopeGuard` — the query filter is a second layer, not a replacement. **Corrected 2026-08-28:** the write path's *authorization* decision (`FlockScopeGuard`) was already correct at slice start; its post-guard *reads* were not — see §5's `GetByIdForFlockScopedWriteAsync`/`FindByNaturalKeyForFlockScopedWriteAsync` entry for the shipped fix.)
 - `src/Cluckwork.Infrastructure/Persistence/TenantContext.cs` (tenancy is a different axis; do not conflate)
 - `src/Cluckwork.Infrastructure/Persistence/Interceptors/TenantStampInterceptor.cs` (tenancy write guard; do not conflate)
 - `src/Cluckwork.Domain/**` (no domain changes — the filter is a query-time concern, not a domain invariant)

@@ -4,7 +4,7 @@ using Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
 using Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;
 using Cluckwork.Application.Modules.Finance.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Modules.Finance.Expenses.UpdateExpenseCategory;
-using Cluckwork.Infrastructure.Repositories;
+using Cluckwork.Infrastructure.Modules.Finance.Repositories;
 using FluentValidation;
 
 namespace Cluckwork.Api.Modules.Finance;
