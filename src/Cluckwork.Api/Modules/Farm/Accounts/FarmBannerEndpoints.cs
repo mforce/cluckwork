@@ -1,5 +1,5 @@
 using Cluckwork.Application.Modules.Farm.Contracts;
-using Cluckwork.Domain.Modules.Farm.Media;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using System.Buffers;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Domain.Common;
@@ -90,7 +90,7 @@ public static class FarmBannerEndpoints
             {
                 var probe = new byte[1];
                 if (await http.Request.Body.ReadAsync(probe, ct) > 0)
-                    return MapFailure(ImageSanitizer.TooLarge(maxBytes, ImageSanitizer.ImageAssetKind.Banner));
+                    return MapFailure(FarmImageErrors.BannerTooLarge(maxBytes));
             }
 
             var result = await farm.SetBannerAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
@@ -131,7 +131,7 @@ public static class FarmBannerEndpoints
     }
 
     internal static Task WriteTooLargeAsync(HttpContext context, int maxBytes) =>
-        MapFailure(ImageSanitizer.TooLarge(maxBytes, ImageSanitizer.ImageAssetKind.Banner)).ExecuteAsync(context);
+        MapFailure(FarmImageErrors.BannerTooLarge(maxBytes)).ExecuteAsync(context);
 
     private static FarmLogoResponse ToResponse(FarmLogoMetadata m) =>
         new(m.ContentType, m.ContentHash, m.Width, m.Height, m.ByteLength, m.UpdatedAt);

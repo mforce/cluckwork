@@ -1,5 +1,5 @@
 using Cluckwork.Application.Modules.Farm.Contracts;
-using Cluckwork.Domain.Modules.Farm.Media;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using System.Buffers;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Domain.Common;
@@ -185,7 +185,7 @@ public static class FarmLogoEndpoints
             {
                 var probe = new byte[1];
                 if (await http.Request.Body.ReadAsync(probe, ct) > 0)
-                    return MapFailure(ImageSanitizer.TooLarge(maxBytes));
+                    return MapFailure(FarmImageErrors.LogoTooLarge(maxBytes));
             }
 
             var result = await farm.SetLogoAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
@@ -234,7 +234,7 @@ public static class FarmLogoEndpoints
     // pre-idempotency middleware or (for a body that snuck through some other
     // path) here via MapFailure — one contract either way.
     internal static Task WriteTooLargeAsync(HttpContext context, int maxBytes) =>
-        MapFailure(ImageSanitizer.TooLarge(maxBytes)).ExecuteAsync(context);
+        MapFailure(FarmImageErrors.LogoTooLarge(maxBytes)).ExecuteAsync(context);
 
     private static FarmLogoResponse ToResponse(FarmLogoMetadata m) =>
         new(m.ContentType, m.ContentHash, m.Width, m.Height, m.ByteLength, m.UpdatedAt);
