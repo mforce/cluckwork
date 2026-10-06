@@ -16,6 +16,13 @@ internal sealed class ModuleMap
     private readonly Dictionary<string, (string Owner, bool Subtree)> _claims = new(StringComparer.Ordinal);
     private readonly HashSet<string> _platform = new(StringComparer.Ordinal);
     private readonly HashSet<(string From, string To, string Symbol)> _declared = [];
+    private readonly HashSet<(string Owner, string Type)> _seam = [];
+    private readonly HashSet<string> _readModels = new(StringComparer.Ordinal);
+    private readonly List<string> _adapterRoots = [];
+    private readonly List<string> _adapterTiers = [];
+    private string[] _adapterNamespaces = [];
+    private readonly HashSet<string> _adapterTypes = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _topLevelPrograms = new(StringComparer.Ordinal);
 
     internal ImmutableArray<(string From, string To, ImmutableArray<string> Symbols)> Edges { get; private set; }
 
@@ -52,8 +59,35 @@ internal sealed class ModuleMap
                                 map._claims[(string)claimed.Value!] = (owner, named.Key == "Namespaces");
                             }
                         }
+                        else if (named.Key == "Seam")
+                        {
+                            foreach (var type in named.Value.Values)
+                            {
+                                map._seam.Add((owner, (string)type.Value!));
+                            }
+                        }
+                        else if (named.Key == "ReadModel" && named.Value.Value is true)
+                        {
+                            map._readModels.Add(owner);
+                        }
                     }
 
+                    break;
+                case Namespace + "AdapterRootsAttribute":
+                    foreach (var named in attribute.NamedArguments)
+                    {
+                        var values = named.Value.Values.Select(v => (string)v.Value!);
+                        switch (named.Key)
+                        {
+                            case "Namespaces": map._adapterRoots.AddRange(values); break;
+                            case "Types": map._adapterTypes.UnionWith(values); break;
+                            case "TopLevelPrograms": map._topLevelPrograms.UnionWith(values); break;
+                        }
+                    }
+
+                    break;
+                case Namespace + "AdapterTierAttribute":
+                    map._adapterTiers.Add((string)args[0].Value!);
                     break;
                 case Namespace + "ModuleEdgeAttribute":
                     var (from, to) = ((string)args[0].Value!, (string)args[1].Value!);
@@ -69,6 +103,7 @@ internal sealed class ModuleMap
         }
 
         map.Edges = edges.ToImmutable();
+        map._adapterNamespaces = [.. AdapterScope.Namespaces(map._adapterRoots, map._adapterTiers)];
         return map._claims.Count == 0 ? null : map;
     }
 
@@ -78,6 +113,17 @@ internal sealed class ModuleMap
     internal static string RulesFile(string owner) => $"{RulesDirectory}{owner}.cs";
 
     internal bool IsPlatform(string owner) => _platform.Contains(owner);
+
+    internal bool IsSeam(string owner, string type) => _seam.Contains((owner, type));
+
+    internal bool IsReadModel(string owner) => _readModels.Contains(owner);
+
+    // AdapterReachScanner's roots and tiers: a type under one of their namespaces or named in Types.
+    internal bool IsAdapter(string declaredNamespace, string type) =>
+        _adapterTypes.Contains(type)
+        || _adapterNamespaces.Any(root => declaredNamespace == root || declaredNamespace.StartsWith(root + ".", StringComparison.Ordinal));
+
+    internal bool IsTopLevelProgram(string assembly) => _topLevelPrograms.Contains(assembly);
 
     internal bool IsDeclared(string from, string to, string symbol) => _declared.Contains((from, to, symbol));
 

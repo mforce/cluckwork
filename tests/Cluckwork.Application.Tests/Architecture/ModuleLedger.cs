@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Cluckwork.Analyzers;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
@@ -65,10 +66,10 @@ public sealed record ModuleLedger(
     public IReadOnlyList<CompatibilityException> CompatibilityExceptions { get; init; } = [];
 
     public IEnumerable<string> AdapterNamespaces =>
-        AdapterRoots.Namespaces.Concat(AdapterTiers.Select(t => t.Namespace));
+        AdapterScope.Namespaces(AdapterRoots.Namespaces, AdapterTiers.Select(t => t.Namespace));
 
     public IEnumerable<string> PersistenceForbiddenNamespaces =>
-        AdapterRoots.PersistenceForbiddenNamespaces.Concat(AdapterTiers.Select(t => t.Namespace));
+        AdapterScope.PersistenceForbidden(AdapterRoots.PersistenceForbiddenNamespaces, AdapterTiers.Select(t => t.Namespace));
 
     public const string ModuleKind = "module";
     public const string PlatformKind = "platform";

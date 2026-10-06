@@ -8,6 +8,7 @@ namespace Cluckwork.Domain.Common.Architecture;
     ],
     Seam = [
         "Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository",
+        "Cluckwork.Application.Modules.Farm.Accounts.ICurrencyBoundRowSource",
         "Cluckwork.Domain.Modules.Farm.Accounts.Account",
         "Cluckwork.Domain.Modules.Farm.Accounts.UserRoleAssignment",
     ])]

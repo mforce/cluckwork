@@ -37,7 +37,13 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
         $"unowned namespace '{{0}}'; every namespace in src/ must be claimed by exactly one owner in {ModuleMap.RulesDirectory}",
         "Architecture", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MapMissing, Undeclared, Stale, Unowned];
+    // #1116: a module may name a peer's contract or seam; an adapter only a contract. Structural exemptions only.
+    // Info until the cleanup brings tools/architecture/cw1004-census.sh to zero; then it becomes an Error.
+    internal static readonly DiagnosticDescriptor NonContract = new(
+        "CW1004", "Non-contract peer reach", "{0} '{1}' reaches {2}'s non-contract type '{3}'",
+        "Architecture", DiagnosticSeverity.Info, isEnabledByDefault: true);
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MapMissing, Undeclared, Stale, Unowned, NonContract];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -122,17 +128,34 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
             declaredHere.TryAdd(attribution.Symbol, 0);
         }
 
-        if (!attributions.Any(a => a.Owner is { } owner && !map.IsPlatform(owner)))
-        {
-            return;
-        }
-
         var reported = new HashSet<(string, string, string)>();
+        var topLevelProgram = map.IsTopLevelProgram(assembly);
         foreach (var node in root.DescendantNodes(n => n is not UsingDirectiveSyntax))
         {
             var enclosing = node.Ancestors().LastOrDefault(IsTypeDeclaration);
             var from = attributions.FirstOrDefault(a => a.Scope == enclosing) ?? attributions[0];
-            if (from.Owner is null || map.IsPlatform(from.Owner))
+            var moduleOwner = from.Owner is { } owner && !map.IsPlatform(owner) ? owner : null;
+            var adapter = moduleOwner is null
+                && ((enclosing is null && topLevelProgram && node.Ancestors().Any(a => a is GlobalStatementSyntax))
+                    || (enclosing is not null && map.IsAdapter(from.Namespace, from.Symbol)));
+            if (moduleOwner is null && !adapter)
+            {
+                continue;
+            }
+
+            foreach (var symbol in BoundSymbols(model, node))
+            {
+                var receiverContract = ThroughContractedReceiver(model, node, symbol);
+                foreach (var type in ReferencedTypes(symbol))
+                {
+                    if (!(receiverContract && SymbolEqualityComparer.Default.Equals(type, symbol?.ContainingType)))
+                    {
+                        CheckContractReach(context, map, model, node, from.Symbol, moduleOwner, type, reported);
+                    }
+                }
+            }
+
+            if (moduleOwner is null)
             {
                 continue;
             }
@@ -147,21 +170,157 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
 
                 if (outermost.TypeKind == TypeKind.Error || outermost.ContainingNamespace.IsGlobalNamespace
                     || map.Resolve($"{outermost.ContainingNamespace.ToDisplayString()}.{outermost.Name}", declared: false) is not { } to
-                    || to.Owner == from.Owner || map.IsPlatform(to.Owner))
+                    || to.Owner == moduleOwner || map.IsPlatform(to.Owner))
                 {
                     continue;
                 }
 
-                var key = (from.Owner, to.Owner, from.Symbol);
+                var key = (moduleOwner, to.Owner, from.Symbol);
                 realised.TryAdd(key, 0);
-                if (!map.IsDeclared(from.Owner, to.Owner, from.Symbol) && reported.Add(key))
+                if (!map.IsDeclared(moduleOwner, to.Owner, from.Symbol) && reported.Add(key))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(Undeclared, node.GetLocation(),
-                        from.Owner, to.Owner, from.Symbol, to.Namespace, map.Fix(from.Owner, to.Owner, from.Symbol)));
+                        moduleOwner, to.Owner, from.Symbol, to.Namespace, map.Fix(moduleOwner, to.Owner, from.Symbol)));
                 }
             }
         }
     }
+
+    private static void CheckContractReach(
+        SemanticModelAnalysisContext context, ModuleMap map, SemanticModel model, SyntaxNode node, string fromSymbol,
+        string? moduleOwner, INamedTypeSymbol type, HashSet<(string, string, string)> reported)
+    {
+        var definition = type.OriginalDefinition;
+        var outermost = definition;
+        while (outermost.ContainingType is { } parent)
+        {
+            outermost = parent;
+        }
+
+        if (outermost.TypeKind == TypeKind.Error || outermost.ContainingNamespace.IsGlobalNamespace
+            || map.Resolve($"{outermost.ContainingNamespace.ToDisplayString()}.{outermost.Name}", declared: false) is not { } to
+            || map.IsPlatform(to.Owner) || to.Owner == moduleOwner)
+        {
+            return;
+        }
+
+        var ns = definition.ContainingNamespace.ToDisplayString();
+        var nested = definition.ContainingType is not null;
+        var name = nested ? definition.ToDisplayString() : $"{ns}.{definition.Name}";
+        if (ModuleContracts.OwnerOf(ns, Hidden(definition)) == to.Owner
+            || (moduleOwner is not null && !nested && map.IsSeam(to.Owner, name))
+            || (IsEntity(definition)
+                && ((moduleOwner is not null && map.IsReadModel(moduleOwner)) || InEntityConfiguration(model, node)))
+            || InServiceRegistration(model, node))
+        {
+            return;
+        }
+
+        if (reported.Add((fromSymbol, "CW1004", name)))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(NonContract, node.GetLocation(),
+                moduleOwner ?? "adapter", fromSymbol, to.Owner, name));
+        }
+    }
+
+    // #1116: IInsightsModule inherits IReportQueries; a call through the contract binds to the inherited port's member.
+    // The member's declaring type is excused only when the receiver's static type is a contract type deriving it.
+    private static bool ThroughContractedReceiver(SemanticModel model, SyntaxNode node, ISymbol? symbol)
+    {
+        if (symbol is not (IMethodSymbol or IPropertySymbol or IFieldSymbol or IEventSymbol) || symbol.IsStatic
+            || symbol.ContainingType is not { } declaring)
+        {
+            return false;
+        }
+
+        // x! and (x) bind to x's symbol, in any nesting order; judge the expression they wrap.
+        while (true)
+        {
+            if (node is PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } bang)
+            {
+                node = bang.Operand;
+            }
+            else if (node is ParenthesizedExpressionSyntax parenthesized)
+            {
+                node = parenthesized.Expression;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        var receiver = node switch
+        {
+            InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax access } => access.Expression,
+            MemberAccessExpressionSyntax access => access.Expression,
+            SimpleNameSyntax { Parent: MemberAccessExpressionSyntax access } name when access.Name == name => access.Expression,
+            InvocationExpressionSyntax { Expression: MemberBindingExpressionSyntax binding } => BoundReceiver(binding),
+            MemberBindingExpressionSyntax binding => BoundReceiver(binding),
+            SimpleNameSyntax { Parent: MemberBindingExpressionSyntax binding } => BoundReceiver(binding),
+            _ => null,
+        };
+        if (receiver is null || model.GetTypeInfo(receiver).Type is not INamedTypeSymbol type
+            || ModuleContracts.OwnerOf(type.ContainingNamespace?.ToDisplayString(), Hidden(type)) is null)
+        {
+            return false;
+        }
+
+        var target = declaring.OriginalDefinition;
+        return SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, target)
+            || type.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, target));
+    }
+
+    // a?.M(): the receiver of the member binding directly after '?'.
+    private static ExpressionSyntax? BoundReceiver(MemberBindingExpressionSyntax binding) =>
+        binding.Parent is ConditionalAccessExpressionSyntax access && access.WhenNotNull == binding
+            ? access.Expression
+            : binding.Parent is InvocationExpressionSyntax { Parent: ConditionalAccessExpressionSyntax call } invocation
+                && call.WhenNotNull == invocation ? call.Expression : null;
+
+    // A nested type is hidden unless it and every type enclosing it, the outermost included, are public. A top-level
+    // type is never hidden: its contract status does not depend on its accessibility.
+    private static bool Hidden(INamedTypeSymbol type)
+    {
+        if (type.ContainingType is null)
+        {
+            return false;
+        }
+
+        for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
+        {
+            if (current.DeclaredAccessibility != Accessibility.Public)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsEntity(INamedTypeSymbol type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.OriginalDefinition.ToDisplayString() == "Cluckwork.Domain.Common.Entity<TId>")
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // An FK configuration: TableOwnerRealModelTests declares every cross-owner foreign key it wires.
+    private static bool InEntityConfiguration(SemanticModel model, SyntaxNode node) =>
+        node.Ancestors().OfType<TypeDeclarationSyntax>().Any(t => model.GetDeclaredSymbol(t) is { } declared
+            && declared.AllInterfaces.Any(i => i.OriginalDefinition.ToDisplayString()
+                == "Microsoft.EntityFrameworkCore.IEntityTypeConfiguration<TEntity>"));
+
+    // The composition root: an IServiceCollection extension method (#858's per-owner registration files).
+    private static bool InServiceRegistration(SemanticModel model, SyntaxNode node) =>
+        node.Ancestors().OfType<MethodDeclarationSyntax>().Any(m => model.GetDeclaredSymbol(m) is { IsExtensionMethod: true } method
+            && method.Parameters[0].Type.ToDisplayString() == "Microsoft.Extensions.DependencyInjection.IServiceCollection");
 
     // ModuleLedgerScanner.ScanFile's attribution: each top-level type is charged to its namespace owner, or to the
     // owner claiming it (#1023); a file without types is charged as a whole.
@@ -179,7 +338,7 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
             }
 
             var symbol = IsFileLocal(type) ? $"{declared}.{Identifier(type)}@{Relative(path)}" : $"{declared}.{Identifier(type)}";
-            attributions.Add(new Attribution(type, symbol, map.Claimant(symbol) ?? owner));
+            attributions.Add(new Attribution(type, symbol, map.Claimant(symbol) ?? owner, declared));
         }
 
         if (attributions.Count == 0)
@@ -193,7 +352,7 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
                     declaration?.Name.GetLocation() ?? Location.Create(root.SyntaxTree, default), fileNamespace));
             }
 
-            attributions.Add(new Attribution(null, $"<file>:{Relative(path)}", owner));
+            attributions.Add(new Attribution(null, $"<file>:{Relative(path)}", owner, fileNamespace));
         }
 
         return attributions;
@@ -231,13 +390,15 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
         _ => [],
     };
 
-    private sealed class Attribution(SyntaxNode? scope, string symbol, string? owner)
+    private sealed class Attribution(SyntaxNode? scope, string symbol, string? owner, string ns)
     {
         public SyntaxNode? Scope { get; } = scope;
 
         public string Symbol { get; } = symbol;
 
         public string? Owner { get; } = owner;
+
+        public string Namespace { get; } = ns;
     }
 
     private static bool IsTypeDeclaration(SyntaxNode node) => node is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax;

@@ -90,17 +90,19 @@ public static class AdapterReachScanner
             .Where(n => n is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax).ToList();
         var declaredTypes = declarations.Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
         // #1023: a ledger entry and a resolved reference both drop generic arity, so an entry admits every
-        // generic homonym. Entries therefore name only top-level, non-generic types.
+        // generic homonym. Entries therefore name only non-generic types, and a seam entry only a top-level one. A
+        // contract entry may name a public nested type (#1116); reflection spells it Outer+Inner, the walk Outer.Inner.
         var nested = declarations.Where(n => n.Ancestors().Any(a => a is BaseTypeDeclarationSyntax))
             .Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
-        var unsupported = declarations.Where(n => n.AncestorsAndSelf().Any(a =>
+        var generic = declarations.Where(n => n.AncestorsAndSelf().Any(a =>
                 a is TypeDeclarationSyntax { TypeParameterList: not null } or DelegateDeclarationSyntax { TypeParameterList: not null }))
-            .Select(node => TypeName(node)).Concat(nested).ToHashSet(StringComparer.Ordinal);
+            .Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
+        static IEnumerable<string> SourceNames(IEnumerable<string> contract) => contract.Select(type => type.Replace('+', '.'));
         var allowed = ledger.Owners.Where(o => o.Contract.Count > 0).ToDictionary(o => o.Name,
-            o => o.Contract.Concat(peers ? o.Seam : []).ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+            o => SourceNames(o.Contract).Concat(peers ? o.Seam : []).ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
         foreach (var owner in ledger.Owners)
         {
-            foreach (var (list, types) in new[] { ("contract", owner.Contract), ("seam", owner.Seam) })
+            foreach (var (list, types) in new[] { ("contract", SourceNames(owner.Contract)), ("seam", owner.Seam) })
             {
                 foreach (var type in types.Order(StringComparer.Ordinal))
                 {
@@ -112,10 +114,10 @@ public static class AdapterReachScanner
                     {
                         errors.Add($"owner '{owner.Name}' {list} type '{type}' is not in a namespace '{owner.Name}' owns");
                     }
-                    else if (unsupported.Contains(type))
+                    else if (generic.Contains(type) || (list == "seam" && nested.Contains(type)))
                     {
                         errors.Add($"owner '{owner.Name}' {list} type '{type}' names a generic or nested declaration; " +
-                            "an entry carries no arity, so it may name only a top-level, non-generic type");
+                            "an entry carries no arity, so it may name only a non-generic type, and a seam entry a top-level one");
                     }
                 }
             }

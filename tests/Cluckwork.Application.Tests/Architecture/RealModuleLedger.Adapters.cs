@@ -1,22 +1,20 @@
+using System.Reflection;
+using Cluckwork.Domain.Common.Architecture;
+
 namespace Cluckwork.Application.Tests.Architecture;
 
 internal static partial class RealModuleLedger
 {
-    internal static readonly AdapterRoots AdapterRoots = new(
-        [
-            "Cluckwork.Api.Endpoints",
-            "Cluckwork.Api.Modules",
-            "Cluckwork.Api.Cli",
-            "Cluckwork.Infrastructure.Jobs",
-        ],
-        [
-            "Cluckwork.Infrastructure.Persistence.DemoDataSeeder",
-            "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder",
-        ])
-    {
-        TopLevelPrograms = ["Cluckwork.Api"],
-        PersistenceForbiddenNamespaces = ["Cluckwork.Api.Endpoints", "Cluckwork.Api.Modules"],
-    };
+    // Read from PlatformModuleRules' [AdapterRoots], the row CW1004 reads too (#1116). Inline, not through
+    // RuleTypes: static initializer order across partial files is not defined.
+    internal static readonly AdapterRoots AdapterRoots = typeof(ModuleOwnerAttribute).Assembly.GetTypes()
+        .Select(t => t.GetCustomAttribute<AdapterRootsAttribute>()).OfType<AdapterRootsAttribute>()
+        .Select(a => new AdapterRoots(a.Namespaces, a.Types)
+        {
+            TopLevelPrograms = a.TopLevelPrograms,
+            PersistenceForbiddenNamespaces = a.PersistenceForbiddenNamespaces,
+        })
+        .Single();
 
     internal static readonly AdapterClaim[] Adapters =
     [
@@ -259,12 +257,8 @@ internal static partial class RealModuleLedger
         ]),
     ];
 
-    internal static readonly AdapterTier[] AdapterTiers =
-    [
-        new("Cluckwork.Api.Mcp",
-            "DirectRepository",
-            "MapMcp",
-            "MCP tool classes inject repositories by design (docs/plans/770-mcp-server/01-design.md:112); the contract-first shape is Track C (#514)",
-            "#806"),
-    ];
+    // Read from PlatformModuleRules' [AdapterTier] rows, which CW1004 reads too (#1116).
+    internal static readonly AdapterTier[] AdapterTiers = [.. typeof(ModuleOwnerAttribute).Assembly.GetTypes()
+        .SelectMany(t => t.GetCustomAttributes<AdapterTierAttribute>())
+        .Select(a => new AdapterTier(a.Namespace, a.Privilege, a.Surface, a.Reason, a.ReviewBy))];
 }
