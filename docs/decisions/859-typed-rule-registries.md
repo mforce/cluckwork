@@ -293,3 +293,7 @@ messages and the test's undeclared-edge message now name `Modules/<from>.cs` and
 | FlockManagement -> Farm cell deleted | CW1001, naming `Modules/FlockManagement.cs` | `ModuleLedgerRealTreeTests`: undeclared edge |
 | `UpdateEggGradeHandler` added to EggOperations -> Farm | CW1002, naming `Modules/EggOperations.cs` | same test: stale ledger row |
 | FlockManagement -> Farm cell moved onto `FarmModuleRules` | green | `ModuleLedgerRealTreeTests`: cell sits on the wrong class |
+
+## Amendment, 2026-10-06: what the attributes carry after #1087
+
+The module rules files keep `[ModuleOwner]` and `[ModuleEdge]`, in the same place. `[ModuleContract]` is deleted: a module's contract is its `Modules/<Owner>/Contracts/` folder (see #849's amendment). `ModuleOwnerAttribute` no longer has `Implementations` or `Types`, and the analyzer no longer reads `Types` claims. The rows in the mutation table above that use `[ModuleContract]` describe the mechanism as it was.

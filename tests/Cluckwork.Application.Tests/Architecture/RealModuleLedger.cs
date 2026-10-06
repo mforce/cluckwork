@@ -24,41 +24,30 @@ internal static partial class RealModuleLedger
     private static readonly Regex ContractsNamespace =
         new(@"^Cluckwork\.(?:Domain|Application)\.Modules\.(?<owner>[^.]+)\.Contracts$", RegexOptions.CultureInvariant);
 
-    private static readonly (ILookup<string, string> Types, string[] Errors) Contracts = DeriveContracts(new[]
+    private static readonly ILookup<string, string> Contracts = DeriveContracts(new[]
         {
             typeof(ModuleOwnerAttribute).Assembly, typeof(IUnitOfWork).Assembly,
             typeof(AppDbContext).Assembly,
         }
         .SelectMany(a => a.GetTypes()));
 
-    // A contract type carries [ModuleContract] or, since #1087, sits top-level in
-    // Cluckwork.{Domain,Application}.Modules.<Owner>.Contracts. A nested type never inherits its parent's status.
-    // While both exist a type may carry only one: its module slice deletes the mark when it moves the type.
-    internal static (ILookup<string, string> Types, string[] Errors) DeriveContracts(IEnumerable<Type> types)
-    {
-        var contracts = types
-            .Select(t => (Type: t.FullName!,
-                Mark: t.GetCustomAttribute<ModuleContractAttribute>()?.Owner,
-                Folder: t.IsNested ? null : ContractsNamespace.Match(t.Namespace ?? "") is { Success: true } m
-                    ? m.Groups["owner"].Value
-                    : null))
-            .Where(c => c.Mark is not null || c.Folder is not null)
-            .OrderBy(c => c.Type, StringComparer.Ordinal)
-            .ToList();
-        return (contracts.ToLookup(c => (c.Mark ?? c.Folder)!, c => c.Type, StringComparer.Ordinal),
-            [.. contracts.Where(c => c.Mark is not null && c.Folder is not null)
-                .Select(c => $"contract type '{c.Type}' sits in a Contracts namespace and also carries [ModuleContract]; delete the mark")]);
-    }
+    // A contract type sits top-level in Cluckwork.{Domain,Application}.Modules.<Owner>.Contracts (#1087);
+    // NamespaceFolderAgreementTests keeps that namespace equal to the Contracts folder. A nested type never
+    // inherits its parent's status.
+    internal static ILookup<string, string> DeriveContracts(IEnumerable<Type> types) => types
+        .Where(t => !t.IsNested)
+        .Select(t => (Type: t.FullName!, Match: ContractsNamespace.Match(t.Namespace ?? "")))
+        .Where(c => c.Match.Success)
+        .OrderBy(c => c.Type, StringComparer.Ordinal)
+        .ToLookup(c => c.Match.Groups["owner"].Value, c => c.Type, StringComparer.Ordinal);
 
     internal static readonly OwnerDefinition[] Owners = [.. RuleTypes
         .Select(t => t.GetCustomAttribute<ModuleOwnerAttribute>()).OfType<ModuleOwnerAttribute>()
         .OrderBy(o => (uint)Array.IndexOf(OwnerOrder, o.Name))
         .Select(o => new OwnerDefinition(o.Name, o.Kind, o.Namespaces, o.ExactNamespaces)
         {
-            Contract = [.. Contracts.Types[o.Name]],
-            Implementations = o.Implementations,
+            Contract = [.. Contracts[o.Name]],
             Seam = o.Seam,
-            Types = o.Types,
         })];
 
     internal static readonly EdgeCell[] Edges = [.. RuleTypes
@@ -69,8 +58,7 @@ internal static partial class RealModuleLedger
     // A row the reflection above would drop or misfile.
     private static readonly string[] RuleErrors =
     [
-        .. Contracts.Errors,
-        .. Contracts.Types.Where(g => !Owners.Any(o => o.Name == g.Key))
+        .. Contracts.Where(g => !Owners.Any(o => o.Name == g.Key))
             .SelectMany(g => g.Select(type => $"contract type '{type}' names owner '{g.Key}', which has no ModuleOwner row")),
         .. RuleTypes.SelectMany(t => t.GetCustomAttributes<ModuleEdgeAttribute>()
             .Where(e => e.From != t.GetCustomAttribute<ModuleOwnerAttribute>()?.Name)

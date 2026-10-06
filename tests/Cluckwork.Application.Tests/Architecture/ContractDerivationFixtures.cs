@@ -1,6 +1,4 @@
-// #1087: types in a module's Contracts namespace, read by ContractDerivationTests. No product module has one yet.
-
-using Cluckwork.Domain.Common.Architecture;
+// #1087: types in a module's Contracts namespace, read by ContractDerivationTests.
 
 namespace Cluckwork.Application.Modules.ContractFixture.Contracts;
 
@@ -15,6 +13,3 @@ public abstract record ContractFixtureResolution
 
     public sealed record Missing : ContractFixtureResolution;
 }
-
-[ModuleContract("ContractFixture")]
-public sealed record ContractFixtureMarked;

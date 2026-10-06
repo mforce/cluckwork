@@ -4,7 +4,6 @@ namespace Cluckwork.Application.Tests.Architecture;
 public sealed class PeerContractTests : IDisposable
 {
     private const string FarmSeam = "Cluckwork.Temp.Farm.IAccountRepository";
-    private const string AccessClaim = "Cluckwork.Temp.Common.IIdentity";
     private const string FlockContract = "Cluckwork.Temp.Flocks.IFlockLookup";
 
     private readonly string _tempRoot = Directory.CreateTempSubdirectory("peer-contract-").FullName;
@@ -31,7 +30,6 @@ public sealed class PeerContractTests : IDisposable
             """);
         WriteSource("Common.cs", """
             namespace Cluckwork.Temp.Common;
-            public interface IIdentity { }
             public interface IClock { }
             """);
     }
@@ -47,7 +45,7 @@ public sealed class PeerContractTests : IDisposable
 
     private static IReadOnlyList<string> OneOrNone(string entry) => entry == "" ? [] : [entry];
 
-    private static ModuleLedger Ledger(string farmSeam, string accessTypes, string flockContract, string financeTypes = "") =>
+    private static ModuleLedger Ledger(string farmSeam, string flockContract) =>
         ModuleLedger.Validate(new ModuleLedger(
             [
                 new("Hub", "platform", ["Cluckwork.Temp", "Cluckwork.Temp.Flocks.Shared"], []),
@@ -56,11 +54,8 @@ public sealed class PeerContractTests : IDisposable
                     Contract = ["Cluckwork.Temp.Farm.IFarmModule"], Seam = OneOrNone(farmSeam),
                 },
                 new("FlockManagement", "module", ["Cluckwork.Temp.Flocks"], []) { Contract = OneOrNone(flockContract) },
-                new("Finance", "module", ["Cluckwork.Temp.Finance"], []) { Types = OneOrNone(financeTypes) },
-                new("Access", "module", ["Cluckwork.Temp.Access"], [])
-                {
-                    Contract = ["Cluckwork.Temp.Access.IAccessModule"], Types = OneOrNone(accessTypes),
-                },
+                new("Finance", "module", ["Cluckwork.Temp.Finance"], []),
+                new("Access", "module", ["Cluckwork.Temp.Access"], []) { Contract = ["Cluckwork.Temp.Access.IAccessModule"] },
             ],
             [], [])
         {
@@ -71,10 +66,9 @@ public sealed class PeerContractTests : IDisposable
         });
 
     private IReadOnlyList<string> Peers(
-        string farmSeam = FarmSeam, string accessTypes = AccessClaim,
-        string flockContract = FlockContract) =>
+        string farmSeam = FarmSeam, string flockContract = FlockContract) =>
         AdapterReachScanner.Evaluate(AdapterReachScanner.ScanPeers(
-            Path.Combine(_tempRoot, "src"), Ledger(farmSeam, accessTypes, flockContract)));
+            Path.Combine(_tempRoot, "src"), Ledger(farmSeam, flockContract)));
 
     [Fact]
     public void PeerNonContractType_IsABypassNamingMemberTypeAndLocation()
@@ -127,47 +121,15 @@ public sealed class PeerContractTests : IDisposable
             public class Endpoint { public void Run(Cluckwork.Temp.Farm.IAccountRepository accounts) { } }
             """);
 
-        var report = AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), Ledger(FarmSeam, AccessClaim, FlockContract));
+        var report = AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), Ledger(FarmSeam, FlockContract));
         Assert.Equal("Cluckwork.Temp.Farm.IAccountRepository", Assert.Single(report.ContractBypasses).Type);
     }
 
-    [Fact]
-    public void ClaimedType_BelongsToItsClaimingOwner()
-    {
-        WriteSource("Expense.cs", """
-            using Cluckwork.Temp.Common;
-            namespace Cluckwork.Temp.Finance;
-            public class ExpenseHandler(IIdentity identity) { }
-            """);
-
-        Assert.Contains("ExpenseHandler.ctor -> Access through Cluckwork.Temp.Common.IIdentity at src/Expense.cs:3",
-            Assert.Single(Peers()));
-        Assert.Empty(Peers(accessTypes: ""));
-    }
-
-    [Fact]
-    public void ClaimedType_IsWalkedAsAMemberOfItsOwner()
-    {
-        WriteSource("Common.cs", """
-            namespace Cluckwork.Temp.Common;
-            public interface IIdentity { void Run(Cluckwork.Temp.Flocks.IFlockRepository flocks); }
-            public interface IClock { }
-            """);
-
-        Assert.Contains("contract bypass Cluckwork.Temp.Common.IIdentity.Run -> FlockManagement", Assert.Single(Peers()));
-        Assert.Empty(Peers(accessTypes: ""));
-    }
-
     [Theory]
-    [InlineData("seam", "Cluckwork.Temp.Farm.IGone", "owner 'Farm' seam type 'Cluckwork.Temp.Farm.IGone' is not declared under src/")]
-    [InlineData("seam", "Cluckwork.Temp.Flocks.IFlockRepository", "owner 'Farm' seam type 'Cluckwork.Temp.Flocks.IFlockRepository' is not in a namespace 'Farm' owns")]
-    [InlineData("types", "Cluckwork.Temp.Common.IGone", "owner 'Access' claims type 'Cluckwork.Temp.Common.IGone', which is not declared under src/")]
-    [InlineData("types", "Cluckwork.Temp.Flocks.IFlockRepository", "owner 'Access' claims type 'Cluckwork.Temp.Flocks.IFlockRepository' outside a platform namespace")]
-    public void BadSeamOrClaimedType_IsARegistryError(string list, string entry, string expected)
-    {
-        var failure = Assert.Single(list == "seam" ? Peers(farmSeam: entry) : Peers(accessTypes: entry));
-        Assert.Contains(expected, failure);
-    }
+    [InlineData("Cluckwork.Temp.Farm.IGone", "owner 'Farm' seam type 'Cluckwork.Temp.Farm.IGone' is not declared under src/")]
+    [InlineData("Cluckwork.Temp.Flocks.IFlockRepository", "owner 'Farm' seam type 'Cluckwork.Temp.Flocks.IFlockRepository' is not in a namespace 'Farm' owns")]
+    public void BadSeamType_IsARegistryError(string entry, string expected) =>
+        Assert.Contains(expected, Assert.Single(Peers(farmSeam: entry)));
 
     [Theory]
     [InlineData("contract", "Farm.cs", "Cluckwork.Temp.Farm", "IFarmModule")]
@@ -180,36 +142,14 @@ public sealed class PeerContractTests : IDisposable
     }
 
     [Theory]
-    [InlineData("public interface IIdentity<T> { }", AccessClaim, "names a generic or nested declaration")]
-    [InlineData("public class Outer { public interface IIdentity { } }", "Cluckwork.Temp.Common.Outer.IIdentity", "names a generic or nested declaration")]
-    [InlineData("public class IIdentity { public class Reader { } }", AccessClaim, "declares nested types")]
-    public void GenericOrNestedClaim_IsARegistryError(string declaration, string claim, string expected)
-    {
-        WriteSource("Common.cs", "namespace Cluckwork.Temp.Common; public interface IClock { } " + declaration);
-
-        Assert.Contains(expected, Assert.Single(Peers(accessTypes: claim)));
-    }
-
-    [Fact]
-    public void TypeClaimedTwice_IsARegistryError()
-    {
-        var report = AdapterReachScanner.ScanPeers(Path.Combine(_tempRoot, "src"),
-            Ledger(FarmSeam, AccessClaim, FlockContract, financeTypes: AccessClaim));
-        Assert.Contains(report.RegistryErrors, e => e.StartsWith("type 'Cluckwork.Temp.Common.IIdentity' is claimed 2 times (Access, Finance)", StringComparison.Ordinal));
-    }
-
-    [Theory]
-    [InlineData("module", "", "Cluckwork.Temp.Finance.IExpenseRepository", "",
-        "owner 'Finance' declares a seam but no contract")]
-    [InlineData("module", "Cluckwork.Temp.Finance.IExpenseRepository", "Cluckwork.Temp.Finance.IExpenseRepository", "",
+    [InlineData("", "Cluckwork.Temp.Finance.IExpenseRepository", "owner 'Finance' declares a seam but no contract")]
+    [InlineData("Cluckwork.Temp.Finance.IExpenseRepository", "Cluckwork.Temp.Finance.IExpenseRepository",
         "owner 'Finance' lists 'Cluckwork.Temp.Finance.IExpenseRepository' in both its contract and its seam")]
-    [InlineData("platform", "", "", "Cluckwork.Temp.Common.IClock",
-        "owner 'Finance' is a platform owner and cannot claim types")]
-    public void SeamOrClaimShape_IsALoadError(string kind, string contract, string seam, string types, string expected)
+    public void SeamShape_IsALoadError(string contract, string seam, string expected)
     {
-        var finance = new OwnerDefinition("Finance", kind, ["Cluckwork.Temp.Finance"], [])
+        var finance = new OwnerDefinition("Finance", "module", ["Cluckwork.Temp.Finance"], [])
         {
-            Contract = OneOrNone(contract), Seam = OneOrNone(seam), Types = OneOrNone(types),
+            Contract = OneOrNone(contract), Seam = OneOrNone(seam),
         };
         Assert.Contains(ModuleLedger.Validate(new ModuleLedger([finance], [], [])).RegistryErrors,
             e => e.StartsWith(expected, StringComparison.Ordinal));

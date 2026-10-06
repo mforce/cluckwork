@@ -54,14 +54,14 @@ public sealed class CompatibilityExceptionTests : IDisposable
     }
 
     private IReadOnlyList<string> Evaluate(IReadOnlyList<CompatibilityException>? rows = null,
-        IReadOnlyList<string>? implementations = null, IReadOnlyList<TableOwnerOverride>? overrides = null)
+        IReadOnlyList<TableOwnerOverride>? overrides = null)
     {
         var ledger = ModuleLedger.Validate(new ModuleLedger(
             [
                 new("Hub", "platform", ["Cluckwork.Temp"], []),
                 new("Finance", "module", ["Cluckwork.Domain.Modules.Finance", "Cluckwork.Temp.Finance"], [])
                 {
-                    Contract = ["Cluckwork.Temp.Finance.IFinanceModule"], Implementations = implementations ?? [],
+                    Contract = ["Cluckwork.Temp.Finance.IFinanceModule"],
                 },
                 new("Insights", "module", ["Cluckwork.Temp.Insights", "Cluckwork.Domain.Modules.FlockManagement"], []),
             ],
@@ -140,59 +140,11 @@ public sealed class CompatibilityExceptionTests : IDisposable
     }
 
     [Fact]
-    public void ImplementingAModuleInterface_IsTrustedOnlyWhenTheLedgerListsTheType()
+    public void ImplementingAModuleInterface_IsNotTrusted()
     {
         WriteProbe("return db.Expenses.Count();", bases: ": Cluckwork.Temp.Finance.IExpenseStore");
 
         Assert.Contains($"undeclared compatibility exception {Symbol} -> Finance", Assert.Single(Evaluate()));
-        Assert.Empty(Evaluate(implementations: ["Cluckwork.Temp.Probe"]));
-    }
-
-    [Fact]
-    public void ListedImplementation_DoesNotCoverItsNestedTypes()
-    {
-        WriteSource("Cluckwork.Infrastructure/Probe.cs", """
-            namespace Cluckwork.Temp;
-            public class Probe(FixtureDb db) : Finance.IExpenseStore
-            {
-                public int Run() => db.Expenses.Count();
-                public class Inner(FixtureDb db) { public int Run() => db.Expenses.Count(); }
-            }
-            """);
-
-        Assert.Contains("Cluckwork.Temp.Probe.Inner.Run -> Finance",
-            Assert.Single(Evaluate(implementations: ["Cluckwork.Temp.Probe"])));
-    }
-
-    [Fact]
-    public void ListedImplementation_DoesNotCoverAGenericTypeOfTheSameName()
-    {
-        WriteSource("Cluckwork.Infrastructure/Probe.cs", """
-            namespace Cluckwork.Temp;
-            public class Probe(FixtureDb db) : Finance.IExpenseStore { public int Run() => db.Expenses.Count(); }
-            public static class Probe<T> { public static int Run(FixtureDb db) => db.Expenses.Count(); }
-            """);
-
-        Assert.Contains("undeclared compatibility exception Cluckwork.Temp.Probe<T>.Run -> Finance",
-            Assert.Single(Evaluate(implementations: ["Cluckwork.Temp.Probe"])));
-    }
-
-    [Theory]
-    [InlineData("Cluckwork.Temp.Missing", "is not declared")]
-    [InlineData("Cluckwork.Temp.FixtureDb", "implements none of Finance's interfaces")]
-    public void ImplementationThatIsNotAPort_FailsTheRegistry(string implementation, string expected)
-    {
-        Assert.Contains(Evaluate(implementations: [implementation]),
-            f => f.StartsWith("registry:", StringComparison.Ordinal) && f.Contains(expected, StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ImplementationThatReadsNothing_FailsTheRegistry()
-    {
-        WriteProbe("return 0;", bases: ": Cluckwork.Temp.Finance.IExpenseStore");
-
-        Assert.Contains(Evaluate(implementations: ["Cluckwork.Temp.Probe"]),
-            f => f.Contains("reads none of Finance's tables", StringComparison.Ordinal));
     }
 
     [Theory]

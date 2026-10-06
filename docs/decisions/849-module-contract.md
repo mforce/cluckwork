@@ -105,3 +105,7 @@ DI. Moving validation behind the contract changes both.
   tests are `SeamSurfaceTests.Contract_*`.
 - `FinanceModuleTests` pins the read paths' field-by-field copy against literals.
   Swapping `FarmId` and `ExpenseCategoryId` in the copy turns it red.
+
+## Amendment, 2026-10-06: the Contracts folder is the contract (#1087)
+
+`[ModuleContract("<Owner>")]` is deleted. A module's contract is every top-level type in its `Modules/<Owner>/Contracts/` folder, in Application and, for enums entities use, in Domain; nested types stay outside it. `RealModuleLedger` reads the contract from the namespace, and `NamespaceFolderAgreementTests` keeps every file's namespace equal to its folder, so a file moved out of `Contracts/` cannot keep its contract namespace. `IReportQueries` and `IExportQueries` stay outside `Contracts/`, so adapters and peers still reach Insights only through `IInsightsModule`. The guards this record describes are unchanged.

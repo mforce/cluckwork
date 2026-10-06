@@ -11,8 +11,8 @@ internal sealed class ModuleMap
 
     private const string Namespace = "Cluckwork.Domain.Common.Architecture.";
 
-    // ModuleLedgerScanner.BuildNamespaceIndex: a namespace claim covers its subtree; an exact namespace and a
-    // claimed type (#1023) cover their own name only.
+    // ModuleLedgerScanner.BuildNamespaceIndex: a namespace claim covers its subtree; an exact namespace covers its
+    // own name only.
     private readonly Dictionary<string, (string Owner, bool Subtree)> _claims = new(StringComparer.Ordinal);
     private readonly HashSet<string> _platform = new(StringComparer.Ordinal);
     private readonly HashSet<(string From, string To, string Symbol)> _declared = [];
@@ -45,7 +45,7 @@ internal sealed class ModuleMap
 
                     foreach (var named in attribute.NamedArguments)
                     {
-                        if (named.Key is "Namespaces" or "ExactNamespaces" or "Types")
+                        if (named.Key is "Namespaces" or "ExactNamespaces")
                         {
                             foreach (var claimed in named.Value.Values)
                             {
