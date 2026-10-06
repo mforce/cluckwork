@@ -532,9 +532,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.slnx', '.dockerignore') }}-${{ github.sha }}
+          key: ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
-            ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.slnx', '.dockerignore') }}-
+            ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', '.dockerignore') }}-
             ${{ matrix.cache_prefix }}
 
       # Build the exact image the container ships: the multi-stage Dockerfile

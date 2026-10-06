@@ -1,4 +1,39 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path="AGENTS.md" />
+    <File Path="CONTRIBUTING.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="README.md" />
+    <File Path="SECURITY.md" />
+  </Folder>
+  <Folder Name="/.github/">
+    <File Path=".github/dependabot.yml" />
+  </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/ci.yml" />
+    <File Path=".github/workflows/codeql.yml" />
+    <File Path=".github/workflows/coverage.yml" />
+    <File Path=".github/workflows/dependabot-lockfix.yml" />
+    <File Path=".github/workflows/dependency-submission.yml" />
+    <File Path=".github/workflows/e2e-smoke.yml" />
+    <File Path=".github/workflows/image-scan.yml" />
+    <File Path=".github/workflows/k6-baseline.yml" />
+    <File Path=".github/workflows/release-please.yml" />
+    <File Path=".github/workflows/security-audit.yml" />
+  </Folder>
+  <Folder Name="/deploy/">
+    <File Path="deploy/.env.example" />
+    <File Path="deploy/README.md" />
+    <File Path="deploy/docker-compose.dev.yml" />
+    <File Path="deploy/docker-compose.yml" />
+    <File Path="src/Cluckwork.Api/Dockerfile" />
+  </Folder>
+  <Folder Name="/deploy/traefik/">
+    <File Path="deploy/traefik/README.md" />
+  </Folder>
   <Folder Name="/docs/">
     <File Path="docs/architecture.md" />
     <File Path="docs/README.md" />
@@ -27,6 +62,7 @@
     <File Path="docs/security/log-redaction-policy.md" />
   </Folder>
   <Folder Name="/src/">
+    <File Path="src/AGENTS.md" />
     <Project Path="src/Cluckwork.Analyzers/Cluckwork.Analyzers.csproj" />
     <Project Path="src/Cluckwork.Api/Cluckwork.Api.csproj" />
     <Project Path="src/Cluckwork.AppHost/Cluckwork.AppHost.csproj" />
