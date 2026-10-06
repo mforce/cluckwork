@@ -142,8 +142,12 @@ Two things the enums imply but the code does not do:
 ## Projects and modules
 
 Each project keeps one folder per module, `Modules/<Owner>/`, beside the
-shared Platform code. References point inward, and `Domain` references nothing
-(hand-drawn from the `.csproj` files):
+shared Platform code. Runtime references point inward, and `Domain` has no
+runtime project reference. The four runtime projects also load
+`Cluckwork.Analyzers` at build time only (an analyzer reference that ships no
+assembly), and `Cluckwork.AppHost` references the API only to run the local
+development stack. Hand-drawn from all eleven `ProjectReference`s in the six
+`src/` `.csproj` files:
 
 ```mermaid
 flowchart LR
@@ -157,6 +161,13 @@ flowchart LR
     Infrastructure --> Application
     Infrastructure --> Domain
     Application --> Domain
+    Analyzers["Cluckwork.Analyzers<br/>module-edge analyzer, build time only"]
+    AppHost["Cluckwork.AppHost<br/>local development orchestration"]
+    Api -. analyzer .-> Analyzers
+    Infrastructure -. analyzer .-> Analyzers
+    Application -. analyzer .-> Analyzers
+    Domain -. analyzer .-> Analyzers
+    AppHost -. dev host .-> Api
 ```
 
 The eight modules and the edges declared between them are below. The block is
