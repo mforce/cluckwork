@@ -739,6 +739,23 @@ public sealed class AdapterReachTests : IDisposable
         Assert.Empty(AdapterReachScanner.Evaluate(report));
     }
 
+    // #1116: reflection lists a public nested contract type as Outer+Inner; the walk spells it Outer.Inner.
+    [Fact]
+    public void ContractedOwner_NestedContractEntryAdmitsItsSourceSpelling()
+    {
+        WriteSource("Farm.cs", """
+            namespace Cluckwork.Temp.Farm;
+            public abstract record FarmResult { public sealed record Found : FarmResult; }
+            """);
+        WriteSource("Endpoint.cs", """
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { private void Run(Cluckwork.Temp.Farm.FarmResult.Found found) { } }
+            """);
+
+        var report = Scan([Row()], farmContract: ["Cluckwork.Temp.Farm.FarmResult", "Cluckwork.Temp.Farm.FarmResult+Found"]);
+        Assert.Empty(AdapterReachScanner.Evaluate(report));
+    }
+
     [Fact]
     public void ContractedOwner_ReachThroughNonContractTypeIsABypassEvenWhenTheOwnerIsDeclared()
     {

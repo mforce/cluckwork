@@ -4,7 +4,8 @@ namespace Cluckwork.Domain.Common.Architecture;
     Namespaces = [
         "Cluckwork.Application.Modules.Insights",
         "Cluckwork.Infrastructure.Modules.Insights",
-    ])]
+    ],
+    ReadModel = true)]
 [ModuleEdge(
     "Insights", "Commerce", "R",
     "ReportQueries reads confirmed SalesOrders and Payments for sales and profit totals; ExportQueries streams Customers, SalesOrders, SalesOrderItems, SalesOrderAllocations and Payments. Reads compose in C# and never mutate Commerce rows.",

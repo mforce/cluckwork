@@ -1,5 +1,5 @@
 using System.Reflection;
-using System.Text.RegularExpressions;
+using Cluckwork.Analyzers;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common.Architecture;
 using Cluckwork.Infrastructure.Persistence;
@@ -20,10 +20,6 @@ internal static partial class RealModuleLedger
         [.. typeof(ModuleOwnerAttribute).Assembly.GetTypes()
             .Where(t => t.IsDefined(typeof(ModuleOwnerAttribute)) || t.IsDefined(typeof(ModuleEdgeAttribute)))];
 
-    // Declared before Contracts: static initializers run in textual order.
-    private static readonly Regex ContractsNamespace =
-        new(@"^Cluckwork\.(?:Domain|Application)\.Modules\.(?<owner>[^.]+)\.Contracts$", RegexOptions.CultureInvariant);
-
     private static readonly ILookup<string, string> Contracts = DeriveContracts(new[]
         {
             typeof(ModuleOwnerAttribute).Assembly, typeof(IUnitOfWork).Assembly,
@@ -31,15 +27,27 @@ internal static partial class RealModuleLedger
         }
         .SelectMany(a => a.GetTypes()));
 
-    // A contract type sits top-level in Cluckwork.{Domain,Application}.Modules.<Owner>.Contracts (#1087);
-    // NamespaceFolderAgreementTests keeps that namespace equal to the Contracts folder. A nested type never
-    // inherits its parent's status.
+    // A contract type sits in Cluckwork.{Domain,Application}.Modules.<Owner>.Contracts (#1087), top-level or nested
+    // through public types only (#1116); NamespaceFolderAgreementTests keeps that namespace equal to the Contracts
+    // folder. ModuleContracts.OwnerOf is the rule CW1004 applies too. A nested entry keeps reflection's '+'.
     internal static ILookup<string, string> DeriveContracts(IEnumerable<Type> types) => types
-        .Where(t => !t.IsNested)
-        .Select(t => (Type: t.FullName!, Match: ContractsNamespace.Match(t.Namespace ?? "")))
-        .Where(c => c.Match.Success)
+        .Select(t => (Type: t.FullName!, Owner: ModuleContracts.OwnerOf(t.Namespace, Hidden(t))))
+        .Where(c => c.Owner is not null)
         .OrderBy(c => c.Type, StringComparer.Ordinal)
-        .ToLookup(c => c.Match.Groups["owner"].Value, c => c.Type, StringComparer.Ordinal);
+        .ToLookup(c => c.Owner!, c => c.Type, StringComparer.Ordinal);
+
+    private static bool Hidden(Type type)
+    {
+        for (var current = type; current.IsNested; current = current.DeclaringType!)
+        {
+            if (!current.IsNestedPublic)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     internal static readonly OwnerDefinition[] Owners = [.. RuleTypes
         .Select(t => t.GetCustomAttribute<ModuleOwnerAttribute>()).OfType<ModuleOwnerAttribute>()

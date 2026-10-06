@@ -8,11 +8,13 @@ public sealed class ContractDerivationTests
         RealModuleLedger.DeriveContracts(typeof(ContractDerivationTests).Assembly.GetTypes());
 
     [Fact]
-    public void TopLevelTypesInAContractsNamespace_AreTheOwnersContract() =>
+    public void PubliclyReachableTypesInAContractsNamespace_AreTheOwnersContract() =>
         Assert.Equal(
             [
                 typeof(ContractFixtureCommand).FullName!,
                 typeof(ContractFixtureResolution).FullName!,
+                typeof(ContractFixtureResolution.Found).FullName!,
+                typeof(ContractFixtureResolution.Missing).FullName!,
                 typeof(IContractFixtureModule).FullName!,
             ],
             Derived["ContractFixture"]);

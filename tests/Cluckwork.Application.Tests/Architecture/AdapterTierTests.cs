@@ -143,8 +143,9 @@ public sealed class AdapterTierTests : IDisposable
         var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan()));
         Assert.Contains("MapMcp", failure);
         Assert.Contains("src/Program.cs:1", failure);
-        Assert.EndsWith("add the row to RealModuleLedger.AdapterTiers:\nnew(\"<the tool namespace>\", \"DirectRepository\", " +
-            "\"MapMcp\", \"<why this surface needs the privilege, with a citation>\", \"<#issue>\"),", failure);
+        Assert.EndsWith("add the row to PlatformModuleRules in src/Cluckwork.Domain/Common/Architecture/Modules/Platform.cs:\n" +
+            "[AdapterTier(\"<the tool namespace>\", \"DirectRepository\", " +
+            "\"MapMcp\", \"<why this surface needs the privilege, with a citation>\", \"<#issue>\")]", failure);
     }
 
     [Fact]
