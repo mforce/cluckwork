@@ -75,6 +75,8 @@ internal static partial class RealModuleLedger
             "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."),
         new("AuditEvents", "Platform",
             "Every module's handlers write audit events through IAuditWriter; Platform owns the shared trail (#500, #508)."),
+        new("DataProtectionKeys", "Platform",
+            "One key ring protects Identity's tokens for every module (#794); this framework CLR namespace is outside the Cluckwork namespace owner map."),
         new("durable_jobs", "Platform",
             "The durable job queue behind DurableJobWorker serves every module's background work (#271)."),
         new("idempotency_records", "Platform",

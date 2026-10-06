@@ -64,6 +64,10 @@ public sealed class TenantBypassDiscoveryTests
         //  * The Identity tables (User/Role + claim/login/token/userrole)
         //    carry no AccountId column on their base types: any query is a
         //    bypass occurrence, allow-list entry required, full stop.
+        //  * DataProtectionKey — the key ring has no AccountId: one ring
+        //    protects every farm's tokens (#794), and only the framework's
+        //    EF key repository reads it. Any query from src/ is a bypass
+        //    occurrence, allow-list entry required, full stop.
         //  * `Money` appears in the raw model as OWNED value-type entities
         //    (one per owning table: FeedUsages, InventoryItems, InventoryLots,
         //    SalesOrderItems, SalesOrders). Owned types have no DbSet and no
@@ -74,6 +78,7 @@ public sealed class TenantBypassDiscoveryTests
         {
             nameof(ApplicationRole),
             nameof(ApplicationUser),
+            "DataProtectionKey",
             "IdempotencyRecord",
             "IdentityRoleClaim`1",
             "IdentityUserClaim`1",

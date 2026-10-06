@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -123,5 +124,44 @@ internal static class TestJwtKeys
         var privateKeyPem = rsa.ExportPkcs8PrivateKeyPem().ReplaceLineEndings("\\n");
         var publicKeyPem = rsa.ExportSubjectPublicKeyInfoPem().ReplaceLineEndings("\\n");
         return (privateKeyPem, publicKeyPem);
+    }
+}
+
+// #794 — the Data Protection key-encryption certificate, minted the same way as
+// TestJwtKeys: once per test process, never persisted, folded to "\n" escapes.
+internal static class TestDataProtectionCertificate
+{
+    private static readonly Lazy<(string CertificatePem, string PrivateKeyPem)> RsaPair =
+        new(() => Generate(RSA.Create(2048)));
+
+    private static readonly Lazy<(string CertificatePem, string PrivateKeyPem)> EcdsaPair =
+        new(() => Generate(ECDsa.Create(ECCurve.NamedCurves.nistP256)));
+
+    public static string CertificatePem => RsaPair.Value.CertificatePem;
+
+    public static string PrivateKeyPem => RsaPair.Value.PrivateKeyPem;
+
+    public static string EcdsaCertificatePem => EcdsaPair.Value.CertificatePem;
+
+    public static string EcdsaPrivateKeyPem => EcdsaPair.Value.PrivateKeyPem;
+
+    private static (string CertificatePem, string PrivateKeyPem) Generate(AsymmetricAlgorithm key)
+    {
+        using (key)
+        {
+            var request = key switch
+            {
+                RSA rsa => new CertificateRequest(
+                    "CN=cluckwork-test-data-protection", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
+                ECDsa ecdsa => new CertificateRequest(
+                    "CN=cluckwork-test-data-protection", ecdsa, HashAlgorithmName.SHA256),
+                _ => throw new ArgumentOutOfRangeException(nameof(key)),
+            };
+            using var certificate = request.CreateSelfSigned(
+                DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+            return (
+                certificate.ExportCertificatePem().ReplaceLineEndings("\\n"),
+                key.ExportPkcs8PrivateKeyPem().ReplaceLineEndings("\\n"));
+        }
     }
 }

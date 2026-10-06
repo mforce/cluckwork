@@ -108,7 +108,9 @@ echo "== Generating #243 sim-harness secrets =="
 # left lying around, even though *.pem is also git/docker-ignored.
 PRIVATE_KEY_FILE="$SCRIPT_DIR/.bootstrap-private.pem"
 PUBLIC_KEY_FILE="$SCRIPT_DIR/.bootstrap-public.pem"
-cleanup() { rm -f "$PRIVATE_KEY_FILE" "$PUBLIC_KEY_FILE"; }
+DP_KEY_FILE="$SCRIPT_DIR/.bootstrap-dp-key.pem"
+DP_CERT_FILE="$SCRIPT_DIR/.bootstrap-dp-cert.pem"
+cleanup() { rm -f "$PRIVATE_KEY_FILE" "$PUBLIC_KEY_FILE" "$DP_KEY_FILE" "$DP_CERT_FILE"; }
 trap cleanup EXIT
 
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$PRIVATE_KEY_FILE" >/dev/null 2>&1
@@ -124,6 +126,15 @@ pem_to_escaped() {
 JWT_PUBLIC_PEM="$(pem_to_escaped "$PUBLIC_KEY_FILE")"
 JWT_PRIVATE_PEM="$(pem_to_escaped "$PRIVATE_KEY_FILE")"
 echo "RSA keypair generated (2048-bit, PKCS8)."
+
+# --- Data Protection key-ring certificate (#794) ---------------------------
+# Self-signed RSA; Production refuses to boot without it.
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=cluckwork-sim-data-protection" \
+  -keyout "$DP_KEY_FILE" -out "$DP_CERT_FILE" >/dev/null 2>&1
+chmod 0600 "$DP_KEY_FILE" "$DP_CERT_FILE"
+DP_CERT_PEM="$(pem_to_escaped "$DP_CERT_FILE")"
+DP_KEY_PEM="$(pem_to_escaped "$DP_KEY_FILE")"
+echo "Data Protection certificate generated (RSA 2048, self-signed)."
 
 # --- Policy-compliant runtime passwords -------------------------------------
 # Identity policy (Program.cs AddIdentityCore): RequiredLength=12 plus the
@@ -220,6 +231,10 @@ Jwt__Issuer=cluckwork
 Jwt__Audience=cluckwork-api
 Jwt__PublicKeyPem="${JWT_PUBLIC_PEM}"
 Jwt__PrivateKeyPem="${JWT_PRIVATE_PEM}"
+
+# --- Data Protection key-ring encryption (#794) -------------------------------
+DataProtection__CertificatePem="${DP_CERT_PEM}"
+DataProtection__PrivateKeyPem="${DP_KEY_PEM}"
 
 # --- First-run admin (#283) — SCRIPT-LEVEL values, not app config (no
 # double-underscore key, so docker-compose's env-file parser does NOT expose

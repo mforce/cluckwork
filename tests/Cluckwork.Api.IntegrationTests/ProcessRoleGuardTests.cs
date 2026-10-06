@@ -252,6 +252,30 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
                 "-----BEGIN PRIVATE KEY-----\\nnot-base64\\n-----END PRIVATE KEY-----",
             Satisfy: psi => psi.Environment["Jwt__PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem),
 
+        // #794 — the key-ring certificate. Three rows for the three violations:
+        // absent, unparseable, and a parseable non-RSA key the XML encryptor
+        // cannot use.
+        new("#794 missing", "DataProtection:CertificatePem and DataProtection:PrivateKeyPem are not configured",
+            Violate: psi =>
+            {
+                psi.Environment.Remove("DataProtection__CertificatePem");
+                psi.Environment.Remove("DataProtection__PrivateKeyPem");
+            },
+            Satisfy: SatisfyDataProtectionCertificate),
+
+        new("#794 unusable", "are not a usable certificate and matching private key",
+            Violate: psi => psi.Environment["DataProtection__CertificatePem"] =
+                "-----BEGIN CERTIFICATE-----\\nnot-base64\\n-----END CERTIFICATE-----",
+            Satisfy: SatisfyDataProtectionCertificate),
+
+        new("#794 not RSA", "DataProtection:PrivateKeyPem is not an RSA key",
+            Violate: psi =>
+            {
+                psi.Environment["DataProtection__CertificatePem"] = TestDataProtectionCertificate.EcdsaCertificatePem;
+                psi.Environment["DataProtection__PrivateKeyPem"] = TestDataProtectionCertificate.EcdsaPrivateKeyPem;
+            },
+            Satisfy: SatisfyDataProtectionCertificate),
+
         // Each cap is TWO rows, not one. Both validators have a floor branch
         // (<= 0) and a distinct CEILING branch (> the domain constant), and the
         // first version violated only the floor — so deleting either ceiling
@@ -306,6 +330,12 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
     // silently voided the #316 arm.
     private static readonly string[] InheritedOsVariables =
         ["PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER", "Database__ThrowQueryShapeWarnings"];
+
+    private static void SatisfyDataProtectionCertificate(ProcessStartInfo psi)
+    {
+        psi.Environment["DataProtection__CertificatePem"] = TestDataProtectionCertificate.CertificatePem;
+        psi.Environment["DataProtection__PrivateKeyPem"] = TestDataProtectionCertificate.PrivateKeyPem;
+    }
 
     private static void RemoveCanonicalOtlpTransport(ProcessStartInfo psi)
     {

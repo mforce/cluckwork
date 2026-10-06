@@ -412,12 +412,22 @@
           "Cluckwork.Application": "[1.0.0, )",
           "Cluckwork.Domain": "[1.0.0, )",
           "FluentValidation": "[12.*, )",
+          "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": "[10.*, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
           "Microsoft.EntityFrameworkCore": "[10.*, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.*, )",
           "Serilog.Extensions.Logging": "[10.*, )",
           "StackExchange.Redis": "[3.*, )",
           "System.IdentityModel.Tokens.Jwt": "[8.*, )"
+        }
+      },
+      "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": {
+        "type": "CentralTransitive",
+        "requested": "[10.*, )",
+        "resolved": "10.0.12",
+        "contentHash": "oV5g+PWxCFI3liFQcRNNEhYeS8Jz9+rcjREPDRK8kk0a1q+sf8UUlyFwGCBbxWoNVPpenljm8WEUVCH10k71Bw==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "10.0.12"
         }
       },
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
