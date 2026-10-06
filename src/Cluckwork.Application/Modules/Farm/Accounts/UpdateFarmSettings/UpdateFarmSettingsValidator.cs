@@ -1,7 +1,8 @@
 using Cluckwork.Application.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
-using Cluckwork.Domain.Modules.Farm.Accounts;
 using System.Globalization;
+using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using FluentValidation;
 
 namespace Cluckwork.Application.Modules.Farm.Accounts.UpdateFarmSettings;
