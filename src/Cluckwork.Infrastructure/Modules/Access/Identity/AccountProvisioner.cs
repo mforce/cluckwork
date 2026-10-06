@@ -6,6 +6,7 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Commerce.Catalog;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

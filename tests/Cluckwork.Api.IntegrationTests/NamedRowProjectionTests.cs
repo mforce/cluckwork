@@ -4,6 +4,7 @@ using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;

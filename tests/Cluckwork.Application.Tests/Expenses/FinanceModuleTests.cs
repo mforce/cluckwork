@@ -1,6 +1,6 @@
 using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.Finance.Expenses;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 
 namespace Cluckwork.Application.Tests.Expenses;

@@ -3,6 +3,7 @@ using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Data.Common;
 using Cluckwork.Api.IntegrationTests.Infrastructure;

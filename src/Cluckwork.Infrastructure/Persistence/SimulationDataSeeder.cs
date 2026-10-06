@@ -8,6 +8,7 @@ using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using System.Security.Cryptography;
 using System.Text;

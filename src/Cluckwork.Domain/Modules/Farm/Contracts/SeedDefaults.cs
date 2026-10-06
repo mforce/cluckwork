@@ -1,4 +1,4 @@
-namespace Cluckwork.Domain.Modules.Farm.Accounts;
+namespace Cluckwork.Domain.Modules.Farm.Contracts;
 
 // Stable well-known ids for the single-farm MVP seed. Farm and House have no
 // aggregates of their own yet (Flock/DailyEntry reference them by id), so these

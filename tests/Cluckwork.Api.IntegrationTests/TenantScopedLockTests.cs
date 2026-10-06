@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;

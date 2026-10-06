@@ -29,7 +29,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     private sealed record IdDto(Guid Id);
 
     private const string SettingsPath = "/api/v1/account/settings";
-    private static readonly Guid FarmId = Cluckwork.Domain.Modules.Farm.Accounts.SeedDefaults.FarmId;
+    private static readonly Guid FarmId = Cluckwork.Domain.Modules.Farm.Contracts.SeedDefaults.FarmId;
 
     private async Task<(HttpClient Client, Guid AccountId, string Email)> AdminAsync()
     {

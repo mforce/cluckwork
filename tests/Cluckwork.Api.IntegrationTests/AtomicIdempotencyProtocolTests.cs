@@ -37,7 +37,7 @@ public sealed class AtomicIdempotencyProtocolTests(CluckworkWebApplicationFactor
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
-                categoryId, accountId, Cluckwork.Domain.Modules.Farm.Accounts.SeedDefaults.FarmId,
+                categoryId, accountId, Cluckwork.Domain.Modules.Farm.Contracts.SeedDefaults.FarmId,
                 "Test-Category"));
             await db.SaveChangesAsync();
         });
@@ -183,7 +183,7 @@ public sealed class IdempotencyBoundedWaitTests(FastIdempotencyLeaseFactory fact
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
-                categoryId, accountId, Cluckwork.Domain.Modules.Farm.Accounts.SeedDefaults.FarmId, "Test-Category"));
+                categoryId, accountId, Cluckwork.Domain.Modules.Farm.Contracts.SeedDefaults.FarmId, "Test-Category"));
             await db.SaveChangesAsync();
         });
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));

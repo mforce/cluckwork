@@ -5,7 +5,7 @@ using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Commerce.Catalog;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 
 namespace Cluckwork.Application.Modules.Commerce.Catalog.CreateProduct;
 
