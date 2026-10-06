@@ -81,6 +81,7 @@ internal static class CommerceModuleServiceCollectionExtensions
         services.AddScoped<
             Cluckwork.Application.Modules.Commerce.Contracts.IEggUnitConversionLookup,
             Cluckwork.Application.Modules.Commerce.Catalog.EggUnitConversionLookup>();
+        services.AddScoped<IEggUnitConversionProvisioning, EggUnitConversionProvisioning>();
         services.AddScoped<VoidPaymentHandler>();
         services.AddScoped<
             Cluckwork.Application.Modules.Commerce.Catalog.CreateProduct.CreateProductHandler>();
