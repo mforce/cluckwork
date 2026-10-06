@@ -121,7 +121,7 @@ stateDiagram-v2
 allocation before the state changes — insufficient stock on any line aborts the
 transaction, so a half-allocated confirmed order cannot exist. Lots are drawn
 **FIFO by `ProductionDate`, then `Id`** as tiebreaker
-(`Infrastructure/Repositories/EggLotRepository.cs`), locked `FOR UPDATE`, and
+(`Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs`), locked `FOR UPDATE`, and
 each draw writes a `SalesOrderAllocation` row. Commerce reaches the lots only
 through Egg Operations' `IEggStock` port, which locks, plans and draws inside
 the confirm's transaction and never saves (#854). `Void` re-locks those same lots
