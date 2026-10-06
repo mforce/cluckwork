@@ -297,3 +297,19 @@ messages and the test's undeclared-edge message now name `Modules/<from>.cs` and
 ## Amendment, 2026-10-06: what the attributes carry after #1087
 
 The module rules files keep `[ModuleOwner]` and `[ModuleEdge]`, in the same place. `[ModuleContract]` is deleted: a module's contract is its `Modules/<Owner>/Contracts/` folder (see #849's amendment). `ModuleOwnerAttribute` no longer has `Implementations` or `Types`, and the analyzer no longer reads `Types` claims. The rows in the mutation table above that use `[ModuleContract]` describe the mechanism as it was.
+
+## Amendment, 2026-10-06: CW1004 is an error (#1116)
+
+CW1004 reports a module that names another module's type outside that module's contract or seam, or an adapter that names one outside its contract. It reads every name the compiler binds in a file, in method bodies as well as signatures. `PeerContractRealTreeTests` and `AdapterReachRealTreeTests` read only parameter types and service resolutions, and stay as they are. CW1004 is the only check on contract reach inside a body, so the build is its authority. It landed at Info in #1117 and gave a census of 66 diagnostics. Two were legitimate result cases, which left 64. #1118–#1122 removed those 64. This change sets the severity to Error. It adds no exemption list and no suppression. The census script is deleted, because a failing build now lists every row.
+
+**Contract.** A type in the owner's `Modules/<Owner>/Contracts/` namespace is contract. `ModuleContracts.OwnerOf` applies this rule, and `RealModuleLedger` uses the same rule. A nested type is contract only when every enclosing type is public. An example is `FlockNameResolution.Found`, a published result case. A nested type behind a private or internal level is not contract. A member reached through a receiver whose static type is a contract type counts as contract, even if an inherited non-contract port declares it. So `IInsightsModule` calls that bind to `IReportQueries` members are green. An adapter that names `IReportQueries` itself is red.
+
+**Structural exemptions.** These are the only exemptions. Each one follows from code shape, never from a list of names:
+- the composition root: code inside an `IServiceCollection` registration method;
+- FK configurations: an `IEntityTypeConfiguration<T>` type that names a peer's entity;
+- the Insights read model: an owner marked `ReadModel` may name peer entities;
+- the seam: a module, but never an adapter, may name a type in the owner's `Seam`. Farm is the only owner with a seam today: `IAccountRepository`, `Account`, `UserRoleAssignment` and `ICurrencyBoundRowSource`. Seam entries are top-level types.
+
+When you make a type contract, you change which callers the guards allow. Review each move into `Contracts/` as a policy change.
+
+**Limit.** A `#pragma`, `NoWarn` or `.editorconfig` severity line can still silence CW1004, and no test detects it. Review must catch it.
