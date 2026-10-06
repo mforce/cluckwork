@@ -4,7 +4,6 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.Infrastructure;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,8 +13,8 @@ using Microsoft.Extensions.Hosting.Internal;
 namespace Cluckwork.Api.IntegrationTests;
 
 // #794 — every serving replica shares one key ring through the database.
-public sealed class DataProtectionKeyRingTests(DataProtectionKeyRingTests.CertificateFactory factory)
-    : IClassFixture<DataProtectionKeyRingTests.CertificateFactory>
+public sealed class DataProtectionKeyRingTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     private const string Purpose = "Cluckwork.IntegrationTests.794";
 
@@ -59,18 +58,6 @@ public sealed class DataProtectionKeyRingTests(DataProtectionKeyRingTests.Certif
         var protector = provider.GetRequiredService<IDataProtectionProvider>().CreateProtector(Purpose);
 
         Assert.Equal("recover-admin", protector.Unprotect(protector.Protect("recover-admin")));
-    }
-
-    // The certificate is on the fixture itself because the framework's hosted service
-    // creates the first key when the host starts, before any test code runs.
-    public sealed class CertificateFactory : CluckworkWebApplicationFactory
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-            builder.UseSetting("DataProtection:CertificatePem", TestDataProtectionCertificate.CertificatePem);
-            builder.UseSetting("DataProtection:PrivateKeyPem", TestDataProtectionCertificate.PrivateKeyPem);
-        }
     }
 
     private sealed class FixedDiscriminator(string discriminator) : IApplicationDiscriminator

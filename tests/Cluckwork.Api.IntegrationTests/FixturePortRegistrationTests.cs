@@ -67,6 +67,8 @@ public sealed class FixturePortRegistrationTests
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Jwt__PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem;
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;
+        psi.Environment["DataProtection__CertificatePem"] = TestDataProtectionCertificate.CertificatePem;
+        psi.Environment["DataProtection__PrivateKeyPem"] = TestDataProtectionCertificate.PrivateKeyPem;
         psi.Environment["RateLimiting__TrustedProxies__0"] = "10.0.0.0/8";
 
         using var process = Process.Start(psi)!;

@@ -69,6 +69,10 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         builder.UseSetting("Jwt:PublicKeyPem", TestJwtKeys.PublicKeyPem);
         builder.UseSetting("Jwt:Issuer", "cluckwork-test");
         builder.UseSetting("Jwt:Audience", "cluckwork-api-test");
+        // #794 — Production-derived factories need it to boot, and the host's
+        // startup writes the first key, so every test host encrypts its ring.
+        builder.UseSetting("DataProtection:CertificatePem", TestDataProtectionCertificate.CertificatePem);
+        builder.UseSetting("DataProtection:PrivateKeyPem", TestDataProtectionCertificate.PrivateKeyPem);
         // Standard OTLP variables may exist in a developer or CI environment. A
         // present blank canonical endpoint selects Cluckwork's disabled profile.
         builder.UseSetting("Otlp:Endpoint", "");
