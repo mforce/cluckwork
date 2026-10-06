@@ -61,8 +61,8 @@ flowchart LR
 | Api | `Modules/<Module>/` endpoints (Platform-owned adapters that use only the module's contract); middleware, CLI and registration |
 | Application | `Modules/<Module>/` handlers, validators and repository interfaces; each module's public types in `Contracts/` |
 | Infrastructure | `Modules/<Module>/` repositories, EF configurations and Identity; persistence core, jobs and seeding |
-| Domain | `Modules/<Module>/` aggregates and value objects, with contract enums in `Contracts/`; results and auditing |
-| Analyzers | Reports undeclared module edges at compile time; ships no runtime assembly |
+| Domain | `Modules/<Module>/` aggregates and value objects; each module's public enums, value types and shared rules (such as `Roles`, `FarmCode` and `DiscountCeiling`) in `Contracts/`; results and auditing |
+| Analyzers | Fails the build on an undeclared module edge (CW1001) or on code that names another module's type outside its contract (CW1004); ships no runtime assembly |
 | AppHost | Starts the local Aspire stack; never a deploy path |
 
 Sources: [`Api`](../src/Cluckwork.Api/Cluckwork.Api.csproj),
