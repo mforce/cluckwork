@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Modules.Commerce.Sales;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using System.Globalization;
 
 namespace Cluckwork.Domain.Tests.Sales;

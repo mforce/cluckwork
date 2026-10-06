@@ -1,5 +1,4 @@
 using Cluckwork.Domain.Modules.Commerce.Contracts;
-using Cluckwork.Domain.Modules.Commerce.Sales;
 using System.Text.RegularExpressions;
 
 namespace Cluckwork.Domain.Modules.Farm.Accounts;

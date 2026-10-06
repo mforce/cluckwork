@@ -1,4 +1,4 @@
-namespace Cluckwork.Domain.Modules.Commerce.Sales;
+namespace Cluckwork.Domain.Modules.Commerce.Contracts;
 
 /// <summary>
 /// The most a farm lets a ceiling-bound seller take off a line's list price
