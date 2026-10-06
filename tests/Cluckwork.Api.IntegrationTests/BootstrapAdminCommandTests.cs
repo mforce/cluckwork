@@ -1,8 +1,8 @@
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Media;
+using Cluckwork.Domain.Modules.Farm.Media;
 using Microsoft.Extensions.Options;
 
 namespace Cluckwork.Api.Configuration;

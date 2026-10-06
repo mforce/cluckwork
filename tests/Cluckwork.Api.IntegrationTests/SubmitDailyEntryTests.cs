@@ -1,7 +1,7 @@
 using Cluckwork.Application.Modules.EggOperations.DailyEntries.SubmitDailyEntry;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

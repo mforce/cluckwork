@@ -1,5 +1,5 @@
-using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Media;
+using Cluckwork.Domain.Modules.Farm.Media;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

@@ -1,9 +1,9 @@
+using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Media;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Media;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;

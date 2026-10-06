@@ -1,5 +1,5 @@
-using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Modules.Commerce.Catalog;
+using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Commerce.Catalog;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Infrastructure.Persistence;

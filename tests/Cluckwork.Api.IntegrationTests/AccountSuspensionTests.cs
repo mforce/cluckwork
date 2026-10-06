@@ -168,7 +168,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         var service = new AccountSuspensionService(
             sp.GetRequiredService<AppDbContext>(),
             sp.GetRequiredService<TenantContext>(),
-            sp.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            sp.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             clock,
             sp.GetRequiredService<Cluckwork.Application.Common.IAuditWriter>(),
             sp.GetRequiredService<CurrentUserContext>());
@@ -272,7 +272,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         var service = new AccountSuspensionService(
             db,
             sp.GetRequiredService<TenantContext>(),
-            sp.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            sp.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             sp.GetRequiredService<TimeProvider>(),
             faultingAudit,
             sp.GetRequiredService<CurrentUserContext>());

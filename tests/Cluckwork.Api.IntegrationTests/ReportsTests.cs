@@ -900,7 +900,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
                 .Select(u => u.Id).SingleAsync());
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.UserRoleAssignments.Add(Domain.Accounts.UserRoleAssignment.Create(
+            db.UserRoleAssignments.Add(Cluckwork.Domain.Modules.Farm.Accounts.UserRoleAssignment.Create(
                 Guid.NewGuid(), accountId, workerId, farmId: null, houseId: null, flockId: assigned));
             await db.SaveChangesAsync();
         });

@@ -1,6 +1,6 @@
-using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Modules.Access.Contracts;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Application.Modules.Farm.Contracts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,6 +1,6 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Access.Contracts;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;

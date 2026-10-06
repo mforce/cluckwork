@@ -1,5 +1,5 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;

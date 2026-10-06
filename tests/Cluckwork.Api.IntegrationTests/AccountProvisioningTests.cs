@@ -1,11 +1,11 @@
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Catalog;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

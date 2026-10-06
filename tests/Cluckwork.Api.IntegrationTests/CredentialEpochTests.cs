@@ -1,5 +1,6 @@
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using System.IdentityModel.Tokens.Jwt;
@@ -7,7 +8,6 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Accounts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

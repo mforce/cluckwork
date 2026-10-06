@@ -3,7 +3,7 @@ using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.EggOperations.EggGrades;
 using Cluckwork.Application.Modules.EggOperations.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Modules.EggOperations.EggGrades.UpdateEggGrade;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 
 namespace Cluckwork.Application.Tests.EggGrades;
 

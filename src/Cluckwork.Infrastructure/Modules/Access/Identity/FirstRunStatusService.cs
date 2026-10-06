@@ -1,4 +1,4 @@
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

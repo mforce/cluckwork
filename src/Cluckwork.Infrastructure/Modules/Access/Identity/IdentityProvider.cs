@@ -30,7 +30,7 @@ public sealed class IdentityProvider(
     IHttpContextAccessor httpContextAccessor,
     AuthSecurityEventLogger securityEvents,
     ILogger<IdentityProvider> logger,
-    Cluckwork.Application.Features.Accounts.IAccountRepository accounts,
+    Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository accounts,
     IAccountUserDirectory directory) : IIdentityProvider
 {
     public async Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) =>
@@ -474,7 +474,7 @@ public sealed class IdentityProvider(
 
             if (role is not null)
             {
-                if (!Cluckwork.Domain.Accounts.Roles.Assignable.Contains(role))
+                if (!Cluckwork.Domain.Modules.Farm.Accounts.Roles.Assignable.Contains(role))
                     return Result.Failure<Guid>(Error.Validation(
                         "Users.UnknownRole", $"'{role}' is not an assignable role."));
 
@@ -600,8 +600,8 @@ public sealed class IdentityProvider(
             // slice ships, a farm with one active Owner and one already-
             // disabled Owner could otherwise have its only WORKING Owner
             // demoted, because a naive count still sees "2 Owners."
-            if (currentRoleNames.Contains(Cluckwork.Domain.Accounts.Roles.Owner)
-                && role != Cluckwork.Domain.Accounts.Roles.Owner)
+            if (currentRoleNames.Contains(Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner)
+                && role != Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner)
             {
                 if (await CountOtherActiveOwnersAsync(accountId, userId, token) == 0)
                     return Result.Failure(Error.Validation(
@@ -634,7 +634,7 @@ public sealed class IdentityProvider(
 
             if (role is not null)
             {
-                if (!Cluckwork.Domain.Accounts.Roles.Assignable.Contains(role))
+                if (!Cluckwork.Domain.Modules.Farm.Accounts.Roles.Assignable.Contains(role))
                     return Result.Failure(Error.Validation(
                         "Users.UnknownRole", $"'{role}' is not an assignable role."));
 
@@ -995,7 +995,7 @@ public sealed class IdentityProvider(
         var actorIsOwner = await (
             from userRole in db.UserRoles
             join r in db.Roles on userRole.RoleId equals r.Id
-            where userRole.UserId == actingUserId && r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+            where userRole.UserId == actingUserId && r.Name == Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner
             select r.Name).AnyAsync(token);
 
         return actorIsOwner ? Result.Success() : Result.Failure(AppError.Forbidden());
@@ -1011,7 +1011,7 @@ public sealed class IdentityProvider(
             from userRole in db.UserRoles
             join r in db.Roles on userRole.RoleId equals r.Id
             join u in db.Users on userRole.UserId equals u.Id
-            where r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+            where r.Name == Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner
                 && u.AccountId == accountId
                 && u.Id != excludingUserId
                 && u.DisabledAt == null
@@ -1063,7 +1063,7 @@ public sealed class IdentityProvider(
             var targetIsOwner = await (
                 from userRole in db.UserRoles
                 join r in db.Roles on userRole.RoleId equals r.Id
-                where userRole.UserId == userId && r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+                where userRole.UserId == userId && r.Name == Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner
                 select r.Name).AnyAsync(token);
             if (targetIsOwner
                 && await CountOtherActiveOwnersAsync(accountId, userId, token) == 0)
@@ -1425,10 +1425,10 @@ public sealed class IdentityProvider(
     // user resolves to Owner, not by insertion order.
     private static int Rank(string? name) => name switch
     {
-        Cluckwork.Domain.Accounts.Roles.Owner => 4,
-        Cluckwork.Domain.Accounts.Roles.Manager => 3,
-        Cluckwork.Domain.Accounts.Roles.Sales => 2,
-        Cluckwork.Domain.Accounts.Roles.ReadOnly => 1,
+        Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner => 4,
+        Cluckwork.Domain.Modules.Farm.Accounts.Roles.Manager => 3,
+        Cluckwork.Domain.Modules.Farm.Accounts.Roles.Sales => 2,
+        Cluckwork.Domain.Modules.Farm.Accounts.Roles.ReadOnly => 1,
         _ => 0,
     };
 

@@ -1,5 +1,6 @@
-using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Application.Modules.Farm.Accounts;
+using Cluckwork.Application.Modules.Farm.Contracts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

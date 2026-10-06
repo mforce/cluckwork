@@ -29,7 +29,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     private sealed record IdDto(Guid Id);
 
     private const string SettingsPath = "/api/v1/account/settings";
-    private static readonly Guid FarmId = Cluckwork.Domain.Accounts.SeedDefaults.FarmId;
+    private static readonly Guid FarmId = Cluckwork.Domain.Modules.Farm.Accounts.SeedDefaults.FarmId;
 
     private async Task<(HttpClient Client, Guid AccountId, string Email)> AdminAsync()
     {
@@ -99,7 +99,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         // needs locale/currency/timezone as much as an owner does.
         var (_, accountId, _) = await AdminAsync();
         var viewerEmail = $"v-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, viewerEmail, Cluckwork.Domain.Accounts.Roles.ReadOnly);
+        await factory.SeedUserAsync(accountId, viewerEmail, Cluckwork.Domain.Modules.Farm.Accounts.Roles.ReadOnly);
         var viewer = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(viewerEmail));
 
         var account = await GetAccountAsync(viewer);
@@ -208,8 +208,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     // Every role that is not the gate gets its own case. A broad "non-owner"
     // assertion can miss a single role that remains admitted.
     [Theory]
-    [InlineData(Cluckwork.Domain.Accounts.Roles.Sales)]
-    [InlineData(Cluckwork.Domain.Accounts.Roles.ReadOnly)]
+    [InlineData(Cluckwork.Domain.Modules.Farm.Accounts.Roles.Sales)]
+    [InlineData(Cluckwork.Domain.Modules.Farm.Accounts.Roles.ReadOnly)]
     public async Task SettingsWrite_IsRefusedTo(string role)
     {
         var (admin, accountId, _) = await AdminAsync();
@@ -231,7 +231,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         var current = await GetAccountAsync(admin);
 
         var email = $"m-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Accounts.Roles.Manager);
+        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Manager);
         var manager = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync(SettingsPath)).StatusCode);
@@ -620,7 +620,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
 
         var email = $"m-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(
-            accountId, email, Cluckwork.Domain.Accounts.Roles.Manager);
+            accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Manager);
         var manager = factory.CreateAuthedClient(
             await factory.LoginForAccessTokenAsync(email));
 
@@ -886,7 +886,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
 
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.UserRoleAssignments.Add(Cluckwork.Domain.Accounts.UserRoleAssignment.Create(
+            db.UserRoleAssignments.Add(Cluckwork.Domain.Modules.Farm.Accounts.UserRoleAssignment.Create(
                 Guid.NewGuid(), accountId, user.Id, farmId: null, houseId: null, flockId: Guid.NewGuid()));
             await db.SaveChangesAsync();
         });

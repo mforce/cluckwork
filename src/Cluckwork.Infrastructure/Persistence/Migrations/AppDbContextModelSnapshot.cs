@@ -22,7 +22,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Cluckwork.Domain.Accounts.Account", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.Account", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -125,7 +125,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Accounts.FarmLogo", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.FarmLogo", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -209,7 +209,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Accounts.UserRoleAssignment", b =>
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.UserRoleAssignment", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2410,7 +2410,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Accounts.Account", null)
+                    b.HasOne("Cluckwork.Domain.Modules.Farm.Accounts.Account", null)
                         .WithMany()
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Restrict)

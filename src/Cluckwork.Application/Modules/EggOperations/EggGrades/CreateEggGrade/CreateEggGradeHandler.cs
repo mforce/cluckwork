@@ -1,9 +1,9 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 
 namespace Cluckwork.Application.Modules.EggOperations.EggGrades.CreateEggGrade;
 

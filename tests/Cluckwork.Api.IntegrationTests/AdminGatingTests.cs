@@ -3,7 +3,6 @@ using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Accounts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

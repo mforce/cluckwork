@@ -66,7 +66,7 @@ public sealed class AccessSeedDependencyTests(CluckworkWebApplicationFactory fac
         Assert.NotNull(actor);
         Assert.Equal(userId, actor.Id);
         Assert.Equal(userId, (await lookup.FindUserByEmailAsync(accountId, email))?.Id);
-        Assert.Contains(await lookup.ListUsersInRoleAsync(accountId, Cluckwork.Domain.Accounts.Roles.Owner),
+        Assert.Contains(await lookup.ListUsersInRoleAsync(accountId, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner),
             member => member.Id == userId);
         Assert.Equal(0, resolutions);
     }

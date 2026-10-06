@@ -1,4 +1,4 @@
-using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Application.Modules.GeneralInventory.Inventory;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Cluckwork.Infrastructure.Persistence;

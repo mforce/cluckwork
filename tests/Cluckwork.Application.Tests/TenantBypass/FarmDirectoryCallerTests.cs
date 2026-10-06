@@ -17,9 +17,9 @@ public sealed class FarmDirectoryCallerTests
 
     private static readonly string[] AllowedFiles =
     [
-        "src/Cluckwork.Application/Features/Accounts/IFarmDirectory.cs",
+        "src/Cluckwork.Application/Modules/Farm/Contracts/IFarmDirectory.cs",
         "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
-        "src/Cluckwork.Api/Hosting/Modules/FarmModuleServiceCollectionExtensions.cs",
+        "src/Cluckwork.Api/Modules/Farm/FarmModuleServiceCollectionExtensions.cs",
     ];
 
     private static readonly string[] AllowedDirectories =

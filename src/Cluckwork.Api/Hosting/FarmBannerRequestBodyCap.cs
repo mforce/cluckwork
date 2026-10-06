@@ -1,5 +1,5 @@
 using Cluckwork.Api.Configuration;
-using Cluckwork.Api.Endpoints.Accounts;
+using Cluckwork.Api.Modules.Farm.Accounts;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 

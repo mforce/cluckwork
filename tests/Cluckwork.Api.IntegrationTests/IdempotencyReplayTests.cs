@@ -74,7 +74,7 @@ public sealed class IdempotencyReplayTests(CluckworkWebApplicationFactory factor
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             db.ExpenseCategories.Add(Cluckwork.Domain.Modules.Finance.Expenses.ExpenseCategory.Create(
-                categoryId, accountId, Cluckwork.Domain.Accounts.SeedDefaults.FarmId,
+                categoryId, accountId, Cluckwork.Domain.Modules.Farm.Accounts.SeedDefaults.FarmId,
                 "Test-Category"));
             await db.SaveChangesAsync();
         });

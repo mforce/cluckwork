@@ -1,6 +1,6 @@
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Domain.Accounts;
 
 namespace Cluckwork.Api.IntegrationTests;
 

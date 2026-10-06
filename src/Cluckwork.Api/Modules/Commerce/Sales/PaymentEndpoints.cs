@@ -121,7 +121,7 @@ public static class PaymentEndpoints
 
     private static async Task<IResult> ListCustomerBalances(
         ICommerceModule commerce,
-        Cluckwork.Application.Features.Accounts.IFarmModule farm,
+        Cluckwork.Application.Modules.Farm.Contracts.IFarmModule farm,
         TenantContext tenant,
         CancellationToken ct)
     {

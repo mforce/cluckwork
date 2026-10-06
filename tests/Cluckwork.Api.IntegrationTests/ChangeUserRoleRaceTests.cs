@@ -42,7 +42,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
     {
         var accountId = await factory.SeedAccountWithUserAsync(emails[0]);
         foreach (var email in emails.Skip(1))
-            await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Accounts.Roles.Owner);
+            await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Accounts.Roles.Owner);
         return accountId;
     }
 

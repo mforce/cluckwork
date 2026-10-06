@@ -328,7 +328,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
         var rawRefreshToken = tokens.RefreshTokenForDirectCall;
@@ -387,7 +387,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
         var rawRefreshToken = tokens.RefreshTokenForDirectCall;
@@ -493,7 +493,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 }
 

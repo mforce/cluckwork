@@ -1,6 +1,7 @@
+using Cluckwork.Application.Modules.Farm.Accounts.UpdateFarmSettings;
+using Cluckwork.Application.Modules.Farm.Contracts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using System.Globalization;
-using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
-using Cluckwork.Domain.Accounts;
 
 namespace Cluckwork.Application.Tests.Accounts;
 

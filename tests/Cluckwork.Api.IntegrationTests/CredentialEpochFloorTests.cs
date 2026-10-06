@@ -5,7 +5,7 @@ using System.Net;
 using System.Security.Cryptography;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

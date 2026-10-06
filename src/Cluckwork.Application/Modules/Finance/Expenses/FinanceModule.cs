@@ -3,8 +3,8 @@ using Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
 using Cluckwork.Application.Modules.Finance.Expenses.CreateExpense;
 using Cluckwork.Application.Modules.Finance.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Modules.Finance.Expenses.UpdateExpenseCategory;
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 
 namespace Cluckwork.Application.Modules.Finance.Expenses;

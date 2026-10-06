@@ -397,7 +397,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
 
     private async Task<(string Code, int Minor)> AccountCurrencyAsync(CancellationToken ct)
     {
-        Cluckwork.Domain.Accounts.Account? account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(ct);
+        Cluckwork.Domain.Modules.Farm.Accounts.Account? account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(ct);
         return (account?.DefaultCurrencyCode ?? "", account?.DefaultCurrencyMinorUnit ?? 2);
     }
 }

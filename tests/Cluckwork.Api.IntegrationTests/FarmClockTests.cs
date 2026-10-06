@@ -1,6 +1,6 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Domain.Accounts;
+using Cluckwork.Application.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Time;
 using Microsoft.Extensions.Logging.Abstractions;
 
