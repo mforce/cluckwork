@@ -1,5 +1,5 @@
 using Cluckwork.Application.Modules.Access.Contracts;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -33,7 +33,7 @@ public sealed class ProvisionAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var slug = Account.TryValidateSlug(CliDispatcher.ArgValue(args, "--slug"));
+            var slug = FarmCode.TryValidate(CliDispatcher.ArgValue(args, "--slug"));
             if (slug.IsFailure)
             {
                 await Console.Error.WriteLineAsync(

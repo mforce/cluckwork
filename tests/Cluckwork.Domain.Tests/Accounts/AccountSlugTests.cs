@@ -1,4 +1,5 @@
 using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 
 namespace Cluckwork.Domain.Tests.Accounts;
 
@@ -75,8 +76,8 @@ public sealed class AccountSlugTests
     {
         // Reserved words are valid in SHAPE, so they must be caught by the
         // reserved branch specifically, not the regex.
-        Assert.NotEmpty(Account.ReservedSlugs);
-        foreach (var reserved in Account.ReservedSlugs)
+        Assert.NotEmpty(FarmCode.Reserved);
+        foreach (var reserved in FarmCode.Reserved)
         {
             var ex = Assert.Throws<ArgumentException>(() => Farm(reserved));
             Assert.Equal("slug", ex.ParamName);
@@ -162,8 +163,8 @@ public sealed class AccountSlugTests
     {
         // Reserved codes are valid in SHAPE, so they must be refused by the reserved
         // branch specifically — the same distinction Create_RejectsEveryReservedSlug pins.
-        Assert.NotEmpty(Account.ReservedSlugs);
-        foreach (var reserved in Account.ReservedSlugs)
+        Assert.NotEmpty(FarmCode.Reserved);
+        foreach (var reserved in FarmCode.Reserved)
         {
             var account = Farm("lifecycle-farm");
 

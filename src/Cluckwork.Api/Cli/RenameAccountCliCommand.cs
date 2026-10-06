@@ -1,6 +1,6 @@
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Farm.Contracts;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -61,7 +61,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
             // The CURRENT code is folded like every other verb's --slug: an operator
             // typing SECOND-FARM at a shell means second-farm. The NEW code is NOT
             // folded, and that asymmetry is the domain's rule, not a slip —
-            // TryValidateSlug rejects uppercase so the stored value is guaranteed
+            // FarmCode.TryValidate rejects uppercase so the stored value is guaranteed
             // lowercase, which is what lets IX_Accounts_Slug be a plain index.
             var current = AccountSlugLookup.Normalize(CliDispatcher.ArgValue(args, "--slug"));
             if (current is null)
@@ -71,7 +71,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            // Checked for PRESENCE before the domain runs: TryValidateSlug's description
+            // Checked for PRESENCE before the domain runs: FarmCode.TryValidate's description
             // quotes the offending value, and for an absent flag that is an empty string —
             // an operator would get "'' is not a valid farm code" instead of the flag name.
             var requested = CliDispatcher.ArgValue(args, "--new-slug");
@@ -82,7 +82,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            var newSlug = Account.TryValidateSlug(requested);
+            var newSlug = FarmCode.TryValidate(requested);
             if (newSlug.IsFailure)
             {
                 // The description QUOTES the rejected value, which is raw argv. It is

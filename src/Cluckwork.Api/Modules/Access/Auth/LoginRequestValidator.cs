@@ -1,5 +1,5 @@
 using Cluckwork.Application.Modules.Access.Contracts;
-using Cluckwork.Domain.Modules.Farm.Accounts;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using FluentValidation;
 
 namespace Cluckwork.Api.Modules.Access.Auth;
@@ -39,7 +39,7 @@ public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
         RuleFor(x => x.FarmCode)
             .Cascade(CascadeMode.Stop)
             .Must(v => v is not null).WithMessage("Farm code is required.").WithErrorCode("Auth.FarmCode.Required")
-            .MaximumLength(Account.SlugMaxLength).WithErrorCode("Auth.FarmCode.MaxLength");
+            .MaximumLength(FarmCode.MaxLength).WithErrorCode("Auth.FarmCode.MaxLength");
         RuleFor(x => x.Email)
             .Cascade(CascadeMode.Stop)
             .Must(v => v is not null).WithMessage("Email is required.").WithErrorCode("Auth.Email.Required")

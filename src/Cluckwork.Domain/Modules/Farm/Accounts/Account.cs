@@ -1,5 +1,4 @@
 using Cluckwork.Domain.Modules.Commerce.Contracts;
-using System.Text.RegularExpressions;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 
 namespace Cluckwork.Domain.Modules.Farm.Accounts;
@@ -20,27 +19,8 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
     // sets the real one in Settings (#264). Named so the CLI default and the
     // property initialiser below cannot drift apart.
     public const string DefaultTimeZoneId = "UTC";
-    public const int SlugMaxLength = 32;
-
-    // Farm code (#531). Lowercase, URL-safe, stored ALREADY-NORMALIZED so a
-    // plain unique index suffices — deliberately NOT a lower("Slug") expression
-    // index (the four in InitialCreate are un-regenerable #407 fixtures; no
-    // reason to mint a fifth). Renameable since #732 by the `rename-account`
-    // verb and nothing else — there is deliberately no endpoint or Settings
-    // field, and no retired-code list: a code a farm has moved off is
-    // immediately reusable, which docs/decisions/732-farm-code-rename.md
-    // records as the accepted cost.
-    public static readonly IReadOnlySet<string> ReservedSlugs =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "api", "admin", "www", "health", "app", "static", "assets", "login", "auth",
-        };
-
-    // 3–32 chars, lowercase alnum + hyphen, no leading/trailing hyphen.
-    // UPPERCASE IS REJECTED, not folded: the stored value is guaranteed
-    // lowercase, which is exactly what lets the unique index be plain.
-    private static readonly Regex SlugPattern =
-        new("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", RegexOptions.Compiled);
+    // The farm-code rule lives in Farm's contract (FarmCode, #1116); the slug members delegate to it.
+    public const int SlugMaxLength = FarmCode.MaxLength;
 
     public string Name { get; private set; } = string.Empty;
     public string Slug { get; private set; } = string.Empty;
@@ -119,19 +99,7 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
         };
     }
 
-    public static Result<string> TryValidateSlug(string? slug)
-    {
-        var normalized = (slug ?? string.Empty).Trim();
-        if (!SlugPattern.IsMatch(normalized))
-            return Result.Failure<string>(Error.Validation(
-                "Account.SlugInvalid",
-                $"'{slug}' is not a valid farm code (lowercase letters, digits and hyphens, " +
-                "3–32 characters, no leading or trailing hyphen)."));
-        if (ReservedSlugs.Contains(normalized))
-            return Result.Failure<string>(Error.Validation(
-                "Account.SlugInvalid", $"'{normalized}' is a reserved farm code."));
-        return Result.Success(normalized);
-    }
+    public static Result<string> TryValidateSlug(string? slug) => FarmCode.TryValidate(slug);
 
     // Invariant guard (throws), consistent with Flock.Create. Provisioning uses
     // TryValidateSlug for an expected failure; every other factory caller keeps
