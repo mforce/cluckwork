@@ -52,7 +52,7 @@ public static class AdapterReachScanner
     public static AdapterReachReport Scan(string srcRoot, ModuleLedger ledger) =>
         Scan(srcRoot, ledger, peers: false);
 
-    // #1023: the same walk with every module's own namespaces and claimed types as the roots. A member
+    // #1023: the same walk with every module's own namespaces as the roots. A member
     // reaching another contracted module outside its contract and seam is a bypass; its own module and
     // Platform are free. Adapter rows do not apply, so nothing is undeclared or loosenable.
     public static AdapterReachReport ScanPeers(string srcRoot, ModuleLedger ledger)
@@ -61,8 +61,7 @@ public static class AdapterReachScanner
         return Scan(srcRoot, ledger with
         {
             AdapterRoots = new AdapterRoots(
-                modules.SelectMany(o => o.Namespaces.Concat(o.ExactNamespaces)).ToList(),
-                modules.SelectMany(o => o.Types).ToList())
+                modules.SelectMany(o => o.Namespaces.Concat(o.ExactNamespaces)).ToList(), [])
             {
                 PersistenceForbiddenNamespaces = ledger.AdapterRoots.PersistenceForbiddenNamespaces,
             },
@@ -91,8 +90,7 @@ public static class AdapterReachScanner
             .Where(n => n is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax).ToList();
         var declaredTypes = declarations.Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
         // #1023: a ledger entry and a resolved reference both drop generic arity, so an entry admits every
-        // generic homonym, and a claim would own nested types the peer walk never roots. Entries therefore
-        // name only top-level, non-generic types, and a claimed type declares no nested types.
+        // generic homonym. Entries therefore name only top-level, non-generic types.
         var nested = declarations.Where(n => n.Ancestors().Any(a => a is BaseTypeDeclarationSyntax))
             .Select(node => TypeName(node)).ToHashSet(StringComparer.Ordinal);
         var unsupported = declarations.Where(n => n.AncestorsAndSelf().Any(a =>
@@ -119,30 +117,6 @@ public static class AdapterReachScanner
                         errors.Add($"owner '{owner.Name}' {list} type '{type}' names a generic or nested declaration; " +
                             "an entry carries no arity, so it may name only a top-level, non-generic type");
                     }
-                }
-            }
-            foreach (var type in owner.Types.Order(StringComparer.Ordinal))
-            {
-                var home = type.Contains('.', StringComparison.Ordinal)
-                    ? ModuleLedgerScanner.Resolve(claims, type[..type.LastIndexOf('.')], declared: false) : null;
-                if (!declaredTypes.Contains(type))
-                {
-                    errors.Add($"owner '{owner.Name}' claims type '{type}', which is not declared under src/");
-                }
-                else if (home is null || kinds[home.Value.Owner] != ModuleLedger.PlatformKind)
-                {
-                    errors.Add($"owner '{owner.Name}' claims type '{type}' outside a platform namespace; " +
-                        "only a type the free hub holds can be claimed");
-                }
-                else if (unsupported.Contains(type))
-                {
-                    errors.Add($"owner '{owner.Name}' claims type '{type}', which names a generic or nested declaration; " +
-                        "a claim carries no arity, so it may name only a top-level, non-generic type");
-                }
-                else if (nested.Any(n => n.StartsWith(type + ".", StringComparison.Ordinal)))
-                {
-                    errors.Add($"owner '{owner.Name}' claims type '{type}', which declares nested types; " +
-                        "the claim would own them but the peer walk roots only the claimed type");
                 }
             }
         }

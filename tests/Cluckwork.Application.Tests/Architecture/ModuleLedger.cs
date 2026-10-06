@@ -14,15 +14,9 @@ public sealed record OwnerDefinition(
     // #849: when non-empty, adapters may reach this owner only through these types.
     public IReadOnlyList<string> Contract { get; init; } = [];
 
-    // #850: types outside the module's namespaces trusted to read its tables.
-    public IReadOnlyList<string> Implementations { get; init; } = [];
-
     // #1023: non-contract types peer modules may still reach. Adapters may not, and the contract walk skips
     // them, because a seam can carry an aggregate on purpose (#851's account seam).
     public IReadOnlyList<string> Seam { get; init; } = [];
-
-    // #1023: types this owner claims inside a Platform namespace.
-    public IReadOnlyList<string> Types { get; init; } = [];
 }
 
 public sealed record EdgeCell(string From, string To, string Kind, string Reason, IReadOnlyList<string> Symbols);
@@ -235,8 +229,6 @@ public sealed record ModuleLedger(
             errors.Add($"owner '{name}' is a platform owner and cannot declare a contract");
         }
 
-        NonBlank(owner.Implementations, "implementations", label, errors);
-
         var seam = NonBlank(owner.Seam, "seam", label, errors);
         if (seam.Count > 0 && contract.Count == 0)
         {
@@ -245,12 +237,6 @@ public sealed record ModuleLedger(
         foreach (var type in seam.Intersect(contract, StringComparer.Ordinal))
         {
             errors.Add($"owner '{name}' lists '{type}' in both its contract and its seam");
-        }
-
-        var types = NonBlank(owner.Types, "types", label, errors);
-        if (types.Count > 0 && kind == PlatformKind)
-        {
-            errors.Add($"owner '{name}' is a platform owner and cannot claim types");
         }
     }
 

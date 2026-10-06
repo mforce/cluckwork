@@ -256,21 +256,6 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
-    public void ClaimedType_ChargesItsReferencesToItsClaimant()
-    {
-        WriteSource("src/Blue.cs", BlueSource);
-        WriteSource("src/Hub.cs", """
-            namespace Cluckwork.Temp.Hub;
-            public interface IPort { Cluckwork.Temp.Blue.B Get(); }
-            """);
-        OwnerDefinition[] claimed = [Owners[0] with { Types = ["Cluckwork.Temp.Hub.IPort"] }, Owners[1], Owners[2]];
-
-        var edge = Assert.Single(Scan(Ledger([], claimed)).LiveEdges);
-
-        Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Hub.IPort"), (edge.From, edge.To, edge.Symbol));
-    }
-
-    [Fact]
     public void NestedType_RollsUpToItsTopLevelType()
     {
         WriteSource("src/Blue.cs", BlueSource);
@@ -412,16 +397,6 @@ public sealed class ModuleLedgerTests : IDisposable
 
         WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Hub; namespace Cluckwork.Temp.Hub; public class H { }");
         Assert.Empty(Evaluate(Ledger([])));
-    }
-
-    [Fact]
-    public void GlobalImportOfAPlatformNamespaceHoldingAClaimedType_IsAFailure()
-    {
-        WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Hub; namespace Cluckwork.Temp.Hub; public class H { }");
-        OwnerDefinition[] claimed = [Owners[0] with { Types = ["Cluckwork.Temp.Hub.H"] }, Owners[1], Owners[2]];
-
-        var failure = Assert.Single(Evaluate(Ledger([], claimed)));
-        Assert.Contains("global using of module namespace 'Cluckwork.Temp.Hub' in src/Hub.cs:1", failure);
     }
 
     [Fact]

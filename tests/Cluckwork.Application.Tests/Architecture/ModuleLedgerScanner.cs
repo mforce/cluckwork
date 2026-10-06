@@ -115,9 +115,6 @@ public static class ModuleLedgerScanner
             .GroupBy(o => o.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First().Kind, StringComparer.Ordinal);
         ValidateEdgeCells(ledger, ownerKinds, registryErrors);
-        var claimedTypeNamespaces = ledger.Owners.SelectMany(o => o.Types)
-            .Where(t => t.Contains('.', StringComparison.Ordinal))
-            .Select(t => t[..t.LastIndexOf('.')]).ToHashSet(StringComparer.Ordinal);
 
         var files = GuardScanner.EnumerateSourceFiles(srcRoot);
 
@@ -137,8 +134,8 @@ public static class ModuleLedgerScanner
             AddErrors(parseErrors, relative, tree.GetDiagnostics());
             var project = ProjectRootNamespace(srcFull, file);
 
-            var attributions = ScanFile(root, relative, project, namespaceOwners, ownerKinds, claimedTypeNamespaces,
-                unowned, globalModuleImports);
+            var attributions = ScanFile(root, relative, project, namespaceOwners, ownerKinds, unowned,
+                globalModuleImports);
             scanned.Add((tree, relative, project, attributions));
         }
 
@@ -273,7 +270,6 @@ public static class ModuleLedgerScanner
         string rootNamespace,
         IReadOnlyDictionary<string, Claim> namespaceOwners,
         IReadOnlyDictionary<string, string> ownerKinds,
-        IReadOnlySet<string> claimedTypeNamespaces,
         SortedDictionary<string, string> unowned,
         List<GlobalModuleImport> globalModuleImports)
     {
@@ -302,9 +298,7 @@ public static class ModuleLedgerScanner
             var symbol = IsFileLocal(type)
                 ? $"{declared}.{Identifier(type)}@{relative}"
                 : $"{declared}.{Identifier(type)}";
-            // #1023: a claimed type belongs to its claimant, not to its namespace's owner.
-            var claimant = namespaceOwners.TryGetValue(symbol, out var claim) ? claim.Owner : owner?.Owner;
-            attributions.Add(new(type, symbol, claimant));
+            attributions.Add(new(type, symbol, owner?.Owner));
         }
 
         if (attributions.Count == 0)
@@ -343,12 +337,6 @@ public static class ModuleLedgerScanner
                     && (kind == ModuleLedger.ModuleKind || IsRootAlias(directive, owner.Namespace)))
                 {
                     globalModuleImports.Add(new GlobalModuleImport(owner.Namespace, relative, LineOf(directive)));
-                }
-                // #1023: the peer walk resolves a simple name through its own file's imports only, so a global
-                // import would hide a claimed type from it.
-                else if (claimedTypeNamespaces.Contains(dotted))
-                {
-                    globalModuleImports.Add(new GlobalModuleImport(dotted, relative, LineOf(directive)));
                 }
             }
         }
@@ -491,20 +479,16 @@ public static class ModuleLedgerScanner
             errors.Add($"duplicate owner '{duplicate.Key}' — {duplicate.Count()} entries share the name, so which one claims its namespaces is undefined");
         }
 
-        // #1023: a claimed type is an exact claim on its full name. Resolve probes the full name first, so the
-        // claim outranks the owner of the type's namespace.
         var index = new Dictionary<string, Claim>(StringComparer.Ordinal);
         foreach (var claim in ledger.Owners
-            .SelectMany(o => o.Namespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: true, Label: "namespace"))
-                .Concat(o.ExactNamespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: false, Label: "namespace")))
-                .Concat(o.Types.Select(t => (Owner: o.Name, Namespace: t, Subtree: false, Label: "type"))))
+            .SelectMany(o => o.Namespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: true))
+                .Concat(o.ExactNamespaces.Select(n => (Owner: o.Name, Namespace: n, Subtree: false))))
             .GroupBy(c => c.Namespace, StringComparer.Ordinal))
         {
             var claimants = claim.Select(c => c.Owner).Distinct(StringComparer.Ordinal).OrderBy(o => o, StringComparer.Ordinal).ToList();
             if (claim.Count() > 1)
             {
-                var label = claim.Any(c => c.Label == "type") ? "type" : "namespace";
-                errors.Add($"{label} '{claim.Key}' is claimed {claim.Count()} times ({string.Join(", ", claimants)}) — every {label} must be claimed by exactly one owner");
+                errors.Add($"namespace '{claim.Key}' is claimed {claim.Count()} times ({string.Join(", ", claimants)}) — every namespace must be claimed by exactly one owner");
             }
 
             index[claim.Key] = new Claim(claimants[0], claim.First().Subtree);

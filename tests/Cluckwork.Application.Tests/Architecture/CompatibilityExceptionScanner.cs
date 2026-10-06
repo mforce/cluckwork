@@ -35,7 +35,6 @@ public static class CompatibilityExceptionScanner
     internal const string Registered = "registered";
     internal const string OwnModule = "own module";
     internal const string DeclaredEdge = "declared edge";
-    internal const string Implementation = "declared implementation";
     internal const string DbSetDeclaration = "DbSet declaration";
 
     private const string DbSetDefinition = "Microsoft.EntityFrameworkCore.DbSet<TEntity>";
@@ -193,7 +192,6 @@ public static class CompatibilityExceptionScanner
             }
         }
 
-        ValidateImplementations(contracted, compilation, reads, OwnerOf, registryErrors);
 
         var distinct = reads
             .GroupBy(r => (r.Symbol, r.Reaches, r.Table))
@@ -248,11 +246,6 @@ public static class CompatibilityExceptionScanner
                 return DeclaredEdge;
             }
 
-            if (contracted[module].Implementations.Contains(Key(type), StringComparer.Ordinal))
-            {
-                return Implementation;
-            }
-
             return member is IPropertySymbol property && IsDbSet(property.Type) && DerivesFromDbContext(type)
                 && expression is InvocationExpressionSyntax { Expression: GenericNameSyntax { Identifier.ValueText: "Set" }, ArgumentList.Arguments.Count: 0 }
                 && expression.Parent is ArrowExpressionClauseSyntax
@@ -301,37 +294,6 @@ public static class CompatibilityExceptionScanner
             {
                 errors.Add($"compatibilityExceptions row '{row.Symbol}' names table '{table}', whose table owner " +
                     $"is not {row.Reaches}");
-            }
-        }
-
-        foreach (var owner in ledger.Owners.Where(o => o.Implementations.Count > 0 && o.Contract.Count == 0))
-        {
-            errors.Add($"owner '{owner.Name}' lists implementations but declares no contract, so its tables are not guarded");
-        }
-    }
-
-    private static void ValidateImplementations(IReadOnlyDictionary<string, OwnerDefinition> contracted,
-        Compilation compilation, IReadOnlyList<DbSetRead> reads, Func<INamespaceSymbol, string?> ownerOf, List<string> errors)
-    {
-        var declared = compilation.GetSymbolsWithName(_ => true, SymbolFilter.Type).OfType<INamedTypeSymbol>()
-            .GroupBy(Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-        foreach (var (module, owner) in contracted)
-        {
-            foreach (var implementation in owner.Implementations)
-            {
-                if (!declared.TryGetValue(implementation, out var type))
-                {
-                    errors.Add($"owner '{module}' lists implementation '{implementation}', which is not declared in {SemanticProject}");
-                }
-                else if (!type.AllInterfaces.Any(i => ownerOf(i.ContainingNamespace) == module))
-                {
-                    errors.Add($"owner '{module}' lists implementation '{implementation}', which implements none of {module}'s interfaces");
-                }
-                else if (!reads.Any(r => r.Reaches == module && r.Allowance == Implementation
-                             && r.Symbol.StartsWith(implementation + ".", StringComparison.Ordinal)))
-                {
-                    errors.Add($"owner '{module}' lists implementation '{implementation}', which reads none of {module}'s tables — remove it");
-                }
             }
         }
     }
