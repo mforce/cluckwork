@@ -156,7 +156,7 @@ tooling itself (`tools/coverage/**`, the workflow file, `.config/dotnet-tools.js
 change to the collection mechanism proves itself before it reaches the
 Monday schedule — the failure mode `src/AGENTS.md` records for the sim harness
 (#370) and the AppHost (#565): a workflow nobody runs on a normal PR rots
-silently. `dotnet restore Cluckwork.sln --locked-mode` in that workflow
+silently. `dotnet restore Cluckwork.slnx --locked-mode` in that workflow
 still enforces #146's lock-file discipline for the packages this decision
 adds (`coverlet.collector`, the `dotnet-reportgenerator-globaltool` manifest
 entry).

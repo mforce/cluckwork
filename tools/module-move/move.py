@@ -359,7 +359,7 @@ def ide0005(out):
         with open(".editorconfig", "a", encoding="utf-8") as f:
             f.write("\n[*.cs]\ndotnet_diagnostic.IDE0005.severity = warning\n")
         subprocess.run(
-            ["dotnet", "build", "Cluckwork.sln", "--no-incremental", "-p:GenerateDocumentationFile=true",
+            ["dotnet", "build", "Cluckwork.slnx", "--no-incremental", "-p:GenerateDocumentationFile=true",
              "-p:NoWarn=CS1591%3BCS1573%3BCS1587%3BCS1574%3BCS1734%3BCS1572", "-p:TreatWarningsAsErrors=false",
              f"-p:CustomAfterMicrosoftCommonProps={props}", "-v", "q"], capture_output=True, check=True)
     finally:

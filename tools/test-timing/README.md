@@ -4,7 +4,7 @@ Run from the repository root with Python 3, .NET 10, and access to Docker.
 Build separately so compilation does not enter the test wall clock:
 
 ```bash
-/usr/bin/time -f 'build wall seconds: %e' dotnet build Cluckwork.sln
+/usr/bin/time -f 'build wall seconds: %e' dotnet build Cluckwork.slnx
 python3 tools/test-timing/measure.py /tmp/cluckwork-timing-before
 ```
 

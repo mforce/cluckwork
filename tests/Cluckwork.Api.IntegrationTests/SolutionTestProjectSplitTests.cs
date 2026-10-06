@@ -1,9 +1,9 @@
-using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Cluckwork.Api.IntegrationTests;
 
 // #775 — the four test projects are legs of ci.yml's `tests` matrix. One
-// `dotnet test Cluckwork.sln` could not leave a project unrun; a matrix CAN, and it fails
+// `dotnet test Cluckwork.slnx` could not leave a project unrun; a matrix CAN, and it fails
 // SILENTLY — a new project simply never executes while every check stays green.
 //
 // This is a TRIPWIRE on the solution's inventory, and deliberately nothing more. It does
@@ -43,22 +43,19 @@ public sealed class SolutionTestProjectSplitTests
              directory is not null;
              directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "Cluckwork.sln")))
+            if (File.Exists(Path.Combine(directory.FullName, "Cluckwork.slnx")))
                 return directory.FullName;
         }
 
         throw new DirectoryNotFoundException("Could not locate the Cluckwork repository root.");
     }
 
-    // Project("{guid}") = "Name", "tests/Name/Name.csproj", "{guid}"
-    private static readonly Regex SolutionProjectPattern = new(
-        @"^Project\(""\{[^}]+\}""\)\s*=\s*""[^""]+"",\s*""([^""]+\.csproj)""",
-        RegexOptions.Compiled | RegexOptions.Multiline);
-
     private static IReadOnlyList<string> SolutionTestProjectDirectories() =>
-        [.. SolutionProjectPattern
-            .Matches(File.ReadAllText(Path.Combine(RepositoryRoot, "Cluckwork.sln")))
-            .Select(match => match.Groups[1].Value.Replace('\\', '/'))
+        [.. XDocument.Load(Path.Combine(RepositoryRoot, "Cluckwork.slnx"))
+            .Descendants("Project")
+            .Select(project => (project.Attribute("Path")?.Value
+                ?? throw new InvalidDataException("A solution project has no Path attribute."))
+                .Replace('\\', '/'))
             .Where(path => path.StartsWith("tests/", StringComparison.Ordinal))
             .Select(path => Path.GetDirectoryName(path)!.Replace('\\', '/'))
             .Order(StringComparer.Ordinal)];

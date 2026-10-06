@@ -112,7 +112,7 @@ public sealed class AppHostConfigurationTests
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "Cluckwork.sln")))
+            if (File.Exists(Path.Combine(directory.FullName, "Cluckwork.slnx")))
             {
                 return directory.FullName;
             }

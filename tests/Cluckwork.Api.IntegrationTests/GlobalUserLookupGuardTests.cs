@@ -64,7 +64,7 @@ public sealed class GlobalUserLookupGuardTests
     private static string SourceRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.slnx")))
             dir = dir.Parent;
 
         Assert.NotNull(dir);

@@ -3,7 +3,7 @@
 ## What happened
 
 `Build and test` was the critical path of every PR at 6.5 to 11.5 minutes, and
-its `Test` step was one `dotnet test Cluckwork.sln` over all four test projects.
+its `Test` step was one `dotnet test Cluckwork.slnx` over all four test projects.
 Measured on run `34743304133` (PR #815), the job took **9m40s** while every other
 job in the run finished far sooner: `Web typecheck, test, and build` 3m38s,
 `Image build + Trivy scan` 1m57s, `Dependency review` 11s. All of them start
@@ -18,7 +18,7 @@ over a real Postgres per collection fixture.
 Two costs followed from running them as one step.
 
 **A five-second failure took nine minutes to report.** A broken domain invariant
-is knowable almost immediately, but `dotnet test Cluckwork.sln` surfaced it only
+is knowable almost immediately, but `dotnet test Cluckwork.slnx` surfaced it only
 when the whole run finished.
 
 **And it kept spending after it already knew.** This is the one that matters, and
@@ -95,11 +95,11 @@ cancellation you see.
 
 ## How it is enforced, and what is NOT enforced
 
-One `dotnet test Cluckwork.sln` could not leave a project unrun. A matrix **can**, and it
+One `dotnet test Cluckwork.slnx` could not leave a project unrun. A matrix **can**, and it
 fails silently — a new test project simply never executes while every check stays green.
 
 `SolutionTestProjectSplitTests` is a **tripwire on the solution's inventory** and nothing
-more. It asserts that the set of test projects in `Cluckwork.sln` is the set someone last
+more. It asserts that the set of test projects in `Cluckwork.slnx` is the set someone last
 reconciled with the matrix. Adding or removing a project fails it, which forces the author
 to go and add or remove the matching leg.
 

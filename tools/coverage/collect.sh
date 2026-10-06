@@ -55,8 +55,8 @@ mkdir -p "$RAW_ROOT" "$REPORT_ROOT"
 echo "==> dotnet tool restore"
 dotnet tool restore
 
-echo "==> dotnet build Cluckwork.sln --configuration Release"
-dotnet build Cluckwork.sln --configuration Release
+echo "==> dotnet build Cluckwork.slnx --configuration Release"
+dotnet build Cluckwork.slnx --configuration Release
 
 # 1) Collect raw coverage per selected project.
 for row in "${SELECTED[@]}"; do

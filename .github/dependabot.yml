@@ -64,7 +64,7 @@ updates:
         dependency-type: "production"
         update-types: ["minor", "patch"]
 
-  # Finds the projects via Cluckwork.sln. Bumps regenerate packages.lock.json,
+  # Finds the projects via Cluckwork.slnx. Bumps regenerate packages.lock.json,
   # which Dependabot includes in the PR — CI restores with --locked-mode, so a
   # stale lock file fails the run rather than silently drifting.
   - package-ecosystem: "nuget"

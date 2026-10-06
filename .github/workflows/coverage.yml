@@ -61,7 +61,7 @@ jobs:
             Directory.Packages.props
 
       - name: Restore dependencies
-        run: dotnet restore Cluckwork.sln --locked-mode
+        run: dotnet restore Cluckwork.slnx --locked-mode
 
       # No continue-on-error: a failing test fails this run too, same as
       # ci.yml's Test step. Only the coverage NUMBERS are non-gating.

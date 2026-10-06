@@ -160,9 +160,9 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.slnx")))
             dir = dir.Parent;
         return dir?.FullName
-            ?? throw new InvalidOperationException("Cluckwork.sln not found above the test bin directory.");
+            ?? throw new InvalidOperationException("Cluckwork.slnx not found above the test bin directory.");
     }
 }

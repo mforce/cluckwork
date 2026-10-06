@@ -49,7 +49,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Restore dependencies
-        run: dotnet restore Cluckwork.sln --locked-mode
+        run: dotnet restore Cluckwork.slnx --locked-mode
 
       # Both audits run even if the first one finds something (`if: always()`),
       # so one ecosystem's advisory doesn't hide the other's.

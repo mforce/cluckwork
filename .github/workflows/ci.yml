@@ -147,7 +147,7 @@ jobs:
           fi
           echo "$verdict" >> "$GITHUB_OUTPUT"
 
-  # #775 — one `dotnet test Cluckwork.sln` ran all four test projects inside
+  # #775 — one `dotnet test Cluckwork.slnx` ran all four test projects inside
   # `build-and-test`, so the 791 Domain, Application and AppHost tests — about
   # seven seconds of work — reported only after the 1,793 Testcontainers tests
   # finished, and a broken domain invariant cost the job's full wall clock to
@@ -213,7 +213,7 @@ jobs:
             Directory.Packages.props
 
       - name: Restore dependencies
-        run: dotnet restore Cluckwork.sln --locked-mode
+        run: dotnet restore Cluckwork.slnx --locked-mode
 
       - name: Test
         run: >-
@@ -273,7 +273,7 @@ jobs:
       # added/bumped without regenerating — run `dotnet restore` and commit the
       # updated lock files (#146).
       - name: Restore dependencies
-        run: dotnet restore Cluckwork.sln --locked-mode
+        run: dotnet restore Cluckwork.slnx --locked-mode
 
       # BLOCKING gate (#146). `dotnet list package --vulnerable` always exits 0,
       # so the script parses its JSON and fails the job on any advisory at high or
@@ -287,7 +287,7 @@ jobs:
             | node .github/scripts/vuln-gate.mjs --ecosystem nuget --level high
 
       - name: Build
-        run: dotnet build Cluckwork.sln --configuration Release --no-restore
+        run: dotnet build Cluckwork.slnx --configuration Release --no-restore
 
       # #417 — the committed docs/schema/ must be exactly what the migrations
       # produce: the script regenerates from an ephemeral migrated Postgres and
@@ -532,9 +532,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
+          key: ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
-            ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-
+            ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', '.dockerignore') }}-
             ${{ matrix.cache_prefix }}
 
       # Build the exact image the container ships: the multi-stage Dockerfile
