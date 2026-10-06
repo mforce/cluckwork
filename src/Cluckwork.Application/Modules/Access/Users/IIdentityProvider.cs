@@ -1,4 +1,4 @@
-using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 
 namespace Cluckwork.Application.Modules.Access.Users;
