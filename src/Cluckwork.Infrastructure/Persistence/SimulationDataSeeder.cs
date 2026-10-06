@@ -1,6 +1,4 @@
 using Cluckwork.Application.Modules.Access.Contracts;
-using Cluckwork.Application.Modules.Access.Users;
-using Cluckwork.Application.Modules.Access.Users.CreateUser;
 using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.Farm.Contracts;
@@ -91,6 +89,9 @@ public sealed class SimulationDataSeeder(
     IOptions<SimulationOptions> simulationOptions,
     ILogger<SimulationDataSeeder> logger)
 {
+    // The cast's worker persona. It never reaches Access: EnsureUserAsync stores it as no role.
+    private const string WorkerRole = "Worker";
+
     // The lock sweep locks Submitted entries strictly older than
     // DailyEntryLockSweep.LockAfterDays (7) farm-local days. A day-9 entry
     // clears that boundary with a 1-day safety margin even in the worst case
@@ -563,12 +564,11 @@ public sealed class SimulationDataSeeder(
                 $"Sim ReadOnly {i}", sim.CastPassword, ct);
 
         // Workers deliberately carry no role row (Roles.cs) — the seeder's own
-        // storedRole conversion below maps CreateUserValidator.WorkerRole to a
-        // null role.
+        // storedRole conversion below maps WorkerRole to a null role.
         var workers = new List<SimActor>();
         for (var i = 1; i <= sim.Workers; i++)
             workers.Add(await EnsureUserAsync(
-                accountId, $"sim-worker-{i}@{sim.EmailDomain}", CreateUserValidator.WorkerRole,
+                accountId, $"sim-worker-{i}@{sim.EmailDomain}", WorkerRole,
                 $"Sim Worker {i}", sim.CastPassword, ct));
 
         return new SimCast(owner, managers, sales, workers, Guid.Empty, Guid.Empty);
@@ -628,7 +628,7 @@ public sealed class SimulationDataSeeder(
             // this seeder uses Access fixture creation explicitly while
             // acting as the real Owner resolved by SeedAsync. There is no flag,
             // magic actor id, environment branch, or request-selectable bypass.
-            var storedRole = role == CreateUserValidator.WorkerRole ? null : role;
+            var storedRole = role == WorkerRole ? null : role;
             var result = await operations.CreateUserAsync(
                 accountId, email.Trim(), password, storedRole,
                 name: UserName.Normalize(name), ct: ct);
@@ -682,7 +682,7 @@ public sealed class SimulationDataSeeder(
         // restricted-worker shape this fixture exists to exercise is a
         // FlockScopeGuard narrowing, and Manager BYPASSES that guard by role. The
         // rerun would go green having tested the opposite of what it claims.
-        if (role == CreateUserValidator.WorkerRole)
+        if (role == WorkerRole)
         {
             if (roles.Count > 0)
                 throw new InvalidOperationException(

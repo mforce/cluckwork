@@ -1,4 +1,4 @@
-namespace Cluckwork.Application.Modules.Access.Users;
+namespace Cluckwork.Application.Modules.Access.Contracts;
 
 // #165 — one place for the new-password bound shared by create, admin-set and
 // self-service change. Identity enforces the full policy (upper/lower/digit/

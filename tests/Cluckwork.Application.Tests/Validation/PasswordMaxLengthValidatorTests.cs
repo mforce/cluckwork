@@ -1,5 +1,4 @@
 using Cluckwork.Application.Modules.Access.Contracts;
-using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Application.Modules.Access.Users.ChangeOwnPassword;
 using Cluckwork.Application.Modules.Access.Users.CreateUser;
 using Cluckwork.Application.Modules.Access.Users.SetUserPassword;
