@@ -53,33 +53,6 @@ public static class CouplingMatrix
             .Select(edge => (edge.From, edge.To)).ToHashSet();
     }
 
-    // The module graph in docs/architecture.md: one node per module, one arrow per live module pair labelled with
-    // its cell's kind (W solid, R dotted), and Platform as the free hub every module may use. Detail stays in the
-    // matrix.
-    public static string RenderModuleGraph(ModuleLedger ledger, ModuleLedgerReport edges)
-    {
-        var owners = OrderedOwners(ledger);
-        var modules = owners.Where(owner => owner.Kind == ModuleLedger.ModuleKind).Select(owner => owner.Name).ToList();
-        var platform = owners.Single(owner => owner.Kind == ModuleLedger.PlatformKind).Name;
-        var pairs = LiveModulePairs(ledger, edges);
-        var builder = new StringBuilder("```mermaid\nflowchart LR\n    subgraph modules [Modules]\n");
-        foreach (var module in modules)
-        {
-            builder.Append("        ").Append(module).Append('\n');
-        }
-        builder.Append("    end\n");
-        foreach (var from in modules)
-        {
-            foreach (var to in modules.Where(to => pairs.Contains((from, to))))
-            {
-                var kind = ledger.Edges.Single(cell => cell.From == from && cell.To == to).Kind;
-                builder.Append("    ").Append(from).Append(kind == "W" ? " -->|W| " : " -.->|R| ").Append(to).Append('\n');
-            }
-        }
-        builder.Append("    modules ==>|free hub| ").Append(platform).Append("[(").Append(platform).Append(")]\n```\n");
-        return builder.ToString();
-    }
-
     private static IReadOnlyList<OwnerDefinition> OrderedOwners(ModuleLedger ledger) => ledger.Owners
         .Where(owner => owner.Kind == ModuleLedger.ModuleKind)
         .Concat(ledger.Owners.Where(owner => owner.Kind == ModuleLedger.PlatformKind))
