@@ -1,7 +1,6 @@
 namespace Cluckwork.Application.Modules.Farm.Contracts;
 
 // Simulation fixture reads and writes; registered beside the seeders outside Production.
-[ModuleContract("Farm")]
 public interface IFarmFixture
 {
     // Reads every farm, ignoring the tenant filter.

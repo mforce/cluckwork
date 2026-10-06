@@ -4,7 +4,6 @@ namespace Cluckwork.Application.Modules.Farm.Contracts;
 // the lock sweep (#858). Each query ignores the tenant filter, so no request
 // path may reach it. FarmDirectoryCallerTests keeps this name out of request
 // code; it does not follow a forwarder, so none should exist.
-[ModuleContract("Farm")]
 public interface IFarmDirectory
 {
     // Every farm, suspended ones included: the lock sweep still locks their
@@ -17,8 +16,6 @@ public interface IFarmDirectory
     Task<Guid?> FindIdBySlugAsync(string slug, CancellationToken ct = default);
 }
 
-[ModuleContract("Farm")]
 public sealed record FarmTimeZone(Guid AccountId, string TimeZoneId);
 
-[ModuleContract("Farm")]
 public sealed record FarmListing(string Slug, string Name, bool IsActive);

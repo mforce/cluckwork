@@ -11,7 +11,6 @@ namespace Cluckwork.Application.Modules.Farm.Contracts;
 // writes the current tenant's farm, so it runs only after TenantContext is
 // resolved and never establishes identity: sign-in resolves its farm code
 // through IIdentityProvider instead.
-[ModuleContract("Farm")]
 public interface IFarmModule
 {
     static Error LogoNotSet => RemoveFarmLogoHandler.NotSet;
@@ -46,7 +45,6 @@ public interface IFarmModule
     Task<Result> RemoveBannerAsync(CancellationToken ct);
 }
 
-[ModuleContract("Farm")]
 public sealed record FarmSettingsDetails(
     Guid Id,
     string Name,
