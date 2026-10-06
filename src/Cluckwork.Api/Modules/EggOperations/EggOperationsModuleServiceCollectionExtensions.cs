@@ -58,6 +58,7 @@ internal static class EggOperationsModuleServiceCollectionExtensions
             Cluckwork.Application.Modules.EggOperations.Eggs.EggOperationsModule>();
         services.AddScoped<IEggGradeLookup, EggGradeLookup>();
         services.AddScoped<IEggStock, EggStock>();
+        services.AddScoped<IEggGradeProvisioning, EggGradeProvisioning>();
         services.AddScoped<IDailyEntryLookup, DailyEntryLookup>();
 
         return services;

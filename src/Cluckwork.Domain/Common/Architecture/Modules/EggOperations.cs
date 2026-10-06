@@ -8,9 +8,10 @@ namespace Cluckwork.Domain.Common.Architecture;
     ])]
 [ModuleEdge(
     "EggOperations", "Farm", "R",
-    "CreateEggGradeHandler attaches a new grade to Domain.Accounts.SeedDefaults.FarmId, the single-farm stand-in for the farm the grade belongs to; EggGradeFloorPolicy resolves the caller's effective role through Domain.Accounts.Roles to decide whether a grade's low-stock floor may move (#911, Owner-only per #729). Design 3.4 row Egg Ops -> Farm = R. EggOperationsFixture counts the simulation fixture's daily entries at SeedDefaults.FarmId and SeedDefaults.HouseId (#858, #1087 S9).",
+    "CreateEggGradeHandler attaches a new grade to Domain.Accounts.SeedDefaults.FarmId, the single-farm stand-in for the farm the grade belongs to; EggGradeFloorPolicy resolves the caller's effective role through Domain.Accounts.Roles to decide whether a grade's low-stock floor may move (#911, Owner-only per #729). Design 3.4 row Egg Ops -> Farm = R. EggOperationsFixture counts the simulation fixture's daily entries at SeedDefaults.FarmId and SeedDefaults.HouseId (#858, #1087 S9), and EggGradeProvisioning places a new farm's default grades on SeedDefaults.FarmId (#1116).",
     "Cluckwork.Application.Modules.EggOperations.EggGrades.CreateEggGrade.CreateEggGradeHandler",
     "Cluckwork.Application.Modules.EggOperations.EggGrades.EggGradeFloorPolicy",
+    "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggGradeProvisioning",
     "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.EggOperationsFixture")]
 [ModuleEdge(
     "EggOperations", "FlockManagement", "W",

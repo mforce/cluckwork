@@ -1,10 +1,10 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.Farm.Contracts;
 using Cluckwork.Domain.Common;
-using Cluckwork.Domain.Modules.Commerce.Catalog;
-using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
@@ -19,7 +19,9 @@ public sealed class AccountProvisioner(
     CurrentUserContext currentUser,
     IAccountUserDirectory users,
     IIdentityProvider identity,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    IEggGradeProvisioning eggGrades,
+    IEggUnitConversionProvisioning eggUnitConversions)
 {
     public async Task<Result<AccountProvisionOutcome>> ProvisionAsync(
         string? name,
@@ -104,8 +106,8 @@ public sealed class AccountProvisioner(
                 db.Accounts.Add(account);
                 await db.SaveChangesAsync(token);
 
-                db.EggGrades.AddRange(EggGrade.Defaults(accountId, SeedDefaults.FarmId));
-                db.EggUnitConversions.AddRange(EggUnitConversion.Defaults(accountId));
+                eggGrades.StageDefaults();
+                eggUnitConversions.StageDefaults();
                 await audit.WriteAsync(
                     AuditActions.AccountProvisioned, "Account", accountId,
                     details: new { input.Slug }, ct: token);
