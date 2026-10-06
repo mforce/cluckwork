@@ -16,7 +16,7 @@ namespace Cluckwork.Application.Tests.TenantBypass;
 //  * bin/ and obj/ are excluded BY PATH, and the floor is computed from the
 //    same traversal so the exclusion cannot quietly swallow real files;
 //  * the src/ root resolves by walking up from the test's working directory to
-//    the directory containing Cluckwork.sln — if it cannot be found the scan
+//    the directory containing Cluckwork.slnx — if it cannot be found the scan
 //    FAILS, it never defaults to a wrong root.
 
 public enum BypassKind
@@ -121,7 +121,7 @@ public static class GuardScanner
     public static GuardReport Scan(string srcRoot, IReadOnlyList<AllowListEntry> allowList)
     {
         // The root is the PARENT of the src root. For the real tree that is
-        // the repository (FindRepoRoot double-checks it holds Cluckwork.sln);
+        // the repository (FindRepoRoot double-checks it holds Cluckwork.slnx);
         // for a temp test tree it is the temp root — the file-count floor and
         // the parse-error guard are what make a temp tree trustworthy, not a
         // solution file.
@@ -129,7 +129,7 @@ public static class GuardScanner
         var repoRoot = Path.GetDirectoryName(srcFull)
             ?? throw new InvalidOperationException($"GuardScanner: cannot derive a root from '{srcRoot}'.");
 
-        if (!File.Exists(Path.Combine(repoRoot, "Cluckwork.sln"))
+        if (!File.Exists(Path.Combine(repoRoot, "Cluckwork.slnx"))
             && FindRepoRoot(AppContext.BaseDirectory) != repoRoot)
         {
             // Not the repo: this is a temp tree. Allowed, but the floor below
@@ -1463,7 +1463,7 @@ public static class GuardScanner
         var dir = new DirectoryInfo(Path.GetFullPath(startDir));
         while (dir is not null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
+            if (File.Exists(Path.Combine(dir.FullName, "Cluckwork.slnx")))
             {
                 return dir.FullName;
             }

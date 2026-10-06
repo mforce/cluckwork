@@ -29,7 +29,7 @@ on:
       - "**/packages.lock.json"
       - "**/Directory.Build.props"
       - "Directory.Packages.props"
-      - "Cluckwork.sln"
+      - "Cluckwork.slnx"
       - ".github/workflows/dependency-submission.yml"
   workflow_dispatch:
 
@@ -55,7 +55,7 @@ jobs:
       # resolved first. --locked-mode keeps this honest: the snapshot describes
       # exactly the versions the committed lock files pin, not a fresh resolve.
       - name: Restore dependencies
-        run: dotnet restore Cluckwork.sln --locked-mode
+        run: dotnet restore Cluckwork.slnx --locked-mode
 
       - name: Submit dependency snapshot
         # SHA-pinned (not the mutable tag) — third-party action supply-chain rule (.github/AGENTS.md).

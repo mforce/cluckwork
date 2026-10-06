@@ -16,7 +16,7 @@ From the repository root:
 
 ```bash
 git diff --check
-dotnet build Cluckwork.sln
+dotnet build Cluckwork.slnx
 cd web
 npm run typecheck
 npm run i18n:scan
@@ -149,8 +149,8 @@ For each participant, record whether all three tasks were completed without assi
 ## 7. Full Gates
 
 ```bash
-dotnet build Cluckwork.sln
-dotnet test Cluckwork.sln
+dotnet build Cluckwork.slnx
+dotnet test Cluckwork.slnx
 cd web
 npm run test:coverage
 npm run build

@@ -62,7 +62,7 @@ PORT="$(docker inspect -f '{{ (index (index .NetworkSettings.Ports "5432/tcp") 0
 # The incremental build is near-free when everything is already fresh (CI's
 # Build step just ran; locally MSBuild skips up-to-date projects).
 APP_DLL="src/Cluckwork.Api/bin/Release/net10.0/Cluckwork.Api.dll"
-dotnet build Cluckwork.sln --configuration Release
+dotnet build Cluckwork.slnx --configuration Release
 
 # Testing environment — the same one the integration-test factory uses, and
 # for the same reason: not Development (which would pull the developer's

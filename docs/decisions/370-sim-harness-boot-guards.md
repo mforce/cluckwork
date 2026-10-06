@@ -11,7 +11,7 @@ when this was written and is no longer. `.github/workflows/e2e-smoke.yml` runs
 `bash tools/simulation/bootstrap.sh` and `bash tools/simulation/verify-harness.sh`
 against `docker-compose.sim.yml` on every `pull_request` touching `src/**`,
 `web/**`, `tools/simulation/**`, `deploy/**`, `Directory.Build.props`,
-`Directory.Packages.props`, `Cluckwork.sln`, `.dockerignore` or that workflow.
+`Directory.Packages.props`, `Cluckwork.slnx`, `.dockerignore` or that workflow.
 Its own header records that owner call, dated 2026-08-08. A boot guard lives under
 `src/` and a config key under `deploy/`, so the changes this rule is about now
 fail in CI instead of passing silently.

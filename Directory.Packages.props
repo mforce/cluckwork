@@ -3,7 +3,7 @@
   <PropertyGroup>
     <!-- #684: Central Package Management. Every NuGet version lives here;
          the .csproj files carry bare PackageReference elements. Bump a package
-         by editing this file, then run `dotnet restore Cluckwork.sln` and commit
+         by editing this file, then run `dotnet restore Cluckwork.slnx` and commit
          the regenerated packages.lock.json files with it (#146). -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- CPM rejects floating ranges (10.*, 1.*, ...) with NU1011 unless this is

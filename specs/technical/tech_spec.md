@@ -52,7 +52,7 @@ No layer below `Api` references ASP.NET types. No layer references Npgsql except
 ## 2.3 Solution layout
 
 ```text
-Cluckwork.sln
+Cluckwork.slnx
 src/
   Cluckwork.Domain/
     Common/            (Entity, AggregateRoot, ValueObject, Money, Result)

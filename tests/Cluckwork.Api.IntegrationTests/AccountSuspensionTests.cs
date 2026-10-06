@@ -326,7 +326,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // rests on the runtime half + code review, and this comment must be
         // revisited. Same repo-root walk as ServingGuardCoverageTests.
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.slnx")))
             dir = dir.Parent;
         Assert.NotNull(dir);
         var serviceSource = await File.ReadAllTextAsync(

@@ -55,7 +55,7 @@ Dependabot bumps a package in one project and regenerates only that project's
 `packages.lock.json`; every downstream project in the reference chain then fails
 CI's `--locked-mode` restore with NU1004. The `.github/workflows/dependabot-lockfix.yml`
 workflow heals this automatically: after CI completes on a `dependabot/nuget/**`
-PR, it re-runs `dotnet restore Cluckwork.sln --force-evaluate` (in a no-credential
+PR, it re-runs `dotnet restore Cluckwork.slnx --force-evaluate` (in a no-credential
 job), then commits and pushes the refreshed lock files (in a separate job that
 runs no project code and holds a short-lived GitHub App token). The App-token push
 re-triggers CI, which then goes green. See

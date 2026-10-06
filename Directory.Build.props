@@ -1,6 +1,6 @@
 <Project>
 
-  <!-- Build settings every project in Cluckwork.sln shares. A project file
+  <!-- Build settings every project in Cluckwork.slnx shares. A project file
        still overrides any of these for itself, since MSBuild imports this file
        before the project. Package VERSIONS never go here: they live in
        Directory.Packages.props (#684). -->

@@ -71,7 +71,7 @@ jobs:
           # Restore into a throwaway dir, not the shared global cache.
           NUGET_PACKAGES: ${{ runner.temp }}/nuget-packages
         run: >-
-          dotnet restore Cluckwork.sln --force-evaluate
+          dotnet restore Cluckwork.slnx --force-evaluate
           --configfile .github/nuget.lockfix.config
 
       - name: Upload the regenerated lock files
@@ -80,7 +80,7 @@ jobs:
           name: lockfiles
           if-no-files-found: error
           retention-days: 1
-          # These 10 paths (every project in Cluckwork.sln; the two AppHost ones
+          # These 10 paths (every project in Cluckwork.slnx; the two AppHost ones
           # were missing from the hand-written #203 list) span both src/ and tests/, so the artifact's
           # least-common-ancestor is the repo root: each file is preserved with
           # its full repo-relative path. lockfix-apply.sh relies on this — it

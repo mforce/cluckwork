@@ -56,7 +56,7 @@ csharp_using_directive_placement = inside_namespace:silent
 [src/Cluckwork.Infrastructure/Persistence/Migrations/**]
 csharp_style_namespace_declarations = block_scoped:silent
 
-[*.{csproj,props,targets,sln}]
+[*.{csproj,props,targets,sln,slnx}]
 indent_size = 2
 
 # Generated — do not reformat. Schema docs are byte-compared by CI (#417) and a

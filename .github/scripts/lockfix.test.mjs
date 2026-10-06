@@ -19,18 +19,19 @@ test("the allowlist is exactly the 10 solution lock files", () => {
   assert.ok(LOCK_FILES.every((p) => p.endsWith("/packages.lock.json")));
 });
 
-// Walk the solution, exclude nothing: every project Cluckwork.sln references
+// Walk the solution, exclude nothing: every project Cluckwork.slnx references
 // restores a lock, so every one of them must be in the allowlist. The 7-entry
 // list shipped with #203 was written by hand and silently missed the two
 // AppHost projects added in #565 — a Dependabot bump touching an Aspire package
 // would have left their locks stale and the PR red. A recalled list is exactly
 // what this allowlist exists to replace.
-test("the allowlist covers every project in Cluckwork.sln", () => {
-  const sln = readFileSync(new URL("../../Cluckwork.sln", import.meta.url), "utf8");
-  const projects = [...sln.matchAll(/Project\("[^"]+"\) = "[^"]+", "([^"]+\.csproj)"/g)]
+test("the allowlist covers every project in Cluckwork.slnx", () => {
+  const slnx = readFileSync(new URL("../../Cluckwork.slnx", import.meta.url), "utf8")
+    .replace(/<!--[\s\S]*?-->/g, "");
+  const projects = [...slnx.matchAll(/<Project\b[^>]*\bPath\s*=\s*["']([^"']+)["'][^>]*>/g)]
     .map((m) => m[1].replaceAll("\\", "/").replace(/[^/]+\.csproj$/, "packages.lock.json"))
     .sort();
-  assert.ok(projects.length >= 10, `parsed only ${projects.length} projects from the sln`);
+  assert.ok(projects.length >= 10, `parsed only ${projects.length} projects from the slnx`);
   assert.deepEqual([...LOCK_FILES].sort(), projects);
 });
 

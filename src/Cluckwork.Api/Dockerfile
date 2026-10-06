@@ -35,7 +35,7 @@ WORKDIR /src
 # they all reference (#859). Copying just these inputs (not the
 # full source tree) keeps the restore layer cached across source-only changes.
 COPY Directory.Build.props Directory.Packages.props ./
-COPY Cluckwork.sln ./
+COPY Cluckwork.slnx ./
 COPY src/Cluckwork.Domain/Cluckwork.Domain.csproj src/Cluckwork.Domain/packages.lock.json src/Cluckwork.Domain/
 COPY src/Cluckwork.Application/Cluckwork.Application.csproj src/Cluckwork.Application/packages.lock.json src/Cluckwork.Application/
 COPY src/Cluckwork.Infrastructure/Cluckwork.Infrastructure.csproj src/Cluckwork.Infrastructure/packages.lock.json src/Cluckwork.Infrastructure/

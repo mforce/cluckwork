@@ -227,7 +227,7 @@ Framework build, so `Microsoft.CodeAnalysis.CSharp.Workspaces` is pinned to 5.0.
 | SDK 10.0.112, compiler `5.0.0-2.26422.108` | clean build green; Finance mutation red with CW1001 |
 | SDK 10.0.401, compiler `5.9.0-1.26423.113` | same |
 | Docker `build` stage, pinned SDK 10.0.401 | clean exit 0; Finance mutation exit 1 with CW1001 |
-| `dotnet format analyzers Cluckwork.sln --verify-no-changes --diagnostics CW1001 CW1002 CW1003 --severity error` | clean exit 0; mutated exit 2 with CW1001. Pointed at a single project it skips referenced projects and reports nothing |
+| `dotnet format analyzers Cluckwork.slnx --verify-no-changes --diagnostics CW1001 CW1002 CW1003 --severity error` | clean exit 0; mutated exit 2 with CW1001. Pointed at a single project it skips referenced projects and reports nothing |
 | Full rebuild, `dotnet build src/Cluckwork.Api --no-incremental`, 6 alternating pairs after one warm-up pair | median 3.87 s with, 3.79 s without (+0.08 s, 2 %); analyzer CPU about 1.6 s per build across the four compilations, mostly in parallel |
 | `Cluckwork.Domain.dll`, Release | 125,952 to 156,160 bytes, the rows' strings |
 

@@ -321,7 +321,7 @@ public sealed class RenameAccountDocsTests
     // GIT_WORK_TREE, so git takes the test's bin directory as the top level.
     internal static string RepoRoot() =>
         GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
-        ?? throw new InvalidOperationException("Cluckwork.sln not found above " + AppContext.BaseDirectory);
+        ?? throw new InvalidOperationException("Cluckwork.slnx not found above " + AppContext.BaseDirectory);
 }
 
 [Collection(EnvironmentMutatingCollection.Name)]
