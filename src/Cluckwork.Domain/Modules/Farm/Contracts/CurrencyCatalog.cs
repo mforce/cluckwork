@@ -2,7 +2,7 @@ using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 
-namespace Cluckwork.Domain.Modules.Farm.Accounts;
+namespace Cluckwork.Domain.Modules.Farm.Contracts;
 
 // Spec §4.6 "Currency derivation fallback": Phase 1 ships a static ISO 4217
 // lookup. Symbol and minor unit come from deliberately DIFFERENT sources:
@@ -132,5 +132,3 @@ public static class CurrencyCatalog
         !char.IsControl(c)
         && CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.Format;
 }
-
-public sealed record CurrencyInfo(string Code, string Symbol, int MinorUnit);
