@@ -89,6 +89,8 @@ jobs:
         run: node --test .github/scripts/changed-paths.test.mjs
       - name: Run the image-scan issue logic self-tests
         run: node --test .github/scripts/image-scan-issues.test.mjs
+      - name: Run the release-line decision self-tests
+        run: node --test .github/scripts/release-line.test.mjs
 
   changes:
     name: Classify the changed paths
