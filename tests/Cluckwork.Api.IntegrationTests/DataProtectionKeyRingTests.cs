@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -43,21 +44,29 @@ public sealed class DataProtectionKeyRingTests(CluckworkWebApplicationFactory fa
         Assert.DoesNotContain("<value>", key, StringComparison.Ordinal);
     }
 
-    // A one-shot verb mints and redeems in one process, so it must work with no
-    // database behind the ring at all.
+    // A one-shot verb mints and redeems in one process, so its ring needs no
+    // database and must persist nowhere: a second one-shot process cannot read it.
     [Fact]
-    public void A_one_shot_process_round_trips_without_touching_the_database()
+    public void A_one_shot_ring_round_trips_in_memory_and_persists_nowhere()
+    {
+        using var first = OneShotProvider();
+        using var second = OneShotProvider();
+        var protector = first.GetRequiredService<IDataProtectionProvider>().CreateProtector(Purpose);
+        var protectedPayload = protector.Protect("recover-admin");
+
+        Assert.Equal("recover-admin", protector.Unprotect(protectedPayload));
+        Assert.Throws<CryptographicException>(() =>
+            second.GetRequiredService<IDataProtectionProvider>().CreateProtector(Purpose).Unprotect(protectedPayload));
+    }
+
+    private static ServiceProvider OneShotProvider()
     {
         var services = new ServiceCollection();
         services.AddCluckworkDataProtection(
             new ConfigurationBuilder().Build(),
             new HostingEnvironment { EnvironmentName = Environments.Production },
             ProcessRole.OneShot);
-
-        using var provider = services.BuildServiceProvider();
-        var protector = provider.GetRequiredService<IDataProtectionProvider>().CreateProtector(Purpose);
-
-        Assert.Equal("recover-admin", protector.Unprotect(protector.Protect("recover-admin")));
+        return services.BuildServiceProvider();
     }
 
     private sealed class FixedDiscriminator(string discriminator) : IApplicationDiscriminator
