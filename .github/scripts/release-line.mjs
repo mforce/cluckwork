@@ -17,9 +17,10 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
+const VERSION_TAG = /^v(\d+)\.(\d+)\.\d+$/;
 
 export function maintenanceBranch(tag) {
-  const match = VERSION.exec(typeof tag === "string" && tag.startsWith("v") ? tag.slice(1) : "");
+  const match = VERSION_TAG.exec(tag);
   return match ? `release/v${match[1]}.${match[2]}.x` : null;
 }
 
@@ -49,7 +50,7 @@ export function expectedSourceRef({ tag, mainCompare, branchCompare, branchProte
 // Below 1.0.0 main and a hotfix line both propose the next patch, so whichever
 // releases second proposes a version that is already taken.
 export function versionCollision(proposed, takenTags) {
-  const match = VERSION.exec(typeof proposed === "string" ? proposed : "");
+  const match = VERSION.exec(proposed);
   if (!match) return { error: `'${proposed}' is not a version release-please could have proposed` };
   const taken = new Set(takenTags);
   if (!taken.has(`v${proposed}`)) return null;
