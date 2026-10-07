@@ -135,7 +135,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   still yields a release PR for the next version. It lands in the pending
   release PR rather than in a release, so it costs a number, not a deploy.
 - **The commit *body* is parsed too, and a parse error drops the whole commit** —
-  no changelog entry, no bump, and the run reports success. **Never start a line
+  it loses its changelog entry, and the run reports success. It no longer
+  changes which digit moves; it prevents a release only when it was the only
+  commit since the last release. **Never start a line
   with `something(` that has another `(` inside it**; indent it, bullet it, or put
   a word in front. Backticks do not protect it: the parser lexes such a line as a
   nested `type(scope)` header, and the scope admits no `(`. Only line *starts*

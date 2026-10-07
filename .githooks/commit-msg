@@ -7,7 +7,7 @@
 # WHY THIS EXISTS. release-please runs @conventional-commits/parser over the
 # WHOLE message, subject and body. A parse error is caught, logged as "commit
 # could not be parsed", and the commit is then dropped entirely — no changelog
-# entry, no bump contribution — while the workflow still reports success. Two
+# entry — while the workflow still reports success. Two
 # such commits reached main before this hook existed (ef9a64b, b39e8fb) and are
 # missing from 0.0.2's notes.
 #
@@ -118,7 +118,8 @@ subject=$(printf '%s\n' "$body" | awk 'NF { print; exit }')
 # --- 1. Subject must be a conventional header. -------------------------------
 # The type list is deliberately open (any lowercase word): release-please's
 # config decides which types are CHANGELOG-visible, and an unknown type still
-# parses and still bumps the patch digit. What does NOT parse is a missing or
+# parses. Types choose only the changelog section: every main release moves the
+# minor whatever the types (#351). What does NOT parse is a missing or
 # malformed "type: " prefix — b39e8fb's "Credential epoch: ..." had a space
 # before the colon, so "Credential" was not a type.
 # A revert or fixup is git's own shape; leave it alone.
