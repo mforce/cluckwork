@@ -29,7 +29,7 @@ flowchart LR
 Before the API starts, a separate `migrate` container applies the schema and
 exits. Local Compose access bypasses Traefik at `http://localhost:8080`.
 For Vite and Aspire, see the [development runbook](runbooks/aspire-local-development.md).
-Redis fallback behavior is covered by the [single-instance rule](../src/AGENTS.md#deploy-invariant-exactly-one-serving-api-instance-271).
+The [single-instance rule](../src/AGENTS.md#deploy-invariant-exactly-one-serving-api-instance-271) covers Redis fallback behavior.
 
 Sources: [`Compose`](../deploy/docker-compose.yml),
 [`Dockerfile`](../src/Cluckwork.Api/Dockerfile),
@@ -58,7 +58,7 @@ flowchart LR
 
 | Project | Responsibility |
 |---|---|
-| Api | `Modules/<Module>/` endpoints (Platform-owned adapters that use only the module's contract); middleware, CLI and registration |
+| Api | `Modules/<Module>/` endpoints, Platform-owned adapters that use only the module's contract; middleware, CLI and registration |
 | Application | `Modules/<Module>/` handlers, validators and repository interfaces; each module's public types in `Contracts/` |
 | Infrastructure | `Modules/<Module>/` repositories, EF configurations and Identity; persistence core, jobs and seeding |
 | Domain | `Modules/<Module>/` aggregates and value objects; each module's public enums, value types and shared rules (such as `Roles`, `FarmCode` and `DiscountCeiling`) in `Contracts/`; results and auditing |
@@ -75,7 +75,8 @@ Sources: [`Api`](../src/Cluckwork.Api/Cluckwork.Api.csproj),
 
 This is a grouped inventory of responsibilities, not a dependency graph. Each
 module owns a `Modules/<Module>/` folder in every project it spans. Endpoints
-and other modules reach it through its `Contracts/` (Farm also declares a small seam). Platform is the shared hub any
+and other modules reach it through its `Contracts/`. Other modules may also use
+Farm's seam, a short list of extra Farm types. Platform is the shared hub any
 module may use.
 
 ```mermaid
@@ -116,10 +117,8 @@ generated [coupling matrix](../tests/Cluckwork.Application.Tests/Architecture/Da
 
 ## The request pipeline
 
-Registration order in `src/Cluckwork.Api/Program.cs`. Only the load-bearing
-steps are drawn — the full list runs to 30 entries (22 `Use*` registrations,
-seven terminal/map registrations, and `app.Run()`), most of which are edge
-concerns whose relative order does not carry a guarantee.
+The diagram follows the registration order in `src/Cluckwork.Api/Program.cs`
+and shows only the steps whose order matters. See `Program.cs` for the full list.
 
 ```mermaid
 flowchart TD
@@ -140,24 +139,24 @@ flowchart TD
     IDEM --> ENDPOINT["endpoint · /health · SPA shell fallback"]
 ```
 
-Five positions in that chain are decisions, not accidents:
+The table explains five of those positions:
 
 | Placement | Why | Break it and |
 |---|---|---|
-| `FlockScopeResolutionMiddleware` **after** tenant/user resolution, **before** endpoint queries | It resolves the caller's live `UserRoleAssignment` flock scope for the whole request; it explicitly skips resolution when `IExceptionHandlerFeature` is present (a `/error` re-execution) so a database fault can render `/error` without another assignment query | Moving or removing it lets a restricted Worker read unassigned flock rows (#388); removing the re-execution skip makes error rendering itself fail whenever the original failure was the database, so the client gets no mapped `ProblemDetails` response |
+| `FlockScopeResolutionMiddleware` **after** tenant/user resolution, **before** endpoint queries | It resolves the caller's live `UserRoleAssignment` flock scope for the whole request. It skips resolution when `IExceptionHandlerFeature` is present, which marks a `/error` re-execution, so a database fault can render `/error` without another assignment query | Moving or removing it lets a restricted Worker read unassigned flock rows (#388); removing the re-execution skip makes error rendering itself fail whenever the original failure was the database, so the client gets no mapped `ProblemDetails` response |
 | `CredentialEpochMiddleware` **after** tenant resolution | It reads the user's current epoch from the tenant's database | A revoked credential keeps working (#364) |
 | `MustChangePasswordMiddleware` **before** `UseAuthorization` | The gate then applies uniformly, whatever policy tier an endpoint carries | An endpoint's own policy decides whether a forced reset is enforced (#283) |
 | `IdempotencyMiddleware` **after** `UseAuthorization` | A replay returns a cached response *without invoking the endpoint* | A role-denied caller replaying someone else's key gets the cached response instead of a 403 |
-| `SpaShell` **before** the static-file middleware | It templates `/` and `/index.html` with this response's CSP nonce (#873), and the static middleware would otherwise serve the untemplated file from `wwwroot` first | MUI's Emotion styles are refused by the browser and nothing says so — worst on the clients that installed the service worker, which precaches `/index.html` and answers every navigation from it |
+| `SpaShell` **before** the static-file middleware | It templates `/` and `/index.html` with this response's CSP nonce (#873), and the static middleware would otherwise serve the untemplated file from `wwwroot` first | The browser refuses MUI's Emotion styles and nothing reports it. Clients that installed the service worker are hit hardest, because it precaches `/index.html` and answers every navigation from it |
 
-The epoch check is a database round trip on **every authenticated request**, on
-purpose — the round trip *is* the fail-closed guarantee. Do not cache it.
+The epoch check reads the database on **every authenticated request**. That
+read is what makes a revoked credential fail closed, so do not cache it.
 
 ## The egg loop
 
-Three aggregates and one background job. `DailyEntry` produces stock,
-`SalesOrder` consumes it, and **`EggLot` is an aggregate root in its own right
-that is written directly** — do not read the two state machines below as the
+The egg loop has three aggregates and one background job. `DailyEntry` produces
+stock and `SalesOrder` consumes it. **`EggLot` is an aggregate root of its own,
+and handlers write it directly**, so the two state machines below are not the
 complete set of inventory writers:
 
 | Writer | Path | Effect on a lot |
@@ -165,7 +164,7 @@ complete set of inventory writers:
 | `DailyEntry.Submit` | `SubmitDailyEntryHandler` | creates lots |
 | `DailyEntry` adjust / void | `AdjustDailyEntryHandler`, `VoidDailyEntryHandler` | `EggLot.AdjustProduction` reconciles the lot down to what the corrected day says, with the already-sold amount as the floor |
 | `SalesOrder.Confirm` / `Void` | `ConfirmSaleHandler`, `VoidSaleHandler`, through Egg Operations' `IEggStock` | `Allocate` / `Restore` |
-| **Manual stock movement** | `RecordEggLotMovementHandler` (`/stock`) | `EggLot.AdjustAvailable` for a `Discard`, `InternalUse` or `Reconciliation` movement — no daily entry and no sale involved |
+| **Manual stock movement** | `RecordEggLotMovementHandler` (`/stock`) | `EggLot.AdjustAvailable` for a `Discard`, `InternalUse` or `Reconciliation` movement, with no daily entry or sale |
 
 Anything touching lot concurrency or the movement ledger has to account for all
 four, not just the two drawn below.
@@ -187,18 +186,18 @@ stateDiagram-v2
     Voided --> [*]
 ```
 
-Worth reading off the diagram, because a linear "Draft → Submitted → Locked →
-Voided" sketch gets all three wrong: **`ManagerAdjusted` is re-enterable**,
-**`Void` is reachable from three states**, and **a Draft cannot be voided at
-all** — it never generated anything to reverse. States and guards live in
+A linear "Draft → Submitted → Locked → Voided" sketch gets three things wrong
+that the diagram shows: **`ManagerAdjusted` is re-enterable**, **`Void` is
+reachable from three states**, and **a Draft cannot be voided at all**, because
+it never generated anything to reverse. States and guards live in
 `src/Cluckwork.Domain/Modules/EggOperations/Eggs/DailyEntry.cs`. The sweep,
 `Infrastructure/Jobs/DailyEntryLockSweep.cs`, picks each farm's cutoff
-(`Submitted` entries strictly older than 7 farm-local days) and locks them
+(`Submitted` entries strictly older than `LockAfterDays` farm-local days) and locks them
 through `IEggOperationsModule`; the lock loop itself is
 `Application/Modules/EggOperations/DailyEntries/LockDueDailyEntries/LockDueDailyEntriesHandler.cs`.
 
-`Submit` is the transition that creates stock — in one transaction with the
-state change (`Application/Modules/EggOperations/DailyEntries/SubmitDailyEntry/`):
+`Submit` creates stock in the same transaction as the state change
+(`Application/Modules/EggOperations/DailyEntries/SubmitDailyEntry/`):
 
 ```mermaid
 flowchart LR
@@ -222,22 +221,22 @@ stateDiagram-v2
 ```
 
 `Confirm` is the only transition that decrements stock, and it does the whole
-allocation before the state changes — insufficient stock on any line aborts the
-transaction, so a half-allocated confirmed order cannot exist. Lots are drawn
-**FIFO by `ProductionDate`, then `Id`** as tiebreaker
-(`Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs`), locked `FOR UPDATE`, and
-each draw writes a `SalesOrderAllocation` row. Commerce reaches the lots only
+allocation before the state changes. Insufficient stock on any line aborts the
+transaction, so a half-allocated confirmed order cannot exist. The confirm locks
+lots `FOR UPDATE` and draws them **FIFO by `ProductionDate`, then `Id`** as
+tiebreaker (`Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs`),
+and each draw writes a `SalesOrderAllocation` row. Commerce reaches the lots only
 through Egg Operations' `IEggStock` port, which locks, plans and draws inside
 the confirm's transaction and never saves (#854). `Void` re-locks those same lots
-**in the same order** — that shared ordering is what stops confirm and void
-deadlocking against each other — restores each quantity, and marks the
-allocation rows released rather than deleting them.
+**in the same order**, so confirm and void cannot deadlock each other. It then
+restores each quantity and marks the allocation rows released rather than
+deleting them.
 
 Two things the enums imply but the code does not do:
 
 - **`Shipped` and `Invoiced` are declared and never set.** They exist for later
   phases. The simulation seeder asserts both counts stay zero.
 - **`EggLot.RestrictedUntil` is enforced but never written.** `Allocate` refuses
-  a restricted lot and the FIFO query filters them out, so the guarantee is
-  real — but no production path sets the field yet, because medication tracking
-  is a later phase. The mechanism is ready; the writer is not.
+  a restricted lot and the FIFO query filters them out, so the guarantee
+  holds. No production path sets the field yet, because medication tracking is
+  a later phase.
