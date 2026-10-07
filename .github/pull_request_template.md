@@ -1,18 +1,19 @@
 <!--
 The PR TITLE is the release note. Squash-merge takes the commit subject from it,
-and release-please parses that for the changelog and the bump — so a
-non-conventional prefix silently costs the bump, with a green run. No local hook
-sees the PR title.
+and release-please parses that for the changelog — so a non-conventional prefix
+silently drops the entry, with a green run. No local hook sees the PR title.
+The type picks the changelog section; the version comes from the branch.
 
     feat(scope): …   fix(scope): …   docs|chore|test|ci|build|style(scope): …
-    feat!: …  or a BREAKING CHANGE: footer
+    feat!: …   (marks a breaking change in the changelog; moves no digit)
 -->
 
 ## What and why
 
 <!-- What changed and the problem it solves, in a few lines. Link the issue.
-     This body becomes the squashed commit in main — keep it short, and mind the
-     `word((` parser trap: see CONTRIBUTING.md#commit-messages. -->
+     This body does not reach the squashed commit: only the title does, so a
+     footer here (BREAKING CHANGE, Release-As) does nothing.
+     See CONTRIBUTING.md#commit-messages. -->
 
 ## How it was verified
 

@@ -42,31 +42,31 @@ rebuilt, so the bytes carrying `v0.4.0` are provably the bytes that passed CI.
 
 ## What decides the version
 
-Your **PR title** — or, on a **one-commit** branch, that commit's own subject,
-which GitHub uses instead. Either way it becomes the squashed commit subject:
+**The branch you release from, not the commit types.** Each release bumps one
+digit, once, however many PRs it collects:
 
-While the version is **below 1.0.0**, everything is deliberately damped one level —
-the project is pre-1.0 and shouldn't burn major digits on Phase 1.x churn:
+| Released from | Every release bumps | Example |
+|---|---|---|
+| `main` | the **middle** digit | `v1.0.0` → `v1.1.0` → `v1.2.0` |
+| a hotfix line, `release/vX.Y.x` | the **last** digit | `v1.1.0` → `v1.1.1` |
 
-| PR title starts with | Effect on `v0.3.2` |
-|---|---|
-| `feat!:` or a `BREAKING CHANGE` footer | `v0.4.0` |
-| `feat:` | `v0.3.3` |
-| anything else (`fix:`, `perf:`, `chore:`, `docs:`, `ci:` …) | `v0.3.3` |
+`release-please-config.json` sets this: `"versioning": "always-bump-minor"` on
+`main`, and `"always-bump-patch"` in each hotfix line's own copy (see
+[Hotfix releases](#hotfix-releases)). **The first digit moves only by hand**,
+with `Release-As: 2.0.0` added at merge time (see
+[Forcing a version](#forcing-a-version)). A `!` or a breaking change moves no
+digit. PR #1130, which introduced this scheme, merges with
+`--body "Release-As: 1.0.0"`, so `main`'s next release is `v1.0.0`.
 
-So below 1.0.0 only a **breaking change** moves the minor digit; everything else,
-features included, is a patch. `chore`/`ci`/`test`/`style` are hidden from the
-changelog *text*, but they still move the number.
+Commit types still choose the **changelog section**. The **PR title** is always
+the squashed commit subject, so it is the changelog line. `feat!:` marks a
+breaking change in the changelog and changes no digit. `chore`/`ci`/`test`/
+`style` are hidden from the changelog *text*, but a release made only of them
+still bumps its digit. A `BREAKING CHANGE:` footer does nothing here, because
+the squash commit has no body (see [Forcing a version](#forcing-a-version)).
 
-**Once the version reaches 1.0.0 this changes**, and it changes silently — the two
-`*-pre-major` settings in `release-please-config.json` stop applying, so `feat:`
-starts bumping the minor digit and a breaking change bumps the major. Getting to
-1.0.0 is therefore a deliberate act: bump it with a `Release-As: 1.0.0` footer when
-you mean it, not by accident. The footer only counts when it is added at merge
-time (see [Forcing a version](#forcing-a-version)).
-
-That is not as noisy as it sounds, because the bump lands in the **pending release
-PR**, not in a release. Several chore merges accumulate into one proposed patch, and
+That is not as noisy as it sounds, because the bump lands in the **pending
+release PR**, not in a release. Merges accumulate into one proposed version, and
 nothing is released until you merge that PR.
 
 Commit-message rules — including the parser trap that silently drops a whole
@@ -75,9 +75,11 @@ commit from the changelog — are in
 
 ### Forcing a version
 
-This repository squash-merges with the PR title as the commit subject and an
-empty commit body. A `Release-As:` footer written in a branch commit or in the
-PR description is therefore dropped and does nothing. Add it when you merge:
+Use this for the first digit (`Release-As: 2.0.0`), or to answer a Release
+workflow error. This repository squash-merges with the PR title as the commit
+subject and an empty commit body. A `Release-As:` footer written in a branch
+commit or in the PR description is therefore dropped and does nothing. Add it
+when you merge:
 
 ```bash
 gh pr merge <N> -R mforce/cluckwork --squash --body "Release-As: X.Y.Z"
@@ -170,8 +172,10 @@ on has both.
 
 A hotfix ships a fix on top of an earlier release without releasing everything
 merged to `main` since. It goes through a **maintenance branch**,
-`release/vX.Y.x`, one per minor line, and releases from it take the same
-draft, promote and publish path as `main`.
+`release/vX.Y.x`, one per minor line: `release/v1.2.x` carries `v1.2.1`,
+`v1.2.2` and so on after `main` released `v1.2.0`. Releases from it take the
+same draft, promote and publish path as `main`. The steps below use the one
+pre-1.0 line, `release/v0.1.x` from `v0.1.5`.
 
 1. **Create the two release rulesets before the first `release/` branch
    exists.** Both are branch rulesets with enforcement *Active*, targeting
@@ -206,17 +210,22 @@ draft, promote and publish path as `main`.
    but publishes nothing: the commit is the release's own, and `main` already
    published it. If the tag predates hotfix support, as `v0.1.5` does, its
    workflows are main-only and nothing runs on the branch at all until step 3.
-3. **Backport hotfix support if the tag predates it.** The tag predates it when
+3. **Set up the line in its first pull request.** Every line's first PR into
+   the branch sets `"versioning": "always-bump-patch"` on the `.` package in
+   the branch's `release-please-config.json`. Without it the line proposes the
+   next minor, as `main` does, and the Release workflow refuses the proposal.
+
+   If the tag predates hotfix support, the same PR MUST also cherry-pick the
+   commit that added it to `main`. The tag predates it when
    `gh api "repos/mforce/cluckwork/contents/.github/scripts/release-line.mjs?ref=v0.1.5"`
-   answers 404. Then the
-   first pull request into the branch MUST cherry-pick the commit that added
-   hotfix support to `main`:
+   answers 404, as it does for `v0.1.5`:
 
    ```bash
    git fetch origin main release/v0.1.x
-   git switch -c backport-hotfix-support origin/release/v0.1.x
+   git switch -c setup-release-line origin/release/v0.1.x
    git cherry-pick -x "$(git log origin/main --diff-filter=A --format=%H \
      -- .github/scripts/release-line.mjs)"
+   # then set "versioning": "always-bump-patch" and commit
    ```
 
    Open it against `release/v0.1.x`. It gets CI because a pull request run
@@ -225,8 +234,11 @@ draft, promote and publish path as `main`.
    publishes an image. If the cherry-pick conflicts, resolve it so the
    branch's `ci.yml` and `release-please.yml` carry the hotfix-line triggers
    (`release/v*.*.x`), the publish gate, and the step that derives the source
-   ref, and so `.github/scripts/release-line.mjs` exists. Do not cherry-pick
-   the fix itself before this PR merges: it would get no CI and no image.
+   ref, and so `.github/scripts/release-line.mjs` exists. The cherry-picked
+   commit also brings `"always-bump-minor"` and a `Release-As: 1.0.0` line in
+   its message: set `always-bump-patch` anyway, and squash-merge so that
+   message stays off the branch. Do not cherry-pick the fix itself before this
+   PR merges: it would get no CI and no image.
 4. **Cherry-pick the fix through a pull request.** Branch off
    `release/v0.1.x`, `git cherry-pick -x <sha>` the fix as it landed on `main`,
    and open the PR against `release/v0.1.x`. CI runs on it as on any PR, and
@@ -242,13 +254,15 @@ draft, promote and publish path as `main`.
    release notes print the ref promotion verified, for humans. The deploy repo
    (cluckwork-deploy) must accept that ref for a hotfix version; this repo does
    not change it.
-7. **Move `main` past the hotfix version.** `main` still proposes `v0.1.6`
-   too, and that version now exists. The Release workflow on `main`'s next
-   push fails with an error naming the fix: squash-merge the next PR into
-   `main` with a `Release-As: 0.1.7` body, as in
-   [Forcing a version](#forcing-a-version), and do not merge `main`'s pending
-   release PR until it proposes `v0.1.7`. The same happens on the hotfix line
-   once `main` releases the version it would propose next, with the same fix.
+
+**When the Release workflow refuses a proposal.** It checks each release PR's
+proposed version before anyone merges it. On a hotfix line it refuses a
+version outside that line's `X.Y.x`: the branch's config is not
+`always-bump-patch`, or a `Release-As` reached the branch. On any branch it
+refuses a version that is already tagged or released. `main` and the hotfix
+lines bump different digits, so that happens only when a `Release-As` named a
+taken version. Each error names the version to force; force it as in
+[Forcing a version](#forcing-a-version).
 
 A **CI repair dispatch** for a hotfix commit must run from its release branch,
 for the same reason a repair for a `main` commit must run from `main`.

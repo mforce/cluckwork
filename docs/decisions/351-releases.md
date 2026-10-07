@@ -106,39 +106,34 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      promotion retags and rewrites notes, so aiming it at a live version would
      repoint it — and when the release records a real commit, that commit is
      authoritative: a supplied sha may only agree with it, never override it.
-- **The bump comes from conventional commits**, so PR titles are load-bearing —
-  squash-merge puts the title on main as the commit subject. The mapping is
-  **damped while below 1.0.0**, via two settings in `release-please-config.json`:
-  `bump-minor-pre-major` ("breaking changes only bump minor if version < 1.0.0")
-  and `bump-patch-for-minor-pre-major` ("feature changes only bump patch if
-  version < 1.0.0"). So today `feat!:`/`BREAKING CHANGE` → **minor**, and
-  `feat:` along with **everything else** → **patch**.
+- **The bump comes from the branch, not from commit types** (see
+  [the 2026-10-07 versioning amendment](#amendment-2026-10-07-one-digit-per-release-chosen-by-branch)).
+  `release-please-config.json` sets `"versioning": "always-bump-minor"`, so
+  every release from `main` bumps the middle digit whatever its commits say; a
+  hotfix line's own copy sets `always-bump-patch`. Commit types choose only the
+  changelog section. PR titles stay load-bearing for that, because squash-merge
+  puts the title on the branch as the commit subject. The damped pre-1.0 mapping
+  this bullet used to describe (`bump-minor-pre-major` with
+  `bump-patch-for-minor-pre-major`) is gone.
 
-  **Both are required and they are not interchangeable.** `bump-minor-pre-major`
-  alone still lets a `feat` take the minor digit; the second setting is what keeps
-  features on patch.
+  **`initial-version` is a separate lever, and the versioning strategy does not
+  cover it.** The *first* release computes no bump at all —
+  `Strategy.initialReleaseVersion()` returns `Version.parse(this.initialVersion)`
+  or, absent that, a hardcoded `1.0.0`. So a fresh repo proposes **1.0.0** no
+  matter what the strategy says. That happened here twice: PR #372 proposed
+  `release 1.0.0`, adding the bump settings of the time changed nothing, and PR
+  #374 proposed `1.0.0` again. `"initial-version": "0.0.1"` is what fixes the
+  first release; the strategy governs every release after it. Don't diagnose
+  one as the other.
 
-  **`initial-version` is a third, separate lever, and the two bump settings do not
-  cover it.** The *first* release computes no bump at all — `Strategy.initialReleaseVersion()`
-  returns `Version.parse(this.initialVersion)` or, absent that, a hardcoded
-  `1.0.0`. So a fresh repo proposes **1.0.0** no matter what the pre-major
-  settings say. That is exactly what happened here twice: PR #372 proposed
-  `release 1.0.0`, adding the two bump settings changed nothing, and PR #374
-  proposed `1.0.0` again. `"initial-version": "0.0.1"` is what fixes the first
-  release; the bump settings govern every release after it. Don't diagnose one as
-  the other.
-
-  **This mapping changes silently at 1.0.0**, when both settings stop applying and
-  the conventional defaults resume (`feat:` → minor, breaking → major). Reaching
-  1.0.0 should therefore be deliberate — a `Release-As: 1.0.0` footer when you mean
-  it — not a side effect.
+  **The first digit moves only by hand**, with a `Release-As: X.0.0` footer
+  added at merge time. Squash commits here carry only the PR title, so a footer
+  anywhere else is dropped (see the hotfix amendment below).
 
   Note that `hidden: true` in `changelog-sections` only suppresses a type in the
-  changelog *text*; it does **not** make it unreleasable. `DefaultVersioningStrategy`
-  returns `PatchVersionUpdate()` for any commit set with no feat/breaking, and the
-  only early exit is "zero conventional commits" — so a `chore:`-only merge does
-  bump the patch digit. It lands in the pending release PR rather than in a
-  release, so it costs a number, not a deploy.
+  changelog *text*; it does **not** make it unreleasable. A `chore:`-only merge
+  still yields a release PR for the next version. It lands in the pending
+  release PR rather than in a release, so it costs a number, not a deploy.
 - **The commit *body* is parsed too, and a parse error drops the whole commit** —
   no changelog entry, no bump, and the run reports success. **Never start a line
   with `something(` that has another `(` inside it**; indent it, bullet it, or put
@@ -357,10 +352,12 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   job defaults to *not* gating, which is the dangerous default. Treat "is it in
   `publish.needs`?" as part of adding any gating job.
 - **Watch the version on the release PR, not just the changelog.** A
-  `Release-As: X.Y.Z` footer on any commit reaching main overrides the computed
-  version, and squash-merge can be configured to put a PR *body* into the commit
-  body — so a contributor can force a version jump from a PR description. The
-  human merging the release PR is the control; its title states the version.
+  `Release-As: X.Y.Z` footer on any commit reaching the branch overrides the
+  computed version. Squash commits here carry the PR title and an empty body
+  (`squash_merge_commit_message=BLANK`), so a contributor cannot force a version
+  from a PR description or a branch commit; only the person merging can, by
+  typing the footer at merge time. The human merging the release PR is the
+  control; its title states the version.
 - **Config lives in three files**, all machine-maintained — `release-please-config.json`,
   `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
   or `version.txt`**; release-please owns them and a manual edit desynchronises the
@@ -576,7 +573,10 @@ statements above changed:
   commit or the PR body never reaches the squash commit. It has to be added at
   merge time, with `gh pr merge <N> --squash --body "Release-As: X.Y.Z"` or
   the squash dialog's extended description; with nothing waiting to merge, a
-  PR holding one empty `chore:` commit carries it.
+  PR holding one empty `chore:` commit carries it. *Superseded in normal use
+  by the next amendment:* `main` and hotfix lines now bump different digits,
+  so they no longer propose the same version. The check stays, made
+  branch-aware.
 - **A release branch runs its own frozen workflows.** Push and pull request
   runs read `ci.yml` and `release-please.yml` from the branch's commit, or
   from a pull request's merge commit, never from `main`. A branch cut from a
@@ -602,3 +602,62 @@ statements above changed:
   [`.github/AGENTS.md`](../../.github/AGENTS.md) stays the canonical statement
   of what verification proves; it now names the release branch alongside
   `main`.
+
+## Amendment, 2026-10-07: one digit per release, chosen by branch
+
+The owner replaced the damped conventional-commit mapping on 2026-10-07. The
+version now depends on where a release comes from, not on what its commits
+say:
+
+- **`main` bumps the middle digit on every release**: `1.0.0` → `1.1.0` →
+  `1.2.0`. `release-please-config.json` sets `"versioning": "always-bump-minor"`
+  on the `.` package.
+- **A hotfix line bumps the last digit on every release**: `1.1.0` → `1.1.1`.
+  Each `release/vX.Y.x` branch sets `"versioning": "always-bump-patch"` in its
+  own copy of the config, in the first PR into the branch. For a tag that
+  predates hotfix support, that PR also cherry-picks the commit that added it,
+  which brings `always-bump-minor` with it. So the line-setup PR sets
+  `always-bump-patch` either way.
+- **The first digit moves only by hand**: `Release-As: 2.0.0` added at merge
+  time. A `!` or a breaking change no longer moves any digit. PR #1130 merges
+  with `--body "Release-As: 1.0.0"`, so `main`'s next release is `1.0.0`.
+
+**Verified in release-please 17.6.0**, the version release-please-action
+v5.0.0 bundles (its `package-lock.json` pins `release-please` 17.6.0):
+
+- `src/factories/versioning-strategy-factory.ts` maps `always-bump-minor` to
+  `AlwaysBumpMinor` and `always-bump-patch` to `AlwaysBumpPatch`. The config's
+  `versioning` key reaches it through `src/factory.ts` `buildStrategy`, which
+  the `simple` release type uses.
+- `src/versioning-strategies/always-bump-minor.ts` and `always-bump-patch.ts`
+  override `determineReleaseType` to return `MinorVersionUpdate` or
+  `PatchVersionUpdate` unconditionally, so breaking changes and features are
+  ignored. `MinorVersionUpdate` resets the patch to 0.
+- `bump-minor-pre-major` and `bump-patch-for-minor-pre-major` are read only in
+  `DefaultVersioningStrategy.determineReleaseType`, which those classes
+  override. They were removed from the config as dead.
+- `Release-As` still wins. `BaseStrategy.buildNewVersion` in
+  `src/strategies/base.ts` returns the version from a `RELEASE AS` note before
+  it calls the versioning strategy. That is the check that matters: the
+  `AlwaysBump*` classes also bypass `DefaultVersioningStrategy`'s own
+  `Release-As` handling.
+
+**What changed around it.**
+
+- **Collisions no longer happen in normal use**, because `main` and the lines
+  bump different digits. `groom`'s check stays and is now branch-aware
+  (`checkProposal` in `.github/scripts/release-line.mjs`). On a
+  `release/vX.Y.x` branch it refuses a proposal outside `X.Y.x`, which means
+  the line's config is not `always-bump-patch` or a `Release-As` reached the
+  branch. Promotion would refuse that release anyway, because the branch
+  derived from the tag would not hold the commit; this catches it before the
+  release PR merges. On any branch it refuses a version already tagged or
+  released, which now means a `Release-As` named a taken version. The error
+  names the next free version for that branch (a patch on a line, a minor
+  elsewhere) and how to force it.
+- **Commit types only choose the changelog section.** A `!` in the PR title
+  marks a breaking change there. A `BREAKING CHANGE:` footer is dropped, like
+  every body, because squash commits carry only the PR title.
+- **Body text reaches a commit only through a merge-time description.** The
+  parser trap above still applies to that text. `.githooks/commit-msg` checks
+  branch commits, which no longer reach `main`.
