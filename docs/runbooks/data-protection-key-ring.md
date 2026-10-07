@@ -18,8 +18,9 @@ and start every serving instance, and SQL access to the Production database.
 
 **Last drilled:** 2026-10-07 by the #794 implementer, against a scratch PostgreSQL
 container with the API running in Production: procedure A (certificate issued with the
-command below, fingerprint matched) and procedure B, steps 1 to 4. Procedure C: not
-recorded.
+command below, fingerprint matched) and procedure B, steps 1 to 4, against a plaintext
+row with single-quoted attributes, spaces around `=` and no `requiresEncryption` marker,
+stored beside a real encrypted key and a revocation record. Procedure C: not recorded.
 
 Background and the reasons behind each rule:
 [`794-data-protection-key-ring.md`](../decisions/794-data-protection-key-ring.md).
@@ -78,27 +79,33 @@ The boot fails with:
 Production found 1 Data Protection key(s) stored without encryption (key id: <id>). ...
 ```
 
-List the plaintext rows:
+Find the rows for the key ids the message names. The query parses each record's XML
+rather than matching its text, so quoting and spacing do not matter. Put every id from
+the message in the list:
 
 ```sql
-SELECT "Id", "FriendlyName", substring("Xml" from 'key id="([^"]+)"') AS key_id
+SELECT "Id", "FriendlyName", (xpath('/*/@id', "Xml"::xml))[1]::text AS key_id
 FROM "DataProtectionKeys"
-WHERE "Xml" LIKE '%requiresEncryption="true"%';
+WHERE (xpath('/*/@id', "Xml"::xml))[1]::text IN ('<id from the message>');
 ```
 
-The key ids must match the boot message. A plaintext key usually means a non-Production
-host wrote into this database, or the database ran a serving process before the
-certificate was configured. Find which before continuing, or the key comes back.
+Note the `"Id"` of each row returned; step 3 deletes exactly those rows. The guard
+decides by structure: a master key outside an encrypted element counts as plaintext,
+whatever its `requiresEncryption` marker says. Do not search the XML for the marker.
+
+A plaintext key usually means a non-Production host wrote into this database, or the
+database ran a serving process before the certificate was configured. Find which before
+continuing, or the key comes back.
 
 ### 2. Stop every serving instance
 
 The guard runs only at startup. An instance already running may still hold the
 plaintext key in memory.
 
-### 3. Delete the plaintext rows
+### 3. Delete those rows
 
 ```sql
-DELETE FROM "DataProtectionKeys" WHERE "Xml" LIKE '%requiresEncryption="true"%';
+DELETE FROM "DataProtectionKeys" WHERE "Id" IN (<the "Id" values from step 1>);
 ```
 
 > **Destructive.** Tokens protected with these keys stop validating. **This cannot be
@@ -108,7 +115,7 @@ DELETE FROM "DataProtectionKeys" WHERE "Xml" LIKE '%requiresEncryption="true"%';
 ### 4. Start again and verify
 
 The instances start. If the table is now empty, the first one writes a new encrypted key.
-Rerun the query from step 1; it must return no rows.
+If the boot refuses again, it names the remaining key ids; repeat from step 1 with them.
 
 ## C. The private key leaked: revoke the whole ring
 
@@ -148,13 +155,14 @@ before starting a serving instance.
 
 ## Verify
 
-After B or C: the startup log names the expected fingerprint, the step B.1 query returns
-no rows, and `/health/ready` returns 200.
+After B or C: the instances start (the guard found no plaintext key), the startup log names
+the expected fingerprint, and `/health/ready` returns 200.
 
 ## If it fails
 
-- **The boot names plaintext keys again after B.** Something is still writing into the
-  Production database without the certificate. Find that host before repeating B.
+- **The boot names plaintext keys again after B.** Either step 1 missed an id from the
+  message, or something is still writing into the Production database without the
+  certificate. Check the ids first, then find that host before repeating B.
 - **The boot fails with a database connection error.** The guard reads the key table at
   startup, so a Production serving process needs its database reachable to start.
 - **Tokens issued before the change no longer validate.** That is the expected cost of

@@ -75,6 +75,16 @@ Measured by `DataProtectionCertificateExpiryTests`, against the framework direct
 There is no setting for a previous certificate yet, so a planned replacement costs the
 same outstanding tokens as an emergency one.
 
+## What counts as plaintext
+
+A stored record is plaintext when any `masterKey` element sits outside an xmlenc
+`EncryptedData` element. The framework's descriptor deserializer reads `masterKey`
+whatever its `requiresEncryption` marker says, so the marker cannot decide. The first
+version trusted it, and a key with the marker removed or altered passed (review round 2).
+An `encryptedSecret` wrapper proves nothing on its own either, because the framework's
+`NullXmlEncryptor` writes one around a clear master key. Revocation records hold no
+master key and pass.
+
 ## Fixing a refused start
 
 The boot message names how many keys are plaintext and their key ids, never key material.
@@ -122,6 +132,10 @@ yet; the runbook records when it is.
   discriminator. It asserts the single stored key is encrypted and that the plaintext check
   does not flag it. It also asserts that a one-shot ring round-trips with no database and
   that a second one-shot ring cannot read it.
+- `PlaintextDataProtectionKeyClassifierTests` runs the classifier over XML the framework
+  wrote: a plaintext key, the same key with its marker removed or altered five ways, a
+  certificate-encrypted key, an encrypted key with an unmarked plaintext sibling, a key
+  behind `NullXmlEncryptor`, and a revocation record.
 - `MigrateOnStartupDisabledTests` boots Production against an unmigrated database, which
   covers the plaintext check's missing-table skip.
 - `DataProtectionCertificateExpiryTests` pins the two certificate findings above.
