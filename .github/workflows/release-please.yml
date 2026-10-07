@@ -1,8 +1,8 @@
 # #351 — the release half of the pipeline.
 #
-# CI publishes an image for EVERY merge into main, named by commit
-# (`:sha-<commit>`). Nothing there decides a version. This workflow decides
-# versions, and it does so through a human gate:
+# CI publishes an image for EVERY merge into main or a release/ maintenance
+# branch, named by commit (`:sha-<commit>`). Nothing there decides a version.
+# This workflow decides versions, and it does so through a human gate:
 #
 #   merge a PR     -> release-please updates a "Release vX.Y.Z" PR, accumulating
 #                     a CHANGELOG from conventional commits
@@ -33,6 +33,9 @@ on:
   push:
     branches:
       - main
+      # Hotfix lines: each release/vX.Y.x branch keeps its own release PR, and
+      # both release-please passes below target the branch that was pushed.
+      - release/**
   # Repair path. If promotion fails after the draft release exists (GHCR
   # unavailable, CI for that commit still red), a re-run of the push event is no
   # help: release-please would report `release_created: false` for an already
@@ -175,6 +178,9 @@ jobs:
           token: ${{ steps.app.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # Without it release-please targets the default branch, whatever was
+          # pushed.
+          target-branch: ${{ github.ref_name }}
           # Release-creation pass ONLY. The next release PR is computed by
           # `groom` below, after promotion has published this release and
           # therefore created its git tag. See that job for the failure this
@@ -201,10 +207,10 @@ jobs:
       contents: write # publish the release and append the digest to its notes
       packages: write # add the version tag in the registry
       actions: read # read the digest CI recorded for the released commit
-    # This job deliberately does NOT check out the repo — it only calls APIs and
-    # retags a manifest server-side, so a checkout would be pure cost. But `gh`
-    # infers which repository to act on from the git remote, and with no
-    # checkout there is none: every bare `gh release` / `gh run` call dies with
+    # This job checks out only `release-line.mjs`, and late; otherwise it calls
+    # APIs and retags a manifest server-side. But `gh` infers which repository
+    # to act on from the git remote, and before that checkout there is none:
+    # every bare `gh release` / `gh run` call dies with
     #   failed to run git: fatal: not a git repository
     # before it reaches its own logic. GH_REPO supplies that out of band.
     #
@@ -294,12 +300,57 @@ jobs:
           printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
           printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
 
+      - name: Check out the release-line decisions
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts/release-line.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # Which branch's CI must have built the image. Derived from where the
+      # commit lives, never read from image.json or any other writable input:
+      # main if the commit is on main, else the release/vX.Y.x branch the tag
+      # names, and only if GitHub reports that branch protected. Branch
+      # protection is what makes an attestation naming that ref mean "reviewed
+      # and merged", so the check encodes it rather than assuming it.
+      - name: Derive the ref the image must have been built on
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # A 404 is an answer (no such branch, or no such commit). Any other
+          # failure is not, and fails the step rather than reading as one.
+          probe() {
+            local out err
+            err="$(mktemp)"
+            if out="$(gh api "repos/$GITHUB_REPOSITORY/$1" --jq "$2" 2>"$err")"; then
+              printf '%s' "$out"
+            elif grep -q 'HTTP 404' "$err"; then
+              printf 'missing'
+            else
+              cat "$err" >&2
+              return 1
+            fi
+          }
+          branch="$(node .github/scripts/release-line.mjs branch "$TAG")"
+          main_compare="$(probe "compare/main...$RELEASE_SHA" .status)"
+          branch_compare="$(probe "compare/$branch...$RELEASE_SHA" .status)"
+          branch_protected="$(probe "branches/$branch" .protected)"
+          ref="$(node .github/scripts/release-line.mjs source-ref \
+            "$TAG" "$main_compare" "$branch_compare" "$branch_protected")"
+          echo "$RELEASE_SHA must carry provenance from $ref"
+          printf 'ref=%s\n' "$ref" >> "$GITHUB_OUTPUT"
+
       - name: Promote the commit image to the version tag
         id: promote
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.target.outputs.tag }}
           RELEASE_SHA: ${{ steps.target.outputs.sha }}
+          SOURCE_REF: ${{ steps.source.outputs.ref }}
         run: |
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
@@ -401,19 +452,20 @@ jobs:
           # DEFINITION from whichever ref is chosen. So without this, someone
           # who can push a branch could edit ci.yml there, dispatch it, publish
           # and attest arbitrary bytes, and the attestation would still satisfy
-          # a path-only check. Pinning refs/heads/main means only the definition
-          # that is actually on main can produce a promotable attestation.
+          # a path-only check. Pinning the derived ref (main, or the protected
+          # release/ branch above) means only the definition actually on that
+          # branch can produce a promotable attestation.
           #
           # Consequence for the repair path: a CI repair dispatch must be run
-          # from main (the default). Dispatching it from a branch produces an
-          # image that will not promote — deliberately.
+          # from that same branch. Dispatching it from any other branch produces
+          # an image that will not promote — deliberately.
           if ! gh attestation verify "oci://$image@$digest" \
             --repo "$GITHUB_REPOSITORY" \
             --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
-            --source-ref refs/heads/main \
+            --source-ref "$SOURCE_REF" \
             --bundle-from-oci; then
-            echo "::error::no valid CI provenance for $image@$digest — refusing to promote bytes whose origin cannot be established"
-            echo "::error::(if this was a CI repair dispatch, it must be run from main — a branch-run definition is not promotable)"
+            echo "::error::no valid CI provenance from $SOURCE_REF for $image@$digest — refusing to promote bytes whose origin cannot be established"
+            echo "::error::(if this was a CI repair dispatch, it must be run from ${SOURCE_REF#refs/heads/} — any other branch's definition is not promotable)"
             exit 1
           fi
 
@@ -463,6 +515,7 @@ jobs:
           RELEASE_SHA: ${{ steps.target.outputs.sha }}
           IMAGE: ${{ steps.promote.outputs.image }}
           DIGEST: ${{ steps.promote.outputs.digest }}
+          SOURCE_REF: ${{ steps.source.outputs.ref }}
         run: |
           set -euo pipefail
           notes="$(mktemp)"
@@ -494,7 +547,7 @@ jobs:
             echo "gh attestation verify oci://$IMAGE@$DIGEST \\"
             echo "  --repo $GITHUB_REPOSITORY \\"
             echo "  --signer-workflow $GITHUB_REPOSITORY/.github/workflows/ci.yml \\"
-            echo '  --source-ref refs/heads/main \'
+            echo "  --source-ref $SOURCE_REF \\"
             echo '  --bundle-from-oci'
             echo '```'
           } >> "$trimmed"
@@ -657,6 +710,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           GH_REPO: ${{ github.repository }}
+          TARGET_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
@@ -666,7 +720,7 @@ jobs:
           # with no boundary check at all — the guard failing open, which is the
           # one outcome worse than not having it.
           err=$(mktemp)
-          if version=$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json" \
+          if version=$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json?ref=$TARGET_BRANCH" \
                 -H "Accept: application/vnd.github.raw" --jq '."."' 2>"$err"); then
             :
           elif grep -q 'HTTP 404' "$err"; then
@@ -714,6 +768,46 @@ jobs:
           token: ${{ steps.app.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          target-branch: ${{ github.ref_name }}
           # PR-maintenance pass ONLY — the release was already cut above, and a
           # second attempt would report release_created: false anyway.
           skip-github-release: true
+
+      - name: Check out the release-line decisions
+        if: steps.guard.outputs.skip != 'true'
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts/release-line.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # Below 1.0.0 main and a hotfix line both propose the next patch, so the
+      # line that releases second proposes a version that already exists, and
+      # merging that PR would fail to cut the release. Fail here instead, while
+      # it is still a proposal. The proposed version is the manifest on the
+      # release PR's head branch: release-please writes it there, and its
+      # `pr` output is absent whenever the PR body did not change.
+      # Releases are listed with the App token because drafts have no tag and
+      # are visible only to push access.
+      - name: Refuse a proposed version that is already taken
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          heads="$(gh pr list --base "$TARGET_BRANCH" --state open --label 'autorelease: pending' \
+            --json headRefName --jq '.[].headRefName')"
+          if [ -z "$heads" ]; then
+            echo "No open release PR into $TARGET_BRANCH."
+            exit 0
+          fi
+          taken="$(mktemp)"
+          gh api --paginate "repos/$GH_REPO/tags" --jq '.[].name' > "$taken"
+          gh api --paginate "repos/$GH_REPO/releases" --jq '.[].tag_name' >> "$taken"
+          for head in $heads; do
+            proposed="$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json?ref=$head" \
+              -H "Accept: application/vnd.github.raw" --jq '."."')"
+            node .github/scripts/release-line.mjs collision "$proposed" < "$taken"
+          done
