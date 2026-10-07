@@ -41,20 +41,27 @@ namespace Cluckwork.Api.IntegrationTests;
 public sealed class ServingGuardDatabaseFixture : IAsyncLifetime
 {
     private readonly SharedPostgresDatabase _container = new SharedPostgresDatabase();
-    private readonly SharedPostgresDatabase _plaintextKeys = new SharedPostgresDatabase(migrated: true);
 
     public string ConnectionString => _container.GetConnectionString();
 
-    // #794 — a migrated database holding one unencrypted Data Protection key. Static
-    // because the guard table is static; the fixture is created once per class.
-    internal static string? PlaintextKeyConnectionString { get; private set; }
+    public Task InitializeAsync() => _container.StartAsync();
+
+    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+}
+
+// #794 — a migrated database holding one unencrypted Data Protection key. Only this class
+// uses it, so the static the guard table reads has exactly one owner.
+public sealed class PlaintextKeyDatabaseFixture : IAsyncLifetime
+{
+    private readonly SharedPostgresDatabase _database = new SharedPostgresDatabase(migrated: true);
+
+    internal static string? ConnectionString { get; private set; }
 
     public async Task InitializeAsync()
     {
-        await _container.StartAsync();
-        await _plaintextKeys.StartAsync();
-        PlaintextKeyConnectionString = _plaintextKeys.GetConnectionString();
-        await using var connection = new Npgsql.NpgsqlConnection(PlaintextKeyConnectionString);
+        await _database.StartAsync();
+        ConnectionString = _database.GetConnectionString();
+        await using var connection = new Npgsql.NpgsqlConnection(ConnectionString);
         await connection.OpenAsync();
         await using var insert = new Npgsql.NpgsqlCommand(
             "INSERT INTO \"DataProtectionKeys\" (\"FriendlyName\", \"Xml\") VALUES ('plaintext', @xml)", connection);
@@ -63,20 +70,16 @@ public sealed class ServingGuardDatabaseFixture : IAsyncLifetime
     }
 
     // The shape the framework writes with no XML encryptor; the value is not real key material.
-    internal const string PlaintextKeyXml =
+    private const string PlaintextKeyXml =
         "<key id=\"00000000-0000-0000-0000-000000000794\" version=\"1\"><descriptor><descriptor>"
         + "<masterKey p4:requiresEncryption=\"true\" xmlns:p4=\"http://schemas.asp.net/2015/03/dataProtection\">"
         + "<value>not-a-real-key</value></masterKey></descriptor></descriptor></key>";
 
-    public async Task DisposeAsync()
-    {
-        await _container.DisposeAsync();
-        await _plaintextKeys.DisposeAsync();
-    }
+    public Task DisposeAsync() => _database.DisposeAsync().AsTask();
 }
 
 public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
-    : IClassFixture<ServingGuardDatabaseFixture>
+    : IClassFixture<ServingGuardDatabaseFixture>, IClassFixture<PlaintextKeyDatabaseFixture>
 {
     private readonly ServingGuardDatabaseFixture _database = database;
     private static readonly string ApiDllPath = typeof(Program).Assembly.Location;
@@ -306,7 +309,7 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         // guard including ValidateOnStart, so every other row's boot dies before reaching it.
         new("#794 plaintext key", "Data Protection key(s) stored without encryption (key id: 00000000-0000-0000-0000-000000000794)",
             Violate: psi => psi.Environment["ConnectionStrings__Default"] =
-                ServingGuardDatabaseFixture.PlaintextKeyConnectionString!,
+                PlaintextKeyDatabaseFixture.ConnectionString!,
             Satisfy: _ => { }),
 
         // Each cap is TWO rows, not one. Both validators have a floor branch
