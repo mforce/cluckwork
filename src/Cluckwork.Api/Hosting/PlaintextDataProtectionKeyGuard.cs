@@ -48,17 +48,15 @@ internal sealed class PlaintextDataProtectionKeyGuard(IServiceScopeFactory scope
             + "See docs/runbooks/data-protection-key-ring.md.");
     }
 
-    // The framework marks key material that still needs encrypting with
-    // requiresEncryption="true" and replaces that element once it is encrypted.
-    internal static IReadOnlyList<string> PlaintextKeyIds(IEnumerable<string?> keyXml)
-    {
-        XName requiresEncryption = XName.Get("requiresEncryption", "http://schemas.asp.net/2015/03/dataProtection");
-        return
-        [
-            .. keyXml.OfType<string>()
-                .Select(XElement.Parse)
-                .Where(key => key.Descendants().Any(e => (string?)e.Attribute(requiresEncryption) == "true"))
-                .Select(key => (string?)key.Attribute("id") ?? "(no id)"),
-        ];
-    }
+    // A record is plaintext when any masterKey element sits outside an xmlenc EncryptedData
+    // element. The framework reads masterKey whatever its requiresEncryption marker says, and
+    // a NullXmlEncryptor wrapper (encryptedSecret > unencryptedKey) still holds it in clear.
+    internal static IReadOnlyList<string> PlaintextKeyIds(IEnumerable<string?> keyXml) =>
+    [
+        .. keyXml.OfType<string>()
+            .Select(XElement.Parse)
+            .Where(record => record.Descendants().Any(e =>
+                e.Name.LocalName == "masterKey" && !e.Ancestors().Any(a => a.Name.LocalName == "EncryptedData")))
+            .Select(record => (string?)record.Attribute("id") ?? "(no id)"),
+    ];
 }
