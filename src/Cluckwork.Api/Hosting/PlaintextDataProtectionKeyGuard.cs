@@ -48,15 +48,14 @@ internal sealed class PlaintextDataProtectionKeyGuard(IServiceScopeFactory scope
             + "See docs/runbooks/data-protection-key-ring.md.");
     }
 
-    // A record is plaintext when any masterKey element sits outside an xmlenc EncryptedData
-    // element. The framework reads masterKey whatever its requiresEncryption marker says, and
-    // a NullXmlEncryptor wrapper (encryptedSecret > unencryptedKey) still holds it in clear.
+    // A record is plaintext when it shows any masterKey element. An encrypted record carries
+    // only ciphertext; the framework reads masterKey whatever its marker says, and no wrapper
+    // name proves encryption (NullXmlEncryptor's encryptedSecret holds the key in clear).
     internal static IReadOnlyList<string> PlaintextKeyIds(IEnumerable<string?> keyXml) =>
     [
         .. keyXml.OfType<string>()
             .Select(XElement.Parse)
-            .Where(record => record.Descendants().Any(e =>
-                e.Name.LocalName == "masterKey" && !e.Ancestors().Any(a => a.Name.LocalName == "EncryptedData")))
+            .Where(record => record.Descendants().Any(e => e.Name.LocalName == "masterKey"))
             .Select(record => (string?)record.Attribute("id") ?? "(no id)"),
     ];
 }

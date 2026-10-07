@@ -45,6 +45,20 @@ public sealed class PlaintextDataProtectionKeyClassifierTests : IDisposable
         Assert.Equal([Id(key)], Classify(key));
     }
 
+    // The framework hands the descriptor's only child to the deserializer without checking
+    // its name, so a renamed descriptor still exposes a usable master key.
+    [Theory]
+    [InlineData("")]
+    [InlineData("urn:wrong")]
+    [InlineData("http://www.w3.org/2001/04/xmlenc#")]
+    public void A_plaintext_descriptor_renamed_EncryptedData_is_still_flagged(string ns)
+    {
+        var key = Single(WrittenKeys(Plaintext));
+        key.Element("descriptor")!.Elements().Single().Name = XName.Get("EncryptedData", ns);
+
+        Assert.Equal([Id(key)], Classify(key));
+    }
+
     [Fact]
     public void A_certificate_encrypted_key_passes()
     {
