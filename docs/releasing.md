@@ -178,24 +178,48 @@ draft, promote and publish path as `main`.
      -f sha="$(gh api repos/mforce/cluckwork/commits/v0.1.5 --jq .sha)"
    ```
 
-   CI runs on the new branch but publishes nothing for this first push. The
-   commit is the release's own, and `main` already published it.
-3. **Cherry-pick the fix through a pull request.** Branch off
+   A branch runs the `ci.yml` and `release-please.yml` it carries, not
+   `main`'s. If the tag already has hotfix support, CI runs on this first push
+   but publishes nothing: the commit is the release's own, and `main` already
+   published it. If the tag predates hotfix support, as `v0.1.5` does, its
+   workflows are main-only and nothing runs on the branch at all until step 3.
+3. **Backport hotfix support if the tag predates it.** The tag predates it when
+   `gh api "repos/mforce/cluckwork/contents/.github/scripts/release-line.mjs?ref=v0.1.5"`
+   answers 404. Then the
+   first pull request into the branch MUST cherry-pick the commit that added
+   hotfix support to `main`:
+
+   ```bash
+   git fetch origin main release/v0.1.x
+   git switch -c backport-hotfix-support origin/release/v0.1.x
+   git cherry-pick -x "$(git log origin/main --diff-filter=A --format=%H \
+     -- .github/scripts/release-line.mjs)"
+   ```
+
+   Open it against `release/v0.1.x`. It gets CI because a pull request run
+   reads the workflow definitions from the PR's merge commit, which carries
+   the new triggers. Merging it is the branch's first push that runs CI and
+   publishes an image. If the cherry-pick conflicts, resolve it so the
+   branch's `ci.yml` and `release-please.yml` carry the hotfix-line triggers
+   (`release/v*.*.x`), the publish gate, and the step that derives the source
+   ref, and so `.github/scripts/release-line.mjs` exists. Do not cherry-pick
+   the fix itself before this PR merges: it would get no CI and no image.
+4. **Cherry-pick the fix through a pull request.** Branch off
    `release/v0.1.x`, `git cherry-pick -x <sha>` the fix as it landed on `main`,
    and open the PR against `release/v0.1.x`. CI runs on it as on any PR, and
    the PR title is the release note.
-4. **Merge the release PR on that branch.** release-please keeps a separate
+5. **Merge the release PR on that branch.** release-please keeps a separate
    "Release v0.1.6" PR whose base is `release/v0.1.x`. Merging it drafts
    `v0.1.6` at that branch's commit, promotes the image the branch's CI
    published, and publishes the release.
-5. **Verify the deploy against the branch ref.** In step 2 of
+6. **Verify the deploy against the branch ref.** In step 2 of
    [Deploying](#deploying), pass `--source-ref refs/heads/release/v0.1.x`.
    Derive it from the version you are deploying (`v0.1.6` belongs to
    `release/v0.1.x`). Do not copy it from `image.json`, which is writable. The
    release notes print the ref promotion verified, for humans. The deploy repo
    (cluckwork-deploy) must accept that ref for a hotfix version; this repo does
    not change it.
-6. **Move `main` past the hotfix version.** `main` still proposes `v0.1.6`
+7. **Move `main` past the hotfix version.** `main` still proposes `v0.1.6`
    too, and that version now exists. The Release workflow on `main`'s next
    push fails with an error naming the fix: add a `Release-As: 0.1.7` footer
    to the next commit merged into `main`, and do not merge `main`'s pending
@@ -204,6 +228,10 @@ draft, promote and publish path as `main`.
 
 A **CI repair dispatch** for a hotfix commit must run from its release branch,
 for the same reason a repair for a `main` commit must run from `main`.
+
+A release branch keeps its own frozen copies of `ci.yml` and
+`release-please.yml`. A later fix to `main`'s workflows, security fixes
+included, reaches a live hotfix line only when it is cherry-picked there.
 
 ## Notes
 

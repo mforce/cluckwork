@@ -548,6 +548,17 @@ statements above changed:
   output cannot be relied on. The step fails when a tag or a release (drafts
   included, listed with the App token) already has that version. The error
   names the `Release-As:` footer for the next free patch.
+- **A release branch runs its own frozen workflows.** Push and pull request
+  runs read `ci.yml` and `release-please.yml` from the branch's commit, or
+  from a pull request's merge commit, never from `main`. A branch cut from a
+  tag that predates this amendment, such as `v0.1.5`, carries main-only
+  triggers: its fix PRs get no CI, merging them publishes no image, and
+  release-please never fires. So the first pull request into such a branch
+  cherry-picks the commit that added hotfix support. That PR runs CI because
+  its merge commit carries the new triggers, and merging it is the first push
+  that publishes. The general consequence is that a later fix to `main`'s
+  workflows, security fixes included, reaches a live hotfix line only when it
+  is cherry-picked there.
 - **Known limit, pre-existing and not widened here.** Anyone with push access
   can edit a workflow on a branch of their own and run it with the App
   secrets (`LOCKFIX_APP_CLIENT_ID`, `LOCKFIX_APP_PRIVATE_KEY`), because those
