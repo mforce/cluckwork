@@ -12,6 +12,7 @@ an accessibility fix on real assistive tech.
 | [Break-glass account recovery (`recover-admin`)](break-glass-account-recovery.md) | An Owner exists but is locked out. |
 | [Simulation fixture on a dev database](simulation-fixture-on-a-dev-database.md) | A local debug database needs far more rows than `seed --profile demo` provides. |
 | [Backup & restore](backup-and-restore.md) | Disaster-recovery dump, and putting one back. |
+| [Data Protection key ring](data-protection-key-ring.md) | Install the key-encryption certificate, clear plaintext keys a Production start refused, or revoke the ring after a key leak. |
 | [Screen-reader verification](screen-reader-verification.md) | An announcement change needs real assistive-tech confirmation (jsdom cannot). |
 
 ## What separates a runbook from a wiki page
