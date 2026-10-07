@@ -488,9 +488,11 @@ promote and publish path described above. The how-to is the "Hotfix releases"
 section of [`docs/releasing.md`](../releasing.md#hotfix-releases). These
 statements above changed:
 
-- **CI builds and publishes `release/**` like `main`.** The repair dispatch
-  checks ancestry against the branch it runs from and refuses any branch other
-  than `main` or `release/*`. A branch's creation push publishes nothing: it
+- **CI builds and publishes `release/v*.*.x` like `main`.** No other
+  `release/` name triggers CI's push run or the Release workflow, so none
+  publishes an image or runs the App-token jobs. The repair dispatch checks
+  ancestry against the branch it runs from and refuses any branch other than
+  `main` or one of exactly the shape `release/v<number>.<number>.x`. A branch's creation push publishes nothing: it
   carries the tag's commit, which `main` already published, and republishing it
   would move that commit's `:sha-` tags onto bytes attested to the new branch.
 - **Both release-please passes take `target-branch: ${{ github.ref_name }}`.**
@@ -510,19 +512,33 @@ statements above changed:
   verify command prints the exact ref promotion used. The decision lives in
   `.github/scripts/release-line.mjs` with its own `node --test` file, run in
   CI's `classifier-self-test` job.
-- **Promotion refuses a release branch that GitHub does not report protected.**
+- **Promotion refuses a release branch without the release ruleset's rules.**
   An attestation naming `refs/heads/main` means something because `main` only
   changes through a merged pull request. A release branch earns the same
-  meaning only under the same protection. Without it, anyone with push access
-  could edit `ci.yml` on that branch, push, and get an attestation naming a
-  ref promotion trusts. The bullet above says this repo's checks cannot stop a
-  branch writer who edits the check itself. This one exists so that a release
-  branch nobody protected fails loudly at promotion, rather than being trusted
-  because the docs said to protect it. It reads the branches API's `protected`
-  field. `main` uses classic branch protection, and a ruleset on its own may
-  leave that field `false`, so the check then refuses. That is the safe
-  direction; switching to rulesets means changing the check to read the rules
-  API.
+  meaning only under the same restrictions. Without them, anyone with push
+  access could edit `ci.yml` on that branch, push, and get an attestation
+  naming a ref promotion trusts. The bullet above says this repo's checks
+  cannot stop a branch writer who edits the check itself. This one exists so
+  that a release branch nobody restricted fails loudly at promotion, rather
+  than being trusted because the docs said to restrict it.
+
+  It reads `rules/branches/<branch>` and requires the active rule types to
+  include `creation`, `non_fast_forward` and `pull_request`. The first draft
+  read the branches API's `protected` field, and review rejected it: any
+  matching rule sets that field. A ruleset on `release/*` that did not
+  restrict creations would let anyone with write access push
+  `release/v0.9.x` full of unreviewed commits; CI would attest it with that
+  branch as the source ref, the branch would report protected, and promotion
+  would pass. `creation` is what stops that. The rules API lists ruleset
+  rules only, not classic branch protection, so the hotfix line needs a
+  ruleset even though `main` uses a classic rule.
+
+  The ruleset must exist before the first `release/` branch is created. A
+  branch created earlier could hold anything, and nothing after the fact
+  distinguishes it from a clean cut, so it is deleted and cut again. Its
+  bypass list holds the *Repository admin* role so an admin can create the
+  branch. That also lets an admin push to it directly, which matches `main`,
+  whose classic protection does not enforce admins.
 - **`groom` refuses a proposed version that already exists.** Below 1.0.0 both
   lines propose the next patch, so whichever releases second proposes a taken
   version, and merging that PR would fail to create the release. After
@@ -532,6 +548,14 @@ statements above changed:
   output cannot be relied on. The step fails when a tag or a release (drafts
   included, listed with the App token) already has that version. The error
   names the `Release-As:` footer for the next free patch.
+- **Known limit, pre-existing and not widened here.** Anyone with push access
+  can edit a workflow on a branch of their own and run it with the App
+  secrets (`LOCKFIX_APP_CLIENT_ID`, `LOCKFIX_APP_PRIVATE_KEY`), because those
+  are repository secrets rather than environment-scoped ones. The hotfix line
+  adds no new path to them: the Release workflow triggers only on `main` and
+  ruleset-restricted `release/v*.*.x` branches, which a push-access user
+  cannot create. Closing it means moving the secrets into an environment
+  limited to those branches, which is separate work.
 - **The deploy side must accept the release branch's ref for a hotfix
   version.** It derives the ref from the version it deploys, as promotion does.
   That change belongs in cluckwork-deploy, not here. The bullet in

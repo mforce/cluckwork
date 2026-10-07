@@ -120,7 +120,8 @@ Bytes CI *did* build still verify whoever pushed them, so this does not stop an
 That covers a credential that can push to the registry, and stops a branch
 writer getting *their own* bytes deployed. It proves **origin, not currency**,
 though — "did CI on `main` (or the hotfix branch) build these bytes", not "are
-these the bytes this release promoted" — so also confirm the tag still agrees with what you verified:
+these the bytes this release promoted" — so also confirm the tag still agrees
+with what you verified:
 
 ```bash
 # 3. Confirm the release's tag still resolves to the digest you just verified.
@@ -157,13 +158,20 @@ merged to `main` since. It goes through a **maintenance branch**,
 `release/vX.Y.x`, one per minor line, and releases from it take the same
 draft, promote and publish path as `main`.
 
-1. **Protect the branch pattern first.** Add a classic branch protection rule
-   for `release/*` with the same settings as `main`'s: require a pull request,
-   no force pushes, no deletions. Promotion refuses to release from a branch
-   that GitHub does not report as protected. The check reads the `protected`
-   field of the branches API, which a ruleset on its own may leave `false`;
-   `main` uses a classic rule, so use one here too.
-2. **Cut the branch from the release tag.** For a fix on top of `v0.1.5`:
+1. **Create the release ruleset before the first `release/` branch exists.**
+   Add a branch ruleset, enforcement *Active*, targeting `release/v*.*.x`, with
+   these rules: *Restrict creations*, *Restrict deletions*, *Require a pull
+   request before merging* and *Block force pushes*. Put the *Repository admin*
+   role on the bypass list so an admin can create the branch; that also lets
+   an admin push to it directly, as `main`'s protection does today.
+   Promotion reads the branch's active rules (`rules/branches/<branch>`) and
+   refuses unless creation, force pushes and direct pushes are all
+   restricted. `branches/<branch>`'s `protected` field is not enough, because
+   any matching rule sets it. A `release/` branch created before the ruleset
+   existed is untrusted: anyone with push access could have created it with
+   unreviewed commits. Delete it and cut it again.
+2. **Cut the branch from the release tag.** For a fix on top of `v0.1.5`, as a
+   user on the ruleset's bypass list:
 
    ```bash
    gh api repos/mforce/cluckwork/git/refs -f ref=refs/heads/release/v0.1.x \
