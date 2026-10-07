@@ -4,8 +4,8 @@ namespace Cluckwork.Application.Tests.Architecture;
 
 public sealed class AccessOwnershipClaimTests
 {
-    // The two Identity ports left Application.Common for Access's own namespace (#1087), so Access owns them
-    // through a namespace claim, not a type claim.
+    // The two Identity ports left Application.Common for Access's own namespace (#1087), so Access, not the
+    // Platform hub, owns them.
     [Theory]
     [InlineData(typeof(IIdentityProvider))]
     [InlineData(typeof(IStepUpGrantService))]

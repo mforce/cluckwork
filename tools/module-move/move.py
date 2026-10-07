@@ -6,7 +6,6 @@
     move.py prune <table.json> <base.log> <head.log>
                                   delete the using lines IDE0005 flags in head but not in base (see `ide0005`)
     move.py ide0005 <out.log>     build the solution with IDE0005 reported, for prune
-    move.py marks                 delete the [ModuleContract] marks of types in a Contracts folder
 
 The table is finite and explicit, one entry per file (after split, per type):
 
@@ -419,17 +418,6 @@ def prune(table, base, head):
         write(path, "".join(lines).lstrip("\r\n"), bom)
 
 
-def marks():
-    """Deletes the [ModuleContract] marks of types now in a Contracts folder; the ledger rejects a type with both."""
-    for path in code_files():
-        if path.startswith("src/") and "/Modules/" in path and "/Contracts/" in path:
-            text, bom = read(path)
-            updated = re.sub(r"^[ \t]*\[ModuleContract\(\"\w+\"\)\][ \t]*\r?\n", "", text, flags=re.M)
-            if updated != text:
-                write(path, updated, bom)
-                print(f"marks {path}")
-
-
 def load(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -438,8 +426,6 @@ def load(path):
 def main(argv):
     if len(argv) == 2 and argv[0] in ("split", "move"):
         (split if argv[0] == "split" else move)(load(argv[1]))
-    elif argv == ["marks"]:
-        marks()
     elif len(argv) == 2 and argv[0] == "ide0005":
         ide0005(argv[1])
     elif len(argv) == 4 and argv[0] == "prune":
