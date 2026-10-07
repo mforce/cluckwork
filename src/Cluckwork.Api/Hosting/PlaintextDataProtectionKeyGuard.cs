@@ -4,11 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.Hosting;
 
-// #794 — the certificate encrypts keys as they are written, but the framework still reads
-// a key stored in plaintext, for example one a non-Production host wrote before the
-// certificate existed. A database-backup reader could forge payloads with it, so a
-// Production serving process refuses to start while the ring holds one. Registered only
-// for that process; one-shot verbs never start the host.
+// #794 — the certificate encrypts keys only as they are written; the framework still reads
+// a plaintext key, and a database-backup reader could forge payloads with it. Registered
+// only for a Production serving process; one-shot verbs never start the host.
 internal sealed class PlaintextDataProtectionKeyGuard(IServiceScopeFactory scopes) : IHostedLifecycleService
 {
     // StartingAsync runs after ValidateOnStart and before any hosted service starts, so the
