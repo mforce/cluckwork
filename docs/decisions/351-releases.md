@@ -512,7 +512,7 @@ statements above changed:
   verify command prints the exact ref promotion used. The decision lives in
   `.github/scripts/release-line.mjs` with its own `node --test` file, run in
   CI's `classifier-self-test` job.
-- **Promotion refuses a release branch without the release ruleset's rules.**
+- **Promotion refuses a release branch without the release rulesets' rules.**
   An attestation naming `refs/heads/main` means something because `main` only
   changes through a merged pull request. A release branch earns the same
   meaning only under the same restrictions. Without them, anyone with push
@@ -533,8 +533,8 @@ statements above changed:
   rules only, not classic branch protection, so the hotfix line needs a
   ruleset even though `main` uses a classic rule.
 
-  The ruleset must exist before the first `release/` branch is created. A
-  `release/vX.Y.x` name that existed before it is permanently untrusted as a
+  The rulesets must exist before the first `release/` branch is created. A
+  `release/vX.Y.x` name that existed before them is permanently untrusted as a
   `--source-ref`, and that minor line ships its fix from `main` instead. An
   earlier draft said to delete such a branch and cut it again. Review (Codex,
   PR #1130) rejected that: deleting a branch withdraws no attestation already
@@ -549,9 +549,19 @@ statements above changed:
   amendment was written, `git ls-remote origin 'refs/heads/release/*'`
   returned nothing, so no such name exists yet.
 
-  The ruleset's bypass list holds the *Repository admin* role so an admin can
-  create the branch. That also lets an admin push to it directly, which
-  matches `main`, whose classic protection does not enforce admins.
+  The rules are split across two rulesets on `release/v*.*.x` so that the one
+  bypass needed does not reach the others. *Release lines* holds *Require a
+  pull request*, *Block force pushes* and *Restrict deletions* with an empty
+  bypass list, so admins also change a release branch only through a pull
+  request. That is stricter than `main`, whose classic protection does not
+  enforce admins. *Release line creation* holds *Restrict creations* with only
+  the *Repository admin* role on its bypass list, so an admin can cut the
+  branch. A single ruleset carrying the admin bypass would have let admins
+  push to a release branch directly. `rules/branches/<branch>` returns "all
+  active rules that apply", per GitHub's REST documentation, so the rule
+  types from both rulesets arrive in one list and promotion's check needs no
+  change. The documentation does not state explicitly that bypass actors are
+  ignored when listing; that is confirmed only by a live run.
 - **`groom` refuses a proposed version that already exists.** Below 1.0.0 both
   lines propose the next patch, so whichever releases second proposes a taken
   version, and merging that PR would fail to create the release. After

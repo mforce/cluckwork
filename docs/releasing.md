@@ -158,23 +158,28 @@ merged to `main` since. It goes through a **maintenance branch**,
 `release/vX.Y.x`, one per minor line, and releases from it take the same
 draft, promote and publish path as `main`.
 
-1. **Create the release ruleset before the first `release/` branch exists.**
-   Add a branch ruleset, enforcement *Active*, targeting `release/v*.*.x`, with
-   these rules: *Restrict creations*, *Restrict deletions*, *Require a pull
-   request before merging* and *Block force pushes*. Put the *Repository admin*
-   role on the bypass list so an admin can create the branch; that also lets
-   an admin push to it directly, as `main`'s protection does today.
+1. **Create the two release rulesets before the first `release/` branch
+   exists.** Both are branch rulesets with enforcement *Active*, targeting
+   `release/v*.*.x`:
+
+   - **Release lines.** Rules: *Require a pull request before merging*,
+     *Block force pushes* and *Restrict deletions*. The bypass list is empty,
+     so admins also change the branch only through a pull request.
+   - **Release line creation.** Rule: *Restrict creations*. Only the
+     *Repository admin* role is on its bypass list, so an admin can cut the
+     branch.
+
    Promotion reads the branch's active rules (`rules/branches/<branch>`) and
    refuses unless creation, force pushes and direct pushes are all
    restricted. `branches/<branch>`'s `protected` field is not enough, because
    any matching rule sets it. A `release/vX.Y.x` name that existed before the
-   ruleset is permanently untrusted as a `--source-ref`. Anyone with push
+   rulesets is permanently untrusted as a `--source-ref`. Anyone with push
    access could have run their own `ci.yml` on it and kept images attested to
    that ref, and deleting the branch withdraws none of those attestations. So
    that minor line cannot be hotfixed through this flow; ship the fix from
    `main` instead. No `release/` ref existed when hotfix support was added.
 2. **Cut the branch from the release tag.** For a fix on top of `v0.1.5`, as a
-   user on the ruleset's bypass list:
+   repository admin, the only role on the creation ruleset's bypass list:
 
    ```bash
    gh api repos/mforce/cluckwork/git/refs -f ref=refs/heads/release/v0.1.x \
