@@ -106,7 +106,8 @@ All three flags matter, none is the default, and they do **different** jobs:
 `--bundle-from-oci` reads the attestation from the registry copy rather than the
 GitHub API; `--signer-workflow` binds the claim to this workflow, not merely to
 this repo; `--source-ref` binds it to `main`. Only the last two narrow *whose*
-claim is accepted. Copy the command as-is.
+claim is accepted. Copy the command as-is, except for a hotfix version, where
+the source ref is its release branch (see [Hotfix releases](#hotfix-releases)).
 
 Step 2 is the one that matters, and step 1 cannot substitute for it. Knowing a
 digest tells you *what* you are deploying but nothing about *where it came from*
@@ -118,8 +119,8 @@ Bytes CI *did* build still verify whoever pushed them, so this does not stop an
 
 That covers a credential that can push to the registry, and stops a branch
 writer getting *their own* bytes deployed. It proves **origin, not currency**,
-though — "did CI on `main` build these bytes", not "are these the bytes this
-release promoted" — so also confirm the tag still agrees with what you verified:
+though — "did CI on `main` (or the hotfix branch) build these bytes", not "are
+these the bytes this release promoted" — so also confirm the tag still agrees with what you verified:
 
 ```bash
 # 3. Confirm the release's tag still resolves to the digest you just verified.
@@ -135,7 +136,7 @@ TAGGED=$(docker buildx imagetools inspect ghcr.io/mforce/cluckwork:vX.Y.Z \
 
 Step 3 catches an asset rewritten on its own. It does **not** catch someone who
 can also push to the registry and move the tag to match, and it says nothing
-about a change merged to `main`. **Read the deploy bullet in
+about a change merged to `main` or to a release branch. **Read the deploy bullet in
 [`.github/AGENTS.md`](../.github/AGENTS.md#releases-and-image-publishing-351) before relying on
 any of this** — it is the canonical statement of what each step does and does not
 prove, and of why each flag is required.
@@ -149,9 +150,57 @@ verify — the digest in the release notes is all there is, and it carries no
 proof of origin. This applies to `v0.0.1` only; every release from the next one
 on has both.
 
+## Hotfix releases
+
+A hotfix ships a fix on top of an earlier release without releasing everything
+merged to `main` since. It goes through a **maintenance branch**,
+`release/vX.Y.x`, one per minor line, and releases from it take the same
+draft, promote and publish path as `main`.
+
+1. **Protect the branch pattern first.** Add a classic branch protection rule
+   for `release/*` with the same settings as `main`'s: require a pull request,
+   no force pushes, no deletions. Promotion refuses to release from a branch
+   that GitHub does not report as protected. The check reads the `protected`
+   field of the branches API, which a ruleset on its own may leave `false`;
+   `main` uses a classic rule, so use one here too.
+2. **Cut the branch from the release tag.** For a fix on top of `v0.1.5`:
+
+   ```bash
+   gh api repos/mforce/cluckwork/git/refs -f ref=refs/heads/release/v0.1.x \
+     -f sha="$(gh api repos/mforce/cluckwork/commits/v0.1.5 --jq .sha)"
+   ```
+
+   CI runs on the new branch but publishes nothing for this first push. The
+   commit is the release's own, and `main` already published it.
+3. **Cherry-pick the fix through a pull request.** Branch off
+   `release/v0.1.x`, `git cherry-pick -x <sha>` the fix as it landed on `main`,
+   and open the PR against `release/v0.1.x`. CI runs on it as on any PR, and
+   the PR title is the release note.
+4. **Merge the release PR on that branch.** release-please keeps a separate
+   "Release v0.1.6" PR whose base is `release/v0.1.x`. Merging it drafts
+   `v0.1.6` at that branch's commit, promotes the image the branch's CI
+   published, and publishes the release.
+5. **Verify the deploy against the branch ref.** In step 2 of
+   [Deploying](#deploying), pass `--source-ref refs/heads/release/v0.1.x`.
+   Derive it from the version you are deploying (`v0.1.6` belongs to
+   `release/v0.1.x`). Do not copy it from `image.json`, which is writable. The
+   release notes print the ref promotion verified, for humans. The deploy repo
+   (cluckwork-deploy) must accept that ref for a hotfix version; this repo does
+   not change it.
+6. **Move `main` past the hotfix version.** `main` still proposes `v0.1.6`
+   too, and that version now exists. The Release workflow on `main`'s next
+   push fails with an error naming the fix: add a `Release-As: 0.1.7` footer
+   to the next commit merged into `main`, and do not merge `main`'s pending
+   release PR until it proposes `v0.1.7`. The same happens on the hotfix line
+   once `main` releases the version it would propose next, with the same fix.
+
+A **CI repair dispatch** for a hotfix commit must run from its release branch,
+for the same reason a repair for a `main` commit must run from `main`.
+
 ## Notes
 
-- **Pull requests publish nothing.** The publish job only runs on `main`.
+- **Pull requests publish nothing.** The publish job only runs on `main` and
+  `release/` branches.
 - **No version files to edit.** `version.txt` and `.release-please-manifest.json` are
   machine-maintained — editing them by hand desynchronises the bot from reality.
 - **The Release PR is built and tested like any other PR.** It's opened with a
@@ -172,8 +221,9 @@ on has both.
   that commit's sha first, then the Release step above. This happens when a commit
   message contains `[skip ci]` (GitHub matches it anywhere in the message, so it can
   arrive via a changelog entry) — no run is created, so there is nothing to re-run.
-  The dispatch only accepts commits already on `main`, and **must itself be run
-  from `main`** (the default branch in the *Run workflow* dropdown). The sha you
+  The dispatch only accepts commits already on the branch it runs from, and
+  **must itself be run from `main`** (the default branch in the *Run workflow*
+  dropdown), or from the release branch for a hotfix commit. The sha you
   type names the commit to build; the branch you dispatch from decides which
   workflow definition runs, and an image built from a branch dispatch carries
   provenance naming that branch — which the release workflow, and any deploy

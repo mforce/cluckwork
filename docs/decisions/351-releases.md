@@ -477,3 +477,64 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   deprecation by pointing `client-id` at `LOCKFIX_APP_ID`: the mint fails.
 - Package visibility and the host's pull credential are **deploy-side** concerns
   (cluckwork-deploy#6), not this repo's.
+
+## Amendment, 2026-10-07: hotfix release lines
+
+Until this amendment only `main` could be released, so a fix for a deployed
+version shipped with everything merged since. A **maintenance branch**,
+`release/vX.Y.x`, now carries a hotfix line. It is cut from a release tag and
+receives cherry-picked fixes by pull request. Its releases take the same draft,
+promote and publish path described above. The how-to is the "Hotfix releases"
+section of [`docs/releasing.md`](../releasing.md#hotfix-releases). These
+statements above changed:
+
+- **CI builds and publishes `release/**` like `main`.** The repair dispatch
+  checks ancestry against the branch it runs from and refuses any branch other
+  than `main` or `release/*`. A branch's creation push publishes nothing: it
+  carries the tag's commit, which `main` already published, and republishing it
+  would move that commit's `:sha-` tags onto bytes attested to the new branch.
+- **Both release-please passes take `target-branch: ${{ github.ref_name }}`.**
+  Without it the action targets the repository's default branch whatever was
+  pushed (`release-please-action` v5.0.0, `src/index.ts`, passes the input as
+  `defaultBranch` to `GitHub.create`). release-please then reads that branch's
+  manifest, finds the release whose tag matches it, and keeps a separate
+  release PR whose head is `release-please--branches--<branch>--components--cluckwork`.
+  `groom`'s boundary probe reads the manifest from the pushed branch for the
+  same reason.
+- **`--source-ref` is derived, not fixed to `refs/heads/main`.** Promotion asks
+  where the released commit lives: on `main` gives `refs/heads/main`; otherwise
+  on `release/v<major>.<minor>.x`, taken from the tag, gives that branch's ref;
+  anything else is refused. The ref is never read from `image.json`, which
+  anyone with `contents: write` can rewrite, and is never a wildcard, so a
+  `v0.1.6` image built on `release/v0.2.x` does not verify. The release notes'
+  verify command prints the exact ref promotion used. The decision lives in
+  `.github/scripts/release-line.mjs` with its own `node --test` file, run in
+  CI's `classifier-self-test` job.
+- **Promotion refuses a release branch that GitHub does not report protected.**
+  An attestation naming `refs/heads/main` means something because `main` only
+  changes through a merged pull request. A release branch earns the same
+  meaning only under the same protection. Without it, anyone with push access
+  could edit `ci.yml` on that branch, push, and get an attestation naming a
+  ref promotion trusts. The bullet above says this repo's checks cannot stop a
+  branch writer who edits the check itself. This one exists so that a release
+  branch nobody protected fails loudly at promotion, rather than being trusted
+  because the docs said to protect it. It reads the branches API's `protected`
+  field. `main` uses classic branch protection, and a ruleset on its own may
+  leave that field `false`, so the check then refuses. That is the safe
+  direction; switching to rulesets means changing the check to read the rules
+  API.
+- **`groom` refuses a proposed version that already exists.** Below 1.0.0 both
+  lines propose the next patch, so whichever releases second proposes a taken
+  version, and merging that PR would fail to create the release. After
+  release-please runs, `groom` reads the proposed version from the manifest on
+  the open release PR's head branch. release-please writes it there, and the
+  action's `pr` output is absent whenever the PR body did not change, so the
+  output cannot be relied on. The step fails when a tag or a release (drafts
+  included, listed with the App token) already has that version. The error
+  names the `Release-As:` footer for the next free patch.
+- **The deploy side must accept the release branch's ref for a hotfix
+  version.** It derives the ref from the version it deploys, as promotion does.
+  That change belongs in cluckwork-deploy, not here. The bullet in
+  [`.github/AGENTS.md`](../../.github/AGENTS.md) stays the canonical statement
+  of what verification proves; it now names the release branch alongside
+  `main`.

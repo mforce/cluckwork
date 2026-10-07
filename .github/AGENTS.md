@@ -14,13 +14,14 @@ record you must read before changing the rule.
 
 Two stages stay separate: **CI publishes an image per merge; the release PR turns one into a version.** [`docs/releasing.md`](../docs/releasing.md) is the **how-to**, this section defines the **invariants**, and [`351-releases.md`](../docs/decisions/351-releases.md) explains the mechanism.
 
-- **Every merge to `main`** publishes `ghcr.io/<owner>/<repo>:sha-<commit>` from the `publish` job. **Merging the "Release vX.Y.Z" PR** drafts the release, **promotes** that commit's image to `:vX.Y.Z`, then publishes.
+- **Every merge to `main` or a `release/` branch** publishes `ghcr.io/<owner>/<repo>:sha-<commit>` from the `publish` job; a `release/` branch's creation push publishes nothing. **Merging the "Release vX.Y.Z" PR** drafts the release, **promotes** that commit's image to `:vX.Y.Z`, then publishes.
+- **A hotfix line is a protected `release/vX.Y.x` branch cut from a release tag.** Fixes reach it by cherry-pick PR, and release-please keeps a separate release PR for it, so its releases take the same draft, promote and publish path as `main`. Promotion derives the `--source-ref` it verifies against: `refs/heads/main` when the commit is on `main`, otherwise `refs/heads/release/v<major>.<minor>.x` from the tag, and only when the branches API reports that branch `protected: true`. It never takes the ref from `image.json`, which is writable, and never accepts a wildcard. Branch protection is the premise for trusting that ref, so promotion checks it instead of assuming it. `main` uses classic branch protection; a ruleset alone may report `protected: false`, and promotion then refuses. Below 1.0.0 both lines propose the next patch, so `groom` fails when the proposed version's tag or release already exists and names the `Release-As:` footer to add. → [`351-releases.md`](../docs/decisions/351-releases.md#amendment-2026-10-07-hotfix-release-lines)
 - **Promotion is a server-side retag of the existing digest**, **never a rebuild** — a rebuild yields different bytes no boot test ever examined. Keep `--prefer-index=false` for older single-manifest releases, which the default would wrap in a new index. For a CI-published index, both settings preserve its digest; the post-retag digest check remains mandatory.
 - **Publish a two-platform index from verified native builds (#995).** The `image` matrix builds and boots amd64 and arm64 on their own runners, then hands each image and its local Id to `publish` in a separate artifact. `publish` checks each loaded Id and architecture, captures each pushed manifest digest, builds the index from those digest references and checks both children. It computes the index digest locally and verifies the published bytes by that digest, never by a mutable tag. The digest-keyed `:sha-<commit>-<arch>-<manifest-hex>` tags keep released children reachable through later repair builds; plain arch tags are convenience only. The amd64 cache key stays shared with `e2e-smoke.yml`; arm64's prefix must not begin with amd64's broad `image-layers-` restore key. The #315 lock-drift guard runs once because its verdict does not depend on architecture. → [`995-multi-arch-images.md`](../docs/decisions/995-multi-arch-images.md)
 - **Promotion reads the digest from CI's own run artifact**, never by resolving `:sha-<commit>`, which is mutable between merge and CI's push. **Add every release-gating CI job to `publish.needs`;** that list defines what the digest artifact proves: the image was **built and boot-tested**, not vulnerability-scanned (#267; `image-scan.yml` scans published images weekly).
 - **The release stays a draft until its image is promoted**; GitHub withholds the git tag for a draft, so a failed promotion leaves no version pointing at nothing.
 - **The release PR is opened with a GitHub App token, not `GITHUB_TOKEN`.** Every App consumer **must** keep `permission-*` downscoping — omitting it mints the union of every grant the App holds, silently.
-- **Deploy by the index digest, never by tag or a platform manifest digest.** *Obtaining* the digest and *verifying* its origin are two separate problems: get the index reference from the release's `image.json` asset, verify that reference with `gh attestation verify` (all three of `--bundle-from-oci`, `--signer-workflow`, `--source-ref` are load-bearing and none is the default), then confirm the version tag still resolves to the index digest you verified — comparing against `reference`, **never** the asset's separate `digest` field. The attestation names the index; Docker resolves its amd64 or arm64 child at pull time. Full commands: [`docs/releasing.md`](../docs/releasing.md#deploying).
+- **Deploy by the index digest, never by tag or a platform manifest digest.** *Obtaining* the digest and *verifying* its origin are two separate problems: get the index reference from the release's `image.json` asset, verify that reference with `gh attestation verify` (all three of `--bundle-from-oci`, `--signer-workflow`, `--source-ref` are load-bearing and none is the default; the source ref is `refs/heads/main`, or `refs/heads/release/vX.Y.x` for a hotfix version, derived from the version being deployed), then confirm the version tag still resolves to the index digest you verified — comparing against `reference`, **never** the asset's separate `digest` field. The attestation names the index; Docker resolves its amd64 or arm64 child at pull time. Full commands: [`docs/releasing.md`](../docs/releasing.md#deploying).
 
   Net, stated at exactly the strength the argument supports: the internal gate
   fails closed for a leaked **registry** credential. The external gate also
@@ -28,13 +29,15 @@ Two stages stay separate: **CI publishes an image per merge; the release PR turn
   writer swapping in *other* attested bytes — the tag/digest comparison above
   raises the cost, but that actor holds registry write too, so nothing in this
   repo closes it; branch/dispatch permissions and immutable tags do.
-  **And neither survives a merge to `main`.** Once a backdoored `ci.yml` is
-  the definition on `main`, its attestation is genuinely valid — right signer
-  workflow, right source ref — because `--source-ref` records *which ref built
-  this*, not *whether that ref's content is trustworthy*. This repo allows a
-  self-merge (`main` requires a PR but **zero** approving reviews), so that path
-  is open today and no flag on the verify command closes it; review of changes to
-  `main` is the only control that does.
+  **And neither survives a merge to `main` or to a hotfix `release/` branch.**
+  Once a backdoored `ci.yml` is the definition on either, its attestation is
+  genuinely valid — right signer workflow, right source ref — because
+  `--source-ref` records *which ref built this*, not *whether that ref's
+  content is trustworthy*. This repo allows a self-merge (`main` requires a PR
+  but **zero** approving reviews, and a release branch is protected the same
+  way), so that path is open today and no flag on the verify command closes it;
+  review of changes to `main` and every release branch is the only control
+  that does.
 
   **The paragraph directly above is the canonical statement of the boundary.** [`docs/releasing.md`](../docs/releasing.md) and the `ci.yml` comment carry a summary and point here rather than restating it, because successive corrections to this claim repeatedly updated one copy and left the others contradicting it. If you correct it, correct it in all three and check they agree.
 - Package visibility and the host's pull credential are **deploy-side** concerns (cluckwork-deploy#6), not this repo's.
