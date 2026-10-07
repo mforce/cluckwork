@@ -149,8 +149,10 @@ The table explains five of those positions:
 | `IdempotencyMiddleware` **after** `UseAuthorization` | A replay returns a cached response *without invoking the endpoint* | A role-denied caller replaying someone else's key gets the cached response instead of a 403 |
 | `SpaShell` **before** the static-file middleware | It templates `/` and `/index.html` with this response's CSP nonce (#873), and the static middleware would otherwise serve the untemplated file from `wwwroot` first | The browser refuses MUI's Emotion styles and nothing reports it. Clients that installed the service worker are hit hardest, because it precaches `/index.html` and answers every navigation from it |
 
-The epoch check reads the database on **every authenticated request**. That
-read is what makes a revoked credential fail closed, so do not cache it.
+The epoch check reads the database on **every authenticated request** except
+logout and the `/error` re-execution. That read is what makes a revoked
+credential fail closed, so do not cache it. If a token's user or account claim
+does not parse, the middleware rejects it without reading the database.
 
 ## The egg loop
 
