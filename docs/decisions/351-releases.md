@@ -570,7 +570,13 @@ statements above changed:
   action's `pr` output is absent whenever the PR body did not change, so the
   output cannot be relied on. The step fails when a tag or a release (drafts
   included, listed with the App token) already has that version. The error
-  names the `Release-As:` footer for the next free patch.
+  names the next free patch and how to force it. The repository squash-merges
+  with `squash_merge_commit_title=PR_TITLE` and
+  `squash_merge_commit_message=BLANK`, so a `Release-As:` footer in a branch
+  commit or the PR body never reaches the squash commit. It has to be added at
+  merge time, with `gh pr merge <N> --squash --body "Release-As: X.Y.Z"` or
+  the squash dialog's extended description; with nothing waiting to merge, a
+  PR holding one empty `chore:` commit carries it.
 - **A release branch runs its own frozen workflows.** Push and pull request
   runs read `ci.yml` and `release-please.yml` from the branch's commit, or
   from a pull request's merge commit, never from `main`. A branch cut from a

@@ -67,7 +67,7 @@ export function versionCollision(proposed, takenTags) {
   while (taken.has(`v${match[1]}.${match[2]}.${patch}`)) patch += 1;
   const next = `${match[1]}.${match[2]}.${patch}`;
   return {
-    error: `v${proposed} is already tagged or released on another line. Add a 'Release-As: ${next}' footer to the next commit merged into this branch, then merge the release PR it proposes.`,
+    error: `v${proposed} is already tagged or released on another line. Squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body "Release-As: ${next}"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way. Then merge the release PR it proposes.`,
   };
 }
 

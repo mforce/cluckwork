@@ -93,9 +93,9 @@ test("a free version does not collide", () => {
 test("a taken version collides and names the next free patch", () => {
   assert.deepEqual(versionCollision("0.1.6", ["v0.1.5", "v0.1.6"]), {
     error:
-      "v0.1.6 is already tagged or released on another line. Add a 'Release-As: 0.1.7' footer to the next commit merged into this branch, then merge the release PR it proposes.",
+      "v0.1.6 is already tagged or released on another line. Squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 0.1.7\"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way. Then merge the release PR it proposes.",
   });
-  assert.match(versionCollision("0.1.6", ["v0.1.6", "v0.1.7", "v0.1.9"]).error, /'Release-As: 0\.1\.8'/);
+  assert.match(versionCollision("0.1.6", ["v0.1.6", "v0.1.7", "v0.1.9"]).error, /--body "Release-As: 0\.1\.8"/);
 });
 
 test("a proposal that is not a version is refused rather than passed", () => {
@@ -147,5 +147,5 @@ test("the CLI reads taken tags from stdin, one per line", () => {
 
   const taken = runCli(["collision", "0.1.6"], "v0.1.5\r\nv0.1.6\r\n");
   assert.equal(taken.status, 1);
-  assert.match(taken.stderr, /'Release-As: 0\.1\.7'/);
+  assert.match(taken.stderr, /--body "Release-As: 0\.1\.7"/);
 });

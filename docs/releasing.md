@@ -62,7 +62,8 @@ changelog *text*, but they still move the number.
 `*-pre-major` settings in `release-please-config.json` stop applying, so `feat:`
 starts bumping the minor digit and a breaking change bumps the major. Getting to
 1.0.0 is therefore a deliberate act: bump it with a `Release-As: 1.0.0` footer when
-you mean it, not by accident.
+you mean it, not by accident. The footer only counts when it is added at merge
+time (see [Forcing a version](#forcing-a-version)).
 
 That is not as noisy as it sounds, because the bump lands in the **pending release
 PR**, not in a release. Several chore merges accumulate into one proposed patch, and
@@ -71,6 +72,20 @@ nothing is released until you merge that PR.
 Commit-message rules — including the parser trap that silently drops a whole
 commit from the changelog — are in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#commit-messages).
+
+### Forcing a version
+
+This repository squash-merges with the PR title as the commit subject and an
+empty commit body. A `Release-As:` footer written in a branch commit or in the
+PR description is therefore dropped and does nothing. Add it when you merge:
+
+```bash
+gh pr merge <N> -R mforce/cluckwork --squash --body "Release-As: X.Y.Z"
+```
+
+or type `Release-As: X.Y.Z` into the extended description box of the
+squash-merge dialog. If no PR is waiting to merge, open one holding a single
+empty `chore:` commit (`git commit --allow-empty`) and merge it that way.
 
 ## Deploying
 
@@ -229,8 +244,9 @@ draft, promote and publish path as `main`.
    not change it.
 7. **Move `main` past the hotfix version.** `main` still proposes `v0.1.6`
    too, and that version now exists. The Release workflow on `main`'s next
-   push fails with an error naming the fix: add a `Release-As: 0.1.7` footer
-   to the next commit merged into `main`, and do not merge `main`'s pending
+   push fails with an error naming the fix: squash-merge the next PR into
+   `main` with a `Release-As: 0.1.7` body, as in
+   [Forcing a version](#forcing-a-version), and do not merge `main`'s pending
    release PR until it proposes `v0.1.7`. The same happens on the hotfix line
    once `main` releases the version it would propose next, with the same fix.
 
