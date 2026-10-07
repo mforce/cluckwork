@@ -793,15 +793,16 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      # Below 1.0.0 main and a hotfix line both propose the next patch, so the
-      # line that releases second proposes a version that already exists, and
-      # merging that PR would fail to cut the release. Fail here instead, while
-      # it is still a proposal. The proposed version is the manifest on the
-      # release PR's head branch: release-please writes it there, and its
-      # `pr` output is absent whenever the PR body did not change.
-      # Releases are listed with the App token because drafts have no tag and
-      # are visible only to push access.
-      - name: Refuse a proposed version that is already taken
+      # Check the proposal while it is still one. A hotfix line must propose
+      # X.Y.<patch> for its own release/vX.Y.x; a version outside it means the
+      # line's config is not `always-bump-patch` or a Release-As reached it,
+      # and promotion would refuse that release later. On any branch, a taken
+      # version means a Release-As named it, and merging would fail to cut the
+      # release. The proposed version is the manifest on the release PR's head
+      # branch: release-please writes it there, and its `pr` output is absent
+      # whenever the PR body did not change. Releases are listed with the App
+      # token because drafts have no tag and are visible only to push access.
+      - name: Refuse a proposed version outside the line or already taken
         if: steps.guard.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
@@ -821,5 +822,5 @@ jobs:
           for head in $heads; do
             proposed="$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json?ref=$head" \
               -H "Accept: application/vnd.github.raw" --jq '."."')"
-            node .github/scripts/release-line.mjs collision "$proposed" < "$taken"
+            node .github/scripts/release-line.mjs proposal "$TARGET_BRANCH" "$proposed" < "$taken"
           done

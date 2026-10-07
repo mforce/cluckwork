@@ -8,8 +8,9 @@
 //       The compare arguments are the compare API's `.status` for
 //       `<branch>...<release sha>`, or `missing` on a 404. <branch-rules> is the
 //       comma-joined rule types `rules/branches/<branch>` returns.
-//   node release-line.mjs collision <proposed version>   (taken tag names on stdin)
-//       exits non-zero when that version's tag or release already exists
+//   node release-line.mjs proposal <branch> <proposed version>   (taken tags on stdin)
+//       exits non-zero when a hotfix line proposes a version outside its line,
+//       or when the version's tag or release already exists
 //
 // Every refusal exits 1 with a `::error::` line on stderr, so a step capturing
 // stdout under `set -e` fails closed and still shows why.
@@ -18,7 +19,8 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
-const VERSION_TAG = /^v(\d+)\.(\d+)\.\d+$/;
+const VERSION_TAG = /^v(\d+)\.(\d+)\.(\d+)$/;
+const LINE_BRANCH = /^release\/v(\d+)\.(\d+)\.x$/;
 
 // The rules that make a ref mean "reviewed and merged": no direct pushes, no
 // rewritten history, and no new branch of this name pushed with unreviewed
@@ -56,18 +58,41 @@ export function expectedSourceRef({ tag, mainCompare, branchCompare, branchRules
   return { ref: `refs/heads/${branch}` };
 }
 
-// Below 1.0.0 main and a hotfix line both propose the next patch, so whichever
-// releases second proposes a version that is already taken.
-export function versionCollision(proposed, takenTags) {
+// The version a branch should force, above every taken one. A hotfix line
+// bumps its patch; any other branch (main) bumps the minor.
+function nextVersion(line, major, takenTags) {
+  const taken = takenTags.map((tag) => VERSION_TAG.exec(tag)).filter(Boolean).map((m) => m.slice(1).map(Number));
+  if (line) {
+    const patches = taken.filter(([a, b]) => a === line[0] && b === line[1]).map(([, , c]) => c);
+    return `${line[0]}.${line[1]}.${Math.max(-1, ...patches) + 1}`;
+  }
+  const minors = taken.filter(([a]) => a === major).map(([, b]) => b);
+  return `${major}.${Math.max(-1, ...minors) + 1}.0`;
+}
+
+// Squash commits here carry the PR title and an empty body, so Release-As
+// survives only when added at merge time.
+function forceAdvice(version) {
+  return `squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body "Release-As: ${version}"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way.`;
+}
+
+// Run on the release PR's proposal, before anyone merges it. A hotfix line
+// releases only X.Y.<patch>; promotion would refuse anything else later,
+// because the branch derived from the tag would not hold the commit.
+export function checkProposal({ branch, proposed, takenTags }) {
   const match = VERSION.exec(proposed);
   if (!match) return { error: `'${proposed}' is not a version release-please could have proposed` };
-  const taken = new Set(takenTags);
-  if (!taken.has(`v${proposed}`)) return null;
-  let patch = Number(match[3]) + 1;
-  while (taken.has(`v${match[1]}.${match[2]}.${patch}`)) patch += 1;
-  const next = `${match[1]}.${match[2]}.${patch}`;
+  const major = Number(match[1]);
+  const lineMatch = LINE_BRANCH.exec(branch);
+  const line = lineMatch && [Number(lineMatch[1]), Number(lineMatch[2])];
+  if (line && (major !== line[0] || Number(match[2]) !== line[1])) {
+    return {
+      error: `${branch} proposes ${proposed}, outside its ${line[0]}.${line[1]}.x line. Set "versioning": "always-bump-patch" in this branch's release-please-config.json; if a Release-As reached the branch, ${forceAdvice(nextVersion(line, major, takenTags))}`,
+    };
+  }
+  if (!takenTags.includes(`v${proposed}`)) return null;
   return {
-    error: `v${proposed} is already tagged or released on another line. Squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body "Release-As: ${next}"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way. Then merge the release PR it proposes.`,
+    error: `v${proposed} is already tagged or released, so a Release-As named a taken version or this branch's versioning is wrong. To release, ${forceAdvice(nextVersion(line, major, takenTags))} Then merge the release PR it proposes.`,
   };
 }
 
@@ -86,11 +111,12 @@ function main([command, ...args]) {
     const result = expectedSourceRef({ tag, mainCompare, branchCompare, branchRules: rules.split(",").filter(Boolean) });
     if (result.error) refuse(result.error);
     console.log(result.ref);
-  } else if (command === "collision") {
-    const taken = readFileSync(0, "utf8").split("\n").map((line) => line.trim()).filter(Boolean);
-    const result = versionCollision(args[0], taken);
+  } else if (command === "proposal") {
+    const [branch, proposed] = args;
+    const takenTags = readFileSync(0, "utf8").split("\n").map((line) => line.trim()).filter(Boolean);
+    const result = checkProposal({ branch, proposed, takenTags });
     if (result) refuse(result.error);
-    console.log(`v${args[0]} is not taken`);
+    console.log(`${branch} may release v${proposed}`);
   } else {
     refuse(`unknown command '${command}'`);
   }

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { expectedSourceRef, maintenanceBranch, versionCollision } from "./release-line.mjs";
+import { checkProposal, expectedSourceRef, maintenanceBranch } from "./release-line.mjs";
 
 const RULESET = ["deletion", "creation", "non_fast_forward", "pull_request"];
 
@@ -86,21 +86,54 @@ test("a commit off main with a non-version tag is refused", () => {
   );
 });
 
-test("a free version does not collide", () => {
-  assert.equal(versionCollision("0.1.6", ["v0.1.5", "v0.1.4", "v0.0.6"]), null);
+test("each line may release its own next version", () => {
+  assert.equal(checkProposal({ branch: "main", proposed: "1.0.0", takenTags: ["v0.1.5", "v0.1.4"] }), null);
+  assert.equal(checkProposal({ branch: "main", proposed: "1.2.0", takenTags: ["v1.0.0", "v1.1.0", "v1.1.1"] }), null);
+  assert.equal(checkProposal({ branch: "release/v0.1.x", proposed: "0.1.6", takenTags: ["v0.1.5", "v1.0.0"] }), null);
+  assert.equal(checkProposal({ branch: "release/v1.1.x", proposed: "1.1.1", takenTags: ["v1.1.0", "v1.2.0"] }), null);
 });
 
-test("a taken version collides and names the next free patch", () => {
-  assert.deepEqual(versionCollision("0.1.6", ["v0.1.5", "v0.1.6"]), {
+test("a hotfix line proposing a version outside its line is refused with its next patch", () => {
+  assert.deepEqual(
+    checkProposal({ branch: "release/v0.1.x", proposed: "1.0.0", takenTags: ["v0.1.4", "v0.1.5", "v0.0.9", "v1.0.0"] }),
+    {
+      error:
+        "release/v0.1.x proposes 1.0.0, outside its 0.1.x line. Set \"versioning\": \"always-bump-patch\" in this branch's release-please-config.json; if a Release-As reached the branch, squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 0.1.6\"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way.",
+    },
+  );
+  for (const proposed of ["1.2.0", "0.2.0", "2.1.3"]) {
+    assert.match(
+      checkProposal({ branch: "release/v1.1.x", proposed, takenTags: ["v1.1.0", "v1.1.1"] }).error,
+      /^release\/v1\.1\.x proposes .* outside its 1\.1\.x line\. .*"Release-As: 1\.1\.2"/,
+      proposed,
+    );
+  }
+  assert.match(
+    checkProposal({ branch: "release/v2.0.x", proposed: "3.0.0", takenTags: [] }).error,
+    /"Release-As: 2\.0\.0"/,
+  );
+});
+
+test("a branch that is not a vX.Y.x line is not held to one", () => {
+  for (const branch of ["main", "release/foo", "release/v1.1.x/x", "feature/release/v1.1.x"]) {
+    assert.equal(checkProposal({ branch, proposed: "3.0.0", takenTags: ["v1.1.0"] }), null, branch);
+  }
+});
+
+test("a taken version is refused with the next version for that branch", () => {
+  assert.deepEqual(checkProposal({ branch: "main", proposed: "1.1.0", takenTags: ["v1.0.0", "v1.1.0", "v1.3.0", "v2.0.0", "v0.9.0"] }), {
     error:
-      "v0.1.6 is already tagged or released on another line. Squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 0.1.7\"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way. Then merge the release PR it proposes.",
+      "v1.1.0 is already tagged or released, so a Release-As named a taken version or this branch's versioning is wrong. To release, squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 1.4.0\"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way. Then merge the release PR it proposes.",
   });
-  assert.match(versionCollision("0.1.6", ["v0.1.6", "v0.1.7", "v0.1.9"]).error, /--body "Release-As: 0\.1\.8"/);
+  assert.match(
+    checkProposal({ branch: "release/v0.1.x", proposed: "0.1.5", takenTags: ["v0.1.5", "v0.1.7", "v0.2.0"] }).error,
+    /"Release-As: 0\.1\.8"/,
+  );
 });
 
 test("a proposal that is not a version is refused rather than passed", () => {
   for (const proposed of ["", "null", "v0.1.6", undefined]) {
-    assert.deepEqual(versionCollision(proposed, []), {
+    assert.deepEqual(checkProposal({ branch: "main", proposed, takenTags: [] }), {
       error: `'${proposed}' is not a version release-please could have proposed`,
     });
   }
@@ -129,8 +162,9 @@ test("every CLI refusal exits 1 with an annotation on stderr and nothing on stdo
   for (const [args, stdin] of [
     [["branch", "latest"], ""],
     [["source-ref", "v0.1.6", "diverged", "missing", "creation,non_fast_forward,pull_request"], ""],
-    [["collision", "0.1.6"], "v0.1.5\nv0.1.6\n"],
-    [["collision", "null"], ""],
+    [["proposal", "main", "0.1.6"], "v0.1.5\nv0.1.6\n"],
+    [["proposal", "release/v0.1.x", "1.0.0"], ""],
+    [["proposal", "main", "null"], ""],
     [["nonsense"], ""],
   ]) {
     const result = runCli(args, stdin);
@@ -141,11 +175,11 @@ test("every CLI refusal exits 1 with an annotation on stderr and nothing on stdo
 });
 
 test("the CLI reads taken tags from stdin, one per line", () => {
-  const free = runCli(["collision", "0.1.7"], "v0.1.5\r\nv0.1.6\n\n");
+  const free = runCli(["proposal", "release/v0.1.x", "0.1.7"], "v0.1.5\r\nv0.1.6\n\n");
   assert.equal(free.status, 0);
-  assert.equal(free.stdout, "v0.1.7 is not taken\n");
+  assert.equal(free.stdout, "release/v0.1.x may release v0.1.7\n");
 
-  const taken = runCli(["collision", "0.1.6"], "v0.1.5\r\nv0.1.6\r\n");
+  const taken = runCli(["proposal", "release/v0.1.x", "0.1.6"], "v0.1.5\r\nv0.1.6\r\n");
   assert.equal(taken.status, 1);
   assert.match(taken.stderr, /--body "Release-As: 0\.1\.7"/);
 });
