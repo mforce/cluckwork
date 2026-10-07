@@ -62,8 +62,6 @@ public sealed class PlaintextDataProtectionKeyClassifierTests : IDisposable
         Assert.Equal([Id(encrypted)], Classify(encrypted));
     }
 
-    // NullXmlEncryptor writes an encryptedSecret wrapper whose content is still the clear
-    // master key, so the wrapper's name proves nothing.
     [Fact]
     public void A_key_behind_the_null_encryptor_wrapper_is_flagged()
     {
