@@ -341,12 +341,18 @@ jobs:
               return 1
             fi
           }
-          branch="$(node .github/scripts/release-line.mjs branch "$TAG")"
+          # A commit on main is settled by that one probe, so a main release
+          # never depends on the maintenance-branch probes below.
           main_compare="$(probe "compare/main...$RELEASE_SHA" .status)"
-          branch_compare="$(probe "compare/$branch...$RELEASE_SHA" .status)"
-          branch_rules="$(probe "rules/branches/$branch" '[.[].type] | join(",")')"
-          ref="$(node .github/scripts/release-line.mjs source-ref \
-            "$TAG" "$main_compare" "$branch_compare" "$branch_rules")"
+          case "$main_compare" in
+            identical|behind) ref=refs/heads/main ;;
+            *)
+              branch="$(node .github/scripts/release-line.mjs branch "$TAG")"
+              branch_compare="$(probe "compare/$branch...$RELEASE_SHA" .status)"
+              branch_rules="$(probe "rules/branches/$branch" '[.[].type] | join(",")')"
+              ref="$(node .github/scripts/release-line.mjs source-ref \
+                "$TAG" "$main_compare" "$branch_compare" "$branch_rules")" ;;
+          esac
           echo "$RELEASE_SHA must carry provenance from $ref"
           printf 'ref=%s\n' "$ref" >> "$GITHUB_OUTPUT"
 
