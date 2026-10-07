@@ -534,11 +534,24 @@ statements above changed:
   ruleset even though `main` uses a classic rule.
 
   The ruleset must exist before the first `release/` branch is created. A
-  branch created earlier could hold anything, and nothing after the fact
-  distinguishes it from a clean cut, so it is deleted and cut again. Its
-  bypass list holds the *Repository admin* role so an admin can create the
-  branch. That also lets an admin push to it directly, which matches `main`,
-  whose classic protection does not enforce admins.
+  `release/vX.Y.x` name that existed before it is permanently untrusted as a
+  `--source-ref`, and that minor line ships its fix from `main` instead. An
+  earlier draft said to delete such a branch and cut it again. Review (Codex,
+  PR #1130) rejected that: deleting a branch withdraws no attestation already
+  issued under its ref. A writer who ran their own `ci.yml` on the early
+  branch keeps an image attested to `refs/heads/release/vX.Y.x`. After the
+  re-cut, that image still verifies against the same ref, and the writer's
+  pre-existing ability to retag and rewrite `image.json` (see the deploy
+  bullets above) can put it behind a hotfix version. Pinning `--source-digest`
+  to the release commit would close this, but a repair dispatch attests the
+  branch tip rather than the commit it built, so the pin would reject
+  legitimate repairs. The precondition is ours to control instead. When this
+  amendment was written, `git ls-remote origin 'refs/heads/release/*'`
+  returned nothing, so no such name exists yet.
+
+  The ruleset's bypass list holds the *Repository admin* role so an admin can
+  create the branch. That also lets an admin push to it directly, which
+  matches `main`, whose classic protection does not enforce admins.
 - **`groom` refuses a proposed version that already exists.** Below 1.0.0 both
   lines propose the next patch, so whichever releases second proposes a taken
   version, and merging that PR would fail to create the release. After

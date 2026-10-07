@@ -167,9 +167,12 @@ draft, promote and publish path as `main`.
    Promotion reads the branch's active rules (`rules/branches/<branch>`) and
    refuses unless creation, force pushes and direct pushes are all
    restricted. `branches/<branch>`'s `protected` field is not enough, because
-   any matching rule sets it. A `release/` branch created before the ruleset
-   existed is untrusted: anyone with push access could have created it with
-   unreviewed commits. Delete it and cut it again.
+   any matching rule sets it. A `release/vX.Y.x` name that existed before the
+   ruleset is permanently untrusted as a `--source-ref`. Anyone with push
+   access could have run their own `ci.yml` on it and kept images attested to
+   that ref, and deleting the branch withdraws none of those attestations. So
+   that minor line cannot be hotfixed through this flow; ship the fix from
+   `main` instead. No `release/` ref existed when hotfix support was added.
 2. **Cut the branch from the release tag.** For a fix on top of `v0.1.5`, as a
    user on the ruleset's bypass list:
 
