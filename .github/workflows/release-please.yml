@@ -35,7 +35,8 @@ on:
       - main
       # Hotfix lines: each release/vX.Y.x branch keeps its own release PR, and
       # both release-please passes below target the branch that was pushed.
-      - release/**
+      # Only the line pattern, so no other release/ name runs the App-token jobs.
+      - release/v*.*.x
   # Repair path. If promotion fails after the draft release exists (GHCR
   # unavailable, CI for that commit still red), a re-run of the push event is no
   # help: release-please would report `release_created: false` for an already
@@ -310,9 +311,12 @@ jobs:
       # Which branch's CI must have built the image. Derived from where the
       # commit lives, never read from image.json or any other writable input:
       # main if the commit is on main, else the release/vX.Y.x branch the tag
-      # names, and only if GitHub reports that branch protected. Branch
-      # protection is what makes an attestation naming that ref mean "reviewed
-      # and merged", so the check encodes it rather than assuming it.
+      # names, and only if active ruleset rules restrict its creation, force
+      # pushes and direct pushes. Those rules are what make an attestation
+      # naming that ref mean "reviewed and merged", so the check encodes them
+      # rather than assuming them. `branches/<b>.protected` is not enough: any
+      # matching rule sets it, including one that lets anyone push a new
+      # release/ branch full of unreviewed commits.
       - name: Derive the ref the image must have been built on
         id: source
         env:
@@ -323,6 +327,8 @@ jobs:
           set -euo pipefail
           # A 404 is an answer (no such branch, or no such commit). Any other
           # failure is not, and fails the step rather than reading as one.
+          # `rules/branches/<b>` lists only ruleset rules; classic branch
+          # protection does not appear there.
           probe() {
             local out err
             err="$(mktemp)"
@@ -338,9 +344,9 @@ jobs:
           branch="$(node .github/scripts/release-line.mjs branch "$TAG")"
           main_compare="$(probe "compare/main...$RELEASE_SHA" .status)"
           branch_compare="$(probe "compare/$branch...$RELEASE_SHA" .status)"
-          branch_protected="$(probe "branches/$branch" .protected)"
+          branch_rules="$(probe "rules/branches/$branch" '[.[].type] | join(",")')"
           ref="$(node .github/scripts/release-line.mjs source-ref \
-            "$TAG" "$main_compare" "$branch_compare" "$branch_protected")"
+            "$TAG" "$main_compare" "$branch_compare" "$branch_rules")"
           echo "$RELEASE_SHA must carry provenance from $ref"
           printf 'ref=%s\n' "$ref" >> "$GITHUB_OUTPUT"
 
@@ -452,7 +458,7 @@ jobs:
           # DEFINITION from whichever ref is chosen. So without this, someone
           # who can push a branch could edit ci.yml there, dispatch it, publish
           # and attest arbitrary bytes, and the attestation would still satisfy
-          # a path-only check. Pinning the derived ref (main, or the protected
+          # a path-only check. Pinning the derived ref (main, or the ruled
           # release/ branch above) means only the definition actually on that
           # branch can produce a promotable attestation.
           #

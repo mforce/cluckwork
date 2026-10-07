@@ -5,8 +5,9 @@ on:
     branches:
       - main
       # Hotfix lines (#351): a maintenance branch is built and published like
-      # main so its release PR has an image to promote.
-      - release/**
+      # main so its release PR has an image to promote. Only the line
+      # pattern: no other release/ name publishes.
+      - release/v*.*.x
   pull_request:
     branches:
       - main
@@ -20,13 +21,13 @@ on:
   #
   # This rebuilds and publishes for one explicit commit, through the same gates.
   # It is deliberately NOT a general "publish anything" button: it must be
-  # dispatched from main or a release/ branch, and the commit must already be an
+  # dispatched from main or a release/vX.Y.x branch, and the commit must already be an
   # ancestor of that branch (checked below), so it can only ever republish
   # history that was already merged there.
   workflow_dispatch:
     inputs:
       sha:
-        description: "Commit on the dispatched branch (main or release/…) to build and publish, e.g. to repair a release whose CI run was skipped"
+        description: "Commit on the dispatched branch (main or release/vX.Y.x) to build and publish, e.g. to repair a release whose CI run was skipped"
         required: true
         type: string
 
@@ -710,12 +711,13 @@ jobs:
       # therefore a different digest, so what got published would be an image
       # this job's boot smoke test never examined.
       #
-      # Only on a merge into main or a release/ branch, so PR runs pay none of
-      # this.
+      # Only on a merge into main or a release/vX.Y.x branch, so PR runs pay
+      # none of this.
       - name: Export the verified image for publishing
         if: |
           (github.event_name == 'push' && (github.ref == 'refs/heads/main'
-            || (startsWith(github.ref, 'refs/heads/release/') && !github.event.created)))
+            || (startsWith(github.ref, 'refs/heads/release/v') && endsWith(github.ref, '.x')
+              && !github.event.created)))
           || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
@@ -726,7 +728,8 @@ jobs:
       - name: Upload the verified image
         if: |
           (github.event_name == 'push' && (github.ref == 'refs/heads/main'
-            || (startsWith(github.ref, 'refs/heads/release/') && !github.event.created)))
+            || (startsWith(github.ref, 'refs/heads/release/v') && endsWith(github.ref, '.x')
+              && !github.event.created)))
           || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
@@ -765,12 +768,15 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [tests, build-and-test, web, image]
-    # A release/ branch's creation push is skipped: it carries the tag's commit,
-    # which main already published, and republishing would move that commit's
-    # `:sha-` tags onto bytes attested to the new branch.
+    # Push runs come only from main and release/v*.*.x (the trigger filter);
+    # the first step below holds the exact vX.Y.x shape. A release branch's
+    # creation push is skipped: it carries the tag's commit, which main
+    # already published, and republishing would move that commit's `:sha-`
+    # tags onto bytes attested to the new branch.
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main'
-        || (startsWith(github.ref, 'refs/heads/release/') && !github.event.created)))
+        || (startsWith(github.ref, 'refs/heads/release/v') && endsWith(github.ref, '.x')
+          && !github.event.created)))
       || github.event_name == 'workflow_dispatch'
     permissions:
       # Job-level permissions REPLACE the workflow-level `contents: read`.
@@ -784,11 +790,11 @@ jobs:
     steps:
       # A dispatch names its own commit; a push is its own. Either way the
       # commit must ALREADY be on the history of the branch this run came from,
-      # and that branch must be main or a release/ line — the compare API
+      # and that branch must be main or a release/vX.Y.x line — the compare API
       # answers `identical` or `behind` only when the head is an ancestor of the
       # base. Without that, this job would publish arbitrary branch content
       # under a `:sha-` name that the release workflow is willing to promote.
-      # Promotion separately requires a release/ branch to be protected.
+      # Promotion separately requires a release branch's ruleset.
       - name: Resolve and authorise the commit to publish
         id: target
         env:
@@ -807,12 +813,12 @@ jobs:
             exit 1
           fi
 
-          case "$GITHUB_REF" in
-            refs/heads/main|refs/heads/release/*) branch="${GITHUB_REF#refs/heads/}" ;;
-            *)
-              echo "::error::run from $GITHUB_REF — publishing runs only from main or a release/ branch"
-              exit 1 ;;
-          esac
+          if [[ $GITHUB_REF =~ ^refs/heads/(main|release/v[0-9]+\.[0-9]+\.x)$ ]]; then
+            branch="${BASH_REMATCH[1]}"
+          else
+            echo "::error::run from $GITHUB_REF — publishing runs only from main or a release/vX.Y.x branch"
+            exit 1
+          fi
 
           status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$branch...$sha" --jq '.status')"
           case "$status" in
@@ -971,7 +977,7 @@ jobs:
       # distinction.
       #
       # This is also why the verify command pins `--source-ref`: to
-      # `refs/heads/main`, or for a hotfix to the protected
+      # `refs/heads/main`, or for a hotfix to the ruleset-guarded
       # `release/vX.Y.x` branch release-please.yml derives from the tag.
       # `--signer-workflow` pins only the workflow's PATH, so without the ref a
       # ci.yml edited on a branch and dispatched from there would still produce

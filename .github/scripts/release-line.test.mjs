@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 import { expectedSourceRef, maintenanceBranch, versionCollision } from "./release-line.mjs";
 
+const RULESET = ["deletion", "creation", "non_fast_forward", "pull_request"];
+
 const CLI = fileURLToPath(new URL("./release-line.mjs", import.meta.url));
 
 function runCli(args, stdin = "") {
@@ -28,30 +30,37 @@ test("anything but a plain vX.Y.Z tag names no branch", () => {
 test("a commit on main verifies against main, whatever the branch says", () => {
   for (const mainCompare of ["identical", "behind"]) {
     assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare, branchCompare: "behind", branchProtected: false }),
+      expectedSourceRef({ tag: "v0.1.6", mainCompare, branchCompare: "behind", branchRules: [] }),
       { ref: "refs/heads/main" },
     );
   }
 });
 
-test("a commit only on the protected maintenance branch verifies against that branch", () => {
+test("a commit only on the ruled maintenance branch verifies against that branch", () => {
   for (const branchCompare of ["identical", "behind"]) {
     assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare: "diverged", branchCompare, branchProtected: true }),
+      expectedSourceRef({ tag: "v0.1.6", mainCompare: "diverged", branchCompare, branchRules: RULESET }),
       { ref: "refs/heads/release/v0.1.x" },
     );
   }
 });
 
-test("an unprotected maintenance branch is refused", () => {
-  for (const branchProtected of [false, undefined, "true"]) {
+test("a maintenance branch missing any required rule is refused, naming what is missing", () => {
+  for (const [branchRules, missing] of [
+    [["deletion", "non_fast_forward", "pull_request"], "creation"],
+    [["deletion", "creation", "pull_request"], "non_fast_forward"],
+    [["deletion", "creation", "non_fast_forward"], "pull_request"],
+    [["deletion"], "creation, non_fast_forward, pull_request"],
+    [[], "creation, non_fast_forward, pull_request"],
+    [undefined, "creation, non_fast_forward, pull_request"],
+    ["creation,non_fast_forward,pull_request", "creation, non_fast_forward, pull_request"],
+  ]) {
     assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare: "diverged", branchCompare: "behind", branchProtected }),
+      expectedSourceRef({ tag: "v0.1.6", mainCompare: "diverged", branchCompare: "behind", branchRules }),
       {
-        error:
-          "release/v0.1.x is not a protected branch, so an attestation naming it proves nothing; protect it like main, then dispatch Release with v0.1.6",
+        error: `release/v0.1.x lacks the active ruleset rules ${missing}, so an attestation naming it proves nothing; add the release ruleset, then dispatch Release with v0.1.6`,
       },
-      String(branchProtected),
+      String(branchRules),
     );
   }
 });
@@ -64,7 +73,7 @@ test("a commit on neither line is refused", () => {
     ["missing", "missing"],
   ]) {
     assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare, branchCompare, branchProtected: true }),
+      expectedSourceRef({ tag: "v0.1.6", mainCompare, branchCompare, branchRules: RULESET }),
       { error: "the commit released as v0.1.6 is on neither main nor release/v0.1.x" },
     );
   }
@@ -72,7 +81,7 @@ test("a commit on neither line is refused", () => {
 
 test("a commit off main with a non-version tag is refused", () => {
   assert.deepEqual(
-    expectedSourceRef({ tag: "hotfix", mainCompare: "diverged", branchCompare: "behind", branchProtected: true }),
+    expectedSourceRef({ tag: "hotfix", mainCompare: "diverged", branchCompare: "behind", branchRules: RULESET }),
     { error: "'hotfix' is not a vX.Y.Z tag, so it names no maintenance branch, and its commit is not on main" },
   );
 });
@@ -102,23 +111,24 @@ test("the CLI prints the branch and the source ref on stdout", () => {
   assert.equal(branch.status, 0);
   assert.equal(branch.stdout, "release/v0.1.x\n");
 
-  const ref = runCli(["source-ref", "v0.1.6", "diverged", "behind", "true"]);
+  const ref = runCli(["source-ref", "v0.1.6", "diverged", "behind", "pull_request,creation,non_fast_forward"]);
   assert.equal(ref.status, 0);
   assert.equal(ref.stdout, "refs/heads/release/v0.1.x\n");
 });
 
-test("the CLI treats only the literal `true` as protected", () => {
-  for (const flag of ["false", "", "True", "1"]) {
-    const result = runCli(["source-ref", "v0.1.6", "diverged", "behind", flag]);
-    assert.equal(result.status, 1, flag);
+test("the CLI refuses a rule list missing a required type, including none at all", () => {
+  for (const rules of ["creation,non_fast_forward", "true", "", "missing", "pull_request non_fast_forward creation"]) {
+    const result = runCli(["source-ref", "v0.1.6", "diverged", "behind", rules]);
+    assert.equal(result.status, 1, rules);
     assert.equal(result.stdout, "");
   }
+  assert.equal(runCli(["source-ref", "v0.1.6", "diverged", "behind"]).status, 1);
 });
 
 test("every CLI refusal exits 1 with an annotation on stderr and nothing on stdout", () => {
   for (const [args, stdin] of [
     [["branch", "latest"], ""],
-    [["source-ref", "v0.1.6", "diverged", "missing", "true"], ""],
+    [["source-ref", "v0.1.6", "diverged", "missing", "creation,non_fast_forward,pull_request"], ""],
     [["collision", "0.1.6"], "v0.1.5\nv0.1.6\n"],
     [["collision", "null"], ""],
     [["nonsense"], ""],

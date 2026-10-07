@@ -3,10 +3,11 @@
 //
 //   node release-line.mjs branch <tag>
 //       prints the maintenance branch a tag belongs to (v0.1.6 -> release/v0.1.x)
-//   node release-line.mjs source-ref <tag> <main-compare> <branch-compare> <branch-protected>
+//   node release-line.mjs source-ref <tag> <main-compare> <branch-compare> <branch-rules>
 //       prints the ref promotion must pass to `gh attestation verify --source-ref`.
 //       The compare arguments are the compare API's `.status` for
-//       `<branch>...<release sha>`, or `missing` on a 404.
+//       `<branch>...<release sha>`, or `missing` on a 404. <branch-rules> is the
+//       comma-joined rule types `rules/branches/<branch>` returns.
 //   node release-line.mjs collision <proposed version>   (taken tag names on stdin)
 //       exits non-zero when that version's tag or release already exists
 //
@@ -18,6 +19,12 @@ import { pathToFileURL } from "node:url";
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const VERSION_TAG = /^v(\d+)\.(\d+)\.\d+$/;
+
+// The rules that make a ref mean "reviewed and merged": no direct pushes, no
+// rewritten history, and no new branch of this name pushed with unreviewed
+// commits. `protected: true` from the branches API is not enough, because any
+// matching rule sets it.
+const REQUIRED_RULES = ["creation", "non_fast_forward", "pull_request"];
 
 export function maintenanceBranch(tag) {
   const match = VERSION_TAG.exec(tag);
@@ -35,15 +42,17 @@ function reachable(compareStatus) {
 // built by main's CI. Only a commit that exists solely on the maintenance branch
 // was built there. Never a wildcard: the branch is derived from the tag, so a
 // v0.1.6 image built on release/v0.2.x does not verify.
-export function expectedSourceRef({ tag, mainCompare, branchCompare, branchProtected }) {
+export function expectedSourceRef({ tag, mainCompare, branchCompare, branchRules }) {
   if (reachable(mainCompare)) return { ref: "refs/heads/main" };
   const branch = maintenanceBranch(tag);
   if (!branch) return { error: `'${tag}' is not a vX.Y.Z tag, so it names no maintenance branch, and its commit is not on main` };
   if (!reachable(branchCompare)) return { error: `the commit released as ${tag} is on neither main nor ${branch}` };
-  // Branch protection is the premise for trusting this ref at all: ci.yml on an
-  // unprotected branch is editable by anyone with push access, and an
-  // attestation pinned to that ref proves nothing about review.
-  if (branchProtected !== true) return { error: `${branch} is not a protected branch, so an attestation naming it proves nothing; protect it like main, then dispatch Release with ${tag}` };
+  // The ruleset is the premise for trusting this ref at all: ci.yml on an
+  // unruled branch is editable by anyone with push access, and an attestation
+  // pinned to that ref proves nothing about review.
+  const active = new Set(branchRules);
+  const missing = REQUIRED_RULES.filter((rule) => !active.has(rule));
+  if (missing.length > 0) return { error: `${branch} lacks the active ruleset rules ${missing.join(", ")}, so an attestation naming it proves nothing; add the release ruleset, then dispatch Release with ${tag}` };
   return { ref: `refs/heads/${branch}` };
 }
 
@@ -73,8 +82,8 @@ function main([command, ...args]) {
     if (!branch) refuse(`'${args[0]}' is not a vX.Y.Z tag`);
     console.log(branch);
   } else if (command === "source-ref") {
-    const [tag, mainCompare, branchCompare, protectedFlag] = args;
-    const result = expectedSourceRef({ tag, mainCompare, branchCompare, branchProtected: protectedFlag === "true" });
+    const [tag, mainCompare, branchCompare, rules = ""] = args;
+    const result = expectedSourceRef({ tag, mainCompare, branchCompare, branchRules: rules.split(",").filter(Boolean) });
     if (result.error) refuse(result.error);
     console.log(result.ref);
   } else if (command === "collision") {
