@@ -77,13 +77,16 @@ same outstanding tokens as an emergency one.
 
 ## What counts as plaintext
 
-A stored record is plaintext when any `masterKey` element sits outside an xmlenc
-`EncryptedData` element. The framework's descriptor deserializer reads `masterKey`
+A stored record is plaintext when it shows any `masterKey` element, anywhere. A
+certificate-encrypted record carries only ciphertext, never a visible `masterKey`, so
+nothing legitimate is caught. The framework's descriptor deserializer reads `masterKey`
 whatever its `requiresEncryption` marker says, so the marker cannot decide. The first
 version trusted it, and a key with the marker removed or altered passed (review round 2).
-An `encryptedSecret` wrapper proves nothing on its own either, because the framework's
-`NullXmlEncryptor` writes one around a clear master key. Revocation records hold no
-master key and pass.
+No element name proves encryption either. The framework's `NullXmlEncryptor` writes an
+`encryptedSecret` wrapper around a clear master key. The framework also hands a key's
+descriptor child to the deserializer without checking its name, so a plaintext descriptor
+renamed `EncryptedData` still exposed a usable key. The second version exempted that
+name and passed it (review round 3). Revocation records hold no master key and pass.
 
 ## Fixing a refused start
 
@@ -133,9 +136,10 @@ yet; the runbook records when it is.
   does not flag it. It also asserts that a one-shot ring round-trips with no database and
   that a second one-shot ring cannot read it.
 - `PlaintextDataProtectionKeyClassifierTests` runs the classifier over XML the framework
-  wrote: a plaintext key, the same key with its marker removed or altered five ways, a
-  certificate-encrypted key, an encrypted key with an unmarked plaintext sibling, a key
-  behind `NullXmlEncryptor`, and a revocation record.
+  wrote: a plaintext key, the same key with its marker removed or altered five ways, its
+  descriptor renamed `EncryptedData` in three namespaces, a certificate-encrypted key, an
+  encrypted key with an unmarked plaintext sibling, a key behind `NullXmlEncryptor`, and a
+  revocation record.
 - `MigrateOnStartupDisabledTests` boots Production against an unmigrated database, which
   covers the plaintext check's missing-table skip.
 - `DataProtectionCertificateExpiryTests` pins the two certificate findings above.

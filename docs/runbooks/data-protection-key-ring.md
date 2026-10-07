@@ -90,8 +90,8 @@ WHERE (xpath('/*/@id', "Xml"::xml))[1]::text IN ('<id from the message>');
 ```
 
 Note the `"Id"` of each row returned; step 3 deletes exactly those rows. The guard
-decides by structure: a master key outside an encrypted element counts as plaintext,
-whatever its `requiresEncryption` marker says. Do not search the XML for the marker.
+decides by structure. Any visible `masterKey` element counts as plaintext, whatever its
+`requiresEncryption` marker or its parent's name says. Do not search the XML for either.
 
 A plaintext key usually means a non-Production host wrote into this database, or the
 database ran a serving process before the certificate was configured. Find which before
