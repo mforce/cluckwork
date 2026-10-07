@@ -2,6 +2,10 @@
 bin/
 obj/
 
+# Python bytecode
+__pycache__/
+*.py[cod]
+
 # User/local IDE files
 .idea/
 .vs/
