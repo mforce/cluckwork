@@ -45,7 +45,7 @@ internal static class CluckworkPlatformServiceCollectionExtensions
     // share, so a token one instance protects validates on another and after a restart.
     // One-shot verbs mint and redeem in the same process (recover-admin's reset token),
     // so they keep an in-memory ring and never write a key to the shared table.
-    public static IServiceCollection AddCluckworkDataProtection(
+    public static CluckworkDataProtectionRegistration AddCluckworkDataProtection(
         this IServiceCollection services,
         IConfiguration configuration,
         IHostEnvironment environment,
@@ -55,14 +55,17 @@ internal static class CluckworkPlatformServiceCollectionExtensions
         if (role is not ProcessRole.Serving)
         {
             dataProtection.UseEphemeralDataProtectionProvider();
-            return services;
+            return new(CertificateSha256: null);
         }
 
         dataProtection.PersistKeysToDbContext<AppDbContext>();
-        if (EnsureKeyEncryptionCertificate(configuration, environment) is { } certificate)
+        if (environment.IsProduction())
+            services.AddHostedService<PlaintextDataProtectionKeyGuard>();
+        var certificate = EnsureKeyEncryptionCertificate(configuration, environment);
+        if (certificate is not null)
             dataProtection.ProtectKeysWithCertificate(certificate);
 
-        return services;
+        return new(certificate?.GetCertHashString(HashAlgorithmName.SHA256));
     }
 
     // Production refuses to store the key ring in plaintext: anyone holding a database
@@ -106,3 +109,6 @@ internal static class CluckworkPlatformServiceCollectionExtensions
         return certificate;
     }
 }
+
+// Registration runs before a logger exists, so Program logs the fingerprint after Build().
+internal sealed record CluckworkDataProtectionRegistration(string? CertificateSha256);

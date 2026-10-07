@@ -41,12 +41,38 @@ namespace Cluckwork.Api.IntegrationTests;
 public sealed class ServingGuardDatabaseFixture : IAsyncLifetime
 {
     private readonly SharedPostgresDatabase _container = new SharedPostgresDatabase();
+    private readonly SharedPostgresDatabase _plaintextKeys = new SharedPostgresDatabase(migrated: true);
 
     public string ConnectionString => _container.GetConnectionString();
 
-    public Task InitializeAsync() => _container.StartAsync();
+    // #794 — a migrated database holding one unencrypted Data Protection key. Static
+    // because the guard table is static; the fixture is created once per class.
+    internal static string? PlaintextKeyConnectionString { get; private set; }
 
-    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
+        await _plaintextKeys.StartAsync();
+        PlaintextKeyConnectionString = _plaintextKeys.GetConnectionString();
+        await using var connection = new Npgsql.NpgsqlConnection(PlaintextKeyConnectionString);
+        await connection.OpenAsync();
+        await using var insert = new Npgsql.NpgsqlCommand(
+            "INSERT INTO \"DataProtectionKeys\" (\"FriendlyName\", \"Xml\") VALUES ('plaintext', @xml)", connection);
+        insert.Parameters.AddWithValue("xml", PlaintextKeyXml);
+        await insert.ExecuteNonQueryAsync();
+    }
+
+    // The shape the framework writes with no XML encryptor; the value is not real key material.
+    internal const string PlaintextKeyXml =
+        "<key id=\"00000000-0000-0000-0000-000000000794\" version=\"1\"><descriptor><descriptor>"
+        + "<masterKey p4:requiresEncryption=\"true\" xmlns:p4=\"http://schemas.asp.net/2015/03/dataProtection\">"
+        + "<value>not-a-real-key</value></masterKey></descriptor></descriptor></key>";
+
+    public async Task DisposeAsync()
+    {
+        await _container.DisposeAsync();
+        await _plaintextKeys.DisposeAsync();
+    }
 }
 
 public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
@@ -275,6 +301,13 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
                 psi.Environment["DataProtection__PrivateKeyPem"] = TestDataProtectionCertificate.EcdsaPrivateKeyPem;
             },
             Satisfy: SatisfyDataProtectionCertificate),
+
+        // #794 — the only row that needs a database. It runs at host start, after every other
+        // guard including ValidateOnStart, so every other row's boot dies before reaching it.
+        new("#794 plaintext key", "Data Protection key(s) stored without encryption (key id: 00000000-0000-0000-0000-000000000794)",
+            Violate: psi => psi.Environment["ConnectionStrings__Default"] =
+                ServingGuardDatabaseFixture.PlaintextKeyConnectionString!,
+            Satisfy: _ => { }),
 
         // Each cap is TWO rows, not one. Both validators have a floor branch
         // (<= 0) and a distinct CEILING branch (> the domain constant), and the

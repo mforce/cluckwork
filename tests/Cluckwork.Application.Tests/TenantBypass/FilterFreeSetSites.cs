@@ -162,5 +162,8 @@ internal static class FilterFreeSetSites
         new("Cluckwork.Infrastructure.Jobs.IdempotencyRecordPurgeSweep.RunAsync(CancellationToken ct)",
             "db.IdempotencyRecords", "d5b16b0c",
             "non-tenant sweep: purges expired records across all tenants (runs under the single-leader gate #271 with no tenant resolved); scoped by expiry, not by account."),
+        new("Cluckwork.Api.Hosting.PlaintextDataProtectionKeyGuard.EnsureNoPlaintextDataProtectionKeysAsync(IServiceScopeFactory scopes, CancellationToken cancellationToken)",
+            "db.DataProtectionKeys", "f2781570",
+            "non-tenant table: DataProtectionKey has no AccountId because one key ring serves every farm (#794); the Production serving guard reads every key at host start to refuse plaintext ones before any tenant exists."),
     ];
 }

@@ -42,6 +42,7 @@ public sealed class DataProtectionKeyRingTests(CluckworkWebApplicationFactory fa
         var key = Assert.Single(keys);
         Assert.Contains("<EncryptedData", key, StringComparison.Ordinal);
         Assert.DoesNotContain("<value>", key, StringComparison.Ordinal);
+        Assert.Empty(PlaintextDataProtectionKeyGuard.PlaintextKeyIds(keys));
     }
 
     // A one-shot verb mints and redeems in one process, so its ring needs no
