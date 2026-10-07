@@ -26,7 +26,7 @@ public sealed class CompatibilityExceptionRealTreeTests(ITestOutputHelper output
         Assert.True(report.CompiledFileCount >= CompatibilityExceptionScanner.RealTreeFileFloor,
             $"compiled {report.CompiledFileCount} files, expected at least {CompatibilityExceptionScanner.RealTreeFileFloor}");
         Assert.Contains(report.Reads, r => r.Allowance == CompatibilityExceptionScanner.DbSetDeclaration);
-        // Repositories read their tables as their own module's code since #1087 S9.
+        // Repositories read their tables as their own module's code since #1097.
         Assert.Contains(report.Reads, r => r.Allowance == CompatibilityExceptionScanner.OwnModule
             && r.Symbol.StartsWith("Cluckwork.Infrastructure.Modules.", StringComparison.Ordinal)
             && r.Symbol.Contains(".Repositories.", StringComparison.Ordinal));

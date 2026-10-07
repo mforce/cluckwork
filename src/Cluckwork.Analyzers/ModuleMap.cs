@@ -127,8 +127,6 @@ internal sealed class ModuleMap
 
     internal bool IsDeclared(string from, string to, string symbol) => _declared.Contains((from, to, symbol));
 
-    internal string? Claimant(string symbol) => _claims.TryGetValue(symbol, out var claim) ? claim.Owner : null;
-
     // ModuleLedgerScanner.Resolve: the longest claimed prefix. Resolving a declared namespace, an exact claim covers
     // only its own name.
     internal (string Owner, string Namespace)? Resolve(string dotted, bool declared)

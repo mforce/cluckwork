@@ -321,8 +321,8 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
         node.Ancestors().OfType<MethodDeclarationSyntax>().Any(m => model.GetDeclaredSymbol(m) is { IsExtensionMethod: true } method
             && method.Parameters[0].Type.ToDisplayString() == "Microsoft.Extensions.DependencyInjection.IServiceCollection");
 
-    // ModuleLedgerScanner.ScanFile's attribution: each top-level type is charged to its namespace owner, or to the
-    // owner claiming it (#1023); a file without types is charged as a whole.
+    // ModuleLedgerScanner.ScanFile's attribution: each top-level type is charged to its namespace owner; a file without
+    // types is charged as a whole.
     private static List<Attribution> Attribute(
         SemanticModelAnalysisContext context, CompilationUnitSyntax root, string path, string assembly, ModuleMap map)
     {
@@ -337,7 +337,7 @@ public sealed class ModuleEdgeAnalyzer : DiagnosticAnalyzer
             }
 
             var symbol = IsFileLocal(type) ? $"{declared}.{Identifier(type)}@{Relative(path)}" : $"{declared}.{Identifier(type)}";
-            attributions.Add(new Attribution(type, symbol, map.Claimant(symbol) ?? owner, declared));
+            attributions.Add(new Attribution(type, symbol, owner, declared));
         }
 
         if (attributions.Count == 0)
