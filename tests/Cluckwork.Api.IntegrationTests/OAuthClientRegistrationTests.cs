@@ -83,6 +83,7 @@ public sealed class OAuthClientRegistrationTests(CluckworkWebApplicationFactory 
     [Theory]
     [InlineData("http://127.0.0.1:53682/callback")]
     [InlineData("http://[::1]:8080/cb")]
+    [InlineData("http://localhost:3000/callback")]
     [InlineData("https://client.example/cb?x=1")]
     public async Task AllowedRedirectUri_IsRegistered(string redirect)
     {
@@ -93,9 +94,9 @@ public sealed class OAuthClientRegistrationTests(CluckworkWebApplicationFactory 
 
     [Theory]
     [InlineData("http://client.example/cb")]
-    [InlineData("http://localhost:3000/cb")]
     [InlineData("http://127.0.0.2/cb")]
     [InlineData("com.example.app:/cb")]
+    [InlineData("cursor://anysphere.cursor-retrieval/oauth/callback")]
     [InlineData("javascript:alert(1)")]
     [InlineData("https://client.example/cb#fragment")]
     [InlineData("https://user@client.example/cb")]
@@ -105,6 +106,64 @@ public sealed class OAuthClientRegistrationTests(CluckworkWebApplicationFactory 
         using var response = await RegisterAsync(factory, new { redirect_uris = new[] { OAuthServerTests.RedirectUri, redirect } });
 
         await AssertErrorAsync(response, "invalid_redirect_uri");
+    }
+
+    // OpenIddict refuses an iss parameter in a callback (issuer fixation); that must come
+    // back as a registration error, not a 500.
+    [Fact]
+    public async Task ReservedRedirectParameter_IsARegistrationError()
+    {
+        using var response = await RegisterAsync(factory, new { redirect_uris = new[] { "https://client.example/cb?iss=x" } });
+
+        await AssertErrorAsync(response, "invalid_redirect_uri");
+    }
+
+    // RFC 8252 §7.3: a native client registers once and listens on whatever port it gets.
+    [Theory]
+    [InlineData("http://127.0.0.1:5000/cb", "http://127.0.0.1:54321/cb")]
+    [InlineData("http://[::1]:5000/cb", "http://[::1]:54321/cb")]
+    [InlineData("http://localhost:5000/cb", "http://localhost:54321/cb")]
+    [InlineData("http://127.0.0.1/cb", "http://127.0.0.1:49152/cb")]
+    [InlineData("http://localhost:5000/cb?tab=1", "http://localhost:54321/cb?tab=1")]
+    public async Task LoopbackClient_AuthorizesOnAnotherPort(string registered, string authorized)
+    {
+        var clientId = await RegisteredClientIdAsync(registered);
+
+        Assert.NotEmpty(await new OAuthServerTests(factory).ConnectAsync(factory, clientId, authorized));
+    }
+
+    // Only the port varies; OpenIddict still compares everything else.
+    [Theory]
+    [InlineData("http://127.0.0.1:5000/cb", "http://127.0.0.1:54321/other")]
+    [InlineData("http://127.0.0.1:5000/cb", "http://localhost:54321/cb")]
+    [InlineData("http://127.0.0.1:5000/cb?tab=1", "http://127.0.0.1:54321/cb?tab=2")]
+    [InlineData("http://127.0.0.1:5000/cb", "https://127.0.0.1:54321/cb")]
+    public async Task LoopbackClient_OnAnotherPort_StillMatchesTheRest(string registered, string authorized)
+    {
+        var clientId = await RegisteredClientIdAsync(registered);
+        var (_, jwt) = await new OAuthServerTests(factory).SeedUserAsync();
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, jwt,
+            OAuthServerTests.AuthorizeQuery(clientId, OAuthServerTests.NewCodeVerifier(), authorized));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("redirect_uri", await response.Content.ReadAsStringAsync());
+    }
+
+    // The response lists what OpenIddict stored and compares ordinally, so a client can
+    // use those strings as they are.
+    [Theory]
+    [InlineData("https://client.example")]
+    [InlineData("HTTPS://Client.Example:443/cb")]
+    [InlineData("http://localhost:5000/cb")]
+    public async Task ReturnedRedirectUri_IsUsable(string registered)
+    {
+        using var response = await RegisterAsync(factory, new { redirect_uris = new[] { registered } });
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var returned = Assert.Single(Strings(body, "redirect_uris"));
+
+        Assert.NotEmpty(await new OAuthServerTests(factory).ConnectAsync(
+            factory, body.GetProperty("client_id").GetString()!, returned));
     }
 
     [Fact]
@@ -231,6 +290,13 @@ public sealed class OAuthClientRegistrationTests(CluckworkWebApplicationFactory 
             Keys.Add(key);
             return inner.IncrementAsync(key, window, cancellationToken);
         }
+    }
+
+    private async Task<string> RegisteredClientIdAsync(string redirect)
+    {
+        using var response = await RegisterAsync(factory, new { redirect_uris = new[] { redirect } });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("client_id").GetString()!;
     }
 
     private static string[] Strings(JsonElement body, string name) =>

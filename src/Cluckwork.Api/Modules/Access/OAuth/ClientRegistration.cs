@@ -45,13 +45,25 @@ internal static class ClientRegistration
             },
         };
 
+        var uris = new List<Uri>(redirects.Length);
         foreach (var redirect in redirects)
         {
             if (!IsAllowedRedirect(redirect, out var uri))
                 return InvalidRedirect(
-                    "Each redirect URI must be https, or http on 127.0.0.1 or [::1], with no fragment or user info.");
-            descriptor.RedirectUris.Add(uri);
+                    "Each redirect URI must be https, or http on localhost, 127.0.0.1 or [::1], with no fragment or user info.");
+            uris.Add(uri);
         }
+
+        // RFC 8252 §7.3: a native app listens on whichever loopback port it gets, so its
+        // authorization request may name any port. OpenIddict allows that only for a
+        // native application whose stored loopback URI has no port; scheme, host, path
+        // and query must still match. A client that also lists an https URI stays a web
+        // client and matches every URI exactly.
+        var native = uris.All(IsLoopback);
+        if (native)
+            descriptor.ApplicationType = ApplicationTypes.Native;
+        foreach (var uri in uris)
+            descriptor.RedirectUris.Add(native ? new UriBuilder(uri) { Port = -1 }.Uri : uri);
 
         // refresh_token is accepted and dropped: access tokens last until revoked (#788),
         // and RFC 7591 §3.2.1 lets the server register less than the client asked for.
@@ -75,8 +87,12 @@ internal static class ClientRegistration
         && value.Length <= MaxRedirectUriLength
         && uri.Fragment.Length == 0
         && uri.UserInfo.Length == 0
-        && (uri.Scheme == Uri.UriSchemeHttps && uri.Host.Length != 0
-            || uri.Scheme == Uri.UriSchemeHttp && uri.Host is "127.0.0.1" or "[::1]");
+        && (uri.Scheme == Uri.UriSchemeHttps && uri.Host.Length != 0 || IsLoopback(uri));
+
+    // localhost is admitted although RFC 8252 §8.3 prefers the literal addresses, because
+    // the clients #797 expects (Claude Code, the MCP Inspector, Cursor) register it.
+    private static bool IsLoopback(Uri uri) =>
+        uri.Scheme == Uri.UriSchemeHttp && uri.Host is "localhost" or "127.0.0.1" or "[::1]";
 
     // The consent screen (#798) shows this name, and the client chose it. Controls and
     // format characters (bidi overrides and isolates among them) become spaces so a name

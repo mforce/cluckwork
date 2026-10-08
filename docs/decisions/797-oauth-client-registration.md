@@ -18,8 +18,9 @@ client registration (RFC 7591), which means an endpoint anyone on the internet c
 
 `POST /api/v1/oauth/register` is anonymous. It registers a public client allowed the
 authorization-code grant and nothing else; PKCE with S256 is already required server-wide
-(#795). Redirect URIs must be `https`, or `http` on `127.0.0.1` or `[::1]` with any port,
-with no fragment and no user info. The client's name is untrusted display text. Discovery
+(#795). Redirect URIs must be `https`, or `http` on `localhost`, `127.0.0.1` or `[::1]`,
+with no fragment and no user info. A client whose redirect URIs are all `http` loopback is
+native, and may then authorize on any port. The client's name is untrusted display text. Discovery
 advertises the endpoint as `registration_endpoint`. The `oauth-register` policy limits it
 per client IP on the shared `IFixedWindowCounter`. `OAuthPurgeSweep` runs under
 `DurableJobWorker`'s leader gate and removes dead tokens, dead authorizations and
@@ -41,9 +42,19 @@ this reasoning in a comment, because "anyone can POST here" reads as alarming wi
   response says what was registered. Any other grant, a response type other than `code`
   and a `token_endpoint_auth_method` other than `none` are refused with
   `invalid_client_metadata`.
-- **Redirect URIs.** One to ten, each at most 2048 characters. `localhost` is refused
-  along with every other host name on plain `http`, and so are custom schemes. See the
-  open risk below.
+- **Redirect URIs.** One to ten, each at most 2048 characters. Plain `http` is allowed
+  only on `localhost`, `127.0.0.1` and `[::1]`. Custom schemes such as `cursor://` are
+  refused. OpenIddict's own validator still runs on what is stored, and a URI it refuses,
+  such as one carrying a reserved `iss` query parameter, comes back as
+  `invalid_redirect_uri` rather than a 500.
+- **Ports on loopback.** RFC 8252 §7.3 lets a native app listen on whatever port it gets.
+  OpenIddict allows that only for an application of type `native` whose stored loopback
+  URI names no port. So when every redirect URI is `http` loopback, the client is
+  registered as native and its URIs are stored without the port. Scheme, host, path and
+  query must still match. A client that also lists an `https` URI stays a web client and
+  every URI matches exactly, port included.
+- **The response.** `redirect_uris` in the 201 lists the strings OpenIddict stored and
+  compares ordinally, so a client can send them back unchanged.
 - **Name.** Normalised to NFC; every control, format, private-use or unassigned code
   point becomes a space, which covers the bidi overrides and isolates that could reorder
   the consent screen's text; runs of spaces collapse; the result is capped at 100 UTF-16
@@ -103,13 +114,26 @@ only metadata documents cannot connect. If the MCP milestone targets a revision 
 requires them, adding them is OAuth-side follow-up work: fetching a client's document over
 HTTPS with SSRF protections, caching, and validating redirect URIs against it.
 
-## Open risk: the redirect rule refuses common local clients
+## Why `localhost`, and why not custom schemes
 
-Native and CLI clients commonly register `http://localhost:<port>/callback`; the
-specification's own metadata-document example lists one. This rule refuses `localhost`,
-as RFC 8252 §8.3 advises, and refuses custom URI schemes. A client that registers only
-such URIs cannot connect until it changes or this rule widens. Which exact URIs each
-expected client sends was not verified here.
+RFC 8252 §8.3 prefers the literal loopback addresses over `localhost`, because a name can
+resolve elsewhere. It discourages `localhost` and does not forbid it. The first version of
+this slice refused it. Round-one review found that clients #797 expects register it:
+Claude Code documents `http://localhost:PORT/callback`, the MCP Inspector's web UI uses
+`localhost`, and Cursor's support forum confirms a `localhost` callback. The owner chose
+to accept `localhost` alongside the two literal addresses, with the native port rule
+above.
+
+Custom URI schemes stay refused. Cursor's legacy `cursor://` callback is one, and so are
+the private-use schemes the OAuth 2.1 draft recognises but ranks below loopback and
+claimed `https`. Admitting one would need a deliberate per-scheme exception, not a
+relaxed predicate.
+
+## DCR in today's clients
+
+Despite the deprecation in 2026-07-28, current first-party documentation for Claude Code,
+Claude's hosted connectors, VS Code and ChatGPT still describes DCR support. That is why
+metadata documents stay deferred.
 
 ## A farm switch for app connections
 
@@ -121,7 +145,10 @@ If a switch is wanted, it belongs at consent and in account data, as #788 says, 
 ## How it is enforced
 
 - `OAuthClientRegistrationTests` registers a client over HTTP and completes the flow with
-  it, checks the discovery entry, refuses each wider redirect URI and grant, pins the name
+  it, authorizes a loopback client on a port it did not register, refuses a change of
+  path, host, query or scheme, completes the flow with each redirect URI the response
+  returned, turns a reserved `iss` parameter into `invalid_redirect_uri`, checks the
+  discovery entry, refuses each wider redirect URI and grant, pins the name
   sanitiser against literal inputs and outputs, proves a session bearer is ignored, and
   limits a client IP behind a trusted proxy on the shared counter while another IP
   registers.

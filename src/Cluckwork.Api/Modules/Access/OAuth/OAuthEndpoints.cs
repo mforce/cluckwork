@@ -54,22 +54,34 @@ public static class OAuthEndpoints
     {
         var registration = ClientRegistration.ToDescriptor(request);
         if (registration.IsFailure)
-            return Results.Json(
-                new { error = registration.Error.Code, error_description = registration.Error.Description },
-                statusCode: StatusCodes.Status400BadRequest);
+            return RegistrationError(registration.Error.Code, registration.Error.Description);
 
         var client = registration.Value;
-        await applications.CreateAsync(client, ct);
+        try
+        {
+            await applications.CreateAsync(client, ct);
+        }
+        catch (OpenIddictExceptions.ValidationException exception)
+        {
+            // The redirect URIs are the only client input OpenIddict validates here; it
+            // refuses, for one, an iss parameter in their query (issuer fixation).
+            return RegistrationError("invalid_redirect_uri",
+                string.Join(" ", exception.Results.Select(result => result.ErrorMessage)));
+        }
 
         return Results.Json(new
         {
             client_id = client.ClientId,
             client_id_issued_at = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             client_name = client.DisplayName,
-            redirect_uris = client.RedirectUris.Select(uri => uri.AbsoluteUri),
+            // What OpenIddict stored and compares ordinally, so the client can use it as is.
+            redirect_uris = client.RedirectUris.Select(uri => uri.OriginalString),
             grant_types = new[] { GrantTypes.AuthorizationCode },
             response_types = new[] { ResponseTypes.Code },
             token_endpoint_auth_method = ClientAuthenticationMethods.None,
         }, statusCode: StatusCodes.Status201Created);
     }
+
+    private static IResult RegistrationError(string error, string description) =>
+        Results.Json(new { error, error_description = description }, statusCode: StatusCodes.Status400BadRequest);
 }
