@@ -51,9 +51,9 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
                     cfg, configuration, registeredServices,
                     new SensitiveDataRedactionEnricher(), SensitiveDataRedactionEnricher.RedactText)
                     // #795 — OpenIddict logs whole protocol messages at Information, and
-                    // its own redaction leaves the PKCE code_verifier in clear. A filter,
-                    // not an override: Serilog picks the most specific override, so a
-                    // configured child category such as OpenIddict.Server would win.
+                    // its own redaction leaves the PKCE code_verifier in clear. An override
+                    // cannot hold that floor, because Serilog applies the most specific one
+                    // and a configured child such as OpenIddict.Server would win.
                     .Filter.ByExcluding(OpenIddictBelowWarning),
             preserveStaticLogger: true);
 

@@ -180,8 +180,8 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    // Configuration asks for every OpenIddict event, for the parent category and a child;
-    // still no secret from a redeemed or a refused exchange may reach a sink.
+    // Configuration asks for every OpenIddict event; still no secret from a redeemed
+    // or a refused exchange may reach a sink.
     [Fact]
     public async Task ProtocolSecrets_NeverReachTheLog()
     {
