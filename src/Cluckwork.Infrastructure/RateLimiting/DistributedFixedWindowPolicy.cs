@@ -7,8 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cluckwork.Infrastructure.RateLimiting;
 
 // #544 — the public IRateLimiterPolicy the Api layer registers for each shared-counter
-// policy: the IP-keyed auth policies (login / refresh / client-errors) and, since #796, the
-// OAuth policies, one of which keys on the bearer token. It is the ONLY bridge across the assembly
+// policy: login / refresh / client-errors and the #796 OAuth policies, keyed by client IP
+// unless a partition key is given. It is the ONLY bridge across the assembly
 // boundary: the internal IFixedWindowCounter port stays internal to Infrastructure and is
 // resolved here from request services, so nothing about the shared-state contract leaks to
 // Cluckwork.Api. Same shape #545 (the account-keyed report cap) will reuse.

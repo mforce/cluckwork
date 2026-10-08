@@ -82,11 +82,7 @@ public static class OAuthEndpoints
 
     // OpenIddict has validated the client, the code and its authorization before this
     // runs; the code's principal becomes the access token's.
-    private static async Task<IResult> Token(HttpContext context)
-    {
-        var result = await context.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        return result.Principal is { } principal
-            ? Results.SignIn(principal, authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)
-            : Results.Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
-    }
+    private static async Task<IResult> Token(HttpContext context) => Results.SignIn(
+        (await context.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)).Principal!,
+        authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 }
