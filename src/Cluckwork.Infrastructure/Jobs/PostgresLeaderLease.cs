@@ -5,7 +5,7 @@ using Npgsql;
 namespace Cluckwork.Infrastructure.Jobs;
 
 // #271 — the background worker's single-runner gate. Exactly one API instance may
-// run the durable-job poll and the three recurring sweeps; a session-scoped
+// run the durable-job poll and the recurring sweeps; a session-scoped
 // Postgres advisory lock provides that mutual exclusion across replicas without a
 // shared clock.
 //

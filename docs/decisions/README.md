@@ -64,6 +64,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Both JWT keys checked at boot, serving-only (#510)](510-jwt-key-boot-check.md) | AGENTS · Conventions |
 | [Data Protection key ring in Postgres, encrypted in Production (#794)](794-data-protection-key-ring.md) | src/AGENTS · Boot guards |
 | [OpenIddict outside Production only, on the shared Data Protection ring (#795)](795-openiddict-server.md) | src/AGENTS · Auth and credentials |
+| [OAuth client self-registration and the OAuth purge sweep (#797)](797-oauth-client-registration.md) | src/AGENTS · Auth and credentials |
 | [Nothing writes an audit event without an actor (#500)](500-audit-actor.md) | AGENTS · Conventions |
 | [Break-glass recovery: `recover-admin` (#265)](265-break-glass-recovery.md) | AGENTS · Conventions · and the [runbook](../runbooks/break-glass-account-recovery.md) |
 | [Farm timezone, and the tzdata/ICU constraint (#264)](264-farm-timezone.md) | AGENTS · Conventions |

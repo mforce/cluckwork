@@ -20,11 +20,13 @@
 | RedirectUris | text |  | true |  |  |  |
 | Requirements | text |  | true |  |  |  |
 | Settings | text |  | true |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Constraints
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| OpenIddictApplications_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | OpenIddictApplications_Id_not_null | n | NOT NULL "Id" |
 | PK_OpenIddictApplications | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -34,6 +36,12 @@
 | ---- | ---------- |
 | PK_OpenIddictApplications | CREATE UNIQUE INDEX "PK_OpenIddictApplications" ON public."OpenIddictApplications" USING btree ("Id") |
 | IX_OpenIddictApplications_ClientId | CREATE UNIQUE INDEX "IX_OpenIddictApplications_ClientId" ON public."OpenIddictApplications" USING btree ("ClientId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_OpenIddictApplications_BusinessRecordTimestamps | CREATE TRIGGER "TR_OpenIddictApplications_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."OpenIddictApplications" FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"() |
 
 ## Relations
 
@@ -60,6 +68,7 @@ erDiagram
   text RedirectUris
   text Requirements
   text Settings
+  timestamp_with_time_zone CreatedAtUtc
 }
 "public.OpenIddictAuthorizations" {
   uuid Id

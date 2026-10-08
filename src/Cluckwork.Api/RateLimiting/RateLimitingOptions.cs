@@ -17,10 +17,14 @@ public sealed class RateLimitingOptions
     // LOG, not a credential — enough for a genuinely crashing screen to get its
     // story out, too little to flood the log from one address.
     public const string ClientErrorsPolicyName = "client-errors";
+    // #797: anonymous OAuth client registration. Each call adds a row, and a client
+    // registers once per install, so the budget is small and the window long.
+    public const string OAuthRegisterPolicyName = "oauth-register";
 
     public FixedWindow Login { get; init; } = new() { PermitLimit = 10, WindowSeconds = 900 };
     public FixedWindow Refresh { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };
     public FixedWindow ClientErrors { get; init; } = new() { PermitLimit = 10, WindowSeconds = 300 };
+    public FixedWindow OAuthRegister { get; init; } = new() { PermitLimit = 10, WindowSeconds = 3600 };
     // Small on purpose: a report query is a bounded-range aggregate (#311), not
     // a hot path — a genuine user rarely has more than one or two in flight at
     // once (e.g. a dashboard firing production+sales+expenses+profit together).
@@ -87,6 +91,7 @@ public sealed class RateLimitingOptions
         ValidateWindow(nameof(Login), Login);
         ValidateWindow(nameof(Refresh), Refresh);
         ValidateWindow(nameof(ClientErrors), ClientErrors);
+        ValidateWindow(nameof(OAuthRegister), OAuthRegister);
         ValidateConcurrency(nameof(ReportsConcurrency), ReportsConcurrency);
         ParseTrustedProxies(); // throws a named InvalidOperationException on a bad CIDR
     }

@@ -34,6 +34,7 @@ public sealed class DurableJobWorker(
     DailyEntryLockSweep? lockSweep = null,
     RefreshTokenPurgeSweep? refreshTokenPurgeSweep = null,
     IdempotencyRecordPurgeSweep? idempotencyRecordPurgeSweep = null,
+    OAuthPurgeSweep? oauthPurgeSweep = null,
     TimeSpan? pollInterval = null,
     TimeSpan? initialBackoff = null) : BackgroundService
 {
@@ -163,6 +164,8 @@ public sealed class DurableJobWorker(
             await refreshTokenPurgeSweep.RunAsync(ct);
         if (idempotencyRecordPurgeSweep is not null)
             await idempotencyRecordPurgeSweep.RunAsync(ct);
+        if (oauthPurgeSweep is not null)
+            await oauthPurgeSweep.RunAsync(ct);
     }
 }
 

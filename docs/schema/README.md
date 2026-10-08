@@ -69,7 +69,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.InventoryMovements](public.InventoryMovements.md) | 14 |  | BASE TABLE |
 | [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 9 |  | BASE TABLE |
 | [public.DataProtectionKeys](public.DataProtectionKeys.md) | 3 |  | BASE TABLE |
-| [public.OpenIddictApplications](public.OpenIddictApplications.md) | 16 |  | BASE TABLE |
+| [public.OpenIddictApplications](public.OpenIddictApplications.md) | 17 |  | BASE TABLE |
 | [public.OpenIddictScopes](public.OpenIddictScopes.md) | 9 |  | BASE TABLE |
 | [public.OpenIddictAuthorizations](public.OpenIddictAuthorizations.md) | 9 |  | BASE TABLE |
 | [public.OpenIddictTokens](public.OpenIddictTokens.md) | 13 |  | BASE TABLE |
@@ -652,6 +652,7 @@ erDiagram
   text RedirectUris
   text Requirements
   text Settings
+  timestamp_with_time_zone CreatedAtUtc
 }
 "public.OpenIddictScopes" {
   uuid Id
