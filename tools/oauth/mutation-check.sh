@@ -71,7 +71,7 @@ unapproved-kept#kill#PURGE#            .ExecuteDeleteAsync(ct);#            .Cou
 window-ignored#kill#PURGE#EF.Property<DateTimeOffset>(application, OAuthApplicationConfiguration.CreatedAtUtc) < unapprovedBefore\n                && ##OAuthPurgeTests.UnapprovedApplication_IsDeletedOnlyAfterTheWindow#an unapproved application was deleted inside its window
 sweep-window-dropped#kill#SWEEP#now - UnapprovedWindow, ct)#now, ct)#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the sweep deleted an application inside its window
 follower-sweeps#kill#WORKER#            if (leadership == LeaseStatus.Follower)\n            {\n#            if (leadership == LeaseStatus.Follower)\n            {\n                if (oauthPurgeSweep is not null) await oauthPurgeSweep.RunAsync(stoppingToken);\n#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#a follower ran the OAuth sweep
-sweep-unwired#kill#WORKER#        if (oauthPurgeSweep is not null)\n            await oauthPurgeSweep.RunAsync(ct);\n##OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the leader did not run the OAuth sweep
+sweep-unwired#kill#WORKER#            await oauthPurgeSweep.RunAsync(ct);#            _ = oauthPurgeSweep;#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the leader did not run the OAuth sweep
 EOF
 )
 
