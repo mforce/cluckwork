@@ -24,8 +24,9 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-// #795 — the authorization-code + PKCE flow end to end, and the walls that keep its
-// token away from business endpoints until #796 adds the fail-closed checks.
+// #795 — the authorization-code + PKCE flow end to end, and the wall that keeps its
+// token away from business endpoints. OAuthFailClosedTests covers the endpoints that
+// accept it (#796).
 [Collection(IntegrationCollection.Name)]
 public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 {
@@ -148,8 +149,9 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(userId.ToString(), await ProbeAsync(second, accessToken));
     }
 
-    // Wall 1: business endpoints authenticate with the session JWT scheme only, so the
-    // OAuth token fails authentication before any middleware reads a claim.
+    // Business endpoints authenticate with the session JWT scheme only (#796 routes the
+    // OAuth handler to opted-in endpoints), so the OAuth token fails authentication
+    // before any middleware reads a claim.
     [Fact]
     public async Task OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication()
     {
@@ -161,23 +163,6 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Contains(response.Headers.WwwAuthenticate, header =>
             header.Scheme == "Bearer" && header.Parameter?.Contains("invalid_token") == true);
-    }
-
-    // Wall 2: even routed through the default scheme, the token's principal carries no
-    // account_id, so tenant resolution refuses it; with one, the missing
-    // credential_epoch is the #364 mismatch.
-    [Fact]
-    public async Task OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected()
-    {
-        using var host = WithResourceProbe(factory);
-        var accessToken = await IssueAccessTokenAsync(host);
-        using var forced = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.Configure<AuthenticationOptions>(options =>
-                options.DefaultAuthenticateScheme = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)));
-
-        using var response = await HttpsClient(forced, accessToken).GetAsync("/api/v1/me");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     // Configuration asks for every OpenIddict event; still no secret from a redeemed

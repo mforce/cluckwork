@@ -6,8 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Infrastructure.RateLimiting;
 
-// #544 — the public IRateLimiterPolicy the Api layer registers for each IP-keyed auth
-// policy (login / refresh / client-errors). It is the ONLY bridge across the assembly
+// #544 — the public IRateLimiterPolicy the Api layer registers for each shared-counter
+// policy: the IP-keyed auth policies (login / refresh / client-errors) and, since #796, the
+// OAuth policies, one of which keys on the bearer token. It is the ONLY bridge across the assembly
 // boundary: the internal IFixedWindowCounter port stays internal to Infrastructure and is
 // resolved here from request services, so nothing about the shared-state contract leaks to
 // Cluckwork.Api. Same shape #545 (the account-keyed report cap) will reuse.
@@ -16,13 +17,15 @@ namespace Cluckwork.Infrastructure.RateLimiting;
 // CluckworkRateLimitingServiceCollectionExtensions owns the 429 body, the Retry-After header,
 // and the auth-only SecurityEvents.RateLimitRejected event. A per-policy OnRejected here
 // would double-handle or split that logic.
-public sealed class DistributedIpFixedWindowPolicy : IRateLimiterPolicy<string>
+public sealed class DistributedFixedWindowPolicy : IRateLimiterPolicy<string>
 {
     private readonly string _keyPrefix;
     private readonly int _permitLimit;
     private readonly TimeSpan _window;
+    private readonly Func<HttpContext, string> _partitionKey;
 
-    public DistributedIpFixedWindowPolicy(string keyPrefix, int permitLimit, TimeSpan window)
+    public DistributedFixedWindowPolicy(
+        string keyPrefix, int permitLimit, TimeSpan window, Func<HttpContext, string>? partitionKey = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(keyPrefix);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(permitLimit);
@@ -30,6 +33,7 @@ public sealed class DistributedIpFixedWindowPolicy : IRateLimiterPolicy<string>
         _keyPrefix = keyPrefix;
         _permitLimit = permitLimit;
         _window = window;
+        _partitionKey = partitionKey ?? (context => RateLimitKey.ForClient(context.Connection.RemoteIpAddress));
     }
 
     // Null on purpose: the single global RateLimiterOptions.OnRejected handler owns the 429
@@ -41,7 +45,7 @@ public sealed class DistributedIpFixedWindowPolicy : IRateLimiterPolicy<string>
 
     public RateLimitPartition<string> GetPartition(HttpContext httpContext)
     {
-        var key = $"{_keyPrefix}:{RateLimitKey.ForClient(httpContext.Connection.RemoteIpAddress)}";
+        var key = $"{_keyPrefix}:{_partitionKey(httpContext)}";
         var services = httpContext.RequestServices;
 
         // Resolve the singletons inside the partition factory so they are fetched only on a

@@ -112,22 +112,43 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
 
             limiter.AddPolicy<string>(
                 RateLimitingOptions.LoginPolicyName,
-                new DistributedIpFixedWindowPolicy(
+                new DistributedFixedWindowPolicy(
                     RateLimitingOptions.LoginPolicyName,
                     rateLimiting.Login.PermitLimit,
                     TimeSpan.FromSeconds(rateLimiting.Login.WindowSeconds)));
             limiter.AddPolicy<string>(
                 RateLimitingOptions.RefreshPolicyName,
-                new DistributedIpFixedWindowPolicy(
+                new DistributedFixedWindowPolicy(
                     RateLimitingOptions.RefreshPolicyName,
                     rateLimiting.Refresh.PermitLimit,
                     TimeSpan.FromSeconds(rateLimiting.Refresh.WindowSeconds)));
             limiter.AddPolicy<string>(
                 RateLimitingOptions.ClientErrorsPolicyName,
-                new DistributedIpFixedWindowPolicy(
+                new DistributedFixedWindowPolicy(
                     RateLimitingOptions.ClientErrorsPolicyName,
                     rateLimiting.ClientErrors.PermitLimit,
                     TimeSpan.FromSeconds(rateLimiting.ClientErrors.WindowSeconds)));
+            limiter.AddPolicy<string>(
+                RateLimitingOptions.OAuthTokenPolicyName,
+                new DistributedFixedWindowPolicy(
+                    RateLimitingOptions.OAuthTokenPolicyName,
+                    rateLimiting.OAuthToken.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.OAuthToken.WindowSeconds)));
+            limiter.AddPolicy<string>(
+                RateLimitingOptions.OAuthAuthorizePolicyName,
+                new DistributedFixedWindowPolicy(
+                    RateLimitingOptions.OAuthAuthorizePolicyName,
+                    rateLimiting.OAuthAuthorize.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.OAuthAuthorize.WindowSeconds)));
+            // UseRateLimiter runs before UseAuthentication, so the key is the raw bearer,
+            // not the principal it will authenticate to.
+            limiter.AddPolicy<string>(
+                RateLimitingOptions.OAuthApiPolicyName,
+                new DistributedFixedWindowPolicy(
+                    RateLimitingOptions.OAuthApiPolicyName,
+                    rateLimiting.OAuthApi.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.OAuthApi.WindowSeconds),
+                    RateLimitKey.ForBearer));
         });
 
         // #311/#545 — account-scoped report concurrency cap. Registered separately
