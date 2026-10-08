@@ -6,6 +6,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
+using Serilog.Filters;
 
 namespace Cluckwork.Api.Hosting;
 
@@ -50,9 +51,10 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
                     cfg, configuration, registeredServices,
                     new SensitiveDataRedactionEnricher(), SensitiveDataRedactionEnricher.RedactText)
                     // #795 — OpenIddict logs whole protocol messages at Information, and
-                    // its own redaction leaves the PKCE code_verifier in clear. Applied
-                    // after the configuration is read, so no setting can let them through.
-                    .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),
+                    // its own redaction leaves the PKCE code_verifier in clear. A filter,
+                    // not an override: Serilog picks the most specific override, so a
+                    // configured child category such as OpenIddict.Server would win.
+                    .Filter.ByExcluding(OpenIddictBelowWarning),
             preserveStaticLogger: true);
 
         // Bind IDiagnosticContext property creation to THIS host's logger. The
@@ -149,6 +151,11 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
 
         return new CluckworkTelemetryRegistration(traceEndpoint, metricsEndpoint, protocol);
     }
+
+    private static readonly Func<LogEvent, bool> FromOpenIddict = Matching.FromSource("OpenIddict");
+
+    private static bool OpenIddictBelowWarning(LogEvent logEvent) =>
+        logEvent.Level < LogEventLevel.Warning && FromOpenIddict(logEvent);
 }
 
 internal sealed record CluckworkTelemetryRegistration(

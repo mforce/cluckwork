@@ -59,15 +59,18 @@ revocation and introspection requests and every response it writes. Its
 `OpenIddictMessage.ToString()` redacts codes, tokens, client secrets and passwords, but
 not `code_verifier`, so each token request put the verifier in the log. Review of this
 PR found that in the live run's output. At Warning and above OpenIddict logs only row
-ids, key type names and exceptions. `AddCluckworkTelemetry` therefore clamps the
-`OpenIddict` categories to Warning after the Serilog configuration is read, so no
-setting can lower it. A property-name rule could not help, because the verifier sits
+ids, key type names and exceptions. `AddCluckworkTelemetry` therefore filters out every
+event below Warning whose source is `OpenIddict` or a category under it, before any
+sink. A filter, because an override cannot hold the floor: Serilog applies the most
+specific override, so a configured `OpenIddict.Server` override beat the first
+version's parent clamp (review round 2). No override or configuration reload changes
+the filter. A property-name rule could not help either, because the verifier sits
 inside the rendered message, and a content pattern would miss the next field OpenIddict
 leaves unredacted. The cost is that rejection reasons no longer reach the log; OpenIddict
 still returns them to the client as `error_description`.
-`ProtocolSecrets_NeverReachTheLog` sets OpenIddict to Verbose through configuration,
-runs a redeemed and a refused exchange with marker values, and fails if any captured
-event carries one.
+`ProtocolSecrets_NeverReachTheLog` sets `OpenIddict` and `OpenIddict.Server` to Verbose
+through configuration, runs a redeemed and a refused exchange with marker values, and
+fails if any captured event carries one.
 
 ## Why not the obvious alternative
 

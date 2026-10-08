@@ -180,8 +180,8 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    // Configuration asks for every OpenIddict event; still no secret from a redeemed
-    // or a refused exchange may reach a sink.
+    // Configuration asks for every OpenIddict event, for the parent category and a child;
+    // still no secret from a redeemed or a refused exchange may reach a sink.
     [Fact]
     public async Task ProtocolSecrets_NeverReachTheLog()
     {
@@ -190,6 +190,8 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         {
             builder.UseSetting("Serilog:MinimumLevel:Default", "Verbose");
             builder.UseSetting("Serilog:MinimumLevel:Override:OpenIddict", "Verbose");
+            // The most specific override wins in Serilog, so a parent clamp alone would lose.
+            builder.UseSetting("Serilog:MinimumLevel:Override:OpenIddict.Server", "Verbose");
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter, ResourceProbe>();
