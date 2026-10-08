@@ -7,8 +7,7 @@
       "release-type": "simple",
       "package-name": "cluckwork",
       "initial-version": "0.0.1",
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
+      "versioning": "always-bump-minor",
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
       "extra-files": [

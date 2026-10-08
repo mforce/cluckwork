@@ -106,41 +106,41 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      promotion retags and rewrites notes, so aiming it at a live version would
      repoint it — and when the release records a real commit, that commit is
      authoritative: a supplied sha may only agree with it, never override it.
-- **The bump comes from conventional commits**, so PR titles are load-bearing —
-  squash-merge puts the title on main as the commit subject. The mapping is
-  **damped while below 1.0.0**, via two settings in `release-please-config.json`:
-  `bump-minor-pre-major` ("breaking changes only bump minor if version < 1.0.0")
-  and `bump-patch-for-minor-pre-major` ("feature changes only bump patch if
-  version < 1.0.0"). So today `feat!:`/`BREAKING CHANGE` → **minor**, and
-  `feat:` along with **everything else** → **patch**.
+- **The bump comes from the branch, not from commit types** (see
+  [the 2026-10-07 amendment](#amendment-2026-10-07-hotfix-release-lines-and-one-digit-per-release)).
+  `release-please-config.json` sets `"versioning": "always-bump-minor"`, so
+  every release from `main` bumps the middle digit whatever its commits say; a
+  hotfix line's own copy sets `always-bump-patch`. Commit types choose only the
+  changelog section. PR titles stay load-bearing for that, because squash-merge
+  puts the title on the branch as the commit subject. The damped pre-1.0 mapping
+  this bullet used to describe (`bump-minor-pre-major` with
+  `bump-patch-for-minor-pre-major`) is gone.
 
-  **Both are required and they are not interchangeable.** `bump-minor-pre-major`
-  alone still lets a `feat` take the minor digit; the second setting is what keeps
-  features on patch.
+  **`initial-version` is a separate lever, and the versioning strategy does not
+  cover it.** The *first* release computes no bump at all —
+  `Strategy.initialReleaseVersion()` returns `Version.parse(this.initialVersion)`
+  or, absent that, a hardcoded `1.0.0`. So a fresh repo proposes **1.0.0** no
+  matter what the strategy says. That happened here twice: PR #372 proposed
+  `release 1.0.0`, adding the bump settings of the time changed nothing, and PR
+  #374 proposed `1.0.0` again. `"initial-version": "0.0.1"` is what fixes the
+  first release; the strategy governs every release after it. Don't diagnose
+  one as the other.
 
-  **`initial-version` is a third, separate lever, and the two bump settings do not
-  cover it.** The *first* release computes no bump at all — `Strategy.initialReleaseVersion()`
-  returns `Version.parse(this.initialVersion)` or, absent that, a hardcoded
-  `1.0.0`. So a fresh repo proposes **1.0.0** no matter what the pre-major
-  settings say. That is exactly what happened here twice: PR #372 proposed
-  `release 1.0.0`, adding the two bump settings changed nothing, and PR #374
-  proposed `1.0.0` again. `"initial-version": "0.0.1"` is what fixes the first
-  release; the bump settings govern every release after it. Don't diagnose one as
-  the other.
+  **The first digit moves only by hand**, with a `Release-As: X.0.0` footer
+  added at merge time. Squash commits here carry only the PR title, so a plain
+  footer anywhere else is dropped (the watch-the-version bullet below names the
+  one exception).
 
-  **This mapping changes silently at 1.0.0**, when both settings stop applying and
-  the conventional defaults resume (`feat:` → minor, breaking → major). Reaching
-  1.0.0 should therefore be deliberate — a `Release-As: 1.0.0` footer when you mean
-  it — not a side effect.
-
-  Note that `hidden: true` in `changelog-sections` only suppresses a type in the
-  changelog *text*; it does **not** make it unreleasable. `DefaultVersioningStrategy`
-  returns `PatchVersionUpdate()` for any commit set with no feat/breaking, and the
-  only early exit is "zero conventional commits" — so a `chore:`-only merge does
-  bump the patch digit. It lands in the pending release PR rather than in a
-  release, so it costs a number, not a deploy.
+  Note that `hidden: true` in `changelog-sections` suppresses a type in the
+  changelog *text*, and a changelog with no entries opens no release PR
+  (`BaseStrategy.buildReleasePullRequest` returns nothing for it). So merges of
+  only `chore`/`ci`/`test`/`style` wait; the strategy chooses the version once a
+  visible entry exists. A hidden commit carrying a merge-time `Release-As` is
+  the exception: the changelog preset keeps it, so it opens a release PR.
 - **The commit *body* is parsed too, and a parse error drops the whole commit** —
-  no changelog entry, no bump, and the run reports success. **Never start a line
+  it loses its changelog entry, and the run reports success. It no longer
+  changes which digit moves; it prevents a release only when it was the only
+  commit since the last release. **Never start a line
   with `something(` that has another `(` inside it**; indent it, bullet it, or put
   a word in front. Backticks do not protect it: the parser lexes such a line as a
   nested `type(scope)` header, and the scope admits no `(`. Only line *starts*
@@ -357,10 +357,16 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   job defaults to *not* gating, which is the dangerous default. Treat "is it in
   `publish.needs`?" as part of adding any gating job.
 - **Watch the version on the release PR, not just the changelog.** A
-  `Release-As: X.Y.Z` footer on any commit reaching main overrides the computed
-  version, and squash-merge can be configured to put a PR *body* into the commit
-  body — so a contributor can force a version jump from a PR description. The
-  human merging the release PR is the control; its title states the version.
+  `Release-As: X.Y.Z` footer on any commit reaching the branch overrides the
+  computed version. Squash commits here carry the PR title and an empty body
+  (`squash_merge_commit_message=BLANK`), so a plain footer in a PR description
+  or a branch commit is dropped; typing it at merge time is the recommended way
+  to force a version. It is not the only way: release-please replaces a squash
+  commit's message with a `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE`
+  block from the PR description (`preprocessCommitMessage` in `src/commit.ts`),
+  so a contributor can still set `Release-As` through one. The control is
+  review of the version the release PR proposes; its title states it, and the
+  human merging it decides.
 - **Config lives in three files**, all machine-maintained — `release-please-config.json`,
   `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
   or `version.txt`**; release-please owns them and a manual edit desynchronises the
@@ -477,3 +483,162 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   deprecation by pointing `client-id` at `LOCKFIX_APP_ID`: the mint fails.
 - Package visibility and the host's pull credential are **deploy-side** concerns
   (cluckwork-deploy#6), not this repo's.
+
+## Amendment, 2026-10-07: hotfix release lines and one digit per release
+
+Until this amendment only `main` could be released, so a fix for a deployed
+version shipped with everything merged since. Two changes landed together in
+PR #1130. A **maintenance branch**, `release/vX.Y.x`, now carries a hotfix
+line: it is cut from a release tag, receives cherry-picked fixes by pull
+request, and releases through the same draft, promote and publish path
+described above. And the version now comes from the branch a release is cut
+from, not from its commit types (owner policy, 2026-10-07). The how-to is
+[`docs/releasing.md`](../releasing.md#hotfix-releases).
+
+### What changed
+
+- **Versions.** Every release from `main` bumps the middle digit
+  (`1.0.0` → `1.1.0`): `release-please-config.json` sets
+  `"versioning": "always-bump-minor"`. Every release from a hotfix line bumps
+  the last digit (`1.1.0` → `1.1.1`): the line's first PR sets
+  `"always-bump-patch"` in the branch's own copy. For a tag that predates
+  this amendment, that PR also cherry-picks this one, which brings
+  `always-bump-minor` with it, so the line-setup PR sets `always-bump-patch`
+  either way. The first digit moves only by a `Release-As` (see the bump
+  bullet above). PR #1130 merges with `--body "Release-As: 1.0.0"`, so
+  `main`'s next release is `1.0.0`. Commit types only choose the changelog
+  section, and a `!` in the PR title marks a breaking change there.
+- **CI builds and publishes `release/v*.*.x` like `main`.** No other
+  `release/` name triggers CI's push run or the Release workflow. The repair
+  dispatch checks ancestry against the branch it runs from and refuses any
+  branch other than `main` or exactly `release/v<number>.<number>.x`.
+- **Both release-please passes take `target-branch: ${{ github.ref_name }}`.**
+  Without it the action targets the default branch whatever was pushed
+  (`release-please-action` v5.0.0, `src/index.ts`, passes the input as
+  `defaultBranch` to `GitHub.create`). release-please then reads that branch's
+  manifest, finds the release whose tag matches it, and keeps a separate
+  release PR whose head is
+  `release-please--branches--<branch>--components--cluckwork`. `groom`'s
+  boundary probe reads the manifest from the pushed branch for the same reason.
+- **`--source-ref` is derived, not fixed to `refs/heads/main`.** A commit on
+  `main` gives `refs/heads/main`; the workflow settles that with one compare
+  probe and asks nothing about any other branch. Otherwise
+  `maintenanceSourceRef` in `.github/scripts/release-line.mjs` gives the
+  `release/v<major>.<minor>.x` branch taken from the tag, and refuses
+  anything else. The ref is never read from `image.json`, which anyone with
+  `contents: write` can rewrite, and is never a wildcard, so a `v0.1.6` image
+  built on `release/v0.2.x` does not verify. The release notes' verify command
+  prints the exact ref used.
+- **A release branch runs its own frozen workflows.** Push and pull request
+  runs read `ci.yml` and `release-please.yml` from the branch's commit, or from
+  a pull request's merge commit, never from `main`. A branch cut from a tag
+  that predates this amendment, such as `v0.1.5`, carries main-only triggers,
+  so its first PR must cherry-pick this amendment's commit; that PR runs CI
+  because its merge commit carries the new triggers. A later fix to `main`'s
+  workflows, security fixes included, reaches a live hotfix line only when it
+  is cherry-picked there.
+- **The deploy side must accept the release branch's ref for a hotfix
+  version**, derived from the version it deploys as promotion does. That change
+  belongs in cluckwork-deploy. The bullet in
+  [`.github/AGENTS.md`](../../.github/AGENTS.md) stays the canonical statement
+  of what verification proves; it now names the release branch alongside
+  `main`.
+
+### Why each guard exists
+
+- **Promotion requires the release rulesets' rules.** An attestation naming
+  `refs/heads/main` means something because `main` only changes through a
+  merged pull request. A release branch earns the same meaning only under the
+  same restrictions. Without them, anyone with push access could edit
+  `ci.yml` on that branch, push, and get an attestation naming a ref promotion
+  trusts. Promotion reads `rules/branches/<branch>` and requires `creation`,
+  `non_fast_forward` and `pull_request` among the active rule types.
+  `creation` is the one that stops a writer pushing a new `release/vX.Y.x` of
+  unreviewed commits. The rules API lists ruleset rules only, so the hotfix
+  line needs rulesets even though `main` uses classic protection. They are
+  split in two on `release/v*.*.x` so the one bypass needed reaches nothing
+  else: *Release lines* (pull request, no force pushes, no deletions) has an
+  empty bypass list, stricter than `main`, whose protection does not enforce
+  admins; *Release line creation* (restrict creations) bypasses only the
+  Repository admin role. GitHub's REST documentation says the endpoint returns
+  "all active rules that apply", so both rulesets' types arrive in one list.
+  It does not say explicitly that bypass actors are ignored when listing; only
+  a live run confirms that.
+- **A `release/vX.Y.x` name that existed before the rulesets is permanently
+  untrusted** as a `--source-ref`, and that minor line ships its fix from
+  `main`. Deleting a branch withdraws no attestation issued under its ref: a
+  writer who ran their own `ci.yml` on the early branch keeps an image
+  attested to that ref, and the writer's pre-existing ability to retag and
+  rewrite `image.json` (see the deploy bullets above) can put it behind a
+  hotfix version. So the rulesets must exist before the first `release/`
+  branch. When this amendment was written,
+  `git ls-remote origin 'refs/heads/release/*'` returned nothing.
+- **`groom` checks the release PR's proposal before anyone merges it.** It
+  reads the proposed version from the manifest on the open release PR's head
+  branch; release-please writes it there, and the action's `pr` output is
+  absent whenever the PR body did not change. On `release/vX.Y.x` it refuses
+  a version outside `X.Y.x`, which means the line's config is not
+  `always-bump-patch` or a `Release-As` reached the branch. Promotion would
+  refuse that release later anyway, because the branch derived from the tag
+  would not hold the commit. On any branch it refuses a version already tagged
+  or released (drafts included, listed with the App token). `main` and the
+  lines bump different digits, so in normal use that means a `Release-As`
+  named a taken version. Each error names the next free version for that
+  branch and how to force it.
+- **A release branch's creation push publishes nothing.** It carries the
+  tag's commit, which `main` already published, and republishing would move
+  that commit's `:sha-` tags onto bytes attested to the new branch.
+
+### What release-please 17.6.0 confirms
+
+release-please-action v5.0.0's `package-lock.json` pins release-please
+17.6.0. In that version:
+
+- `src/factories/versioning-strategy-factory.ts` maps `always-bump-minor` to
+  `AlwaysBumpMinor` and `always-bump-patch` to `AlwaysBumpPatch`. The config's
+  `versioning` key reaches it through `src/factory.ts` `buildStrategy`, which
+  the `simple` release type uses.
+- `src/versioning-strategies/always-bump-minor.ts` and `always-bump-patch.ts`
+  override `determineReleaseType` with an unconditional `MinorVersionUpdate`
+  or `PatchVersionUpdate`, so breaking changes and features are ignored.
+  `MinorVersionUpdate` resets the patch to 0.
+- `bump-minor-pre-major` and `bump-patch-for-minor-pre-major` are read only in
+  `DefaultVersioningStrategy.determineReleaseType`, which those classes
+  override, so they were removed from the config.
+- `BaseStrategy.buildNewVersion` in `src/strategies/base.ts` returns the
+  version from a `RELEASE AS` note before it calls the versioning strategy,
+  so `Release-As` still wins.
+- `BaseStrategy.buildReleasePullRequest` returns no release PR when the
+  changelog is empty, so merges of only hidden types wait. The changelog
+  preset (`conventional-changelog-conventionalcommits` 6, `writer-opts.js`)
+  keeps a hidden commit whose footer carries `Release-As`, which is why an
+  empty `chore:` commit merged with one does open a release PR.
+- `preprocessCommitMessage` in `src/commit.ts` replaces a commit's message
+  with a `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE` block from its
+  pull request's description, so a description can still set `Release-As`
+  that way (see the watch-the-version bullet above).
+
+### Considered and rejected
+
+- Reading the branches API's `protected` field: any matching rule sets it,
+  including a ruleset that lets anyone create the branch.
+- Deleting a pre-ruleset branch and cutting it again: it leaves that ref's
+  earlier attestations valid.
+- Pinning `--source-digest` to the release commit: a repair dispatch attests
+  the branch tip rather than the commit it built, so the pin would reject
+  legitimate repairs.
+- One ruleset with an admin bypass: it would let admins push to a release
+  branch directly.
+- Keeping the damped commit-type mapping, which made `main` and a hotfix line
+  both propose the next patch and needed a `Release-As` on `main` after every
+  hotfix.
+
+### Known limit, pre-existing and not widened here
+
+Anyone with push access can edit a workflow on a branch of their own and run
+it with the App secrets (`LOCKFIX_APP_CLIENT_ID`, `LOCKFIX_APP_PRIVATE_KEY`),
+because those are repository secrets rather than environment-scoped ones. The
+hotfix line adds no new path to them: the Release workflow triggers only on
+`main` and ruleset-restricted `release/v*.*.x` branches, which a push-access
+user cannot create. Closing it means moving the secrets into an environment
+limited to those branches, which is separate work.

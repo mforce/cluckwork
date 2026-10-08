@@ -182,20 +182,27 @@ free-form — the area touched.
 | `chore` | *hidden* | `chore(web): drop the unused date-fns dependency` |
 | `style` | *hidden* | `style(web): apply Prettier to the untouched settings screens` |
 
-Add `!` for a breaking change — `feat(api)!: drop the v0 endpoints` — or a
-`BREAKING CHANGE:` footer. *Hidden* types stay out of the changelog text but
-**still bump the patch digit**; they cost a number, not a deploy. What each type
-does to the version number is in [`docs/releasing.md`](docs/releasing.md#what-decides-the-version).
+Commit types choose only the changelog section; the version comes from the
+branch you release from ([`docs/releasing.md`](docs/releasing.md#what-decides-the-version)).
+Add `!` to the PR title for a breaking change — `feat(api)!: drop the v0
+endpoints`. It marks the changelog entry and moves no version digit. *Hidden*
+types stay out of the changelog text.
 
-Two traps, both producing a **green run with no changelog entry and no bump**:
+PRs squash-merge with the **PR title** as the commit subject and an **empty
+body**. A `BREAKING CHANGE:` or `Release-As:` footer written in a branch commit or
+the PR description is dropped. Text reaches the commit body only when typed at
+merge time (`gh pr merge <N> --squash --body "…"` or the squash dialog's
+extended description).
 
-**1. The PR title is the release note.** On a multi-commit PR the squashed subject
-comes from it, and no local hook can see it. A non-conventional title silently
-costs the bump.
+Two traps, both producing a **green run with no changelog entry**:
 
-**2. A body line starting with `word(` that has another `(` inside it** breaks the
-parser — and an unparseable commit is dropped *entirely*, not just that line. Two
-commits have already been lost this way. Backticks do not protect it:
+**1. The PR title is the release note.** It is always the squashed subject, and
+no local hook can see it. A non-conventional title silently drops the entry.
+
+**2. In text typed at merge time, a line starting with `word(` that has another
+`(` inside it** breaks the parser — and an unparseable commit is dropped
+*entirely*, not just that line. Two commits have already been lost this way.
+Backticks do not protect it:
 
 ```text
 Assert.Single(AllMigrations())      ← breaks the parser
@@ -205,8 +212,9 @@ see Assert.Single(AllMigrations())  ← fine (word in front)
 ```
 
 Only line *starts* matter, so `see foo(x) and bar(y())` mid-sentence was never a
-problem. `.githooks/commit-msg` catches this in your own message and prints the
-rewrite; it cannot see a PR title.
+problem. `.githooks/commit-msg` catches this in your branch commits and prints the
+rewrite, but those messages no longer reach `main`; it cannot see a PR title or
+text typed at merge time.
 
 ## Reviewing
 

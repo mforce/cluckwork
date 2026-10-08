@@ -4,9 +4,14 @@ on:
   push:
     branches:
       - main
+      # Hotfix lines (#351): a maintenance branch is built and published like
+      # main so its release PR has an image to promote. Only the line
+      # pattern: no other release/ name publishes.
+      - release/v*.*.x
   pull_request:
     branches:
       - main
+      - release/**
   # Repair path (#351). A commit whose message contains `[skip ci]` — which
   # GitHub matches ANYWHERE in the message, and which reaches the squashed
   # release commit if any changelog entry happens to contain it — triggers no
@@ -15,13 +20,14 @@ on:
   # because no run exists to re-run.
   #
   # This rebuilds and publishes for one explicit commit, through the same gates.
-  # It is deliberately NOT a general "publish anything" button: the commit must
-  # already be an ancestor of main (checked below), so it can only ever republish
-  # history that was already merged.
+  # It is deliberately NOT a general "publish anything" button: it must be
+  # dispatched from main or a release/vX.Y.x branch, and the commit must already be an
+  # ancestor of that branch (checked below), so it can only ever republish
+  # history that was already merged there.
   workflow_dispatch:
     inputs:
       sha:
-        description: "Commit on main to build and publish, e.g. to repair a release whose CI run was skipped"
+        description: "Commit on the dispatched branch (main or release/vX.Y.x) to build and publish, e.g. to repair a release whose CI run was skipped"
         required: true
         type: string
 
@@ -89,6 +95,8 @@ jobs:
         run: node --test .github/scripts/changed-paths.test.mjs
       - name: Run the image-scan issue logic self-tests
         run: node --test .github/scripts/image-scan-issues.test.mjs
+      - name: Run the release-line decision self-tests
+        run: node --test .github/scripts/release-line.test.mjs
 
   changes:
     name: Classify the changed paths
@@ -703,10 +711,13 @@ jobs:
       # therefore a different digest, so what got published would be an image
       # this job's boot smoke test never examined.
       #
-      # Only on a merge into main, so PR runs pay none of this.
+      # Only on a merge into main or a release/vX.Y.x branch, so PR runs pay
+      # none of this.
       - name: Export the verified image for publishing
         if: |
-          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main'
+            || (startsWith(github.ref, 'refs/heads/release/v') && endsWith(github.ref, '.x')
+              && !github.event.created)))
           || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
@@ -716,7 +727,9 @@ jobs:
 
       - name: Upload the verified image
         if: |
-          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main'
+            || (startsWith(github.ref, 'refs/heads/release/v') && endsWith(github.ref, '.x')
+              && !github.event.created)))
           || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
@@ -755,8 +768,15 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [tests, build-and-test, web, image]
+    # Push runs come only from main and release/v*.*.x (the trigger filter);
+    # the first step below holds the exact vX.Y.x shape. A release branch's
+    # creation push is skipped: it carries the tag's commit, which main
+    # already published, and republishing would move that commit's `:sha-`
+    # tags onto bytes attested to the new branch.
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main'
+        || (startsWith(github.ref, 'refs/heads/release/v') && endsWith(github.ref, '.x')
+          && !github.event.created)))
       || github.event_name == 'workflow_dispatch'
     permissions:
       # Job-level permissions REPLACE the workflow-level `contents: read`.
@@ -769,10 +789,12 @@ jobs:
       digest: ${{ steps.publish.outputs.digest }}
     steps:
       # A dispatch names its own commit; a push is its own. Either way the
-      # commit must ALREADY be on main's history — the compare API answers
-      # `identical` or `behind` only when the head is an ancestor of the base.
-      # Without that, this job would publish arbitrary branch content under a
-      # `:sha-` name that the release workflow is willing to promote.
+      # commit must ALREADY be on the history of the branch this run came from,
+      # and that branch must be main or a release/vX.Y.x line — the compare API
+      # answers `identical` or `behind` only when the head is an ancestor of the
+      # base. Without that, this job would publish arbitrary branch content
+      # under a `:sha-` name that the release workflow is willing to promote.
+      # Promotion separately requires a release branch's ruleset.
       - name: Resolve and authorise the commit to publish
         id: target
         env:
@@ -791,11 +813,18 @@ jobs:
             exit 1
           fi
 
-          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq '.status')"
+          if [[ $GITHUB_REF =~ ^refs/heads/(main|release/v[0-9]+\.[0-9]+\.x)$ ]]; then
+            branch="${BASH_REMATCH[1]}"
+          else
+            echo "::error::run from $GITHUB_REF — publishing runs only from main or a release/vX.Y.x branch"
+            exit 1
+          fi
+
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$branch...$sha" --jq '.status')"
           case "$status" in
             identical|behind) ;;
             *)
-              echo "::error::$sha is not an ancestor of main (compare status: $status) — refusing to publish it"
+              echo "::error::$sha is not an ancestor of $branch (compare status: $status) — refusing to publish it"
               exit 1 ;;
           esac
 
@@ -924,7 +953,7 @@ jobs:
       #   gh attestation verify oci://ghcr.io/<owner>/<repo>@sha256:… \
       #     --repo <owner>/<repo> \
       #     --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
-      #     --source-ref refs/heads/main \
+      #     --source-ref refs/heads/<main or the release/ branch> \
       #     --bundle-from-oci
       # succeeds only for bytes this workflow signed a provenance claim over.
       # Say it that precisely: an attestation is a CLAIM BY AN ACTOR, so it
@@ -947,11 +976,14 @@ jobs:
       # Do not read it as "the commit the release was cut from" without that
       # distinction.
       #
-      # This is also why the verify command pins `--source-ref refs/heads/main`:
+      # This is also why the verify command pins `--source-ref`: to
+      # `refs/heads/main`, or for a hotfix to the ruleset-guarded
+      # `release/vX.Y.x` branch release-please.yml derives from the tag.
       # `--signer-workflow` pins only the workflow's PATH, so without the ref a
       # ci.yml edited on a branch and dispatched from there would still produce
-      # a promotable attestation. A repair dispatch must therefore run FROM
-      # main; the sha input only chooses which commit gets built.
+      # a promotable attestation. A repair dispatch must therefore run FROM the
+      # branch the commit was merged into; the sha input only chooses which
+      # commit gets built.
       #
       # All three flags are load-bearing and none is the default:
       #   --bundle-from-oci   without it `gh` fetches the bundle from the GITHUB
@@ -984,7 +1016,8 @@ jobs:
       # credential that can push to GHCR cannot mint a valid attestation, so
       # this closes that. Promotion's own check is weaker than the deploy
       # side's, because promotion runs inside a workflow a branch writer can
-      # edit. And NEITHER survives a change merged to `main`.
+      # edit. And NEITHER survives a change merged to `main` or to a release/
+      # branch.
       #
       # .github/AGENTS.md's "Deploy by the index digest" bullet is the canonical statement of that
       # boundary — go there rather than re-deriving it here. This claim has been
