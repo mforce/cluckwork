@@ -61,9 +61,12 @@ digit. PR #1130, which introduced this scheme, merges with
 Commit types still choose the **changelog section**. The **PR title** is always
 the squashed commit subject, so it is the changelog line. `feat!:` marks a
 breaking change in the changelog and changes no digit. `chore`/`ci`/`test`/
-`style` are hidden from the changelog *text*, but a release made only of them
-still bumps its digit. A `BREAKING CHANGE:` footer does nothing here, because
-the squash commit has no body (see [Forcing a version](#forcing-a-version)).
+`style` are hidden from the changelog *text*, and a changelog with no entries
+opens no release PR. So merges of only hidden types wait; the release PR
+appears with the first visible entry (`feat`, `fix`, `perf`, `refactor`,
+`docs`), and the branch's strategy then chooses the version. A
+`BREAKING CHANGE:` footer does nothing here, because the squash commit has no
+body (see [Forcing a version](#forcing-a-version)).
 
 That is not as noisy as it sounds, because the bump lands in the **pending
 release PR**, not in a release. Merges accumulate into one proposed version, and
@@ -77,9 +80,9 @@ commit from the changelog — are in
 
 Use this for the first digit (`Release-As: 2.0.0`), or to answer a Release
 workflow error. This repository squash-merges with the PR title as the commit
-subject and an empty commit body. A `Release-As:` footer written in a branch
-commit or in the PR description is therefore dropped and does nothing. Add it
-when you merge:
+subject and an empty commit body. A plain `Release-As:` footer written in a
+branch commit or in the PR description is therefore dropped and does nothing.
+Add it when you merge:
 
 ```bash
 gh pr merge <N> -R mforce/cluckwork --squash --body "Release-As: X.Y.Z"
@@ -87,7 +90,15 @@ gh pr merge <N> -R mforce/cluckwork --squash --body "Release-As: X.Y.Z"
 
 or type `Release-As: X.Y.Z` into the extended description box of the
 squash-merge dialog. If no PR is waiting to merge, open one holding a single
-empty `chore:` commit (`git commit --allow-empty`) and merge it that way.
+empty `chore:` commit (`git commit --allow-empty`) and merge it that way. A
+hidden `chore:` commit alone opens no release PR, but one carrying
+`Release-As` does: the changelog writer keeps a hidden commit with that footer.
+
+Merge-time text is the recommended route, not the only one. release-please
+replaces a squash commit's message with a `BEGIN_COMMIT_OVERRIDE` ...
+`END_COMMIT_OVERRIDE` block from the PR description, so a description can
+still set `Release-As` that way. Check the version every release PR proposes
+before merging it; its title states it.
 
 ## Deploying
 
@@ -238,7 +249,9 @@ pre-1.0 line, `release/v0.1.x` from `v0.1.5`.
    commit also brings `"always-bump-minor"` and a `Release-As: 1.0.0` line in
    its message: set `always-bump-patch` anyway, and squash-merge so that
    message stays off the branch. Do not cherry-pick the fix itself before this
-   PR merges: it would get no CI and no image.
+   PR merges: it would get no CI and no image. Titled `chore:`, this PR opens
+   no release PR, because hidden types make no changelog entry; the line's
+   release PR appears once step 4's `fix:` merges.
 4. **Cherry-pick the fix through a pull request.** Branch off
    `release/v0.1.x`, `git cherry-pick -x <sha>` the fix as it landed on `main`,
    and open the PR against `release/v0.1.x`. CI runs on it as on any PR, and
