@@ -97,7 +97,8 @@ fails if any captured event carries one.
    (#364); its own tests cover a principal without the claim from any scheme
    (`OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected`).
 
-#796 replaces both walls with real checks and decides what an OAuth principal carries.
+#796 replaced the second wall with the real checks and made the first per-endpoint; see
+[`796-oauth-fail-closed.md`](796-oauth-fail-closed.md). The wall-2 test went with it.
 
 ## What this does NOT cover
 
