@@ -47,7 +47,9 @@ epoch.
 every code and token carries its id. Validation calls `EnableAuthorizationEntryValidation()`,
 so a revoked authorization refuses its access token on the next request. OpenIddict skips
 that check for a token that names no authorization, so an inline handler refuses such a
-token. A code from a revoked authorization no longer redeems (OpenIddict's server check),
+token. That handler also makes a switch to self-contained access tokens fail closed: with
+`UseLocalServer`, OpenIddict reads token entries, and so authorization ids, only for
+reference tokens. A code from a revoked authorization no longer redeems (OpenIddict's server check),
 and there is no refresh grant. `TryRevokeAsync` returns false on a concurrency failure, and
 OpenIddict's tables carry no `AccountId`, so the #799 Disconnect action must check the
 result and that the authorization's subject is the caller (or an Owner of that farm).
@@ -63,6 +65,10 @@ logs) or a form body (they would dodge the per-token rate-limit key).
 | `oauth-token` | `POST /api/v1/oauth/token` | client IP | 20 / 60 s |
 | `oauth-authorize` | `GET /api/v1/oauth/authorize` | client IP | 20 / 60 s |
 | `oauth-api` | every `AcceptOAuthTokens` endpoint | SHA-256 of the bearer | 120 / 60 s |
+
+OpenIddict also accepts a POSTed authorization request, which would match no endpoint and
+so no policy or body cap. A server handler refuses any non-GET authorization request
+before OpenIddict reads the body or looks the client up.
 
 `UseRateLimiter` runs before authentication, so `oauth-api` keys on the raw bearer: the
 exact slice OpenIddict extracts after `Bearer `, hashed so the store never holds a usable

@@ -1,7 +1,11 @@
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Server;
 using OpenIddict.Validation;
 using static OpenIddict.Abstractions.OpenIddictConstants;
+using static OpenIddict.Server.AspNetCore.OpenIddictServerAspNetCoreHandlers;
 using static OpenIddict.Validation.OpenIddictValidationHandlers.Protection;
 
 namespace Cluckwork.Infrastructure.Modules.Access.OAuth;
@@ -44,6 +48,18 @@ public static class OAuthServerRegistration
                     // the authorization request leaks. OAuth 2.1 clients send S256.
                     options.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain);
                 });
+
+                // OpenIddict also accepts a POSTed authorization request, which matches no
+                // endpoint and so no rate-limit policy or body cap. Refused before the body
+                // is read or a client looked up (#796).
+                server.AddEventHandler<OpenIddictServerEvents.ExtractAuthorizationRequestContext>(handler => handler
+                    .UseInlineHandler(static context =>
+                    {
+                        if (!HttpMethods.IsGet(context.Transaction.GetHttpRequest()!.Method))
+                            context.Reject(Errors.InvalidRequest, "Authorization requests must use GET.");
+                        return default;
+                    })
+                    .SetOrder(ExtractGetOrPostRequest<OpenIddictServerEvents.ExtractAuthorizationRequestContext>.Descriptor.Order - 1));
 
                 // Token passthrough maps the endpoint, which is what lets it opt into a
                 // rate-limit policy and a body cap; OpenIddict still validates first.
