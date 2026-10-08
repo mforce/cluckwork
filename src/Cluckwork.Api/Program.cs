@@ -6,6 +6,7 @@ using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Api.Modules.Access.Me;
+using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Api.Modules.Access.Users;
 using Cluckwork.Api.Modules.Commerce.Catalog;
 using Cluckwork.Api.Modules.Commerce.Customers;
@@ -58,7 +59,8 @@ var persistence = builder.Services.AddCluckworkPersistence(
     builder.Configuration,
     builder.Environment);
 
-builder.Services.AddCluckworkIdentity(builder.Configuration, processRole);
+var identity = builder.Services.AddCluckworkIdentity(
+    builder.Configuration, builder.Environment, processRole);
 var dataProtection = builder.Services.AddCluckworkDataProtection(
     builder.Configuration, builder.Environment, processRole);
 
@@ -469,6 +471,12 @@ app.MapGroup("/api/v1/export")
     .WithTags("Export")
     .RequireAuthorization(AuthPolicies.AdminOnly)
     .MapExportEndpoints();
+
+// #795 — OpenIddict answers the token endpoint itself; only authorization reaches an endpoint.
+if (identity.OAuthServer)
+    app.MapGroup("/api/v1/oauth")
+        .WithTags("OAuth")
+        .MapOAuthEndpoints();
 
 // #217 — browser error reports. Anonymous (the login screen can crash too);
 // the endpoint carries its own per-IP rate limit and size cap inside.

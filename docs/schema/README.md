@@ -69,6 +69,10 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.InventoryMovements](public.InventoryMovements.md) | 14 |  | BASE TABLE |
 | [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 9 |  | BASE TABLE |
 | [public.DataProtectionKeys](public.DataProtectionKeys.md) | 3 |  | BASE TABLE |
+| [public.OpenIddictApplications](public.OpenIddictApplications.md) | 16 |  | BASE TABLE |
+| [public.OpenIddictScopes](public.OpenIddictScopes.md) | 9 |  | BASE TABLE |
+| [public.OpenIddictAuthorizations](public.OpenIddictAuthorizations.md) | 9 |  | BASE TABLE |
+| [public.OpenIddictTokens](public.OpenIddictTokens.md) | 13 |  | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -118,6 +122,9 @@ erDiagram
 "public.SalesOrderAllocations" }o--|| "public.SalesOrders" : "FOREIGN KEY (#quot;SalesOrderId#quot;) REFERENCES #quot;SalesOrders#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.SalesOrderAllocations" }o--|| "public.EggLots" : "FOREIGN KEY (#quot;EggLotId#quot;) REFERENCES #quot;EggLots#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 "public.SalesOrderAllocations" }o--|| "public.SalesOrderItems" : "FOREIGN KEY (#quot;SalesOrderItemId#quot;) REFERENCES #quot;SalesOrderItems#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.OpenIddictAuthorizations" }o--o| "public.OpenIddictApplications" : "FOREIGN KEY (#quot;ApplicationId#quot;) REFERENCES #quot;OpenIddictApplications#quot;(#quot;Id#quot;)"
+"public.OpenIddictTokens" }o--o| "public.OpenIddictApplications" : "FOREIGN KEY (#quot;ApplicationId#quot;) REFERENCES #quot;OpenIddictApplications#quot;(#quot;Id#quot;)"
+"public.OpenIddictTokens" }o--o| "public.OpenIddictAuthorizations" : "FOREIGN KEY (#quot;AuthorizationId#quot;) REFERENCES #quot;OpenIddictAuthorizations#quot;(#quot;Id#quot;)"
 
 "public.__EFMigrationsHistory" {
   varchar_150_ MigrationId
@@ -627,6 +634,61 @@ erDiagram
   integer Id
   text FriendlyName
   text Xml
+}
+"public.OpenIddictApplications" {
+  uuid Id
+  varchar_50_ ApplicationType
+  varchar_100_ ClientId
+  text ClientSecret
+  varchar_50_ ClientType
+  varchar_50_ ConcurrencyToken
+  varchar_50_ ConsentType
+  text DisplayName
+  text DisplayNames
+  text JsonWebKeySet
+  text Permissions
+  text PostLogoutRedirectUris
+  text Properties
+  text RedirectUris
+  text Requirements
+  text Settings
+}
+"public.OpenIddictScopes" {
+  uuid Id
+  varchar_50_ ConcurrencyToken
+  text Description
+  text Descriptions
+  text DisplayName
+  text DisplayNames
+  varchar_200_ Name
+  text Properties
+  text Resources
+}
+"public.OpenIddictAuthorizations" {
+  uuid Id
+  uuid ApplicationId FK
+  varchar_50_ ConcurrencyToken
+  timestamp_with_time_zone CreationDate
+  text Properties
+  text Scopes
+  varchar_50_ Status
+  varchar_400_ Subject
+  varchar_50_ Type
+}
+"public.OpenIddictTokens" {
+  uuid Id
+  uuid ApplicationId FK
+  uuid AuthorizationId FK
+  varchar_50_ ConcurrencyToken
+  timestamp_with_time_zone CreationDate
+  timestamp_with_time_zone ExpirationDate
+  text Payload
+  text Properties
+  timestamp_with_time_zone RedemptionDate
+  varchar_100_ ReferenceId
+  varchar_50_ Status
+  varchar_400_ Subject
+  varchar_150_ Type
 }
 ```
 

@@ -65,6 +65,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        // #795 — in the model itself, not in the DbContext options, so every way of
+        // building this context (runtime, design time, the model-walk guards) sees the
+        // four OAuth tables.
+        builder.UseOpenIddict<Guid>();
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         builder.ConfigureIdempotency();
         builder.ConfigureSimulationSeedState();

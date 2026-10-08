@@ -4,6 +4,7 @@ using Cluckwork.Application.Modules.Access.Users.CreateUser;
 using Cluckwork.Application.Modules.Access.Users.SetLanguage;
 using Cluckwork.Application.Modules.Access.Users.SetStepperUnit;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
+using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using System.Security.Cryptography;
 using Cluckwork.Api.Configuration;
@@ -24,9 +25,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
     // token for them — see the key guard below, which is serving-only for that
     // reason and would otherwise be a fresh instance of the #331 class this file
     // now has to avoid (#347/#510).
-    public static IServiceCollection AddCluckworkIdentity(
+    public static CluckworkIdentityRegistration AddCluckworkIdentity(
         this IServiceCollection services,
         IConfiguration configuration,
+        IHostEnvironment environment,
         ProcessRole role = ProcessRole.Serving)
     {
         services.AddScoped<CurrentUserContext>();
@@ -167,7 +169,29 @@ internal static class CluckworkIdentityServiceCollectionExtensions
 
         AddUserFeatures(services);
 
-        return services;
+        var oauthIssuer = OAuthIssuer(configuration, environment, role);
+        if (oauthIssuer is not null)
+            services.AddAccessOAuthServer(oauthIssuer, allowPlainHttp: environment.IsDevelopment());
+
+        return new(OAuthServer: oauthIssuer is not null);
+    }
+
+    // #795 — Production never runs the authorization server: no client registration
+    // (#797) and no consent with step-up (#798) exist yet. Elsewhere a configured issuer
+    // turns it on. The issuer is never derived from the request's Host, because discovery
+    // would then vary with it (#538).
+    private static Uri? OAuthIssuer(
+        IConfiguration configuration, IHostEnvironment environment, ProcessRole role)
+    {
+        var issuer = configuration["OAuth:Issuer"];
+        if (role is not ProcessRole.Serving || environment.IsProduction()
+            || string.IsNullOrWhiteSpace(issuer))
+            return null;
+
+        return Uri.TryCreate(issuer, UriKind.Absolute, out var uri)
+            ? uri
+            : throw new InvalidOperationException(
+                $"OAuth:Issuer must be an absolute URI, and '{issuer}' is not.");
     }
 
     private static void AddUserFeatures(IServiceCollection services)
@@ -271,3 +295,5 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         }
     }
 }
+
+internal sealed record CluckworkIdentityRegistration(bool OAuthServer);
