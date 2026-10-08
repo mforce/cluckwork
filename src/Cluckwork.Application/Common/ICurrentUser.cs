@@ -1,3 +1,5 @@
+using Cluckwork.Domain.Auditing;
+
 namespace Cluckwork.Application.Common;
 
 // The acting actor of the current unit of work (#93) — resolved from the JWT
@@ -18,4 +20,7 @@ public interface ICurrentUser
     string Email { get; }
     /// <summary>Role names from the token (#103). Empty for plain workers.</summary>
     IReadOnlyList<string> Roles { get; }
+    /// <summary>The connected app the user acts through (#800); null for a session request.
+    /// Provenance only, never an authorization input.</summary>
+    ConnectedApp? ConnectedApp { get; }
 }

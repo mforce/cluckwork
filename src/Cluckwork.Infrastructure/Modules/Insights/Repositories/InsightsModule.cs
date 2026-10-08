@@ -30,8 +30,10 @@ public sealed class InsightsModule(
 
     public Task<IReadOnlyList<AuditEventRead>> ListAuditEventsAsync(
         string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
+        bool connectedAppsOnly, string? connectedAppClientId,
         int limit, int offset, CancellationToken ct = default) =>
-        audit.ListAsync(action, entityType, entityId, from, to, limit, offset, ct);
+        audit.ListAsync(action, entityType, entityId, from, to,
+            connectedAppsOnly, connectedAppClientId, limit, offset, ct);
 
     public Task<IReadOnlyDictionary<Guid, EntityProvenance>> GetProvenanceAsync(
         string entityType, IReadOnlyCollection<Guid> entityIds, CancellationToken ct = default) =>

@@ -15,6 +15,8 @@
 | DetailsJson | text |  | true |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
 | Sequence | bigint |  | false |  |  |  |
+| ConnectedAppClientId | varchar(100) |  | true |  |  |  |
+| ConnectedAppName | varchar(100) |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -44,6 +46,7 @@
 | PK_AuditEvents | CREATE UNIQUE INDEX "PK_AuditEvents" ON public."AuditEvents" USING btree ("Id") |
 | IX_AuditEvents_AccountId_EntityId | CREATE INDEX "IX_AuditEvents_AccountId_EntityId" ON public."AuditEvents" USING btree ("AccountId", "EntityId") |
 | IX_AuditEvents_AccountId_OccurredAtUtc | CREATE INDEX "IX_AuditEvents_AccountId_OccurredAtUtc" ON public."AuditEvents" USING btree ("AccountId", "OccurredAtUtc") |
+| IX_AuditEvents_ConnectedApp | CREATE INDEX "IX_AuditEvents_ConnectedApp" ON public."AuditEvents" USING btree ("AccountId", "OccurredAtUtc") WHERE ("ConnectedAppClientId" IS NOT NULL) |
 
 ## Relations
 
@@ -63,6 +66,8 @@ erDiagram
   text DetailsJson
   uuid AccountId
   bigint Sequence
+  varchar_100_ ConnectedAppClientId
+  varchar_100_ ConnectedAppName
 }
 ```
 

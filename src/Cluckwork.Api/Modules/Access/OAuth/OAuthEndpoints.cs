@@ -3,6 +3,7 @@ using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
+using Microsoft.AspNetCore;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -11,6 +12,9 @@ namespace Cluckwork.Api.Modules.Access.OAuth;
 
 public static class OAuthEndpoints
 {
+    // #800 — the client's display name, carried in its access tokens beside client_id.
+    public const string ClientNameClaim = "client_name";
+
     public static RouteGroupBuilder MapOAuthEndpoints(this RouteGroupBuilder group)
     {
         group.MapGet("/authorize", Authorize)
@@ -35,12 +39,19 @@ public static class OAuthEndpoints
     // #795 — OpenIddict has already validated the request. No consent screen exists
     // until #798, so a signed-in caller approves its own. The token names the user and
     // nothing else until #796 decides what an OAuth principal carries.
-    private static IResult Authorize(ICurrentUser currentUser)
+    private static async Task<IResult> Authorize(
+        HttpContext context, ICurrentUser currentUser, IOpenIddictApplicationManager applications,
+        CancellationToken ct)
     {
         if (!currentUser.IsResolved) return Results.Unauthorized();
 
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         identity.SetClaim(Claims.Subject, currentUser.UserId.ToString());
+        // #800 — the name rides in the token, as the user's email does, so the audit row
+        // snapshots it without a lookup per write. Registration never renames a client.
+        var application = await applications.FindByClientIdAsync(context.GetOpenIddictServerRequest()!.ClientId!, ct);
+        identity.SetClaim(ClientNameClaim,
+            application is null ? null : await applications.GetDisplayNameAsync(application, ct));
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
 
         return Results.SignIn(

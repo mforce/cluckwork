@@ -10,6 +10,8 @@ public sealed class AuditEvent : AggregateRoot<Guid>
     public const int MaxEntityTypeLength = 100;
     public const int MaxActorEmailLength = 256;
     public const int MaxReasonLength = 500;
+    public const int MaxConnectedAppClientIdLength = 100;
+    public const int MaxConnectedAppNameLength = 100;
 
     public DateTimeOffset OccurredAtUtc { get; private set; }
     public Guid ActorUserId { get; private set; }
@@ -21,6 +23,10 @@ public sealed class AuditEvent : AggregateRoot<Guid>
     public string? Reason { get; private set; }
     // Plain text, not jsonb — provider-portability rule; only the API reads it.
     public string? DetailsJson { get; private set; }
+    // #800 — null for a session request. Snapshotted like ActorEmail, so the row stays
+    // readable after the app is disconnected or pruned.
+    public string? ConnectedAppClientId { get; private set; }
+    public string? ConnectedAppName { get; private set; }
 
     private AuditEvent() { }
 
@@ -28,12 +34,15 @@ public sealed class AuditEvent : AggregateRoot<Guid>
         Guid id, Guid accountId, DateTimeOffset occurredAtUtc,
         Guid actorUserId, string actorEmail,
         string action, string entityType, Guid entityId,
-        string? reason = null, string? detailsJson = null)
+        string? reason = null, string? detailsJson = null, ConnectedApp? connectedApp = null)
     {
         if (string.IsNullOrWhiteSpace(action) || action.Length > MaxActionLength)
             throw new ArgumentException("A valid action code is required.", nameof(action));
         if (string.IsNullOrWhiteSpace(entityType) || entityType.Length > MaxEntityTypeLength)
             throw new ArgumentException("A valid entity type is required.", nameof(entityType));
+        if (connectedApp is not null
+            && (string.IsNullOrWhiteSpace(connectedApp.ClientId) || connectedApp.ClientId.Length > MaxConnectedAppClientIdLength))
+            throw new ArgumentException("A connected app needs a valid client id.", nameof(connectedApp));
 
         return new AuditEvent
         {
@@ -49,7 +58,10 @@ public sealed class AuditEvent : AggregateRoot<Guid>
                 ? null
                 : reason.Trim().Length > MaxReasonLength
                     ? reason.Trim()[..MaxReasonLength] : reason.Trim(),
-            DetailsJson = detailsJson
+            DetailsJson = detailsJson,
+            ConnectedAppClientId = connectedApp?.ClientId,
+            ConnectedAppName = connectedApp?.Name is { Length: > MaxConnectedAppNameLength } name
+                ? name[..MaxConnectedAppNameLength] : connectedApp?.Name
         };
     }
 }

@@ -15,6 +15,7 @@ public sealed class LowStockFloorTests
     {
         public Guid UserId => Guid.NewGuid();
         public string Email => "actor@test.local";
+        public Cluckwork.Domain.Auditing.ConnectedApp? ConnectedApp => null;
     }
 
     [Fact]
