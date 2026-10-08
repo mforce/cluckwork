@@ -237,6 +237,21 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // A token in a URL reaches request logs, and outside the Authorization header it would
+    // dodge the per-token rate-limit key, so only the header is read.
+    [Fact]
+    public async Task TokenInTheQueryString_IsIgnored()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var token = await IssueAsync(host, user, ReadScope);
+
+        using var response = await Client(host, bearer: null)
+            .GetAsync(QueryHelpers.AddQueryString(Probe.Read, "access_token", token));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     // Keyed per token: one connection exhausting its budget leaves another untouched.
     [Fact]
     public async Task OAuthApiCalls_AreRateLimited_PerToken()

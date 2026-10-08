@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 OAuth claim has a test that fails
-# when the claim breaks.
+# tools/oauth/mutation-check.sh — proves each #795 and #796 OAuth claim has a test that
+# fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
 # rebuild, run the ONE named test with a TRX logger, and classify from the TRX, never
@@ -10,7 +10,7 @@
 # catching a mutant it never saw. The verdicts:
 #
 #   killed        the named test failed and its message carries the declared text
-#   held          a "hold" mutant's test still passed, so the second wall stands
+#   held          a "hold" mutant's test still passed
 #   SURVIVED      a "kill" mutant's test passed
 #   WRONG         the named test failed an assertion, but not the declared one
 #   INCONCLUSIVE  no TRX, the test did not run, the run aborted, the mutant did not
@@ -28,10 +28,14 @@ IDENTITY=src/Cluckwork.Api/Hosting/CluckworkIdentityServiceCollectionExtensions.
 TELEMETRY=src/Cluckwork.Api/Hosting/CluckworkTelemetryServiceCollectionExtensions.cs
 SERVER=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthServerRegistration.cs
 ENDPOINT=src/Cluckwork.Api/Modules/Access/OAuth/OAuthEndpoints.cs
+LIMITS=src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs
+VERIFIER=src/Cluckwork.Infrastructure/Modules/Access/Identity/CredentialEpochVerifier.cs
+EPOCH=src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs
+MUST_CHANGE=src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
-SUITE='FullyQualifiedName~OAuthServer'
-SUITE_MIN=10
+SUITE='FullyQualifiedName~OAuth'
+SUITE_MIN=24
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -45,9 +49,26 @@ per-process-token-keys#kill#SERVER#                    .AddEphemeralSigningKey()
 openid-granted#kill#SERVER#                    options.Scopes.Remove(Scopes.OpenId);\n##OAuthServerTests.OpenIdScope_IsRefused#Expected: BadRequest
 verifier-logged#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddictBelowWarning),#                    ,#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
 parent-override-only#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddictBelowWarning),#                    .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
-oauth-on-default-scheme#kill#IDENTITY#            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)#            .AddAuthentication("mutant").AddPolicyScheme("mutant", null, o => o.ForwardDefaultSelector = c => c.Request.Headers.Authorization.ToString().Count(ch => ch == '.') == 2 ? JwtBearerDefaults.AuthenticationScheme : "OpenIddict.Validation.AspNetCore")#OAuthServerTests.OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication#Assert.Contains() Failure: Filter not matched
-session-claims-in-token#kill#ENDPOINT#@SESSION_FIND@#@SESSION_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#Expected: Unauthorized
-account-id-in-token#hold#ENDPOINT#@ACCOUNT_FIND@#@ACCOUNT_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#
+oauth-on-default-scheme#kill#IDENTITY#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())\n#                        true\n#OAuthServerTests.OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication#Expected: Unauthorized
+jwt-by-token-shape#kill#IDENTITY#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())\n#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()) && context.Request.Headers.Authorization.ToString().Count(ch => ch == '.') != 2\n#OAuthFailClosedTests.SessionJwt_IsRefused_WhereOAuthTokensAreAccepted#Expected: Unauthorized
+authenticate-at-authorization#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.RequireAssertion(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").RequireAssertion(#OAuthFailClosedTests.DisabledUser_IsRefused_OnTheNextRequest#Expected: Unauthorized
+authenticate-at-authorization-flocks#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.RequireAssertion(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").RequireAssertion(#OAuthFailClosedTests.Worker_IsFlockScoped#the worker's OAuth caller is unrestricted
+role-claim-dropped#kill#ENDPOINT#"credential_epoch", Claims.Role, #"credential_epoch", #OAuthFailClosedTests.OAuthToken_CarriesTheSessionPrincipal_ThroughTheWholeChain#Collections differ
+disabled-unchecked#kill#VERIFIER#        if (credentialState.DisabledAt is not null)\n            return CredentialVerdict.Disabled;\n##OAuthFailClosedTests.DisabledUser_IsRefused_OnTheNextRequest#Expected: Unauthorized
+suspended-unchecked#kill#VERIFIER#        if (credentialState.AccountIsActive != true)\n            return CredentialVerdict.FarmSuspended;\n##OAuthFailClosedTests.SuspendedFarm_IsRefused_OnTheNextRequest#Expected: Unauthorized
+epoch-exempts-oauth#kill#EPOCH#            && !IsLogoutPath(context.Request.Path))#            && !IsLogoutPath(context.Request.Path) && context.User.FindFirst("oi_au_id") is null)#OAuthFailClosedTests.RoleChange_RevokesTheToken#Expected: Unauthorized
+epoch-exempts-oauth-suspended#kill#EPOCH#            && !IsLogoutPath(context.Request.Path))#            && !IsLogoutPath(context.Request.Path) && context.User.FindFirst("oi_au_id") is null)#OAuthFailClosedTests.SuspendedFarm_IsRefused_OnTheNextRequest#Expected: Unauthorized
+must-change-may-authorize#kill#MUST_CHANGE#        "/api/v1/auth/logout",\n#        "/api/v1/auth/logout",\n        "/api/v1/oauth/authorize",\n#OAuthFailClosedTests.MustChangePassword_BlocksIssuance#Expected: Forbidden
+scope-gate-removed#kill#ENDPOINT#\n            .RequireAuthorization(policy => policy.RequireAssertion(context =>\n                scopes.Any(context.User.HasScope)));#;#OAuthFailClosedTests.ScopeAndRole_AreBothRequired#Expected: Forbidden
+authorization-unchecked#kill#SERVER#                validation.EnableAuthorizationEntryValidation();\n##OAuthFailClosedTests.Disconnect_RefusesTheAccessToken_OnTheNextRequest#Expected: Unauthorized
+unbound-token-trusted#kill#SERVER#                        if (string.IsNullOrEmpty(context.AuthorizationId))\n                            context.Reject(Errors.InvalidToken, "The token is not bound to an authorization.");\n##OAuthFailClosedTests.TokenWithoutAnAuthorization_IsRefused#Expected: Unauthorized
+refresh-grant-allowed#kill#SERVER#                    .AllowAuthorizationCodeFlow()#                    .AllowAuthorizationCodeFlow().AllowRefreshTokenFlow()#OAuthFailClosedTests.Disconnect_LeavesNoWayToANewToken#unsupported_grant_type
+query-string-token#kill#SERVER#                    .DisableAccessTokenExtractionFromBodyForm()\n                    .DisableAccessTokenExtractionFromQueryString();#                    .DisableAccessTokenExtractionFromBodyForm();#OAuthFailClosedTests.TokenInTheQueryString_IsIgnored#Expected: Unauthorized
+api-limit-removed#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n##OAuthFailClosedTests.OAuthApiCalls_AreRateLimited_PerToken#Collections differ
+api-limit-per-ip#kill#LIMITS#,\n                    RateLimitKey.ForBearer)#)#OAuthFailClosedTests.OAuthApiCalls_AreRateLimited_PerToken#Expected: OK
+token-limit-removed#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthTokenPolicyName)\n##OAuthFailClosedTests.TokenEndpoint_IsRateLimited#Expected: TooManyRequests
+authorize-limit-removed#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthAuthorizePolicyName)\n##OAuthFailClosedTests.AuthorizeEndpoint_IsRateLimited#Expected: TooManyRequests
+ambient-bearer-honoured#kill#ENDPOINT#new IgnoresAmbientPrincipalAttribute(), new ReadsRequestBodyAttribute()#new ReadsRequestBodyAttribute()#OAuthFailClosedTests.TokenEndpoint_IgnoresAnAmbientSessionBearer#Expected: OK
 EOF
 )
 
@@ -135,7 +156,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$LIMITS" "$VERIFIER" "$EPOCH" "$MUST_CHANGE")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then
@@ -143,17 +164,6 @@ if ! git diff --quiet -- "${FILES[@]}"; then
   exit 2
 fi
 trap restore EXIT
-
-# The endpoint's two mutants rewrite a multi-line block; kept out of the table above
-# so each row stays readable.
-AUTHORIZE='    private static IResult Authorize(ICurrentUser currentUser)\n    {\n        if (!currentUser.IsResolved) return Results.Unauthorized();\n\n        var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);\n        identity.SetClaim(Claims.Subject, currentUser.UserId.ToString());'
-WITH_CONTEXT=${AUTHORIZE/'Authorize(ICurrentUser currentUser)'/'Authorize(ICurrentUser currentUser, HttpContext http)'}
-ACCOUNT_ID='\n        identity.SetClaim("account_id", http.User.FindFirst("account_id")!.Value);'
-EPOCH='\n        identity.SetClaim("credential_epoch", http.User.FindFirst("credential_epoch")!.Value);'
-MUTANTS=${MUTANTS//@SESSION_FIND@/$AUTHORIZE}
-MUTANTS=${MUTANTS//@SESSION_REPLACE@/$WITH_CONTEXT$ACCOUNT_ID$EPOCH}
-MUTANTS=${MUTANTS//@ACCOUNT_FIND@/$AUTHORIZE}
-MUTANTS=${MUTANTS//@ACCOUNT_REPLACE@/$WITH_CONTEXT$ACCOUNT_ID}
 
 failures=0
 build "$LOG_DIR/baseline-build.log" || { echo "baseline: build failed" >&2; exit 1; }
