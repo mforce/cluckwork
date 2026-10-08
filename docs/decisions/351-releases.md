@@ -689,19 +689,40 @@ environment is not a release environment.
 
 ### Rollout
 
-Order matters, because a job that declares the environment reads the
-environment's secret when one of that name exists, and the repository secret
-otherwise. Nothing breaks at any step.
+The rollout rotates the App's private key instead of copying it. Deleting a
+repository secret affects only runs queued after the deletion: GitHub reads
+repository secrets when a run is queued and environment secrets when a job that
+references the environment starts
+([when GitHub Actions reads secrets](https://docs.github.com/en/actions/reference/security/secrets#when-github-actions-reads-secrets)).
+A run queued earlier from any branch keeps the old key, and so does any copy a
+workflow already took. Revoking the old key on the App is what cuts both off.
+Installation tokens already minted with it are not revoked with it; they expire
+on their own within an hour
+([installation token lifetime](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)).
 
 1. Create the `app-token` environment. Set *Deployment branches and tags* to
    *Selected branches and tags* with two branch rules, `main` and
    `release/v*.*.x`.
-2. Add `LOCKFIX_APP_CLIENT_ID` and `LOCKFIX_APP_PRIVATE_KEY` to the environment.
-   Repository secrets cannot be read back, so re-enter the Client ID from the
-   App's General page and the private key from the `.pem` file (or generate a
-   new key there and revoke the old one after step 5).
+2. Generate a **new** private key for the App and add it, with the Client ID, to
+   the environment as `LOCKFIX_APP_PRIVATE_KEY` and `LOCKFIX_APP_CLIENT_ID`.
+   Nowhere else. GitHub documents the path as Settings, *Developer settings*,
+   *GitHub Apps*, *Edit* next to the App, *Credentials*, *Key pairs*, *New key*
+   ([generating private keys](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps#generating-private-keys)).
+   That page is the authority if the UI moves. The Client ID is on the App's
+   *General* page. It is not a credential.
 3. Merge the change that adds `environment:` to the three jobs.
 4. Watch one Release run (any merge to `main`) and one lockfix run (the next
    Dependabot NuGet PR) mint the App token successfully.
 5. Delete both repository secrets. The leftover `LOCKFIX_APP_ID` repository
    secret is unused since the `client-id` move and can go too.
+6. Revoke the **old** private key on the App, from the same *Key pairs* list
+   ([deleting private keys](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps#deleting-private-keys)).
+
+A job that declares the environment uses the environment secret when one of
+that name exists, and the repository secret otherwise. So a workflow version
+that declares the environment keeps working at every step. A version that does
+not, such as an older commit's copy, loses the App token at step 5. After the
+cutover, repair a release with a fresh *Run workflow* dispatch, not a re-run of
+an old run: a re-run keeps the original run's commit and ref, and so its
+workflow definition
+([re-run semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)).
