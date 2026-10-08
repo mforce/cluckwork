@@ -187,12 +187,12 @@ if ! git diff --quiet -- "${FILES[@]}"; then
 fi
 trap restore EXIT
 
-# The endpoint's two mutants rewrite a multi-line block; kept out of the table above
-# so each row stays readable.
-AUTHORIZE='    private static IResult Authorize(ICurrentUser currentUser)\n    {\n        if (!currentUser.IsResolved) return Results.Unauthorized();\n\n        var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);\n        identity.SetClaim(Claims.Subject, currentUser.UserId.ToString());'
-WITH_CONTEXT=${AUTHORIZE/'Authorize(ICurrentUser currentUser)'/'Authorize(ICurrentUser currentUser, HttpContext http)'}
-ACCOUNT_ID='\n        identity.SetClaim("account_id", http.User.FindFirst("account_id")!.Value);'
-EPOCH='\n        identity.SetClaim("credential_epoch", http.User.FindFirst("credential_epoch")!.Value);'
+# The endpoint's two mutants copy session claims into the token beside its subject;
+# kept out of the table above so each row stays readable.
+AUTHORIZE='        identity.SetClaim(Claims.Subject, currentUser.UserId.ToString());'
+WITH_CONTEXT=$AUTHORIZE
+ACCOUNT_ID='\n        identity.SetClaim("account_id", context.User.FindFirst("account_id")!.Value);'
+EPOCH='\n        identity.SetClaim("credential_epoch", context.User.FindFirst("credential_epoch")!.Value);'
 MUTANTS=${MUTANTS//@SESSION_FIND@/$AUTHORIZE}
 MUTANTS=${MUTANTS//@SESSION_REPLACE@/$WITH_CONTEXT$ACCOUNT_ID$EPOCH}
 MUTANTS=${MUTANTS//@ACCOUNT_FIND@/$AUTHORIZE}
