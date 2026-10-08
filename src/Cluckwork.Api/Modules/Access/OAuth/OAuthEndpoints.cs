@@ -34,6 +34,18 @@ public static class OAuthEndpoints
             .WithMaxRequestBodyBytes(8192)
             .ExcludeFromDescription();
 
+        // #797 — open to anyone on purpose. A registered client gets no access: it can
+        // only send a user to the consent screen (#798), and nothing is issued until that
+        // user approves with their password. What an anonymous caller can do here is add
+        // rows, so registration is rate-limited per client IP across replicas, and an app
+        // nobody approves is deleted after OAuthPurgeSweep.UnapprovedWindow.
+        group.MapPost("/register", Register)
+            .AllowAnonymous()
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
+            .RequireRateLimiting(RateLimitingOptions.OAuthRegisterPolicyName)
+            .WithMaxRequestBodyBytes(16 * 1024)
+            .ExcludeFromDescription();
+
         return group;
     }
 
@@ -85,4 +97,41 @@ public static class OAuthEndpoints
     private static async Task<IResult> Token(HttpContext context) => Results.SignIn(
         (await context.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)).Principal!,
         authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+
+    // RFC 7591 §3.2: 201 with the registered metadata, or 400 with an OAuth error code.
+    private static async Task<IResult> Register(
+        ClientRegistrationRequest request, IOpenIddictApplicationManager applications, CancellationToken ct)
+    {
+        var registration = ClientRegistration.ToDescriptor(request);
+        if (registration.IsFailure)
+            return RegistrationError(registration.Error.Code, registration.Error.Description);
+
+        var client = registration.Value;
+        try
+        {
+            await applications.CreateAsync(client, ct);
+        }
+        catch (OpenIddictExceptions.ValidationException exception)
+        {
+            // The redirect URIs are the only client input OpenIddict validates here; it
+            // refuses, for one, an iss parameter in their query (issuer fixation).
+            return RegistrationError("invalid_redirect_uri",
+                string.Join(" ", exception.Results.Select(result => result.ErrorMessage)));
+        }
+
+        return Results.Json(new
+        {
+            client_id = client.ClientId,
+            client_id_issued_at = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            client_name = client.DisplayName,
+            // What OpenIddict stored and compares ordinally, so the client can use it as is.
+            redirect_uris = client.RedirectUris.Select(uri => uri.OriginalString),
+            grant_types = new[] { GrantTypes.AuthorizationCode },
+            response_types = new[] { ResponseTypes.Code },
+            token_endpoint_auth_method = ClientAuthenticationMethods.None,
+        }, statusCode: StatusCodes.Status201Created);
+    }
+
+    private static IResult RegistrationError(string error, string description) =>
+        Results.Json(new { error, error_description = description }, statusCode: StatusCodes.Status400BadRequest);
 }

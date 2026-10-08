@@ -51,20 +51,24 @@ public sealed class BusinessRecordChronologyMigrationTests
 
         await migrator.MigrateAsync();
 
-        var timestampTriggerCount = await db.Database.SqlQueryRaw<int>(
+        var timestampTriggerTables = await db.Database.SqlQueryRaw<string>(
             """
-            SELECT count(*)::integer AS "Value"
+            SELECT relation.relname AS "Value"
             FROM pg_trigger AS trigger
             INNER JOIN pg_class AS relation ON relation.oid = trigger.tgrelid
             INNER JOIN pg_namespace AS schema ON schema.oid = relation.relnamespace
             WHERE NOT trigger.tgisinternal
               AND schema.nspname = 'public'
               AND trigger.tgname LIKE 'TR\_%\_BusinessRecordTimestamps' ESCAPE '\'
-            """).SingleAsync();
-        var timestampedModelCount = db.Model.GetEntityTypes()
-            .Count(entity => !entity.IsOwned()
-                && typeof(ICreatedRecord).IsAssignableFrom(entity.ClrType));
-        Assert.Equal(timestampedModelCount, timestampTriggerCount);
+            """).ToListAsync();
+        // Every mapped CreatedAtUtc, not only ICreatedRecord: a framework entity such as
+        // OpenIddict's application (#797) cannot implement the interface but is stamped
+        // by the same trigger.
+        var stampedModelTables = db.Model.GetEntityTypes()
+            .Where(entity => !entity.IsOwned() && entity.FindProperty(nameof(ICreatedRecord.CreatedAtUtc)) is not null)
+            .Select(entity => entity.GetTableName()!)
+            .Distinct();
+        Assert.Equal(stampedModelTables.Order(StringComparer.Ordinal), timestampTriggerTables.Order(StringComparer.Ordinal));
 
         var customers = await db.Customers.IgnoreQueryFilters()
             .Where(row => row.Id == auditedCustomerId || row.Id == unknownCustomerId)

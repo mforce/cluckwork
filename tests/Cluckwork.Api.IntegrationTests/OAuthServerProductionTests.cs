@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
@@ -16,8 +18,8 @@ public sealed class OAuthProductionFactory : CluckworkWebApplicationFactory
     }
 }
 
-// #795 — Production cannot issue an OAuth token until client registration (#797) and
-// consent with step-up (#798) exist. The base factory configures an issuer, so this
+// #795 — Production cannot issue an OAuth token until consent with step-up (#798)
+// exists; client registration (#797) stays behind the same gate. The base factory configures an issuer, so this
 // host proves the environment gate holds even when the issuer is set.
 public sealed class OAuthServerProductionTests(OAuthProductionFactory factory)
     : IClassFixture<OAuthProductionFactory>
@@ -31,10 +33,16 @@ public sealed class OAuthServerProductionTests(OAuthProductionFactory factory)
             new Dictionary<string, string> { ["grant_type"] = "authorization_code" }));
         using var authorize = await client.GetAsync("/api/v1/oauth/authorize?response_type=code");
         using var metadata = await client.GetAsync("/.well-known/oauth-authorization-server");
+        using var register = await client.PostAsJsonAsync("/api/v1/oauth/register",
+            new { redirect_uris = new[] { OAuthServerTests.RedirectUri } });
 
         Assert.Equal(HttpStatusCode.NotFound, token.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, authorize.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, metadata.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, register.StatusCode);
         Assert.Null(factory.Services.GetService<IOpenIddictApplicationManager>());
+        // So OAuthPurgeSweep finds nothing to run.
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.Null(scope.ServiceProvider.GetService<IOAuthPurge>());
     }
 }

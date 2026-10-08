@@ -30,7 +30,7 @@ namespace Cluckwork.Api.IntegrationTests;
 [Collection(IntegrationCollection.Name)]
 public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 {
-    private const string RedirectUri = "https://client.example/callback";
+    internal const string RedirectUri = "https://client.example/callback";
 
     [Fact]
     public async Task AuthorizationCodeWithPkce_IssuesAReferenceTokenTheResourceSideAccepts()
@@ -215,19 +215,23 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
     }
 
-    private async Task<string> IssueAccessTokenAsync(WebApplicationFactory<Program> host)
+    private async Task<string> IssueAccessTokenAsync(WebApplicationFactory<Program> host) =>
+        await ConnectAsync(host, await RegisterClientAsync(host.Services));
+
+    // A user approves clientId and the client redeems its code: one live connection.
+    internal async Task<string> ConnectAsync(
+        WebApplicationFactory<Program> host, string clientId, string redirectUri = RedirectUri)
     {
         var (_, jwt) = await SeedUserAsync();
-        var clientId = await RegisterClientAsync(host.Services);
         var verifier = NewCodeVerifier();
-        var code = await AuthorizeAsync(host, jwt, clientId, verifier);
-        using var response = await RedeemAsync(host, clientId, code, verifier);
+        var code = await AuthorizeAsync(host, jwt, clientId, verifier, redirectUri);
+        using var response = await RedeemAsync(host, clientId, code, verifier, redirectUri);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("access_token").GetString()!;
     }
 
-    private async Task<(Guid UserId, string Jwt)> SeedUserAsync()
+    internal async Task<(Guid UserId, string Jwt)> SeedUserAsync()
     {
         var email = $"oauth-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
@@ -258,38 +262,41 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
     }
 
     private static async Task<string> AuthorizeAsync(
-        WebApplicationFactory<Program> host, string jwt, string clientId, string verifier)
+        WebApplicationFactory<Program> host, string jwt, string clientId, string verifier,
+        string redirectUri = RedirectUri)
     {
-        using var response = await SendAuthorizeAsync(host, jwt, AuthorizeQuery(clientId, verifier));
+        using var response = await SendAuthorizeAsync(host, jwt, AuthorizeQuery(clientId, verifier, redirectUri));
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location!;
-        Assert.StartsWith(RedirectUri, location.GetLeftPart(UriPartial.Path));
+        Assert.StartsWith(redirectUri.Split('?')[0], location.OriginalString);
         return QueryHelpers.ParseQuery(location.Query)["code"].ToString();
     }
 
-    private static Dictionary<string, string?> AuthorizeQuery(string clientId, string verifier) => new()
+    internal static Dictionary<string, string?> AuthorizeQuery(
+        string clientId, string verifier, string redirectUri = RedirectUri) => new()
     {
         ["client_id"] = clientId,
-        ["redirect_uri"] = RedirectUri,
+        ["redirect_uri"] = redirectUri,
         ["response_type"] = ResponseTypes.Code,
         ["code_challenge"] = Base64UrlEncoder(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))),
         ["code_challenge_method"] = CodeChallengeMethods.Sha256,
         ["state"] = "state-795",
     };
 
-    private static Task<HttpResponseMessage> SendAuthorizeAsync(
+    internal static Task<HttpResponseMessage> SendAuthorizeAsync(
         WebApplicationFactory<Program> host, string? jwt, Dictionary<string, string?> query) =>
         HttpsClient(host, jwt).GetAsync(QueryHelpers.AddQueryString("/api/v1/oauth/authorize", query));
 
     private static Task<HttpResponseMessage> RedeemAsync(
-        WebApplicationFactory<Program> host, string clientId, string code, string verifier) =>
+        WebApplicationFactory<Program> host, string clientId, string code, string verifier,
+        string redirectUri = RedirectUri) =>
         HttpsClient(host, bearer: null).PostAsync("/api/v1/oauth/token", new FormUrlEncodedContent(
             new Dictionary<string, string>
             {
                 ["grant_type"] = GrantTypes.AuthorizationCode,
                 ["client_id"] = clientId,
                 ["code"] = code,
-                ["redirect_uri"] = RedirectUri,
+                ["redirect_uri"] = redirectUri,
                 ["code_verifier"] = verifier,
             }));
 
@@ -312,7 +319,7 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         return client;
     }
 
-    private static string NewCodeVerifier() => Base64UrlEncoder(RandomNumberGenerator.GetBytes(32));
+    internal static string NewCodeVerifier() => Base64UrlEncoder(RandomNumberGenerator.GetBytes(32));
 
     private static string Base64UrlEncoder(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');

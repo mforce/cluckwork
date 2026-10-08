@@ -230,6 +230,7 @@ internal static partial class RealModuleLedger
         new("Cluckwork.Api.Modules.GeneralInventory.Water.WaterUsageEndpoints.UpdateWaterUsage", ["GeneralInventory"]),
         new("Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.LockDueEntriesAsync", ["EggOperations"]),
         new("Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync", ["Farm"]),
+        new("Cluckwork.Infrastructure.Jobs.OAuthPurgeSweep.RunAsync", ["Access"]),
         new("Cluckwork.Infrastructure.Jobs.RefreshTokenPurgeSweep.RunAsync", ["Access"]),
         new("Cluckwork.Infrastructure.Persistence.DemoDataSeeder.Require", ["EggOperations"]),
         new("Cluckwork.Infrastructure.Persistence.DemoDataSeeder.ctor", [

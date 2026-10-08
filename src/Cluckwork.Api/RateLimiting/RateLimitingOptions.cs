@@ -22,6 +22,9 @@ public sealed class RateLimitingOptions
     public const string OAuthTokenPolicyName = "oauth-token";
     public const string OAuthAuthorizePolicyName = "oauth-authorize";
     public const string OAuthApiPolicyName = "oauth-api";
+    // #797: anonymous OAuth client registration. Each call adds a row, and a client
+    // registers once per install, so the budget is small and the window long.
+    public const string OAuthRegisterPolicyName = "oauth-register";
 
     public FixedWindow Login { get; init; } = new() { PermitLimit = 10, WindowSeconds = 900 };
     public FixedWindow Refresh { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };
@@ -32,6 +35,7 @@ public sealed class RateLimitingOptions
     public FixedWindow OAuthAuthorize { get; init; } = new() { PermitLimit = 20, WindowSeconds = 60 };
     // An assistant calls far faster than a person clicks (#796), so this is per minute.
     public FixedWindow OAuthApi { get; init; } = new() { PermitLimit = 120, WindowSeconds = 60 };
+    public FixedWindow OAuthRegister { get; init; } = new() { PermitLimit = 10, WindowSeconds = 3600 };
     // Small on purpose: a report query is a bounded-range aggregate (#311), not
     // a hot path — a genuine user rarely has more than one or two in flight at
     // once (e.g. a dashboard firing production+sales+expenses+profit together).
@@ -101,6 +105,7 @@ public sealed class RateLimitingOptions
         ValidateWindow(nameof(OAuthToken), OAuthToken);
         ValidateWindow(nameof(OAuthAuthorize), OAuthAuthorize);
         ValidateWindow(nameof(OAuthApi), OAuthApi);
+        ValidateWindow(nameof(OAuthRegister), OAuthRegister);
         ValidateConcurrency(nameof(ReportsConcurrency), ReportsConcurrency);
         ParseTrustedProxies(); // throws a named InvalidOperationException on a bad CIDR
     }

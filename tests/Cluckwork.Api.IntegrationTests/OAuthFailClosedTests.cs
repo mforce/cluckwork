@@ -342,6 +342,23 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // The refusal hooks OpenIddict's authorization-request extraction only, so client
+    // registration (#797), which is POST by design, is untouched by it.
+    [Fact]
+    public async Task Registration_StillAcceptsPost_BesideTheAuthorizeRefusal()
+    {
+        using var host = Host();
+        var clientId = await RegisterClientAsync(host.Services);
+
+        using var registered = await Client(host, bearer: null).PostAsJsonAsync(
+            "/api/v1/oauth/register", new { redirect_uris = new[] { RedirectUri } });
+        using var authorized = await Client(host, bearer: null).PostAsync("/api/v1/oauth/authorize",
+            new FormUrlEncodedContent(AuthorizeParameters(clientId, NewVerifier(), ReadScope)!));
+
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+        Assert.Contains("Authorization requests must use GET.", await authorized.Content.ReadAsStringAsync());
+    }
+
     // The three OAuth policies count in the shared store (#543/#544), not in this process:
     // a store that refuses everything decides each response, and sees each policy's key.
     [Fact]

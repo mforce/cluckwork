@@ -1,3 +1,4 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Http;
@@ -61,6 +62,17 @@ public static class OAuthServerRegistration
                     })
                     .SetOrder(ExtractGetOrPostRequest<OpenIddictServerEvents.ExtractAuthorizationRequestContext>.Descriptor.Order - 1));
 
+                // #797 — OpenIddict has no registration endpoint; the API maps one beside
+                // authorize, and discovery points clients at it.
+                server.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(handler => handler
+                    .UseInlineHandler(context =>
+                    {
+                        context.Metadata["registration_endpoint"] =
+                            new Uri(context.AuthorizationEndpoint!, "register").AbsoluteUri;
+                        return default;
+                    })
+                    .SetOrder(OpenIddictServerHandlers.Discovery.AttachEndpoints.Descriptor.Order + 1));
+
                 // Token passthrough maps the endpoint, which is what lets it opt into a
                 // rate-limit policy and a body cap; OpenIddict still validates first.
                 var aspNetCore = server.UseAspNetCore()
@@ -92,6 +104,7 @@ public static class OAuthServerRegistration
                     .DisableAccessTokenExtractionFromQueryString();
             });
 
+        services.AddScoped<IOAuthPurge, OAuthPurge>();
 
         return services;
     }

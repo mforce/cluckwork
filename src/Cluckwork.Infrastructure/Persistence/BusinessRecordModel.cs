@@ -150,7 +150,7 @@ internal static class BusinessRecordModel
             throw new InvalidOperationException($"Business record '{recordType.Name}' must map a non-null {nameof(DateTimeOffset)} {propertyName}.");
     }
 
-    private static void ConfigureCreatedTimestamp(PropertyBuilder property)
+    internal static void ConfigureCreatedTimestamp(PropertyBuilder property)
     {
         property.ValueGeneratedOnAdd();
         property.Metadata.SetBeforeSaveBehavior(PropertySaveBehavior.Ignore);
