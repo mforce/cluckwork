@@ -31,11 +31,10 @@ public sealed class OAuthPurgeSweep(
         if (purge is null)
             return;
 
-        var now = timeProvider.GetUtcNow();
         OAuthPurgeResult result;
         try
         {
-            result = await purge.PurgeAsync(now - PruneRetention, now - UnapprovedWindow, ct);
+            result = await purge.PurgeAsync(timeProvider.GetUtcNow() - PruneRetention, UnapprovedWindow, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

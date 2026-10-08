@@ -17,15 +17,17 @@ public sealed class OAuthPurge(
     // left. A live connection holds a valid, non-expiring access token (#788) under its
     // authorization, so neither it nor its application is touched.
     public async Task<OAuthPurgeResult> PurgeAsync(
-        DateTimeOffset pruneBefore, DateTimeOffset unapprovedBefore, CancellationToken ct)
+        DateTimeOffset pruneBefore, TimeSpan unapprovedWindow, CancellationToken ct)
     {
         var prunedTokens = await tokens.PruneAsync(pruneBefore, ct);
         var prunedAuthorizations = await authorizations.PruneAsync(pruneBefore, ct);
 
         // Approval creates an authorization, so an application with none, and no token,
-        // has never been approved or has nothing left of its approval.
+        // has never been approved or has nothing left of its approval. The database
+        // stamped CreatedAtUtc, so the cutoff is the database's clock too (now()).
         var unapproved = await db.OAuthApplications
-            .Where(application => EF.Property<DateTimeOffset>(application, OAuthApplicationConfiguration.CreatedAtUtc) < unapprovedBefore
+            .Where(application => EF.Property<DateTimeOffset>(application, OAuthApplicationConfiguration.CreatedAtUtc)
+                    < DateTimeOffset.UtcNow - unapprovedWindow
                 && !application.Authorizations.Any()
                 && !application.Tokens.Any())
             .ExecuteDeleteAsync(ct);

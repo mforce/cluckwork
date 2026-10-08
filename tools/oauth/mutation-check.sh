@@ -33,6 +33,8 @@ LIMITS=src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtension
 PURGE=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthPurge.cs
 SWEEP=src/Cluckwork.Infrastructure/Jobs/OAuthPurgeSweep.cs
 WORKER=src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs
+STAMP_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261008055839_AddOAuthApplicationCreatedAt.cs
+STAMP_CONFIG=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthApplicationConfiguration.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth'
@@ -75,10 +77,13 @@ authorizations-unpruned#kill#PURGE#authorizations.PruneAsync(pruneBefore, ct)#au
 retention-ignored#kill#PURGE#tokens.PruneAsync(pruneBefore, ct)#tokens.PruneAsync(DateTimeOffset.UtcNow, ct)#OAuthPurgeTests.DeadRowsInsideRetention_AreKept#a revoked token was pruned inside the retention
 approved-app-deleted#kill#PURGE#\n                && !application.Authorizations.Any()\n                && !application.Tokens.Any())#)#OAuthPurgeTests.DeadRowsPastRetention_ArePruned_AndALiveConnectionSurvives#the purge threw
 unapproved-kept#kill#PURGE#            .ExecuteDeleteAsync(ct);#            .CountAsync(ct);#OAuthPurgeTests.UnapprovedApplication_IsDeletedOnlyAfterTheWindow#an unapproved application outlived its window
-window-ignored#kill#PURGE#EF.Property<DateTimeOffset>(application, OAuthApplicationConfiguration.CreatedAtUtc) < unapprovedBefore\n                && ##OAuthPurgeTests.UnapprovedApplication_IsDeletedOnlyAfterTheWindow#an unapproved application was deleted inside its window
-sweep-window-dropped#kill#SWEEP#now - UnapprovedWindow, ct)#now, ct)#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the sweep deleted an application inside its window
+window-ignored#kill#PURGE#EF.Property<DateTimeOffset>(application, OAuthApplicationConfiguration.CreatedAtUtc)\n                    < DateTimeOffset.UtcNow - unapprovedWindow\n                && ##OAuthPurgeTests.UnapprovedApplication_IsDeletedOnlyAfterTheWindow#an unapproved application was deleted inside its window
+sweep-window-dropped#kill#SWEEP#PruneRetention, UnapprovedWindow, ct)#PruneRetention, TimeSpan.Zero, ct)#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the sweep deleted an application inside its window
 follower-sweeps#kill#WORKER#            if (leadership == LeaseStatus.Follower)\n            {\n#            if (leadership == LeaseStatus.Follower)\n            {\n                if (oauthPurgeSweep is not null) await oauthPurgeSweep.RunAsync(stoppingToken);\n#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#a follower ran the OAuth sweep
 sweep-unwired#kill#WORKER#            await oauthPurgeSweep.RunAsync(ct);#            _ = oauthPurgeSweep;#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the leader did not run the OAuth sweep
+stamp-trigger-missing#kill#STAMP_MIGRATION#                CREATE TRIGGER "TR_OpenIddictApplications_BusinessRecordTimestamps"\n                BEFORE INSERT OR UPDATE ON "OpenIddictApplications"\n                FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"();#                SELECT 1;#OAuthApplicationCreatedAtTests.SuppliedCreatedAt_IsReplacedByTheDatabaseStamp#the database kept a supplied creation time
+stamp-insert-only#kill#STAMP_MIGRATION#BEFORE INSERT OR UPDATE ON "OpenIddictApplications"#BEFORE INSERT ON "OpenIddictApplications"#OAuthApplicationCreatedAtTests.Updates_KeepCreatedAtUtc#an update changed CreatedAtUtc
+stamp-sent-by-ef#kill#STAMP_CONFIG#BusinessRecordModel.ConfigureCreatedTimestamp(builder.Property<DateTimeOffset>(CreatedAtUtc));#builder.Property<DateTimeOffset>(CreatedAtUtc).ValueGeneratedOnAdd();#OAuthApplicationCreatedAtTests.EfInsert_ReadsBackTheDatabaseStamp#EF kept a creation time the database replaced
 EOF
 )
 
@@ -173,7 +178,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

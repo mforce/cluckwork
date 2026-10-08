@@ -69,9 +69,24 @@ this reasoning in a comment, because "anyone can POST here" reads as alarming wi
 OpenIddict records approval as an authorization row. An application with no
 authorization and no token is one nobody has approved, or one whose approval was revoked
 and pruned. Either way it grants nothing, so the sweep deletes it once it is a day old.
-A client whose id was deleted gets `invalid_client` and registers again. OpenIddict keeps
-no creation time for an application, so this slice adds `CreatedAtUtc`, stamped by
-Postgres, as a shadow property.
+A client whose id was deleted gets `invalid_client` and registers again.
+
+OpenIddict keeps no creation time for an application, so this slice adds `CreatedAtUtc`
+as a shadow property and stamps it the way #819 stamps every created-only record. The
+migration attaches #819's existing `StampCreatedBusinessRecord` function as
+`TR_OpenIddictApplications_BusinessRecordTimestamps`. The trigger overwrites any supplied
+value on insert and keeps the old one on update, so OpenIddict's own updates, raw SQL and
+bulk updates cannot move it. The EF property uses `BusinessRecordModel.ConfigureCreatedTimestamp`,
+so EF never sends a value and reads back the database's. Rows that existed before the
+migration get #819's unknown sentinel, `1970-01-01`, because nothing records when they
+registered. An unapproved one expires at the next sweep, and only non-Production databases
+can hold any. The application is still a framework type that cannot implement
+`ICreatedRecord`, so #819's upgrade guard now compares every mapped `CreatedAtUtc` column
+with every stamping trigger, rather than counting `ICreatedRecord` types.
+
+The window is measured on the database's clock: the delete compares `CreatedAtUtc` with
+`now()` minus the window, because the database stamped it. Token and authorization pruning
+stays on the API's clock, because OpenIddict stamps those rows from the API.
 
 ## The sweep
 
@@ -83,8 +98,8 @@ gate. The order is fixed by the foreign keys, which have no cascade:
    are redeemed, revoked, expired, or under an authorization that is not valid.
 2. `IOpenIddictAuthorizationManager.PruneAsync` removes authorizations created before the
    threshold that are not valid or are ad hoc, and have no tokens left.
-3. One `DELETE` removes applications created before the window with no authorization and
-   no token.
+3. One `DELETE` removes applications older than the window, by the database's clock, with
+   no authorization and no token.
 
 The threshold is OpenIddict's default, 14 days, so a replayed code or a revoked token
 still reads as such for a while instead of as unknown. A live connection holds a valid

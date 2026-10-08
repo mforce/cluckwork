@@ -1,9 +1,9 @@
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
-// #797 — the OAuth half of the housekeeping sweep. The sweep owns the cutoffs; this
+// #797 — the OAuth half of the housekeeping sweep. The sweep owns the thresholds; this
 // deletes dead tokens and authorizations created before pruneBefore, then applications
-// registered before unapprovedBefore that nobody approved.
+// nobody approved that are older than unapprovedWindow.
 public interface IOAuthPurge
 {
-    Task<OAuthPurgeResult> PurgeAsync(DateTimeOffset pruneBefore, DateTimeOffset unapprovedBefore, CancellationToken ct);
+    Task<OAuthPurgeResult> PurgeAsync(DateTimeOffset pruneBefore, TimeSpan unapprovedWindow, CancellationToken ct);
 }

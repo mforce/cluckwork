@@ -20,7 +20,7 @@
 | RedirectUris | text |  | true |  |  |  |
 | Requirements | text |  | true |  |  |  |
 | Settings | text |  | true |  |  |  |
-| CreatedAtUtc | timestamp with time zone | now() | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Constraints
 
@@ -36,6 +36,12 @@
 | ---- | ---------- |
 | PK_OpenIddictApplications | CREATE UNIQUE INDEX "PK_OpenIddictApplications" ON public."OpenIddictApplications" USING btree ("Id") |
 | IX_OpenIddictApplications_ClientId | CREATE UNIQUE INDEX "IX_OpenIddictApplications_ClientId" ON public."OpenIddictApplications" USING btree ("ClientId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_OpenIddictApplications_BusinessRecordTimestamps | CREATE TRIGGER "TR_OpenIddictApplications_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."OpenIddictApplications" FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"() |
 
 ## Relations
 

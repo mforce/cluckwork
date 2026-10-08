@@ -27,7 +27,7 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
         await flows.ConnectAsync(factory, live);
         await flows.ConnectAsync(factory, revoked);
         await RevokeAsync(revoked);
-        var aged = DateTimeOffset.UtcNow - OAuthPurgeSweep.PruneRetention - TimeSpan.FromDays(1);
+        var aged = OAuthPurgeSweep.PruneRetention + TimeSpan.FromDays(1);
         await AgeAsync(live, aged);
         await AgeAsync(revoked, aged);
 
@@ -51,7 +51,7 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
         var revoked = await OAuthServerTests.RegisterClientAsync(factory.Services);
         await flows.ConnectAsync(factory, revoked);
         await RevokeAsync(revoked);
-        await AgeAsync(revoked, DateTimeOffset.UtcNow - OAuthPurgeSweep.PruneRetention + TimeSpan.FromDays(1));
+        await AgeAsync(revoked, OAuthPurgeSweep.PruneRetention - TimeSpan.FromDays(1));
 
         await PurgeNowAsync();
 
@@ -65,9 +65,8 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
     {
         var expired = await OAuthServerTests.RegisterClientAsync(factory.Services);
         var fresh = await OAuthServerTests.RegisterClientAsync(factory.Services);
-        var now = DateTimeOffset.UtcNow;
-        await AgeApplicationAsync(expired, now - OAuthPurgeSweep.UnapprovedWindow - TimeSpan.FromHours(1));
-        await AgeApplicationAsync(fresh, now - OAuthPurgeSweep.UnapprovedWindow + TimeSpan.FromHours(1));
+        await AgeApplicationAsync(expired, OAuthPurgeSweep.UnapprovedWindow + TimeSpan.FromHours(1));
+        await AgeApplicationAsync(fresh, OAuthPurgeSweep.UnapprovedWindow - TimeSpan.FromHours(1));
 
         await PurgeNowAsync();
 
@@ -81,7 +80,7 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
     {
         var expired = await OAuthServerTests.RegisterClientAsync(factory.Services);
         var fresh = await OAuthServerTests.RegisterClientAsync(factory.Services);
-        await AgeApplicationAsync(expired, DateTimeOffset.UtcNow - OAuthPurgeSweep.UnapprovedWindow - TimeSpan.FromHours(1));
+        await AgeApplicationAsync(expired, OAuthPurgeSweep.UnapprovedWindow + TimeSpan.FromHours(1));
 
         await RunWorkerBrieflyAsync(LeaseStatus.Follower);
         Assert.True((await RowsAsync(expired)).Application, "a follower ran the OAuth sweep");
@@ -93,10 +92,9 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
 
     private async Task PurgeNowAsync()
     {
-        var now = DateTimeOffset.UtcNow;
         await using var scope = factory.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<IOAuthPurge>().PurgeAsync(
-            now - OAuthPurgeSweep.PruneRetention, now - OAuthPurgeSweep.UnapprovedWindow, CancellationToken.None);
+            DateTimeOffset.UtcNow - OAuthPurgeSweep.PruneRetention, OAuthPurgeSweep.UnapprovedWindow, CancellationToken.None);
     }
 
     private async Task RunWorkerBrieflyAsync(LeaseStatus lease)
@@ -135,9 +133,11 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
         }
     }
 
-    private async Task AgeAsync(string clientId, DateTimeOffset createdAt)
+    // OpenIddict stamps tokens and authorizations from the API's clock.
+    private async Task AgeAsync(string clientId, TimeSpan age)
     {
-        await AgeApplicationAsync(clientId, createdAt);
+        await AgeApplicationAsync(clientId, age);
+        var createdAt = DateTimeOffset.UtcNow - age;
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlInterpolatedAsync($"""
@@ -150,12 +150,21 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
             """);
     }
 
-    private async Task AgeApplicationAsync(string clientId, DateTimeOffset createdAt)
+    // The #819 trigger keeps CreatedAtUtc on update, so aging an application switches it
+    // off inside one transaction, as the #819 tests do. The age is measured on the
+    // database's clock, the one that stamped the row.
+    private async Task AgeApplicationAsync(string clientId, TimeSpan age)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        await db.Database.ExecuteSqlRawAsync(
+            """ALTER TABLE "OpenIddictApplications" DISABLE TRIGGER "TR_OpenIddictApplications_BusinessRecordTimestamps";""");
         var updated = await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""UPDATE "OpenIddictApplications" SET "CreatedAtUtc" = {createdAt} WHERE "ClientId" = {clientId}""");
+            $"""UPDATE "OpenIddictApplications" SET "CreatedAtUtc" = now() - {age} WHERE "ClientId" = {clientId}""");
+        await db.Database.ExecuteSqlRawAsync(
+            """ALTER TABLE "OpenIddictApplications" ENABLE TRIGGER "TR_OpenIddictApplications_BusinessRecordTimestamps";""");
+        await transaction.CommitAsync();
         Assert.Equal(1, updated);
     }
 
