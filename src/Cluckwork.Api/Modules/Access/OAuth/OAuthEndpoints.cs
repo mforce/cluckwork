@@ -6,8 +6,6 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.Modules.Access.OAuth;
 
-// #795 — OpenIddict validates the authorization request before it reaches this
-// endpoint; the endpoint only decides who is approving it.
 public static class OAuthEndpoints
 {
     public static RouteGroupBuilder MapOAuthEndpoints(this RouteGroupBuilder group)
@@ -19,10 +17,9 @@ public static class OAuthEndpoints
         return group;
     }
 
-    // No consent screen exists until #798, so a signed-in caller approves its own
-    // request. The token names the user and nothing else: without account_id and
-    // credential_epoch, CredentialEpochMiddleware rejects it on every route until
-    // #796 decides what an OAuth principal carries.
+    // #795 — OpenIddict has already validated the request. No consent screen exists
+    // until #798, so a signed-in caller approves its own. The token names the user and
+    // nothing else until #796 decides what an OAuth principal carries.
     private static IResult Authorize(ICurrentUser currentUser)
     {
         if (!currentUser.IsResolved) return Results.Unauthorized();
