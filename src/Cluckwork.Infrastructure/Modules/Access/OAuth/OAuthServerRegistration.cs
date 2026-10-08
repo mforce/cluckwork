@@ -1,5 +1,7 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Server;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Infrastructure.Modules.Access.OAuth;
@@ -43,6 +45,17 @@ public static class OAuthServerRegistration
                     options.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain);
                 });
 
+                // #797 — OpenIddict has no registration endpoint; the API maps one beside
+                // authorize, and discovery points clients at it.
+                server.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(handler => handler
+                    .UseInlineHandler(context =>
+                    {
+                        context.Metadata[RegistrationEndpointMetadata] =
+                            new Uri(context.AuthorizationEndpoint!, "register").AbsoluteUri;
+                        return default;
+                    })
+                    .SetOrder(OpenIddictServerHandlers.Discovery.AttachEndpoints.Descriptor.Order + 1));
+
                 var aspNetCore = server.UseAspNetCore().EnableAuthorizationEndpointPassthrough();
                 if (allowPlainHttp)
                     aspNetCore.DisableTransportSecurityRequirement();
@@ -54,6 +67,9 @@ public static class OAuthServerRegistration
                 validation.UseAspNetCore();
             });
 
+        services.AddScoped<IOAuthPurge, OAuthPurge>();
         return services;
     }
+
+    private const string RegistrationEndpointMetadata = "registration_endpoint";
 }

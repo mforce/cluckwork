@@ -80,6 +80,7 @@ erDiagram
   text RedirectUris
   text Requirements
   text Settings
+  timestamp_with_time_zone CreatedAtUtc
 }
 ```
 

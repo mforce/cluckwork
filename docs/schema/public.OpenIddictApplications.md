@@ -20,11 +20,13 @@
 | RedirectUris | text |  | true |  |  |  |
 | Requirements | text |  | true |  |  |  |
 | Settings | text |  | true |  |  |  |
+| CreatedAtUtc | timestamp with time zone | now() | false |  |  |  |
 
 ## Constraints
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| OpenIddictApplications_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | OpenIddictApplications_Id_not_null | n | NOT NULL "Id" |
 | PK_OpenIddictApplications | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -60,6 +62,7 @@ erDiagram
   text RedirectUris
   text Requirements
   text Settings
+  timestamp_with_time_zone CreatedAtUtc
 }
 "public.OpenIddictAuthorizations" {
   uuid Id

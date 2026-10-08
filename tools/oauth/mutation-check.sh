@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 OAuth claim has a test that fails
-# when the claim breaks.
+# tools/oauth/mutation-check.sh — proves each #795 and #797 OAuth claim has a test that
+# fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
 # rebuild, run the ONE named test with a TRX logger, and classify from the TRX, never
@@ -28,10 +28,15 @@ IDENTITY=src/Cluckwork.Api/Hosting/CluckworkIdentityServiceCollectionExtensions.
 TELEMETRY=src/Cluckwork.Api/Hosting/CluckworkTelemetryServiceCollectionExtensions.cs
 SERVER=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthServerRegistration.cs
 ENDPOINT=src/Cluckwork.Api/Modules/Access/OAuth/OAuthEndpoints.cs
+REGISTRATION=src/Cluckwork.Api/Modules/Access/OAuth/ClientRegistration.cs
+LIMITS=src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs
+PURGE=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthPurge.cs
+SWEEP=src/Cluckwork.Infrastructure/Jobs/OAuthPurgeSweep.cs
+WORKER=src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
-SUITE='FullyQualifiedName~OAuthServer'
-SUITE_MIN=10
+SUITE='FullyQualifiedName~OAuth'
+SUITE_MIN=40
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -48,6 +53,25 @@ parent-override-only#kill#TELEMETRY#                    .Filter.ByExcluding(Open
 oauth-on-default-scheme#kill#IDENTITY#            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)#            .AddAuthentication("mutant").AddPolicyScheme("mutant", null, o => o.ForwardDefaultSelector = c => c.Request.Headers.Authorization.ToString().Count(ch => ch == '.') == 2 ? JwtBearerDefaults.AuthenticationScheme : "OpenIddict.Validation.AspNetCore")#OAuthServerTests.OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication#Assert.Contains() Failure: Filter not matched
 session-claims-in-token#kill#ENDPOINT#@SESSION_FIND@#@SESSION_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#Expected: Unauthorized
 account-id-in-token#hold#ENDPOINT#@ACCOUNT_FIND@#@ACCOUNT_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#
+redirect-any-http-host#kill#REGISTRATION#            || uri.Scheme == Uri.UriSchemeHttp && uri.Host is "127.0.0.1" or "[::1]";#            || uri.Scheme == Uri.UriSchemeHttp;#OAuthClientRegistrationTests.WiderRedirectUri_IsRefused#Expected: BadRequest
+redirect-fragment#kill#REGISTRATION#            || uri.Fragment.Length != 0\n##OAuthClientRegistrationTests.WiderRedirectUri_IsRefused#Expected: BadRequest
+grant-any#kill#REGISTRATION#                || grants.Any(grant => grant is not (GrantTypes.AuthorizationCode or GrantTypes.RefreshToken))))#))#OAuthClientRegistrationTests.WiderGrant_IsRefused#Expected: BadRequest
+auth-method-any#kill#REGISTRATION#request.TokenEndpointAuthMethod is not (null or ClientAuthenticationMethods.None)#request.TokenEndpointAuthMethod is ""#OAuthClientRegistrationTests.WiderGrant_IsRefused#Expected: BadRequest
+name-keeps-bidi#kill#REGISTRATION#                or UnicodeCategory.Format or UnicodeCategory.PrivateUse#                or UnicodeCategory.PrivateUse#OAuthClientRegistrationTests.ClientName_IsSanitized#Strings differ
+name-uncapped#kill#REGISTRATION#elements.MoveNext() && capped.Length + elements.GetTextElement().Length <= MaxNameLength#elements.MoveNext()#OAuthClientRegistrationTests.ClientName_IsSanitized#Strings differ
+discovery-silent#kill#SERVER#                        context.Metadata[RegistrationEndpointMetadata] =\n                            new Uri(context.AuthorizationEndpoint!, "register").AbsoluteUri;\n##OAuthClientRegistrationTests.Discovery_AdvertisesTheRegistrationEndpoint#discovery does not advertise registration_endpoint
+register-unlimited#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthRegisterPolicyName)\n##OAuthClientRegistrationTests.Registration_IsRateLimitedPerClientIp_OnTheSharedCounter#Collections differ
+register-process-local#kill#LIMITS#            limiter.AddPolicy<string>(\n                RateLimitingOptions.OAuthRegisterPolicyName,\n                new DistributedIpFixedWindowPolicy(\n                    RateLimitingOptions.OAuthRegisterPolicyName,\n                    rateLimiting.OAuthRegister.PermitLimit,\n                    TimeSpan.FromSeconds(rateLimiting.OAuthRegister.WindowSeconds)));#            limiter.AddPolicy(RateLimitingOptions.OAuthRegisterPolicyName, context => RateLimitPartition.GetFixedWindowLimiter(RateLimitKey.ForClient(context.Connection.RemoteIpAddress), _ => new FixedWindowRateLimiterOptions { PermitLimit = rateLimiting.OAuthRegister.PermitLimit, Window = TimeSpan.FromSeconds(rateLimiting.OAuthRegister.WindowSeconds) }));#OAuthClientRegistrationTests.Registration_IsRateLimitedPerClientIp_OnTheSharedCounter#the registration limit did not count on the shared counter
+register-reads-bearer#kill#ENDPOINT#            .WithMetadata(new IgnoresAmbientPrincipalAttribute())\n##OAuthClientRegistrationTests.Registration_IgnoresASessionBearer#Expected: Created
+tokens-unpruned#kill#PURGE#tokens.PruneAsync(pruneBefore, ct)#tokens.PruneAsync(DateTimeOffset.MinValue, ct)#OAuthPurgeTests.DeadRowsPastRetention_ArePruned_AndALiveConnectionSurvives#Collections differ
+authorizations-unpruned#kill#PURGE#authorizations.PruneAsync(pruneBefore, ct)#authorizations.PruneAsync(DateTimeOffset.MinValue, ct)#OAuthPurgeTests.DeadRowsPastRetention_ArePruned_AndALiveConnectionSurvives#Collection was not empty
+retention-ignored#kill#PURGE#tokens.PruneAsync(pruneBefore, ct)#tokens.PruneAsync(DateTimeOffset.UtcNow, ct)#OAuthPurgeTests.DeadRowsInsideRetention_AreKept#a revoked token was pruned inside the retention
+approved-app-deleted#kill#PURGE#\n                && !application.Authorizations.Any()\n                && !application.Tokens.Any())#)#OAuthPurgeTests.DeadRowsPastRetention_ArePruned_AndALiveConnectionSurvives#the purge threw
+unapproved-kept#kill#PURGE#            .ExecuteDeleteAsync(ct);#            .CountAsync(ct);#OAuthPurgeTests.UnapprovedApplication_IsDeletedOnlyAfterTheWindow#an unapproved application outlived its window
+window-ignored#kill#PURGE#EF.Property<DateTimeOffset>(application, OAuthApplicationConfiguration.CreatedAtUtc) < unapprovedBefore\n                && ##OAuthPurgeTests.UnapprovedApplication_IsDeletedOnlyAfterTheWindow#an unapproved application was deleted inside its window
+sweep-window-dropped#kill#SWEEP#now - UnapprovedWindow, ct)#now, ct)#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the sweep deleted an application inside its window
+follower-sweeps#kill#WORKER#            if (leadership == LeaseStatus.Follower)\n            {\n#            if (leadership == LeaseStatus.Follower)\n            {\n                if (oauthPurgeSweep is not null) await oauthPurgeSweep.RunAsync(stoppingToken);\n#OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#a follower ran the OAuth sweep
+sweep-unwired#kill#WORKER#        if (oauthPurgeSweep is not null)\n            await oauthPurgeSweep.RunAsync(ct);\n##OAuthPurgeTests.Sweep_RunsOnlyOnTheLeader#the leader did not run the OAuth sweep
 EOF
 )
 
@@ -87,11 +111,18 @@ except (OSError, ET.ParseError) as error:
 summary = root.find(f'{ns}ResultSummary')
 if summary is None or summary.get('outcome') in ('Aborted', 'Error', 'Timeout'):
     print(f"INCONCLUSIVE run outcome {None if summary is None else summary.get('outcome')}"); sys.exit()
-results = [r for r in root.iter(f'{ns}UnitTestResult') if r.get('testName') == test]
-if len(results) != 1:
+# A theory reports one result per case, named test(args); the mutant counts as caught
+# when any case fails, and that case's message is the one judged.
+results = [r for r in root.iter(f'{ns}UnitTestResult')
+           if r.get('testName') == test or r.get('testName', '').startswith(test + '(')]
+if not results:
+    print(f"INCONCLUSIVE no result for {test}"); sys.exit()
+if any(r.get('testName') == test for r in results) and len(results) != 1:
     print(f"INCONCLUSIVE expected one result for {test}, found {len(results)}"); sys.exit()
-outcome = results[0].get('outcome')
-error = results[0].find(f'{ns}Output/{ns}ErrorInfo/{ns}Message')
+failed = [r for r in results if r.get('outcome') == 'Failed']
+result = failed[0] if failed else next((r for r in results if r.get('outcome') != 'Passed'), results[0])
+outcome = result.get('outcome')
+error = result.find(f'{ns}Output/{ns}ErrorInfo/{ns}Message')
 message = ''.join(error.itertext()) if error is not None else ''
 first = (message.strip().splitlines() or [''])[0][:160]
 if outcome == 'Passed':
@@ -135,7 +166,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

@@ -29,7 +29,7 @@ namespace Cluckwork.Api.IntegrationTests;
 [Collection(IntegrationCollection.Name)]
 public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 {
-    private const string RedirectUri = "https://client.example/callback";
+    internal const string RedirectUri = "https://client.example/callback";
 
     [Fact]
     public async Task AuthorizationCodeWithPkce_IssuesAReferenceTokenTheResourceSideAccepts()
@@ -230,10 +230,13 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
     }
 
-    private async Task<string> IssueAccessTokenAsync(WebApplicationFactory<Program> host)
+    private async Task<string> IssueAccessTokenAsync(WebApplicationFactory<Program> host) =>
+        await ConnectAsync(host, await RegisterClientAsync(host.Services));
+
+    // A user approves clientId and the client redeems its code: one live connection.
+    internal async Task<string> ConnectAsync(WebApplicationFactory<Program> host, string clientId)
     {
         var (_, jwt) = await SeedUserAsync();
-        var clientId = await RegisterClientAsync(host.Services);
         var verifier = NewCodeVerifier();
         var code = await AuthorizeAsync(host, jwt, clientId, verifier);
         using var response = await RedeemAsync(host, clientId, code, verifier);

@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using OpenIddict.EntityFrameworkCore.Models;
 
 namespace Cluckwork.Infrastructure.Persistence;
 
@@ -55,6 +56,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
     public DbSet<FarmLogo> FarmLogos => Set<FarmLogo>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+    public DbSet<OpenIddictEntityFrameworkCoreApplication<Guid>> OAuthApplications =>
+        Set<OpenIddictEntityFrameworkCoreApplication<Guid>>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {

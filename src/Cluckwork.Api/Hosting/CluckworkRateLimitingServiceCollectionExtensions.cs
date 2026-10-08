@@ -128,6 +128,12 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     RateLimitingOptions.ClientErrorsPolicyName,
                     rateLimiting.ClientErrors.PermitLimit,
                     TimeSpan.FromSeconds(rateLimiting.ClientErrors.WindowSeconds)));
+            limiter.AddPolicy<string>(
+                RateLimitingOptions.OAuthRegisterPolicyName,
+                new DistributedIpFixedWindowPolicy(
+                    RateLimitingOptions.OAuthRegisterPolicyName,
+                    rateLimiting.OAuthRegister.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.OAuthRegister.WindowSeconds)));
         });
 
         // #311/#545 — account-scoped report concurrency cap. Registered separately
