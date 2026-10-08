@@ -43,7 +43,8 @@ self-contained-tokens#kill#SERVER#                    .UseReferenceAccessTokens(
 default-token-lifetime#kill#SERVER#                    .SetAccessTokenLifetime(null)\n##OAuthServerTests.AuthorizationCodeWithPkce_IssuesAReferenceTokenTheResourceSideAccepts#the access token carries expires_in
 per-process-token-keys#kill#SERVER#                    .AddEphemeralSigningKey()\n                    .UseDataProtection();#                    .AddEphemeralSigningKey();#OAuthServerTests.CodeAndToken_CrossReplicas_ThroughTheSharedKeyRing#the second replica refused the first replica's code
 openid-granted#kill#SERVER#                    options.Scopes.Remove(Scopes.OpenId);\n##OAuthServerTests.OpenIdScope_IsRefused#Expected: BadRequest
-verifier-logged#kill#TELEMETRY#                    .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),#                    ,#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
+verifier-logged#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddictBelowWarning),#                    ,#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
+parent-override-only#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddictBelowWarning),#                    .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
 oauth-on-default-scheme#kill#IDENTITY#            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)#            .AddAuthentication("mutant").AddPolicyScheme("mutant", null, o => o.ForwardDefaultSelector = c => c.Request.Headers.Authorization.ToString().Count(ch => ch == '.') == 2 ? JwtBearerDefaults.AuthenticationScheme : "OpenIddict.Validation.AspNetCore")#OAuthServerTests.OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication#Assert.Contains() Failure: Filter not matched
 session-claims-in-token#kill#ENDPOINT#@SESSION_FIND@#@SESSION_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#Expected: Unauthorized
 account-id-in-token#hold#ENDPOINT#@ACCOUNT_FIND@#@ACCOUNT_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#
@@ -108,18 +109,29 @@ else:
 PY
 }
 
-suite_green() { # name -> 0 when every OAuth test ran and passed
+# Baseline and restore must show a clean test process, a completed TRX run and every
+# test passed; a run that errored after reporting its results is not green.
+suite_green() { # name -> 0 when green
   run_tests "$SUITE" "$1"
-  python3 - "$LOG_DIR/$1/result.trx" "$SUITE_MIN" <<'PY'
+  python3 - "$LOG_DIR/$1/result.trx" "$SUITE_MIN" "$?" <<'PY'
 import sys, xml.etree.ElementTree as ET
+trx, minimum, status = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 ns = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
 try:
-    counters = ET.parse(sys.argv[1]).getroot().find(f'{ns}ResultSummary/{ns}Counters')
+    summary = ET.parse(trx).getroot().find(f'{ns}ResultSummary')
 except (OSError, ET.ParseError):
     print('no readable TRX'); sys.exit(1)
-total, passed = int(counters.get('total')), int(counters.get('passed'))
-print(f"{passed}/{total} passed")
-sys.exit(0 if total >= int(sys.argv[2]) and passed == total else 1)
+counters = summary.find(f'{ns}Counters').attrib
+total, executed, passed = (int(counters[k]) for k in ('total', 'executed', 'passed'))
+problems = [f'test process exited {status}'] if status else []
+if summary.get('outcome') != 'Completed':
+    problems.append(f"run outcome {summary.get('outcome')}")
+if summary.find(f'{ns}RunInfos') is not None:
+    problems.append('run-level errors recorded')
+if total < minimum or executed != total or passed != total:
+    problems.append(f'{passed} passed, {executed} executed, {total} total, {minimum} required')
+print('; '.join(problems) or f'{passed}/{total} passed')
+sys.exit(1 if problems else 0)
 PY
 }
 
