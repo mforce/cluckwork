@@ -77,6 +77,23 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         Assert.Contains("code_challenge", body);
     }
 
+    [Fact]
+    public async Task PlainCodeChallenge_IsRefused()
+    {
+        using var host = WithResourceProbe(factory);
+        var (_, jwt) = await SeedUserAsync();
+        var clientId = await RegisterClientAsync(host.Services);
+        var verifier = NewCodeVerifier();
+        var query = AuthorizeQuery(clientId, verifier);
+        query["code_challenge"] = verifier;
+        query["code_challenge_method"] = CodeChallengeMethods.Plain;
+
+        using var response = await SendAuthorizeAsync(host, jwt, query);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains($"error:{Errors.InvalidRequest}", await response.Content.ReadAsStringAsync());
+    }
+
     // Granted, openid would mint an identity token signed with a per-process key.
     [Fact]
     public async Task OpenIdScope_IsRefused()

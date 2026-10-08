@@ -25,7 +25,8 @@ no OAuth endpoint, whatever its configuration says. Codes and access tokens use 
 Protection format on the shared key ring (#794). OpenIddict's mandatory signing and
 encryption keys are ephemeral, and the `openid` scope and the key-set endpoint are
 removed, so nothing is ever signed with them. Business endpoints authenticate with the
-session JWT scheme only, and an issued token names its user and nothing else.
+session JWT scheme only, and an issued token names its user and nothing else. PKCE accepts
+S256 only, because a `plain` challenge is the verifier itself.
 
 ## The key story
 

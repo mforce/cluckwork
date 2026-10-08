@@ -33,9 +33,15 @@ public static class OAuthServerRegistration
                     .AddEphemeralEncryptionKey()
                     .AddEphemeralSigningKey()
                     .UseDataProtection();
-                // openid is registered by default and granted implicitly, which would
-                // mint an identity token signed with a key no other replica holds.
-                server.Configure(options => options.Scopes.Remove(Scopes.OpenId));
+                server.Configure(options =>
+                {
+                    // openid is registered by default and granted implicitly, which would
+                    // mint an identity token signed with a key no other replica holds.
+                    options.Scopes.Remove(Scopes.OpenId);
+                    // A plain challenge is the verifier itself, so it protects nothing once
+                    // the authorization request leaks. OAuth 2.1 clients send S256.
+                    options.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain);
+                });
 
                 var aspNetCore = server.UseAspNetCore().EnableAuthorizationEndpointPassthrough();
                 if (allowPlainHttp)
