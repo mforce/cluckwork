@@ -46,7 +46,6 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         var body = await tokenResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = body.GetProperty("access_token").GetString()!;
 
-        Assert.Equal(userId.ToString(), await ProbeAsync(host, accessToken));
         // Indefinite until revoked, and nothing beside the access token (#788).
         Assert.False(body.TryGetProperty("expires_in", out _), "the access token carries expires_in");
         Assert.False(body.TryGetProperty("refresh_token", out _), "the response carries a refresh_token");
@@ -58,6 +57,7 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
             .SingleAsync();
         Assert.True(stored.ReferenceId is not null, "the access token has no ReferenceId");
         Assert.True(stored.ExpirationDate is null, "the stored access token expires");
+        Assert.Equal(userId.ToString(), await ProbeAsync(host, accessToken));
     }
 
     [Fact]

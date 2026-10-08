@@ -9,6 +9,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Infrastructure.SharedState;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +19,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -322,6 +324,69 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+    }
+
+    // A POSTed authorization request matches no endpoint, so no rate-limit policy or body
+    // cap; OpenIddict would still parse it and look the client up.
+    [Fact]
+    public async Task AuthorizationPost_IsRefusedBeforeOpenIddictReadsIt()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var clientId = await RegisterClientAsync(host.Services);
+        var query = QueryHelpers.ParseQuery(new Uri("https://localhost" + AuthorizeUri(clientId, NewVerifier(), ReadScope)).Query)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.ToString());
+
+        using var response = await Client(host, user.Jwt)
+            .PostAsync("/api/v1/oauth/authorize", new FormUrlEncodedContent(query));
+
+        Assert.Contains("Authorization requests must use GET.", await response.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    // The three OAuth policies count in the shared store (#543/#544), not in this process:
+    // a store that refuses everything decides each response, and sees each policy's key.
+    [Fact]
+    public async Task OAuthLimits_AreDecidedByTheSharedCounter()
+    {
+        using var issuing = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var token = await IssueAsync(issuing, user, ReadScope);
+        var counter = new RefusingCounter();
+        using var host = Host().WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IFixedWindowCounter>();
+            services.AddSingleton<IFixedWindowCounter>(counter);
+        }));
+        var clientId = await RegisterClientAsync(host.Services);
+
+        using var redeemed = await RedeemAsync(host, clientId, "cw796-code", NewVerifier());
+        using var authorized = await Client(host, user.Jwt).GetAsync(AuthorizeUri(clientId, NewVerifier(), ReadScope));
+        using var called = await Client(host, token).GetAsync(Probe.Read);
+
+        Assert.True(redeemed.StatusCode == HttpStatusCode.TooManyRequests, "oauth-token did not ask the shared counter");
+        Assert.True(authorized.StatusCode == HttpStatusCode.TooManyRequests, "oauth-authorize did not ask the shared counter");
+        Assert.True(called.StatusCode == HttpStatusCode.TooManyRequests, "oauth-api did not ask the shared counter");
+        var bearerKey = "oauth-api:token:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+        Assert.Contains(bearerKey, counter.Keys);
+    }
+
+    private sealed class RefusingCounter : IFixedWindowCounter
+    {
+        public System.Collections.Concurrent.ConcurrentBag<string> Keys { get; } = [];
+
+        public long Increment(string key, TimeSpan window)
+        {
+            Keys.Add(key);
+            return long.MaxValue;
+        }
+
+        public ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, CancellationToken cancellationToken = default)
+        {
+            Keys.Add(key);
+            return ValueTask.FromResult(new FixedWindowResult(long.MaxValue, window));
+        }
     }
 
     private sealed record SeededUser(Guid Id, Guid AccountId, string Jwt, string OwnerEmail);
