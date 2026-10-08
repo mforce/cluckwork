@@ -59,6 +59,8 @@ var persistence = builder.Services.AddCluckworkPersistence(
     builder.Environment);
 
 builder.Services.AddCluckworkIdentity(builder.Configuration, processRole);
+var dataProtection = builder.Services.AddCluckworkDataProtection(
+    builder.Configuration, builder.Environment, processRole);
 
 var rateLimiting = builder.Services.AddCluckworkRateLimiting(
     builder.Configuration, processRole);
@@ -106,6 +108,13 @@ var app = builder.Build();
 // CLI dispatch so the host-backed one-shot verbs surface it too.
 foreach (var connectionStringWarning in persistence.ConnectionStringWarnings)
     app.Logger.LogWarning("{ConnectionStringWarning}", connectionStringWarning);
+
+// #794 — which certificate encrypts the key ring, so an operator can match it to the
+// one they issued. The fingerprint only; never the PEM or the key.
+if (dataProtection.CertificateSha256 is { } certificateSha256)
+    app.Logger.LogInformation(
+        "Data Protection key ring encrypted with the certificate whose SHA-256 fingerprint is {CertificateSha256}",
+        certificateSha256);
 
 // #260/#319 — Production boot guards for the SERVING process's security posture.
 // Deliberately called BEFORE the CLI dispatch below: what spares the one-shot

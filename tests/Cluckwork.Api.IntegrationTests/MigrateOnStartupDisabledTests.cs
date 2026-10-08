@@ -27,6 +27,9 @@ public sealed class NoBootMigrateFactory : CluckworkWebApplicationFactory
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("Database:MigrateOnStartup", "false");
+        // #794 — Production, the environment #263 protects, also starts the plaintext
+        // Data Protection key guard, which must let a boot with no key table through.
+        builder.UseEnvironment("Production");
     }
 }
 

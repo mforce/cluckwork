@@ -21,6 +21,7 @@
     <PackageVersion Include="FluentValidation" Version="12.*" />
     <PackageVersion Include="Google.Protobuf" Version="3.*" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.*" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.*" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.*" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />

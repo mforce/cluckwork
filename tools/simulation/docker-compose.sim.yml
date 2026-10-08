@@ -104,6 +104,8 @@ services:
       Jwt__Audience: ${Jwt__Audience}
       Jwt__PublicKeyPem: ${Jwt__PublicKeyPem}
       Jwt__PrivateKeyPem: ${Jwt__PrivateKeyPem}
+      DataProtection__CertificatePem: ${DataProtection__CertificatePem}
+      DataProtection__PrivateKeyPem: ${DataProtection__PrivateKeyPem}
       # Access-token lifetime in minutes. The default is Production's (15);
       # the CI e2e job sets 2 in its environment so the real-expiry spec waits
       # under three minutes instead of sixteen. Local reset.sh and the k6

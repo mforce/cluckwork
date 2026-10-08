@@ -3,6 +3,7 @@ using System;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006225421_AddDataProtectionKeys")]
+    partial class AddDataProtectionKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,229 +24,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.Account", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Brand")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DateFormatOverride")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("DefaultCurrencyCode")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int>("DefaultCurrencyMinorUnit")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DefaultCurrencySymbol")
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
-                    b.Property<string>("DefaultStepperUnit")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<string>("FirstDayOfWeek")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Locale")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<int?>("MaxDiscountBasisPoints")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("Slug")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("TimeFormatOverride")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("TimeZoneId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("UnitSystem")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("integer");
-
-                    b.Property<string>("WorkerSaleAllocationPolicy")
-                        .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Slug")
-                        .IsUnique();
-
-                    b.ToTable("Accounts", t =>
-                        {
-                            t.HasCheckConstraint("CK_Accounts_MaxDiscountBasisPoints", "\"MaxDiscountBasisPoints\" IS NULL OR \"MaxDiscountBasisPoints\" BETWEEN 0 AND 10000");
-                        });
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.FarmLogo", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("BannerByteLength")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("BannerContent")
-                        .HasColumnType("bytea");
-
-                    b.Property<string>("BannerContentHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("BannerContentType")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<int?>("BannerHeight")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("BannerUpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("BannerWidth")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ByteLength")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("Content")
-                        .HasColumnType("bytea");
-
-                    b.Property<string>("ContentHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("ContentType")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("FarmId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("Height")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("Width")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AccountId", "FarmId")
-                        .IsUnique();
-
-                    b.ToTable("FarmLogos", t =>
-                        {
-                            t.HasCheckConstraint("ck_farm_logos_banner_content_length", "\"BannerContent\" IS NULL OR (octet_length(\"BannerContent\") > 0 AND octet_length(\"BannerContent\") <= 15728640)");
-
-                            t.HasCheckConstraint("ck_farm_logos_content_length", "\"Content\" IS NULL OR (octet_length(\"Content\") > 0 AND octet_length(\"Content\") <= 5242880)");
-                        });
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.UserRoleAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("FarmId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("FlockId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("HouseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AccountId", "UserId");
-
-                    b.HasIndex("UserId", "FlockId")
-                        .IsUnique();
-
-                    b.ToTable("UserRoleAssignments");
-                });
 
             modelBuilder.Entity("Cluckwork.Domain.Auditing.AuditEvent", b =>
                 {
@@ -437,6 +217,328 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ProductEggGradeMappings");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.Customer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "Name");
+
+                    b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.Payment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AmountMinorUnits")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<int>("CurrencyMinorUnit")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateOnly>("PaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("SalesOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Sequence"));
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("Voided")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SalesOrderId");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("AccountId", "CustomerId");
+
+                    b.HasIndex("AccountId", "SalesOrderId");
+
+                    b.ToTable("Payments");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DiscountReasonCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("DiscountReasonNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateOnly>("OrderDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Sequence"));
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("AccountId", "ReferenceNumber")
+                        .IsUnique();
+
+                    b.ToTable("SalesOrders");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EggLotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReleasedOnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SalesOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SalesOrderItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EggLotId");
+
+                    b.HasIndex("SalesOrderId");
+
+                    b.HasIndex("SalesOrderItemId");
+
+                    b.ToTable("SalesOrderAllocations");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BaseUnitFactor")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EggGradeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ListPriceBasis")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<long?>("ListUnitPriceMinorUnits")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProductTypeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuantityBase")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SalesOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Sequence"));
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EggGradeId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SalesOrderId");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique();
+
+                    b.ToTable("SalesOrderItems");
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", b =>
@@ -753,6 +855,229 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_EggLots_Allocation");
 
                     b.ToTable("EggLots");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.Account", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Brand")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DateFormatOverride")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("DefaultCurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<int>("DefaultCurrencyMinorUnit")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DefaultCurrencySymbol")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("DefaultStepperUnit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("FirstDayOfWeek")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("MaxDiscountBasisPoints")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("TimeFormatOverride")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("UnitSystem")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WorkerSaleAllocationPolicy")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Accounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_Accounts_MaxDiscountBasisPoints", "\"MaxDiscountBasisPoints\" IS NULL OR \"MaxDiscountBasisPoints\" BETWEEN 0 AND 10000");
+                        });
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.FarmLogo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("BannerByteLength")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("BannerContent")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("BannerContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("BannerContentType")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("BannerHeight")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("BannerUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("BannerWidth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ByteLength")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("Content")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FarmId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "FarmId")
+                        .IsUnique();
+
+                    b.ToTable("FarmLogos", t =>
+                        {
+                            t.HasCheckConstraint("ck_farm_logos_banner_content_length", "\"BannerContent\" IS NULL OR (octet_length(\"BannerContent\") > 0 AND octet_length(\"BannerContent\") <= 15728640)");
+
+                            t.HasCheckConstraint("ck_farm_logos_content_length", "\"Content\" IS NULL OR (octet_length(\"Content\") > 0 AND octet_length(\"Content\") <= 5242880)");
+                        });
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Farm.Accounts.UserRoleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FarmId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("FlockId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("HouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "UserId");
+
+                    b.HasIndex("UserId", "FlockId")
+                        .IsUnique();
+
+                    b.ToTable("UserRoleAssignments");
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Modules.Finance.Expenses.Expense", b =>
@@ -1304,326 +1629,46 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.ToTable("WaterUsages");
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.Customer", b =>
+            modelBuilder.Entity("Cluckwork.Infrastructure.Jobs.DurableJob", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
 
-                    b.Property<string>("Address")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
+                    b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Email")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<string>("Name")
+                    b.Property<string>("JobType")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                    b.Property<string>("LastError")
+                        .HasColumnType("text");
 
-                    b.Property<string>("Phone")
+                    b.Property<string>("PayloadJson")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("text");
 
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .ValueGeneratedOnAddOrUpdate()
+                    b.Property<DateTimeOffset>("RunAfter")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AccountId", "Name");
-
-                    b.ToTable("Customers");
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.Payment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("AmountMinorUnits")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
+                    b.Property<DateTimeOffset?>("StartedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CurrencyCode")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int>("CurrencyMinorUnit")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Method")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateOnly>("PaymentDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("ReferenceNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("SalesOrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("Sequence")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Sequence"));
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("integer");
-
-                    b.Property<string>("VoidReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("Voided")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("SalesOrderId");
-
-                    b.HasIndex("Sequence")
-                        .IsUnique();
-
-                    b.HasIndex("AccountId", "CustomerId");
-
-                    b.HasIndex("AccountId", "SalesOrderId");
-
-                    b.ToTable("Payments");
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("DiscountReasonCode")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("DiscountReasonNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateOnly>("OrderDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("ReferenceNumber")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<long>("Sequence")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Sequence"));
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("integer");
-
-                    b.Property<string>("VoidReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
+                    b.HasIndex("Status", "RunAfter");
 
-                    b.HasIndex("Sequence")
-                        .IsUnique();
-
-                    b.HasIndex("AccountId", "ReferenceNumber")
-                        .IsUnique();
-
-                    b.ToTable("SalesOrders");
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderAllocation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("EggLotId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("ReleasedOnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("SalesOrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("SalesOrderItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EggLotId");
-
-                    b.HasIndex("SalesOrderId");
-
-                    b.HasIndex("SalesOrderItemId");
-
-                    b.ToTable("SalesOrderAllocations");
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("BaseUnitFactor")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("EggGradeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ListPriceBasis")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<long?>("ListUnitPriceMinorUnits")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ProductTypeSnapshot")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("QuantityBase")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("SalesOrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("Sequence")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Sequence"));
-
-                    b.Property<string>("Unit")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EggGradeId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("SalesOrderId");
-
-                    b.HasIndex("Sequence")
-                        .IsUnique();
-
-                    b.ToTable("SalesOrderItems");
+                    b.ToTable("durable_jobs", (string)null);
                 });
 
             modelBuilder.Entity("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationRole", b =>
@@ -1825,48 +1870,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("refresh_tokens", (string)null);
-                });
-
-            modelBuilder.Entity("Cluckwork.Infrastructure.Jobs.DurableJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Attempts")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("JobType")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("LastError")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("RunAfter")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Status", "RunAfter");
-
-                    b.ToTable("durable_jobs", (string)null);
                 });
 
             modelBuilder.Entity("Cluckwork.Infrastructure.Persistence.IdempotencyRecord", b =>
@@ -2086,6 +2089,132 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.Payment", b =>
+                {
+                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", null)
+                        .WithMany()
+                        .HasForeignKey("SalesOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", b =>
+                {
+                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.OwnsOne("Cluckwork.Domain.Common.Money", "TotalAmount", b1 =>
+                        {
+                            b1.Property<Guid>("SalesOrderId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("CurrencyCode")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("TotalCurrencyCode");
+
+                            b1.Property<int>("CurrencyMinorUnit")
+                                .HasColumnType("integer")
+                                .HasColumnName("TotalCurrencyMinorUnit");
+
+                            b1.Property<long>("MinorUnits")
+                                .HasColumnType("bigint")
+                                .HasColumnName("TotalMinorUnits");
+
+                            b1.HasKey("SalesOrderId");
+
+                            b1.ToTable("SalesOrders");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SalesOrderId");
+                        });
+
+                    b.Navigation("TotalAmount")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderAllocation", b =>
+                {
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot", null)
+                        .WithMany()
+                        .HasForeignKey("EggLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", null)
+                        .WithMany()
+                        .HasForeignKey("SalesOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem", null)
+                        .WithMany()
+                        .HasForeignKey("SalesOrderItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem", b =>
+                {
+                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade", null)
+                        .WithMany()
+                        .HasForeignKey("EggGradeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", null)
+                        .WithMany("Items")
+                        .HasForeignKey("SalesOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Cluckwork.Domain.Common.Money", "UnitPrice", b1 =>
+                        {
+                            b1.Property<Guid>("SalesOrderItemId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("CurrencyCode")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("UnitPriceCurrencyCode");
+
+                            b1.Property<int>("CurrencyMinorUnit")
+                                .HasColumnType("integer")
+                                .HasColumnName("UnitPriceCurrencyMinorUnit");
+
+                            b1.Property<long>("MinorUnits")
+                                .HasColumnType("bigint")
+                                .HasColumnName("UnitPriceMinorUnits");
+
+                            b1.HasKey("SalesOrderItemId");
+
+                            b1.ToTable("SalesOrderItems");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SalesOrderItemId");
+                        });
+
+                    b.Navigation("UnitPrice")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntryGrade", b =>
                 {
                     b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", null)
@@ -2301,132 +2430,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.Payment", b =>
-                {
-                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.Customer", null)
-                        .WithMany()
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", null)
-                        .WithMany()
-                        .HasForeignKey("SalesOrderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", b =>
-                {
-                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.Customer", null)
-                        .WithMany()
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.OwnsOne("Cluckwork.Domain.Common.Money", "TotalAmount", b1 =>
-                        {
-                            b1.Property<Guid>("SalesOrderId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<string>("CurrencyCode")
-                                .IsRequired()
-                                .HasMaxLength(3)
-                                .HasColumnType("character varying(3)")
-                                .HasColumnName("TotalCurrencyCode");
-
-                            b1.Property<int>("CurrencyMinorUnit")
-                                .HasColumnType("integer")
-                                .HasColumnName("TotalCurrencyMinorUnit");
-
-                            b1.Property<long>("MinorUnits")
-                                .HasColumnType("bigint")
-                                .HasColumnName("TotalMinorUnits");
-
-                            b1.HasKey("SalesOrderId");
-
-                            b1.ToTable("SalesOrders");
-
-                            b1.WithOwner()
-                                .HasForeignKey("SalesOrderId");
-                        });
-
-                    b.Navigation("TotalAmount")
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderAllocation", b =>
-                {
-                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggLot", null)
-                        .WithMany()
-                        .HasForeignKey("EggLotId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", null)
-                        .WithMany()
-                        .HasForeignKey("SalesOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem", null)
-                        .WithMany()
-                        .HasForeignKey("SalesOrderItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem", b =>
-                {
-                    b.HasOne("Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade", null)
-                        .WithMany()
-                        .HasForeignKey("EggGradeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Catalog.Product", null)
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", null)
-                        .WithMany("Items")
-                        .HasForeignKey("SalesOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.OwnsOne("Cluckwork.Domain.Common.Money", "UnitPrice", b1 =>
-                        {
-                            b1.Property<Guid>("SalesOrderItemId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<string>("CurrencyCode")
-                                .IsRequired()
-                                .HasMaxLength(3)
-                                .HasColumnType("character varying(3)")
-                                .HasColumnName("UnitPriceCurrencyCode");
-
-                            b1.Property<int>("CurrencyMinorUnit")
-                                .HasColumnType("integer")
-                                .HasColumnName("UnitPriceCurrencyMinorUnit");
-
-                            b1.Property<long>("MinorUnits")
-                                .HasColumnType("bigint")
-                                .HasColumnName("UnitPriceMinorUnits");
-
-                            b1.HasKey("SalesOrderItemId");
-
-                            b1.ToTable("SalesOrderItems");
-
-                            b1.WithOwner()
-                                .HasForeignKey("SalesOrderItemId");
-                        });
-
-                    b.Navigation("UnitPrice")
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", b =>
                 {
                     b.HasOne("Cluckwork.Domain.Modules.Farm.Accounts.Account", null)
@@ -2494,14 +2497,14 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", b =>
-                {
-                    b.Navigation("Grades");
-                });
-
             modelBuilder.Entity("Cluckwork.Domain.Modules.Commerce.Sales.SalesOrder", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Modules.EggOperations.Eggs.DailyEntry", b =>
+                {
+                    b.Navigation("Grades");
                 });
 #pragma warning restore 612, 618
         }

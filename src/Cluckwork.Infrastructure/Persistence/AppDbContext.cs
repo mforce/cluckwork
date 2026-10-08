@@ -10,6 +10,7 @@ using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Providers;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -17,7 +18,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 namespace Cluckwork.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext tenant, FlockScope flockScope)
-    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options), IDataProtectionKeyContext
 {
     // #388 — exposed for the raw-SQL sites that bypass the query filters
     // (EggLotRepository's FOR UPDATE paths read the scope from here).
@@ -53,6 +54,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
     public DbSet<FarmLogo> FarmLogos => Set<FarmLogo>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {

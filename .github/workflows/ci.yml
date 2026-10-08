@@ -611,6 +611,12 @@ jobs:
           openssl rsa -in jwt-priv.pem -pubout -out jwt-pub.pem 2>/dev/null
           JWT_PRIV="$(cat jwt-priv.pem)"
           JWT_PUB="$(cat jwt-pub.pem)"
+          # Same for the Data Protection key-ring certificate (#794), which a
+          # Production serving boot requires.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=cluckwork-ci" \
+            -keyout dp-key.pem -out dp-cert.pem 2>/dev/null
+          DP_CERT="$(cat dp-cert.pem)"
+          DP_KEY="$(cat dp-key.pem)"
 
           docker network create cluckwork-ci
           docker run -d --name ci-db --network cluckwork-ci \
@@ -658,6 +664,7 @@ jobs:
             -e Database__AllowInsecureConnection=true \
             -e RateLimiting__AllowNoTrustedProxies=true \
             -e "Jwt__PrivateKeyPem=$JWT_PRIV" -e "Jwt__PublicKeyPem=$JWT_PUB" \
+            -e "DataProtection__CertificatePem=$DP_CERT" -e "DataProtection__PrivateKeyPem=$DP_KEY" \
             -e Jwt__Issuer=cluckwork-ci -e Jwt__Audience=cluckwork-api-ci \
             cluckwork-api:ci
 

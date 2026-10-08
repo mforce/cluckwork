@@ -363,9 +363,9 @@ else:
     else:
         ok.append(f"SharedState Redis connection OK ({'; '.join(endpoints)})")
 
-# --- #510 JWT signing keys ------------------------------------------------
-# The serving boot now refuses to start unless BOTH PEMs are present and
-# actually import. The generic "variable is not set" check above cannot see
+# --- #510 JWT signing keys and #794 key-ring certificate -------------------
+# The serving boot refuses to start unless each of these PEMs is present and
+# actually imports. The generic "variable is not set" check above cannot see
 # this: a variable set to a BLANK, or to deploy/.env.example's `replace-me`
 # armor, is set as far as compose is concerned and dies at boot instead.
 #
@@ -386,22 +386,26 @@ raw = env.get("Jwt__AccessTokenMinutes")
 if raw is not None and not (str(raw).strip().isdigit() and 1 <= int(str(raw).strip()) <= 60):
     fail.append(f"Jwt__AccessTokenMinutes is {raw!r}; the knob takes a whole number of minutes "
                 "from 1 to 60 (15 is Production's default, the CI e2e job uses 2)")
-for key in ("Jwt__PublicKeyPem", "Jwt__PrivateKeyPem"):
+pem_guards = {
+    "Jwt__PublicKeyPem": "#510", "Jwt__PrivateKeyPem": "#510",
+    "DataProtection__CertificatePem": "#794", "DataProtection__PrivateKeyPem": "#794",
+}
+for key, issue in pem_guards.items():
     raw = env.get(key)
     if raw is None or not str(raw).strip():
         fail.append(f"{key} is missing or blank on the app service — "
-                    "#510 fails the Production boot")
+                    f"{issue} fails the Production boot")
         continue
     pem = str(raw).replace("\\n", "\n")
     body = "".join(
         line for line in pem.splitlines()
         if line.strip() and not line.startswith("-----"))
     if "-----BEGIN" not in pem or "-----END" not in pem:
-        fail.append(f"{key} has no PEM armor — #510 fails the Production boot")
+        fail.append(f"{key} has no PEM armor — {issue} fails the Production boot")
     elif len(body) < 64 or not re.fullmatch(r"[A-Za-z0-9+/=]+", body):
         fail.append(f"{key} carries a placeholder body, not a key "
                     "(deploy/.env.example ships `replace-me`) — "
-                    "#510 fails the Production boot; regenerate with bootstrap.sh")
+                    f"{issue} fails the Production boot; regenerate with bootstrap.sh")
     else:
         ok.append(f"{key} OK (PEM armor, {len(body)}-char base64 body)")
 

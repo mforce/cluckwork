@@ -68,6 +68,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.EggInventoryMovements](public.EggInventoryMovements.md) | 10 |  | BASE TABLE |
 | [public.InventoryMovements](public.InventoryMovements.md) | 14 |  | BASE TABLE |
 | [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 9 |  | BASE TABLE |
+| [public.DataProtectionKeys](public.DataProtectionKeys.md) | 3 |  | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -621,6 +622,11 @@ erDiagram
   uuid AccountId
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+}
+"public.DataProtectionKeys" {
+  integer Id
+  text FriendlyName
+  text Xml
 }
 ```
 

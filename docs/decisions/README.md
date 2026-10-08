@@ -62,6 +62,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [CI security gates, lock-file healing, Dependabot, action pinning (#146)](146-ci-security-gates.md) | AGENTS · CI security gates |
 | [Releases and image publishing — internals (#351)](351-releases.md) | AGENTS · Releases · and [`docs/releasing.md`](../releasing.md) |
 | [Both JWT keys checked at boot, serving-only (#510)](510-jwt-key-boot-check.md) | AGENTS · Conventions |
+| [Data Protection key ring in Postgres, encrypted in Production (#794)](794-data-protection-key-ring.md) | src/AGENTS · Boot guards |
 | [Nothing writes an audit event without an actor (#500)](500-audit-actor.md) | AGENTS · Conventions |
 | [Break-glass recovery: `recover-admin` (#265)](265-break-glass-recovery.md) | AGENTS · Conventions · and the [runbook](../runbooks/break-glass-account-recovery.md) |
 | [Farm timezone, and the tzdata/ICU constraint (#264)](264-farm-timezone.md) | AGENTS · Conventions |

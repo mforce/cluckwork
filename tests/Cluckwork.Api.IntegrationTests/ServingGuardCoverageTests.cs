@@ -81,6 +81,14 @@ public sealed class ServingGuardCoverageTests
                 "Jwt:PrivateKeyPem is not configured",
                 "Jwt:PrivateKeyPem is not a usable PEM key",
             ],
+            ["EnsureKeyEncryptionCertificate"] =
+            [
+                "DataProtection:CertificatePem and DataProtection:PrivateKeyPem are not configured",
+                "are not a usable certificate and matching private key",
+                "DataProtection:PrivateKeyPem is not an RSA key",
+            ],
+            ["EnsureNoPlaintextDataProtectionKeysAsync"] =
+                ["Data Protection key(s) stored without encryption (key id: 00000000-0000-0000-0000-000000000794)"],
             ["EnsureSharedStateConnectionValid"] = ["SharedState:Redis:ConnectionString is set but not a valid"],
         };
 

@@ -315,6 +315,8 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;
         psi.Environment["Jwt__PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem;
+        psi.Environment["DataProtection__CertificatePem"] = TestDataProtectionCertificate.CertificatePem;
+        psi.Environment["DataProtection__PrivateKeyPem"] = TestDataProtectionCertificate.PrivateKeyPem;
         psi.Environment["RateLimiting__Login__PermitLimit"] = "1000000";
         psi.Environment["RateLimiting__Refresh__PermitLimit"] = "1000000";
         // Let the real SDK's periodic processors export within the focused-test

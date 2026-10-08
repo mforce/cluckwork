@@ -311,6 +311,20 @@ internal static class BypassAllowList
             Hash = "3b4358c4",
             Justification = "One unresolved-tenant read covering both the source code and the destination code: the operator CLI runs before any tenant exists, so IgnoreQueryFilters is required rather than defensive. Neither half is an authority — the post-lock fence covers the source by comparing the locked row's slug AND Version against this read's snapshot, and the global IX_Accounts_Slug index plus its unique-violation catch cover the destination (#732).",
         },
+        new()
+        {
+            Symbol = "Cluckwork.Api.Hosting.PlaintextDataProtectionKeyGuard.StartingAsync(CancellationToken cancellationToken)",
+            File = "src/Cluckwork.Api/Hosting/PlaintextDataProtectionKeyGuard.cs",
+            Hash = "28cd5e33",
+            Justification = "Caller of EnsureNoPlaintextDataProtectionKeysAsync (a forwarding call). The Production serving guard runs at host start, before any request, so no tenant exists; the key ring it checks belongs to the deployment, not to a farm (#794).",
+        },
+        new()
+        {
+            Symbol = "Cluckwork.Api.Hosting.PlaintextDataProtectionKeyGuard.EnsureNoPlaintextDataProtectionKeysAsync(IServiceScopeFactory scopes, CancellationToken cancellationToken)",
+            File = "src/Cluckwork.Api/Hosting/PlaintextDataProtectionKeyGuard.cs",
+            Hash = "ef589358",
+            Justification = "Raw SQL to_regclass probe for the DataProtectionKeys table, which has no AccountId: one key ring serves every farm. The probe reads catalog metadata only, so a boot with pending migrations skips the check and /health/ready reports that state (#794, #263).",
+        },
     ];
 
     // A row with a blank field excuses nothing: it is dropped, so its site is reported unexcused.

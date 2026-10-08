@@ -1,6 +1,7 @@
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 
 namespace Cluckwork.Infrastructure.Persistence;
@@ -22,6 +23,7 @@ internal static class PlatformBusinessRecords
             typeof(RefreshToken),
             typeof(IdempotencyRecord),
             typeof(SimulationSeedState),
-            typeof(DurableJob)
+            typeof(DurableJob),
+            typeof(DataProtectionKey)
         ]);
 }
