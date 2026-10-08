@@ -38,7 +38,7 @@ public static class OAuthEndpoints
 
     // #795 — OpenIddict has already validated the request. No consent screen exists
     // until #798, so a signed-in caller approves its own. The token names the user and
-    // nothing else until #796 decides what an OAuth principal carries.
+    // the app until #796 decides what else an OAuth principal carries.
     private static async Task<IResult> Authorize(
         HttpContext context, ICurrentUser currentUser, IOpenIddictApplicationManager applications,
         CancellationToken ct)
@@ -47,7 +47,7 @@ public static class OAuthEndpoints
 
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         identity.SetClaim(Claims.Subject, currentUser.UserId.ToString());
-        // #800 — the name rides in the token, as the user's email does, so the audit row
+        // #800 — the name rides in the token, as the user's email does, so an audit row
         // snapshots it without a lookup per write. Registration never renames a client.
         var application = await applications.FindByClientIdAsync(context.GetOpenIddictServerRequest()!.ClientId!, ct);
         identity.SetClaim(ClientNameClaim,
