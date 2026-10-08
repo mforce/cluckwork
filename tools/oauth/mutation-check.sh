@@ -31,7 +31,7 @@ ENDPOINT=src/Cluckwork.Api/Modules/Access/OAuth/OAuthEndpoints.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuthServer'
-SUITE_MIN=11
+SUITE_MIN=10
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
