@@ -52,6 +52,23 @@ Production is the one that protects these tokens. `CodeAndToken_CrossReplicas_Th
 issues a code on one host and redeems it on another with different ephemeral keys; it
 passes only because both read the same ring.
 
+## Logs
+
+OpenIddict logs whole protocol messages at Information: the authorization, token,
+revocation and introspection requests and every response it writes. Its
+`OpenIddictMessage.ToString()` redacts codes, tokens, client secrets and passwords, but
+not `code_verifier`, so each token request put the verifier in the log. Review of this
+PR found that in the live run's output. At Warning and above OpenIddict logs only row
+ids, key type names and exceptions. `AddCluckworkTelemetry` therefore clamps the
+`OpenIddict` categories to Warning after the Serilog configuration is read, so no
+setting can lower it. A property-name rule could not help, because the verifier sits
+inside the rendered message, and a content pattern would miss the next field OpenIddict
+leaves unredacted. The cost is that rejection reasons no longer reach the log; OpenIddict
+still returns them to the client as `error_description`.
+`ProtocolSecrets_NeverReachTheLog` sets OpenIddict to Verbose through configuration,
+runs a redeemed and a refused exchange with marker values, and fails if any captured
+event carries one.
+
 ## Why not the obvious alternative
 
 - **Two RSA certificates.** Two new required Production keys, a rotation story beside

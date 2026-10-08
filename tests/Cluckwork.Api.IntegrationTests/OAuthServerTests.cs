@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -16,6 +17,8 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
+using Serilog.Core;
+using Serilog.Events;
 using OpenIddict.Validation.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -44,16 +47,16 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(userId.ToString(), await ProbeAsync(host, accessToken));
         // Indefinite until revoked, and nothing beside the access token (#788).
-        Assert.False(body.TryGetProperty("expires_in", out _));
-        Assert.False(body.TryGetProperty("refresh_token", out _));
-        Assert.False(body.TryGetProperty("id_token", out _));
+        Assert.False(body.TryGetProperty("expires_in", out _), "the access token carries expires_in");
+        Assert.False(body.TryGetProperty("refresh_token", out _), "the response carries a refresh_token");
+        Assert.False(body.TryGetProperty("id_token", out _), "the response carries an id_token");
         // A reference token: the caller holds an id, the payload lives in the table.
         await using var db = factory.Services.CreateAsyncScope().ServiceProvider.GetRequiredService<AppDbContext>();
         var stored = await db.Set<OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreToken<Guid>>()
             .Where(token => token.Subject == userId.ToString() && token.Type == TokenTypeIdentifiers.AccessToken)
             .SingleAsync();
-        Assert.NotNull(stored.ReferenceId);
-        Assert.Null(stored.ExpirationDate);
+        Assert.True(stored.ReferenceId is not null, "the access token has no ReferenceId");
+        Assert.True(stored.ExpirationDate is null, "the stored access token expires");
     }
 
     [Fact]
@@ -136,7 +139,8 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 
         var code = await AuthorizeAsync(first, jwt, clientId, verifier);
         using var tokenResponse = await RedeemAsync(second, clientId, code, verifier);
-        tokenResponse.EnsureSuccessStatusCode();
+        Assert.True(tokenResponse.IsSuccessStatusCode,
+            $"the second replica refused the first replica's code with {(int)tokenResponse.StatusCode}");
         var accessToken = (await tokenResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("access_token").GetString()!;
 
@@ -174,6 +178,55 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         using var response = await HttpsClient(forced, accessToken).GetAsync("/api/v1/me");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // OpenIddict logs whole protocol messages at Information, and its own redaction
+    // leaves code_verifier in clear. Even with Serilog configured to let OpenIddict log
+    // everything, no secret from a redeemed or a refused exchange reaches a sink.
+    [Fact]
+    public async Task ProtocolSecrets_NeverReachTheLog()
+    {
+        var sink = new CollectingSink();
+        using var host = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Serilog:MinimumLevel:Default", "Verbose");
+            builder.UseSetting("Serilog:MinimumLevel:Override:OpenIddict", "Verbose");
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<IStartupFilter, ResourceProbe>();
+                services.AddSingleton<ILogEventSink>(sink);
+            });
+        });
+        var (_, jwt) = await SeedUserAsync();
+        var clientId = await RegisterClientAsync(host.Services);
+        var verifier = $"cw795-verifier-marker-{Guid.NewGuid():N}";
+        var refusedVerifier = $"cw795-verifier-marker-{Guid.NewGuid():N}";
+        var refusedCode = $"cw795-code-marker-{Guid.NewGuid():N}";
+
+        var code = await AuthorizeAsync(host, jwt, clientId, verifier);
+        using var redeemed = await RedeemAsync(host, clientId, code, verifier);
+        redeemed.EnsureSuccessStatusCode();
+        var accessToken = (await redeemed.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("access_token").GetString()!;
+        using var refused = await RedeemAsync(host, clientId, refusedCode, refusedVerifier);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+
+        string[] secrets = [verifier, refusedVerifier, refusedCode, code, accessToken];
+        var logged = sink.Events.Select(RenderAll).ToList();
+        Assert.True(logged.Any(text => text.Contains("/api/v1/oauth/token")),
+            "the log tap saw no token request");
+        var leaks = logged.Count(text => secrets.Any(text.Contains));
+        Assert.True(leaks == 0, $"protocol secrets reached the log in {leaks} event(s)");
+    }
+
+    private static string RenderAll(LogEvent logEvent) => string.Join('\n',
+        [logEvent.RenderMessage(), .. logEvent.Properties.Values.Select(value => value.ToString()),
+         logEvent.Exception?.ToString() ?? ""]);
+
+    private sealed class CollectingSink : ILogEventSink
+    {
+        public ConcurrentQueue<LogEvent> Events { get; } = new();
+        public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
     }
 
     private async Task<string> IssueAccessTokenAsync(WebApplicationFactory<Program> host)

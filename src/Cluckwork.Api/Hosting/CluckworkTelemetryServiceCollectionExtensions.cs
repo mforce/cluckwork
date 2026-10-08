@@ -5,6 +5,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
+using Serilog.Events;
 
 namespace Cluckwork.Api.Hosting;
 
@@ -47,7 +48,11 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
             (registeredServices, cfg) =>
                 RedactingLoggerPipeline.Configure(
                     cfg, configuration, registeredServices,
-                    new SensitiveDataRedactionEnricher(), SensitiveDataRedactionEnricher.RedactText),
+                    new SensitiveDataRedactionEnricher(), SensitiveDataRedactionEnricher.RedactText)
+                    // #795 — OpenIddict logs whole protocol messages at Information, and
+                    // its own redaction leaves the PKCE code_verifier in clear. Applied
+                    // after the configuration is read, so no Serilog setting can lower it.
+                    .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),
             preserveStaticLogger: true);
 
         // Bind IDiagnosticContext property creation to THIS host's logger. The
