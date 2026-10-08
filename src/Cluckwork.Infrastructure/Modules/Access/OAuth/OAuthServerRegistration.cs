@@ -50,7 +50,7 @@ public static class OAuthServerRegistration
                 server.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(handler => handler
                     .UseInlineHandler(context =>
                     {
-                        context.Metadata[RegistrationEndpointMetadata] =
+                        context.Metadata["registration_endpoint"] =
                             new Uri(context.AuthorizationEndpoint!, "register").AbsoluteUri;
                         return default;
                     })
@@ -70,6 +70,4 @@ public static class OAuthServerRegistration
         services.AddScoped<IOAuthPurge, OAuthPurge>();
         return services;
     }
-
-    private const string RegistrationEndpointMetadata = "registration_endpoint";
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -21,7 +22,7 @@ public sealed record ClientRegistrationRequest(
 // code with PKCE (S256 is server-wide, #795), redirecting only to loopback or https.
 internal static class ClientRegistration
 {
-    public const int MaxNameLength = 100;
+    private const int MaxNameLength = 100;
     private const int MaxRedirectUris = 10;
     private const int MaxRedirectUriLength = 2048;
 
@@ -69,26 +70,19 @@ internal static class ClientRegistration
         return descriptor;
     }
 
-    private static bool IsAllowedRedirect(string? value, out Uri uri)
-    {
-        if (value is not { Length: <= MaxRedirectUriLength }
-            || !Uri.TryCreate(value, UriKind.Absolute, out uri!)
-            || uri.Fragment.Length != 0
-            || uri.UserInfo.Length != 0)
-        {
-            uri = null!;
-            return false;
-        }
-
-        return uri.Scheme == Uri.UriSchemeHttps && uri.Host.Length != 0
-            || uri.Scheme == Uri.UriSchemeHttp && uri.Host is "127.0.0.1" or "[::1]";
-    }
+    private static bool IsAllowedRedirect(string? value, [NotNullWhen(true)] out Uri? uri) =>
+        Uri.TryCreate(value, UriKind.Absolute, out uri)
+        && value.Length <= MaxRedirectUriLength
+        && uri.Fragment.Length == 0
+        && uri.UserInfo.Length == 0
+        && (uri.Scheme == Uri.UriSchemeHttps && uri.Host.Length != 0
+            || uri.Scheme == Uri.UriSchemeHttp && uri.Host is "127.0.0.1" or "[::1]");
 
     // The consent screen (#798) shows this name, and the client chose it. Controls and
     // format characters (bidi overrides and isolates among them) become spaces so a name
     // cannot reorder or hide the text around it; the cap counts UTF-16 units and cuts on a
     // grapheme boundary, so a stack of combining marks cannot exceed it either.
-    internal static string? SanitizeName(string? name)
+    private static string? SanitizeName(string? name)
     {
         if (name is null)
             return null;
