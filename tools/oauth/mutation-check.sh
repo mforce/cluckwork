@@ -90,8 +90,8 @@ results = [r for r in root.iter(f'{ns}UnitTestResult') if r.get('testName') == t
 if len(results) != 1:
     print(f"INCONCLUSIVE expected one result for {test}, found {len(results)}"); sys.exit()
 outcome = results[0].get('outcome')
-message = ''.join(results[0].find(f'{ns}Output/{ns}ErrorInfo/{ns}Message').itertext()) \
-    if outcome == 'Failed' and results[0].find(f'{ns}Output/{ns}ErrorInfo/{ns}Message') is not None else ''
+error = results[0].find(f'{ns}Output/{ns}ErrorInfo/{ns}Message')
+message = ''.join(error.itertext()) if error is not None else ''
 first = (message.strip().splitlines() or [''])[0][:160]
 if outcome == 'Passed':
     print('held, the test still passes' if expect == 'hold' else 'SURVIVED, the test still passes')

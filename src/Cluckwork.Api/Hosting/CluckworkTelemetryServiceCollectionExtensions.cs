@@ -51,7 +51,7 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
                     new SensitiveDataRedactionEnricher(), SensitiveDataRedactionEnricher.RedactText)
                     // #795 — OpenIddict logs whole protocol messages at Information, and
                     // its own redaction leaves the PKCE code_verifier in clear. Applied
-                    // after the configuration is read, so no Serilog setting can lower it.
+                    // after the configuration is read, so no setting can let them through.
                     .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),
             preserveStaticLogger: true);
 
