@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -334,11 +335,8 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
         using var host = Host();
         var user = await SeedAsync(Roles.Manager);
         var clientId = await RegisterClientAsync(host.Services);
-        var query = QueryHelpers.ParseQuery(new Uri("https://localhost" + AuthorizeUri(clientId, NewVerifier(), ReadScope)).Query)
-            .ToDictionary(pair => pair.Key, pair => pair.Value.ToString());
-
-        using var response = await Client(host, user.Jwt)
-            .PostAsync("/api/v1/oauth/authorize", new FormUrlEncodedContent(query));
+        using var response = await Client(host, user.Jwt).PostAsync("/api/v1/oauth/authorize",
+            new FormUrlEncodedContent(AuthorizeParameters(clientId, NewVerifier(), ReadScope)!));
 
         Assert.Contains("Authorization requests must use GET.", await response.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -373,7 +371,7 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
 
     private sealed class RefusingCounter : IFixedWindowCounter
     {
-        public System.Collections.Concurrent.ConcurrentBag<string> Keys { get; } = [];
+        public ConcurrentBag<string> Keys { get; } = [];
 
         public long Increment(string key, TimeSpan window)
         {
@@ -466,7 +464,10 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
     }
 
     private static string AuthorizeUri(string clientId, string verifier, params string[] scopes) =>
-        QueryHelpers.AddQueryString("/api/v1/oauth/authorize", new Dictionary<string, string?>
+        QueryHelpers.AddQueryString("/api/v1/oauth/authorize", AuthorizeParameters(clientId, verifier, scopes));
+
+    private static Dictionary<string, string?> AuthorizeParameters(string clientId, string verifier, params string[] scopes) =>
+        new()
         {
             ["client_id"] = clientId,
             ["redirect_uri"] = RedirectUri,
@@ -474,7 +475,7 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
             ["scope"] = string.Join(' ', scopes),
             ["code_challenge"] = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))),
             ["code_challenge_method"] = CodeChallengeMethods.Sha256,
-        });
+        };
 
     private static Task<HttpResponseMessage> RedeemAsync(
         WebApplicationFactory<Program> host, string clientId, string code, string verifier) =>
