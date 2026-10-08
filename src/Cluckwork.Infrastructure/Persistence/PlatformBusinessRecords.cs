@@ -3,6 +3,7 @@ using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using OpenIddict.EntityFrameworkCore.Models;
 
 namespace Cluckwork.Infrastructure.Persistence;
 
@@ -24,6 +25,10 @@ internal static class PlatformBusinessRecords
             typeof(IdempotencyRecord),
             typeof(SimulationSeedState),
             typeof(DurableJob),
-            typeof(DataProtectionKey)
+            typeof(DataProtectionKey),
+            typeof(OpenIddictEntityFrameworkCoreApplication<Guid>),
+            typeof(OpenIddictEntityFrameworkCoreAuthorization<Guid>),
+            typeof(OpenIddictEntityFrameworkCoreScope<Guid>),
+            typeof(OpenIddictEntityFrameworkCoreToken<Guid>)
         ]);
 }

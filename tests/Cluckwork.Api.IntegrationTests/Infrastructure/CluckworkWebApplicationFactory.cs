@@ -73,6 +73,9 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // startup writes the first key, so every test host encrypts its ring.
         builder.UseSetting("DataProtection:CertificatePem", TestDataProtectionCertificate.CertificatePem);
         builder.UseSetting("DataProtection:PrivateKeyPem", TestDataProtectionCertificate.PrivateKeyPem);
+        // #795 — every non-Production test host runs the OAuth server; Production ones
+        // ignore it.
+        builder.UseSetting("OAuth:Issuer", "https://localhost/");
         // Standard OTLP variables may exist in a developer or CI environment. A
         // present blank canonical endpoint selects Cluckwork's disabled profile.
         builder.UseSetting("Otlp:Endpoint", "");

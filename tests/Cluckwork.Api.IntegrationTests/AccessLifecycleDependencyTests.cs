@@ -61,7 +61,7 @@ public sealed class AccessLifecycleDependencyTests(CluckworkWebApplicationFactor
             ["SharedState:Redis:ConnectionString"] = "127.0.0.1:1",
         });
         builder.Services.AddCluckworkPersistence(builder.Configuration, builder.Environment);
-        builder.Services.AddCluckworkIdentity(builder.Configuration, ProcessRole.OneShot);
+        builder.Services.AddCluckworkIdentity(builder.Configuration, builder.Environment, ProcessRole.OneShot);
         builder.Services.AddCluckworkSharedState(builder.Configuration, ProcessRole.OneShot);
         builder.Services.AddCluckworkModules(builder.Configuration);
         var resolutions = 0;

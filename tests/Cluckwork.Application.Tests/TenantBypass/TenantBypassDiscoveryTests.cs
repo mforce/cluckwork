@@ -68,6 +68,10 @@ public sealed class TenantBypassDiscoveryTests
         //    protects every farm's tokens (#794), and only the framework's
         //    EF key repository reads it. Any query from src/ is a bypass
         //    occurrence, allow-list entry required, full stop.
+        //  * The four OpenIddict entities (#795) — OAuth server state for
+        //    third-party clients, no AccountId, the same category as the
+        //    Identity tables. OpenIddict's own stores read them; any query
+        //    from src/ is a bypass occurrence, allow-list entry required.
         //  * `Money` appears in the raw model as OWNED value-type entities
         //    (one per owning table: FeedUsages, InventoryItems, InventoryLots,
         //    SalesOrderItems, SalesOrders). Owned types have no DbSet and no
@@ -85,6 +89,10 @@ public sealed class TenantBypassDiscoveryTests
             "IdentityUserLogin`1",
             "IdentityUserRole`1",
             "IdentityUserToken`1",
+            "OpenIddictEntityFrameworkCoreApplication`1",
+            "OpenIddictEntityFrameworkCoreAuthorization`1",
+            "OpenIddictEntityFrameworkCoreScope`1",
+            "OpenIddictEntityFrameworkCoreToken`1",
             "RefreshToken",
         };
 
