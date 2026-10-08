@@ -3,9 +3,10 @@
 //
 //   node release-line.mjs branch <tag>
 //       prints the maintenance branch a tag belongs to (v0.1.6 -> release/v0.1.x)
-//   node release-line.mjs source-ref <tag> <main-compare> <branch-compare> <branch-rules>
-//       prints the ref promotion must pass to `gh attestation verify --source-ref`.
-//       The compare arguments are the compare API's `.status` for
+//   node release-line.mjs source-ref <tag> <branch-compare> <branch-rules>
+//       prints the maintenance-branch ref promotion must pass to
+//       `gh attestation verify --source-ref` for a commit that is not on main.
+//       <branch-compare> is the compare API's `.status` for
 //       `<branch>...<release sha>`, or `missing` on a 404. <branch-rules> is the
 //       comma-joined rule types `rules/branches/<branch>` returns.
 //   node release-line.mjs proposal <branch> <proposed version>   (taken tags on stdin)
@@ -40,12 +41,11 @@ function reachable(compareStatus) {
   return compareStatus === "identical" || compareStatus === "behind";
 }
 
-// Main first: every commit before the cut is on both lines, and its image was
-// built by main's CI. Only a commit that exists solely on the maintenance branch
-// was built there. Never a wildcard: the branch is derived from the tag, so a
-// v0.1.6 image built on release/v0.2.x does not verify.
-export function expectedSourceRef({ tag, mainCompare, branchCompare, branchRules }) {
-  if (reachable(mainCompare)) return { ref: "refs/heads/main" };
+// For a commit that is not on main; the workflow settles main itself, because
+// every commit before the cut is on both lines and main's CI built its image.
+// Never a wildcard: the branch is derived from the tag, so a v0.1.6 image built
+// on release/v0.2.x does not verify.
+export function maintenanceSourceRef({ tag, branchCompare, branchRules }) {
   const branch = maintenanceBranch(tag);
   if (!branch) return { error: `'${tag}' is not a vX.Y.Z tag, so it names no maintenance branch, and its commit is not on main` };
   if (!reachable(branchCompare)) return { error: `the commit released as ${tag} is on neither main nor ${branch}` };
@@ -54,7 +54,7 @@ export function expectedSourceRef({ tag, mainCompare, branchCompare, branchRules
   // pinned to that ref proves nothing about review.
   const active = new Set(branchRules);
   const missing = REQUIRED_RULES.filter((rule) => !active.has(rule));
-  if (missing.length > 0) return { error: `${branch} lacks the active ruleset rules ${missing.join(", ")}, so an attestation naming it proves nothing; add the release ruleset, then dispatch Release with ${tag}` };
+  if (missing.length > 0) return { error: `${branch} lacks the active ruleset rules ${missing.join(", ")}, so an attestation naming it proves nothing; add the release rulesets, then dispatch Release with ${tag}` };
   return { ref: `refs/heads/${branch}` };
 }
 
@@ -70,10 +70,12 @@ function nextVersion(line, major, takenTags) {
   return `${major}.${Math.max(-1, ...minors) + 1}.0`;
 }
 
-// Squash commits here carry the PR title and an empty body, so Release-As
-// survives only when added at merge time.
+// Squash commits here carry the PR title and an empty body, so a plain
+// Release-As footer survives only when added at merge time. (A
+// BEGIN_COMMIT_OVERRIDE block in a PR body replaces the whole message, so it
+// can carry one too; review of the proposed version is the control for that.)
 function forceAdvice(version) {
-  return `squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body "Release-As: ${version}"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way.`;
+  return `squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body "Release-As: ${version}"' (or put that line in the squash dialog's extended description; a plain footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way.`;
 }
 
 // Run on the release PR's proposal, before anyone merges it. A hotfix line
@@ -107,8 +109,8 @@ function main([command, ...args]) {
     if (!branch) refuse(`'${args[0]}' is not a vX.Y.Z tag`);
     console.log(branch);
   } else if (command === "source-ref") {
-    const [tag, mainCompare, branchCompare, rules = ""] = args;
-    const result = expectedSourceRef({ tag, mainCompare, branchCompare, branchRules: rules.split(",").filter(Boolean) });
+    const [tag, branchCompare, rules = ""] = args;
+    const result = maintenanceSourceRef({ tag, branchCompare, branchRules: rules.split(",").filter(Boolean) });
     if (result.error) refuse(result.error);
     console.log(result.ref);
   } else if (command === "proposal") {

@@ -351,7 +351,7 @@ jobs:
               branch_compare="$(probe "compare/$branch...$RELEASE_SHA" .status)"
               branch_rules="$(probe "rules/branches/$branch" '[.[].type] | join(",")')"
               ref="$(node .github/scripts/release-line.mjs source-ref \
-                "$TAG" "$main_compare" "$branch_compare" "$branch_rules")" ;;
+                "$TAG" "$branch_compare" "$branch_rules")" ;;
           esac
           echo "$RELEASE_SHA must carry provenance from $ref"
           printf 'ref=%s\n' "$ref" >> "$GITHUB_OUTPUT"

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { checkProposal, expectedSourceRef, maintenanceBranch } from "./release-line.mjs";
+import { checkProposal, maintenanceBranch, maintenanceSourceRef } from "./release-line.mjs";
 
 const RULESET = ["deletion", "creation", "non_fast_forward", "pull_request"];
 
@@ -27,19 +27,10 @@ test("anything but a plain vX.Y.Z tag names no branch", () => {
   }
 });
 
-test("a commit on main verifies against main, whatever the branch says", () => {
-  for (const mainCompare of ["identical", "behind"]) {
-    assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare, branchCompare: "behind", branchRules: [] }),
-      { ref: "refs/heads/main" },
-    );
-  }
-});
-
 test("a commit only on the ruled maintenance branch verifies against that branch", () => {
   for (const branchCompare of ["identical", "behind"]) {
     assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare: "diverged", branchCompare, branchRules: RULESET }),
+      maintenanceSourceRef({ tag: "v0.1.6", branchCompare, branchRules: RULESET }),
       { ref: "refs/heads/release/v0.1.x" },
     );
   }
@@ -56,24 +47,19 @@ test("a maintenance branch missing any required rule is refused, naming what is 
     ["creation,non_fast_forward,pull_request", "creation, non_fast_forward, pull_request"],
   ]) {
     assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare: "diverged", branchCompare: "behind", branchRules }),
+      maintenanceSourceRef({ tag: "v0.1.6", branchCompare: "behind", branchRules }),
       {
-        error: `release/v0.1.x lacks the active ruleset rules ${missing}, so an attestation naming it proves nothing; add the release ruleset, then dispatch Release with v0.1.6`,
+        error: `release/v0.1.x lacks the active ruleset rules ${missing}, so an attestation naming it proves nothing; add the release rulesets, then dispatch Release with v0.1.6`,
       },
       String(branchRules),
     );
   }
 });
 
-test("a commit on neither line is refused", () => {
-  for (const [mainCompare, branchCompare] of [
-    ["diverged", "diverged"],
-    ["ahead", "ahead"],
-    ["diverged", "missing"],
-    ["missing", "missing"],
-  ]) {
+test("a commit off the maintenance branch is refused", () => {
+  for (const branchCompare of ["diverged", "ahead", "missing"]) {
     assert.deepEqual(
-      expectedSourceRef({ tag: "v0.1.6", mainCompare, branchCompare, branchRules: RULESET }),
+      maintenanceSourceRef({ tag: "v0.1.6", branchCompare, branchRules: RULESET }),
       { error: "the commit released as v0.1.6 is on neither main nor release/v0.1.x" },
     );
   }
@@ -81,7 +67,7 @@ test("a commit on neither line is refused", () => {
 
 test("a commit off main with a non-version tag is refused", () => {
   assert.deepEqual(
-    expectedSourceRef({ tag: "hotfix", mainCompare: "diverged", branchCompare: "behind", branchRules: RULESET }),
+    maintenanceSourceRef({ tag: "hotfix", branchCompare: "behind", branchRules: RULESET }),
     { error: "'hotfix' is not a vX.Y.Z tag, so it names no maintenance branch, and its commit is not on main" },
   );
 });
@@ -98,7 +84,7 @@ test("a hotfix line proposing a version outside its line is refused with its nex
     checkProposal({ branch: "release/v0.1.x", proposed: "1.0.0", takenTags: ["v0.1.4", "v0.1.5", "v0.0.9", "v1.0.0"] }),
     {
       error:
-        "release/v0.1.x proposes 1.0.0, outside its 0.1.x line. Set \"versioning\": \"always-bump-patch\" in this branch's release-please-config.json; if a Release-As reached the branch, squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 0.1.6\"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way.",
+        "release/v0.1.x proposes 1.0.0, outside its 0.1.x line. Set \"versioning\": \"always-bump-patch\" in this branch's release-please-config.json; if a Release-As reached the branch, squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 0.1.6\"' (or put that line in the squash dialog's extended description; a plain footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way.",
     },
   );
   for (const proposed of ["1.2.0", "0.2.0", "2.1.3"]) {
@@ -123,7 +109,7 @@ test("a branch that is not a vX.Y.x line is not held to one", () => {
 test("a taken version is refused with the next version for that branch", () => {
   assert.deepEqual(checkProposal({ branch: "main", proposed: "1.1.0", takenTags: ["v1.0.0", "v1.1.0", "v1.3.0", "v2.0.0", "v0.9.0"] }), {
     error:
-      "v1.1.0 is already tagged or released, so a Release-As named a taken version or this branch's versioning is wrong. To release, squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 1.4.0\"' (or put that line in the squash dialog's extended description; a footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way. Then merge the release PR it proposes.",
+      "v1.1.0 is already tagged or released, so a Release-As named a taken version or this branch's versioning is wrong. To release, squash-merge the next PR into this branch with 'gh pr merge <N> --squash --body \"Release-As: 1.4.0\"' (or put that line in the squash dialog's extended description; a plain footer in a branch commit or the PR body is dropped). With nothing waiting, merge a PR holding one empty chore: commit that way. Then merge the release PR it proposes.",
   });
   assert.match(
     checkProposal({ branch: "release/v0.1.x", proposed: "0.1.5", takenTags: ["v0.1.5", "v0.1.7", "v0.2.0"] }).error,
@@ -144,24 +130,24 @@ test("the CLI prints the branch and the source ref on stdout", () => {
   assert.equal(branch.status, 0);
   assert.equal(branch.stdout, "release/v0.1.x\n");
 
-  const ref = runCli(["source-ref", "v0.1.6", "diverged", "behind", "pull_request,creation,non_fast_forward"]);
+  const ref = runCli(["source-ref", "v0.1.6", "behind", "pull_request,creation,non_fast_forward"]);
   assert.equal(ref.status, 0);
   assert.equal(ref.stdout, "refs/heads/release/v0.1.x\n");
 });
 
 test("the CLI refuses a rule list missing a required type, including none at all", () => {
   for (const rules of ["creation,non_fast_forward", "true", "", "missing", "pull_request non_fast_forward creation"]) {
-    const result = runCli(["source-ref", "v0.1.6", "diverged", "behind", rules]);
+    const result = runCli(["source-ref", "v0.1.6", "behind", rules]);
     assert.equal(result.status, 1, rules);
     assert.equal(result.stdout, "");
   }
-  assert.equal(runCli(["source-ref", "v0.1.6", "diverged", "behind"]).status, 1);
+  assert.equal(runCli(["source-ref", "v0.1.6", "behind"]).status, 1);
 });
 
 test("every CLI refusal exits 1 with an annotation on stderr and nothing on stdout", () => {
   for (const [args, stdin] of [
     [["branch", "latest"], ""],
-    [["source-ref", "v0.1.6", "diverged", "missing", "creation,non_fast_forward,pull_request"], ""],
+    [["source-ref", "v0.1.6", "missing", "creation,non_fast_forward,pull_request"], ""],
     [["proposal", "main", "0.1.6"], "v0.1.5\nv0.1.6\n"],
     [["proposal", "release/v0.1.x", "1.0.0"], ""],
     [["proposal", "main", "null"], ""],
