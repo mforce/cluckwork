@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0](https://github.com/mforce/cluckwork/compare/v0.1.5...v1.0.0) (2026-10-08)
+
+
+### CI
+
+* hotfix release lines and minor-per-release versioning ([#1130](https://github.com/mforce/cluckwork/issues/1130)) ([ea52751](https://github.com/mforce/cluckwork/commit/ea527511407cd1d2635ada6085db0d3af8b2afe6))
+
 ## [0.1.5](https://github.com/mforce/cluckwork/compare/v0.1.4...v0.1.5) (2026-10-07)
 
 
