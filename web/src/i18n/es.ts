@@ -178,6 +178,41 @@ export const es = {
     passwordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
     passwordChangedMessage: "Contraseña cambiada. Se cerró la sesión en los demás dispositivos.",
   },
+  // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
+  connectedApps: {
+    heading: "Aplicaciones conectadas",
+    hint: "Aplicaciones que permitiste actuar como tú. Cada una solo puede hacer lo que tú puedes.",
+    count: "{{count}} aplicaciones conectadas pueden actuar como tú.",
+    count_one: "{{count}} aplicación conectada puede actuar como tú.",
+    empty: "No hay aplicaciones conectadas. Una aplicación que permitas actuar como tú aparece aquí.",
+    nudge: "{{app}} no se ha usado en {{days}} días. Desconéctala si ya no la usas.",
+    inUse: "En uso",
+    notUsedYet: "Aún sin usar",
+    idle: "Sin usar desde hace {{days}} días",
+    can: "Puede",
+    connected: "Conectada",
+    lastUsed: "Último uso",
+    disconnect: "Desconectar",
+    disconnectApp: "Desconectar {{app}}",
+    disconnectPersonApp: "Desconectar {{app}} de {{person}}",
+    confirmTitle: "¿Desconectar {{app}}?",
+    confirmBody: "{{app}} deja de funcionar en su próxima solicitud. Para volver a usarla, conéctala de nuevo con tu contraseña.",
+    confirmBodyOwner: "{{app}} deja de funcionar para {{person}} en su próxima solicitud. {{person}} conserva su acceso y puede volver a conectarla.",
+    disconnected: "{{app}} está desconectada. Deja de funcionar en su próxima solicitud.",
+    failed: "No se desconectó {{app}}. Vuelve a intentarlo.",
+    loadFailed: "No se pudieron cargar las aplicaciones conectadas. Recarga la página para intentarlo de nuevo.",
+    farmEyebrow: "Toda la granja",
+    farmHint: "Todas las aplicaciones que alguien de esta granja ha conectado. Desconectar una hace menos que desactivar a la persona, que conserva su acceso y puede volver a conectarla.",
+    person: "Persona",
+    everyone: "Todos",
+    app: "Aplicación",
+    connections: "{{count}} conexiones",
+    connections_one: "{{count}} conexión",
+    people: "{{count}} personas",
+    people_one: "{{count}} persona",
+    farmCount: "{{connections}}, {{people}}",
+    farmEmpty: "Nadie de esta granja ha conectado una aplicación.",
+  },
   errors: {
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
@@ -234,6 +269,7 @@ export const es = {
     grades: "Grados",
     products: "Productos",
     users: "Usuarios",
+    connectedApps: "Aplicaciones conectadas",
     audit: "Auditoría",
     export: "Exportación",
     account: "Cuenta",
@@ -2398,6 +2434,14 @@ export const es = {
       + "actual</strong>, o con <strong>Cancelar</strong>. Nunca puede hacer más que tu propio rol. Cuando una aplicación "
       + "que ya permitiste se conecta otra vez, solo se pide tu contraseña. La aplicación eligió su propio nombre, así "
       + "que permítela solo si acabas de empezar a conectarla. <strong>Detalles</strong> tiene la explicación completa.",
+    // #799 — control names match the connectedApps and nav catalogs (#688).
+    signingInConnectedApps:
+      "<strong>Aplicaciones conectadas.</strong> <strong>Cuenta</strong> muestra cada aplicación que permitiste "
+      + "actuar como tú, con lo que puede hacer, cuándo se conectó y su último uso. <strong>Desconectar</strong> la "
+      + "detiene en su próxima solicitud; para volver a usarla, conéctala de nuevo con tu contraseña. Se marca la "
+      + "aplicación que no se usa en 30 días. El propietario ve todas las aplicaciones de la granja en "
+      + "<strong>Configuración</strong> › <strong>Aplicaciones conectadas</strong>, puede filtrar por "
+      + "<strong>Persona</strong> y puede desconectar cualquiera, lo que hace menos que desactivar a la persona.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -3456,7 +3500,7 @@ export const es = {
       "Una aplicación externa, como un asistente de IA, que una persona de la granja autorizó a actuar por "
       + "ella. Solo puede hacer lo que esa persona puede hacer. El registro de auditoría nombra a la persona, "
       + "añade la aplicación en la línea de abajo y puede mostrar solo las acciones mediante aplicaciones "
-      + "conectadas.",
+      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "

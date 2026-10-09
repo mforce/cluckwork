@@ -879,6 +879,23 @@ export interface User {
 
 export const listUsers = () => apiGet<User[]>("/users");
 
+// #799 — one person's connection to one app. appName is the app's own choice (#797).
+export interface AppConnection {
+  userId: string;
+  clientId: string;
+  appName: string | null;
+  scopes: string[];
+  connectedAtUtc: string;
+  lastUsedAtUtc: string | null;
+}
+
+export const listMyConnectedApps = () => apiGet<AppConnection[]>("/me/connected-apps");
+export const disconnectMyApp = (clientId: string) =>
+  apiDelete<void>(`/me/connected-apps/${encodeURIComponent(clientId)}`);
+export const listFarmConnectedApps = () => apiGet<AppConnection[]>("/users/connected-apps");
+export const disconnectUserApp = (userId: string, clientId: string) =>
+  apiDelete<void>(`/users/${userId}/connected-apps/${encodeURIComponent(clientId)}`);
+
 export interface FlockAssignment {
   id: string;
   flockId: string | null;

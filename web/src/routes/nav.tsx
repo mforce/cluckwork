@@ -1,6 +1,6 @@
 import {
   Bird, Boxes, ChartColumn, CircleHelp, ClipboardList, Download, Egg, History,
-  LayoutDashboard, Package, ScrollText, Settings, ShoppingCart, Tags, UserCog,
+  LayoutDashboard, Package, Plug, ScrollText, Settings, ShoppingCart, Tags, UserCog,
   UserRound, Users, Wallet, Droplets, Wheat,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -83,7 +83,10 @@ export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
         ...(role === "Admin" ? [{ to: "/settings", labelKey: "farmSettings" as const, Icon: Settings }] : []),
         { to: "/grades", labelKey: "grades", Icon: Tags },
         { to: "/products", labelKey: "products", Icon: Package },
-        ...(role === "Admin" ? [{ to: "/users", labelKey: "users" as const, Icon: UserCog }] : []),
+        ...(role === "Admin" ? [
+          { to: "/users", labelKey: "users" as const, Icon: UserCog },
+          { to: "/connected-apps", labelKey: "connectedApps" as const, Icon: Plug },
+        ] : []),
         { to: "/audit", labelKey: "audit", Icon: ScrollText },
         { to: "/export", labelKey: "export", Icon: Download },
       ],

@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plug } from "lucide-react";
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Stack, TextField, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Stack, TextField, Typography,
 } from "@mui/material";
 import { changePassword, ApiError } from "../api/client";
+import { disconnectMyApp, listMyConnectedApps } from "../api/cluckwork";
+import type { AppConnection } from "../api/cluckwork";
+import { useConnectionFacts, useDisconnect } from "../components/ConnectedApps";
+import { EmptyState } from "../components/EmptyState";
+import { PhoneDetailsField } from "../components/PhoneLedger";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { usePendingAction } from "../components/usePendingAction";
@@ -140,6 +145,84 @@ export function AccountPage() {
           </Stack>
         </AccordionDetails>
       </Accordion>
+
+      <ConnectedAppsPanel />
     </Box>
+  );
+}
+
+const DISCONNECT_SX = { minHeight: 44, width: { xs: "100%", md: "auto" } };
+
+// #799 — the apps allowed to act as you (#798's consent says to come here to undo
+// one). Each row opens to what it can do and when it was connected and last used.
+function ConnectedAppsPanel() {
+  const { t } = useTranslation("connectedApps");
+  const facts = useConnectionFacts();
+  const [apps, setApps] = useState<AppConnection[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const load = useCallback(() => {
+    listMyConnectedApps().then((rows) => { setApps(rows); setLoadFailed(false); }, () => setLoadFailed(true));
+  }, []);
+  useEffect(load, [load]);
+  const { disconnect, busy, message, error, confirmDialog } = useDisconnect(load);
+  const ask = (app: AppConnection) => {
+    const name = facts.name(app);
+    void disconnect(name, t("confirmBody", { app: name }), () => disconnectMyApp(app.clientId));
+  };
+  const idle = apps?.find(facts.isIdle);
+
+  return (
+    <Accordion defaultExpanded disableGutters>
+      <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+        <Typography variant="h3" component="span">
+          {t("heading")}{apps && apps.length > 0 && <Box component="span" sx={{ color: "text.secondary", fontWeight: 400 }}> {apps.length}</Box>}
+        </Typography>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Typography variant="body2" color="text.secondary">{t("hint")}</Typography>
+        <Stack spacing={2} sx={{ mt: 2 }}>
+          {loadFailed && <Alert severity="error">{t("loadFailed")}</Alert>}
+          {message && <Alert severity="success">{message}</Alert>}
+          {error && <Alert severity="error">{error}</Alert>}
+          {apps?.length === 0 && <EmptyState icon={Plug} message={t("empty")} />}
+          {apps && apps.length > 0 && <Typography>{t("count", { count: apps.length })}</Typography>}
+          {idle && (
+            <Alert severity="warning" icon={false} sx={{ flexWrap: { xs: "wrap", md: "nowrap" }, "& .MuiAlert-action": { ml: { xs: 0, md: "auto" }, pl: { xs: 0, md: 2 } } }}
+              action={(
+                <Button variant="outlined" color="error" disabled={busy} onClick={() => ask(idle)} sx={DISCONNECT_SX}>
+                  {t("disconnectApp", { app: facts.name(idle) })}
+                </Button>
+              )}>
+              {t("nudge", { app: facts.name(idle), days: facts.idleDays(idle) })}
+            </Alert>
+          )}
+          {apps && apps.length > 0 && (
+            <Box sx={{ borderTop: "1px solid var(--rule)" }}>
+              {apps.map((app) => (
+                <Box component="details" key={app.clientId} sx={{ borderBottom: "1px solid var(--rule)", "&[open] > summary svg": { transform: "rotate(180deg)" } }}>
+                  <Box component="summary" sx={{ display: "flex", alignItems: "center", gap: 2, py: 1.5, cursor: "pointer", listStyle: "none", "&::-webkit-details-marker": { display: "none" } }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 650, overflowWrap: "anywhere" }}>{facts.name(app)}</Typography>
+                      {facts.status(app)}
+                    </Box>
+                    <ChevronDown size={18} aria-hidden />
+                  </Box>
+                  <Box component="dl" sx={{ m: 0 }}>
+                    <PhoneDetailsField label={t("can")}>{facts.can(app)}</PhoneDetailsField>
+                    <PhoneDetailsField label={t("connected")}>{facts.connected(app)}</PhoneDetailsField>
+                    <PhoneDetailsField label={t("lastUsed")}>{facts.lastUsed(app)}</PhoneDetailsField>
+                  </Box>
+                  <Button variant="outlined" color="error" disabled={busy} onClick={() => ask(app)}
+                    aria-label={t("disconnectApp", { app: facts.name(app) })} sx={{ ...DISCONNECT_SX, my: 1.5 }}>
+                    {t("disconnect")}
+                  </Button>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Stack>
+        {confirmDialog}
+      </AccordionDetails>
+    </Accordion>
   );
 }

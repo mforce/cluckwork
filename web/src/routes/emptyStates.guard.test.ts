@@ -24,6 +24,8 @@ const EMPTY_STATE_SITES: { file: string; key: string }[] = [
   { file: "ExpensesPage.tsx", key: "noExpensesMatch" },
   { file: "ExpensesPage.tsx", key: "noExpensesMessage" },
   { file: "SalesPage.tsx", key: "noOrdersMatch" },
+  { file: "AccountPage.tsx", key: "empty" },
+  { file: "ConnectedAppsPage.tsx", key: "farmEmpty" },
 ];
 
 describe("classified empty-state sites render through EmptyState, not a bare muted paragraph", () => {

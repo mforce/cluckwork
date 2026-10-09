@@ -56,6 +56,13 @@ describe("navGroups role gates", () => {
     expect(reachable("Admin", true).has("users")).toBe(true);
   });
 
+  it("offers the farm's Connected apps only to the Owner (#799)", () => {
+    expect(reachable("Admin", true).has("connectedApps")).toBe(true);
+    for (const [role, admin] of [["Manager", true], ["Worker", false], ["Sales", false], ["ReadOnly", false]] as const) {
+      expect(reachable(role, admin).has("connectedApps")).toBe(false);
+    }
+  });
+
   it("offers Farm settings only to the Owner (#729)", () => {
     expect(reachable("Admin", true).has("farmSettings")).toBe(true);
     expect(reachable("Manager", true).has("farmSettings")).toBe(false);

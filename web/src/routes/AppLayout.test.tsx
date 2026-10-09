@@ -152,11 +152,11 @@ describe("AppLayout sidebar", () => {
   // rendered only tabEntries would leave that model-level suite green. This
   // is the counter-check on the rendered DOM, one per role that changes the
   // count (Admin has the most groups/links; ReadOnly the fewest).
-  it("renders every group and link the nav model builds for Admin — 7 groups, 20 links", () => {
+  it("renders every group and link the nav model builds for Admin — 7 groups, 21 links", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     const nav = screen.getByRole("navigation", { name: "Primary" });
     expect(nav.querySelectorAll(".nav-group-label")).toHaveLength(7);
-    expect(within(nav).getAllByRole("link")).toHaveLength(20);
+    expect(within(nav).getAllByRole("link")).toHaveLength(21);
   });
 
   it("renders every group and link the nav model builds for ReadOnly — 5 groups, 6 links", () => {

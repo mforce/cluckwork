@@ -8,8 +8,8 @@ The maintainer's picks from `oauth-direction-lab.html`, as of 2026-10-09:
 | Consent | #798 | D, Compact card, with a prominent email | Built in #798 |
 | Reconnect (an app already approved for everything it asks) | #798 | A slim password prompt in D's card | Built in #798 |
 | Audit provenance | #800 | C, the actor line, with B's plug icon | Built in #800 (PR #1138) |
-| Connected apps on Account | #799 | Pending | |
-| The Owner's farm-wide view | #799 | Pending | |
+| Connected apps on Account | #799 | C, the count sentence, the idle nudge and expandable rows | Built in #799 |
+| The Owner's farm-wide view | #799 | C, its own Setup page with a Person filter | Built in #799 |
 
 ## Terms
 
@@ -30,3 +30,12 @@ The write permission reads "Record daily entries" with no line about drafts or s
 ## Reconnect
 
 When the payload says `alreadyApproved`, the card asks only for the password: the headline "Reconnect <app>?", the Unverified marker, one line, the password, Allow and Cancel, and the undo line. It shows no permission rows and no Details. Every connection still spends a step-up grant (`docs/decisions/798-oauth-consent.md`).
+
+## Connected apps on Account: C
+
+A panel after Change password. It opens with "N connected apps can act as you." When an app has gone unused for 30 days, a warning names it and offers **Disconnect <app>**. Each app is a disclosure row: the name and a status word (**In use**, **Not used yet** or **Not used for N days**), and inside it **Can** (the consent screen's permission words), **Connected**, **Last used** and **Disconnect**. Disconnect asks first, then says the app stops working on its next request.
+
+## The Owner's farm-wide view: C
+
+Its own page, **Setup** › **Connected apps**, with Lucide's plug icon (the icon #800 uses in the audit log), shown only to the Owner. A **Person** filter and a count sit above a table at 1280 (Person and role, App and permissions, Connected, Last used, Disconnect) and a stacked list with a full-width **Disconnect** at 390. The line under the title says why the Owner may do this: disconnecting does less than disabling the person.
+
