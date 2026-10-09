@@ -59,7 +59,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
                 account.Name, account.TimeZoneId, account.Locale, account.DefaultCurrencyCode,
                 account.UnitSystem, account.FirstDayOfWeek, account.DateFormatOverride,
                 account.TimeFormatOverride, account.Brand, account.DefaultStepperUnit,
-                account.WorkerSaleAllocationPolicy, basisPoints, financialRowsExist: false);
+                account.WorkerSaleAllocationPolicy, basisPoints, account.AllowConnectedApps, financialRowsExist: false);
             Assert.True(result.IsSuccess);
             await db.SaveChangesAsync();
         });

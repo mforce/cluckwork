@@ -25,6 +25,7 @@
 | MaxDiscountBasisPoints | integer |  | true |  |  |  |
 | CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| AllowConnectedApps | boolean | true | false |  |  |  |
 
 ## Viewpoints
 
@@ -37,6 +38,7 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | Accounts_AccountId_not_null | n | NOT NULL "AccountId" |
+| Accounts_AllowConnectedApps_not_null | n | NOT NULL "AllowConnectedApps" |
 | Accounts_Brand_not_null | n | NOT NULL "Brand" |
 | Accounts_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | Accounts_DefaultCurrencyCode_not_null | n | NOT NULL "DefaultCurrencyCode" |
@@ -97,6 +99,7 @@ erDiagram
   integer MaxDiscountBasisPoints
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  boolean AllowConnectedApps
 }
 "public.AspNetUsers" {
   uuid Id

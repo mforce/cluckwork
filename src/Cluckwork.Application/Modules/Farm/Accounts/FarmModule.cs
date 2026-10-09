@@ -61,5 +61,5 @@ public sealed class FarmModule(
             a.TimeZoneId, a.Locale, a.UnitSystem, a.FirstDayOfWeek,
             a.DateFormatOverride, a.TimeFormatOverride, a.Brand,
             a.DefaultStepperUnit, a.WorkerSaleAllocationPolicy,
-            a.MaxDiscount?.Percent, a.Version);
+            a.MaxDiscount?.Percent, a.AllowConnectedApps, a.Version);
 }

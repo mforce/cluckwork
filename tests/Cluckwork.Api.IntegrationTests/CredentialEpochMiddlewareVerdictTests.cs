@@ -17,7 +17,7 @@ public sealed class CredentialEpochMiddlewareVerdictTests
     private sealed class FixedVerifier(CredentialVerdict verdict) : ICredentialEpochVerifier
     {
         public Task<CredentialVerdict> VerifyAsync(
-            Guid userId, Guid accountId, int tokenEpoch, CancellationToken ct = default) =>
+            Guid userId, Guid accountId, int tokenEpoch, bool connectedApp, CancellationToken ct = default) =>
             Task.FromResult(verdict);
     }
 
@@ -39,6 +39,7 @@ public sealed class CredentialEpochMiddlewareVerdictTests
     [InlineData(CredentialVerdict.UnknownUser, "Auth.CredentialsSuperseded")]
     [InlineData(CredentialVerdict.Disabled, "Auth.AccountDisabled")]
     [InlineData(CredentialVerdict.FarmSuspended, "Auth.FarmSuspended")]
+    [InlineData(CredentialVerdict.ConnectedAppsOff, "Auth.ConnectedAppsOff")]
     [InlineData(CredentialVerdict.Superseded, "Auth.CredentialsSuperseded")]
     [InlineData((CredentialVerdict)0, "Auth.CredentialsSuperseded")]
     [InlineData((CredentialVerdict)99, "Auth.CredentialsSuperseded")]

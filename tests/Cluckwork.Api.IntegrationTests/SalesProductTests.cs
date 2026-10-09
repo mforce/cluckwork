@@ -442,6 +442,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
                 brand = "aubergine",
                 defaultStepperUnit = "Individual",
                 workerSaleAllocationPolicy = "AssignedFlocksOnly",
+                allowConnectedApps = true,
                 settings.Settings.Version
             })
         };

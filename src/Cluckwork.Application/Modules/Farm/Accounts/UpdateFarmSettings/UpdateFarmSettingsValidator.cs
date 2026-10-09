@@ -101,6 +101,10 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
                     + "places, or empty for no ceiling.")
             .WithErrorCode("FarmSettings.MaxDiscountPercent.Allowed");
 
+        RuleFor(x => x.AllowConnectedApps)
+            .NotNull()
+            .WithErrorCode("FarmSettings.AllowConnectedApps.Required");
+
         RuleFor(x => x.Version)
             .GreaterThanOrEqualTo(0)
             .WithErrorCode("FarmSettings.Version.NonNegative");

@@ -3,7 +3,8 @@ import type { ChangeEvent, FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronDown, Trash2, Upload } from "lucide-react";
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Paper, Stack, TextField, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Checkbox, FormControlLabel, Paper, Stack,
+  TextField, Typography,
 } from "@mui/material";
 import {
   BANNER_ACCEPT, LOGO_ACCEPT, getFarmBanner, getFarmSettings, listEggUnitConversions,
@@ -166,6 +167,7 @@ export function SettingsPage() {
   const { confirm, confirmDialog } = useConfirm();
   const { t } = useTranslation("settings");
   const { t: tc } = useTranslation("common");
+  const { t: tApps } = useTranslation("connectedApps");
 
   const [loaded, setLoaded] = useState<FarmSettings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -192,6 +194,7 @@ export function SettingsPage() {
   // null anyway. Lives on the FarmSettings wrapper (admin-only) like the
   // policy above; every other role sees only Account.yourMaxDiscountPercent.
   const [maxDiscountPercent, setMaxDiscountPercent] = useState("");
+  const [allowConnectedApps, setAllowConnectedApps] = useState(true);
   const [firstDayOfWeek, setFirstDayOfWeek] = useState("");
   const [dateFormat, setDateFormat] = useState("");
   // #452 — true once the user (or the loaded value) is on the "Custom…"
@@ -241,6 +244,7 @@ export function SettingsPage() {
   const timeZoneNoteId = useId();
   const logoRulesId = useId();
   const bannerRulesId = useId();
+  const connectedAppsHintId = useId();
 
   const logoHash = loaded?.settings.logoContentHash ?? null;
   const hasLogo = logoHash !== null;
@@ -288,6 +292,7 @@ export function SettingsPage() {
     setLocale(s.locale);
     setCurrencyCode(s.currencyCode);
     setUnitSystem(s.unitSystem);
+    setAllowConnectedApps(s.allowConnectedApps);
     setFirstDayOfWeek(s.firstDayOfWeek ?? "");
     const nextDateFormat = s.dateFormatOverride ?? "";
     setDateFormat(nextDateFormat);
@@ -378,6 +383,7 @@ export function SettingsPage() {
         defaultStepperUnit,
         workerSaleAllocationPolicy,
         maxDiscountPercent: percentOrNull(maxDiscountPercent),
+        allowConnectedApps,
         version: loaded.settings.version,
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
@@ -945,6 +951,19 @@ export function SettingsPage() {
             slotProps={{ htmlInput: { maxLength: MAX_FORMAT } }} />
         )}
       </Stack>
+          </AccordionDetails>
+        </Accordion>
+
+        {/* #1146 — a form field, saved with the rest, so a Checkbox rather than a Switch. */}
+        <Accordion disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
+          <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+            <Typography variant="h3" component="span">{tApps("heading")}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <FormControlLabel label={t("allowConnectedAppsLabel")}
+              control={<Checkbox checked={allowConnectedApps} onChange={(e) => setAllowConnectedApps(e.target.checked)}
+                slotProps={{ input: { "aria-describedby": connectedAppsHintId } }} />} />
+            <Typography id={connectedAppsHintId} variant="body2" color="text.secondary">{t("allowConnectedAppsHint")}</Typography>
           </AccordionDetails>
         </Accordion>
 

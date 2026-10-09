@@ -5,6 +5,7 @@ using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore;
@@ -85,6 +86,9 @@ public static class OAuthEndpoints
 
     public const string ConsentHeaderName = "X-Cluckwork-Consent";
 
+    // #1146 — the farm's switch is off: consent and the per-request check both say so.
+    public const string ConnectedAppsOff = "Auth.ConnectedAppsOff";
+
     // #798 — OpenIddict has already validated the client, the redirect URI, PKCE and the
     // scopes. Consent is all or nothing and always needs the user's password through a
     // step-up grant. When one of their valid permanent authorizations for this app already
@@ -95,6 +99,7 @@ public static class OAuthEndpoints
         TenantContext tenant,
         FlockScope flockScope,
         IAccessModule access,
+        IFarmModule farm,
         IOpenIddictApplicationManager applications,
         IOpenIddictAuthorizationManager authorizations,
         IUnitOfWork unitOfWork,
@@ -129,6 +134,12 @@ public static class OAuthEndpoints
                     [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user declined the request.",
                 }),
                 [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+
+        // #1146 — before any password is asked or code issued. Cancel, above, still
+        // sends the user back to the app.
+        if ((await farm.GetSettingsAsync(ct))?.AllowConnectedApps != true)
+            return Results.Problem("This farm doesn't allow connected apps. Ask an Owner.",
+                statusCode: StatusCodes.Status403Forbidden, title: ConnectedAppsOff);
 
         var request = context.GetOpenIddictServerRequest()!;
         // RFC 6749 §3.3 lets a server default an empty request. The default is the narrower

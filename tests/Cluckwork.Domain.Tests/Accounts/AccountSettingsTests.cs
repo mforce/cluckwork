@@ -25,6 +25,7 @@ public sealed class AccountSettingsTests
         EggUnit defaultStepperUnit = EggUnit.Individual,
         WorkerSaleAllocationPolicy workerSaleAllocationPolicy = WorkerSaleAllocationPolicy.AssignedFlocksOnly,
         int? maxDiscountBasisPoints = null,
+        bool allowConnectedApps = true,
         bool financialRowsExist = false) =>
         account.UpdateSettings(
             name ?? account.Name,
@@ -33,7 +34,7 @@ public sealed class AccountSettingsTests
             currencyCode ?? account.DefaultCurrencyCode,
             unitSystem, firstDayOfWeek, dateFormatOverride, timeFormatOverride,
             brand: FarmBrands.Default, defaultStepperUnit, workerSaleAllocationPolicy,
-            maxDiscountBasisPoints, financialRowsExist);
+            maxDiscountBasisPoints, allowConnectedApps, financialRowsExist);
 
     [Fact]
     public void UpdateSettings_AppliesTheBlock_AndBumpsVersion()
@@ -58,6 +59,19 @@ public sealed class AccountSettingsTests
         Assert.Equal("dd/MM/yyyy", account.DateFormatOverride);
         Assert.Null(account.TimeFormatOverride);
         Assert.Equal(before + 1, account.Version);
+    }
+
+    // #1146
+    [Fact]
+    public void ConnectedApps_StartOn_AndASaveTurnsThemOffAndBackOn()
+    {
+        var account = UsdFarm();
+        Assert.True(account.AllowConnectedApps, "a new farm starts with connected apps off");
+
+        Assert.True(Update(account, allowConnectedApps: false).IsSuccess);
+        Assert.False(account.AllowConnectedApps);
+        Assert.True(Update(account, allowConnectedApps: true).IsSuccess);
+        Assert.True(account.AllowConnectedApps);
     }
 
     // #444
@@ -196,7 +210,7 @@ public sealed class AccountSettingsTests
             UnitSystem.Metric, null, null, null,
             brand: FarmBrands.Default, defaultStepperUnit: EggUnit.Individual,
             workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
-            maxDiscountBasisPoints: null, financialRowsExist: false);
+            maxDiscountBasisPoints: null, allowConnectedApps: true, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(expectedCode, result.Error.Code);
@@ -232,7 +246,7 @@ public sealed class AccountSettingsTests
             firstDayOfWeek: null, dateFormatOverride: null, timeFormatOverride: null,
             brand: "forest", defaultStepperUnit: EggUnit.Individual,
             workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
-            maxDiscountBasisPoints: null, financialRowsExist: false);
+            maxDiscountBasisPoints: null, allowConnectedApps: true, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -252,7 +266,7 @@ public sealed class AccountSettingsTests
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
             null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual,
             workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
-            maxDiscountBasisPoints: null, financialRowsExist: false);
+            maxDiscountBasisPoints: null, allowConnectedApps: true, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -270,7 +284,7 @@ public sealed class AccountSettingsTests
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
             null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual,
             workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
-            maxDiscountBasisPoints: null, financialRowsExist: false);
+            maxDiscountBasisPoints: null, allowConnectedApps: true, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Account.UnknownBrand", result.Error.Code);
@@ -288,7 +302,7 @@ public sealed class AccountSettingsTests
             "Renamed", "America/Los_Angeles", "es-MX", "USD", UnitSystem.Imperial,
             null, null, null, brand: "chartreuse", defaultStepperUnit: EggUnit.Individual,
             workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
-            maxDiscountBasisPoints: null, financialRowsExist: false);
+            maxDiscountBasisPoints: null, allowConnectedApps: true, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Original", account.Name);
@@ -331,7 +345,7 @@ public sealed class AccountSettingsTests
             UnitSystem.Metric, null, null, null, brand: "chartreuse",
             defaultStepperUnit: EggUnit.Individual,
             workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AllFarmFlocks,
-            maxDiscountBasisPoints: null, financialRowsExist: false);
+            maxDiscountBasisPoints: null, allowConnectedApps: true, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(WorkerSaleAllocationPolicy.AssignedFlocksOnly, account.WorkerSaleAllocationPolicy);
@@ -406,7 +420,7 @@ public sealed class AccountSettingsTests
             UnitSystem.Imperial, null, null, null, brand: FarmBrands.Default,
             defaultStepperUnit: EggUnit.Individual,
             workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AllFarmFlocks,
-            maxDiscountBasisPoints: DiscountCeiling.MaxBasisPoints + 1, financialRowsExist: false);
+            maxDiscountBasisPoints: DiscountCeiling.MaxBasisPoints + 1, allowConnectedApps: true, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Test Farm Co", account.Name);

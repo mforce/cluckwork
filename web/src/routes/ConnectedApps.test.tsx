@@ -3,6 +3,7 @@ import { screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { AccountPage } from "./AccountPage";
 import { ConnectedAppsPage } from "./ConnectedAppsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
   disconnectMyApp, disconnectUserApp, listFarmConnectedApps, listMyConnectedApps, listUsers,
 } from "../api/cluckwork";
@@ -175,6 +176,16 @@ describe("Setup › Connected apps, the Owner's farm-wide page (#799)", () => {
     await waitFor(() => expect(screen.queryByRole("option", { name: "Ben Cruz" })).not.toBeInTheDocument());
     expect(screen.getByLabelText("Person")).toHaveValue("");
     expect(screen.getByText("Claude Desktop")).toBeInTheDocument();
+  });
+
+  // #1146
+  it("says why the apps don't work while the farm has them off", async () => {
+    renderWithProviders(<ConnectedAppsPage />,
+      { token: { sub: "owner", role: "Admin" }, farm: account({ allowConnectedApps: false }) });
+
+    expect(await screen.findByText(
+      "Connected apps are off for this farm, so these apps can't act for anyone. Turn them on in Farm settings.",
+    )).toBeInTheDocument();
   });
 
   it("disconnects the person's app, not the Owner's", async () => {

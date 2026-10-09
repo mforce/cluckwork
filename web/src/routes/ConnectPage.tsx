@@ -25,6 +25,7 @@ const RECORDS_ENTRIES = new Set(["Admin", "Manager", "Worker"]);
 type View =
   | { kind: "loading" }
   | { kind: "refused" }
+  | { kind: "off" }
   | { kind: "leaving" }
   | { kind: "ask"; request: ConsentRequest };
 
@@ -69,7 +70,7 @@ export function ConnectPage() {
     let live = true;
     askConsent(search).then(
       (answer) => { if (live) follow(answer); },
-      () => { if (live) setView({ kind: "refused" }); });
+      (err) => { if (live) setView({ kind: isOff(err) ? "off" : "refused" }); });
     return () => { live = false; };
   }, [search]);
 
@@ -89,8 +90,9 @@ export function ConnectPage() {
       }
       try {
         follow(await approveConsent(search, grant));
-      } catch {
-        setError(t("failed"));
+      } catch (err) {
+        if (isOff(err)) setView({ kind: "off" });
+        else setError(t("failed"));
       }
     });
   }
@@ -128,6 +130,14 @@ export function ConnectPage() {
               <Button variant="contained" onClick={() => navigate("/")}>{t("refusedButton")}</Button>
             </Stack>
           )}
+          {view.kind === "off" && (
+            <Stack spacing={2}>
+              <Typography variant="h2" component="h1">{t("offTitle")}</Typography>
+              <Typography variant="body2">{t("offBody")}</Typography>
+              <Box aria-live="assertive">{error && <Alert severity="error" role="alert">{error}</Alert>}</Box>
+              <Button variant="outlined" onClick={() => void cancel()} disabled={busy}>{t("cancel")}</Button>
+            </Stack>
+          )}
           {view.kind === "ask" && (
             <Stack component="form" spacing={2} onSubmit={allow}>
               <Headline request={view.request} ref={headingRef} />
@@ -150,6 +160,9 @@ export function ConnectPage() {
     </Box>
   );
 }
+
+// #1146 — the farm's Owner turned connected apps off.
+const isOff = (err: unknown) => err instanceof ApiError && err.title === "Auth.ConnectedAppsOff";
 
 function Headline({ request, ref }: { request: ConsentRequest; ref: Ref<HTMLHeadingElement> }) {
   const { t } = useTranslation("connect");

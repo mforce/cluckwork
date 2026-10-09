@@ -221,6 +221,32 @@ describe("ConnectPage (#798, consent D)", () => {
     expect(assign).toHaveBeenCalledWith("http://127.0.0.1:5000/cb?error=access_denied");
   });
 
+  // #1146
+  it("says the farm doesn't allow connected apps, asks no password, and Cancel returns to the app", async () => {
+    vi.mocked(askConsent).mockRejectedValue(new ApiError(403, "Auth.ConnectedAppsOff", "off"));
+    vi.mocked(declineConsent).mockResolvedValue({ redirectUri: "http://127.0.0.1:5000/cb?error=access_denied" });
+    renderWithProviders(
+      <Routes><Route path="/connect" element={<ConnectPage />} /></Routes>,
+      { route: `/connect${SEARCH}`, token: { sub: "u1" } },
+    );
+
+    expect(await screen.findByRole("heading", { name: "Connected apps are off" })).toBeInTheDocument();
+    expect(screen.getByText("This farm doesn't allow connected apps. Ask an Owner.")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Cancel" })); });
+    expect(assign).toHaveBeenCalledWith("http://127.0.0.1:5000/cb?error=access_denied");
+  });
+
+  it("switches to the refusal when the farm turns apps off before Allow", async () => {
+    vi.mocked(stepUp).mockResolvedValue({ token: "grant", expiresAt: "" });
+    vi.mocked(approveConsent).mockRejectedValue(new ApiError(403, "Auth.ConnectedAppsOff", "off"));
+    await show(REQUEST);
+
+    await allowWith("pw");
+
+    expect(await screen.findByRole("heading", { name: "Connected apps are off" })).toBeInTheDocument();
+  });
+
   it("shows nothing to approve when the server refuses the request", async () => {
     vi.mocked(askConsent).mockRejectedValue(new ApiError(400, "invalid_request", "bad"));
     renderWithProviders(

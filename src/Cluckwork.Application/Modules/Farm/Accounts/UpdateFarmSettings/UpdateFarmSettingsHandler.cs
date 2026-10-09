@@ -139,6 +139,7 @@ public sealed class UpdateFarmSettingsHandler(
             Enum.Parse<EggUnit>(command.DefaultStepperUnit, ignoreCase: true),
             Enum.Parse<WorkerSaleAllocationPolicy>(command.WorkerSaleAllocationPolicy, ignoreCase: true),
             ToBasisPoints(command.MaxDiscountPercent),
+            command.AllowConnectedApps!.Value,
             currencyBoundRowsExist);
 
     // #727 — the same single parser the validator ran, so the boundary and the
@@ -178,6 +179,7 @@ public sealed class UpdateFarmSettingsHandler(
         a.Brand,
         DefaultStepperUnit = a.DefaultStepperUnit.ToString(),
         WorkerSaleAllocationPolicy = a.WorkerSaleAllocationPolicy.ToString(),
-        a.MaxDiscountBasisPoints
+        a.MaxDiscountBasisPoints,
+        a.AllowConnectedApps
     };
 }

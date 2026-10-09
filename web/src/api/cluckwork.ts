@@ -550,6 +550,8 @@ export interface Account {
   // their token refreshes. The failure mode is a stale warning, never a wrong
   // outcome: the confirm handler's fresh in-transaction role read decides.
   yourMaxDiscountPercent: number | null;
+  // #1146 — the farm's switch; off refuses consent and every app's token.
+  allowConnectedApps: boolean;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
@@ -618,6 +620,7 @@ export interface UpdateFarmSettings {
   workerSaleAllocationPolicy: string;
   // #727 — null clears the ceiling; 0 is a legal, different setting.
   maxDiscountPercent: number | null;
+  allowConnectedApps: boolean;
   version: number;
 }
 

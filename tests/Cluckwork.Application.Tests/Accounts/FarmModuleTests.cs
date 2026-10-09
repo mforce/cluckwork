@@ -19,7 +19,7 @@ public sealed class FarmModuleTests
         var updated = account.UpdateSettings(
             "Hilltop Farm", "Asia/Kuwait", "es", "KWD", UnitSystem.Imperial, DayOfWeek.Saturday,
             "dd/MM/yyyy", "HH:mm", "forest", EggUnit.Tray, WorkerSaleAllocationPolicy.AllFarmFlocks,
-            maxDiscountBasisPoints: 1_250, financialRowsExist: false);
+            maxDiscountBasisPoints: 1_250, allowConnectedApps: false, financialRowsExist: false);
         Assert.True(updated.IsSuccess);
         return account;
     }
@@ -38,7 +38,7 @@ public sealed class FarmModuleTests
             new FarmSettingsDetails(
                 AccountId, "Hilltop Farm", "KWD", 3, account.CurrencySymbol, "Asia/Kuwait", "es",
                 UnitSystem.Imperial, DayOfWeek.Saturday, "dd/MM/yyyy", "HH:mm", "forest",
-                EggUnit.Tray, WorkerSaleAllocationPolicy.AllFarmFlocks, 12.5m, 1),
+                EggUnit.Tray, WorkerSaleAllocationPolicy.AllFarmFlocks, 12.5m, false, 1),
             await Module(account).GetSettingsAsync(default));
     }
 

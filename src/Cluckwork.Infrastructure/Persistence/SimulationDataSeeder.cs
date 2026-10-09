@@ -996,7 +996,8 @@ public sealed class SimulationDataSeeder(
             // carry the farm's current ceiling forward or it would silently
             // clear one (#727). The fixture sets none today; that is not a
             // reason to hard-code null here.
-            account.MaxDiscountPercent);
+            account.MaxDiscountPercent,
+            account.AllowConnectedApps);
 
         var result = await farm.UpdateSettingsAsync(command, ct);
         Require(result, $"set primary account timezone to {sim.TimeZoneId}");

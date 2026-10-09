@@ -62,4 +62,5 @@ public sealed record FarmSettingsDetails(
     EggUnit DefaultStepperUnit,
     WorkerSaleAllocationPolicy WorkerSaleAllocationPolicy,
     decimal? MaxDiscountPercent,
+    bool AllowConnectedApps,
     int Version);

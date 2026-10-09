@@ -141,7 +141,8 @@ public static class AccountEndpoints
             request.DefaultStepperUnit,
             request.WorkerSaleAllocationPolicy,
             request.Version,
-            request.MaxDiscountPercent);
+            request.MaxDiscountPercent,
+            request.AllowConnectedApps);
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -177,7 +178,8 @@ public static class AccountEndpoints
         a.DefaultStepperUnit.ToString(),
         bannerContentHash,
         showFarmWideSaleAllocationNotice,
-        yourMaxDiscountPercent);
+        yourMaxDiscountPercent,
+        a.AllowConnectedApps);
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -221,7 +223,9 @@ public sealed record AccountResponse(
     // Claims-derived and therefore a display hint only — ConfirmSaleHandler's
     // fresh in-transaction role read is the authority. See
     // AccountEndpoints.YourMaxDiscountPercent.
-    decimal? YourMaxDiscountPercent);
+    decimal? YourMaxDiscountPercent,
+    // #1146 — role-agnostic so the Connected apps screens can say why apps stopped.
+    bool AllowConnectedApps);
 
 public sealed record FarmSettingsResponse(
     AccountResponse Settings,
@@ -254,4 +258,5 @@ public sealed record UpdateFarmSettingsRequest(
     int Version,
     // #727 — a PERCENT, not basis points: basis points are the storage choice.
     // Omitted or null clears the ceiling; zero is a different, legal setting.
-    decimal? MaxDiscountPercent);
+    decimal? MaxDiscountPercent,
+    bool? AllowConnectedApps);

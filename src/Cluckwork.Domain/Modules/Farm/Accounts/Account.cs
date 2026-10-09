@@ -72,6 +72,10 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
             ? DiscountCeiling.FromBasisPoints(basisPoints)
             : null;
 
+    // #1146 — off refuses consent and every OAuth token of the farm; it revokes
+    // nothing, so turning it back on restores the connections nobody disconnected.
+    public bool AllowConnectedApps { get; private set; } = true;
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
@@ -174,6 +178,7 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
         EggUnit defaultStepperUnit,
         WorkerSaleAllocationPolicy workerSaleAllocationPolicy,
         int? maxDiscountBasisPoints,
+        bool allowConnectedApps,
         bool financialRowsExist)
     {
         var guard = ValidateRequiredFields(name, timeZoneId, locale, currencyCode);
@@ -228,6 +233,7 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
         DefaultStepperUnit = defaultStepperUnit;
         WorkerSaleAllocationPolicy = workerSaleAllocationPolicy;
         MaxDiscountBasisPoints = maxDiscountBasisPoints;
+        AllowConnectedApps = allowConnectedApps;
 
         // Only re-derive on an actual change (§4.6). Refreshing the symbol and
         // minor unit on every save would let a catalog update silently

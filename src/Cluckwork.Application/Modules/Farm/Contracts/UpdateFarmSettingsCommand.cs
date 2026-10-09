@@ -26,4 +26,6 @@ public sealed record UpdateFarmSettingsCommand(
     // #727 — the farm's maximum discount, as a PERCENT: basis points are the
     // storage choice, percent is the wire form. Null clears the ceiling; zero
     // is a different, legal setting meaning "give nothing away".
-    decimal? MaxDiscountPercent);
+    decimal? MaxDiscountPercent,
+    // #1146 — nullable only so an omitted field is a 400, never a silent false.
+    bool? AllowConnectedApps);

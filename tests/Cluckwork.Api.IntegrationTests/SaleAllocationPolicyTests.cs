@@ -87,7 +87,7 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
                 account.Name, account.TimeZoneId, account.Locale, account.DefaultCurrencyCode,
                 account.UnitSystem, account.FirstDayOfWeek, account.DateFormatOverride, account.TimeFormatOverride,
                 account.Brand, account.DefaultStepperUnit, policy,
-                account.MaxDiscountBasisPoints, financialRowsExist: false);
+                account.MaxDiscountBasisPoints, account.AllowConnectedApps, financialRowsExist: false);
             Assert.True(result.IsSuccess);
             await db.SaveChangesAsync();
         });

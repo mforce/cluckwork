@@ -97,7 +97,7 @@ public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factor
         var (accountId, userId, _) = await SeedWithStoredEpochAsync(epoch);
 
         var verdict = await factory.WithTenantScopeAsync(accountId,
-            db => new CredentialEpochVerifier(db).VerifyAsync(userId, accountId, epoch));
+            db => new CredentialEpochVerifier(db).VerifyAsync(userId, accountId, epoch, connectedApp: false));
 
         Assert.Equal(CredentialVerdict.Superseded, verdict);
     }

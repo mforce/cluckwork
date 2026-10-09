@@ -21,7 +21,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         string? DateFormatOverride, string? TimeFormatOverride, int Version,
         string? LogoContentHash, string Brand, string DefaultStepperUnit,
         string? BannerContentHash, bool ShowFarmWideSaleAllocationNotice,
-        decimal? YourMaxDiscountPercent);
+        decimal? YourMaxDiscountPercent, bool AllowConnectedApps);
     private sealed record SettingsDto(
         AccountDto Settings, bool CanChangeCurrency, int LogoMaxUploadBytes,
         string WorkerSaleAllocationPolicy, decimal? MaxDiscountPercent);
@@ -56,6 +56,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         string? workerSaleAllocationPolicy = null, int? version = null,
         decimal? maxDiscountPercent = null) => new
         {
+            allowConnectedApps = current.AllowConnectedApps,
             name = name ?? current.Name,
             timeZoneId = timeZoneId ?? current.TimeZoneId,
             locale = locale ?? current.Locale,
@@ -990,6 +991,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
             brand = current.Brand,
             defaultStepperUnit = current.DefaultStepperUnit,
             workerSaleAllocationPolicy = "AssignedFlocksOnly",
+            allowConnectedApps = current.AllowConnectedApps,
             version = current.Version,
         };
         Assert.Equal(HttpStatusCode.NoContent,
