@@ -141,8 +141,6 @@ describe("ConnectPage (#798, consent D)", () => {
     expect(logout).toHaveBeenCalled();
   });
 
-  // Details states what this request would get: its scopes, within the user's role and
-  // flock scope, never what the role name alone suggests.
   async function detailsFor(request: ConsentRequest, role: string | null) {
     await show(request, role);
     fireEvent.click(screen.getByText("Details"));
