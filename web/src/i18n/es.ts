@@ -47,6 +47,9 @@ export const es = {
     clearFiltersButton: "Borrar filtros",
   },
   auth: {
+    loginNextHeading: "Siguiente: aprobar {{app}}",
+    loginNextHeadingUnnamed: "Siguiente: aprobar una aplicación",
+    loginNextBody: "Después de iniciar sesión, verás lo que pide y decidirás si lo permites.",
     title: "Cluckwork",
     shellEyebrow: "Gestión de granjas avícolas",
     shellTagline: "Registro diario · Existencias · Ventas",
@@ -100,6 +103,49 @@ export const es = {
     setPasswordSignOut: "Cerrar sesión",
     setPasswordMismatchError: "Las nuevas contraseñas no coinciden.",
     setPasswordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
+  },
+  connect: {
+    title: "¿Dejar que {{app}} actúe como tú?",
+    titleMore: "¿Dejar que {{app}} haga más?",
+    titleReconnect: "¿Volver a conectar {{app}}?",
+    reconnectBody: "Ya la permitiste antes. Escribe tu contraseña para confirmar que eres tú.",
+    unnamedApp: "Una aplicación sin nombre",
+    unverified: "Aplicación no verificada",
+    signedInAs: "Sesión iniciada como",
+    returnsHere: "Vuelve a este equipo",
+    returnsTo: "Vuelve a {{host}}",
+    scopesLabel: "Pide",
+    scopeRead: "Leer datos de la granja",
+    scopeReadLine: "Lotes, existencias, registros y ventas",
+    scopeWrite: "Anotar registros diarios",
+    scopeWriteLine: "Solo borradores. Una persona los envía.",
+    scopeBlocked: "Tu rol no lo permite",
+    scopeNew: "Nuevo",
+    scopeHad: "Ya permitido",
+    acts: "Actúa como tú, solo con tu acceso",
+    roleSr: "Tu rol:",
+    password: "Tu contraseña actual",
+    allow: "Permitir",
+    cancel: "Cancelar",
+    wrongPassword: "Contraseña incorrecta. No se conectó nada.",
+    tooManyAttempts: "Demasiados intentos. Espera unos minutos y vuelve a intentarlo.",
+    failed: "Algo salió mal y no se conectó nada. Vuelve a intentarlo.",
+    undo: "Desconéctala cuando quieras en Cuenta › Aplicaciones conectadas.",
+    details: "Detalles",
+    detailsActs: "Actúa como tú, así que nunca puede hacer más que tú.",
+    roleFull: "Tu rol es {{role}}, así que puede leer todos los lotes y anotar registros de cualquiera de ellos.",
+    roleWorker: "Tu rol es {{role}}, así que solo ve los lotes que tienes asignados y solo anota registros de esos.",
+    roleNoWrite: "Tu rol es {{role}}, así que puede leer datos de la granja pero no puede anotar registros diarios, aunque lo pida.",
+    detailsName: "{{app}} eligió su propio nombre. Cluckwork no lo comprueba, así que permítela solo si acabas de empezar a conectar {{app}}.",
+    detailsReturnHere: "Después, tu navegador vuelve a {{host}}, una dirección de este equipo.",
+    detailsReturnTo: "Después, tu navegador va a {{host}}.",
+    detailsScopes: "Leer incluye lotes, existencias, registros diarios, clientes, pedidos y pagos. Los registros que anota quedan como borradores hasta que una persona los envía.",
+    notYou: "¿No eres tú? Cerrar sesión",
+    refusedTitle: "No hay nada que aprobar",
+    refusedBody: "Esta solicitud venció o no es válida, así que no se conectó nada. Empieza de nuevo desde la aplicación.",
+    refusedButton: "Ir a Cluckwork",
+    loading: "Cargando la solicitud…",
+    leaving: "Volviendo a la aplicación…",
   },
   account: {
     eyebrow: "Preferencias personales",
@@ -2340,6 +2386,13 @@ export const es = {
       + "volver a habilitar un usuario, asignar un trabajador a un lote, y quitarle a un trabajador la asignación "
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
       + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla.",
+    signingInConnectApp:
+      "<strong>Conectar una aplicación.</strong> Una aplicación externa, como un asistente de IA, puede pedir actuar "
+      + "como tú. Cluckwork muestra lo que pide, <strong>Leer datos de la granja</strong>, <strong>Anotar registros "
+      + "diarios</strong> o ambos, y respondes con <strong>Permitir</strong> después de escribir <strong>Tu contraseña "
+      + "actual</strong>, o con <strong>Cancelar</strong>. Nunca puede hacer más que tu propio rol. Cuando una aplicación "
+      + "que ya permitiste se conecta otra vez, solo se pide tu contraseña. La aplicación eligió su propio nombre, así "
+      + "que permítela solo si acabas de empezar a conectarla. <strong>Detalles</strong> tiene la explicación completa.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -3172,6 +3225,11 @@ export const es = {
       + "el código de la granja que desea.",
 
     // #308/#356/#360 (machine-drafted, pending native review)
+    glossaryAppConsentTerm: "Conectar una aplicación",
+    glossaryAppConsentDef:
+      "Aprobar que una aplicación externa, como un asistente de IA, actúe como tú. Ves lo que pide y la permites con tu "
+      + "contraseña actual; nunca puede hacer más que tu rol. Una aplicación ya permitida solo pide la contraseña "
+      + "cuando se conecta otra vez.",
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "

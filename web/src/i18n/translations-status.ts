@@ -19,6 +19,7 @@ import type { en } from "./en";
 export const TRANSLATED_NAMESPACES = [
   "common",
   "auth",
+  "connect",
   "account",
   "errors",
   "sales",

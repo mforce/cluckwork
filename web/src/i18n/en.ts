@@ -82,6 +82,9 @@ export const en = {
     clearFiltersButton: "Clear filters",
   },
   auth: {
+    loginNextHeading: "Next: approve {{app}}",
+    loginNextHeadingUnnamed: "Next: approve an app",
+    loginNextBody: "After you sign in, you see what it asks for and choose whether to allow it.",
     title: "Cluckwork",
     shellEyebrow: "Poultry farm management",
     shellTagline: "Daily entry · Stock · Sales",
@@ -155,6 +158,50 @@ export const en = {
     setPasswordSignOut: "Sign out",
     setPasswordMismatchError: "The new passwords don't match.",
     setPasswordTooShortError: "The new password must be at least {{min}} characters.",
+  },
+  // #798 — the consent screen for connected apps (/connect), compact direction D.
+  connect: {
+    title: "Let {{app}} act as you?",
+    titleMore: "Let {{app}} do more?",
+    titleReconnect: "Reconnect {{app}}?",
+    reconnectBody: "You allowed it before. Enter your password to confirm it's you.",
+    unnamedApp: "An unnamed app",
+    unverified: "Unverified app",
+    signedInAs: "Signed in as",
+    returnsHere: "Returns to this computer",
+    returnsTo: "Returns to {{host}}",
+    scopesLabel: "It asks to",
+    scopeRead: "Read farm data",
+    scopeReadLine: "Flocks, stock, entries and sales",
+    scopeWrite: "Record daily entries",
+    scopeWriteLine: "Drafts only. A person submits them.",
+    scopeBlocked: "Not allowed for your role",
+    scopeNew: "New",
+    scopeHad: "Already allowed",
+    acts: "Acts as you, with only your access",
+    roleSr: "Your role:",
+    password: "Your current password",
+    allow: "Allow",
+    cancel: "Cancel",
+    wrongPassword: "Wrong password. Nothing was connected.",
+    tooManyAttempts: "Too many attempts. Wait a few minutes and try again.",
+    failed: "Something went wrong, and nothing was connected. Try again.",
+    undo: "Disconnect it anytime in Account › Connected apps.",
+    details: "Details",
+    detailsActs: "It acts as you, so it can never do more than you can.",
+    roleFull: "Your role is {{role}}, so it can read every flock and record entries for any of them.",
+    roleWorker: "Your role is {{role}}, so it sees only the flocks assigned to you and records entries only for those.",
+    roleNoWrite: "Your role is {{role}}, so it can read farm data but cannot record daily entries, even though it asks to.",
+    detailsName: "{{app}} chose its own name. Cluckwork does not check it, so allow it only if you just started connecting {{app}}.",
+    detailsReturnHere: "Afterwards your browser goes back to {{host}}, an address on this computer.",
+    detailsReturnTo: "Afterwards your browser goes to {{host}}.",
+    detailsScopes: "Reading covers flocks, stock, daily entries, customers, orders and payments. Entries it records stay drafts until a person submits them.",
+    notYou: "Not you? Sign out",
+    refusedTitle: "Nothing to approve",
+    refusedBody: "This request expired or isn't valid, so nothing was connected. Start again from the app.",
+    refusedButton: "Go to Cluckwork",
+    loading: "Loading the request…",
+    leaving: "Going back to the app…",
   },
   account: {
     eyebrow: "Personal preferences",
@@ -3075,6 +3122,13 @@ export const en = {
       + "changing a login email, disabling a user, re-enabling a user, assigning a worker to a flock, and "
       + "removing a worker's flock assignment. This confirms it's really you before "
       + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
+    signingInConnectApp:
+      "<strong>Connecting an app.</strong> An outside app, such as an AI assistant, can ask to act as you. "
+      + "Cluckwork shows what it asks for, <strong>Read farm data</strong>, <strong>Record daily entries</strong> or both, "
+      + "and you answer with <strong>Allow</strong> after typing <strong>Your current password</strong>, or with "
+      + "<strong>Cancel</strong>. It can never do more than your own role. When an app you already allowed connects "
+      + "again, only your password is asked. The app chose its own name, so allow it only if you just started "
+      + "connecting it. <strong>Details</strong> has the longer explanation.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -3864,6 +3918,11 @@ export const en = {
       + "re-runs with the same dates you picked. Each farm has its own allowance, so "
       + "another farm's reports never use up yours.",
     // #308/#356/#360
+    glossaryAppConsentTerm: "Connecting an app",
+    glossaryAppConsentDef:
+      "Approving an outside app, such as an AI assistant, to act as you. You see what it asks for and allow it with "
+      + "your current password; it can never do more than your role. An app already allowed asks only for the "
+      + "password when it connects again.",
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "

@@ -1407,6 +1407,20 @@ Trusted offline provisioning, seeding, and `recover-admin` commands use their
 separate one-shot trust boundary and never select a browser-visible bypass.
 TOTP/WebAuthn step-up is a deferred follow-up (#320).
 
+**Connecting an app (#798)** — approving an outside app, such as an AI assistant,
+to act as you through OAuth. The app sends you to Cluckwork's consent screen
+(`/connect`), signing in first if needed; the sign-in screen names the app it
+continues to. The screen shows the app's self-chosen name with an **Unverified
+app** marker, what it asks for (**Read farm data**, **Record daily entries**),
+that it acts as you with only your access, and where the browser returns. It is
+all or nothing: **Allow** after re-entering **Your current password** (a
+**step-up grant**, see above), or **Cancel**. Every approval spends a step-up
+grant. When an app you already approved asks for nothing new, the screen skips
+the permissions and asks only for the password; when it asks for more, the new
+permission is marked **New** and the earlier one **Already allowed**.
+**Details** holds the longer explanations and **Not you? Sign out**. The app's
+access never expires on its own; disconnecting it is #799's job.
+
 **First-run admin provisioning (#283)** — how a fresh deploy gets its first
 Owner without ever shipping a repo-known credential. The default account, the
 four assignable roles, and the default egg grades are **static reference

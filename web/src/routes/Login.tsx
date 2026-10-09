@@ -14,6 +14,7 @@ import i18n from "../i18n";
 import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCodeCache";
 import { applyDeviceBrand } from "../lib/brand";
 import { returnPath } from "../auth/returnPath";
+import { previewConsent } from "../api/oauth";
 import { useCachedBannerUrl } from "../lib/bannerCache";
 
 interface LocationState {
@@ -80,6 +81,17 @@ export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = returnPath((location.state as LocationState | null)?.from);
+
+  // #798 (login B) — sign-in that continues to a connected app's request names the
+  // app it continues to. Undefined while asking, null when unnamed or refused.
+  const connectSearch = from.startsWith("/connect?") ? from.slice("/connect".length) : null;
+  const [nextApp, setNextApp] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (connectSearch === null) return;
+    let live = true;
+    void previewConsent(connectSearch).then((name) => { if (live) setNextApp(name); });
+    return () => { live = false; };
+  }, [connectSearch]);
 
   // If the load-time silent refresh (#145) restores a session while we're on
   // /login, don't strand the user on the form — send them to their destination.
@@ -218,6 +230,14 @@ export function Login() {
   return (
     <AuthShell
       footerNote={t("loginShellFooter")}
+      nextStep={connectSearch !== null && nextApp !== undefined ? (
+        <>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "inherit" }}>
+            {nextApp ? t("loginNextHeading", { app: nextApp }) : t("loginNextHeadingUnnamed")}
+          </Typography>
+          <Typography variant="body2" sx={{ color: "inherit", opacity: 0.85 }}>{t("loginNextBody")}</Typography>
+        </>
+      ) : undefined}
       bannerSlot={cachedBanner !== null ? (
         <Box
           component="img"

@@ -5,9 +5,12 @@ import { Box, Paper, Typography } from "@mui/material";
 import { ThemeToggle } from "./ThemeToggle";
 import { resyncThemeColorMeta } from "../theme/metaThemeColor";
 
+// nextStep (#798, login B) names what follows sign-in: in the brand panel in place
+// of the tagline on a wide screen, and above the form on a phone, where the
+// panel is a short band.
 export function AuthShell({
-  children, footerNote, bannerSlot,
-}: { children: ReactNode; footerNote: string; bannerSlot?: ReactNode }) {
+  children, footerNote, bannerSlot, nextStep,
+}: { children: ReactNode; footerNote: string; bannerSlot?: ReactNode; nextStep?: ReactNode }) {
   const { t } = useTranslation("auth");
 
   // #976 round 2 — this screen fills the whole viewport in --surface-2, with
@@ -56,15 +59,29 @@ export function AuthShell({
           <Typography variant="h1" sx={{
             color: "var(--on-brand)", fontSize: { xs: "1.75rem", md: "2.5rem" },
           }}>{t("title")}</Typography>
-          <Typography variant="body2" sx={{ color: "var(--on-brand-mute)", display: { xs: "none", md: "block" } }}>
-            {t("shellTagline")}
-          </Typography>
+          {nextStep ? (
+            <Box sx={{
+              display: { xs: "none", md: "block" }, marginTop: 3, padding: "14px",
+              border: "1px solid var(--on-brand-mute)", borderRadius: "var(--r-panel)",
+            }}>{nextStep}</Box>
+          ) : (
+            <Typography variant="body2" sx={{ color: "var(--on-brand-mute)", display: { xs: "none", md: "block" } }}>
+              {t("shellTagline")}
+            </Typography>
+          )}
           {bannerSlot}
           <Typography variant="caption" sx={{ color: "var(--on-brand-mute)", marginTop: "auto", paddingTop: 3 }}>
             {footerNote}
           </Typography>
         </Box>
         <Box sx={{ flex: 1, padding: { xs: "20px", md: "32px" }, backgroundColor: "background.paper" }}>
+          {nextStep && (
+            <Box sx={{
+              display: { xs: "block", md: "none" }, marginBottom: 2, padding: "14px",
+              border: "1px solid var(--hairline)", borderRadius: "var(--r-panel)",
+              background: "var(--tint-accent)", color: "var(--ink)",
+            }}>{nextStep}</Box>
+          )}
           {children}
         </Box>
       </Paper>
