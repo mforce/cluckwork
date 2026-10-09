@@ -1,4 +1,8 @@
+using System.Security.Claims;
+using Cluckwork.Api.Modules.Access.OAuth;
+using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
+using OpenIddict.Abstractions;
 
 namespace Cluckwork.Api.Middleware;
 
@@ -37,7 +41,8 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             if (Guid.TryParse(sub, out var userId))
             {
                 user.Resolve(userId, email ?? "",
-                    context.User.FindAll("role").Select(c => c.Value).ToList());
+                    context.User.FindAll("role").Select(c => c.Value).ToList(),
+                    ConnectedAppOf(context.User));
             }
             else
             {
@@ -52,6 +57,12 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
 
         await next(context);
     }
+
+    // #800 — only an OAuth access token carries client_id; a session JWT never does.
+    private static ConnectedApp? ConnectedAppOf(ClaimsPrincipal principal) =>
+        principal.FindFirst(OpenIddictConstants.Claims.ClientId)?.Value is { Length: > 0 } clientId
+            ? new ConnectedApp(clientId, principal.FindFirst(OAuthEndpoints.ClientNameClaim)?.Value)
+            : null;
 
     private static IDisposable? ResolveAccountScope(HttpContext context, TenantContext tenant,
         Serilog.IDiagnosticContext diagnosticContext, ILogger<TenantResolutionMiddleware> logger)

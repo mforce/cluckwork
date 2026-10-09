@@ -13,6 +13,7 @@ public interface IAuditEventRepository
 
     Task<IReadOnlyList<AuditEventRead>> ListAsync(
         string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
+        bool connectedAppsOnly, string? connectedAppClientId,
         int limit, int offset, CancellationToken ct = default);
 
     // #494 — created/last-changed per entity id, for one entity type. An id

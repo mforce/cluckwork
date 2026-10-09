@@ -270,9 +270,11 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                     .OrderBy(x => x.OccurredAtUtc)
                     .ThenBy(x => EF.Property<long>(x, "Sequence")),
                 ["id", "occurredAtUtc", "actorUserId", "actorEmail", "action",
-                 "entityType", "entityId", "reason", "detailsJson"],
+                 "entityType", "entityId", "reason", "detailsJson",
+                 "connectedAppClientId", "connectedAppName"],
                 x => [x.Id, x.OccurredAtUtc, x.ActorUserId, x.ActorEmail, x.Action,
-                      x.EntityType, x.EntityId, x.Reason, x.DetailsJson]),
+                      x.EntityType, x.EntityId, x.Reason, x.DetailsJson,
+                      x.ConnectedAppClientId, x.ConnectedAppName]),
 
             _ => null,
         };

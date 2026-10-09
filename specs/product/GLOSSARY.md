@@ -729,12 +729,24 @@ against `FarmLogo`, a row shared by both the logo and the banner.
 **Clearing filters (#679)** — both filtered lists that can be narrowed while
 still showing rows carry a **Clear filters** control in the filter row itself,
 not only inside the zero-rows empty state. On the /audit
-viewer it resets all four narrowing controls (record type, action, from, to) in
-one write, and deliberately **keeps the `entityId` scope**: that scope is where
+viewer it resets every narrowing control (record type, action, from, to, and the
+connected-app filters) in one write, and deliberately **keeps the `entityId` scope**: that scope is where
 the view was opened from — a record's own "Audit history" link — not a filter
 the admin set on this screen, so clearing it would silently widen the page from
 one record to the whole farm. The empty state stays a plain sentence with no
 action (#655).
+
+**Connected app (#788, #800)** — an outside app, such as an AI assistant, that a
+person on the farm approved to act for them through OAuth. OAuth calls it a
+client; the UI always says **Connected apps**. It acts with that person's role
+and flock scope, never more, so the person stays the actor on every audit event
+(#500). The event also records the app's OAuth client id and its name, copied
+when the person approved it and kept after the app is disconnected or removed.
+The name is self-chosen at registration, so it describes the app rather than
+proving who made it, and it renders as plain text. The /audit viewer shows the
+person on every event's second line, adds a plug icon and "via" with the app's
+name when an app acted, offers an **Only actions through connected apps**
+checkbox, and puts a **Show only** button for that app inside the event.
 
 **Hen-day % (#91, #780)** — eggs collected ÷ **recorded** hen-days × 100
 (spec §19.3, amended by #780). A hen-day is one bird alive for one day; the

@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
-import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
+import { BrowserRouter, Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { AuditPage, isFetchStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
 import i18n from "../i18n";
+import { clearAccessToken, setAccessToken } from "../auth/tokenStore";
+import { makeToken } from "../test/jwt";
 
 // AuditPage's only network dep is listAuditEvents; mock that seam so the screen
 // renders against controlled data — no network, no backend. ApiError stays real
@@ -64,6 +66,21 @@ function LocationProbe() {
   );
 }
 
+// AppLayout mounts each screen under an ErrorBoundary keyed on location.key, so every
+// URL write, a filter included, gives AuditPage a fresh instance. Specs about state
+// that must survive a filter change render through this, not a bare AuditPage.
+function RemountingAudit() {
+  return <AuditPage key={useLocation().key} />;
+}
+
+function renderRemountingAudit(route = "/audit") {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <RemountingAudit />
+    </MemoryRouter>,
+  );
+}
+
 function renderAuditWithProbe(route = "/audit") {
   return render(
     <MemoryRouter initialEntries={[route]}>
@@ -82,6 +99,8 @@ const EVENT_A: AuditEvent = {
   entityId: "f1234567-89ab-cdef",
   reason: "culled sick birds",
   detailsJson: '{"count":5}',
+  connectedAppClientId: null,
+  connectedAppName: null,
 };
 const EVENT_B: AuditEvent = {
   id: "a2",
@@ -92,11 +111,14 @@ const EVENT_B: AuditEvent = {
   entityId: "u9abcdef-0000",
   reason: null,
   detailsJson: null,
+  connectedAppClientId: null,
+  connectedAppName: null,
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  clearAccessToken();
   mockListAuditEvents.mockResolvedValue([]); // default mount-load: empty page
 });
 
@@ -222,6 +244,8 @@ describe("AuditPage load + render", () => {
       entityId: "fl123456-89ab-cdef",
       reason: null,
       detailsJson: null,
+      connectedAppClientId: null,
+      connectedAppName: null,
     };
     mockListAuditEvents.mockResolvedValue([LOGO_EVENT]);
     renderAudit();
@@ -248,7 +272,7 @@ describe("AuditPage load + render", () => {
     const rowB = screen.getByRole("article", { description: /manager@farm\.test/ });
     expandPanel(rowB);
     expect(within(rowB).getByText("User u9abcdef")).toBeInTheDocument();
-    expect(rowB.querySelector(".audit-event-body")?.children).toHaveLength(3);
+    expect(rowB.querySelector(".audit-event-body")?.children).toHaveLength(2);
   });
 
   // The raw-JSON hover tooltip must not fight the row's existing actor
@@ -288,10 +312,11 @@ describe("AuditPage load + render", () => {
     // controls — and 'load more' only appears when a full page came back.
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     const panels = screen.getAllByRole("article");
-    expect(panels.map((panel) => getPanelSummary(panel).textContent)).toEqual([
-      "2026-07-19 14:30:05 UTC · Flock depleted",
-      "2026-07-18 09:15:00 UTC · User created",
-    ]);
+    expect(panels.map((panel) => Array.from(getPanelSummary(panel).children, (line) => line.textContent)))
+      .toEqual([
+        ["2026-07-19 14:30:05 UTC · Flock depleted", "admin@farm.test"],
+        ["2026-07-18 09:15:00 UTC · User created", "manager@farm.test"],
+      ]);
     expect(panels.every((panel) => !panel.hasAttribute("open"))).toBe(true);
   });
 
@@ -309,6 +334,8 @@ describe("AuditPage load + render", () => {
     entityType: "SalesOrder",
     entityId: "10d2c04d-0000",
     reason: null,
+    connectedAppClientId: null,
+    connectedAppName: null,
     detailsJson: JSON.stringify({
       salesOrderItemId: "11111111-0000", productId: "22222222-0000",
       productName: "Large Eggs", unit: "Egg", quantity: 240,
@@ -382,6 +409,8 @@ describe("AuditPage load + render", () => {
       entityType: "SalesOrder",
       entityId: "10d2c04d-0000",
       reason: null,
+      connectedAppClientId: null,
+      connectedAppName: null,
       detailsJson: JSON.stringify({
         salesOrderItemId: "11111111-0000", productId: "22222222-0000",
         productName: "Medium Eggs", unit: "Dozen",
@@ -411,6 +440,8 @@ describe("AuditPage load + render", () => {
       entityType: "SalesOrder",
       entityId: "10d2c04d-0000",
       reason: null,
+      connectedAppClientId: null,
+      connectedAppName: null,
       detailsJson: JSON.stringify({
         salesOrderItemId: "11111111-0000", productId: "22222222-0000",
         productName: "Cracked Eggs", unit: "Egg",
@@ -441,7 +472,7 @@ describe("AuditPage load + render", () => {
     expect(within(rowA).getByText("culled sick birds")).toBeInTheDocument();
     const rowB = screen.getByRole("article", { description: /manager@farm\.test/ });
     expandPanel(rowB);
-    expect(rowB.querySelector(".audit-event-body")?.children).toHaveLength(3);
+    expect(rowB.querySelector(".audit-event-body")?.children).toHaveLength(2);
   });
 
   // #756 — the discount reason on a SalesOrder.Confirm row. This is the trap
@@ -458,6 +489,8 @@ describe("AuditPage load + render", () => {
       entityType: "SalesOrder",
       entityId: "10d2c04d-0000",
       reason: null,
+      connectedAppClientId: null,
+      connectedAppName: null,
       detailsJson: JSON.stringify({
         discountReasonCode: "DamagedStock",
         discountReasonNote: "Cracked in transit",
@@ -480,6 +513,8 @@ describe("AuditPage load + render", () => {
       entityId: "10d2c04d-0000",
       reason: null,
       detailsJson: JSON.stringify({ discountReasonCode: "Volume" }),
+      connectedAppClientId: null,
+      connectedAppName: null,
     }]);
     renderAudit();
 
@@ -498,29 +533,34 @@ describe("AuditPage load + render", () => {
       entityId: "10d2c04d-0000",
       reason: null,
       detailsJson: null,
+      connectedAppClientId: null,
+      connectedAppName: null,
     }]);
     renderAudit();
 
     const row = await screen.findByRole("article", { description: /admin@farm\.test/ });
     expandPanel(row);
-    expect(row.querySelector(".audit-event-body")?.children).toHaveLength(3);
+    expect(row.querySelector(".audit-event-body")?.children).toHaveLength(2);
   });
 });
 
 describe("AuditPage expandable event panels", () => {
-  it("uses one exact summary string with the native disclosure marker at its start", async () => {
+  it("uses one exact summary line, then the actor, with the native disclosure marker at its start", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
 
     const panel = await screen.findByRole("article");
     const summary = panel.querySelector("summary");
     expect(summary).not.toBeNull();
-    expect(summary).toHaveTextContent(/^2026-07-19 14:30:05 UTC · Flock depleted$/);
+    expect(Array.from(summary?.children ?? [], (line) => line.textContent)).toEqual([
+      "2026-07-19 14:30:05 UTC · Flock depleted",
+      "admin@farm.test",
+    ]);
     expect(summary?.querySelector("svg")).toBeNull();
     expect(panel).toHaveAccessibleName("2026-07-19 14:30:05 UTC · Flock depleted");
   });
 
-  it("stacks actor, action, entity and details in that order without labels", async () => {
+  it("stacks action, entity and details in that order without labels", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]);
     renderAudit();
 
@@ -528,7 +568,6 @@ describe("AuditPage expandable event panels", () => {
     fireEvent.click(getPanelSummary(panel));
     const body = panel.querySelector(".audit-event-body");
     expect(Array.from(body?.children ?? [], (line) => line.textContent)).toEqual([
-      "admin@farm.test",
       "Flock depleted",
       "Flock f1234567",
       "culled sick birds",
@@ -546,7 +585,6 @@ describe("AuditPage expandable event panels", () => {
     fireEvent.click(getPanelSummary(panel));
     const body = panel.querySelector(".audit-event-body");
     expect(Array.from(body?.children ?? [], (line) => line.textContent)).toEqual([
-      "manager@farm.test",
       "User created",
       "User u9abcdef",
     ]);
@@ -1621,5 +1659,256 @@ describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
     expect(await screen.findByRole("heading", { name: "Expense history" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
     expect(await screen.findByRole("article", { description: /d-actor@farm\.test/ })).toBeInTheDocument();
+  });
+});
+
+describe("AuditPage connected apps (#800)", () => {
+  const APP_EVENT: AuditEvent = {
+    ...EVENT_A,
+    id: "app1",
+    actorEmail: "ana@farm.test",
+    connectedAppClientId: "client-claude",
+    connectedAppName: "Claude Desktop",
+  };
+  const appsOnlyBox = () => screen.getByRole("checkbox", { name: "Only actions through connected apps" });
+  const lastQuery = () => mockListAuditEvents.mock.calls.at(-1)?.[0];
+
+  it("names the person on every row and adds the app beside them only on app rows", async () => {
+    mockListAuditEvents.mockResolvedValue([APP_EVENT, EVENT_B]);
+    renderAudit();
+
+    const appRow = await screen.findByRole("article", { description: "ana@farm.test via Claude Desktop" });
+    const personRow = screen.getByRole("article", { description: "manager@farm.test" });
+    expect(appRow).toHaveAccessibleName("2026-07-19 14:30:05 UTC · Flock depleted");
+    expect(personRow).toHaveAccessibleName("2026-07-18 09:15:00 UTC · User created");
+  });
+
+  it("shows the plug icon only on app rows, hidden from assistive technology", async () => {
+    mockListAuditEvents.mockResolvedValue([APP_EVENT, EVENT_B]);
+    renderAudit();
+
+    const appRow = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    const personRow = screen.getByRole("article", { description: "manager@farm.test" });
+    const icons = appRow.querySelectorAll("svg.audit-event-app-icon");
+    expect(icons).toHaveLength(1);
+    expect(icons[0]).toHaveAttribute("aria-hidden", "true");
+    expect(icons[0]).not.toHaveAttribute("aria-label");
+    expect(personRow.querySelectorAll("svg.audit-event-app-icon")).toHaveLength(0);
+  });
+
+  it("names an app that registered without a name", async () => {
+    mockListAuditEvents.mockResolvedValue([{ ...APP_EVENT, connectedAppName: null }]);
+    renderAudit();
+
+    const row = await screen.findByRole("article", { description: "ana@farm.test via an unnamed app" });
+    expandPanel(row);
+    expect(within(row).getByRole("button", { name: "Show only this app" })).toBeInTheDocument();
+  });
+
+  it("renders a long, markup-like app name as text that can wrap", async () => {
+    const name = `<b>Field</b> ${"Assistant".repeat(10)}`;
+    mockListAuditEvents.mockResolvedValue([{ ...APP_EVENT, connectedAppName: name }]);
+    renderAudit();
+
+    const row = await screen.findByRole("article", { description: `ana@farm.test via ${name}` });
+    expect(row.querySelector("b")).toBeNull();
+    expect(stylesheet).toMatch(/\.audit-event-actor\s*\{[^}]*overflow-wrap:\s*anywhere/);
+  });
+
+  it("filters to connected apps from the checkbox, and Clear filters removes it", async () => {
+    mockListAuditEvents.mockResolvedValue([APP_EVENT]);
+    renderAuditWithProbe();
+    await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expect(lastQuery()).toMatchObject({ connectedAppsOnly: undefined, connectedAppClientId: undefined });
+
+    fireEvent.click(appsOnlyBox());
+    await waitFor(() => expect(lastQuery()).toMatchObject({ connectedAppsOnly: true }));
+    expect(screen.getByTestId("probe-search")).toHaveTextContent("connectedAppsOnly=true");
+    expect(appsOnlyBox()).toBeChecked();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ connectedAppsOnly: undefined }));
+    expect(screen.getByTestId("probe-search")).toHaveTextContent(/^$/);
+    expect(appsOnlyBox()).not.toBeChecked();
+  });
+
+  it("pivots to one app from its event, and unchecking the box drops the pivot", async () => {
+    mockListAuditEvents.mockResolvedValue([APP_EVENT]);
+    renderAuditWithProbe();
+    const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expandPanel(row);
+
+    fireEvent.click(within(row).getByRole("button", { name: "Show only Claude Desktop" }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({
+      connectedAppsOnly: true, connectedAppClientId: "client-claude",
+    }));
+    expect(appsOnlyBox()).toBeChecked();
+    expect(await screen.findByText("Showing only actions through Claude Desktop.")).toBeInTheDocument();
+    const pivoted = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expandPanel(pivoted);
+    expect(within(pivoted).queryByRole("button", { name: /Show only/ })).not.toBeInTheDocument();
+
+    fireEvent.click(appsOnlyBox());
+    await waitFor(() => expect(lastQuery()).toMatchObject({
+      connectedAppsOnly: undefined, connectedAppClientId: undefined,
+    }));
+    expect(screen.getByTestId("probe-search")).toHaveTextContent(/^$/);
+  });
+
+  // Review round 2, F1 — the one-app filter stays visible when its result is empty.
+  it("keeps naming the pressed app when its filtered result is empty", async () => {
+    // Its own client id: knownAppNames outlives each render, so another spec's
+    // pivot must not supply this name.
+    const pressed = { ...APP_EVENT, connectedAppClientId: "client-pressed" };
+    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [pressed]));
+    renderRemountingAudit();
+    const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expandPanel(row);
+    fireEvent.click(within(row).getByRole("button", { name: "Show only Claude Desktop" }));
+    await screen.findByText("Showing only actions through Claude Desktop.");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-20" } });
+    await screen.findByText("No audit events match these filters.");
+    expect(lastQuery()).toMatchObject({ connectedAppClientId: "client-pressed", from: "2026-07-20" });
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("keeps the name a one-app URL loaded once its result goes empty", async () => {
+    const loaded = { ...APP_EVENT, connectedAppClientId: "client-loaded" };
+    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [loaded]));
+    renderRemountingAudit("/audit?connectedAppClientId=client-loaded");
+    await screen.findByText("Showing only actions through Claude Desktop.");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-20" } });
+    await screen.findByText("No audit events match these filters.");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
+  });
+
+  // A later sign-in in the same tab must not inherit an earlier user's app names.
+  it("does not show another signed-in user's app name", async () => {
+    const seen = { ...APP_EVENT, connectedAppClientId: "client-other-user" };
+    setAccessToken(makeToken({ sub: "user-a" }));
+    mockListAuditEvents.mockResolvedValueOnce([seen]);
+    const first = renderAudit("/audit?connectedAppClientId=client-other-user");
+    await screen.findByText("Showing only actions through Claude Desktop.");
+    first.unmount();
+
+    setAccessToken(makeToken({ sub: "user-b" }));
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?connectedAppClientId=client-other-user");
+    await screen.findByText("No audit events match these filters.");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through the selected app.");
+  });
+
+  it("names neither the app nor its id when a one-app URL finds no rows", async () => {
+    // An id no other spec has loaded: names seen earlier in the session are kept.
+    renderAudit("/audit?connectedAppClientId=client-unseen");
+
+    await screen.findByText("No audit events match these filters.");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through the selected app.");
+    expect(screen.queryByText(/client-unseen/)).not.toBeInTheDocument();
+  });
+
+  // Review round 2, F2 — the pressed button leaves with the reload and the remount.
+  it("moves focus to the announced caption after Show only", async () => {
+    // The pivot's reload never resolves, so the caption can only take the app's
+    // name from the pressed button.
+    const focused = { ...APP_EVENT, connectedAppClientId: "client-focus" };
+    mockListAuditEvents.mockResolvedValueOnce([focused]).mockReturnValue(new Promise(() => {}));
+    renderRemountingAudit();
+    const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expandPanel(row);
+    const button = within(row).getByRole("button", { name: "Show only Claude Desktop" });
+    button.focus();
+
+    fireEvent.click(button);
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(document.activeElement).toBe(status));
+    expect(status).toHaveTextContent("Showing only actions through Claude Desktop.");
+  });
+
+  it("restores a one-app view from the URL", async () => {
+    mockListAuditEvents.mockResolvedValue([APP_EVENT]);
+    renderAudit("/audit?connectedAppClientId=client-claude");
+
+    await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expect(lastQuery()).toMatchObject({ connectedAppsOnly: true, connectedAppClientId: "client-claude" });
+    expect(appsOnlyBox()).toBeChecked();
+  });
+});
+
+// Review round 3 — Show only's focus request belongs to the navigation it started. A
+// history entry that still carries it must not move focus again when it is restored.
+describe("AuditPage Show only focus is not replayed (#800)", () => {
+  const APP: AuditEvent = {
+    ...EVENT_A, id: "replay1", connectedAppClientId: "client-replay", connectedAppName: "Claude Desktop",
+  };
+
+  // AppLayout's keyed remount, plus the history controls a user has.
+  function HistoryHarness() {
+    const location = useLocation();
+    const navigate = useNavigate();
+    return (
+      <>
+        <button type="button" onClick={() => navigate(-1)}>history-back</button>
+        <button type="button" onClick={() => navigate(1)}>history-forward</button>
+        <button type="button" onClick={() => navigate("/help")}>go-help</button>
+        {location.pathname === "/audit" ? <AuditPage key={location.key} /> : <h1>Help page</h1>}
+      </>
+    );
+  }
+
+  async function pressShowOnly() {
+    const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expandPanel(row);
+    fireEvent.click(within(row).getByRole("button", { name: "Show only Claude Desktop" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus());
+  }
+
+  async function expectRestoredWithoutFocus() {
+    await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expect(screen.getByRole("status")).not.toHaveFocus();
+  }
+
+  beforeEach(() => mockListAuditEvents.mockResolvedValue([APP]));
+
+  it("focuses and announces the caption on the press itself", async () => {
+    render(<MemoryRouter initialEntries={["/audit"]}><HistoryHarness /></MemoryRouter>);
+    await pressShowOnly();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
+  });
+
+  it("does not refocus the caption on Back after leaving the screen", async () => {
+    render(<MemoryRouter initialEntries={["/audit"]}><HistoryHarness /></MemoryRouter>);
+    await pressShowOnly();
+    fireEvent.click(screen.getByRole("button", { name: "go-help" }));
+    await screen.findByRole("heading", { name: "Help page" });
+
+    fireEvent.click(screen.getByRole("button", { name: "history-back" }));
+    await expectRestoredWithoutFocus();
+  });
+
+  it("does not refocus the caption on Forward", async () => {
+    render(<MemoryRouter initialEntries={["/audit"]}><HistoryHarness /></MemoryRouter>);
+    await pressShowOnly();
+    fireEvent.click(screen.getByRole("button", { name: "history-back" }));
+    await waitFor(() => expect(screen.getByRole("status")).toBeEmptyDOMElement());
+
+    fireEvent.click(screen.getByRole("button", { name: "history-forward" }));
+    await expectRestoredWithoutFocus();
+  });
+
+  it("does not refocus the caption when a reload restores the history entry", async () => {
+    window.history.replaceState(null, "", "/audit");
+    const before = render(<BrowserRouter><HistoryHarness /></BrowserRouter>);
+    await pressShowOnly();
+    const kept = window.history.state?.usr;
+    before.unmount();
+
+    expect(window.history.state?.usr).toEqual(kept);
+    render(<BrowserRouter><HistoryHarness /></BrowserRouter>);
+    await expectRestoredWithoutFocus();
+    window.history.replaceState(null, "", "/");
   });
 });

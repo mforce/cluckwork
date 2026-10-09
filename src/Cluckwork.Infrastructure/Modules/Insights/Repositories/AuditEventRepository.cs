@@ -11,6 +11,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
 {
     public async Task<IReadOnlyList<AuditEventRead>> ListAsync(
         string? action, string? entityType, Guid? entityId, DateOnly? from, DateOnly? to,
+        bool connectedAppsOnly, string? connectedAppClientId,
         int limit, int offset, CancellationToken ct = default)
     {
         // Date filters are inclusive calendar days over the UTC timestamp.
@@ -30,7 +31,9 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
                      && (entityType == null || e.EntityType == entityType)
                      && (entityId == null || e.EntityId == entityId)
                      && (fromUtc == null || e.OccurredAtUtc >= fromUtc)
-                     && (toUtc == null || e.OccurredAtUtc < toUtc))
+                     && (toUtc == null || e.OccurredAtUtc < toUtc)
+                     && (!connectedAppsOnly || e.ConnectedAppClientId != null)
+                     && (connectedAppClientId == null || e.ConnectedAppClientId == connectedAppClientId))
             // #508 — "Sequence" tiebreaker, not "Id": same-instant events must
             // page stably AND in the order they were written. "Id" is a random
             // v4 Guid, so it gave a stable-but-arbitrary order.
@@ -41,7 +44,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
 
         return events.Select(e => new AuditEventRead(
             e.Id, e.OccurredAtUtc, e.ActorEmail, e.Action, e.EntityType, e.EntityId,
-            e.Reason, e.DetailsJson)).ToList();
+            e.Reason, e.DetailsJson, e.ConnectedAppClientId, e.ConnectedAppName)).ToList();
     }
 
     // #494 — who created a record and who last changed it, read out of the

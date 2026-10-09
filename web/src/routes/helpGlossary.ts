@@ -39,6 +39,7 @@ const ENTRIES = [
   { key: "Roles", group: "signingIn", spec: "Roles" },
   { key: "FlockScoping", group: "signingIn", spec: "Flock scoping" },
   { key: "DisabledUser", group: "signingIn", spec: "Disabled user" },
+  { key: "ConnectedApp", group: "signingIn", spec: "Connected app" },
   // Flocks & daily entry
   { key: "CaptureStatus", group: "flocksEntry", spec: "Capture status" },
   { key: "LayRateStripScale", group: "flocksEntry", spec: "Lay rate strip scale" },

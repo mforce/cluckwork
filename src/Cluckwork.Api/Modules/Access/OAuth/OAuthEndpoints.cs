@@ -13,6 +13,9 @@ namespace Cluckwork.Api.Modules.Access.OAuth;
 
 public static class OAuthEndpoints
 {
+    // #800 — the client's display name, carried in its access tokens beside client_id.
+    public const string ClientNameClaim = "client_name";
+
     // #796 — exactly the claims a session JWT carries (JwtTokenService), so the request
     // chain treats an OAuth principal like a session one: tenant, actor and roles,
     // flock scope, credential epoch and must-change-password all read these.
@@ -75,16 +78,24 @@ public static class OAuthEndpoints
     // #795 — OpenIddict has already validated the request. No consent screen exists
     // until #798, so a signed-in caller approves its own, with the scopes it asked for.
     // OpenIddict refuses any scope it does not register, and it registers none yet.
-    private static IResult Authorize(HttpContext context, ICurrentUser currentUser)
+    private static async Task<IResult> Authorize(
+        HttpContext context, ICurrentUser currentUser, IOpenIddictApplicationManager applications,
+        CancellationToken ct)
     {
         if (!currentUser.IsResolved) return Results.Unauthorized();
 
+        var request = context.GetOpenIddictServerRequest()!;
         var identity = new ClaimsIdentity(
             context.User.Claims.Where(claim => SessionClaimTypes.Contains(claim.Type)),
             OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
             Claims.Name,
             Claims.Role);
-        identity.SetScopes(context.GetOpenIddictServerRequest()!.GetScopes());
+        identity.SetScopes(request.GetScopes());
+        // #800 — the name rides in the token, as the user's email does, so an audit row
+        // snapshots it without a lookup per write. Registration never renames a client.
+        var application = await applications.FindByClientIdAsync(request.ClientId!, ct);
+        identity.SetClaim(ClientNameClaim,
+            application is null ? null : await applications.GetDisplayNameAsync(application, ct));
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
 
         return Results.SignIn(

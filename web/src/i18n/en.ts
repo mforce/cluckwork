@@ -2579,14 +2579,19 @@ export const en = {
     utcTimestampsCaption: "UTC timestamps",
     scopeRetainedCaption: "Record scope retained when clearing filters",
     previewRecordHistoryLabel: "Preview one record's history",
+    // #800 — connected apps (OAuth clients). The app's name is self-chosen and
+    // renders as text.
+    connectedAppsOnlyLabel: "Only actions through connected apps",
+    viaConnectedApp: "via {{app}}",
+    unnamedConnectedApp: "an unnamed app",
+    selectedConnectedApp: "the selected app",
+    showOnlyAppButton: "Show only {{app}}",
+    showOnlyThisAppButton: "Show only this app",
+    connectedAppPivotCaption: "Showing only actions through {{app}}.",
     entityTypeFilterLabel: "Record type",
     allEntityTypesOption: "All types",
     actionFilterLabel: "Action",
     allActionsOption: "All actions",
-    whenHeader: "When (UTC)",
-    whoHeader: "Who",
-    actionHeader: "Action",
-    entityHeader: "Entity",
     // #745 — the column shows the audit payload as a readable summary where one
     // is available, and falls back to the row's reason. Renamed from
     // reasonHeader; AuditPage.test.tsx's header-marker table names the new key.
@@ -3521,9 +3526,16 @@ export const en = {
       + "\"Action\" choices to actions for that type. From and To limit the results to the selected UTC days.",
     // #679 — the control, and the one thing it deliberately does NOT clear.
     auditClearingFilters:
-      "<strong>Clear filters</strong> beside those controls resets all four at once. It leaves the record "
+      "<strong>Clear filters</strong> beside those controls resets all of them at once. It leaves the record "
       + "you arrived on: opening the log from a row's Audit history link scopes it to that record, and that "
       + "scope is not one of the filters.",
+    // #800 — control names match the audit catalog's labels (#688).
+    auditConnectedApps:
+      "When someone works through a <strong>connected app</strong>, such as an AI assistant they approved, "
+      + "the event still names that person, and the line under it adds \"via\" and the app's name. The app "
+      + "chose its own name, so read it as a description, not proof of who made the app. <strong>Only actions "
+      + "through connected apps</strong> hides what people did directly. Open an event and press "
+      + "<strong>Show only</strong> followed by the app's name to see just that app's actions.",
     auditRecordHistory:
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "
@@ -4050,6 +4062,11 @@ export const en = {
     glossaryAdjustmentDiscardDef:
       "Stock corrections against a lot, reason required. Discard = write-off (spoilage).",
 
+    glossaryConnectedAppTerm: "Connected app",
+    glossaryConnectedAppDef:
+      "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
+      + "only what that person can do. The audit log names the person, adds the app on the line below, and "
+      + "can show only actions through connected apps.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "

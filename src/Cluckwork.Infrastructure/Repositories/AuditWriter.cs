@@ -54,6 +54,7 @@ public sealed class AuditWriter(
             Guid.NewGuid(), tenant.AccountId, clock.UtcNow,
             actorId, actorEmail, action, entityType, entityId,
             reason,
-            details is null ? null : JsonSerializer.Serialize(details, JsonOptions)), ct);
+            details is null ? null : JsonSerializer.Serialize(details, JsonOptions),
+            user.ConnectedApp), ct);
     }
 }

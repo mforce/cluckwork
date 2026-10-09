@@ -355,6 +355,12 @@ body {
   font-size: 0.75rem;
 }
 
+.audit-scope-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
 .audit-scope .audit-scope-control {
   margin: 0;
   flex-direction: row;
@@ -380,6 +386,16 @@ body {
   margin: 0.5rem 0 1.5rem;
 }
 
+.audit-app-pivot {
+  margin: -1rem 0 1rem;
+  overflow-wrap: anywhere;
+}
+
+/* The status region stays mounted so screen readers hear its first message. */
+.audit-app-pivot:empty {
+  margin: 0;
+}
+
 .audit-events {
   display: grid;
   gap: 0.75rem;
@@ -397,6 +413,34 @@ body {
   cursor: pointer;
   font-weight: 700;
   background: var(--soft);
+}
+
+/* #800 — who acted, on the summary's second line; long app names wrap. */
+.audit-event-actor {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.audit-event-actor strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The icon and "via <app>" wrap as one unit; a name too long for a line still breaks. */
+.audit-event-app {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.audit-event-app-icon {
+  margin-right: 0.25rem;
+  vertical-align: -2px;
 }
 
 .audit-event > summary:focus-visible {
