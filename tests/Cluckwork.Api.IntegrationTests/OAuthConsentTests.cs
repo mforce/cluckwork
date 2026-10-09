@@ -90,9 +90,7 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
     }
 
-    // #798 — the maintainer's decision: a reconnect skips the permissions, never the
-    // password. The code becomes a token that never expires, so a session bearer alone
-    // must not mint one, even for an app the user already approved.
+    // A reconnect skips the permissions, never the password (the maintainer, 2026-10-09).
     [Fact]
     public async Task ApprovedApp_AsksOnlyForThePassword()
     {
@@ -221,8 +219,8 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    // A client with one registered redirect URI may omit redirect_uri (OAuth 2.1 §2.3.2);
-    // OpenIddict then uses the registered one.
+    // A client with one registered redirect URI may omit redirect_uri; OpenIddict then
+    // uses the registered one.
     [Fact]
     public async Task OmittedRedirectUri_UsesTheRegisteredOne()
     {
