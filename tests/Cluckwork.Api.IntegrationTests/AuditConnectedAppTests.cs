@@ -1,22 +1,23 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.OAuth;
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Insights.Audit;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
+using OpenIddict.Server;
 using OpenIddict.Validation.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -26,7 +27,7 @@ namespace Cluckwork.Api.IntegrationTests;
 [Collection(IntegrationCollection.Name)]
 public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factory)
 {
-    private const string AppHeader = "X-Test-Connected-App";
+    private const string WriteScope = "cw800.write";
     private static readonly DateTimeOffset Base = new(2026, 5, 1, 8, 0, 0, TimeSpan.Zero);
 
     private sealed record Created(Guid Id);
@@ -53,40 +54,52 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
     [Fact]
     public async Task WriteThroughAConnectedApp_RecordsTheAppBesideThePerson()
     {
-        using var host = WithConnectedAppPrincipal();
+        using var host = WithAuditProbe();
         var (_, email, jwt) = await OwnerAsync();
+        var clientId = await RegisterScopedClientAsync(host, "Field Assistant");
+        var token = await ConnectAsync(host, jwt, clientId);
 
-        var customerId = await CreateCustomerAsync(host, jwt, new ConnectedApp("client-800", "Field Assistant"));
+        var entityId = await WriteThroughProbeAsync(host, token);
 
-        var row = await AuditRowAsync(jwt, customerId);
+        var row = await AuditRowAsync(jwt, entityId);
         Assert.Equal(email, row.ActorEmail);
-        Assert.Equal("client-800", row.ConnectedAppClientId);
+        Assert.Equal(clientId, row.ConnectedAppClientId);
         Assert.Equal("Field Assistant", row.ConnectedAppName);
     }
 
     [Fact]
     public async Task SessionWrite_RecordsNoApp()
     {
-        using var host = WithConnectedAppPrincipal();
         var (_, email, jwt) = await OwnerAsync();
+        using var client = factory.CreateAuthedClient(jwt);
 
-        var customerId = await CreateCustomerAsync(host, jwt, app: null);
+        using var response = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = $"Buyer {Guid.NewGuid():N}", phone = "555-0100" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
-        var row = await AuditRowAsync(jwt, customerId);
+        var row = await AuditRowAsync(jwt, (await response.Content.ReadFromJsonAsync<Created>())!.Id);
         Assert.Equal(email, row.ActorEmail);
         Assert.Null(row.ConnectedAppClientId);
         Assert.Null(row.ConnectedAppName);
     }
 
     [Fact]
-    public async Task AppName_SurvivesTheAppBeingDeleted()
+    public async Task AppName_SurvivesDisconnectAndPrune()
     {
-        using var host = WithConnectedAppPrincipal();
-        var clientId = await RegisterAsync(host, "Barn Helper");
+        using var host = WithAuditProbe();
         var (_, _, jwt) = await OwnerAsync();
-        var customerId = await CreateCustomerAsync(host, jwt, new ConnectedApp(clientId, "Barn Helper"));
+        var clientId = await RegisterScopedClientAsync(host, "Barn Helper");
+        var entityId = await WriteThroughProbeAsync(host, await ConnectAsync(host, jwt, clientId));
 
-        // What Disconnect followed by #797's prune leaves behind: no application row.
+        // Disconnect revokes the authorization (#796); #797's prune later deletes the app.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+            var authorizations = scope.ServiceProvider.GetRequiredService<IOpenIddictAuthorizationManager>();
+            var applicationId = (await applications.GetIdAsync((await applications.FindByClientIdAsync(clientId))!))!;
+            await foreach (var authorization in authorizations.FindByApplicationIdAsync(applicationId))
+                Assert.True(await authorizations.TryRevokeAsync(authorization), "the authorization was not revoked");
+        }
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
@@ -94,7 +107,7 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
             Assert.Null(await applications.FindByClientIdAsync(clientId));
         }
 
-        var row = await AuditRowAsync(jwt, customerId);
+        var row = await AuditRowAsync(jwt, entityId);
         Assert.Equal(clientId, row.ConnectedAppClientId);
         Assert.Equal("Barn Helper", row.ConnectedAppName);
     }
@@ -162,24 +175,12 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
         Assert.Contains(lines, line => line.EndsWith(",client-csv,Csv App"));
     }
 
-    private WebApplicationFactory<Program> WithConnectedAppPrincipal() =>
+    private WebApplicationFactory<Program> WithAuditProbe() =>
         factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-                options.Events = new JwtBearerEvents
-                {
-                    // Shapes the session principal like #796's OAuth one: the session
-                    // claims plus client_id and client_name.
-                    OnTokenValidated = context =>
-                    {
-                        if (context.Request.Headers[AppHeader].ToString().Split('|') is [var id, var name])
-                            ((ClaimsIdentity)context.Principal!.Identity!).AddClaims(
-                            [
-                                new Claim(Claims.ClientId, id),
-                                new Claim(OAuthEndpoints.ClientNameClaim, name),
-                            ]);
-                        return Task.CompletedTask;
-                    },
-                })));
+        {
+            services.AddSingleton<IStartupFilter, AuditProbe>();
+            services.Configure<OpenIddictServerOptions>(options => options.Scopes.Add(WriteScope));
+        }));
 
     private async Task<(Guid AccountId, string Email, string Jwt)> OwnerAsync()
     {
@@ -191,17 +192,59 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
     private Task<Guid> SeedAccountAsync() =>
         factory.SeedAccountWithUserAsync($"app-{Guid.NewGuid():N}@test.local");
 
-    private static async Task<Guid> CreateCustomerAsync(
-        WebApplicationFactory<Program> host, string jwt, ConnectedApp? app)
+    private static async Task<Guid> WriteThroughProbeAsync(WebApplicationFactory<Program> host, string token)
     {
-        using var client = host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
-        if (app is not null)
-            client.DefaultRequestHeaders.Add(AppHeader, $"{app.ClientId}|{app.Name}");
-        using var response = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
-            new { name = $"Buyer {Guid.NewGuid():N}", phone = "555-0100" });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var client = OAuthServerTests.HttpsClient(host, token);
+        using var response = await client.PostWithKeyAsync(AuditProbe.Path, Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+    }
+
+    private static async Task<string> RegisterScopedClientAsync(WebApplicationFactory<Program> host, string name)
+    {
+        var clientId = $"client-{Guid.NewGuid():N}";
+        await using var scope = host.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>().CreateAsync(
+            new OpenIddictApplicationDescriptor
+            {
+                ClientId = clientId,
+                ClientType = ClientTypes.Public,
+                DisplayName = name,
+                RedirectUris = { new Uri(OAuthServerTests.RedirectUri) },
+                Permissions =
+                {
+                    Permissions.Endpoints.Authorization,
+                    Permissions.Endpoints.Token,
+                    Permissions.GrantTypes.AuthorizationCode,
+                    Permissions.ResponseTypes.Code,
+                    Permissions.Prefixes.Scope + WriteScope,
+                },
+            });
+        return clientId;
+    }
+
+    // A user approves clientId for WriteScope and the client redeems its code.
+    private static async Task<string> ConnectAsync(WebApplicationFactory<Program> host, string jwt, string clientId)
+    {
+        var verifier = OAuthServerTests.NewCodeVerifier();
+        var query = OAuthServerTests.AuthorizeQuery(clientId, verifier);
+        query["scope"] = WriteScope;
+        using var authorize = await OAuthServerTests.SendAuthorizeAsync(host, jwt, query);
+        Assert.Equal(HttpStatusCode.Redirect, authorize.StatusCode);
+        var code = QueryHelpers.ParseQuery(authorize.Headers.Location!.Query)["code"].ToString();
+
+        using var client = OAuthServerTests.HttpsClient(host, bearer: null);
+        using var token = await client.PostAsync("/api/v1/oauth/token", new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["grant_type"] = GrantTypes.AuthorizationCode,
+                ["client_id"] = clientId,
+                ["code"] = code,
+                ["redirect_uri"] = OAuthServerTests.RedirectUri,
+                ["code_verifier"] = verifier,
+            }));
+        token.EnsureSuccessStatusCode();
+        return (await token.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("access_token").GetString()!;
     }
 
     private async Task<AuditRow> AuditRowAsync(string jwt, Guid entityId)
@@ -270,6 +313,29 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
                 });
             });
             next(app);
+        };
+    }
+
+    // A write endpoint that accepts OAuth tokens, as #806's tools will. Mapped after
+    // Program.cs builds its endpoint table, behind every middleware a business endpoint
+    // has (#796's pattern), and writing through the real IAuditWriter.
+    private sealed class AuditProbe : IStartupFilter
+    {
+        public const string Path = "/test/oauth/audit-write";
+
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            next(app);
+            var endpoints = (IEndpointRouteBuilder)app.Properties["__EndpointRouteBuilder"]!;
+            endpoints.MapPost(Path, async (IAuditWriter audit, AppDbContext db) =>
+                {
+                    var id = Guid.NewGuid();
+                    await audit.WriteAsync("Customer.Update", "Customer", id);
+                    await db.SaveChangesAsync();
+                    return Results.Ok(new { id });
+                })
+                .AcceptOAuthTokens(WriteScope)
+                .RequireAuthorization();
         };
     }
 }
