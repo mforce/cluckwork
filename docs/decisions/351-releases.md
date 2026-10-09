@@ -425,12 +425,14 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
        do it, and PR-write is reachable only by a job that explicitly references
        the App private key.
 
-     **Do not restate this as "the capability lives in one job".** The private
-     key is a *repository secret* and `permission-*` caps the returned token, not
-     the key — so **any** job referencing that secret can mint the App's full
-     grant. Two do today (release-please, and lockfix's `commit`). What makes
-     that safe is that neither executes PR-controlled code; it is not a function
-     of job count.
+     **Do not restate this as "the capability lives in one job".** `permission-*`
+     caps the returned token, not the private key, so **any** job that can read
+     the key can mint the App's full grant. Since #1131 the key is an
+     `app-token` environment secret, readable only by a job that declares that
+     environment and runs on `main` or a `release/v*.*.x` branch (see the
+     2026-10-08 amendment). Three such jobs exist today: `release-please`,
+     `groom`, and lockfix's `commit`. What makes that safe is that none of them
+     executes PR-controlled code; it is not a function of job count.
 
      `Pull requests: write` is indivisible — opening and approving a PR are the
      same scope — so **the release token can approve a PR**, and only the pinned
@@ -470,9 +472,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   with no warning. Nothing enforces the cap today, which is #368.
 
   Setup: the App needs **Contents: RW, Pull requests: RW, Issues: RW**, and the
-  repo needs `LOCKFIX_APP_CLIENT_ID` / `LOCKFIX_APP_PRIVATE_KEY` (shared with
-  lockfix). Fails closed — a missing secret fails the mint step, so no release is
-  cut with a fallback token.
+  `app-token` environment needs `LOCKFIX_APP_CLIENT_ID` / `LOCKFIX_APP_PRIVATE_KEY`
+  (shared with lockfix; see the 2026-10-08 amendment). Fails closed — a missing
+  secret fails the mint step, so no release is cut with a fallback token.
 
   **`client-id`, not `app-id`.** `create-github-app-token` v3 deprecated `app-id`
   (`deprecationMessage: "Use 'client-id' instead."`), so every run annotated a
@@ -641,4 +643,86 @@ because those are repository secrets rather than environment-scoped ones. The
 hotfix line adds no new path to them: the Release workflow triggers only on
 `main` and ruleset-restricted `release/v*.*.x` branches, which a push-access
 user cannot create. Closing it means moving the secrets into an environment
-limited to those branches, which is separate work.
+limited to those branches, which is separate work. The 2026-10-08 amendment
+below closes it.
+
+## Amendment, 2026-10-08: the App secrets live in the `app-token` environment (#1131)
+
+`LOCKFIX_APP_CLIENT_ID` and `LOCKFIX_APP_PRIVATE_KEY` were repository secrets,
+so any branch could read them by running an edited workflow on itself. They now
+live in one environment, `app-token`, whose deployment-branch policy admits only
+`main` and `release/v*.*.x`. A secret stored in an environment is available only
+to a job that declares the environment, and GitHub matches the branch policy
+against the run's `GITHUB_REF`. A workflow edited on any other branch can still
+declare `app-token`, but its job fails the branch check before it gets the
+secrets.
+
+The name is neutral on purpose. Dependabot lockfix uses the same App, so the
+environment is not a release environment.
+
+- **Every job that mints the App token declares the environment.** Today these
+  are `release-please` and `groom` in `release-please.yml`, and `commit` in
+  `dependabot-lockfix.yml`. A new workflow or job that needs the App token MUST
+  declare it the same way, or its mint step fails with empty secrets:
+
+  ```yaml
+  environment:
+    name: app-token
+    deployment: false
+  ```
+
+  `deployment: false` uses the environment's secrets and branch policy without
+  creating a deployment record, so the environment's history does not fill with
+  a "deployment" per merge. GitHub documents it as incompatible only with custom
+  deployment protection rules, which this environment does not use.
+- **Lockfix needs no extra branch rule.** It runs `on: workflow_run`, which
+  always runs the default branch's workflow file with `GITHUB_REF` set to the
+  default branch. The `main` rule therefore admits it, whatever the Dependabot
+  branch is called. Dependabot's read-only, no-secrets treatment covers `push`,
+  `pull_request`, `pull_request_review` and `pull_request_review_comment` runs,
+  not `workflow_run`.
+- **A hotfix line runs its own frozen `release-please.yml`.** A `release/v*.*.x`
+  branch cut from a tag that predates this change has no `environment:` on its
+  App-token jobs, so once the repository secrets are deleted its release PR
+  cannot be maintained. Cherry-pick this change onto the line in its first PR,
+  alongside the hotfix support itself.
+
+### Rollout
+
+The rollout rotates the App's private key instead of copying it. Deleting a
+repository secret affects only runs queued after the deletion: GitHub reads
+repository secrets when a run is queued and environment secrets when a job that
+references the environment starts
+([when GitHub Actions reads secrets](https://docs.github.com/en/actions/reference/security/secrets#when-github-actions-reads-secrets)).
+A run queued earlier from any branch keeps the old key, and so does any copy a
+workflow already took. Revoking the old key on the App is what cuts both off.
+Installation tokens already minted with it are not revoked with it; they expire
+on their own within an hour
+([installation token lifetime](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)).
+
+1. Create the `app-token` environment. Set *Deployment branches and tags* to
+   *Selected branches and tags* with two branch rules, `main` and
+   `release/v*.*.x`.
+2. Generate a **new** private key for the App and add it, with the Client ID, to
+   the environment as `LOCKFIX_APP_PRIVATE_KEY` and `LOCKFIX_APP_CLIENT_ID`.
+   Nowhere else. GitHub documents the path as Settings, *Developer settings*,
+   *GitHub Apps*, *Edit* next to the App, *Credentials*, *Key pairs*, *New key*
+   ([generating private keys](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps#generating-private-keys)).
+   That page is the authority if the UI moves. The Client ID is on the App's
+   *General* page. It is not a credential.
+3. Merge the change that adds `environment:` to the three jobs.
+4. Watch one Release run (any merge to `main`) and one lockfix run (the next
+   Dependabot NuGet PR) mint the App token successfully.
+5. Delete both repository secrets. The leftover `LOCKFIX_APP_ID` repository
+   secret is unused since the `client-id` move and can go too.
+6. Revoke the **old** private key on the App, from the same *Key pairs* list
+   ([deleting private keys](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps#deleting-private-keys)).
+
+A job that declares the environment uses the environment secret when one of
+that name exists, and the repository secret otherwise. So a workflow version
+that declares the environment keeps working at every step. A version that does
+not, such as an older commit's copy, loses the App token at step 5. After the
+cutover, repair a release with a fresh *Run workflow* dispatch, not a re-run of
+an old run: a re-run keeps the original run's commit and ref, and so its
+workflow definition
+([re-run semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)).
