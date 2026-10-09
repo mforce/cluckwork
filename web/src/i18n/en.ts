@@ -2591,10 +2591,6 @@ export const en = {
     allEntityTypesOption: "All types",
     actionFilterLabel: "Action",
     allActionsOption: "All actions",
-    whenHeader: "When (UTC)",
-    whoHeader: "Who",
-    actionHeader: "Action",
-    entityHeader: "Entity",
     // #745 — the column shows the audit payload as a readable summary where one
     // is available, and falls back to the row's reason. Renamed from
     // reasonHeader; AuditPage.test.tsx's header-marker table names the new key.
