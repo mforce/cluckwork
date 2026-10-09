@@ -161,7 +161,6 @@ export function ConnectPage() {
   );
 }
 
-// #1146 — the farm's Owner turned connected apps off.
 const isOff = (err: unknown) => err instanceof ApiError && err.title === "Auth.ConnectedAppsOff";
 
 function Headline({ request, ref }: { request: ConsentRequest; ref: Ref<HTMLHeadingElement> }) {
