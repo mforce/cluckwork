@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, within } from "@testing-library/react";
+import { screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { AccountPage } from "./AccountPage";
 import { ConnectedAppsPage } from "./ConnectedAppsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -57,8 +57,8 @@ describe("Account › Connected apps (#799)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect Claude Desktop" }));
     await confirmDisconnect("Claude Desktop");
 
-    expect(await screen.findByText("Claude Desktop is disconnected. It stops working on its next request."))
-      .toBeInTheDocument();
+    const notice = await screen.findByText("Claude Desktop is disconnected. It stops working on its next request.");
+    expect(notice.closest('[role="status"]')).not.toBeNull();
     expect(disconnectMyApp).toHaveBeenCalledWith("c1");
     expect(await screen.findByText("No apps are connected. An app you allow to act as you appears here."))
       .toBeInTheDocument();
@@ -73,6 +73,66 @@ describe("Account › Connected apps (#799)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     expect(disconnectMyApp).not.toHaveBeenCalled();
+  });
+});
+
+// #799 review round 1 — the trigger's row disappears on reload, so focus must land
+// on a control that survives: the next row, else the previous one, else the section.
+const three = [
+  app({ clientId: "c1", appName: "Alpha" }),
+  app({ clientId: "c2", appName: "Bravo" }),
+  app({ clientId: "c3", appName: "Charlie" }),
+];
+
+async function disconnectByKeyboard(name: string, appName: string) {
+  const trigger = await screen.findByRole("button", { name });
+  trigger.focus();
+  fireEvent.click(trigger);
+  await confirmDisconnect(appName);
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+}
+
+describe("Connected apps keeps keyboard focus after Disconnect (#799)", () => {
+  it("Account: the last app gone, focus moves to the panel", async () => {
+    vi.mocked(listMyConnectedApps).mockResolvedValueOnce([app({})]).mockResolvedValue([]);
+    renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "Worker" } });
+
+    await disconnectByKeyboard("Disconnect Claude Desktop", "Claude Desktop");
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Connected apps" })).toHaveFocus());
+  });
+
+  it("Account: a middle app gone, focus moves to the next app", async () => {
+    vi.mocked(listMyConnectedApps).mockResolvedValueOnce(three).mockResolvedValue([three[0], three[2]]);
+    renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "Worker" } });
+
+    await disconnectByKeyboard("Disconnect Bravo", "Bravo");
+
+    await waitFor(() => expect(screen.getByText("Charlie").closest("summary")).toHaveFocus());
+  });
+
+  it("Owner page: the last connection gone, focus moves to the heading", async () => {
+    vi.mocked(listUsers).mockResolvedValue([
+      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null },
+    ]);
+    vi.mocked(listFarmConnectedApps).mockResolvedValueOnce([app({})]).mockResolvedValue([]);
+    renderWithProviders(<ConnectedAppsPage />, { token: { sub: "owner", role: "Admin" } });
+
+    await disconnectByKeyboard("Disconnect Claude Desktop for Ana Reyes", "Claude Desktop");
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Connected apps" })).toHaveFocus());
+  });
+
+  it("Owner page: a middle connection gone, focus moves to the next one's Disconnect", async () => {
+    vi.mocked(listUsers).mockResolvedValue([
+      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null },
+    ]);
+    vi.mocked(listFarmConnectedApps).mockResolvedValueOnce(three).mockResolvedValue([three[0], three[2]]);
+    renderWithProviders(<ConnectedAppsPage />, { token: { sub: "owner", role: "Admin" } });
+
+    await disconnectByKeyboard("Disconnect Bravo for Ana Reyes", "Bravo");
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Disconnect Charlie for Ana Reyes" })).toHaveFocus());
   });
 });
 
@@ -97,6 +157,24 @@ describe("Setup › Connected apps, the Owner's farm-wide page (#799)", () => {
 
     expect(screen.getByText("1 connection, 1 person")).toBeInTheDocument();
     expect(screen.queryByText("Claude Desktop")).not.toBeInTheDocument();
+  });
+
+  // #799 review round 1 — the selected person's last app disconnected: their option
+  // goes, and the filter must show everyone rather than an empty list behind "Everyone".
+  it("shows everyone again when the selected person has no app left", async () => {
+    vi.mocked(listFarmConnectedApps).mockReset()
+      .mockResolvedValueOnce([app({}), app({ userId: "u2", clientId: "c9", appName: "ChatGPT" })])
+      .mockResolvedValue([app({})]);
+    renderWithProviders(<ConnectedAppsPage />, { token: { sub: "owner", role: "Admin" } });
+    await screen.findByText("2 connections, 2 people");
+    fireEvent.change(screen.getByLabelText("Person"), { target: { value: "u2" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect ChatGPT for Ben Cruz" }));
+    await confirmDisconnect("ChatGPT");
+
+    await waitFor(() => expect(screen.queryByRole("option", { name: "Ben Cruz" })).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Person")).toHaveValue("");
+    expect(screen.getByText("Claude Desktop")).toBeInTheDocument();
   });
 
   it("disconnects the person's app, not the Owner's", async () => {

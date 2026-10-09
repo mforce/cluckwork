@@ -160,29 +160,28 @@ function ConnectedAppsPanel() {
   const facts = useConnectionFacts();
   const [apps, setApps] = useState<AppConnection[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const load = useCallback(() => {
-    listMyConnectedApps().then((rows) => { setApps(rows); setLoadFailed(false); }, () => setLoadFailed(true));
-  }, []);
-  useEffect(load, [load]);
-  const { disconnect, busy, message, error, confirmDialog } = useDisconnect(load);
+  const load = useCallback(() =>
+    listMyConnectedApps().then((rows) => { setApps(rows); setLoadFailed(false); }, () => setLoadFailed(true)), []);
+  useEffect(() => { void load(); }, [load]);
+  const { disconnect, busy, error, notice, sectionRef, confirmDialog } = useDisconnect(load);
   const ask = (app: AppConnection) => {
     const name = facts.name(app);
-    void disconnect(name, t("confirmBody", { app: name }), () => disconnectMyApp(app.clientId));
+    void disconnect(app.clientId, name, t("confirmBody", { app: name }), () => disconnectMyApp(app.clientId));
   };
   const idle = apps?.find(facts.isIdle);
 
   return (
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+    <Accordion defaultExpanded disableGutters ref={sectionRef}>
+      <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />} data-disconnect-fallback>
         <Typography variant="h3" component="span">
           {t("heading")}{apps && apps.length > 0 && <Box component="span" sx={{ color: "text.secondary", fontWeight: 400 }}> {apps.length}</Box>}
         </Typography>
       </AccordionSummary>
       <AccordionDetails>
         <Typography variant="body2" color="text.secondary">{t("hint")}</Typography>
+        {notice}
         <Stack spacing={2} sx={{ mt: 2 }}>
           {loadFailed && <Alert severity="error">{t("loadFailed")}</Alert>}
-          {message && <Alert severity="success">{message}</Alert>}
           {error && <Alert severity="error">{error}</Alert>}
           {apps?.length === 0 && <EmptyState icon={Plug} message={t("empty")} />}
           {apps && apps.length > 0 && <Typography>{t("count", { count: apps.length })}</Typography>}
@@ -200,7 +199,7 @@ function ConnectedAppsPanel() {
             <Box sx={{ borderTop: "1px solid var(--rule)" }}>
               {apps.map((app) => (
                 <Box component="details" key={app.clientId} sx={{ borderBottom: "1px solid var(--rule)", "&[open] > summary svg": { transform: "rotate(180deg)" } }}>
-                  <Box component="summary" sx={{ display: "flex", alignItems: "center", gap: 2, py: 1.5, cursor: "pointer", listStyle: "none", "&::-webkit-details-marker": { display: "none" } }}>
+                  <Box component="summary" tabIndex={0} data-disconnect-focus={app.clientId} sx={{ display: "flex", alignItems: "center", gap: 2, py: 1.5, cursor: "pointer", listStyle: "none", "&::-webkit-details-marker": { display: "none" } }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography sx={{ fontWeight: 650, overflowWrap: "anywhere" }}>{facts.name(app)}</Typography>
                       {facts.status(app)}

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Box } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { AppConnection } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -44,29 +45,54 @@ export function useConnectionFacts() {
 
 // Confirm, disconnect, then say what happens next. A 404 means the app was already
 // disconnected (another tab, or the Owner), which leaves the person where they wanted.
-export function useDisconnect(reload: () => void) {
+//
+// The trigger's row disappears with the reload, so focus moves to the next row's
+// `data-disconnect-focus` control, else the previous row's, else the section's
+// `data-disconnect-fallback`. Both live inside `sectionRef`, keyed per connection.
+export function useDisconnect(reload: () => Promise<void>) {
   const { t } = useTranslation("connectedApps");
   const { confirm, confirmDialog } = useConfirm();
+  const sectionRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refocus, setRefocus] = useState<{ order: string[]; at: number } | null>(null);
 
-  async function disconnect(app: string, body: string, request: () => Promise<unknown>) {
+  useEffect(() => {
+    const root = sectionRef.current;
+    if (!refocus || !root) return;
+    const { order, at } = refocus;
+    const control = (key: string) => root.querySelector<HTMLElement>(`[data-disconnect-focus="${CSS.escape(key)}"]`);
+    const target = [...order.slice(at + 1), ...order.slice(0, at).reverse()].map(control).find(Boolean)
+      ?? root.querySelector<HTMLElement>("[data-disconnect-fallback]");
+    target?.focus();
+    setRefocus(null);
+  }, [refocus]);
+
+  async function disconnect(key: string, app: string, body: string, request: () => Promise<unknown>) {
     setMessage(null);
     setError(null);
+    const order = [...(sectionRef.current?.querySelectorAll<HTMLElement>("[data-disconnect-focus]") ?? [])]
+      .map((control) => control.dataset.disconnectFocus ?? "");
     if (!(await confirm({ title: t("confirmTitle", { app }), body, confirmLabel: t("disconnect"), destructive: true }))) return;
     setBusy(true);
+    let done = true;
     try {
       await request();
-      setMessage(t("disconnected", { app }));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setMessage(t("disconnected", { app }));
-      else setError(t("failed", { app }));
-    } finally {
-      setBusy(false);
-      reload();
+      done = err instanceof ApiError && err.status === 404;
+      if (!done) setError(t("failed", { app }));
     }
+    if (done) setMessage(t("disconnected", { app }));
+    await reload();
+    setBusy(false);
+    if (done) setRefocus({ order, at: order.indexOf(key) });
   }
 
-  return { disconnect, busy, message, error, confirmDialog };
+  // A polite live region present from the first render, so the result is announced.
+  const notice = (
+    <Box role="status" sx={{ "&:not(:empty)": { mt: 2 } }}>{message && <Alert severity="success" role="none">{message}</Alert>}</Box>
+  );
+
+  return { disconnect, busy, error, notice, sectionRef, confirmDialog };
 }

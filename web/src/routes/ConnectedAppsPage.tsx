@@ -26,25 +26,27 @@ export function ConnectedAppsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [person, setPerson] = useState("");
-  const load = useCallback(() => {
+  const load = useCallback(() =>
     Promise.all([listFarmConnectedApps(), listUsers()]).then(([rows, people]) => {
       setApps(rows);
       setUsers(people);
       setLoadFailed(false);
-    }, () => setLoadFailed(true));
-  }, []);
-  useEffect(load, [load]);
-  const { disconnect, busy, message, error, confirmDialog } = useDisconnect(load);
+    }, () => setLoadFailed(true)), []);
+  useEffect(() => { void load(); }, [load]);
+  const { disconnect, busy, error, notice, sectionRef, confirmDialog } = useDisconnect(load);
 
   const byId = new Map(users.map((user) => [user.id, user]));
   const who = (userId: string) => byId.get(userId)?.displayName ?? byId.get(userId)?.email ?? userId;
   const sorted = [...(apps ?? [])].sort((a, b) =>
     who(a.userId).localeCompare(who(b.userId)) || facts.name(a).localeCompare(facts.name(b)));
   const people = [...new Set(sorted.map((app) => app.userId))];
-  const shown = sorted.filter((app) => person === "" || app.userId === person);
+  // A person whose last app was just disconnected drops out of the filter: show everyone.
+  const selected = people.includes(person) ? person : "";
+  const shown = sorted.filter((app) => selected === "" || app.userId === selected);
+  const key = (app: AppConnection) => `${app.userId}/${app.clientId}`;
   const ask = (app: AppConnection) => {
     const name = facts.name(app);
-    void disconnect(name, t("confirmBodyOwner", { app: name, person: who(app.userId) }),
+    void disconnect(key(app), name, t("confirmBodyOwner", { app: name, person: who(app.userId) }),
       () => disconnectUserApp(app.userId, app.clientId));
   };
   const role = (app: AppConnection) => {
@@ -53,21 +55,21 @@ export function ConnectedAppsPage() {
   };
 
   return (
-    <Box component="section" sx={{ maxWidth: "1000px" }}>
+    <Box component="section" ref={sectionRef} sx={{ maxWidth: "1000px" }}>
       <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>{t("farmEyebrow")}</Typography>
-      <Typography variant="h2">{t("heading")}</Typography>
+      <Typography variant="h2" tabIndex={-1} data-disconnect-fallback>{t("heading")}</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ borderLeft: "3px solid var(--rule)", pl: 1.5, my: 2, maxWidth: "38rem" }}>
         {t("farmHint")}
       </Typography>
 
-      <Stack spacing={2}>
+      {notice}
+      <Stack spacing={2} sx={{ mt: 2 }}>
         {loadFailed && <Alert severity="error">{t("loadFailed")}</Alert>}
-        {message && <Alert severity="success">{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
         {apps?.length === 0 && <EmptyState icon={Plug} message={t("farmEmpty")} />}
         {apps && apps.length > 0 && (
           <Stack direction={{ xs: "column", md: "row" }} spacing={{ xs: 1, md: 2 }} sx={{ alignItems: { md: "center" } }}>
-            <TextField select label={t("person")} value={person} onChange={(e) => setPerson(e.target.value)}
+            <TextField select label={t("person")} value={selected} onChange={(e) => setPerson(e.target.value)}
               slotProps={{ select: { native: true }, inputLabel: { shrink: true } }} sx={{ minWidth: { md: "14rem" } }}>
               <option value="">{t("everyone")}</option>
               {people.map((id) => <option key={id} value={id}>{who(id)}</option>)}
@@ -95,14 +97,14 @@ export function ConnectedAppsPage() {
               </TableHead>
               <TableBody>
                 {shown.map((app) => (
-                  <TableRow key={`${app.userId}/${app.clientId}`}>
+                  <TableRow key={key(app)}>
                     <TableCell>{who(app.userId)}<Box sx={MUTED}>{role(app)}</Box></TableCell>
                     <TableCell sx={{ overflowWrap: "anywhere" }}>{facts.name(app)}<Box sx={MUTED}>{facts.can(app)}</Box></TableCell>
                     <TableCell sx={{ whiteSpace: "nowrap" }}>{facts.connected(app)}</TableCell>
                     <TableCell>{facts.lastUsed(app)}{facts.isIdle(app) && <Box>{facts.status(app)}</Box>}</TableCell>
                     <TableCell align="right">
                       <Button variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => ask(app)}
-                        startIcon={<Unplug size={14} aria-hidden />}
+                        startIcon={<Unplug size={14} aria-hidden />} data-disconnect-focus={key(app)}
                         aria-label={t("disconnectPersonApp", { app: facts.name(app), person: who(app.userId) })}>
                         {t("disconnect")}
                       </Button>
@@ -115,7 +117,7 @@ export function ConnectedAppsPage() {
         ) : (
           <PhoneLedgerList label={t("heading")}>
             {shown.map((app) => (
-              <Box component="li" key={`${app.userId}/${app.clientId}`} sx={{ px: 1.5, py: 1.5 }}>
+              <Box component="li" key={key(app)} sx={{ px: 1.5, py: 1.5 }}>
                 <Typography sx={{ fontWeight: 650 }}>
                   {who(app.userId)} <Box component="span" sx={{ ...MUTED, fontWeight: 400 }}>· {role(app)}</Box>
                 </Typography>
@@ -124,6 +126,7 @@ export function ConnectedAppsPage() {
                 <Typography sx={MUTED}>{t("connected")} {facts.connected(app)} · {t("lastUsed")} {facts.lastUsed(app)}</Typography>
                 {facts.isIdle(app) && facts.status(app)}
                 <Button variant="outlined" color="error" fullWidth disabled={busy} onClick={() => ask(app)} sx={{ minHeight: 44, mt: 1 }}
+                  data-disconnect-focus={key(app)}
                   aria-label={t("disconnectPersonApp", { app: facts.name(app), person: who(app.userId) })}>
                   {t("disconnect")}
                 </Button>
