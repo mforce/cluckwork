@@ -2157,6 +2157,7 @@ export const es = {
     "auditAction.User.Enabled": "Usuario habilitado",
     "auditAction.User.FlockAssign": "Lote asignado al usuario",
     "auditAction.User.FlockUnassign": "Lote desasignado del usuario",
+    "auditAction.User.AppDisconnected": "Aplicación desconectada",
     "auditAction.Account.Export": "Datos exportados",
     "auditAction.Account.SetLogo": "Logotipo de la granja establecido",
     "auditAction.Account.RemoveLogo": "Logotipo de la granja eliminado",

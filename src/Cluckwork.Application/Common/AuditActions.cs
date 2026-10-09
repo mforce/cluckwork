@@ -45,6 +45,9 @@ public static class AuditActions
     public const string UserBreakGlassReset = "User.BreakGlassReset";
     public const string UserFlockAssign = "User.FlockAssign";
     public const string UserFlockUnassign = "User.FlockUnassign";
+    // #799 — a person's connected app was disconnected, by them or by the farm's Owner;
+    // the actor says which. Written only when something was revoked.
+    public const string UserAppDisconnected = "User.AppDisconnected";
     public const string AccountExport = "Account.Export";
     public const string AccountSetLogo = "Account.SetLogo";
     public const string AccountRemoveLogo = "Account.RemoveLogo";

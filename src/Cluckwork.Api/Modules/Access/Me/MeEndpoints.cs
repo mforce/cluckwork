@@ -1,3 +1,4 @@
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
@@ -28,6 +29,18 @@ public static class MeEndpoints
         group.MapPut("/stepper-unit", SetStepperUnit)
             .WithName("SetOwnStepperUnit")
             .WithSummary("Set or clear your Daily Entry stepper pack-unit override.");
+
+        // #799 — your own connected apps, every role: whoever can approve an app can
+        // see and disconnect it.
+        group.MapGet("/connected-apps", ListConnectedApps)
+            .WithName("ListOwnConnectedApps")
+            .WithSummary("The apps you have allowed to act as you.");
+
+        group.MapDelete("/connected-apps/{clientId}", DisconnectApp)
+            // Binds no body; caps what IdempotencyMiddleware buffers to hash it.
+            .WithMaxRequestBodyBytes(512)
+            .WithName("DisconnectOwnApp")
+            .WithSummary("Disconnect one of your apps. It is refused from its next request.");
 
         return group;
     }
@@ -81,6 +94,20 @@ public static class MeEndpoints
             return ValidationResponse.Problem(validation); // carries Me.StepperUnit.Format
 
         var result = await access.SetStepperUnitAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
+    }
+
+    private static async Task<IResult> ListConnectedApps(
+        IAccessModule access, ICurrentUser currentUser, CancellationToken ct) =>
+        currentUser.IsResolved
+            ? Results.Ok(await access.ListConnectedAppsAsync(currentUser.UserId, ct))
+            : Results.Unauthorized();
+
+    private static async Task<IResult> DisconnectApp(
+        string clientId, IAccessModule access, ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
+    {
+        if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
+        var result = await access.DisconnectAppAsync(tenant.AccountId, currentUser.UserId, clientId, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 

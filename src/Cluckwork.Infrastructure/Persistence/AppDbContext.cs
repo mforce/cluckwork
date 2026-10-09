@@ -58,6 +58,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<OpenIddictEntityFrameworkCoreApplication<Guid>> OAuthApplications =>
         Set<OpenIddictEntityFrameworkCoreApplication<Guid>>();
+    public DbSet<OpenIddictEntityFrameworkCoreAuthorization<Guid>> OAuthAuthorizations =>
+        Set<OpenIddictEntityFrameworkCoreAuthorization<Guid>>();
+    public DbSet<OpenIddictEntityFrameworkCoreToken<Guid>> OAuthTokens =>
+        Set<OpenIddictEntityFrameworkCoreToken<Guid>>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {

@@ -71,7 +71,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.DataProtectionKeys](public.DataProtectionKeys.md) | 3 |  | BASE TABLE |
 | [public.OpenIddictApplications](public.OpenIddictApplications.md) | 17 |  | BASE TABLE |
 | [public.OpenIddictScopes](public.OpenIddictScopes.md) | 9 |  | BASE TABLE |
-| [public.OpenIddictAuthorizations](public.OpenIddictAuthorizations.md) | 9 |  | BASE TABLE |
+| [public.OpenIddictAuthorizations](public.OpenIddictAuthorizations.md) | 10 |  | BASE TABLE |
 | [public.OpenIddictTokens](public.OpenIddictTokens.md) | 13 |  | BASE TABLE |
 
 ## Stored procedures and functions
@@ -677,6 +677,7 @@ erDiagram
   varchar_50_ Status
   varchar_400_ Subject
   varchar_50_ Type
+  timestamp_with_time_zone LastUsedAtUtc
 }
 "public.OpenIddictTokens" {
   uuid Id
