@@ -9,6 +9,7 @@ using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using System.Security.Cryptography;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Middleware;
+using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Api.Security;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Persistence;
@@ -16,11 +17,14 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Validation.AspNetCore;
 
 namespace Cluckwork.Api.Hosting;
 
 internal static class CluckworkIdentityServiceCollectionExtensions
 {
+    private const string BearerSelectorScheme = "Cluckwork.Bearer";
+
     // role is OneShot for the operator verbs. Nothing here issues or validates a
     // token for them — see the key guard below, which is serving-only for that
     // reason and would otherwise be a fresh instance of the #331 class this file
@@ -171,7 +175,18 @@ internal static class CluckworkIdentityServiceCollectionExtensions
 
         var oauthIssuer = OAuthIssuer(configuration, environment, role);
         if (oauthIssuer is not null)
+        {
             services.AddAccessOAuthServer(oauthIssuer, allowPlainHttp: environment.IsDevelopment());
+            // #796 — one handler per endpoint: OpenIddict validation where the endpoint
+            // opted in through AcceptOAuthTokens, the session JWT scheme everywhere else.
+            // Neither token is ever handed to the other's handler.
+            services.AddAuthentication(options => options.DefaultScheme = BearerSelectorScheme)
+                .AddPolicyScheme(BearerSelectorScheme, displayName: null, options =>
+                    options.ForwardDefaultSelector = context =>
+                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())
+                            ? OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
+                            : JwtBearerDefaults.AuthenticationScheme);
+        }
 
         return new(OAuthServer: oauthIssuer is not null);
     }

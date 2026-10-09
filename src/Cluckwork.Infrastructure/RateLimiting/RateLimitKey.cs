@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.Http;
 
 namespace Cluckwork.Infrastructure.RateLimiting;
 
@@ -8,7 +11,7 @@ namespace Cluckwork.Infrastructure.RateLimiting;
 // decides the bucket granularity.
 //
 // #544 — moved from Cluckwork.Api.RateLimiting to Cluckwork.Infrastructure so the
-// distributed limiter policy (DistributedIpFixedWindowPolicy, same assembly as the
+// distributed limiter policy (DistributedFixedWindowPolicy, same assembly as the
 // internal IFixedWindowCounter port) can share this one canonical derivation. The Api
 // OnRejected handler still uses it for the security-event ClientIp field; it now
 // references it from here. One copy, never two — the IPv6-/64 collapse is a security
@@ -34,5 +37,18 @@ public static class RateLimitKey
         }
 
         return clientIp.ToString();
+    }
+
+    // #796 — one bucket per bearer credential. OAuth access tokens live until revoked and
+    // there is no refresh grant, so a token is one connection. The slice after "Bearer " is
+    // exactly what OpenIddict validation extracts, so the bucket is the token it authenticates.
+    // Hashed so the shared store never holds a usable token. No bearer falls back to the IP.
+    public static string ForBearer(HttpContext context)
+    {
+        const string prefix = "Bearer ";
+        string? header = context.Request.Headers.Authorization;
+        return header is not null && header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? "token:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(header[prefix.Length..])))
+            : ForClient(context.Connection.RemoteIpAddress);
     }
 }

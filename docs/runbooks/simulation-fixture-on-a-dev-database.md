@@ -433,7 +433,7 @@ dotnet user-secrets --project src/Cluckwork.Api remove "RateLimiting:ClientError
 section is bound once, at service registration, and the numbers are baked
 into the policy objects right there
 ([`CluckworkRateLimitingServiceCollectionExtensions.cs`](../../src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs)
- — `Get<RateLimitingOptions>()`, then `new DistributedIpFixedWindowPolicy(…,
+ — `Get<RateLimitingOptions>()`, then `new DistributedFixedWindowPolicy(…,
 rateLimiting.Login.PermitLimit, …)`). Nothing re-reads them, so a process
 left running keeps serving the 1,000,000 limits off a user-secrets file
 that no longer mentions them — the worst version of this, because the

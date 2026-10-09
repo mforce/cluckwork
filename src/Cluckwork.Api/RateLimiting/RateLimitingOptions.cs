@@ -17,6 +17,11 @@ public sealed class RateLimitingOptions
     // LOG, not a credential — enough for a genuinely crashing screen to get its
     // story out, too little to flood the log from one address.
     public const string ClientErrorsPolicyName = "client-errors";
+    // #796: the OAuth server's two endpoints, keyed per client IP, and every endpoint
+    // that accepts OAuth access tokens, keyed per token (RateLimitKey.ForBearer).
+    public const string OAuthTokenPolicyName = "oauth-token";
+    public const string OAuthAuthorizePolicyName = "oauth-authorize";
+    public const string OAuthApiPolicyName = "oauth-api";
     // #797: anonymous OAuth client registration. Each call adds a row, and a client
     // registers once per install, so the budget is small and the window long.
     public const string OAuthRegisterPolicyName = "oauth-register";
@@ -24,6 +29,12 @@ public sealed class RateLimitingOptions
     public FixedWindow Login { get; init; } = new() { PermitLimit = 10, WindowSeconds = 900 };
     public FixedWindow Refresh { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };
     public FixedWindow ClientErrors { get; init; } = new() { PermitLimit = 10, WindowSeconds = 300 };
+    // A connection redeems one code, so the token budget only has to absorb retries and
+    // several users connecting through one assistant provider's egress address.
+    public FixedWindow OAuthToken { get; init; } = new() { PermitLimit = 20, WindowSeconds = 60 };
+    public FixedWindow OAuthAuthorize { get; init; } = new() { PermitLimit = 20, WindowSeconds = 60 };
+    // An assistant calls far faster than a person clicks (#796), so this is per minute.
+    public FixedWindow OAuthApi { get; init; } = new() { PermitLimit = 120, WindowSeconds = 60 };
     public FixedWindow OAuthRegister { get; init; } = new() { PermitLimit = 10, WindowSeconds = 3600 };
     // Small on purpose: a report query is a bounded-range aggregate (#311), not
     // a hot path — a genuine user rarely has more than one or two in flight at
@@ -91,6 +102,9 @@ public sealed class RateLimitingOptions
         ValidateWindow(nameof(Login), Login);
         ValidateWindow(nameof(Refresh), Refresh);
         ValidateWindow(nameof(ClientErrors), ClientErrors);
+        ValidateWindow(nameof(OAuthToken), OAuthToken);
+        ValidateWindow(nameof(OAuthAuthorize), OAuthAuthorize);
+        ValidateWindow(nameof(OAuthApi), OAuthApi);
         ValidateWindow(nameof(OAuthRegister), OAuthRegister);
         ValidateConcurrency(nameof(ReportsConcurrency), ReportsConcurrency);
         ParseTrustedProxies(); // throws a named InvalidOperationException on a bad CIDR

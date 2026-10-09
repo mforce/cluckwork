@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 and #797 OAuth claim has a test that
+# tools/oauth/mutation-check.sh — proves each #795, #796 and #797 OAuth claim has a test that
 # fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -10,7 +10,7 @@
 # catching a mutant it never saw. The verdicts:
 #
 #   killed        the named test failed and its message carries the declared text
-#   held          a "hold" mutant's test still passed, so the second wall stands
+#   held          a "hold" mutant's test still passed
 #   SURVIVED      a "kill" mutant's test passed
 #   WRONG         the named test failed an assertion, but not the declared one
 #   INCONCLUSIVE  no TRX, the test did not run, the run aborted, the mutant did not
@@ -35,10 +35,13 @@ SWEEP=src/Cluckwork.Infrastructure/Jobs/OAuthPurgeSweep.cs
 WORKER=src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs
 STAMP_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261008055839_AddOAuthApplicationCreatedAt.cs
 STAMP_CONFIG=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthApplicationConfiguration.cs
+VERIFIER=src/Cluckwork.Infrastructure/Modules/Access/Identity/CredentialEpochVerifier.cs
+EPOCH=src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs
+MUST_CHANGE=src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth'
-SUITE_MIN=40
+SUITE_MIN=79
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -52,9 +55,30 @@ per-process-token-keys#kill#SERVER#                    .AddEphemeralSigningKey()
 openid-granted#kill#SERVER#                    options.Scopes.Remove(Scopes.OpenId);\n##OAuthServerTests.OpenIdScope_IsRefused#Expected: BadRequest
 verifier-logged#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddictBelowWarning),#                    ,#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
 parent-override-only#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddictBelowWarning),#                    .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
-oauth-on-default-scheme#kill#IDENTITY#            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)#            .AddAuthentication("mutant").AddPolicyScheme("mutant", null, o => o.ForwardDefaultSelector = c => c.Request.Headers.Authorization.ToString().Count(ch => ch == '.') == 2 ? JwtBearerDefaults.AuthenticationScheme : "OpenIddict.Validation.AspNetCore")#OAuthServerTests.OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication#Assert.Contains() Failure: Filter not matched
-session-claims-in-token#kill#ENDPOINT#@SESSION_FIND@#@SESSION_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#Expected: Unauthorized
-account-id-in-token#hold#ENDPOINT#@ACCOUNT_FIND@#@ACCOUNT_REPLACE@#OAuthServerTests.OAuthToken_ForcedThroughTheDefaultScheme_IsStillRejected#
+oauth-on-default-scheme#kill#IDENTITY#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())\n#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()) || context.Request.Headers.Authorization.ToString().Count(ch => ch == '.') != 2\n#OAuthServerTests.OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication#Expected: Unauthorized
+jwt-by-token-shape#kill#IDENTITY#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())\n#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()) && context.Request.Headers.Authorization.ToString().Count(ch => ch == '.') != 2\n#OAuthFailClosedTests.SessionJwt_IsRefused_WhereOAuthTokensAreAccepted#Expected: Unauthorized
+authenticate-at-authorization#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.RequireAssertion(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").RequireAssertion(#OAuthFailClosedTests.DisabledUser_IsRefused_OnTheNextRequest#Expected: Unauthorized
+authenticate-at-authorization-flocks#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.RequireAssertion(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").RequireAssertion(#OAuthFailClosedTests.Worker_IsFlockScoped#the worker's OAuth caller is unrestricted
+role-claim-dropped#kill#ENDPOINT#"credential_epoch", Claims.Role, #"credential_epoch", #OAuthFailClosedTests.OAuthToken_CarriesTheSessionPrincipal_ThroughTheWholeChain#Collections differ
+disabled-unchecked#kill#VERIFIER#        if (credentialState.DisabledAt is not null)\n            return CredentialVerdict.Disabled;\n##OAuthFailClosedTests.DisabledUser_IsRefused_OnTheNextRequest#Expected: Unauthorized
+suspended-unchecked#kill#VERIFIER#        if (credentialState.AccountIsActive != true)\n            return CredentialVerdict.FarmSuspended;\n##OAuthFailClosedTests.SuspendedFarm_IsRefused_OnTheNextRequest#Expected: Unauthorized
+epoch-exempts-oauth#kill#EPOCH#            && !IsLogoutPath(context.Request.Path))#            && !IsLogoutPath(context.Request.Path) && context.User.FindFirst("oi_au_id") is null)#OAuthFailClosedTests.RoleChange_RevokesTheToken#Expected: Unauthorized
+epoch-exempts-oauth-suspended#kill#EPOCH#            && !IsLogoutPath(context.Request.Path))#            && !IsLogoutPath(context.Request.Path) && context.User.FindFirst("oi_au_id") is null)#OAuthFailClosedTests.SuspendedFarm_IsRefused_OnTheNextRequest#Expected: Unauthorized
+must-change-may-authorize#kill#MUST_CHANGE#        "/api/v1/auth/logout",\n#        "/api/v1/auth/logout",\n        "/api/v1/oauth/authorize",\n#OAuthFailClosedTests.MustChangePassword_BlocksIssuance#Expected: Forbidden
+scope-gate-removed#kill#ENDPOINT#\n            .RequireAuthorization(policy => policy.RequireAssertion(context =>\n                scopes.Any(context.User.HasScope)));#;#OAuthFailClosedTests.ScopeAndRole_AreBothRequired#Expected: Forbidden
+authorization-unchecked#kill#SERVER#                validation.EnableAuthorizationEntryValidation();\n##OAuthFailClosedTests.Disconnect_RefusesTheAccessToken_OnTheNextRequest#Expected: Unauthorized
+unbound-token-trusted#kill#SERVER#                        if (string.IsNullOrEmpty(context.AuthorizationId))\n                            context.Reject(Errors.InvalidToken, "The token is not bound to an authorization.");\n##OAuthFailClosedTests.TokenWithoutAnAuthorization_IsRefused#Expected: Unauthorized
+refresh-grant-allowed#kill#SERVER#                    .AllowAuthorizationCodeFlow()#                    .AllowAuthorizationCodeFlow().AllowRefreshTokenFlow()#OAuthFailClosedTests.Disconnect_LeavesNoWayToANewToken#unsupported_grant_type
+query-string-token#kill#SERVER#                    .DisableAccessTokenExtractionFromBodyForm()\n                    .DisableAccessTokenExtractionFromQueryString();#                    .DisableAccessTokenExtractionFromBodyForm();#OAuthFailClosedTests.TokenInTheQueryString_IsIgnored#Expected: Unauthorized
+api-limit-removed#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n##OAuthFailClosedTests.OAuthApiCalls_AreRateLimited_PerToken#Collections differ
+api-limit-per-ip#kill#LIMITS#,\n                    RateLimitKey.ForBearer)#)#OAuthFailClosedTests.OAuthApiCalls_AreRateLimited_PerToken#Expected: OK
+token-limit-removed#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthTokenPolicyName)\n##OAuthFailClosedTests.TokenEndpoint_IsRateLimited#Expected: TooManyRequests
+authorize-limit-removed#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthAuthorizePolicyName)\n##OAuthFailClosedTests.AuthorizeEndpoint_IsRateLimited#Expected: TooManyRequests
+ambient-bearer-honoured#kill#ENDPOINT#new IgnoresAmbientPrincipalAttribute(), new ReadsRequestBodyAttribute()#new ReadsRequestBodyAttribute()#OAuthFailClosedTests.TokenEndpoint_IgnoresAnAmbientSessionBearer#Expected: OK
+oauth-token-local-limiter#kill#LIMITS#            limiter.AddPolicy<string>(\n                RateLimitingOptions.OAuthTokenPolicyName,\n                new DistributedFixedWindowPolicy(\n                    RateLimitingOptions.OAuthTokenPolicyName,\n                    rateLimiting.OAuthToken.PermitLimit,\n                    TimeSpan.FromSeconds(rateLimiting.OAuthToken.WindowSeconds)))#            limiter.AddFixedWindowLimiter(RateLimitingOptions.OAuthTokenPolicyName, o => { o.PermitLimit = rateLimiting.OAuthToken.PermitLimit; o.Window = TimeSpan.FromSeconds(rateLimiting.OAuthToken.WindowSeconds); });#OAuthFailClosedTests.OAuthLimits_AreDecidedByTheSharedCounter#oauth-token did not ask the shared counter
+oauth-authorize-local-limiter#kill#LIMITS#            limiter.AddPolicy<string>(\n                RateLimitingOptions.OAuthAuthorizePolicyName,\n                new DistributedFixedWindowPolicy(\n                    RateLimitingOptions.OAuthAuthorizePolicyName,\n                    rateLimiting.OAuthAuthorize.PermitLimit,\n                    TimeSpan.FromSeconds(rateLimiting.OAuthAuthorize.WindowSeconds)))#            limiter.AddFixedWindowLimiter(RateLimitingOptions.OAuthAuthorizePolicyName, o => { o.PermitLimit = rateLimiting.OAuthAuthorize.PermitLimit; o.Window = TimeSpan.FromSeconds(rateLimiting.OAuthAuthorize.WindowSeconds); });#OAuthFailClosedTests.OAuthLimits_AreDecidedByTheSharedCounter#oauth-authorize did not ask the shared counter
+oauth-api-local-limiter#kill#LIMITS#            limiter.AddPolicy<string>(\n                RateLimitingOptions.OAuthApiPolicyName,\n                new DistributedFixedWindowPolicy(\n                    RateLimitingOptions.OAuthApiPolicyName,\n                    rateLimiting.OAuthApi.PermitLimit,\n                    TimeSpan.FromSeconds(rateLimiting.OAuthApi.WindowSeconds),\n                    RateLimitKey.ForBearer));#            limiter.AddFixedWindowLimiter(RateLimitingOptions.OAuthApiPolicyName, o => { o.PermitLimit = rateLimiting.OAuthApi.PermitLimit; o.Window = TimeSpan.FromSeconds(rateLimiting.OAuthApi.WindowSeconds); });#OAuthFailClosedTests.OAuthLimits_AreDecidedByTheSharedCounter#oauth-api did not ask the shared counter
+post-authorize-allowed#kill#SERVER#                        if (!HttpMethods.IsGet(context.Transaction.GetHttpRequest()!.Method))\n                            context.Reject(Errors.InvalidRequest, "Authorization requests must use GET.");\n##OAuthFailClosedTests.AuthorizationPost_IsRefusedBeforeOpenIddictReadsIt#Sub-string not found
 redirect-any-http-host#kill#REGISTRATION#uri.Host.Length != 0 || IsLoopback(uri));#uri.Host.Length != 0 || uri.Scheme == Uri.UriSchemeHttp);#OAuthClientRegistrationTests.WiderRedirectUri_IsRefused#Expected: BadRequest
 redirect-fragment#hold#REGISTRATION#        && uri.Fragment.Length == 0\n##OAuthClientRegistrationTests.WiderRedirectUri_IsRefused#
 localhost-refused#kill#REGISTRATION#uri.Host is "localhost" or "127.0.0.1" or "[::1]"#uri.Host is "127.0.0.1" or "[::1]"#OAuthClientRegistrationTests.AllowedRedirectUri_IsRegistered#Expected: Created
@@ -70,7 +94,7 @@ name-keeps-bidi#kill#REGISTRATION#                or UnicodeCategory.Format or U
 name-uncapped#kill#REGISTRATION#elements.MoveNext() && capped.Length + elements.GetTextElement().Length <= MaxNameLength#elements.MoveNext()#OAuthClientRegistrationTests.ClientName_IsSanitized#Strings differ
 discovery-silent#kill#SERVER#                        context.Metadata["registration_endpoint"] =\n                            new Uri(context.AuthorizationEndpoint!, "register").AbsoluteUri;\n##OAuthClientRegistrationTests.Discovery_AdvertisesTheRegistrationEndpoint#discovery does not advertise registration_endpoint
 register-unlimited#kill#ENDPOINT#            .RequireRateLimiting(RateLimitingOptions.OAuthRegisterPolicyName)\n##OAuthClientRegistrationTests.Registration_IsRateLimitedPerClientIp_OnTheSharedCounter#Collections differ
-register-process-local#kill#LIMITS#            limiter.AddPolicy<string>(\n                RateLimitingOptions.OAuthRegisterPolicyName,\n                new DistributedIpFixedWindowPolicy(\n                    RateLimitingOptions.OAuthRegisterPolicyName,\n                    rateLimiting.OAuthRegister.PermitLimit,\n                    TimeSpan.FromSeconds(rateLimiting.OAuthRegister.WindowSeconds)));#            limiter.AddPolicy(RateLimitingOptions.OAuthRegisterPolicyName, context => RateLimitPartition.GetFixedWindowLimiter(RateLimitKey.ForClient(context.Connection.RemoteIpAddress), _ => new FixedWindowRateLimiterOptions { PermitLimit = rateLimiting.OAuthRegister.PermitLimit, Window = TimeSpan.FromSeconds(rateLimiting.OAuthRegister.WindowSeconds) }));#OAuthClientRegistrationTests.Registration_IsRateLimitedPerClientIp_OnTheSharedCounter#the registration limit did not count on the shared counter
+register-process-local#kill#LIMITS#            limiter.AddPolicy<string>(\n                RateLimitingOptions.OAuthRegisterPolicyName,\n                new DistributedFixedWindowPolicy(\n                    RateLimitingOptions.OAuthRegisterPolicyName,\n                    rateLimiting.OAuthRegister.PermitLimit,\n                    TimeSpan.FromSeconds(rateLimiting.OAuthRegister.WindowSeconds)));#            limiter.AddPolicy(RateLimitingOptions.OAuthRegisterPolicyName, context => RateLimitPartition.GetFixedWindowLimiter(RateLimitKey.ForClient(context.Connection.RemoteIpAddress), _ => new FixedWindowRateLimiterOptions { PermitLimit = rateLimiting.OAuthRegister.PermitLimit, Window = TimeSpan.FromSeconds(rateLimiting.OAuthRegister.WindowSeconds) }));#OAuthClientRegistrationTests.Registration_IsRateLimitedPerClientIp_OnTheSharedCounter#the registration limit did not count on the shared counter
 register-reads-bearer#kill#ENDPOINT#            .WithMetadata(new IgnoresAmbientPrincipalAttribute())\n##OAuthClientRegistrationTests.Registration_IgnoresASessionBearer#Expected: Created
 tokens-unpruned#kill#PURGE#tokens.PruneAsync(pruneBefore, ct)#tokens.PruneAsync(DateTimeOffset.MinValue, ct)#OAuthPurgeTests.DeadRowsPastRetention_ArePruned_AndALiveConnectionSurvives#Collections differ
 authorizations-unpruned#kill#PURGE#authorizations.PruneAsync(pruneBefore, ct)#authorizations.PruneAsync(DateTimeOffset.MinValue, ct)#OAuthPurgeTests.DeadRowsPastRetention_ArePruned_AndALiveConnectionSurvives#Collection was not empty
@@ -178,7 +202,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then
@@ -186,17 +210,6 @@ if ! git diff --quiet -- "${FILES[@]}"; then
   exit 2
 fi
 trap restore EXIT
-
-# The endpoint's two mutants copy session claims into the token beside its subject;
-# kept out of the table above so each row stays readable.
-AUTHORIZE='        identity.SetClaim(Claims.Subject, currentUser.UserId.ToString());'
-WITH_CONTEXT=$AUTHORIZE
-ACCOUNT_ID='\n        identity.SetClaim("account_id", context.User.FindFirst("account_id")!.Value);'
-EPOCH='\n        identity.SetClaim("credential_epoch", context.User.FindFirst("credential_epoch")!.Value);'
-MUTANTS=${MUTANTS//@SESSION_FIND@/$AUTHORIZE}
-MUTANTS=${MUTANTS//@SESSION_REPLACE@/$WITH_CONTEXT$ACCOUNT_ID$EPOCH}
-MUTANTS=${MUTANTS//@ACCOUNT_FIND@/$AUTHORIZE}
-MUTANTS=${MUTANTS//@ACCOUNT_REPLACE@/$WITH_CONTEXT$ACCOUNT_ID}
 
 failures=0
 build "$LOG_DIR/baseline-build.log" || { echo "baseline: build failed" >&2; exit 1; }

@@ -52,8 +52,8 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
             "Logout takes HttpRequest for the refresh COOKIE and the CSRF header only — " +
             "it never touches Request.Body (unlike /auth/refresh, which drains it).",
         ["GET /api/v1/oauth/authorize"] =
-            "Authorize (#800) takes HttpContext to read the OpenIddict request that " +
-            "UseAuthentication already parsed from the query; a GET carries no body.",
+            "Authorize (#796) takes HttpContext to read the signed-in principal's claims and the " +
+            "OpenIddict request that UseAuthentication already parsed from the query; a GET carries no body.",
         [" /error"] =
             "The exception-handler re-execution target. It takes HttpContext to read "
             + "IExceptionHandlerFeature and shape the response, never to read the body — and it "

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #840 — the login rate-limit bucket is keyed on the client address ALONE
-// (RateLimitKey.ForClient, reached from DistributedIpFixedWindowPolicy), and every
+// (RateLimitKey.ForClient, reached from DistributedFixedWindowPolicy), and every
 // test host in this suite is reached over loopback. So every class that exercises
 // the login policy shares ONE bucket, and whichever runs last sees a 429 where it
 // expected a 401.
