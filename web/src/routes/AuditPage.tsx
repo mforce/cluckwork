@@ -447,10 +447,11 @@ export function AuditPage() {
   const pivotedAppRow = appClientIdFilter && !isScopedReloading
     ? events.rows?.find((row) => row.connectedAppClientId === appClientIdFilter)
     : undefined;
-  if (pivotedAppRow) knownAppNames.set(appNameKey(appClientIdFilter), pivotedAppRow.connectedAppName);
+  const pivotedAppKey = appNameKey(appClientIdFilter);
+  if (pivotedAppRow) knownAppNames.set(pivotedAppKey, pivotedAppRow.connectedAppName);
   const pivotedAppLabel = !appClientIdFilter ? null
-    : !knownAppNames.has(appNameKey(appClientIdFilter)) ? t("selectedConnectedApp")
-    : knownAppNames.get(appNameKey(appClientIdFilter)) ?? t("unnamedConnectedApp");
+    : !knownAppNames.has(pivotedAppKey) ? t("selectedConnectedApp")
+    : knownAppNames.get(pivotedAppKey) ?? t("unnamedConnectedApp");
   const updateRecordPreview = useCallback((checked: boolean) => {
     const next = new URLSearchParams(searchParams);
     if (checked && previewEntityId) next.set("entityId", previewEntityId);
