@@ -665,6 +665,7 @@ jobs:
             -e RateLimiting__AllowNoTrustedProxies=true \
             -e "Jwt__PrivateKeyPem=$JWT_PRIV" -e "Jwt__PublicKeyPem=$JWT_PUB" \
             -e "DataProtection__CertificatePem=$DP_CERT" -e "DataProtection__PrivateKeyPem=$DP_KEY" \
+            -e OAuth__Issuer=https://cluckwork-ci.local/ \
             -e Jwt__Issuer=cluckwork-ci -e Jwt__Audience=cluckwork-api-ci \
             cluckwork-api:ci
 

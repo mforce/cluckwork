@@ -323,7 +323,7 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
         using var first = await Client(host, user.Jwt).GetAsync(AuthorizeUri(clientId, NewVerifier(), ReadScope));
         using var second = await Client(host, user.Jwt).GetAsync(AuthorizeUri(clientId, NewVerifier(), ReadScope));
 
-        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
     }
 
@@ -475,9 +475,8 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
     private static async Task<string> AuthorizeAsync(
         WebApplicationFactory<Program> host, string jwt, string clientId, string verifier, params string[] scopes)
     {
-        using var response = await Client(host, jwt).GetAsync(AuthorizeUri(clientId, verifier, scopes));
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        return QueryHelpers.ParseQuery(response.Headers.Location!.Query)["code"].ToString();
+        var location = await OAuthServerTests.ApproveAsync(host, jwt, AuthorizeParameters(clientId, verifier, scopes));
+        return QueryHelpers.ParseQuery(location.Query)["code"].ToString();
     }
 
     private static string AuthorizeUri(string clientId, string verifier, params string[] scopes) =>
@@ -518,7 +517,12 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
         factory.WithWebHostBuilder(builder =>
         {
             foreach (var (policy, permitLimit) in limits)
+            {
                 builder.UseSetting($"RateLimiting:{policy}:PermitLimit", permitLimit.ToString());
+                // The window is clock-aligned, so two requests straddling a 60 s boundary
+                // both pass; a day makes that negligible (#840's MultiInstanceRateLimitTests).
+                builder.UseSetting($"RateLimiting:{policy}:WindowSeconds", "86400");
+            }
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter, Probe>();

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, act, cleanup, waitFor } from "@testing-library/react";
-import { Routes, Route } from "react-router";
+import { Routes, Route, useLocation } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { login as apiLogin, ApiError, setOnUnauthenticated } from "../api/client";
+import { previewConsent } from "../api/oauth";
 import { setStoredToken } from "../test/jwt";
 import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
@@ -23,18 +24,25 @@ vi.mock("../api/client", async (importOriginal) => {
   };
 });
 
+vi.mock("../api/oauth", () => ({ previewConsent: vi.fn() }));
+
 const mockApiLogin = vi.mocked(apiLogin);
 const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 
 // /dashboard is behind the real ProtectedRoute, so navigation there only
 // succeeds if login actually established authenticated state — a bare public
 // route would false-green if login stopped authenticating.
+function ConnectProbe() {
+  return <div>connect {useLocation().search}</div>;
+}
+
 function tree() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<div>dashboard (protected)</div>} />
+        <Route path="/connect" element={<ConnectProbe />} />
       </Route>
     </Routes>
   );
@@ -48,7 +56,10 @@ function fillCredentials(email: string, password: string) {
 
 // resetAllMocks (not clearAllMocks) so a per-test implementation never leaks
 // into the next case.
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(previewConsent).mockResolvedValue(null);
+});
 
 describe("Login", () => {
   it("uses the flat inset Field Console auth frame", async () => {
@@ -99,6 +110,49 @@ describe("Login", () => {
     });
     // Returned to the originally requested route, now authenticated.
     expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
+  });
+
+  // #798 — the consent route's query is the connected app's request, so sign-in must
+  // hand it back intact.
+  it("returns to the consent route with its request after sign-in", async () => {
+    mockApiLogin.mockImplementation(async () => {
+      setStoredToken({ sub: "u1", role: "Sales" });
+    });
+    renderWithProviders(tree(), { route: "/connect?client_id=abc&scope=farm%3Aread", token: null });
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText("connect ?client_id=abc&scope=farm%3Aread")).toBeInTheDocument();
+  });
+
+  // #798 (login B) — the sign-in that continues to a connected app names it,
+  // in the brand panel on a wide screen and above the form on a phone.
+  it("names the app it continues to when sign-in leads to consent", async () => {
+    vi.mocked(previewConsent).mockResolvedValue("Claude Desktop");
+    renderWithProviders(tree(), { route: "/connect?client_id=abc&scope=farm%3Aread", token: null });
+
+    expect(await screen.findAllByText("Next: approve Claude Desktop")).toHaveLength(2);
+    expect(previewConsent).toHaveBeenCalledWith("?client_id=abc&scope=farm%3Aread");
+    expect(screen.getAllByText(
+      "After you sign in, you see what it asks for and choose whether to allow it.")).toHaveLength(2);
+  });
+
+  it("says an app is next even when the app has no name", async () => {
+    renderWithProviders(tree(), { route: "/connect?client_id=abc", token: null });
+
+    expect(await screen.findAllByText("Next: approve an app")).toHaveLength(2);
+  });
+
+  it("shows no next step on an ordinary sign-in", async () => {
+    renderWithProviders(tree(), { route: "/dashboard", token: null });
+
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(screen.queryByText(/Next: approve/)).not.toBeInTheDocument();
+    expect(previewConsent).not.toHaveBeenCalled();
   });
 
   it("redirects an ALREADY-authenticated visit AT /login away from the form (#145 silent-refresh restore)", async () => {

@@ -38,4 +38,14 @@ describe("AuthShell (#976 round 2)", () => {
       meta.remove();
     }
   });
+
+  // #798 (login B) — the next step replaces the tagline in the brand panel and
+  // repeats above the form, where a phone shows it.
+  it("puts the next step in the brand panel and above the form", () => {
+    const { getAllByText, queryByText } = render(
+      <AuthShell footerNote="note" nextStep={<span>Next: approve Claude Desktop</span>}>content</AuthShell>);
+
+    expect(getAllByText("Next: approve Claude Desktop")).toHaveLength(2);
+    expect(queryByText("Daily entry · Stock · Sales")).not.toBeInTheDocument();
+  });
 });

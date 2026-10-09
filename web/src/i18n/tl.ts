@@ -53,6 +53,9 @@ export const tl = {
     clearFiltersButton: "I-clear ang mga filter",
   },
   auth: {
+    loginNextHeading: "Susunod: aprubahan ang {{app}}",
+    loginNextHeadingUnnamed: "Susunod: aprubahan ang isang app",
+    loginNextBody: "Pagkatapos mong mag-sign in, makikita mo ang hinihingi nito at pipiliin mo kung papayagan ito.",
     title: "Cluckwork",
     shellEyebrow: "Pamamahala ng poultry farm",
     shellTagline: "Araw-araw na entry · Stock · Sales",
@@ -106,6 +109,50 @@ export const tl = {
     setPasswordSignOut: "Mag-sign out",
     setPasswordMismatchError: "Hindi magkatugma ang mga bagong password.",
     setPasswordTooShortError: "Dapat hindi bababa sa {{min}} karakter ang bagong password.",
+  },
+  connect: {
+    title: "Hayaan ang {{app}} na kumilos bilang ikaw?",
+    titleMore: "Hayaan ang {{app}} na gumawa ng higit pa?",
+    titleReconnect: "Ikonektang muli ang {{app}}?",
+    reconnectBody: "Pinayagan mo na ito dati. Ilagay ang password mo para kumpirmahing ikaw ito.",
+    unnamedApp: "Isang app na walang pangalan",
+    unverified: "Hindi beripikadong app",
+    signedInAs: "Naka-sign in bilang",
+    returnsHere: "Babalik sa computer na ito",
+    returnsTo: "Babalik sa {{host}}",
+    scopesLabel: "Hinihingi nito",
+    scopeRead: "Basahin ang datos ng bukid",
+    scopeReadLine: "Mga flock, stock, tala at benta",
+    scopeWrite: "Itala ang araw-araw na tala",
+    scopeBlocked: "Hindi pinapayagan ng role mo",
+    scopeNew: "Bago",
+    scopeHad: "Pinayagan na",
+    acts: "Kumikilos bilang ikaw, gamit lang ang access mo",
+    roleSr: "Ang role mo:",
+    password: "Ang kasalukuyan mong password",
+    allow: "Payagan",
+    cancel: "Kanselahin",
+    wrongPassword: "Mali ang password. Walang naikonekta.",
+    tooManyAttempts: "Masyadong maraming subok. Maghintay ng ilang minuto at subukang muli.",
+    failed: "May nangyaring mali, at walang naikonekta. Subukang muli.",
+    undo: "Idiskonekta ito kahit kailan sa Account › Mga nakakonektang app.",
+    details: "Mga detalye",
+    detailsActs: "Kumikilos ito bilang ikaw, kaya hindi ito makakagawa ng higit sa kaya mo.",
+    detailsReadAll: "Mababasa nito ang datos ng bukid para sa bawat flock.",
+    detailsReadSome: "Mababasa lang nito ang datos ng bukid para sa mga flock na naka-assign sa iyo: {{flocks}}.",
+    detailsWriteAll: "Makakapagtala ito ng araw-araw na tala para sa alinmang flock.",
+    detailsWriteSome: "Makakapagtala lang ito ng araw-araw na tala para sa mga flock na naka-assign sa iyo: {{flocks}}.",
+    detailsWriteBlocked: "Hinihingi nitong magtala ng araw-araw na tala, pero hindi ito kaya ng role mo ({{role}}), kaya hindi rin ito makakapagtala.",
+    detailsName: "Ang {{app}} ang pumili ng sarili nitong pangalan. Hindi ito sinusuri ng Cluckwork, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
+    detailsReturnHere: "Pagkatapos, babalik ang browser mo sa {{host}}, isang address sa computer na ito.",
+    detailsReturnTo: "Pagkatapos, pupunta ang browser mo sa {{host}}.",
+    detailsScopes: "Saklaw ng pagbasa ang mga flock, stock, araw-araw na tala, customer, order at bayad.",
+    notYou: "Hindi ikaw? Mag-sign out",
+    refusedTitle: "Walang dapat aprubahan",
+    refusedBody: "Nag-expire o hindi wasto ang kahilingang ito, kaya walang naikonekta. Magsimulang muli mula sa app.",
+    refusedButton: "Pumunta sa Cluckwork",
+    loading: "Nilo-load ang kahilingan…",
+    leaving: "Bumabalik sa app…",
   },
   account: {
     eyebrow: "Personal na kagustuhan",
@@ -2435,6 +2482,14 @@ export const tl = {
       + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-assign ng manggagawa sa "
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
       + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
+    signingInConnectApp:
+      "<strong>Pagkonekta ng app.</strong> Puwedeng humiling ang isang panlabas na app, gaya ng AI assistant, na "
+      + "kumilos bilang ikaw. Ipinapakita ng Cluckwork ang hinihingi nito, <strong>Basahin ang datos ng bukid</strong>, "
+      + "<strong>Itala ang araw-araw na tala</strong> o pareho, at sasagot ka ng <strong>Payagan</strong> pagkatapos "
+      + "ilagay ang <strong>Ang kasalukuyan mong password</strong>, o ng <strong>Kanselahin</strong>. Hindi ito "
+      + "makakagawa ng higit sa sarili mong role. Kapag kumonekta ulit ang app na pinayagan mo na, password mo lang ang "
+      + "hihingin. Ang app ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang "
+      + "ikonekta ito. Nasa <strong>Mga detalye</strong> ang mas mahabang paliwanag.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -3306,6 +3361,11 @@ export const tl = {
       + "manghula; piliin ang code ng bukid na gusto mo.",
 
     // #308/#356/#360 (machine-drafted, pending native review)
+    glossaryAppConsentTerm: "Pagkonekta ng app",
+    glossaryAppConsentDef:
+      "Pag-apruba sa isang panlabas na app, gaya ng AI assistant, na kumilos bilang ikaw. Makikita mo ang hinihingi "
+      + "nito at papayagan mo ito gamit ang kasalukuyan mong password; hindi ito makakagawa ng higit sa role mo. Ang "
+      + "app na pinayagan na ay password lang ang hihingin kapag kumonekta ulit.",
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "

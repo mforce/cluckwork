@@ -247,6 +247,21 @@ else:
     else:
         ok.append(f"AllowedHosts OK ({'; '.join(hosts)})")
 
+# --- #798 OAuth issuer -------------------------------------------------
+# Checked as CluckworkIdentityServiceCollectionExtensions.EnsureOAuthIssuer does:
+# present, and an absolute https URL with no query or fragment.
+issuer = str(env.get("OAuth__Issuer") or "").strip()
+parsed = urlsplit(issuer)
+if not issuer:
+    fail.append("OAuth__Issuer is not set on the app service — #798 fails the Production boot")
+# .NET keeps a bare "?" or "#" in Uri.Query or Uri.Fragment, so the boot guard refuses the
+# delimiter even with nothing after it; urlsplit drops it, so test the raw string.
+elif parsed.scheme != "https" or not parsed.netloc or "?" in issuer or "#" in issuer:
+    fail.append(f"OAuth__Issuer={issuer!r} is not an absolute https URL without a query or fragment — "
+                "#798 fails the Production boot")
+else:
+    ok.append(f"OAuth__Issuer OK ({issuer})")
+
 # --- #261/#262 TLS opt-out ----------------------------------------------
 # The EFFECTIVE value on the app service, not a grep of the file: a matching
 # line elsewhere in the YAML says nothing about what this container receives.

@@ -11,6 +11,7 @@ import {
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
+import { StepUpPasswordField } from "../components/StepUpPasswordField";
 import { BusyButton } from "../components/BusyButton";
 import {
   CONSOLE_DESTRUCTIVE_LINK_SX, CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector,
@@ -822,12 +823,10 @@ export function UsersPage() {
             ))}
           </TextField>
           <p className="muted">{t("stepUpCreateHint")}</p>
-          <TextField
+          <StepUpPasswordField
             label={t("stepUpFieldLabel")}
-            type="password"
             value={createStepUpPassword}
-            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
-            onChange={(e) => setCreateStepUpPassword(e.target.value)}
+            onChange={setCreateStepUpPassword}
           />
           <DialogError errors={errors} scope="create" />
         </Stack>
@@ -1005,12 +1004,10 @@ export function UsersPage() {
             <p className="hint">{t("assignmentsWorkerOnlyHint")}</p>
           )}
           <p className="muted">{t("stepUpFlockHint")}</p>
-          <TextField
+          <StepUpPasswordField
             label={t("stepUpFieldLabel")}
-            type="password"
             value={flockStepUpPassword}
-            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
-            onChange={(e) => setFlockStepUpPassword(e.target.value)}
+            onChange={setFlockStepUpPassword}
           />
           <DialogError errors={errors} scope="flock-access" />
         </Stack>
@@ -1074,12 +1071,10 @@ export function UsersPage() {
             onChange={(e) => setPwConfirm(e.target.value)}
           />
           <p className="muted">{t("stepUpResetHint")}</p>
-          <TextField
+          <StepUpPasswordField
             label={t("stepUpFieldLabel")}
-            type="password"
             value={pwStepUpPassword}
-            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
-            onChange={(e) => setPwStepUpPassword(e.target.value)}
+            onChange={setPwStepUpPassword}
           />
           <DialogError errors={errors} scope="set-password" />
         </Stack>
@@ -1116,12 +1111,10 @@ export function UsersPage() {
             ))}
           </TextField>
           <p className="muted">{t("stepUpRoleHint")}</p>
-          <TextField
+          <StepUpPasswordField
             label={t("stepUpFieldLabel")}
-            type="password"
             value={roleStepUpPassword}
-            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
-            onChange={(e) => setRoleStepUpPassword(e.target.value)}
+            onChange={setRoleStepUpPassword}
           />
           <DialogError errors={errors} scope="change-role" />
         </Stack>
@@ -1169,13 +1162,11 @@ export function UsersPage() {
             }}
           />
           <p className="muted">{t("stepUpEmailHint")}</p>
-          <TextField
+          <StepUpPasswordField
             label={t("stepUpFieldLabel")}
-            type="password"
             value={emailStepUpPassword}
             disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
-            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
-            onChange={(e) => setEmailStepUpPassword(e.target.value)}
+            onChange={setEmailStepUpPassword}
           />
           <DialogError errors={errors} scope="change-email" />
         </Stack>
@@ -1233,12 +1224,10 @@ export function UsersPage() {
           <p className="muted">
             {stepUpMode === "disable" ? t("stepUpDisableHint") : t("stepUpEnableHint")}
           </p>
-          <TextField
+          <StepUpPasswordField
             label={t("stepUpFieldLabel")}
-            type="password"
             value={stepUpPassword}
-            slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "current-password" } }}
-            onChange={(e) => setStepUpPassword(e.target.value)}
+            onChange={setStepUpPassword}
           />
           <DialogError errors={errors} scope="disable-enable" />
         </Stack>

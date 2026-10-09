@@ -70,6 +70,11 @@ public interface IAccessModule
     Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
         Guid accountId, Guid userId, string currentPassword, CancellationToken ct);
 
+    // #798 — spends a step-up grant on a decision outside user administration: approving
+    // a connected app. Validates and consumes it exactly as the gated user operations do.
+    Task<Result> ConsumeStepUpGrantAsync(
+        Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct);
+
     // Jwt:RefreshTokenDays, the refresh cookie's lifetime. Only this value
     // leaves the JWT options; the signing keys stay in Identity.
     int RefreshTokenLifetimeDays { get; }

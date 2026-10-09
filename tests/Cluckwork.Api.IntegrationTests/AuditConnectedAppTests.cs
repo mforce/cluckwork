@@ -248,9 +248,8 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
         var verifier = OAuthServerTests.NewCodeVerifier();
         var query = OAuthServerTests.AuthorizeQuery(clientId, verifier);
         query["scope"] = WriteScope;
-        using var authorize = await OAuthServerTests.SendAuthorizeAsync(host, jwt, query);
-        Assert.Equal(HttpStatusCode.Redirect, authorize.StatusCode);
-        var code = QueryHelpers.ParseQuery(authorize.Headers.Location!.Query)["code"].ToString();
+        var location = await OAuthServerTests.ApproveAsync(host, jwt, query);
+        var code = QueryHelpers.ParseQuery(location.Query)["code"].ToString();
 
         using var client = OAuthServerTests.HttpsClient(host, bearer: null);
         using var token = await client.PostAsync("/api/v1/oauth/token", new FormUrlEncodedContent(

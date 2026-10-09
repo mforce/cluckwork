@@ -90,6 +90,8 @@ public sealed class ServingGuardCoverageTests
             ["EnsureNoPlaintextDataProtectionKeysAsync"] =
                 ["Data Protection key(s) stored without encryption (key id: 00000000-0000-0000-0000-000000000794)"],
             ["EnsureSharedStateConnectionValid"] = ["SharedState:Redis:ConnectionString is set but not a valid"],
+            ["EnsureOAuthIssuer"] =
+                ["OAuth:Issuer is not configured", "OAuth:Issuer must be an absolute https URL"],
         };
 
         Assert.NotEmpty(guardMethods);

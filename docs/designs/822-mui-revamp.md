@@ -388,6 +388,8 @@ Ceiling **1,900 KiB**, enforced in `scripts/verify-sw.mjs` (it sums the precache
 
 **Amended 2026-10-09: the ceiling is 1,920 KiB.** The maintainer approved one raise for the OAuth milestone (#800, #798, #799), after #800 measured 1,903.38 KiB against `main`'s 1,897.12. The rest of the headroom is reserved for #798 and #799; the next raise needs a new maintainer decision. `verify-sw.mjs` carries the same record.
 
+**Amended again 2026-10-09: the ceiling is 1,950 KiB.** The maintainer approved a second raise for the milestone. #800 measures 1,903.38 KiB and #798 adds 19.15 KiB on the same base, about 1,922.5 KiB together; the rest is reserved for #799. Not precaching the languages a device does not use (es/tl) is the planned way to win the space back, tracked separately. Any further raise needs a new maintainer decision.
+
 **Script-duration ceiling: also re-enforced by #825, as a wide regression tripwire rather than a tight budget**, for a reason the precache ceiling does not share: byte counts are environment-independent, but a CI runner's CPU is shared and variable run to run, so a tight number here would be exactly the "wrong guard that reads as safety" the owner's own 2026-09-16 comment warned against for precache. `tools/simulation/ui/specs/dashboard-script-duration.spec.ts` measures Dashboard's script execution time via CDP `Performance.getMetrics`, median of 5 runs against the real seeded stack, and fails only past a 600 ms tripwire sized generously above ordinary noise — printed every run, gating only a multi-fold regression (the record's own named unmeasured cases, `Autocomplete` and a data grid).
 
 ### D10. Coverage: the constraint nobody filed

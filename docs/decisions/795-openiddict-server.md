@@ -5,7 +5,7 @@
 > insufficient, what not to break). The design it implements is in
 > [`docs/plans/788-mcp-oauth/`](../plans/788-mcp-oauth/00-README.md).
 
-**Status:** accepted
+**Status:** accepted; the Production gate is superseded by [`798-oauth-consent.md`](798-oauth-consent.md)
 **Date:** 2026-10-08
 
 ## What happened

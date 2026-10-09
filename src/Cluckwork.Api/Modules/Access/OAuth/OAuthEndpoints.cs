@@ -2,10 +2,15 @@ using System.Security.Claims;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
+using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using OpenIddict.Abstractions;
+using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -24,8 +29,11 @@ public static class OAuthEndpoints
 
     public static RouteGroupBuilder MapOAuthEndpoints(this RouteGroupBuilder group)
     {
+        // #798 — anonymous so a browser navigation, which carries no bearer, reaches the
+        // handler and is handed to the SPA's consent route. The SPA then calls it with its
+        // session bearer to decide.
         group.MapGet("/authorize", Authorize)
-            .RequireAuthorization()
+            .AllowAnonymous()
             .RequireRateLimiting(RateLimitingOptions.OAuthAuthorizePolicyName)
             .ExcludeFromDescription();
 
@@ -75,33 +83,130 @@ public static class OAuthEndpoints
 
     private sealed class AcceptsOAuthTokensMarker;
 
-    // #795 — OpenIddict has already validated the request. No consent screen exists
-    // until #798, so a signed-in caller approves its own, with the scopes it asked for.
-    // OpenIddict refuses any scope it does not register, and it registers none yet.
+    public const string ConsentHeaderName = "X-Cluckwork-Consent";
+
+    // #798 — OpenIddict has already validated the client, the redirect URI, PKCE and the
+    // scopes. Consent is all or nothing and always needs the user's password through a
+    // step-up grant. When one of their valid permanent authorizations for this app already
+    // holds every scope asked for, only the permission explanation is skipped.
     private static async Task<IResult> Authorize(
-        HttpContext context, ICurrentUser currentUser, IOpenIddictApplicationManager applications,
+        HttpContext context,
+        ICurrentUser currentUser,
+        TenantContext tenant,
+        FlockScope flockScope,
+        IAccessModule access,
+        IOpenIddictApplicationManager applications,
+        IOpenIddictAuthorizationManager authorizations,
+        [FromHeader(Name = AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
+        [FromHeader(Name = ConsentHeaderName)] string? consent,
         CancellationToken ct)
     {
-        if (!currentUser.IsResolved) return Results.Unauthorized();
+        if (!currentUser.IsResolved)
+        {
+            // An expired session: the SPA refreshes and asks again.
+            if (context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                return Results.Unauthorized();
+            // The sign-in screen names the app it continues to. The name is the app's
+            // own public choice (#797), so it needs no session.
+            if (consent == "preview")
+                return Results.Json(new
+                {
+                    clientName = await applications.GetDisplayNameAsync(
+                        (await applications.FindByClientIdAsync(context.GetOpenIddictServerRequest()!.ClientId!, ct))!, ct),
+                });
+            // A browser navigation. A relative path cannot leave this origin, and the
+            // query is the request OpenIddict just validated.
+            return Results.Redirect("/connect" + context.Request.QueryString);
+        }
+
+        if (consent == "deny")
+            return Results.Forbid(
+                new AuthenticationProperties(new Dictionary<string, string?>
+                {
+                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.AccessDenied,
+                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user declined the request.",
+                }),
+                [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
 
         var request = context.GetOpenIddictServerRequest()!;
+        // RFC 6749 §3.3 lets a server default an empty request. The default is the narrower
+        // scope, and consent shows it.
+        var scopes = request.GetScopes() is { IsEmpty: false } asked ? asked : [OAuthScopes.ReadFarm];
+        var application = (await applications.FindByClientIdAsync(request.ClientId!, ct))!;
+        var applicationId = (await applications.GetIdAsync(application, ct))!;
+        var subject = currentUser.UserId.ToString();
+
+        object? covering = null;
+        var allowed = new HashSet<string>(StringComparer.Ordinal);
+        await foreach (var authorization in authorizations.FindAsync(
+            subject, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))
+        {
+            var granted = await authorizations.GetScopesAsync(authorization, ct);
+            allowed.UnionWith(granted);
+            if (covering is null && scopes.All(granted.Contains)) covering = authorization;
+        }
+
+        // Every code costs a spent step-up grant, a reconnect included: the code becomes a
+        // token that never expires, so a session bearer alone must never mint one. A
+        // reconnect only skips the permissions, because the user already approved them.
+        if (stepUpToken is null)
+            return Results.Json(new ConsentRequest(
+                request.ClientId!,
+                await applications.GetDisplayNameAsync(application, ct),
+                new Uri(ValidatedRedirectUri(context)).Host,
+                scopes,
+                [.. scopes.Where(allowed.Contains)],
+                AlreadyApproved: covering is not null,
+                AssignedFlocks: flockScope.IsUnrestricted ? null
+                    : [.. (await access.ListFlockAssignmentsAsync(currentUser.UserId, ct))
+                        .Select(assignment => assignment.FlockName).OfType<string>()]));
+
+        var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);
+        if (proof.IsFailure)
+            return Results.Problem(proof.Error.Description,
+                statusCode: StatusCodes.Status403Forbidden, title: proof.Error.Code);
+
         var identity = new ClaimsIdentity(
             context.User.Claims.Where(claim => SessionClaimTypes.Contains(claim.Type)),
             OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
             Claims.Name,
             Claims.Role);
-        identity.SetScopes(request.GetScopes());
+        identity.SetScopes(scopes);
         // #800 — the name rides in the token, as the user's email does, so an audit row
         // snapshots it without a lookup per write. Registration never renames a client.
-        var application = await applications.FindByClientIdAsync(request.ClientId!, ct);
-        identity.SetClaim(ClientNameClaim,
-            application is null ? null : await applications.GetDisplayNameAsync(application, ct));
+        identity.SetClaim(ClientNameClaim, await applications.GetDisplayNameAsync(application, ct));
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
+        // One permanent authorization per approval, reused by every later connection that
+        // asks for no more. Disconnect revokes it, and with it every token it issued (#796).
+        covering ??= await authorizations.CreateAsync(
+            identity, subject, applicationId, AuthorizationTypes.Permanent, scopes, ct);
+        identity.SetAuthorizationId(await authorizations.GetIdAsync(covering, ct));
 
         return Results.SignIn(
             new ClaimsPrincipal(identity),
             authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
+
+    // What the consent screen shows. The name is the app's own choice (#797). When
+    // AlreadyApproved, an earlier approval holds every scope and the SPA asks only for the
+    // password. AssignedFlocks is the user's flock scope as this request resolved it: null
+    // for every flock, else the names of the flocks they are assigned to.
+    private sealed record ConsentRequest(
+        string ClientId,
+        string? ClientName,
+        string RedirectHost,
+        IReadOnlyList<string> Scopes,
+        IReadOnlyList<string> AlreadyAllowed,
+        bool AlreadyApproved,
+        IReadOnlyList<string>? AssignedFlocks);
+
+    // A client with one registered redirect URI may omit redirect_uri; OpenIddict then
+    // validates that one and keeps it on the validation context, not on the request.
+    private static string ValidatedRedirectUri(HttpContext context) =>
+        context.Features.Get<OpenIddictServerAspNetCoreFeature>()!.Transaction!
+            .GetProperty<OpenIddictServerEvents.ValidateAuthorizationRequestContext>(
+                typeof(OpenIddictServerEvents.ValidateAuthorizationRequestContext).FullName!)!
+            .RedirectUri!;
 
     // OpenIddict has validated the client, the code and its authorization before this
     // runs; the code's principal becomes the access token's.

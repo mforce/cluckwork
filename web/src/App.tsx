@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AuthProvider } from "./auth/AuthContext";
 import { FarmThemeProvider } from "./theme/FarmThemeProvider";
@@ -9,6 +9,7 @@ import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
 import { Login } from "./routes/Login";
 
+const ConnectPage = lazy(() => import("./routes/ConnectPage").then(({ ConnectPage }) => ({ default: ConnectPage })));
 const Dashboard = lazy(() => import("./routes/Dashboard").then(({ Dashboard }) => ({ default: Dashboard })));
 const DailyEntryPage = lazy(() => import("./routes/DailyEntryPage").then(({ DailyEntryPage }) => ({ default: DailyEntryPage })));
 const StockPage = lazy(() => import("./routes/StockPage").then(({ StockPage }) => ({ default: StockPage })));
@@ -49,6 +50,9 @@ export function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route element={<ProtectedRoute />}>
+              {/* #798 — a connected app's consent screen: the user's language and
+                  farm (SessionProvider), without the app shell. */}
+              <Route path="/connect" element={<SessionProvider><Suspense fallback={null}><ConnectPage /></Suspense></SessionProvider>} />
               {/* Inside the auth gate (it needs a token to read /account) and
                   outside the shell, so the sidebar's branding slot and every
                   screen's date fields read the same farm (#123). SessionProvider

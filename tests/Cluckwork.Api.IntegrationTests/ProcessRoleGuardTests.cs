@@ -344,7 +344,19 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#543 shared-state", "SharedState:Redis:ConnectionString is set but not a valid",
             Violate: psi => psi.Environment["SharedState__Redis__ConnectionString"] = "abortConnect=false",
             Satisfy: psi => psi.Environment.Remove("SharedState__Redis__ConnectionString")),
+
+        // #798 — Production runs the authorization server, which needs its public URL.
+        new("#798 issuer missing", "OAuth:Issuer is not configured",
+            Violate: psi => psi.Environment.Remove("OAuth__Issuer"),
+            Satisfy: SatisfyOAuthIssuer),
+
+        new("#798 issuer not https", "OAuth:Issuer must be an absolute https URL",
+            Violate: psi => psi.Environment["OAuth__Issuer"] = "http://farm.example/",
+            Satisfy: SatisfyOAuthIssuer),
     ];
+
+    private static void SatisfyOAuthIssuer(ProcessStartInfo psi) =>
+        psi.Environment["OAuth__Issuer"] = "https://farm.example/";
 
     // Exposed so ServingGuardCoverageTests can hold this table against the source
     // it claims to enumerate — without that, deleting a row silently deletes an

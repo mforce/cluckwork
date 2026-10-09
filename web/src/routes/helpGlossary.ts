@@ -36,6 +36,7 @@ const ENTRIES = [
   { key: "TooManySignInAttempts", group: "signingIn", spec: "Auth rate limiting" },
   { key: "ForcedReauth", group: "signingIn", spec: "Session tokens" },
   { key: "StepUpAuth", group: "signingIn", spec: "Step-up authentication" },
+  { key: "AppConsent", group: "signingIn", spec: "Connecting an app" },
   { key: "Roles", group: "signingIn", spec: "Roles" },
   { key: "FlockScoping", group: "signingIn", spec: "Flock scoping" },
   { key: "DisabledUser", group: "signingIn", spec: "Disabled user" },

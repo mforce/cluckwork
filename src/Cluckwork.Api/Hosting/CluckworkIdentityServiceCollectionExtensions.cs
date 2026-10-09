@@ -191,22 +191,37 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         return new(OAuthServer: oauthIssuer is not null);
     }
 
-    // #795 — Production never runs the authorization server: no client registration
-    // (#797) and no consent with step-up (#798) exist yet. Elsewhere a configured issuer
-    // turns it on. The issuer is never derived from the request's Host, because discovery
-    // would then vary with it (#538).
+    // #798 — a Production serving process always runs the authorization server, so it
+    // needs its public https URL. Elsewhere a configured issuer turns the server on. The
+    // issuer is never derived from the request's Host, because discovery would then vary
+    // with it (#538).
     private static Uri? OAuthIssuer(
         IConfiguration configuration, IHostEnvironment environment, ProcessRole role)
     {
         var issuer = configuration["OAuth:Issuer"];
-        if (role is not ProcessRole.Serving || environment.IsProduction()
-            || string.IsNullOrWhiteSpace(issuer))
-            return null;
+        if (role is not ProcessRole.Serving) return null;
+        if (environment.IsProduction()) return EnsureOAuthIssuer(issuer);
+        if (string.IsNullOrWhiteSpace(issuer)) return null;
 
         return Uri.TryCreate(issuer, UriKind.Absolute, out var uri)
             ? uri
             : throw new InvalidOperationException(
                 $"OAuth:Issuer must be an absolute URI, and '{issuer}' is not.");
+    }
+
+    private static Uri EnsureOAuthIssuer(string? issuer)
+    {
+        if (string.IsNullOrWhiteSpace(issuer))
+            throw new InvalidOperationException(
+                "OAuth:Issuer is not configured. Set it to this deployment's public https URL, "
+                + "for example https://farm.example/.");
+
+        // Discovery builds every endpoint URL under it, which a query or fragment would break.
+        return Uri.TryCreate(issuer, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
+            && uri.Query.Length == 0 && uri.Fragment.Length == 0
+            ? uri
+            : throw new InvalidOperationException(
+                $"OAuth:Issuer must be an absolute https URL, and '{issuer}' is not.");
     }
 
     private static void AddUserFeatures(IServiceCollection services)
