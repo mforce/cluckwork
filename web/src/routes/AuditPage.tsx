@@ -8,6 +8,7 @@ import {
 import { Plug } from "lucide-react";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
 import { currentUserId } from "../auth/claims";
+import { newId } from "../lib/ids";
 import { FilterDateField } from "../components/FilterBar";
 import { usePagedList } from "../components/usePagedList";
 import { isIsoCalendarDate } from "../lib/dates";
@@ -31,6 +32,11 @@ const PAGE = 100;
 // ponytail: grows by one short entry per app seen; nothing evicts until a reload.
 const knownAppNames = new Map<string, string | null>();
 const appNameKey = (clientId: string) => `${currentUserId() ?? ""} ${clientId}`;
+
+// Show only's focus request, as the nonce it put in navigation state. The remounted
+// screen focuses only for the pending nonce and clears it, so Back, Forward or a
+// reload that restores the entry's state does not move focus again.
+let pendingPivotFocus: string | null = null;
 
 // Canonical 8-4-4-4-12 hex form only, not full Guid.TryParse permissiveness
 // (which also accepts braced/no-hyphen forms). This is a correctness guard,
@@ -234,12 +240,15 @@ export function AuditPage() {
     knownAppNames.set(appNameKey(clientId), name);
     const next = new URLSearchParams(searchParams);
     next.set("connectedAppClientId", clientId);
-    setSearchParams(next, { state: { focusAppPivot: true } });
+    pendingPivotFocus = newId();
+    setSearchParams(next, { state: { focusAppPivot: pendingPivotFocus } });
   }, [searchParams, setSearchParams]);
   const pivotCaptionRef = useRef<HTMLParagraphElement>(null);
-  const focusAppPivot = (useLocation().state as { focusAppPivot?: boolean } | null)?.focusAppPivot;
+  const focusAppPivot = (useLocation().state as { focusAppPivot?: string } | null)?.focusAppPivot;
   useEffect(() => {
-    if (focusAppPivot) pivotCaptionRef.current?.focus();
+    if (focusAppPivot === undefined || focusAppPivot !== pendingPivotFocus) return;
+    pendingPivotFocus = null;
+    pivotCaptionRef.current?.focus();
   }, [focusAppPivot]);
 
   const updateActionFilter = useCallback((action: string) => {

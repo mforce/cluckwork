@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
-import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
+import { BrowserRouter, Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { AuditPage, isFetchStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
@@ -1835,5 +1835,80 @@ describe("AuditPage connected apps (#800)", () => {
     await screen.findByRole("article", { description: /via Claude Desktop/ });
     expect(lastQuery()).toMatchObject({ connectedAppsOnly: true, connectedAppClientId: "client-claude" });
     expect(appsOnlyBox()).toBeChecked();
+  });
+});
+
+// Review round 3 — Show only's focus request belongs to the navigation it started. A
+// history entry that still carries it must not move focus again when it is restored.
+describe("AuditPage Show only focus is not replayed (#800)", () => {
+  const APP: AuditEvent = {
+    ...EVENT_A, id: "replay1", connectedAppClientId: "client-replay", connectedAppName: "Claude Desktop",
+  };
+
+  // AppLayout's keyed remount, plus the history controls a user has.
+  function HistoryHarness() {
+    const location = useLocation();
+    const navigate = useNavigate();
+    return (
+      <>
+        <button type="button" onClick={() => navigate(-1)}>history-back</button>
+        <button type="button" onClick={() => navigate(1)}>history-forward</button>
+        <button type="button" onClick={() => navigate("/help")}>go-help</button>
+        {location.pathname === "/audit" ? <AuditPage key={location.key} /> : <h1>Help page</h1>}
+      </>
+    );
+  }
+
+  async function pressShowOnly() {
+    const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expandPanel(row);
+    fireEvent.click(within(row).getByRole("button", { name: "Show only Claude Desktop" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus());
+  }
+
+  async function expectRestoredWithoutFocus() {
+    await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expect(screen.getByRole("status")).not.toHaveFocus();
+  }
+
+  beforeEach(() => mockListAuditEvents.mockResolvedValue([APP]));
+
+  it("focuses and announces the caption on the press itself", async () => {
+    render(<MemoryRouter initialEntries={["/audit"]}><HistoryHarness /></MemoryRouter>);
+    await pressShowOnly();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
+  });
+
+  it("does not refocus the caption on Back after leaving the screen", async () => {
+    render(<MemoryRouter initialEntries={["/audit"]}><HistoryHarness /></MemoryRouter>);
+    await pressShowOnly();
+    fireEvent.click(screen.getByRole("button", { name: "go-help" }));
+    await screen.findByRole("heading", { name: "Help page" });
+
+    fireEvent.click(screen.getByRole("button", { name: "history-back" }));
+    await expectRestoredWithoutFocus();
+  });
+
+  it("does not refocus the caption on Forward", async () => {
+    render(<MemoryRouter initialEntries={["/audit"]}><HistoryHarness /></MemoryRouter>);
+    await pressShowOnly();
+    fireEvent.click(screen.getByRole("button", { name: "history-back" }));
+    await waitFor(() => expect(screen.getByRole("status")).toBeEmptyDOMElement());
+
+    fireEvent.click(screen.getByRole("button", { name: "history-forward" }));
+    await expectRestoredWithoutFocus();
+  });
+
+  it("does not refocus the caption when a reload restores the history entry", async () => {
+    window.history.replaceState(null, "", "/audit");
+    const before = render(<BrowserRouter><HistoryHarness /></BrowserRouter>);
+    await pressShowOnly();
+    const kept = window.history.state?.usr;
+    before.unmount();
+
+    expect(window.history.state?.usr).toEqual(kept);
+    render(<BrowserRouter><HistoryHarness /></BrowserRouter>);
+    await expectRestoredWithoutFocus();
+    window.history.replaceState(null, "", "/");
   });
 });
