@@ -46,19 +46,17 @@ export function ConnectedAppsPage() {
 
   async function flip(allow: boolean) {
     if (farmSwitch === null) return;
-    const before = farmSwitch;
-    setFarmSwitch({ ...before, allow });
+    setFarmSwitch({ ...farmSwitch, allow });
     setSwitching(true);
     setSwitchFailed(false);
     setSwitchNews("");
     try {
-      await setConnectedApps(allow, before.version);
+      await setConnectedApps(allow, farmSwitch.version);
       setSwitchNews(t(allow ? "allowOn" : "allowOff"));
     } catch {
-      setFarmSwitch(before);
       setSwitchFailed(true);
     }
-    // The Version moved, or someone else's did: either way the next flip needs the fresh one.
+    // Restores a failed flip and picks up the new Version, from what the server now holds.
     await load();
     setSwitching(false);
   }
