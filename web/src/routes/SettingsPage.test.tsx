@@ -127,7 +127,7 @@ const SETTINGS = (
 let refreshed = 0;
 let refreshOk = true;
 
-type CollapsedSettingsSection = "Localization" | "Counting & sales" | "Date & time formats" | "Connected apps";
+type CollapsedSettingsSection = "Localization" | "Counting & sales" | "Date & time formats";
 const LOCALIZATION = ["Localization"] as const;
 const COUNTING_SALES = ["Counting & sales"] as const;
 const DATE_TIME_FORMATS = ["Date & time formats"] as const;
@@ -259,26 +259,10 @@ describe("SettingsPage saving", () => {
       defaultStepperUnit: "Individual",
       workerSaleAllocationPolicy: "AssignedFlocksOnly",
       maxDiscountPercent: null,
-      allowConnectedApps: true,
       version: 7,
     });
     expect(key).toBeTruthy();
     expect(screen.getByText("Settings saved.")).toBeInTheDocument();
-  });
-
-  // #1146
-  it("turns connected apps off with the rest of the settings, and says what off does", async () => {
-    mockUpdate.mockResolvedValue(undefined);
-    await renderReady(SETTINGS(), ["Connected apps"]);
-    const box = screen.getByRole("checkbox", { name: "Allow connected apps" });
-    expect(box).toBeChecked();
-    expect(box).toHaveAccessibleDescription(
-      "Off: no app can connect, and connected apps stop until you turn this back on.");
-
-    fireEvent.click(box);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
-
-    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ allowConnectedApps: false });
   });
 
   it("sends a blank override as null, not an empty string", async () => {

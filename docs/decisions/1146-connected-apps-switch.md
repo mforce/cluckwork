@@ -40,14 +40,25 @@ switch into a farm-wide Disconnect, which already exists per person.
 **Precedence.** Unknown user, disabled user, suspended farm, then the switch, then
 the epoch: signing in again cannot cure an app the switch refuses.
 
-**It is a settings field.** The switch travels in the whole `PUT /account/settings`
-block, so it inherits Owner-only (#729), the `Version` token and the
-`Account.UpdateSettings` audit event, whose before and after snapshots carry it. A
-racing settings save at the same `Version` gets 409, never a blend. The command's
-field is nullable only so an omitted field is a 400, never a silent `false`. A
-separate endpoint was considered and rejected: it needs its own command, audit
-action and labels in three locales, and it would leave an open Farm settings form
-holding a stale `Version`.
+**It has its own endpoint, on the Connected apps page.** The Owner turns it on or off
+at the top of **Setup › Connected apps**, the page that lists the apps it governs.
+`PUT /api/v1/account/connected-apps` takes `{ allow, version }`. It is Owner-only
+(#729) and needs an `Idempotency-Key` like every write. `Account.SetConnectedApps`
+bumps `Version` only on a real change, as `Rename` does. The switch shares the
+`Version` token with the Farm settings save, so a racing settings save or a second
+Owner holding an older version gets 409, never a silent overwrite. Each change
+writes `Account.UpdateSettings` with `AllowConnectedApps` before and after and the
+Owner as actor. No new audit action was added; the maintainer accepted that. An
+omitted `allow` is a 400, never a silent `false`. The page reads the switch and its
+version from `GET /account` with its rows, not from the session's farm, which
+another Owner may have changed.
+
+The first version of this slice put the switch in the Farm settings block. The
+maintainer moved it to the Connected apps page, where an Owner already looks at
+connections. The Farm settings `PUT` no longer carries the field.
+
+The control is MUI `Switch`, a sliding toggle. It costs 5.60 KiB of precache, and the
+maintainer raised the ceiling to 1,960 KiB for it (`web/scripts/verify-sw.mjs`).
 
 ## Accepted costs
 

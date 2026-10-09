@@ -620,7 +620,6 @@ export interface UpdateFarmSettings {
   workerSaleAllocationPolicy: string;
   // #727 — null clears the ceiling; 0 is a legal, different setting.
   maxDiscountPercent: number | null;
-  allowConnectedApps: boolean;
   version: number;
 }
 
@@ -629,6 +628,10 @@ export const getFarmSettings = () => apiGet<FarmSettings>("/account/settings");
 
 export const updateFarmSettings = (body: UpdateFarmSettings, key?: string) =>
   apiPut<void>("/account/settings", body, key);
+
+// #1146 — Owner-only, under the same Version as the settings above.
+export const setConnectedApps = (allow: boolean, version: number) =>
+  apiPut<void>("/account/connected-apps", { allow, version });
 
 // --- Farm logo (#123) ---
 

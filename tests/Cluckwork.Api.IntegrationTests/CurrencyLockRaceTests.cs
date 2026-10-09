@@ -66,7 +66,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         account.DateFormatOverride, account.TimeFormatOverride,
         account.Brand, account.DefaultStepperUnit.ToString(),
         account.WorkerSaleAllocationPolicy.ToString(), account.Version,
-        account.MaxDiscount?.Percent, account.AllowConnectedApps);
+        account.MaxDiscount?.Percent);
 
     [Fact]
     public async Task CurrencyChange_SerializesBehindAnInFlightMoneyWrite_AndRefuses()

@@ -278,7 +278,11 @@ export const en = {
     people: "{{count}} people",
     people_one: "{{count}} person",
     farmCount: "{{connections}}, {{people}}",
-    farmOff: "Connected apps are off for this farm, so these apps can't act for anyone. Turn them on in Farm settings.",
+    allowLabel: "Allow connected apps",
+    allowHint: "Off: new connections are refused, and connected apps stop on their next request.",
+    allowOn: "Connected apps are on.",
+    allowOff: "Connected apps are off.",
+    allowFailed: "Could not change it. Try again.",
     farmEmpty: "No one on this farm has connected an app.",
   },
   // Keyed by the API's stable validation codes (#45), which contain dots
@@ -2017,8 +2021,6 @@ export const en = {
     // #727 — whole percents, because this is the only numeric input on this
     // screen and type="number" disagrees with itself across browsers about
     // `,` versus `.`. Storage is basis points, so finer steps are a UI change.
-    allowConnectedAppsLabel: "Allow connected apps",
-    allowConnectedAppsHint: "Off: no app can connect, and connected apps stop until you turn this back on.",
     maxDiscountPercentLabel: "Maximum discount",
     maxDiscountPercentHint:
       "The largest discount a Sales or Worker user may put on one sale line, as "
@@ -3186,7 +3188,7 @@ export const en = {
       + "request; to use it again, connect it again with your password. An app unused for 30 days is marked. "
       + "The Owner sees every app on the farm under <strong>Setup</strong> › <strong>Connected apps</strong>, can "
       + "filter by <strong>Person</strong>, and can disconnect any of them, which does less than disabling the person. "
-      + "Clearing <strong>Allow connected apps</strong> in <strong>Farm settings</strong> stops every app and any new "
+      + "Turning off <strong>Allow connected apps</strong> at the top of that page stops every app and any new "
       + "connection until the Owner turns it back on; nothing is disconnected.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
@@ -4179,7 +4181,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps in Farm settings turns them all off.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps, on the Owner's Connected apps page, turns them all off.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "

@@ -41,6 +41,11 @@ internal static class FarmModuleServiceCollectionExtensions
         services.AddScoped<
             Cluckwork.Application.Modules.Farm.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();
         services.AddScoped<
+            IValidator<Cluckwork.Application.Modules.Farm.Contracts.SetConnectedAppsCommand>,
+            Cluckwork.Application.Modules.Farm.Accounts.SetConnectedApps.SetConnectedAppsValidator>();
+        services.AddScoped<
+            Cluckwork.Application.Modules.Farm.Accounts.SetConnectedApps.SetConnectedAppsHandler>();
+        services.AddScoped<
             Cluckwork.Application.Modules.Farm.Accounts.SetFarmLogo.SetFarmLogoHandler>();
         services.AddScoped<
             Cluckwork.Application.Modules.Farm.Accounts.RemoveFarmLogo.RemoveFarmLogoHandler>();

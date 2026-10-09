@@ -37,13 +37,12 @@ public sealed partial class OAuthFailClosedTests
     public async Task ConnectedAppsSwitch_IsOwnerOnly()
     {
         var user = await SeedAsync(Roles.Manager);
-        var owner = await factory.LoginForAccessTokenAsync(user.OwnerEmail);
-        var settings = await ReadSettingsAsync(owner);
+        var account = await ReadAccountAsync(user.Jwt);
 
-        using var refused = await PutSettingsAsync(user.Jwt, SettingsBody(settings, allowConnectedApps: false));
+        using var refused = await PutSwitchAsync(user.Jwt, allow: false, account["version"]!.GetValue<int>());
 
         Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
-        Assert.True((await ReadSettingsAsync(owner))["settings"]!["allowConnectedApps"]!.GetValue<bool>(),
+        Assert.True((await ReadAccountAsync(user.Jwt))["allowConnectedApps"]!.GetValue<bool>(),
             "a Manager turned connected apps off");
     }
 
@@ -141,7 +140,8 @@ public sealed partial class OAuthFailClosedTests
     }
 
     // A Farm settings save racing the switch at the same Version: one wins whole, the
-    // other gets 409, and the stored row is never a blend of the two.
+    // other gets 409, and the stored row is never a blend of the two. The two writes go
+    // through different endpoints, so only the shared Version token can catch this.
     [Fact]
     public async Task ConnectedAppsSwitch_RacingASettingsSave_ExactlyOneWins()
     {
@@ -151,7 +151,7 @@ public sealed partial class OAuthFailClosedTests
         var version = settings["settings"]!["version"]!.GetValue<int>();
 
         var results = await Task.WhenAll(
-            PutSettingsAsync(owner, SettingsBody(settings, allowConnectedApps: false)),
+            PutSwitchAsync(owner, allow: false, version),
             PutSettingsAsync(owner, SettingsBody(settings, name: "Renamed in the race")));
 
         Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.NoContent));
@@ -163,11 +163,41 @@ public sealed partial class OAuthFailClosedTests
         Assert.True(switchWon ^ renameWon, $"the race stored {after.ToJsonString()}");
     }
 
+    // Two Owners turning it off from the same page load: the second holds a stale
+    // Version, so it gets 409 whichever request lands first.
+    [Fact]
+    public async Task ConnectedAppsSwitch_TwoOwnersAtOneVersion_ExactlyOneWins()
+    {
+        var user = await SeedAsync(Roles.Manager);
+        var owner = await factory.LoginForAccessTokenAsync(user.OwnerEmail);
+        var version = (await ReadAccountAsync(owner))["version"]!.GetValue<int>();
+
+        var results = await Task.WhenAll(PutSwitchAsync(owner, allow: false, version), PutSwitchAsync(owner, allow: false, version));
+
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+        Assert.Equal(version + 1, (await ReadAccountAsync(owner))["version"]!.GetValue<int>());
+    }
+
     private async Task SwitchConnectedAppsAsync(SeededUser user, bool on)
     {
         var owner = await factory.LoginForAccessTokenAsync(user.OwnerEmail);
-        using var response = await PutSettingsAsync(owner, SettingsBody(await ReadSettingsAsync(owner), allowConnectedApps: on));
+        var version = (await ReadAccountAsync(owner))["version"]!.GetValue<int>();
+        using var response = await PutSwitchAsync(owner, on, version);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    private async Task<JsonNode> ReadAccountAsync(string jwt) =>
+        (await factory.CreateAuthedClient(jwt).GetFromJsonAsync<JsonNode>("/api/v1/account"))!;
+
+    private Task<HttpResponseMessage> PutSwitchAsync(string jwt, bool allow, int version)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/account/connected-apps")
+        {
+            Content = JsonContent.Create(new { allow, version }),
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        return factory.CreateAuthedClient(jwt).SendAsync(request);
     }
 
     private async Task<JsonNode> ReadSettingsAsync(string jwt) =>
@@ -181,7 +211,7 @@ public sealed partial class OAuthFailClosedTests
     }
 
     // The whole block as the server holds it, so a save changes only what the test names.
-    private static JsonObject SettingsBody(JsonNode settings, bool? allowConnectedApps = null, string? name = null)
+    private static JsonObject SettingsBody(JsonNode settings, string? name = null)
     {
         var current = settings["settings"]!;
         return new JsonObject
@@ -198,7 +228,6 @@ public sealed partial class OAuthFailClosedTests
             ["defaultStepperUnit"] = current["defaultStepperUnit"]!.DeepClone(),
             ["workerSaleAllocationPolicy"] = settings["workerSaleAllocationPolicy"]!.DeepClone(),
             ["maxDiscountPercent"] = settings["maxDiscountPercent"]?.DeepClone(),
-            ["allowConnectedApps"] = allowConnectedApps ?? current["allowConnectedApps"]!.GetValue<bool>(),
             ["version"] = current["version"]!.DeepClone(),
         };
     }

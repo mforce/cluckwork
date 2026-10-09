@@ -12,7 +12,6 @@ import {
 import type { EggUnitConversion, FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
-import { ConnectedAppsSetting } from "./ConnectedAppsSetting";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarm } from "../farm/useFarm";
@@ -193,7 +192,6 @@ export function SettingsPage() {
   // null anyway. Lives on the FarmSettings wrapper (admin-only) like the
   // policy above; every other role sees only Account.yourMaxDiscountPercent.
   const [maxDiscountPercent, setMaxDiscountPercent] = useState("");
-  const [allowConnectedApps, setAllowConnectedApps] = useState(true);
   const [firstDayOfWeek, setFirstDayOfWeek] = useState("");
   const [dateFormat, setDateFormat] = useState("");
   // #452 — true once the user (or the loaded value) is on the "Custom…"
@@ -290,7 +288,6 @@ export function SettingsPage() {
     setLocale(s.locale);
     setCurrencyCode(s.currencyCode);
     setUnitSystem(s.unitSystem);
-    setAllowConnectedApps(s.allowConnectedApps);
     setFirstDayOfWeek(s.firstDayOfWeek ?? "");
     const nextDateFormat = s.dateFormatOverride ?? "";
     setDateFormat(nextDateFormat);
@@ -381,7 +378,6 @@ export function SettingsPage() {
         defaultStepperUnit,
         workerSaleAllocationPolicy,
         maxDiscountPercent: percentOrNull(maxDiscountPercent),
-        allowConnectedApps,
         version: loaded.settings.version,
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
@@ -951,8 +947,6 @@ export function SettingsPage() {
       </Stack>
           </AccordionDetails>
         </Accordion>
-
-        <ConnectedAppsSetting checked={allowConnectedApps} onChange={setAllowConnectedApps} />
 
         <Typography variant="body2" color="text.secondary">
           {t("effectNote")}

@@ -37,6 +37,7 @@ internal static partial class RealModuleLedger
         ]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.GetAccount", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.GetSettings", ["Farm"]),
+        new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.SetConnectedApps", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.ShowFarmWideSaleAllocationNotice", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.ToResponse", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.UpdateSettings", ["Farm"]),

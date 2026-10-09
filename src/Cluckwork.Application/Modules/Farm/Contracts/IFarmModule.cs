@@ -25,6 +25,8 @@ public interface IFarmModule
 
     Task<Result> UpdateSettingsAsync(UpdateFarmSettingsCommand command, CancellationToken ct);
 
+    Task<Result> SetConnectedAppsAsync(SetConnectedAppsCommand command, CancellationToken ct);
+
     Task<FarmBrandingHashes> GetBrandingHashesAsync(CancellationToken ct);
 
     Task<FarmLogoMetadata?> GetLogoMetadataAsync(CancellationToken ct);

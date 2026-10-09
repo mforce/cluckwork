@@ -19,14 +19,15 @@ public sealed class FarmModuleTests
         var updated = account.UpdateSettings(
             "Hilltop Farm", "Asia/Kuwait", "es", "KWD", UnitSystem.Imperial, DayOfWeek.Saturday,
             "dd/MM/yyyy", "HH:mm", "forest", EggUnit.Tray, WorkerSaleAllocationPolicy.AllFarmFlocks,
-            maxDiscountBasisPoints: 1_250, allowConnectedApps: false, financialRowsExist: false);
+            maxDiscountBasisPoints: 1_250, financialRowsExist: false);
         Assert.True(updated.IsSuccess);
+        account.SetConnectedApps(false);
         return account;
     }
 
     // The handlers and the other ports sit on paths these tests do not exercise.
     private static FarmModule Module(Account? account) =>
-        new(new StubAccounts(account), null!, null!, null!, null!, null!, null!, null!);
+        new(new StubAccounts(account), null!, null!, null!, null!, null!, null!, null!, null!);
 
     [Fact]
     public async Task GetSettings_CopiesEveryField()
@@ -38,7 +39,7 @@ public sealed class FarmModuleTests
             new FarmSettingsDetails(
                 AccountId, "Hilltop Farm", "KWD", 3, account.CurrencySymbol, "Asia/Kuwait", "es",
                 UnitSystem.Imperial, DayOfWeek.Saturday, "dd/MM/yyyy", "HH:mm", "forest",
-                EggUnit.Tray, WorkerSaleAllocationPolicy.AllFarmFlocks, 12.5m, false, 1),
+                EggUnit.Tray, WorkerSaleAllocationPolicy.AllFarmFlocks, 12.5m, false, 2),
             await Module(account).GetSettingsAsync(default));
     }
 

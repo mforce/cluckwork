@@ -44,7 +44,7 @@ ME=src/Cluckwork.Api/Modules/Access/Me/MeEndpoints.cs
 PROGRAM=src/Cluckwork.Api/Program.cs
 ACCOUNT=src/Cluckwork.Domain/Modules/Farm/Accounts/Account.cs
 ACCOUNT_ENDPOINTS=src/Cluckwork.Api/Modules/Farm/Accounts/AccountEndpoints.cs
-SETTINGS_HANDLER=src/Cluckwork.Application/Modules/Farm/Accounts/UpdateFarmSettings/UpdateFarmSettingsHandler.cs
+SWITCH_HANDLER=src/Cluckwork.Application/Modules/Farm/Accounts/SetConnectedApps/SetConnectedAppsHandler.cs
 SWITCH_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193717_AddAccountAllowConnectedApps.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
@@ -157,15 +157,15 @@ stamp-insert-only#kill#STAMP_MIGRATION#BEFORE INSERT OR UPDATE ON "OpenIddictApp
 stamp-sent-by-ef#kill#STAMP_CONFIG#BusinessRecordModel.ConfigureCreatedTimestamp(builder.Property<DateTimeOffset>(CreatedAtUtc));#builder.Property<DateTimeOffset>(CreatedAtUtc).ValueGeneratedOnAdd();#OAuthApplicationCreatedAtTests.EfInsert_ReadsBackTheDatabaseStamp#EF kept a creation time the database replaced
 switch-new-farm-off#kill#ACCOUNT#    public bool AllowConnectedApps { get; private set; } = true;#    public bool AllowConnectedApps { get; private set; }#OAuthFailClosedTests.ConnectedApps_AreOnByDefault_ForNewAndExistingFarms#a new farm starts with connected apps off
 switch-existing-farms-off#kill#SWITCH_MIGRATION#                defaultValue: true);#                defaultValue: false);#OAuthFailClosedTests.ConnectedApps_AreOnByDefault_ForNewAndExistingFarms#the migration turned connected apps off
-switch-not-owner-only#kill#ACCOUNT_ENDPOINTS#        group.MapPut("/settings", UpdateSettings)\n            .RequireAuthorization(AuthPolicies.OwnerOnly)#        group.MapPut("/settings", UpdateSettings)\n            .RequireAuthorization()#OAuthFailClosedTests.ConnectedAppsSwitch_IsOwnerOnly#Expected: Forbidden
+switch-not-owner-only#kill#ACCOUNT_ENDPOINTS#        group.MapPut("/connected-apps", SetConnectedApps)\n            .RequireAuthorization(AuthPolicies.OwnerOnly)#        group.MapPut("/connected-apps", SetConnectedApps)\n            .RequireAuthorization()#OAuthFailClosedTests.ConnectedAppsSwitch_IsOwnerOnly#Expected: Forbidden
 switch-token-unchecked#kill#VERIFIER#        if (connectedApp && credentialState.AccountAllowsConnectedApps != true)\n            return CredentialVerdict.ConnectedAppsOff;\n##OAuthFailClosedTests.ConnectedAppsOff_RefusesAnExistingToken_OnTheNextRequest#Expected: Unauthorized
 switch-token-unrecognised#kill#EPOCH#                    context.User.HasClaim(claim => claim.Type == OpenIddictConstants.Claims.ClientId),#                    false,#OAuthFailClosedTests.ConnectedAppsOff_RefusesAnExistingToken_OnTheNextRequest#Expected: Unauthorized
 switch-refuses-sessions#kill#EPOCH#                    context.User.HasClaim(claim => claim.Type == OpenIddictConstants.Claims.ClientId),#                    true,#OAuthFailClosedTests.ConnectedAppsOff_LeavesSessionsAlone#Expected: OK
-switch-off-sticks#kill#ACCOUNT#        AllowConnectedApps = allowConnectedApps;#        AllowConnectedApps = AllowConnectedApps && allowConnectedApps;#OAuthFailClosedTests.ConnectedAppsBackOn_RestoresTheConnection#Expected: OK
+switch-off-sticks#kill#ACCOUNT#        AllowConnectedApps = allow;#        AllowConnectedApps = AllowConnectedApps && allow;#OAuthFailClosedTests.ConnectedAppsBackOn_RestoresTheConnection#Expected: OK
 switch-consent-unchecked#kill#ENDPOINT#        if ((await farm.GetSettingsAsync(ct))?.AllowConnectedApps != true)\n            return Results.Problem("This farm doesn't allow connected apps. Ask an Owner.",\n                statusCode: StatusCodes.Status403Forbidden, title: ConnectedAppsOff);\n##OAuthFailClosedTests.ConnectedAppsOff_RefusesConsent_BeforeThePassword_AndIssuesNoCode#Expected: Forbidden
 switch-registration-checked#kill#ENDPOINT#        ClientRegistrationRequest request, IOpenIddictApplicationManager applications, CancellationToken ct)\n    {\n#        ClientRegistrationRequest request, IOpenIddictApplicationManager applications, IFarmModule farm, CancellationToken ct)\n    {\n        if ((await farm.GetSettingsAsync(ct))?.AllowConnectedApps != true) return RegistrationError("access_denied", "off");\n#OAuthFailClosedTests.ConnectedAppsOff_LeavesRegistrationAlone#Expected: Created
-switch-unaudited#kill#SETTINGS_HANDLER#        a.MaxDiscountBasisPoints,\n        a.AllowConnectedApps\n#        a.MaxDiscountBasisPoints\n#OAuthFailClosedTests.ConnectedAppsSwitch_IsAudited_WithTheOwnerAsActor#Expected: "true"
-switch-race-unversioned#kill#ACCOUNT#            DefaultCurrencyMinorUnit = currency.MinorUnit;\n        }\n\n        Version++;#            DefaultCurrencyMinorUnit = currency.MinorUnit;\n        }\n#OAuthFailClosedTests.ConnectedAppsSwitch_RacingASettingsSave_ExactlyOneWins#Expected: 1
+switch-unaudited#kill#SWITCH_HANDLER#                before = new { AllowConnectedApps = before },#                before = new { },#OAuthFailClosedTests.ConnectedAppsSwitch_IsAudited_WithTheOwnerAsActor#Expected: "true"
+switch-race-unversioned#kill#ACCOUNT#        AllowConnectedApps = allow;\n        Version++;#        AllowConnectedApps = allow;#OAuthFailClosedTests.ConnectedAppsSwitch_TwoOwnersAtOneVersion_ExactlyOneWins#Expected: 1
 EOF
 )
 
@@ -260,7 +260,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SETTINGS_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

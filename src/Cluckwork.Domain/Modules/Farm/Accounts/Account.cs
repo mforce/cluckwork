@@ -160,6 +160,15 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
         return Result.Success();
     }
 
+    // #1146 — false on a no-op, which leaves Version alone for the same reason Rename does.
+    public bool SetConnectedApps(bool allow)
+    {
+        if (allow == AllowConnectedApps) return false;
+        AllowConnectedApps = allow;
+        Version++;
+        return true;
+    }
+
     // #123 — the whole settings block replaced under the Version token.
     //
     // `financialRowsExist` is passed in rather than probed: §4.6's currency
@@ -178,7 +187,6 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
         EggUnit defaultStepperUnit,
         WorkerSaleAllocationPolicy workerSaleAllocationPolicy,
         int? maxDiscountBasisPoints,
-        bool allowConnectedApps,
         bool financialRowsExist)
     {
         var guard = ValidateRequiredFields(name, timeZoneId, locale, currencyCode);
@@ -233,7 +241,6 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
         DefaultStepperUnit = defaultStepperUnit;
         WorkerSaleAllocationPolicy = workerSaleAllocationPolicy;
         MaxDiscountBasisPoints = maxDiscountBasisPoints;
-        AllowConnectedApps = allowConnectedApps;
 
         // Only re-derive on an actual change (§4.6). Refreshing the symbol and
         // minor unit on every save would let a catalog update silently

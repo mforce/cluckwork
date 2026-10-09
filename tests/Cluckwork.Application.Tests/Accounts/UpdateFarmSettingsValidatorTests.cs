@@ -26,8 +26,7 @@ public sealed class UpdateFarmSettingsValidatorTests
         DefaultStepperUnit: "Individual",
         WorkerSaleAllocationPolicy: "AssignedFlocksOnly",
         Version: 0,
-        MaxDiscountPercent: null,
-        AllowConnectedApps: true);
+        MaxDiscountPercent: null);
 
     private bool Fails(UpdateFarmSettingsCommand command, string property) =>
         _validator.Validate(command).Errors.Any(e => e.PropertyName == property);
@@ -35,11 +34,6 @@ public sealed class UpdateFarmSettingsValidatorTests
     [Fact]
     public void ValidCommand_Passes() =>
         Assert.True(_validator.Validate(Valid()).IsValid);
-
-    // #1146 — a client that omits the switch must not turn connected apps off.
-    [Fact]
-    public void MissingConnectedAppsSwitch_Fails() =>
-        Assert.True(Fails(Valid() with { AllowConnectedApps = null }, nameof(UpdateFarmSettingsCommand.AllowConnectedApps)));
 
     // --- timezone ---------------------------------------------------------
 
