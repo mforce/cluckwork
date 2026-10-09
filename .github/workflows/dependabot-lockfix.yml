@@ -17,7 +17,7 @@
 #
 # INERT UNTIL MERGED: workflow_run always runs the default-branch copy, so this
 # does nothing until it lands on main; and it fails closed until the two
-# LOCKFIX_APP_* secrets exist.
+# LOCKFIX_APP_* secrets exist in the `app-token` environment (#1131).
 
 name: Dependabot lockfix
 
@@ -101,6 +101,13 @@ jobs:
     name: Commit and push the refreshed locks
     needs: compute
     runs-on: ubuntu-26.04
+    # The App secrets live in the `app-token` environment, limited to main and
+    # release/v*.*.x (#1131). workflow_run sets GITHUB_REF to the default
+    # branch, so the `main` rule admits this job whatever the Dependabot
+    # branch is called.
+    environment:
+      name: app-token
+      deployment: false
     permissions:
       contents: write
     steps:
