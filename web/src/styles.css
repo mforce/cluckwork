@@ -388,6 +388,7 @@ body {
 
 .audit-app-pivot {
   margin: -1rem 0 1rem;
+  overflow-wrap: anywhere;
 }
 
 /* The status region stays mounted so screen readers hear its first message. */
@@ -428,6 +429,13 @@ body {
 .audit-event-actor strong {
   font-weight: 600;
   color: var(--ink);
+}
+
+/* The icon and "via <app>" wrap as one unit; a name too long for a line still breaks. */
+.audit-event-app {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .audit-event-app-icon {
