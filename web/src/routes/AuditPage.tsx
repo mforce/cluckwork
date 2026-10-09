@@ -589,7 +589,7 @@ export function AuditPage() {
                       {app && (
                         <>
                           {" "}
-                          <Plug className="audit-event-app-icon" size={14} aria-hidden="true" focusable="false" />
+                          <Plug className="audit-event-app-icon" size={14} aria-hidden="true" />
                           {t("viaConnectedApp", { app: app.name })}
                         </>
                       )}
