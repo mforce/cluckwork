@@ -605,7 +605,14 @@ const LONG_WORDS = "pakikumpirma pahintulot pinagkakatiwalaan tagapangasiwa tala
 const isLong = () => S.state === "long";
 function pad(s) {
   if (!isLong() || !s) return s;
-  const want = Math.ceil(s.replace(/<[^>]+>/g, "").length * 0.4);
+  // Counts the characters a reader sees: everything outside <...> markup.
+  let visible = 0, inTag = false;
+  for (const ch of s) {
+    if (ch === "<") inTag = true;
+    else if (ch === ">") inTag = false;
+    else if (!inTag) visible++;
+  }
+  const want = Math.ceil(visible * 0.4);
   let add = "", i = s.length % LONG_WORDS.length;
   while (add.length < want) { add += " " + LONG_WORDS[i % LONG_WORDS.length]; i++; }
   return s + add;
