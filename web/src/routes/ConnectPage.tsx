@@ -193,11 +193,12 @@ function Permissions({ request }: { request: ConsentRequest }) {
                   {read ? t("scopeRead") : scope === WRITE ? t("scopeWrite") : scope}
                   {isNew && <> <span className="badge badge-accent">{t("scopeNew")}</span></>}
                 </Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {old ? t("scopeHad")
-                    : blocked ? <span className="badge badge-warn">{t("scopeBlocked")}</span>
-                      : read ? t("scopeReadLine") : t("scopeWriteLine")}
-                </Typography>
+                {(old || blocked || read) && (
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {old ? t("scopeHad")
+                      : blocked ? <span className="badge badge-warn">{t("scopeBlocked")}</span> : t("scopeReadLine")}
+                  </Typography>
+                )}
               </Box>
             </Box>
           );

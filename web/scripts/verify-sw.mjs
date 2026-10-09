@@ -308,7 +308,14 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // that slice. The remaining headroom is reserved for the consent screen (#798)
 // and the connected-apps screens (#799). The next raise needs a new
 // maintainer decision.
-const PRECACHE_CEILING_KIB = 1920;
+//
+// 2026-10-09, later the same day: the maintainer approved a second milestone
+// raise, to 1,950 KiB. #800 measures 1,903.38 KiB and the consent screen
+// (#798) adds 19.15 KiB on the same base, about 1,922.5 KiB together. The rest
+// is reserved for #799. The planned way to win the space back is to stop
+// precaching the languages a device does not use (es/tl), tracked separately.
+// Any further raise needs a new maintainer decision.
+const PRECACHE_CEILING_KIB = 1950;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {

@@ -67,7 +67,7 @@ describe("ConnectPage (#798, consent D)", () => {
     const rows = within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem");
     expect(rows.map((row) => row.textContent)).toEqual([
       "Read farm dataFlocks, stock, entries and sales",
-      "Record daily entriesDrafts only. A person submits them.",
+      "Record daily entries",
     ]);
     expect(screen.getByText("Acts as you, with only your access")).toBeInTheDocument();
     expect(screen.getByText("Your role:").parentElement).toHaveTextContent("Your role: Manager");
@@ -112,7 +112,7 @@ describe("ConnectPage (#798, consent D)", () => {
     expect(screen.getByRole("heading", { name: "Let Claude Desktop do more?" })).toBeInTheDocument();
     const rows = within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem");
     expect(rows.map((row) => row.textContent)).toEqual([
-      "Record daily entries NewDrafts only. A person submits them.",
+      "Record daily entries New",
       "Read farm dataAlready allowed",
     ]);
   });

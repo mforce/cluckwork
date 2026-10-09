@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cluckwork · OAuth screens · direction lab (#798, #799, #800)</title>
+<style>
+/* Tokens copied from web/src/styles.css (aubergine palette). The lab redeclares
+   them because it must open as a standalone file; it invents none. */
+.frame{--brand:#4a154b;--brand-press:#611f69;--on-brand:#fff;--on-brand-mute:#d9bdde;--ink:#1d1d1d;--muted:#696969;--link-rule:#c0c0c0;--canvas:#f3eee8;--surface:#fffdf9;--surface-2:#f3eee8;--lavender:#f9f0ff;--hairline:#ded3ca;--rule:var(--hairline);--rule-strong:rgba(29,29,29,.28);--row-hover:#faf5fc;--error:#bd3a14;--success:#007a5a;--warn:#8a5a00;--danger:#a8320f;--on-danger:#fff;--tint-accent:#f3e9f5;--tint-ok:#e2f2ec;--tint-warn:#f7ecd9;--tint-danger:#f9e5df;--tint-muted:#eeeaf0;--stat-accent:var(--brand);--focus:var(--stat-accent);--scrim:rgba(29,21,33,.42);--shadow-dialog:0 1px 2px rgba(29,21,33,.06),0 12px 32px rgba(29,21,33,.10),0 40px 96px rgba(29,21,33,.12);--shadow-bar:0 -1px 0 rgba(29,21,33,.05),0 -16px 40px rgba(29,21,33,.07);--input-line:rgba(29,29,29,.23);--font:"Inter Variable",Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--serif:Georgia,serif;--tf-bg:var(--canvas);color-scheme:light}
+.frame.dark{--ink:#f2ecf4;--muted:#b3a8b8;--link-rule:#5c5560;--canvas:#302733;--surface:#231d25;--surface-2:#302733;--lavender:#241c2a;--hairline:#554655;--rule-strong:rgba(242,236,244,.28);--row-hover:#2b2231;--error:#ff8666;--success:#4bbf97;--warn:#e0a44a;--danger:#bc3c14;--tint-accent:#33203a;--tint-ok:#14342b;--tint-warn:#3a2e18;--tint-danger:#3a2019;--tint-muted:#2c2333;--stat-accent:#e2b4e6;--scrim:rgba(0,0,0,.62);--shadow-dialog:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.4),0 40px 96px rgba(0,0,0,.45);--shadow-bar:0 -1px 0 rgba(0,0,0,.35),0 -16px 40px rgba(0,0,0,.3);--input-line:rgba(242,236,244,.23);color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:#1f1a21;font:14px/1.43 system-ui,sans-serif}
+/* ---- lab chrome (not part of any design) ---- */
+.lab{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;background:#1f1a21;color:#fff;border-bottom:1px solid #3d3340}
+.lab strong{margin-right:auto;font-weight:600}
+.lab select,.lab button{background:#352c38;color:#fff;border:1px solid #6d5f70;border-radius:4px;padding:6px 10px;min-height:34px;font:inherit}
+.lab button[aria-pressed=true]{background:#fff;color:#2a222c}
+.lab .chosen::after{content:" (recommended)";opacity:.7}
+.lab .picked::after{content:" (chosen)";opacity:.7}
+.lab .history{opacity:.65}
+.labnote{color:#d6c9d4;font-size:12px;padding:8px 16px 0;max-width:1280px;margin:0 auto}
+.labnote b{color:#fff}
+.stage{padding:16px;display:flex;justify-content:center}
+
+/* ---- the frame: one viewport of the app ---- */
+.frame{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--canvas);color:var(--ink);font:400 14px/20px var(--font);font-variation-settings:"opsz" 14;display:flex;flex-direction:column;box-shadow:0 12px 45px #0006}
+.frame.phone{width:390px;height:844px;font-size:16px;line-height:24px}
+.frame.full{height:auto;min-height:800px;overflow:visible}
+.frame.phone.full{min-height:844px}
+:where(.frame) :where(button,input,select){font:inherit;color:inherit}
+.frame :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.frame p{margin:0 0 12px}
+.frame a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--link-rule);text-underline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* type: FarmThemeProvider.tsx typography */
+.overline{font-size:12px;line-height:2.66;letter-spacing:.08333em;color:var(--muted);margin:0}
+.h1{font:600 40px/44px var(--serif);margin:0 0 8px}
+.h2{font:600 24px/28px var(--serif);margin:0 0 8px}
+.phone .h2{font-size:28px;line-height:32px}
+.h3{font:600 15px/22px var(--font);margin:0}
+.body2{font-size:15.2px;line-height:1.43}
+.muted{color:var(--muted)}
+.caption{font-size:12px;line-height:16px;color:var(--muted)}
+.sechead{font:600 13px/16px var(--font);color:var(--ink);padding:0 0 8px;margin:20px 0 0;border-bottom:1px solid var(--rule-strong)}
+
+/* shell: AppLayout (lavender rail) + BottomNav */
+.app{display:flex;flex:1;min-height:0}
+.rail{width:244px;flex:none;background:var(--lavender);border-right:1px solid var(--hairline);display:flex;flex-direction:column;min-height:0}
+.farm{display:flex;gap:10px;align-items:center;padding:24px 20px;font-weight:700;color:var(--stat-accent);font-size:15px}
+.egg{width:18px;height:23px;border:2px solid currentColor;border-radius:60% 60% 50% 50%}
+.navlist{flex:1;overflow:auto}
+.navlabel{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);padding:0 24px;margin:16px 0 4px}
+.frame .navitem,.frame .tabbar a{text-decoration:none}
+.navitem{display:flex;align-items:center;gap:8px;padding:6px 16px 6px 13px;border-left:3px solid transparent;color:var(--ink);text-decoration:none;font-size:14px}
+.navitem.on{background:var(--brand);border-left-color:var(--brand);color:var(--on-brand);font-weight:600}
+.navitem.new::after{content:"proposed";margin-left:auto;font-size:11px;color:var(--muted)}
+.navitem.on.new::after{color:var(--on-brand-mute)}
+.railfoot{border-top:1px solid var(--hairline);padding:12px 8px}
+.railfoot div{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:14px}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.content{flex:1;min-width:0;overflow:auto;padding:40px 44px 64px}
+.content>.page{max-width:1120px}
+.full .content{overflow:visible}
+.phone .app{flex-direction:column}
+.phone .rail{display:none}
+.phone .content{padding:20px 16px 28px}
+.tabbar{display:none}
+.phone .tabbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:none;height:64px;background:var(--surface);border-top:1px solid var(--hairline);box-shadow:var(--shadow-bar)}
+.tabbar a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;line-height:14px;color:var(--muted);text-decoration:none}
+.tabbar a.on{color:var(--stat-accent);font-weight:600;box-shadow:inset 0 2px var(--stat-accent)}
+.tabbar .ico{width:22px;height:22px}
+
+/* controls: MUI Button / TextField (outlined) / Alert / Accordion as themed */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font:700 15.2px/1.2 var(--font);letter-spacing:.01em;border-radius:4px;padding:8px 16px;min-height:38px;border:1px solid transparent;background:transparent;color:var(--stat-accent);cursor:pointer;text-align:center}
+.btn.contained{background:var(--brand);color:var(--on-brand)}
+.btn.outlined{border-color:color-mix(in srgb,var(--stat-accent) 50%,transparent)}
+.btn.danger{background:var(--danger);color:var(--on-danger)}
+.btn.danger-out{border-color:color-mix(in srgb,var(--error) 50%,transparent);color:var(--error)}
+.btn.danger-text{color:var(--error);padding:4px 8px;min-height:30px}
+.btn.small{padding:4px 10px;min-height:30px;font-size:14px}
+.phone .btn{min-height:48px}
+.phone .btn.small,.phone .btn.danger-text{min-height:44px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.phone .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
+.tf{position:relative;margin:8px 0 0;max-width:24rem}
+.tf input,.tf select{display:block;width:100%;height:56px;padding:16px 14px;border:1px solid var(--input-line);border-radius:4px;background:var(--tf-bg);font-size:16px}
+.tf.small input,.tf.small select{height:40px;padding:8px 12px;font-size:14px}
+.tf label{position:absolute;left:10px;top:-8px;padding:0 4px;background:var(--tf-bg);font-size:12px;line-height:16px;color:var(--muted);max-width:calc(100% - 20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tf input:focus-visible,.tf select:focus-visible{outline:none;border:2px solid var(--stat-accent);padding:15px 13px}
+.tf.err input{border-color:var(--error)}
+.tf.err label,.tf .helper.err{color:var(--error)}
+.tf .helper{font-size:12px;line-height:16px;margin:4px 14px 0;color:var(--muted)}
+.alert{display:flex;gap:12px;align-items:flex-start;padding:6px 16px;border-radius:4px;margin:12px 0;font-size:14px;line-height:20px;color:var(--ink)}
+.alert .ico{margin-top:8px;flex:none}
+.alert p{margin:7px 0}
+.alert.error{background:var(--tint-danger)}.alert.error .ico{color:var(--error)}
+.alert.success{background:var(--tint-ok)}.alert.success .ico{color:var(--success)}
+.alert.info{background:var(--tint-accent)}.alert.info .ico{color:var(--stat-accent)}
+details.acc{border:1px solid var(--hairline);border-radius:4px;margin:0 0 12px;overflow:hidden;background:var(--surface);--tf-bg:var(--surface)}
+details.acc>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:12px 16px;background:var(--surface-2);cursor:pointer}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary:focus-visible{outline-offset:-3px}
+details.acc[open]>summary .chev{transform:rotate(180deg)}
+.accbody{padding:18px}
+.st{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.st i{width:8px;height:8px;border-radius:50%;background:var(--c,var(--muted));flex:none}
+.st.ok{--c:var(--success)}.st.warn{--c:var(--warn)}.st.accent{--c:var(--stat-accent)}
+.st.ring i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}
+.count{font-weight:400;color:var(--muted);font-size:14px}
+table.ledger{width:100%;border-collapse:collapse}
+.ledger th{font:600 13px/16px var(--font);text-align:left;color:var(--ink);padding:8px 12px 8px 0;border-bottom:1px solid var(--rule-strong);white-space:nowrap}
+.ledger td{padding:8px 12px 8px 0;border-bottom:1px solid var(--rule);vertical-align:top;line-height:20px}
+.ledger td.act{text-align:right;padding-right:0;white-space:nowrap}
+.ledger .sub{display:block;color:var(--muted);font-size:13px;line-height:18px}
+.prow{padding:14px 0;border-bottom:1px solid var(--rule)}
+.prow:first-child{padding-top:4px}
+.prow .name{font-weight:600}
+.prow .meta{color:var(--muted);font-size:14px;line-height:20px;margin:2px 0 0}
+.prow .btn{width:100%;margin-top:12px}
+
+/* dialog: Dialog.tsx shell (12px radius, dialog shadow, Georgia title) */
+.scrim{position:absolute;inset:0;background:var(--scrim);display:grid;place-items:center;z-index:30;padding:16px}
+.dlg{position:relative;width:min(480px,100%);background:var(--surface);border-radius:12px;box-shadow:var(--shadow-dialog);padding:24px}
+.dlg .h2{padding-right:40px}
+.dlg .x{position:absolute;top:14px;right:14px;width:40px;height:40px;border:0;background:none;border-radius:50%;color:var(--muted);display:grid;place-items:center}
+.dlg .actions{justify-content:flex-end}
+.phone .dlg{align-self:end}
+.phone .dlg .h2{font:700 17px/24px var(--font)}
+
+/* ---- auth surface (Login B "Working desk" = AuthShell.tsx) ---- */
+.authbg{flex:1;overflow:auto;background:var(--surface-2);display:flex;align-items:center;justify-content:center;padding:28px;position:relative}
+.full .authbg{overflow:visible}
+.phone .authbg{align-items:flex-start;padding:66px 14px 22px}
+.theme-toggle{position:absolute;top:18px;right:18px;width:40px;height:40px;border-radius:50%;border:0;background:none;color:var(--ink);display:grid;place-items:center}
+.authcard{display:flex;width:min(880px,100%);border:1px solid var(--hairline);background:var(--surface);--tf-bg:var(--surface)}
+.phone .authcard{flex-direction:column}
+.authside{width:50%;flex:none;background:var(--brand);color:var(--on-brand);padding:38px;display:flex;flex-direction:column}
+.phone .authside{width:auto;padding:20px}
+.authside .overline{color:var(--on-brand-mute)}
+.authside .h1{color:var(--on-brand)}
+.phone .authside .h1{font-size:28px;line-height:32px}
+.authside .tag{color:var(--on-brand-mute);font-size:15.2px}
+.phone .authside .tag{display:none}
+.authside .foot{margin-top:auto;padding-top:24px;color:var(--on-brand-mute);font-size:12px;line-height:16px}
+.authmain{flex:1;padding:32px;min-width:0}
+.phone .authmain{padding:20px}
+.authmain .tf{max-width:none}
+.authmain .actions .btn{flex:1}
+
+/* ---- consent ---- */
+.perms{list-style:none;margin:8px 0 0;padding:0}
+.perms li{display:grid;grid-template-columns:20px 1fr;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--rule)}
+.perms li:last-child{border-bottom:0}
+.perms .ico{margin-top:1px;color:var(--stat-accent)}
+.perms b{font-weight:600}
+.perms .d{grid-column:2;color:var(--muted);font-size:14px;line-height:20px}
+.perms .tagline{grid-column:2;margin-top:2px;font-size:13px}
+.acting{border-left:3px solid var(--stat-accent);background:var(--tint-accent);padding:10px 14px;margin:16px 0;border-radius:0 4px 4px 0}
+.acting p{margin:0}
+.acting p+p{margin-top:4px}
+.who{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--muted);margin:0 0 4px}
+.fine{font-size:13px;line-height:18px;color:var(--muted)}
+/* B: plain statement */
+.stmt{flex:1;overflow:auto;background:var(--canvas)}
+.full .stmt{overflow:visible}
+.stmt-col{max-width:600px;margin:0 auto;padding:40px 24px 40px}
+.phone .stmt-col{padding:20px 16px 0}
+.stmt .farmline{display:flex;align-items:center;gap:10px;color:var(--stat-accent);font-weight:700;margin-bottom:28px}
+.phone .stmt .farmline{margin-bottom:16px}
+.stmt .farmline span.muted{font-weight:400}
+.stmt .h1{font-size:40px;line-height:44px}
+.phone .stmt .h1{font-size:30px;line-height:34px}
+.stmt .lead{font-size:18px;line-height:27px;margin:12px 0 4px}
+.phone .stmt .lead{font-size:17px;line-height:25px}
+.stmt .tf{--tf-bg:var(--canvas)}
+.stickybar{position:sticky;bottom:0;background:var(--surface);box-shadow:var(--shadow-bar);padding:12px 16px;margin:20px -16px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.full .stickybar{position:static;box-shadow:none;background:transparent;padding:0 0 24px;margin:20px 0 0}
+.desk-actions{display:flex;gap:8px;margin-top:20px}
+/* C: asks vs gets */
+.matrix-wrap{flex:1;overflow:auto;background:var(--canvas)}
+.full .matrix-wrap{overflow:visible}
+.matrix-col{max-width:820px;margin:0 auto;padding:36px 24px}
+.phone .matrix-col{padding:20px 16px}
+.matrix-head{display:flex;align-items:center;gap:10px;color:var(--stat-accent);font-weight:700;margin-bottom:20px}
+.panel{background:var(--surface);border:1px solid var(--hairline);border-radius:8px;padding:28px;--tf-bg:var(--surface)}
+.phone .panel{padding:18px 16px}
+table.matrix{width:100%;border-collapse:collapse;margin:16px 0 4px}
+.matrix caption{caption-side:bottom;text-align:left;padding-top:10px;font-size:14px}
+.matrix th,.matrix td{text-align:left;vertical-align:top;padding:10px 14px 10px 0;border-bottom:1px solid var(--rule)}
+.matrix thead th{font:600 13px/16px var(--font);border-bottom:1px solid var(--rule-strong)}
+.matrix tbody th{font-weight:600;width:24%}
+.matrix td.gets{background:var(--tint-accent);padding-left:14px}
+.matrix thead th.gets{background:var(--tint-accent);padding-left:14px}
+.mcard{border-bottom:1px solid var(--rule);padding:12px 0}
+.mcard .row{display:grid;gap:0;margin-top:6px;font-size:15px;line-height:22px}
+.mcard .row span:first-child{color:var(--muted);font-size:13px}
+.mcard .row.gets{background:var(--tint-accent);margin-left:-8px;padding:6px 8px;border-radius:4px}
+.steps{display:flex;gap:6px;margin:0 0 6px}
+.steps i{height:4px;flex:1;border-radius:2px;background:var(--hairline)}
+.steps i.on{background:var(--stat-accent)}
+.nextbox{margin:20px 0 0;padding:14px;border:1px solid color-mix(in srgb,var(--on-brand) 35%,transparent);border-radius:8px;font-size:14px;line-height:20px}
+.nextbox b{display:block;color:var(--on-brand);font-size:15px;margin-bottom:2px}
+.nextbox span{color:var(--on-brand-mute)}
+.nextbox.inmain{display:none;margin:0 0 16px;border-color:var(--hairline);background:var(--tint-accent)}
+.nextbox.inmain b{color:var(--ink)}
+.nextbox.inmain span{color:var(--muted)}
+.phone .authside .nextbox{display:none}
+.phone .nextbox.inmain{display:block;padding:12px 14px}
+
+/* ---- compact consent (D, E, F) ---- */
+.k-wrap{flex:1;overflow:auto;background:var(--canvas)}
+.full .k-wrap{overflow:visible}
+.k-col{max-width:480px;margin:0 auto;padding:32px 24px 40px}
+.phone .k-col{padding:16px 12px 24px}
+.k-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;font-size:13px;color:var(--muted)}
+.k-top .farmname{display:flex;align-items:center;gap:8px;color:var(--stat-accent);font-weight:700;font-size:14px}
+.k-card{background:var(--surface);border:1px solid var(--hairline);border-radius:8px;padding:24px;--tf-bg:var(--surface)}
+.phone .k-card{padding:18px 16px}
+.k-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 6px}
+.k-head .h2{margin:0}
+.badge{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border:1px solid currentColor;border-radius:999px;font-size:12px;font-weight:600;line-height:1;white-space:nowrap}
+.badge .ico{width:14px;height:14px}
+.badge.unv{color:var(--warn)}
+.badge.role{color:var(--stat-accent)}
+.k-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font-size:13px;line-height:18px;color:var(--muted);margin:0 0 14px}
+.k-meta .ico{width:15px;height:15px;vertical-align:-3px;margin-right:4px}
+.k-rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule-strong)}
+.k-rows li{display:grid;grid-template-columns:22px 1fr;gap:0 12px;padding:10px 0;border-bottom:1px solid var(--rule)}
+.k-rows .ico{color:var(--stat-accent);margin-top:1px}
+.k-rows b{font-weight:600}
+.k-rows .l{grid-column:2;font-size:13px;line-height:18px;color:var(--muted)}
+.k-rows li.new{background:var(--tint-accent);margin:0 -8px;padding:10px 8px;border-radius:4px}
+.k-rows li.had b{font-weight:400;color:var(--muted)}
+.k-acts{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:12px 0 4px;font-weight:600}
+.k-acts .ico{color:var(--stat-accent)}
+.k-acts-t{display:inline-flex;gap:8px;align-items:flex-start}
+.k-after{margin:14px 0 0;font-size:13px;line-height:18px;color:var(--muted)}
+details.k-details{margin-top:10px;border-top:1px solid var(--rule)}
+details.k-details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--ink)}
+details.k-details[open]>summary .chev{transform:rotate(180deg)}
+details.k-details p{font-size:14px;line-height:20px;color:var(--ink);margin:0 0 8px}
+.k-card .tf,.k-main .tf,.k-ledger-wrap .tf{max-width:none;margin-top:14px}
+.k-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+/* E: the login card */
+.k-side-who{margin-top:18px;font-size:14px;line-height:20px;color:var(--on-brand-mute)}
+.k-side-who b{display:block;color:var(--on-brand);font-size:16px}
+.phone .k-side-who{margin-top:8px}
+.phone .authside.k-side .h1{font-size:22px;line-height:26px;margin:0}
+.phone .authside.k-side .overline{display:none}
+.phone .authside.k-side{flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:2px 14px;padding:14px 20px}
+.phone .authside.k-side .k-side-who{margin:0;min-width:0;overflow-wrap:anywhere}
+.phone .authside.k-side .k-side-who b{font-size:14px}
+.authside.k-side .badge.role{color:var(--on-brand);margin-top:6px}
+/* F: ledger */
+dl.k-ledger{display:grid;grid-template-columns:auto 1fr;margin:14px 0 0;border-top:1px solid var(--rule-strong)}
+dl.k-ledger dt,dl.k-ledger dd{padding:9px 0;border-bottom:1px solid var(--rule);margin:0}
+dl.k-ledger dt{font-size:13px;color:var(--muted);padding-right:16px;line-height:22px}
+dl.k-ledger dd{line-height:22px}
+dl.k-ledger dd .ico{width:16px;height:16px;color:var(--stat-accent);vertical-align:-3px;margin-right:6px}
+dl.k-ledger dd .ln{display:block}
+dl.k-ledger dd .ln+.ln{margin-top:4px}
+dl.k-ledger .l{color:var(--muted);font-size:13px}
+.wc{font-weight:600;color:#fff}
+
+/* ---- account / owner variants ---- */
+.cards{display:grid;gap:12px}
+.card{border:1px solid var(--hairline);border-radius:8px;padding:16px;background:var(--surface)}
+.card-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:4px 12px;margin:12px 0 0;font-size:14px;line-height:20px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.card .btn{margin-top:14px}
+.phone .card .btn{width:100%}
+.summary-line{font-size:15.2px;line-height:22px;margin:0 0 14px}
+details.inner{border-bottom:1px solid var(--rule)}
+details.inner>summary{list-style:none;display:flex;align-items:center;gap:12px;padding:12px 4px;cursor:pointer;min-height:48px}
+details.inner>summary::-webkit-details-marker{display:none}
+details.inner>summary .grow{flex:1;min-width:0}
+details.inner[open]>summary .chev{transform:rotate(180deg)}
+details.inner .innerbody{padding:0 4px 14px 4px}
+.nudge{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--tint-warn);border-left:3px solid var(--warn);padding:10px 14px;border-radius:0 4px 4px 0;margin:0 0 14px}
+.nudge p{margin:0;flex:1;min-width:200px}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px}
+.why{border-left:3px solid var(--rule-strong);padding:2px 0 2px 12px;color:var(--muted);margin:0 0 16px;max-width:70ch}
+.person{font:600 14px/20px var(--font);margin:16px 0 0;padding-bottom:6px;border-bottom:1px solid var(--rule-strong);display:flex;gap:8px;align-items:baseline}
+.person:first-child{margin-top:0}
+.filterrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.filterrow .tf{margin:0;width:220px}
+
+/* ---- audit (C "Focus panels" = AuditPage.tsx + styles.css .audit-*) ---- */
+.audit-scope{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap}
+.audit-scope small{color:var(--muted);font-size:12px}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:14px;min-height:38px}
+.chk input{width:18px;height:18px;accent-color:var(--stat-accent);margin:0}
+.audit-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.audit-filters.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.phone .audit-filters,.phone .audit-filters.five{grid-template-columns:repeat(2,minmax(0,1fr))}
+.phone .audit-filters .span2{grid-column:1/-1}
+.audit-filters .tf{max-width:none;margin:0}
+.linkbtn{background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;text-decoration-color:var(--link-rule);text-underline-offset:2px;cursor:pointer;min-height:24px}
+.audit-events{display:grid;gap:12px;max-width:760px;margin-top:12px}
+details.ev{overflow:hidden;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+details.ev>summary{padding:16px;cursor:pointer;font-weight:700;background:var(--surface-2);list-style:none;display:flex;align-items:center;gap:10px}
+details.ev>summary::-webkit-details-marker{display:none}
+details.ev>summary:focus-visible{outline-offset:-3px}
+details.ev>summary .grow{flex:1;min-width:0}
+details.ev>summary .line2{display:block;font-weight:400;font-size:14px;line-height:20px;color:var(--muted);margin-top:2px}
+details.ev>summary .line2 b{font-weight:600;color:var(--ink)}
+.evbody{display:grid;gap:8px;padding:18px}
+.evbody>*{margin:0;overflow-wrap:anywhere}
+.evbody .kv{margin:0;grid-template-columns:90px 1fr}
+.seg{display:inline-flex;border:1px solid var(--input-line);border-radius:4px;overflow:hidden;margin-top:14px}
+.seg button{border:0;border-right:1px solid var(--input-line);background:transparent;padding:7px 14px;min-height:38px;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--tint-accent);color:var(--stat-accent);font-weight:700}
+.phone .seg{display:flex}
+.phone .seg button{flex:1;min-height:44px;padding:7px 8px}
+.appmark{color:var(--stat-accent)}
+.via{font-weight:500}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-dashboard" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+<symbol id="i-entry" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01"/></symbol>
+<symbol id="i-bird" viewBox="0 0 24 24"><path d="M16 7h.01M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.28-2.3L2 20m18-13 2 .5-2 .5M10 18v3M14 17.75V21M7 18a6 6 0 0 0 3.84-10.61"/></symbol>
+<symbol id="i-wheat" viewBox="0 0 24 24"><path d="M2 22 16 8M7 17c3-1 5 1 5 3-2 2-5 2-7-1M11 13c3-1 5 1 5 3-2 2-5 2-7-1M15 9c3-1 5 1 5 3-2 2-5 2-7-1M20 2h2v2a4 4 0 0 1-4 4h-2V6a4 4 0 0 1 4-4Z"/></symbol>
+<symbol id="i-water" viewBox="0 0 24 24"><path d="M7 16c2 0 4-2 4-4 0-2-3-5-4-7-1 2-4 5-4 7 0 2 2 4 4 4ZM14 3c1 3 2 5 4 7s3 3 3 5a7 7 0 0 1-12 5"/></symbol>
+<symbol id="i-boxes" viewBox="0 0 24 24"><path d="m3 13 4-2.5 5 3V19l-4 2.5-5-3ZM12 13.5l5-3 4 2.5v5.5l-4 3-5-3ZM7 5l5-3 5 3v5.5l-5 3-5-3Z"/></symbol>
+<symbol id="i-egg" viewBox="0 0 24 24"><path d="M12 2C8 2 4 8 4 14a8 8 0 0 0 16 0c0-6-4-12-8-12"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-4"/><circle cx="9" cy="7" r="4"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24"><path d="m2 2 2 .1L7 17h11l2-9H5M9 20h.01M18 20h.01"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 10 10 0 0 0-7 3L3 8M3 3v5h5M12 7v5l4 2"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16M8 17v-3M13 17V5M18 17V9"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4H5a2 2 0 0 0 0 4h15v4h-3a2 2 0 0 0 0 4h3v4H5a2 2 0 0 1-2-2V5"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></symbol>
+<symbol id="i-tag" viewBox="0 0 24 24"><path d="M20 13 13 20a2 2 0 0 1-3 0L3 13V3h10l7 7a2 2 0 0 1 0 3Z"/><circle cx="8" cy="8" r="1"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24"><path d="m3 7 9-5 9 5v10l-9 5-9-5ZM3 7l9 5 9-5M12 22V12"/></symbol>
+<symbol id="i-usercog" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M10 15H6a4 4 0 0 0-4 4v2M18 12v2M18 18v2M14 16h2M20 16h2"/><circle cx="18" cy="16" r="3"/></symbol>
+<symbol id="i-audit" viewBox="0 0 24 24"><path d="M19 17V5a2 2 0 0 0-2-2H4M8 21h12a2 2 0 0 0 2-2v-1H10v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2h4M10 8h5M10 12h5"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 9a3 3 0 1 1 4 3c-1 .5-1 1-1 2M12 17h.01"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.5A9 9 0 1 1 11.5 3a7 7 0 0 0 9.5 9.5Z"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24"><path d="m16 17 5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></symbol>
+<symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+<symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+</defs></svg>
+
+<header class="lab">
+  <strong>OAuth screens · #798 #799 #800</strong>
+  <select id="screen" aria-label="Screen">
+    <option value="consent">Consent (#798)</option>
+    <option value="login">Login, continuing to consent (#798)</option>
+    <option value="account">Account: your connected apps (#799)</option>
+    <option value="owner">Owner: farm-wide view (#799)</option>
+    <option value="audit">Audit provenance (#800)</option>
+  </select>
+  <span id="dirs"></span>
+  <select id="state" aria-label="State"></select>
+  <select id="role" aria-label="Signed-in role">
+    <option>Admin</option><option>Manager</option><option selected>Worker</option><option value="ReadOnly">Read-only</option>
+  </select>
+  <button id="vp" aria-pressed="false">Phone · 390</button>
+  <button id="theme" aria-pressed="false">Night</button>
+</header>
+<p class="labnote"><b>Prototype.</b> English source copy and sample data. Nothing is sent, saved or connected. Tokens, type and controls are the live app's (aubergine palette); Account and Audit sit inside the chosen C "Focus panels" compositions. <span id="dirnote"></span></p>
+<main class="stage"><div id="frame" class="frame"></div></main>
+
+<script>
+// ---------- copy (English source; every visible string goes through t()) ----------
+const T = {
+  // consent
+  cEyebrow: "Connect an app",
+  cTitle: "Allow {app} to act as you?",
+  cIntro: "{app} is asking to connect to your Cluckwork account on {farm}.",
+  cSignedIn: "Signed in as {email}",
+  cNotYou: "Not you? Sign out",
+  cAsks: "It asks to",
+  scopeRead: "Read farm data",
+  scopeReadDesc: "See flocks, stock, daily entries, customers, orders and payments.",
+  scopeWrite: "Record daily entries",
+  scopeWriteDesc: "Fill in daily entries. A person still submits them.",
+  cActing: "It acts as you, so it can never do more than you can.",
+  role_Admin: "You are an Admin, so it can read every flock and record entries for any of them.",
+  role_Manager: "You are a Manager, so it can read every flock and record entries for any of them.",
+  role_Worker: "You are a Worker, so it sees only the flocks assigned to you, House A and House B, and records entries only for those.",
+  role_ReadOnly: "You are Read-only, so it can read farm data but cannot record daily entries, even though it asks to.",
+  cUndo: "To undo this later, open <strong>Account</strong> and disconnect it under <strong>Connected apps</strong>.",
+  cCheck: "Allow it only if you just started connecting {app}. The app chose its own name, and Cluckwork does not check it.",
+  cReturn: "After you answer, you go back to {host}.",
+  cPwHint: "Allowing an app needs your current password again.",
+  cPwLabel: "Your current password",
+  cAllow: "Allow",
+  cCancel: "Cancel",
+  cWrong: "That password is not correct. Nothing was connected.",
+  cMoreTitle: "{app} is asking for more",
+  cMoreIntro: "You allowed {app} to read farm data on {date}. It now also asks to record daily entries.",
+  tagNew: "New",
+  tagHad: "Already allowed",
+  cNewHead: "New",
+  cHadHead: "Already allowed",
+  cRefTitle: "There is nothing to approve",
+  cRefBody: "This connection request has expired or is not valid, so nothing was connected.",
+  cRefNext: "Go back to the app and start connecting again.",
+  cRefButton: "Go to Cluckwork",
+  cRefCode: "Request code: {code}",
+  cColPerm: "Permission",
+  cColAsks: "It asks to",
+  cColGets: "As {role}, it gets",
+  gets_all_read: "Every flock, with stock, customers, orders and payments.",
+  gets_all_write: "Entries for any flock.",
+  gets_worker_read: "Only House A and House B, the flocks assigned to you.",
+  gets_worker_write: "Entries for House A and House B only.",
+  gets_ro_read: "Every flock, to read.",
+  gets_ro_write: "Nothing. Your role cannot record entries.",
+  rolePhrase_Admin: "an Admin", rolePhrase_Manager: "a Manager", rolePhrase_Worker: "a Worker", rolePhrase_ReadOnly: "Read-only",
+  roleName_Admin: "Admin", roleName_Manager: "Manager", roleName_Worker: "Worker", roleName_ReadOnly: "Read-only",
+  // compact consent (D, E, F): every visible word above the password field is budgeted
+  kTitle: "Let {app} act as you?",
+  kMoreTitle: "Let {app} do more?",
+  kUnverified: "Unverified app",
+  kReadLine: "Flocks, stock, entries and sales",
+  kWriteLine: "Drafts only. A person submits them.",
+  kWriteBlocked: "Not allowed for your role",
+  kNew: "New",
+  kHad: "Already allowed",
+  kActs: "Acts as you, with only your access",
+  kRoleChip: "{role}",
+  kRoleSr: "Your role:",
+  kReturns: "Returns to this computer",
+  kLedgerCan: "Can",
+  kLedgerAs: "Acts as",
+  kLedgerAsValue: "You, with only your access",
+  kLedgerReturns: "Returns to",
+  kLedgerReturnsValue: "This computer",
+  kWrong: "Wrong password. Nothing was connected.",
+  kUndo: "Disconnect it anytime in Account › Connected apps.",
+  kDetails: "Details",
+  kdName: "{app} chose its own name. Cluckwork does not check it, so allow it only if you just started connecting {app}.",
+  kdReturn: "Afterwards your browser goes back to 127.0.0.1, an address on this computer.",
+  kdScopes: "Reading covers flocks, stock, daily entries, customers, orders and payments. Entries it records stay drafts until a person submits them.",
+  kdSigned: "Signed in as {email}.",
+  kNotYou: "Not you?",
+  kRefTitle: "Nothing to approve",
+  kRefBody: "This request expired or isn't valid, so nothing was connected. Start again from the app.",
+  kRefCode: "Request code: {code}",
+  // login (auth namespace, live copy plus the continuation signal)
+  shellEyebrow: "Poultry farm management",
+  title: "Cluckwork",
+  shellTagline: "Daily entry · Stock · Sales",
+  loginShellFooter: "Farm code identifies the farm you are signing into.",
+  consentFooter: "You are connecting an app to {farm}.",
+  signInHeading: "Sign in",
+  farmCode: "Farm code",
+  email: "Email",
+  password: "Password",
+  signIn: "Sign in",
+  invalidCredentials: "Invalid email or password.",
+  lgContinue: "Sign in to review a request from {app}. Nothing is connected until you allow it.",
+  lgNextHead: "Next: approve {app}",
+  lgNextBody: "After you sign in, you see what it asks for and choose whether to allow it.",
+  lgStep1: "Step 1 of 2: Sign in",
+  lgStep1Next: "Then review the request from {app}.",
+  // account (live copy plus the new panel)
+  acEyebrow: "Personal preferences",
+  acHeading: "Account",
+  acRole: "You are signed in with the <strong>{role}</strong> role.",
+  acPrefs: "Preferences",
+  languageHint: "The language the interface is shown in, just for you.",
+  language: "Language",
+  stepperUnitHint: "How much the Daily Entry +/− buttons count by, just for you.",
+  stepperUnit: "Daily Entry counting unit",
+  acPw: "Change password",
+  changePasswordHint: "Changing your password signs you out everywhere else — this device stays signed in.",
+  currentPasswordLabel: "Current password",
+  newPasswordLabel: "New password (min 12 chars)",
+  confirmPasswordLabel: "Confirm new password",
+  changePasswordButton: "Change password",
+  caHeading: "Connected apps",
+  caHint: "Apps you allowed to act as you. Each one can do only what you can.",
+  colApp: "App",
+  colCan: "Can",
+  colConnected: "Connected",
+  colLastUsed: "Last used",
+  colPerson: "Person",
+  disconnect: "Disconnect",
+  canBoth: "Read farm data, record daily entries",
+  canRead: "Read farm data",
+  caCanLine: "Can: {can}",
+  caDates: "Connected {date}. Last used {last}.",
+  caConfirmTitle: "Disconnect {app}?",
+  caConfirmBody: "{app} stops working on its next request. To use it again, connect it again from {app}.",
+  caAfter: "{app} is disconnected. It stops working on its next request.",
+  caEmpty: "No connected apps. When you allow one, it appears here so you can disconnect it later.",
+  inUse: "In use",
+  idle: "Not used for {days} days",
+  caSummary: "{n} connected apps can act as you.",
+  caIdleNudge: "{app} has not been used for {days} days. Disconnect it if you no longer use it.",
+  caIdleNudgeBtn: "Disconnect {app}",
+  // owner
+  owHeading: "Connected apps on this farm",
+  owPageEyebrow: "Farm-wide",
+  owPageHeading: "Connected apps",
+  owIntro: "Every app anyone on this farm has connected. Disconnecting one does less than disabling the person, who keeps their sign-in and can connect it again.",
+  owConfirmTitle: "Disconnect {app} for {person}?",
+  owConfirmBody: "It stops working on its next request. {person} keeps their sign-in and can connect it again.",
+  owAfter: "{app} is disconnected for {person}. It stops working on its next request.",
+  owEmpty: "Nobody on this farm has connected an app.",
+  owFilterPerson: "Person",
+  owEveryone: "Everyone",
+  owCountLine: "{n} connections, {p} people",
+  usersHeading: "Users",
+  newUser: "New user",
+  colName: "Name", colEmail: "Email", colRole: "Role", colStatus: "Status",
+  active: "Active",
+  settingsHeading: "Farm settings",
+  settingsIntro: "How this farm names itself, and the locale, timezone and currency it records and reads its work in.",
+  localization: "Localization", logo: "Logo", banner: "Banner",
+  // audit (live copy plus provenance)
+  auEyebrow: "Read-only record",
+  auHeading: "Audit log",
+  auIntro: "Every corrective, destructive, or configuration change — who did it, when, and why. Rows are written with the change itself and never edited.",
+  utc: "UTC timestamps",
+  preview: "Preview one record's history",
+  fType: "Record type", fTypeAll: "All types",
+  fAction: "Action", fActionAll: "All actions",
+  fFrom: "From", fTo: "To",
+  fThrough: "Made through",
+  optEverything: "Everything",
+  optApp: "The Cluckwork app",
+  optAny: "Any connected app",
+  segEveryone: "Everyone", segPeople: "People", segApps: "Connected apps",
+  segLabel: "Who made the change",
+  fApp: "App", fAppAll: "All connected apps",
+  onlyApps: "Only actions through connected apps",
+  clearFilters: "Clear filters",
+  via: "{who} via {app}",
+  viaApp: "via {app}",
+  kvWho: "Who", kvThrough: "Through", kvAction: "Action", kvRecord: "Record", kvDetails: "Details",
+  throughApp: "{app}, a connected app",
+  throughCw: "The Cluckwork app",
+  byApp: "Made through a connected app",
+  showOnly: "Show only {app}",
+  loadMore: "load more",
+  // nav
+  nDashboard: "Dashboard", nDaily: "Daily entry", nFlocks: "Flocks", nFeed: "Feed", nWater: "Water", nInventory: "Inventory",
+  nStock: "Stock", nCustomers: "Customers", nSales: "Sales", nHistory: "History", nReports: "Reports", nExpenses: "Expenses",
+  nSettings: "Farm settings", nGrades: "Grades", nProducts: "Products", nUsers: "Users", nApps: "Connected apps", nAudit: "Audit", nExport: "Export",
+  nAccount: "Account", nHelp: "Help", nMore: "More", nNight: "Night", nSignOut: "Sign out",
+  gOverview: "Overview", gProduction: "Production", gSales: "Sales & stock", gInsights: "Insights", gSetup: "Setup", gYou: "You", gHelp: "Help",
+  close: "Close",
+};
+
+// ---------- state ----------
+const STATES = {
+  consent: [["normal","Default"],["details","Details open (D–F)"],["wrong","Wrong password"],["widened","Asks for more than before"],["refused","Refused request"],["long","Long strings (+40%)"]],
+  login: [["normal","Continuing to a request"],["wrong","Wrong password"],["long","Long strings (+40%)"]],
+  account: [["normal","Two connected apps"],["confirm","Disconnect confirmation"],["after","After disconnect"],["empty","Empty"],["long","Long strings (+40%)"]],
+  owner: [["normal","Default"],["confirm","Disconnect confirmation"],["after","After disconnect"],["empty","Empty"],["long","Long strings (+40%)"]],
+  audit: [["normal","Default"],["filtered","Filtered to connected apps"],["long","Long strings (+40%)"]],
+};
+const DIRS = {
+  consent: { a: "A · Sign-in panel", b: "B · Plain statement", c: "C · Asks vs gets", d: "D · Compact card", e: "E · Login card", f: "F · Ledger" },
+  login:   { a: "A · Notice above the form", b: "B · Next step in the brand panel", c: "C · Two-step header" },
+  account: { a: "A · Ruled list", b: "B · One card each", c: "C · Sentence and disclosure" },
+  owner:   { a: "A · Section on Users", b: "B · Panel in Farm settings", c: "C · Own Setup page" },
+  audit:   { a: "A · Tag in the summary", b: "B · Who block, segmented filter", c: "C · Actor line on every row" },
+};
+const RECOMMENDED = { consent: "e", login: "b", account: "a", owner: "c", audit: "c" };
+const CHOSEN = { login: "b" };
+const HISTORY = { consent: ["a", "b", "c"] };
+const NOTES = {
+  consent: { a: "Reuses the login card (AuthShell): brand panel left, request right. Continuity with the sign-in a user just passed.",
+             b: "No brand slab. One column that reads as a sentence, the 'acting as you' line first, Allow/Cancel in a sticky bar on the phone.",
+             c: "A table puts each permission beside what this person's role actually gives it: role ∩ scope, made visible.",
+             d: "Compact. A narrow card: headline with an Unverified app badge, two icon rows, one 'acts as you' line with a role chip. Everything else is under Details.",
+             e: "Compact. The login card the user just signed in through (Login B). The brand panel says who is signed in and their role; the form side carries the request.",
+             f: "Compact. A labelled ledger: Can / Acts as / Returns to, one value per row, no sentences above the password." },
+  login:   { a: "An info alert above the farm-code field names the app and says nothing connects yet.",
+             b: "Chosen. The brand panel's tagline gives way to a 'Next' box at 1280. At 390 the same box sits above the form.",
+             c: "A two-segment progress line and 'Step 1 of 2' above the form." },
+  account: { a: "A ruled list inside a third focus panel: text action at 1280, full-width button at 390 (the DIRECTION rule).",
+             b: "An outlined card per app with an In use / Not used status word.",
+             c: "A sentence counts the apps and nudges the idle one; each app is a disclosure row." },
+  owner:   { a: "A second section under the Users ledger, as a flat table of person, app and dates.",
+             b: "A focus panel in Owner-only Farm settings, grouped by person.",
+             c: "A new Setup page, 'Connected apps', with a person filter. On the phone it sits under More." },
+  audit:   { a: "A status word 'via Claude Desktop' at the end of the summary; a fifth filter, 'Made through'.",
+             b: "A plug icon in the summary, a Who / Through block in the body, a segmented People / Connected apps filter.",
+             c: "Every summary gets a second line naming the actor, plus 'via app' when one acted; a checkbox filter and a 'Show only' pivot inside the event." },
+};
+const S = { screen: "consent", dir: "b", vp: 1280, state: "normal", role: "Worker", theme: "light", full: false };
+
+// ---------- helpers ----------
+const LONG_WORDS = "pakikumpirma pahintulot pinagkakatiwalaan tagapangasiwa talaan sakahan kasalukuyang pagpapatunay pamamahala".split(" ");
+const isLong = () => S.state === "long";
+function pad(s) {
+  if (!isLong() || !s) return s;
+  const want = Math.ceil(s.replace(/<[^>]+>/g, "").length * 0.4);
+  let add = "", i = s.length % LONG_WORDS.length;
+  while (add.length < want) { add += " " + LONG_WORDS[i % LONG_WORDS.length]; i++; }
+  return s + add;
+}
+const e = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function t(k, v = {}) {
+  if (!(k in T)) throw new Error("missing copy key " + k);
+  return pad(T[k].replace(/\{(\w+)\}/g, (_, n) => e(v[n] ?? "")));
+}
+const APP = () => isLong() ? "Claude Desktop para sa Kooperatiba ng Sakahan" : "Claude Desktop";
+const FARM = "Meadowlark";
+const ico = (id, label) => `<svg class="ico" ${label ? `role="img" aria-label="${e(label)}"` : 'aria-hidden="true"'}><use href="#i-${id}"/></svg>`;
+const chev = `<svg class="ico chev" aria-hidden="true"><use href="#i-chev"/></svg>`;
+const btn = (label, cls = "", attrs = "") => `<button type="button" class="btn ${cls}" ${attrs}>${label}</button>`;
+function tf(label, o = {}) {
+  const id = o.id || "f" + Math.random().toString(36).slice(2, 8);
+  const help = o.helper ? `<p class="helper ${o.err ? "err" : ""}" id="${id}-h">${o.helper}</p>` : "";
+  const desc = o.helper ? `aria-describedby="${id}-h"` : "";
+  const ctl = o.options
+    ? `<select id="${id}" ${desc}>${o.options.map((x) => `<option ${x === o.value ? "selected" : ""}>${x}</option>`).join("")}</select>`
+    : `<input id="${id}" type="${o.type || "text"}" value="${e(o.value || "")}" ${o.err ? 'aria-invalid="true"' : ""} ${desc} ${o.auto ? `autocomplete="${o.auto}"` : ""} ${o.focus ? "data-autofocus" : ""}>`;
+  return `<div class="tf ${o.small ? "small" : ""} ${o.err ? "err" : ""} ${o.cls || ""}"><label for="${id}">${label}</label>${ctl}${help}</div>`;
+}
+const alert = (sev, html, live) => `<div class="alert ${sev}" ${live ? `role="${sev === "error" ? "alert" : "status"}"` : ""}>${ico(sev === "error" ? "alert" : sev === "success" ? "check" : "info")}<p>${html}</p></div>`;
+const st = (cls, label) => `<span class="st ${cls}"><i aria-hidden="true"></i>${label}</span>`;
+const acc = (title, body, open = true, id = "", extra = "") => `<details class="acc" ${open ? "open" : ""} ${id ? `id="${id}"` : ""}><summary><span class="h3">${title}${extra}</span>${chev}</summary><div class="accbody">${body}</div></details>`;
+function dialog(title, body, confirmLabel) {
+  return `<div class="scrim"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-b">
+    <h2 class="h2" id="dlg-t">${title}</h2><button class="x" aria-label="${t("close")}">${ico("x")}</button>
+    <p id="dlg-b" class="body2">${body}</p>
+    <div class="actions">${btn(t("cCancel"), "", 'data-go="normal"')}${btn(confirmLabel, "danger", 'data-go="after" data-autofocus')}</div></div></div>`;
+}
+
+// ---------- sample data ----------
+const ROLE = () => S.role;
+const ROLE_LABEL = { Admin: "Admin", Manager: "Manager", Worker: "Worker", ReadOnly: "Read-only" };
+const OWN = () => [
+  { app: APP(), can: "canBoth", connected: "3 Oct 2026", last: "2 hours ago", idle: 0 },
+  { app: "Farm Notes Helper", can: "canRead", connected: "14 Aug 2026", last: "22 Aug 2026", idle: 47 },
+];
+const PEOPLE = () => [
+  { person: "Rosa Dela Cruz", role: "Admin", app: APP(), can: "canRead", connected: "1 Oct 2026", last: "yesterday", idle: 0 },
+  { person: "Ben Cruz", role: "Manager", app: "ChatGPT", can: "canBoth", connected: "20 Sep 2026", last: "3 hours ago", idle: 0 },
+  { person: "Ana Reyes", role: "Worker", app: APP(), can: "canBoth", connected: "3 Oct 2026", last: "2 hours ago", idle: 0 },
+  { person: "Ana Reyes", role: "Worker", app: "Farm Notes Helper", can: "canRead", connected: "14 Aug 2026", last: "22 Aug 2026", idle: 47 },
+  { person: "Luis Santos", role: "Worker", app: "Farm Notes Helper", can: "canBoth", connected: "2 Jul 2026", last: "8 Aug 2026", idle: 61 },
+];
+const AUD = () => [
+  { ts: "2026-10-07 14:02:11", action: "Daily entry draft edited", who: "ana.reyes@meadowlark.farm", app: APP(), rec: "Daily entry 3f9a21c0", det: "House B, 7 Oct: Large 412 → 421", open: true },
+  { ts: "2026-10-07 13:58:40", action: "Daily entry created", who: "ana.reyes@meadowlark.farm", app: APP(), rec: "Daily entry 3f9a21c0", det: "House B, 7 Oct" },
+  { ts: "2026-10-07 09:15:02", action: "Daily entry submitted", who: "ben.cruz@meadowlark.farm", app: null, rec: "Daily entry 8c41d2e7", det: "House A, 7 Oct", open: true },
+  { ts: "2026-10-06 18:30:55", action: "Daily entry created", who: "ben.cruz@meadowlark.farm", app: "ChatGPT", rec: "Daily entry 8c41d2e7", det: "House A, 7 Oct" },
+  { ts: "2026-10-06 08:01:19", action: "Flock assigned to user", who: "rosa.delacruz@meadowlark.farm", app: null, rec: "User 5be0a913", det: "House B to Ana Reyes" },
+];
+
+// ---------- shell ----------
+function navGroups(admin, active, withApps) {
+  const g = [
+    ["gOverview", [["dashboard", "nDashboard"]]],
+    ["gProduction", [["entry", "nDaily"], ["bird", "nFlocks"], ["wheat", "nFeed"], ["water", "nWater"], ["boxes", "nInventory"]]],
+    ["gSales", [["egg", "nStock"], ["users", "nCustomers"], ["cart", "nSales"], ["history", "nHistory"]]],
+    ["gInsights", admin ? [["chart", "nReports"], ["wallet", "nExpenses"]] : [["chart", "nReports"]]],
+  ];
+  if (admin) g.push(["gSetup", [["settings", "nSettings"], ["tag", "nGrades"], ["package", "nProducts"], ["usercog", "nUsers"], ...(withApps ? [["plug", "nApps"]] : []), ["audit", "nAudit"], ["download", "nExport"]]]);
+  g.push(["gYou", [["user", "nAccount"]]], ["gHelp", [["help", "nHelp"]]]);
+  return g.map(([lab, items]) => `<p class="navlabel">${t(lab)}</p>${items.map(([i, k]) =>
+    `<a href="#" class="navitem ${k === active ? "on" : ""} ${k === "nApps" ? "new" : ""}" ${k === active ? 'aria-current="page"' : ""}>${ico(i)}${t(k)}</a>`).join("")}`).join("");
+}
+function shell(active, body, { admin = true, withApps = false, overlay = "" } = {}) {
+  const tabs = [["entry", "nDaily"], ["egg", "nStock"], ["cart", "nSales"], ["history", "nHistory"], ["menu", "nMore"]];
+  return `<div class="app">
+    <aside class="rail"><div class="farm"><span class="egg" aria-hidden="true"></span>${FARM}</div>
+      <nav class="navlist" aria-label="Primary">${navGroups(admin, active, withApps)}</nav>
+      <div class="railfoot"><div>${ico("moon")}${t("nNight")}</div><div>${ico("logout")}${t("nSignOut")}</div><div class="caption">v0.9.0</div></div></aside>
+    <main class="content" id="scroller"><div class="page">${body}</div></main>
+    <nav class="tabbar" aria-label="Sections">${tabs.map(([i, k]) => `<a href="#" class="${k === "nMore" ? "on" : ""}">${ico(i)}${t(k)}</a>`).join("")}</nav>
+  </div>${overlay}`;
+}
+function authShell(side, main) {
+  return `<div class="authbg" id="scroller"><button class="theme-toggle" aria-label="Night">${ico("moon")}</button>
+    <div class="authcard"><div class="authside">${side}</div><div class="authmain">${main}</div></div></div>`;
+}
+const sideDefault = (foot, extra = "") => `<p class="overline">${t("shellEyebrow")}</p><h1 class="h1">${t("title")}</h1><p class="tag">${t("shellTagline")}</p>${extra}<p class="foot">${foot}</p>`;
+
+// ---------- consent (#798) ----------
+const ROLE_KEY = () => "role_" + ROLE();
+const getsFor = (scope) => {
+  const r = ROLE();
+  if (r === "Worker") return scope === "read" ? t("gets_worker_read") : t("gets_worker_write");
+  if (r === "ReadOnly") return scope === "read" ? t("gets_ro_read") : st("warn", t("gets_ro_write"));
+  return scope === "read" ? t("gets_all_read") : t("gets_all_write");
+};
+function permsList(withTags) {
+  const w = S.state === "widened" && withTags;
+  const item = (icon, name, desc, tag) => `<li>${ico(icon)}<b>${name}</b><span class="d">${desc}</span>${tag ? `<span class="tagline">${tag}</span>` : ""}</li>`;
+  return `<ul class="perms">
+    ${item("eye", t("scopeRead"), t("scopeReadDesc"), w ? st("ok", t("tagHad")) : "")}
+    ${item("pen", t("scopeWrite"), t("scopeWriteDesc"), w ? st("accent", t("tagNew")) : "")}</ul>`;
+}
+function pwBlock(id = "pw") {
+  const wrong = S.state === "wrong";
+  return `<p class="body2 muted" style="margin:16px 0 4px">${t("cPwHint")}</p>
+    ${tf(t("cPwLabel"), { id, type: "password", auto: "current-password", err: wrong, value: wrong ? "••••••••••••" : "", focus: wrong })}
+    <div aria-live="assertive" id="${id}-live">${wrong ? alert("error", t("cWrong")) : ""}</div>`;
+}
+const whoLine = () => `<p class="who"><span>${t("cSignedIn", { email: "ana.reyes@meadowlark.farm" })}</span><a href="#">${t("cNotYou")}</a></p>`;
+const titleKey = () => S.state === "widened" ? "cMoreTitle" : "cTitle";
+const introKey = () => S.state === "widened" ? "cMoreIntro" : "cIntro";
+const iv = () => ({ app: APP(), farm: FARM, date: "3 Oct 2026" });
+function refusedBody(heading = "h2") {
+  return `<h${heading === "h1" ? 1 : 2} class="${heading}">${t("cRefTitle")}</h${heading === "h1" ? 1 : 2}>
+    <p class="body2">${t("cRefBody")}</p><p class="body2">${t("cRefNext")}</p>
+    <p class="fine">${t("cRefCode", { code: "invalid_request · 7c1e" })}</p>
+    <div class="actions">${btn(t("cRefButton"), "contained", "data-autofocus")}</div>`;
+}
+function consentA() {
+  const side = sideDefault(t("consentFooter", { farm: FARM }));
+  if (S.state === "refused") return authShell(side, refusedBody());
+  const main = `<p class="overline">${t("cEyebrow")}</p>
+    <h2 class="h2">${t(titleKey(), iv())}</h2>
+    <p class="body2">${t(introKey(), iv())}</p>${whoLine()}
+    <p class="sechead">${t("cAsks")}</p>${permsList(true)}
+    <div class="acting"><p><strong>${t("cActing")}</strong></p><p>${t(ROLE_KEY())}</p></div>
+    <p class="body2">${t("cUndo")}</p>
+    <p class="fine">${t("cCheck", iv())} ${t("cReturn", { host: "127.0.0.1 (this computer)" })}</p>
+    ${pwBlock()}
+    <div class="actions">${btn(t("cAllow"), "contained", 'data-act="allow"')}${btn(t("cCancel"), "outlined")}</div>`;
+  return authShell(side, main);
+}
+function consentB() {
+  const farmline = `<div class="farmline"><span class="egg" aria-hidden="true"></span>${FARM} <span class="muted">· Cluckwork</span></div>`;
+  if (S.state === "refused") return `<div class="stmt" id="scroller"><div class="stmt-col">${farmline}${refusedBody("h1")}</div></div>`;
+  const w = S.state === "widened";
+  const perms = w
+    ? `<p class="sechead">${t("cNewHead")}</p><ul class="perms"><li>${ico("pen")}<b>${t("scopeWrite")}</b><span class="d">${t("scopeWriteDesc")}</span></li></ul>
+       <p class="sechead">${t("cHadHead")}</p><ul class="perms"><li>${ico("eye")}<b>${t("scopeRead")}</b><span class="d">${t("scopeReadDesc")}</span></li></ul>`
+    : `<p class="sechead">${t("cAsks")}</p>${permsList(false)}`;
+  const buttons = `${btn(t("cAllow"), "contained", 'data-act="allow"')}${btn(t("cCancel"), "outlined")}`;
+  return `<div class="stmt" id="scroller"><div class="stmt-col">${farmline}
+    <h1 class="h1">${t(titleKey(), iv())}</h1>
+    <p class="lead"><strong>${t("cActing")}</strong> ${t(ROLE_KEY())}</p>
+    <p class="body2 muted">${t(introKey(), iv())}</p>${whoLine()}
+    ${perms}
+    <p class="body2" style="margin-top:16px">${t("cUndo")}</p>
+    <p class="fine">${t("cCheck", iv())} ${t("cReturn", { host: "127.0.0.1 (this computer)" })}</p>
+    ${pwBlock()}
+    ${S.vp === 390 ? `<div class="stickybar">${buttons}</div>` : `<div class="desk-actions">${buttons}</div>`}
+  </div></div>`;
+}
+function consentC() {
+  const head = `<div class="matrix-head"><span class="egg" aria-hidden="true"></span>${FARM}</div>`;
+  if (S.state === "refused") return `<div class="matrix-wrap" id="scroller"><div class="matrix-col">${head}<div class="panel">${refusedBody()}</div></div></div>`;
+  const w = S.state === "widened";
+  const roleP = T["rolePhrase_" + ROLE()];
+  const rows = [["read", t("scopeRead"), t("scopeReadDesc"), w ? st("ok", t("tagHad")) : ""], ["write", t("scopeWrite"), t("scopeWriteDesc"), w ? st("accent", t("tagNew")) : ""]];
+  const grid = S.vp === 390
+    ? rows.map(([k, n, d, tag]) => `<div class="mcard"><b>${n}</b>${tag ? ` <span style="font-size:13px;margin-left:6px">${tag}</span>` : ""}
+        <div class="row"><span>${t("cColAsks")}</span><span>${d}</span></div>
+        <div class="row gets"><span>${t("cColGets", { role: roleP })}</span><span>${getsFor(k)}</span></div></div>`).join("") + `<p class="body2" style="margin-top:12px"><strong>${t("cActing")}</strong></p>`
+    : `<table class="matrix"><caption><strong>${t("cActing")}</strong></caption>
+        <thead><tr><th scope="col">${t("cColPerm")}</th><th scope="col">${t("cColAsks")}</th><th scope="col" class="gets">${t("cColGets", { role: roleP })}</th></tr></thead>
+        <tbody>${rows.map(([k, n, d, tag]) => `<tr><th scope="row">${n}${tag ? `<br><span style="font-weight:400;font-size:13px">${tag}</span>` : ""}</th><td>${d}</td><td class="gets">${getsFor(k)}</td></tr>`).join("")}</tbody></table>`;
+  return `<div class="matrix-wrap" id="scroller"><div class="matrix-col">${head}<div class="panel">
+    <p class="overline">${t("cEyebrow")}</p>
+    <h1 class="h2">${t(titleKey(), iv())}</h1>
+    <p class="body2">${t(introKey(), iv())}</p>${whoLine()}
+    ${grid}
+    <p class="body2" style="margin-top:16px">${t("cUndo")}</p>
+    <p class="fine">${t("cCheck", iv())} ${t("cReturn", { host: "127.0.0.1 (this computer)" })}</p>
+    ${pwBlock()}
+    <div class="actions">${btn(t("cAllow"), "contained", 'data-act="allow"')}${btn(t("cCancel"), "outlined")}</div>
+  </div></div></div>`;
+}
+
+// ---------- compact consent (D, E, F) ----------
+const roleName = () => T["roleName_" + ROLE()];
+const unvBadge = () => `<span class="badge unv" id="unv">${ico("alert")}${t("kUnverified")}</span>`;
+const roleChip = (cls = "") => `<span class="badge role ${cls}">${ico("user")}<span class="sr">${T.kRoleSr} </span>${t("kRoleChip", { role: roleName() })}</span>`;
+const kHeadline = () => `<div class="k-head"><h1 class="h2" id="k-title">${t(S.state === "widened" ? "kMoreTitle" : "kTitle", { app: APP() })}</h1>${unvBadge()}</div>`;
+function kRows() {
+  const w = S.state === "widened", ro = ROLE() === "ReadOnly";
+  const write = `<li class="${w ? "new" : ""}">${ico("pen")}<b>${t("scopeWrite")}${w ? ` ${st("accent", t("kNew"))}` : ""}</b><span class="l">${ro ? st("warn", t("kWriteBlocked")) : t("kWriteLine")}</span></li>`;
+  const read = w
+    ? `<li class="had">${ico("eye")}<b>${t("scopeRead")}</b><span class="l">${t("kHad")}</span></li>`
+    : `<li>${ico("eye")}<b>${t("scopeRead")}</b><span class="l">${t("kReadLine")}</span></li>`;
+  return `<ul class="k-rows" aria-label="${e(T.cAsks)}">${w ? write + read : read + write}</ul>`;
+}
+const kPw = () => {
+  const wrong = S.state === "wrong";
+  return `${tf(t("cPwLabel"), { id: "pw", type: "password", auto: "current-password", err: wrong, value: wrong ? "••••••••••••" : "", focus: wrong })}
+    <div aria-live="assertive" id="pw-live">${wrong ? alert("error", t("kWrong")) : ""}</div>`;
+};
+const kButtons = () => `<div class="k-actions">${btn(t("cAllow"), "contained", 'data-act="allow"')}${btn(t("cCancel"), "outlined")}</div>`;
+function kDetails(withSigned) {
+  return `<details class="k-details" ${S.state === "details" ? "open" : ""}><summary>${t("kDetails")}${chev}</summary>
+    <p><strong>${t("cActing")}</strong> ${t(ROLE_KEY())}</p>
+    <p>${t("kdName", { app: APP() })}</p><p>${t("kdReturn")}</p><p>${t("kdScopes")}</p>
+    ${withSigned ? `<p>${t("kdSigned", { email: "ana.reyes@meadowlark.farm" })} <a href="#">${t("cNotYou")}</a></p>` : ""}</details>`;
+}
+const kTail = (withSigned) => `<p class="k-after">${t("kUndo")}</p>${kDetails(withSigned)}`;
+function kRefused() {
+  return `<h1 class="h2">${t("kRefTitle")}</h1><p class="body2">${t("kRefBody")}</p>
+    <div class="actions">${btn(t("cRefButton"), "contained", "data-autofocus")}</div>
+    <p class="k-after">${t("kRefCode", { code: "invalid_request · 7c1e" })}</p>`;
+}
+const kTop = () => `<div class="k-top"><span class="farmname"><span class="egg" aria-hidden="true"></span>${FARM}</span><span>ana.reyes@meadowlark.farm</span></div>`;
+function consentD() {
+  const body = S.state === "refused" ? kRefused() : `${kHeadline()}
+    <p class="k-meta"><span>${ico("laptop")}${t("kReturns")}</span></p>
+    ${kRows()}
+    <p class="k-acts"><span class="k-acts-t">${ico("user")}${t("kActs")}</span> ${roleChip()}</p>
+    ${kPw()}${kButtons()}${kTail(true)}`;
+  return `<div class="k-wrap" id="scroller"><div class="k-col">${kTop()}<div class="k-card" data-wc>${body}</div></div></div>`;
+}
+function consentE() {
+  const side = `<h1 class="h1" style="margin:0">${t("title")}</h1>
+    <p class="k-side-who"><b>${FARM}</b>ana.reyes@meadowlark.farm</p>`;
+  const sideHtml = side;
+  const main = S.state === "refused" ? kRefused() : `${kHeadline().replace('<h1 class="h2"', '<h2 class="h2"').replace("</h1>", "</h2>")}
+    <p class="k-meta"><span>${ico("laptop")}${t("kReturns")}</span></p>
+    ${kRows()}
+    <p class="k-acts"><span class="k-acts-t">${ico("user")}${t("kActs")}</span> ${roleChip()}</p>
+    ${kPw()}${kButtons()}${kTail(true)}`;
+  return `<div class="authbg" id="scroller"><button class="theme-toggle" aria-label="Night">${ico("moon")}</button>
+    <div class="authcard" data-wc><div class="authside k-side">${sideHtml}</div><div class="authmain k-main">${main}</div></div></div>`;
+}
+function consentF() {
+  const w = S.state === "widened", ro = ROLE() === "ReadOnly";
+  const writeLn = `<span class="ln">${ico("pen")}${t("scopeWrite")}${w ? ` ${st("accent", t("kNew"))}` : ""}${ro ? ` <span class="l">${st("warn", t("kWriteBlocked"))}</span>` : ""}</span>`;
+  const readLn = `<span class="ln">${ico("eye")}${t("scopeRead")}${w ? ` <span class="l">(${t("kHad")})</span>` : ""}</span>`;
+  const body = S.state === "refused" ? kRefused() : `${kHeadline()}
+    <dl class="k-ledger">
+      <dt>${t("kLedgerCan")}</dt><dd>${w ? writeLn + readLn : readLn + writeLn}</dd>
+      <dt>${t("kLedgerAs")}</dt><dd>${t("kLedgerAsValue")} ${roleChip()}</dd>
+      <dt>${t("kLedgerReturns")}</dt><dd>${t("kLedgerReturnsValue")}</dd>
+    </dl>
+    ${kPw()}${kButtons()}${kTail(true)}`;
+  return `<div class="k-wrap" id="scroller"><div class="k-col">${kTop()}<div class="k-card k-ledger-wrap" data-wc>${body}</div></div></div>`;
+}
+// Visible words from the top of the frame down to the password field (closed
+// Details, icons and screen-reader-only text excluded). Shown in the lab note.
+function countWordsBeforePassword(root) {
+  const pw = root.querySelector("#pw");
+  if (!pw) return null;
+  const stop = pw.closest(".tf");
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n = 0, node;
+  while ((node = walker.nextNode())) {
+    if (stop.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING || stop.contains(node)) break;
+    const el = node.parentElement;
+    if (!el || !el.checkVisibility({ visibilityProperty: true }) || el.closest(".sr,.theme-toggle")) continue;
+    n += node.textContent.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+  }
+  return n;
+}
+window.wordsBeforePassword = () => countWordsBeforePassword(document.getElementById("frame"));
+
+// ---------- login continuing to consent (#798) ----------
+function loginForm(pre = "") {
+  const wrong = S.state === "wrong";
+  return `${pre}<h2 class="h2">${t("signInHeading")}</h2>
+    ${tf(t("farmCode"), { value: "meadowlark", auto: "organization" })}
+    ${tf(t("email"), { type: "email", value: "ana.reyes@meadowlark.farm", auto: "username" })}
+    ${tf(t("password"), { type: "password", value: wrong ? "••••••••" : "", err: wrong, auto: "current-password", focus: wrong })}
+    <div aria-live="assertive">${wrong ? alert("error", t("invalidCredentials")) : ""}</div>
+    <div class="actions">${btn(t("signIn"), "contained")}</div>`;
+}
+function login() {
+  const v = { app: APP() };
+  if (S.dir === "a") return authShell(sideDefault(t("loginShellFooter")), loginForm(alert("info", t("lgContinue", v))));
+  if (S.dir === "b") return authShell(
+    `<p class="overline">${t("shellEyebrow")}</p><h1 class="h1">${t("title")}</h1>
+     <div class="nextbox" role="note"><b>${t("lgNextHead", v)}</b><span>${t("lgNextBody")}</span></div>
+     <p class="foot">${t("loginShellFooter")}</p>`, loginForm(`<div class="nextbox inmain" role="note"><b>${t("lgNextHead", v)}</b><span>${t("lgNextBody")}</span></div>`));
+  return authShell(sideDefault(t("loginShellFooter")),
+    loginForm(`<div class="steps" aria-hidden="true"><i class="on"></i><i></i></div><p class="caption" style="margin-bottom:14px"><strong style="color:var(--ink)">${t("lgStep1")}</strong> ${t("lgStep1Next", v)}</p>`));
+}
+
+// ---------- account: your own connected apps (#799) ----------
+function ownList() {
+  const rows = OWN().filter((r) => !(S.state === "after" && r.app === APP()));
+  if (S.state === "empty") return `<p class="body2 muted">${t("caEmpty")}</p>`;
+  const phone = S.vp === 390;
+  const after = S.state === "after" ? `<div aria-live="polite">${alert("success", t("caAfter", { app: APP() }))}</div>` : `<div aria-live="polite"></div>`;
+  const last = (r) => r.idle ? `${e(r.last)}` : e(r.last);
+  if (S.dir === "a") {
+    if (phone) return after + rows.map((r) => `<div class="prow"><div class="name">${e(r.app)}</div>
+        <p class="meta">${t("caCanLine", { can: T[r.can] })}</p><p class="meta">${t("caDates", { date: r.connected, last: r.last })}</p>
+        ${btn(t("disconnect"), "danger-out", `data-go="confirm" aria-label="${e(T.disconnect + " " + r.app)}"`)}</div>`).join("");
+    return after + `<table class="ledger"><thead><tr><th scope="col">${t("colApp")}</th><th scope="col">${t("colConnected")}</th><th scope="col">${t("colLastUsed")}</th><th><span class="sr">Actions</span></th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td><span style="font-weight:600">${e(r.app)}</span><span class="sub">${t(r.can)}</span></td><td>${r.connected}</td><td>${last(r)}</td>
+      <td class="act">${btn(t("disconnect"), "danger-text", `data-go="confirm" aria-label="${e(T.disconnect + " " + r.app)}"`)}</td></tr>`).join("")}</tbody></table>`;
+  }
+  if (S.dir === "b") return after + `<div class="cards">${rows.map((r) => `<article class="card" aria-label="${e(r.app)}"><div class="card-top"><h3 class="h3">${e(r.app)}</h3>
+      ${r.idle ? st("warn", t("idle", { days: r.idle })) : st("ok", t("inUse"))}</div>
+      <dl class="kv"><dt>${t("colCan")}</dt><dd>${t(r.can)}</dd><dt>${t("colConnected")}</dt><dd>${r.connected}</dd><dt>${t("colLastUsed")}</dt><dd>${e(r.last)}</dd></dl>
+      ${btn(t("disconnect"), "danger-out", `data-go="confirm" aria-label="${e(T.disconnect + " " + r.app)}"`)}</article>`).join("")}</div>`;
+  const idle = rows.find((r) => r.idle >= 30);
+  return after + `<p class="summary-line">${t("caSummary", { n: rows.length })}</p>
+    ${idle ? `<div class="nudge"><p>${t("caIdleNudge", { app: idle.app, days: idle.idle })}</p>${btn(t("caIdleNudgeBtn", { app: idle.app }), "danger-out small", 'data-go="confirm"')}</div>` : ""}
+    ${rows.map((r, i) => `<details class="inner" ${i === 0 ? "open" : ""}><summary><span class="grow"><span style="font-weight:600">${e(r.app)}</span>
+      <span class="sub muted" style="display:block;font-size:13px">${r.idle ? st("warn", t("idle", { days: r.idle })) : st("ok", t("inUse"))}</span></span>${chev}</summary>
+      <div class="innerbody"><dl class="kv" style="margin-top:0"><dt>${t("colCan")}</dt><dd>${t(r.can)}</dd><dt>${t("colConnected")}</dt><dd>${r.connected}</dd><dt>${t("colLastUsed")}</dt><dd>${e(r.last)}</dd></dl>
+      <div class="actions">${btn(t("disconnect"), "danger-out", `data-go="confirm" aria-label="${e(T.disconnect + " " + r.app)}"`)}</div></div></details>`).join("")}`;
+}
+function account() {
+  const prefs = `<p class="body2 muted">${t("languageHint")}</p>${tf(t("language"), { options: ["English", "Español", "Tagalog"], value: "English" })}
+    <p class="body2 muted" style="margin-top:16px">${t("stepperUnitHint")}</p>${tf(t("stepperUnit"), { options: ["Farm default (Individual)", "Tray"], value: "Farm default (Individual)" })}`;
+  const pw = `<p class="body2 muted">${t("changePasswordHint")}</p>${tf(t("currentPasswordLabel"), { type: "password" })}${tf(t("newPasswordLabel"), { type: "password" })}${tf(t("confirmPasswordLabel"), { type: "password" })}<div class="actions">${btn(t("changePasswordButton"), "contained")}</div>`;
+  const n = S.state === "empty" ? 0 : S.state === "after" ? 1 : 2;
+  const body = `<section style="max-width:760px"><p class="overline">${t("acEyebrow")}</p><h2 class="h2">${t("acHeading")}</h2>
+    <p class="body2 muted" style="margin-bottom:16px">${t("acRole", { role: "Worker" })}</p>
+    ${acc(t("acPrefs"), prefs)}${acc(t("acPw"), pw)}
+    ${acc(t("caHeading"), `<p class="body2 muted">${t("caHint")}</p>${ownList()}`, true, "anchor", n ? ` <span class="count">${n}</span>` : "")}</section>`;
+  const overlay = S.state === "confirm" ? dialog(t("caConfirmTitle", { app: APP() }), t("caConfirmBody", { app: APP() }), t("disconnect")) : "";
+  return shell("nAccount", body, { admin: false, overlay });
+}
+
+// ---------- owner: farm-wide (#799) ----------
+const TARGET = { person: "Luis Santos", app: "Farm Notes Helper" };
+function farmRows() {
+  if (S.state === "empty") return [];
+  return PEOPLE().filter((r) => !(S.state === "after" && r.person === TARGET.person));
+}
+const ownerAfter = () => `<div aria-live="polite">${S.state === "after" ? alert("success", t("owAfter", TARGET)) : ""}</div>`;
+const lastCell = (r) => r.idle ? `${e(r.last)}<span class="sub">${st("warn", t("idle", { days: r.idle }))}</span>` : e(r.last);
+function farmTable(rows, { personCol = true } = {}) {
+  if (!rows.length) return `<p class="body2 muted">${t("owEmpty")}</p>`;
+  const lab = (r) => `aria-label="${e(T.disconnect + " " + r.app + ", " + r.person)}"`;
+  if (S.vp === 390) return rows.map((r) => `<div class="prow"><div class="name">${personCol ? `${e(r.person)} <span class="muted" style="font-weight:400">· ${e(r.role)}</span>` : ""}</div>
+      <p class="meta" style="color:var(--ink)">${e(r.app)}</p><p class="meta">${t("caCanLine", { can: T[r.can] })}</p>
+      <p class="meta">${t("caDates", { date: r.connected, last: r.last })}${r.idle ? " " + st("warn", t("idle", { days: r.idle })) : ""}</p>
+      ${btn(t("disconnect"), "danger-out", `data-go="confirm" ${lab(r)}`)}</div>`).join("");
+  return `<table class="ledger"><thead><tr>${personCol ? `<th scope="col">${t("colPerson")}</th>` : ""}<th scope="col">${t("colApp")}</th><th scope="col">${t("colConnected")}</th><th scope="col">${t("colLastUsed")}</th><th><span class="sr">Actions</span></th></tr></thead><tbody>
+    ${rows.map((r) => `<tr>${personCol ? `<td>${e(r.person)}<span class="sub">${e(r.role)}</span></td>` : ""}<td>${e(r.app)}<span class="sub">${t(r.can)}</span></td><td>${r.connected}</td><td>${lastCell(r)}</td>
+    <td class="act">${btn(t("disconnect"), "danger-text", `data-go="confirm" ${lab(r)}`)}</td></tr>`).join("")}</tbody></table>`;
+}
+function owner() {
+  const rows = farmRows();
+  const overlay = S.state === "confirm" ? dialog(t("owConfirmTitle", TARGET), t("owConfirmBody", TARGET), t("disconnect")) : "";
+  if (S.dir === "a") {
+    const users = [["Rosa Dela Cruz", "rosa.delacruz@meadowlark.farm", "Admin"], ["Ben Cruz", "ben.cruz@meadowlark.farm", "Manager"], ["Ana Reyes", "ana.reyes@meadowlark.farm", "Worker"], ["Luis Santos", "luis.santos@meadowlark.farm", "Worker"]];
+    const ul = S.vp === 390
+      ? users.map(([n, m, r]) => `<div class="prow"><div class="name">${n}</div><p class="meta">${m}</p><p class="meta">${r} · ${st("ok", t("active"))}</p></div>`).join("")
+      : `<table class="ledger"><thead><tr><th>${t("colName")}</th><th>${t("colEmail")}</th><th>${t("colRole")}</th><th>${t("colStatus")}</th><th></th></tr></thead><tbody>${users.map(([n, m, r]) => `<tr><td>${n}</td><td>${m}</td><td>${r}</td><td>${st("ok", t("active"))}</td><td class="act"><span class="muted">edit · password · role · disable</span></td></tr>`).join("")}</tbody></table>`;
+    const body = `<div class="pagehead"><h2 class="h2" style="margin:0">${t("usersHeading")}</h2>${btn(t("newUser"), "contained")}</div>${ul}
+      <section id="anchor" style="margin-top:40px"><h2 class="h2">${t("owHeading")} <span class="count">${rows.length}</span></h2>
+      <p class="why">${t("owIntro")}</p>${ownerAfter()}${farmTable(rows)}</section>`;
+    return shell("nUsers", body, { overlay });
+  }
+  if (S.dir === "b") {
+    const byPerson = {};
+    rows.forEach((r) => (byPerson[r.person] ||= []).push(r));
+    const grouped = rows.length ? Object.entries(byPerson).map(([p, rs]) => `<h3 class="person">${e(p)} <span class="count">${e(rs[0].role)}</span></h3>${farmTable(rs, { personCol: false })}`).join("") : `<p class="body2 muted">${t("owEmpty")}</p>`;
+    const body = `<section style="max-width:760px"><h2 class="h2">${t("settingsHeading")}</h2><p class="body2 muted" style="margin-bottom:16px">${t("settingsIntro")}</p>
+      ${acc(t("localization"), "", false)}${acc(t("logo"), "", false)}${acc(t("banner"), "", false)}
+      ${acc(t("owHeading"), `<p class="why">${t("owIntro")}</p>${ownerAfter()}${grouped}`, true, "anchor", ` <span class="count">${rows.length}</span>`)}</section>`;
+    return shell("nSettings", body, { overlay });
+  }
+  const people = [...new Set(PEOPLE().map((r) => r.person))];
+  const body = `<section id="anchor"><p class="overline">${t("owPageEyebrow")}</p><h2 class="h2">${t("owPageHeading")}</h2>
+    <p class="why">${t("owIntro")}</p>
+    <div class="filterrow">${tf(t("owFilterPerson"), { small: true, options: [t("owEveryone"), ...people], value: t("owEveryone") })}
+    <span class="caption">${t("owCountLine", { n: rows.length, p: new Set(rows.map((r) => r.person)).size })}</span></div>
+    ${ownerAfter()}${farmTable(rows)}</section>`;
+  return shell("nApps", body, { withApps: true, overlay });
+}
+
+// ---------- audit (#800), inside Audit C "Focus panels" ----------
+function audit() {
+  const filtered = S.state === "filtered";
+  const rows = AUD().filter((r) => !filtered || r.app);
+  const base = [
+    tf(t("fType"), { small: true, options: [t("fTypeAll"), "Daily entry", "User"], value: t("fTypeAll") }),
+    tf(t("fAction"), { small: true, options: [t("fActionAll"), "Daily entry created"], value: t("fActionAll") }),
+    tf(t("fFrom"), { small: true, type: "date" }), tf(t("fTo"), { small: true, type: "date" }),
+  ];
+  let scopeExtra = "", filters, pre = "";
+  if (S.dir === "a") {
+    const opts = [t("optEverything"), t("optApp"), t("optAny"), APP(), "ChatGPT"];
+    filters = `<div class="audit-filters five">${base.join("")}${tf(t("fThrough"), { small: true, cls: "span2", options: opts, value: filtered ? t("optAny") : t("optEverything") })}</div>`;
+  } else if (S.dir === "b") {
+    pre = `<div class="seg" role="group" aria-label="${t("segLabel")}">${[["segEveryone", !filtered], ["segPeople", false], ["segApps", filtered]].map(([k, on]) => `<button type="button" aria-pressed="${on}">${t(k)}</button>`).join("")}</div>`;
+    filters = `<div class="audit-filters ${filtered ? "five" : ""}">${base.join("")}${filtered ? tf(t("fApp"), { small: true, cls: "span2", options: [t("fAppAll"), APP(), "ChatGPT"], value: t("fAppAll") }) : ""}</div>`;
+  } else {
+    scopeExtra = `<label class="chk"><input type="checkbox" ${filtered ? "checked" : ""}>${t("onlyApps")}</label>`;
+    filters = `<div class="audit-filters">${base.join("")}</div>`;
+  }
+  const events = rows.map((r) => {
+    const sum = `${r.ts} UTC · ${e(r.action)}`;
+    let summary, body;
+    if (S.dir === "a") {
+      summary = `<span class="grow">${sum}</span>${r.app ? `<span class="via">${st("accent", t("viaApp", { app: r.app }))}</span>` : ""}`;
+      body = `<p class="body2">${r.app ? t("via", { who: r.who, app: r.app }) : e(r.who)}</p><p class="body2">${e(r.action)}</p><p class="body2">${e(r.rec)}</p><p class="body2 muted">${e(r.det)}</p>`;
+    } else if (S.dir === "b") {
+      summary = `${r.app ? `<span class="appmark">${ico("plug", t("byApp"))}</span>` : ""}<span class="grow">${sum}</span>`;
+      body = `<dl class="kv"><dt>${t("kvWho")}</dt><dd>${e(r.who)}</dd><dt>${t("kvThrough")}</dt><dd>${r.app ? t("throughApp", { app: r.app }) : t("throughCw")}</dd><dt>${t("kvAction")}</dt><dd>${e(r.action)}</dd><dt>${t("kvRecord")}</dt><dd>${e(r.rec)}</dd><dt>${t("kvDetails")}</dt><dd>${e(r.det)}</dd></dl>`;
+    } else {
+      summary = `<span class="grow">${sum}<span class="line2"><b>${e(r.who)}</b>${r.app ? " " + t("viaApp", { app: r.app }) : ""}</span></span>`;
+      body = `<p class="body2">${e(r.action)}</p><p class="body2">${e(r.rec)}</p><p class="body2 muted">${e(r.det)}</p>${r.app ? `<p>${btn(t("showOnly", { app: r.app }), "outlined small")}</p>` : ""}`;
+    }
+    const id = "ev" + r.ts.replace(/\D/g, "");
+    return `<details class="ev" role="article" aria-labelledby="${id}" ${r.open ? "open" : ""}><summary id="${id}">${summary}</summary><div class="evbody">${body}</div></details>`;
+  }).join("");
+  const body = `<section><p class="overline">${t("auEyebrow")}</p><h1 class="h1">${t("auHeading")}</h1><p class="body2 muted" style="max-width:70ch">${t("auIntro")}</p>
+    <div class="audit-scope"><small>${t("utc")}</small><span style="display:flex;gap:16px;flex-wrap:wrap">${scopeExtra}<label class="chk"><input type="checkbox">${t("preview")}</label></span></div>
+    ${pre}${filters}${filtered ? `<button class="linkbtn" type="button">${t("clearFilters")}</button>` : ""}
+    <div class="audit-events" id="anchor">${events}</div><p style="margin-top:12px"><button class="linkbtn" type="button">${t("loadMore")}</button></p></section>`;
+  return shell("nAudit", body);
+}
+
+// ---------- render ----------
+const RENDER = { consent: () => ({ a: consentA, b: consentB, c: consentC, d: consentD, e: consentE, f: consentF }[S.dir])(), login, account, owner, audit };
+function render() {
+  const f = document.getElementById("frame");
+  f.className = `frame ${S.vp === 390 ? "phone" : ""} ${S.theme === "dark" ? "dark" : ""} ${S.full ? "full" : ""}`;
+  f.innerHTML = RENDER[S.screen]();
+  // lab chrome
+  document.getElementById("screen").value = S.screen;
+  document.getElementById("dirs").innerHTML = Object.entries(DIRS[S.screen]).map(([k, label]) =>
+    `<button data-dir="${k}" aria-pressed="${k === S.dir}" class="${CHOSEN[S.screen] === k ? "picked" : RECOMMENDED[S.screen] === k ? "chosen" : ""} ${(HISTORY[S.screen] || []).includes(k) ? "history" : ""}">${label}</button>`).join(" ");
+  const ss = document.getElementById("state");
+  ss.innerHTML = STATES[S.screen].map(([v, l]) => `<option value="${v}" ${v === S.state ? "selected" : ""}>${l}</option>`).join("");
+  document.getElementById("role").hidden = S.screen !== "consent";
+  document.getElementById("role").value = S.role;
+  document.getElementById("vp").setAttribute("aria-pressed", S.vp === 390);
+  document.getElementById("theme").setAttribute("aria-pressed", S.theme === "dark");
+  const wc = S.screen === "consent" ? countWordsBeforePassword(f) : null;
+  document.getElementById("dirnote").innerHTML = e(NOTES[S.screen][S.dir]) + (wc != null ? ` <span class="wc">${wc} visible words before the password field.</span>` : "");
+  document.querySelectorAll("[data-dir]").forEach((b) => b.onclick = () => { S.dir = b.dataset.dir; render(); });
+  f.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => { S.state = b.dataset.go; render(); });
+  f.querySelectorAll('[data-act="allow"]').forEach((b) => b.onclick = () => { S.state = "wrong"; render(); });
+  // land the viewport on the part each screen adds, so a fixed-height frame shows it
+  const sc = f.querySelector("#scroller"), anchor = f.querySelector("#anchor");
+  if (sc && anchor && !S.full && S.scroll !== false) sc.scrollTop = Math.max(0, anchor.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 16);
+  if (sc && !S.full && S.screen === "consent" && S.state === "wrong") { const pw = f.querySelector("#pw"); sc.scrollTop = Math.max(0, pw.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 200); }
+  const on = f.querySelector(".navitem.on"), nl = f.querySelector(".navlist");
+  if (on && nl && !S.full) nl.scrollTop = Math.max(0, on.offsetTop - nl.offsetTop - nl.clientHeight / 2);
+  const af = f.querySelector("[data-autofocus]");
+  if (af && document.hasFocus()) af.focus({ preventScroll: true });
+}
+document.getElementById("screen").onchange = (ev) => { S.screen = ev.target.value; S.dir = RECOMMENDED[S.screen]; S.state = "normal"; render(); };
+document.getElementById("state").onchange = (ev) => { S.state = ev.target.value; render(); };
+document.getElementById("role").onchange = (ev) => { S.role = ev.target.value; render(); };
+document.getElementById("vp").onclick = () => { S.vp = S.vp === 390 ? 1280 : 390; render(); };
+document.getElementById("theme").onclick = () => { S.theme = S.theme === "dark" ? "light" : "dark"; render(); };
+window.configure = (cfg) => { Object.assign(S, cfg); render(); };
+render();
+</script>
+</body></html>
