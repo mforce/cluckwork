@@ -51,7 +51,7 @@ export function ConnectPage() {
   // A screen reader starts at the request, and a phone keeps its keyboard closed until
   // the user reaches the password. Only a wrong password sends focus back to the field.
   useEffect(() => {
-    if (view.kind === "ask") headingRef.current?.focus();
+    if (view.kind === "ask" || view.kind === "off") headingRef.current?.focus();
   }, [view.kind]);
   useEffect(() => {
     if (wrongPassword && !busy) passwordRef.current?.focus();
@@ -132,7 +132,9 @@ export function ConnectPage() {
           )}
           {view.kind === "off" && (
             <Stack spacing={2}>
-              <Typography variant="h2" component="h1">{t("offTitle")}</Typography>
+              <Typography ref={headingRef} tabIndex={-1} variant="h2" component="h1" sx={{ "&:focus": { outline: "none" } }}>
+                {t("offTitle")}
+              </Typography>
               <Typography variant="body2">{t("offBody")}</Typography>
               <Box aria-live="assertive">{error && <Alert severity="error" role="alert">{error}</Alert>}</Box>
               <Button variant="outlined" onClick={() => void cancel()} disabled={busy}>{t("cancel")}</Button>
@@ -156,6 +158,8 @@ export function ConnectPage() {
             </Stack>
           )}
         </Paper>
+        {/* Present from the first render, so either way into the refusal is announced. */}
+        <span role="status" className="sr-only">{view.kind === "off" ? t("offBody") : ""}</span>
       </Box>
     </Box>
   );

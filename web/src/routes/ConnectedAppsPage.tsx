@@ -4,11 +4,10 @@ import { Plug, Unplug } from "lucide-react";
 import {
   Alert, Box, Button, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
 } from "@mui/material";
-import { disconnectUserApp, listFarmConnectedApps, listUsers } from "../api/cluckwork";
+import { disconnectUserApp, getAccount, listFarmConnectedApps, listUsers } from "../api/cluckwork";
 import type { AppConnection, User } from "../api/cluckwork";
 import { useConnectionFacts, useDisconnect } from "../components/ConnectedApps";
 import { EmptyState } from "../components/EmptyState";
-import { useFarm } from "../farm/useFarm";
 import { CONSOLE_DESTRUCTIVE_LINK_SX, LedgerTableContainer, STICKY_TABLE_HEAD_SX } from "../components/FieldConsole";
 import { PhoneLedgerList } from "../components/PhoneLedger";
 import { roleLabel } from "../i18n/enums";
@@ -22,16 +21,18 @@ const MUTED = { color: "text.secondary", fontSize: ".8125rem" };
 export function ConnectedAppsPage() {
   const { t } = useTranslation("connectedApps");
   const facts = useConnectionFacts();
-  const { farm } = useFarm();
   const isDesktop = useMediaQuery(MD_UP_QUERY);
   const [apps, setApps] = useState<AppConnection[] | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
+  // #1146 — read with the rows, not from the session's farm: another Owner may have flipped it.
+  const [appsOff, setAppsOff] = useState(false);
   const [person, setPerson] = useState("");
   const load = useCallback(() =>
-    Promise.all([listFarmConnectedApps(), listUsers()]).then(([rows, people]) => {
+    Promise.all([listFarmConnectedApps(), listUsers(), getAccount()]).then(([rows, people, account]) => {
       setApps(rows);
       setUsers(people);
+      setAppsOff(!account.allowConnectedApps);
       setLoadFailed(false);
     }, () => setLoadFailed(true)), []);
   useEffect(() => { void load(); }, [load]);
@@ -66,7 +67,7 @@ export function ConnectedAppsPage() {
 
       {notice}
       <Stack spacing={2} sx={{ mt: 2 }}>
-        {farm?.allowConnectedApps === false && <Alert severity="warning">{t("farmOff")}</Alert>}
+        {appsOff && <Alert severity="warning">{t("farmOff")}</Alert>}
         {loadFailed && <Alert severity="error">{t("loadFailed")}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
         {apps?.length === 0 && <EmptyState icon={Plug} message={t("farmEmpty")} />}

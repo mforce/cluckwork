@@ -5,7 +5,7 @@ import { ConnectedAppsPage } from "./ConnectedAppsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account } from "../test/fixtures";
 import {
-  disconnectMyApp, disconnectUserApp, listFarmConnectedApps, listMyConnectedApps, listUsers,
+  disconnectMyApp, disconnectUserApp, getAccount, listFarmConnectedApps, listMyConnectedApps, listUsers,
 } from "../api/cluckwork";
 import type { AppConnection } from "../api/cluckwork";
 
@@ -16,6 +16,7 @@ vi.mock("../api/cluckwork", async (importOriginal) => ({
   listFarmConnectedApps: vi.fn(),
   disconnectUserApp: vi.fn(),
   listUsers: vi.fn(),
+  getAccount: vi.fn(),
 }));
 
 const DAY = 86_400_000;
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(disconnectMyApp).mockResolvedValue(undefined);
   vi.mocked(disconnectUserApp).mockResolvedValue(undefined);
+  vi.mocked(getAccount).mockResolvedValue(account());
 });
 
 async function confirmDisconnect(appName: string) {
@@ -178,14 +180,24 @@ describe("Setup › Connected apps, the Owner's farm-wide page (#799)", () => {
     expect(screen.getByText("Claude Desktop")).toBeInTheDocument();
   });
 
-  // #1146
-  it("says why the apps don't work while the farm has them off", async () => {
+  // #1146 — the switch is read with the rows, so a session that loaded the farm before
+  // another Owner flipped it still shows the truth, in both directions.
+  const OFF = "Connected apps are off for this farm, so these apps can't act for anyone. Turn them on in Farm settings.";
+
+  it("warns when apps were turned off since this session loaded the farm", async () => {
+    vi.mocked(getAccount).mockResolvedValue(account({ allowConnectedApps: false }));
+    renderWithProviders(<ConnectedAppsPage />,
+      { token: { sub: "owner", role: "Admin" }, farm: account({ allowConnectedApps: true }) });
+
+    expect(await screen.findByText(OFF)).toBeInTheDocument();
+  });
+
+  it("drops the warning when apps were turned back on since this session loaded the farm", async () => {
     renderWithProviders(<ConnectedAppsPage />,
       { token: { sub: "owner", role: "Admin" }, farm: account({ allowConnectedApps: false }) });
 
-    expect(await screen.findByText(
-      "Connected apps are off for this farm, so these apps can't act for anyone. Turn them on in Farm settings.",
-    )).toBeInTheDocument();
+    expect(await screen.findByText("3 connections, 2 people")).toBeInTheDocument();
+    expect(screen.queryByText(OFF)).not.toBeInTheDocument();
   });
 
   it("disconnects the person's app, not the Owner's", async () => {
