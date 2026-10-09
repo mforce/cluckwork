@@ -73,7 +73,7 @@ export function useDisconnect(reload: () => Promise<void>) {
     setMessage(null);
     setError(null);
     const order = [...(sectionRef.current?.querySelectorAll<HTMLElement>("[data-disconnect-focus]") ?? [])]
-      .map((control) => control.dataset.disconnectFocus ?? "");
+      .map((control) => control.dataset.disconnectFocus!);
     if (!(await confirm({ title: t("confirmTitle", { app }), body, confirmLabel: t("disconnect"), destructive: true }))) return;
     setBusy(true);
     let done = true;
