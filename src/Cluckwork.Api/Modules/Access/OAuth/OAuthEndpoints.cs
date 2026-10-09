@@ -83,9 +83,9 @@ public static class OAuthEndpoints
     public const string ConsentHeaderName = "X-Cluckwork-Consent";
 
     // #798 — OpenIddict has already validated the client, the redirect URI, PKCE and the
-    // scopes. Consent is all or nothing and needs the user's password through a step-up
-    // grant, unless one of their valid permanent authorizations for this app already holds
-    // every scope asked for. Then nothing new is asked and it is skipped silently.
+    // scopes. Consent is all or nothing and always needs the user's password through a
+    // step-up grant. When one of their valid permanent authorizations for this app already
+    // holds every scope asked for, only the permission explanation is skipped.
     private static async Task<IResult> Authorize(
         HttpContext context,
         ICurrentUser currentUser,
@@ -98,12 +98,22 @@ public static class OAuthEndpoints
         CancellationToken ct)
     {
         if (!currentUser.IsResolved)
-            return context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-                // An expired session: the SPA refreshes and asks again.
-                ? Results.Unauthorized()
-                // A browser navigation. A relative path cannot leave this origin, and the
-                // query is the request OpenIddict just validated.
-                : Results.Redirect("/connect" + context.Request.QueryString);
+        {
+            // An expired session: the SPA refreshes and asks again.
+            if (context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                return Results.Unauthorized();
+            // The sign-in screen names the app it continues to. The name is the app's
+            // own public choice (#797), so it needs no session.
+            if (consent == "preview")
+                return Results.Json(new
+                {
+                    clientName = await applications.GetDisplayNameAsync(
+                        (await applications.FindByClientIdAsync(context.GetOpenIddictServerRequest()!.ClientId!, ct))!, ct),
+                });
+            // A browser navigation. A relative path cannot leave this origin, and the
+            // query is the request OpenIddict just validated.
+            return Results.Redirect("/connect" + context.Request.QueryString);
+        }
 
         if (consent == "deny")
             return Results.Forbid(

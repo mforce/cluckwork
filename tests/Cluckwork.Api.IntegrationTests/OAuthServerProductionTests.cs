@@ -66,6 +66,7 @@ public sealed class OAuthServerProductionTests(OAuthProductionFactory factory)
     [InlineData("", "OAuth:Issuer is not configured")]
     [InlineData("http://farm.example/", "OAuth:Issuer must be an absolute https URL")]
     [InlineData("https://farm.example/?tenant=1", "OAuth:Issuer must be an absolute https URL")]
+    [InlineData("https://farm.example/#", "OAuth:Issuer must be an absolute https URL")]
     public void Production_WithoutAnHttpsIssuer_RefusesToStart(string issuer, string message)
     {
         using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("OAuth:Issuer", issuer));

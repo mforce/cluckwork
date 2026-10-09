@@ -254,7 +254,9 @@ issuer = str(env.get("OAuth__Issuer") or "").strip()
 parsed = urlsplit(issuer)
 if not issuer:
     fail.append("OAuth__Issuer is not set on the app service — #798 fails the Production boot")
-elif parsed.scheme != "https" or not parsed.netloc or parsed.query or parsed.fragment:
+# .NET keeps a bare "?" or "#" in Uri.Query or Uri.Fragment, so the boot guard refuses the
+# delimiter even with nothing after it; urlsplit drops it, so test the raw string.
+elif parsed.scheme != "https" or not parsed.netloc or "?" in issuer or "#" in issuer:
     fail.append(f"OAuth__Issuer={issuer!r} is not an absolute https URL without a query or fragment — "
                 "#798 fails the Production boot")
 else:

@@ -263,6 +263,21 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
     }
 
     // The SPA receives the client's redirect as one URL, which only query mode is.
+    // Login names the app before anyone signs in; that answer carries the name and
+    // nothing else, and never a code.
+    [Fact]
+    public async Task Preview_WithoutASession_NamesTheAppOnly()
+    {
+        var clientId = await RegisterNamedClientAsync("Claude Desktop");
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, jwt: null, Query(clientId, Read), consent: "preview");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(["clientName"], body.EnumerateObject().Select(property => property.Name).ToArray());
+        Assert.Equal("Claude Desktop", body.GetProperty("clientName").GetString());
+    }
+
     [Theory]
     [InlineData(ResponseModes.FormPost)]
     [InlineData(ResponseModes.Fragment)]
