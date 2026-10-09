@@ -1726,7 +1726,7 @@ describe("AuditPage connected apps (#800)", () => {
     }));
     expect(appsOnlyBox()).toBeChecked();
     expect(await screen.findByText("Showing only actions through Claude Desktop.")).toBeInTheDocument();
-    const pivoted = screen.getByRole("article", { description: /via Claude Desktop/ });
+    const pivoted = await screen.findByRole("article", { description: /via Claude Desktop/ });
     expandPanel(pivoted);
     expect(within(pivoted).queryByRole("button", { name: /Show only/ })).not.toBeInTheDocument();
 
