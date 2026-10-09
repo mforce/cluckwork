@@ -64,6 +64,21 @@ function LocationProbe() {
   );
 }
 
+// AppLayout mounts each screen under an ErrorBoundary keyed on location.key, so every
+// URL write, a filter included, gives AuditPage a fresh instance. Specs about state
+// that must survive a filter change render through this, not a bare AuditPage.
+function RemountingAudit() {
+  return <AuditPage key={useLocation().key} />;
+}
+
+function renderRemountingAudit(route = "/audit") {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <RemountingAudit />
+    </MemoryRouter>,
+  );
+}
+
 function renderAuditWithProbe(route = "/audit") {
   return render(
     <MemoryRouter initialEntries={[route]}>
@@ -1739,8 +1754,11 @@ describe("AuditPage connected apps (#800)", () => {
 
   // Review round 2, F1 — the one-app filter stays visible when its result is empty.
   it("keeps naming the pressed app when its filtered result is empty", async () => {
-    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [APP_EVENT]));
-    renderAuditWithProbe();
+    // Its own client id: knownAppNames outlives each render, so another spec's
+    // pivot must not supply this name.
+    const pressed = { ...APP_EVENT, connectedAppClientId: "client-pressed" };
+    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [pressed]));
+    renderRemountingAudit();
     const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
     expandPanel(row);
     fireEvent.click(within(row).getByRole("button", { name: "Show only Claude Desktop" }));
@@ -1748,14 +1766,15 @@ describe("AuditPage connected apps (#800)", () => {
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-20" } });
     await screen.findByText("No audit events match these filters.");
-    expect(lastQuery()).toMatchObject({ connectedAppClientId: "client-claude", from: "2026-07-20" });
+    expect(lastQuery()).toMatchObject({ connectedAppClientId: "client-pressed", from: "2026-07-20" });
     expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
     expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
   });
 
   it("keeps the name a one-app URL loaded once its result goes empty", async () => {
-    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [APP_EVENT]));
-    renderAudit("/audit?connectedAppClientId=client-claude");
+    const loaded = { ...APP_EVENT, connectedAppClientId: "client-loaded" };
+    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [loaded]));
+    renderRemountingAudit("/audit?connectedAppClientId=client-loaded");
     await screen.findByText("Showing only actions through Claude Desktop.");
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-20" } });
@@ -1764,28 +1783,30 @@ describe("AuditPage connected apps (#800)", () => {
   });
 
   it("names neither the app nor its id when a one-app URL finds no rows", async () => {
-    renderAudit("/audit?connectedAppClientId=client-claude");
+    // An id no other spec has loaded: names seen earlier in the session are kept.
+    renderAudit("/audit?connectedAppClientId=client-unseen");
 
     await screen.findByText("No audit events match these filters.");
     expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through the selected app.");
-    expect(screen.queryByText(/client-claude/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/client-unseen/)).not.toBeInTheDocument();
   });
 
-  // Review round 2, F2 — the pressed button leaves with the reload.
-  it("moves focus to the checkbox and announces the app after Show only", async () => {
-    mockListAuditEvents.mockResolvedValue([APP_EVENT]);
-    renderAudit();
+  // Review round 2, F2 — the pressed button leaves with the reload and the remount.
+  it("moves focus to the announced caption after Show only", async () => {
+    // The pivot's reload never resolves, so the caption can only take the app's
+    // name from the pressed button.
+    const focused = { ...APP_EVENT, connectedAppClientId: "client-focus" };
+    mockListAuditEvents.mockResolvedValueOnce([focused]).mockReturnValue(new Promise(() => {}));
+    renderRemountingAudit();
     const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
-    const status = screen.getByRole("status");
-    expect(status).toBeEmptyDOMElement();
     expandPanel(row);
     const button = within(row).getByRole("button", { name: "Show only Claude Desktop" });
     button.focus();
 
     fireEvent.click(button);
-    expect(document.activeElement).toBe(appsOnlyBox());
-    await waitFor(() => expect(status).toHaveTextContent("Showing only actions through Claude Desktop."));
-    expect(screen.getByRole("status")).toBe(status);
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(document.activeElement).toBe(status));
+    expect(status).toHaveTextContent("Showing only actions through Claude Desktop.");
   });
 
   it("restores a one-app view from the URL", async () => {

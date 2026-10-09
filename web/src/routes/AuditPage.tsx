@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
-import { useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import {
   Box, Button, Checkbox, FormControlLabel, TextField, Tooltip, Typography,
 } from "@mui/material";
@@ -21,6 +21,13 @@ import {
 } from "../i18n/enums";
 
 const PAGE = 100;
+
+// #800 — connected-app names seen this session, by client id. AppLayout remounts the
+// screen on every URL write, filters included, so component state would forget the
+// name of a pivoted app whose filtered result turns out empty. Names come from loaded
+// rows and the pressed button, never the URL.
+// ponytail: grows by one short entry per app seen; nothing evicts within a session.
+const knownAppNames = new Map<string, string | null>();
 
 // Canonical 8-4-4-4-12 hex form only, not full Guid.TryParse permissiveness
 // (which also accepts braced/no-hyphen forms). This is a correctness guard,
@@ -218,17 +225,19 @@ export function AuditPage() {
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
 
-  // The pressed button leaves with the reload, so focus moves to the checkbox, which
-  // stays; the status caption announces which app is now shown.
-  const appsOnlyRef = useRef<HTMLInputElement>(null);
-  const [knownApp, setKnownApp] = useState<{ clientId: string; name: string | null }>();
+  // The pressed button leaves with the remount, so the new instance moves focus to
+  // the caption, which reads out the app now shown.
   const showOnlyApp = useCallback((clientId: string, name: string | null) => {
-    setKnownApp({ clientId, name });
+    knownAppNames.set(clientId, name);
     const next = new URLSearchParams(searchParams);
     next.set("connectedAppClientId", clientId);
-    setSearchParams(next);
-    appsOnlyRef.current?.focus();
+    setSearchParams(next, { state: { focusAppPivot: true } });
   }, [searchParams, setSearchParams]);
+  const pivotCaptionRef = useRef<HTMLParagraphElement>(null);
+  const focusAppPivot = (useLocation().state as { focusAppPivot?: boolean } | null)?.focusAppPivot;
+  useEffect(() => {
+    if (focusAppPivot) pivotCaptionRef.current?.focus();
+  }, [focusAppPivot]);
 
   const updateActionFilter = useCallback((action: string) => {
     const next = new URLSearchParams(searchParams);
@@ -429,21 +438,16 @@ export function AuditPage() {
 
   const previewEntityId = isScopedReloading ? undefined : events.rows?.[0]?.entityId;
 
-  // The pivoted app's name comes from a loaded row or the pressed button, never the
-  // URL, like scopedEntityType. It is kept once known, so an empty result still names
-  // the app; a URL that arrives with no matching row gets a neutral label.
+  // The pivoted app's name comes from a loaded row or knownAppNames, never the URL,
+  // like scopedEntityType. A URL whose app this session has not seen gets a neutral
+  // label.
   const pivotedAppRow = appClientIdFilter && !isScopedReloading
     ? events.rows?.find((row) => row.connectedAppClientId === appClientIdFilter)
     : undefined;
-  useEffect(() => {
-    if (pivotedAppRow) {
-      setKnownApp({ clientId: appClientIdFilter, name: pivotedAppRow.connectedAppName });
-    }
-  }, [pivotedAppRow, appClientIdFilter]);
-  const pivotedApp = knownApp?.clientId === appClientIdFilter ? knownApp : undefined;
+  if (pivotedAppRow) knownAppNames.set(appClientIdFilter, pivotedAppRow.connectedAppName);
   const pivotedAppLabel = !appClientIdFilter ? null
-    : !pivotedApp ? t("selectedConnectedApp")
-    : pivotedApp.name ?? t("unnamedConnectedApp");
+    : !knownAppNames.has(appClientIdFilter) ? t("selectedConnectedApp")
+    : knownAppNames.get(appClientIdFilter) ?? t("unnamedConnectedApp");
   const updateRecordPreview = useCallback((checked: boolean) => {
     const next = new URLSearchParams(searchParams);
     if (checked && previewEntityId) next.set("entityId", previewEntityId);
@@ -474,7 +478,6 @@ export function AuditPage() {
             control={(
               <Checkbox
                 size="small"
-                slotProps={{ input: { ref: appsOnlyRef } }}
                 checked={appsOnlyFilter}
                 onChange={(event) => updateAppsOnlyFilter(event.target.checked)}
               />
@@ -532,7 +535,7 @@ export function AuditPage() {
           {tc("clearFiltersButton")}
         </button>
       )}
-      <p className="muted audit-app-pivot" role="status">
+      <p className="muted audit-app-pivot" role="status" tabIndex={-1} ref={pivotCaptionRef}>
         {pivotedAppLabel !== null && t("connectedAppPivotCaption", { app: pivotedAppLabel })}
       </p>
 
