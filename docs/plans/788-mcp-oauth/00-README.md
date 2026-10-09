@@ -1,6 +1,6 @@
 # MCP authentication — OAuth 2.1 via OpenIddict (#788)
 
-**Status: design. Slice #795 (the OpenIddict server, outside Production only) is implemented; see [`795-openiddict-server.md`](../../decisions/795-openiddict-server.md).**
+**Status: design. Slices #795 to #798 are implemented; see [`795-openiddict-server.md`](../../decisions/795-openiddict-server.md) and [`798-oauth-consent.md`](../../decisions/798-oauth-consent.md).**
 
 #788 began as a question: MCP clients expect OAuth discovery and a refreshable token, and Cluckwork's
 refresh is an HttpOnly cookie, so nobody could actually connect an assistant. This directory is the

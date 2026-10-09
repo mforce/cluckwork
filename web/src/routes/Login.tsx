@@ -13,10 +13,11 @@ import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
 import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCodeCache";
 import { applyDeviceBrand } from "../lib/brand";
+import { returnPath } from "../auth/returnPath";
 import { useCachedBannerUrl } from "../lib/bannerCache";
 
 interface LocationState {
-  from?: { pathname: string };
+  from?: { pathname: string; search?: string };
 }
 
 // #283 follow-up — the error code a failed sign-in carries when the default
@@ -78,7 +79,7 @@ export function Login() {
   const { login, isAuthenticated, isLoading, unauthenticatedReason } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as LocationState | null)?.from?.pathname ?? "/";
+  const from = returnPath((location.state as LocationState | null)?.from);
 
   // If the load-time silent refresh (#145) restores a session while we're on
   // /login, don't strand the user on the form — send them to their destination.

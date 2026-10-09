@@ -247,6 +247,18 @@ else:
     else:
         ok.append(f"AllowedHosts OK ({'; '.join(hosts)})")
 
+# --- #798 OAuth issuer -------------------------------------------------
+# Checked as CluckworkIdentityServiceCollectionExtensions.EnsureOAuthIssuer does:
+# present, and an absolute https URL.
+issuer = str(env.get("OAuth__Issuer") or "").strip()
+parsed = urlsplit(issuer)
+if not issuer:
+    fail.append("OAuth__Issuer is not set on the app service — #798 fails the Production boot")
+elif parsed.scheme != "https" or not parsed.netloc:
+    fail.append(f"OAuth__Issuer={issuer!r} is not an absolute https URL — #798 fails the Production boot")
+else:
+    ok.append(f"OAuth__Issuer OK ({issuer})")
+
 # --- #261/#262 TLS opt-out ----------------------------------------------
 # The EFFECTIVE value on the app service, not a grep of the file: a matching
 # line elsewhere in the YAML says nothing about what this container receives.

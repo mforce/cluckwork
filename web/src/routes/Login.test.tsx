@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, act, cleanup, waitFor } from "@testing-library/react";
-import { Routes, Route } from "react-router";
+import { Routes, Route, useLocation } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -29,12 +29,17 @@ const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 // /dashboard is behind the real ProtectedRoute, so navigation there only
 // succeeds if login actually established authenticated state — a bare public
 // route would false-green if login stopped authenticating.
+function ConnectProbe() {
+  return <div>connect {useLocation().search}</div>;
+}
+
 function tree() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<div>dashboard (protected)</div>} />
+        <Route path="/connect" element={<ConnectProbe />} />
       </Route>
     </Routes>
   );
@@ -99,6 +104,23 @@ describe("Login", () => {
     });
     // Returned to the originally requested route, now authenticated.
     expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
+  });
+
+  // #798 — the consent route's query is the connected app's request, so sign-in must
+  // hand it back intact.
+  it("returns to the consent route with its request after sign-in", async () => {
+    mockApiLogin.mockImplementation(async () => {
+      setStoredToken({ sub: "u1", role: "Sales" });
+    });
+    renderWithProviders(tree(), { route: "/connect?client_id=abc&scope=farm%3Aread", token: null });
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText("connect ?client_id=abc&scope=farm%3Aread")).toBeInTheDocument();
   });
 
   it("redirects an ALREADY-authenticated visit AT /login away from the form (#145 silent-refresh restore)", async () => {

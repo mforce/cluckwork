@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -114,16 +116,19 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         Assert.Contains($"error:{Errors.InvalidScope}", await response.Content.ReadAsStringAsync());
     }
 
+    // #798 — a browser navigation carries no session bearer, so the SPA's consent route
+    // takes the validated request over, unchanged.
     [Fact]
-    public async Task AuthorizationRequest_WithoutASignedInUser_IsRefused()
+    public async Task AuthorizationRequest_WithoutASignedInUser_GoesToTheConsentRoute()
     {
         using var host = WithResourceProbe(factory);
         var clientId = await RegisterClientAsync(host.Services);
+        var query = AuthorizeQuery(clientId, NewCodeVerifier());
 
-        using var response = await SendAuthorizeAsync(host, jwt: null,
-            AuthorizeQuery(clientId, NewCodeVerifier()));
+        using var response = await SendAuthorizeAsync(host, jwt: null, query);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(QueryHelpers.AddQueryString("/connect", query), response.Headers.Location!.OriginalString);
     }
 
     // OpenIddict's keys here are ephemeral, so two hosts never share them. A code one
@@ -265,11 +270,29 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
         WebApplicationFactory<Program> host, string jwt, string clientId, string verifier,
         string redirectUri = RedirectUri)
     {
-        using var response = await SendAuthorizeAsync(host, jwt, AuthorizeQuery(clientId, verifier, redirectUri));
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var location = response.Headers.Location!;
+        var location = await ApproveAsync(host, jwt, AuthorizeQuery(clientId, verifier, redirectUri));
         Assert.StartsWith(redirectUri.Split('?')[0], location.OriginalString);
         return QueryHelpers.ParseQuery(location.Query)["code"].ToString();
+    }
+
+    // The consent route's Allow (#798): the user re-enters their password for a step-up
+    // grant, and the approval comes back as the client's redirect.
+    internal static async Task<Uri> ApproveAsync(
+        WebApplicationFactory<Program> host, string jwt, Dictionary<string, string?> query)
+    {
+        using var response = await SendAuthorizeAsync(host, jwt, query, await StepUpAsync(host, jwt));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return RedirectOf(await response.Content.ReadFromJsonAsync<JsonElement>());
+    }
+
+    internal static Uri RedirectOf(JsonElement body) => new(body.GetProperty("redirectUri").GetString()!);
+
+    internal static async Task<string> StepUpAsync(WebApplicationFactory<Program> host, string jwt)
+    {
+        using var response = await HttpsClient(host, jwt).PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
     }
 
     internal static Dictionary<string, string?> AuthorizeQuery(
@@ -284,8 +307,14 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
     };
 
     internal static Task<HttpResponseMessage> SendAuthorizeAsync(
-        WebApplicationFactory<Program> host, string? jwt, Dictionary<string, string?> query) =>
-        HttpsClient(host, jwt).GetAsync(QueryHelpers.AddQueryString("/api/v1/oauth/authorize", query));
+        WebApplicationFactory<Program> host, string? jwt, Dictionary<string, string?> query,
+        string? stepUp = null, string? consent = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, QueryHelpers.AddQueryString("/api/v1/oauth/authorize", query));
+        if (stepUp is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, stepUp);
+        if (consent is not null) request.Headers.Add(OAuthEndpoints.ConsentHeaderName, consent);
+        return HttpsClient(host, jwt).SendAsync(request);
+    }
 
     private static Task<HttpResponseMessage> RedeemAsync(
         WebApplicationFactory<Program> host, string clientId, string code, string verifier,

@@ -129,5 +129,9 @@ public sealed class AccessModule(
         Guid accountId, Guid userId, string currentPassword, CancellationToken ct) =>
         stepUp.IssueAsync(accountId, userId, currentPassword, ct);
 
+    public Task<Result> ConsumeStepUpGrantAsync(
+        Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct) =>
+        stepUp.ValidateAsync(accountId, userId, stepUpToken, ct);
+
     public int RefreshTokenLifetimeDays => jwt.Value.RefreshTokenDays;
 }

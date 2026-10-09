@@ -171,6 +171,7 @@ internal static partial class RealModuleLedger
         new("Cluckwork.Api.Modules.Access.Me.MeEndpoints.GetMe", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Me.MeEndpoints.SetLanguage", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Me.MeEndpoints.SetStepperUnit", ["Access"]),
+        new("Cluckwork.Api.Modules.Access.OAuth.OAuthEndpoints.Authorize", ["Access"]),
         new("Cluckwork.Api.Modules.Insights.Reports.ReportEndpoints.Expenses", ["Insights"]),
         new("Cluckwork.Api.Modules.Insights.Reports.ReportEndpoints.Production", [
             "FlockManagement",

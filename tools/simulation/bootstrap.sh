@@ -236,6 +236,12 @@ Jwt__PrivateKeyPem="${JWT_PRIVATE_PEM}"
 DataProtection__CertificatePem="${DP_CERT_PEM}"
 DataProtection__PrivateKeyPem="${DP_KEY_PEM}"
 
+# --- OAuth issuer (#798) — required by the Production serving boot. The sim has
+# no public https URL, so this names the sim host. OpenIddict refuses plain-http
+# protocol requests outside Development, so the connect flow does not run on this
+# http stack; only the boot needs the value. ---
+OAuth__Issuer=https://cluckwork-sim.local/
+
 # --- First-run admin (#283) — SCRIPT-LEVEL values, not app config (no
 # double-underscore key, so docker-compose's env-file parser does NOT expose
 # these to the app as ASP.NET config; the app never reads a "seed" credential

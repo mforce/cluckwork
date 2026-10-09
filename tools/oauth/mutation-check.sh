@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795, #796 and #797 OAuth claim has a test that
+# tools/oauth/mutation-check.sh — proves each #795 to #798 OAuth claim has a test that
 # fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -41,12 +41,30 @@ MUST_CHANGE=src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth'
-SUITE_MIN=79
+SUITE_MIN=97
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
 MUTANTS=$(cat <<'EOF'
-production-gate#kill#IDENTITY#        if (role is not ProcessRole.Serving || environment.IsProduction()#        if (role is not ProcessRole.Serving#OAuthServerProductionTests.Production_RunsNoAuthorizationServer#Expected: NotFound
+production-issuer-optional#kill#IDENTITY#        if (environment.IsProduction()) return EnsureOAuthIssuer(issuer);\n##OAuthServerProductionTests.Production_WithoutAnHttpsIssuer_RefusesToStart#No exception was thrown
+production-http-issuer#kill#IDENTITY# && uri.Scheme == Uri.UriSchemeHttps##OAuthServerProductionTests.Production_WithoutAnHttpsIssuer_RefusesToStart#No exception was thrown
+production-issuer-query#kill#IDENTITY#\n            && uri.Query.Length == 0 && uri.Fragment.Length == 0##OAuthServerProductionTests.Production_WithoutAnHttpsIssuer_RefusesToStart#No exception was thrown
+scope-permissions-enforced#kill#SERVER#                    .IgnoreScopePermissions()\n##OAuthServerProductionTests.Production_ServesTheConnectFlow#Expected: OK
+consent-not-asked#kill#ENDPOINT#        if (covering is null)\n#        if (covering is null && stepUpToken is not null)\n#OAuthConsentTests.FirstRequest_AsksForConsent_AndIssuesNothing#a code was issued without consent
+grant-unchecked#kill#ENDPOINT#            if (proof.IsFailure)#            if (proof.IsFailure && stepUpToken.Length < 0)#OAuthConsentTests.Approval_WithoutAValidGrant_IsRefused#Expected: Forbidden
+ad-hoc-authorization#kill#ENDPOINT#            identity, subject, applicationId, AuthorizationTypes.Permanent, scopes, ct);#            identity, subject, applicationId, AuthorizationTypes.AdHoc, scopes, ct);#OAuthConsentTests.NothingNew_SkipsConsent#consent was asked again
+wider-request-skipped#kill#ENDPOINT#            if (covering is null && scopes.All(granted.Contains)) covering = authorization;#            if (covering is null) covering = authorization;#OAuthConsentTests.MoreScopes_AsksAgain_NamingWhatIsAlreadyAllowed#a wider request skipped consent
+any-users-approval#kill#ENDPOINT#            subject, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))#            null, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))#OAuthConsentTests.AnotherUsersApproval_DoesNotSkip#another user's approval skipped consent
+revoked-approval-skips#kill#ENDPOINT#            subject, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))#            subject, applicationId, null, AuthorizationTypes.Permanent, scopes: null, ct))#OAuthConsentTests.DisconnectedApproval_DoesNotSkip#a revoked approval skipped consent
+cancel-ignored#kill#ENDPOINT#        if (consent == "deny")#        if (consent == "never")#OAuthConsentTests.Cancel_SendsAccessDeniedToTheClient_AndRecordsNothing#cancel did not send the user back
+expired-bearer-redirected#kill#ENDPOINT#                ? Results.Unauthorized()#                ? Results.Redirect("/connect")#OAuthConsentTests.ExpiredSession_IsUnauthorized_NotARedirect#Expected: Unauthorized
+navigation-refused#kill#ENDPOINT#                : Results.Redirect("/connect" + context.Request.QueryString);#                : Results.Unauthorized();#OAuthServerTests.AuthorizationRequest_WithoutASignedInUser_GoesToTheConsentRoute#Unauthorized
+widest-default-scope#kill#ENDPOINT#asked : [OAuthScopes.ReadFarm];#asked : [.. OAuthScopes.All];#OAuthConsentTests.NoScope_AsksForReadOnly#Collections differ
+redirect-not-json#kill#SERVER#if (context.RedirectUri is null || !HasBearer(request))#if (context.RedirectUri is null || HasBearer(request))#OAuthConsentTests.Approval_ReturnsTheClientRedirect_AsJson#Expected: OK
+error-keeps-400#kill#SERVER#                        response.StatusCode = StatusCodes.Status200OK;\n##OAuthConsentTests.Cancel_SendsAccessDeniedToTheClient_AndRecordsNothing#Expected: OK
+form-post-allowed#kill#SERVER#                    options.ResponseModes.Remove(ResponseModes.FormPost);\n##OAuthConsentTests.ResponseModeOtherThanQuery_IsRefused#Expected: BadRequest
+fragment-allowed#kill#SERVER#                    options.ResponseModes.Remove(ResponseModes.Fragment);\n##OAuthConsentTests.ResponseModeOtherThanQuery_IsRefused#Expected: BadRequest
+discovery-follows-host#kill#SERVER#                        context.AuthorizationEndpoint = new Uri(publicBase, context.BaseUri!.MakeRelativeUri(context.AuthorizationEndpoint!));\n                        context.TokenEndpoint = new Uri(publicBase, context.BaseUri!.MakeRelativeUri(context.TokenEndpoint!));\n##OAuthConsentTests.Discovery_NamesEndpointsUnderTheIssuer#Strings differ
 pkce-optional#kill#SERVER#                    .RequireProofKeyForCodeExchange()\n##OAuthServerTests.AuthorizationRequestWithoutPkce_IsRefused#Expected: BadRequest
 plain-pkce-allowed#kill#SERVER#                    options.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain);\n##OAuthServerTests.PlainCodeChallenge_IsRefused#Expected: BadRequest
 self-contained-tokens#kill#SERVER#                    .UseReferenceAccessTokens()\n##OAuthServerTests.AuthorizationCodeWithPkce_IssuesAReferenceTokenTheResourceSideAccepts#the access token has no ReferenceId
@@ -82,11 +100,11 @@ post-authorize-allowed#kill#SERVER#                        if (!HttpMethods.IsGe
 redirect-any-http-host#kill#REGISTRATION#uri.Host.Length != 0 || IsLoopback(uri));#uri.Host.Length != 0 || uri.Scheme == Uri.UriSchemeHttp);#OAuthClientRegistrationTests.WiderRedirectUri_IsRefused#Expected: BadRequest
 redirect-fragment#hold#REGISTRATION#        && uri.Fragment.Length == 0\n##OAuthClientRegistrationTests.WiderRedirectUri_IsRefused#
 localhost-refused#kill#REGISTRATION#uri.Host is "localhost" or "127.0.0.1" or "[::1]"#uri.Host is "127.0.0.1" or "[::1]"#OAuthClientRegistrationTests.AllowedRedirectUri_IsRegistered#Expected: Created
-loopback-not-native#kill#REGISTRATION#        if (native)\n            descriptor.ApplicationType = ApplicationTypes.Native;\n##OAuthClientRegistrationTests.LoopbackClient_AuthorizesOnAnotherPort#Expected: Found
-loopback-port-kept#kill#REGISTRATION#native ? new UriBuilder(uri) { Port = -1 }.Uri : uri#uri#OAuthClientRegistrationTests.LoopbackClient_AuthorizesOnAnotherPort#Expected: Found
-loopback-query-dropped#kill#REGISTRATION#new UriBuilder(uri) { Port = -1 }#new UriBuilder(uri) { Port = -1, Query = "" }#OAuthClientRegistrationTests.LoopbackClient_AuthorizesOnAnotherPort#Expected: Found
+loopback-not-native#kill#REGISTRATION#        if (native)\n            descriptor.ApplicationType = ApplicationTypes.Native;\n##OAuthClientRegistrationTests.LoopbackClient_AuthorizesOnAnotherPort#Expected: OK
+loopback-port-kept#kill#REGISTRATION#native ? new UriBuilder(uri) { Port = -1 }.Uri : uri#uri#OAuthClientRegistrationTests.LoopbackClient_AuthorizesOnAnotherPort#Expected: OK
+loopback-query-dropped#kill#REGISTRATION#new UriBuilder(uri) { Port = -1 }#new UriBuilder(uri) { Port = -1, Query = "" }#OAuthClientRegistrationTests.LoopbackClient_AuthorizesOnAnotherPort#Expected: OK
 loopback-host-merged#kill#REGISTRATION#new UriBuilder(uri) { Port = -1 }#new UriBuilder(uri) { Port = -1, Host = "localhost" }#OAuthClientRegistrationTests.LoopbackClient_OnAnotherPort_StillMatchesTheRest#Expected: BadRequest
-response-normalized#kill#ENDPOINT#uri => uri.OriginalString)#uri => uri.AbsoluteUri)#OAuthClientRegistrationTests.ReturnedRedirectUri_IsUsable#Expected: Found
+response-normalized#kill#ENDPOINT#uri => uri.OriginalString)#uri => uri.AbsoluteUri)#OAuthClientRegistrationTests.ReturnedRedirectUri_IsUsable#Expected: OK
 reserved-parameter-500#kill#ENDPOINT#catch (OpenIddictExceptions.ValidationException exception)#catch (OpenIddictExceptions.ValidationException exception) when (exception.Results.IsDefault)#OAuthClientRegistrationTests.ReservedRedirectParameter_IsARegistrationError#Expected: BadRequest
 grant-any#kill#REGISTRATION#                || grants.Any(grant => grant is not (GrantTypes.AuthorizationCode or GrantTypes.RefreshToken))))#))#OAuthClientRegistrationTests.WiderGrant_IsRefused#Expected: BadRequest
 auth-method-any#kill#REGISTRATION#request.TokenEndpointAuthMethod is not (null or ClientAuthenticationMethods.None)#request.TokenEndpointAuthMethod is ""#OAuthClientRegistrationTests.WiderGrant_IsRefused#Expected: BadRequest

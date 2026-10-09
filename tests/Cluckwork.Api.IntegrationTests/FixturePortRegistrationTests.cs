@@ -70,6 +70,7 @@ public sealed class FixturePortRegistrationTests
         psi.Environment["DataProtection__CertificatePem"] = TestDataProtectionCertificate.CertificatePem;
         psi.Environment["DataProtection__PrivateKeyPem"] = TestDataProtectionCertificate.PrivateKeyPem;
         psi.Environment["RateLimiting__TrustedProxies__0"] = "10.0.0.0/8";
+        psi.Environment["OAuth__Issuer"] = "https://farm.example/";
 
         using var process = Process.Start(psi)!;
         var stdout = process.StandardOutput.ReadToEndAsync();

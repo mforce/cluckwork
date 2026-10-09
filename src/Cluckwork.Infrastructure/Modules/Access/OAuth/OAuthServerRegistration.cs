@@ -2,7 +2,9 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Primitives;
 using OpenIddict.Server;
 using OpenIddict.Validation;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -33,6 +35,11 @@ public static class OAuthServerRegistration
                     .RequireProofKeyForCodeExchange()
                     .UseReferenceAccessTokens()
                     .SetAccessTokenLifetime(null)
+                    .RegisterScopes([.. OAuthScopes.All])
+                    // Every client registers itself anonymously (#797), so a per-client
+                    // scope permission would be granted to all of them anyway. The user's
+                    // consent is what limits a connection's scopes (#798).
+                    .IgnoreScopePermissions()
                     // OpenIddict refuses to start without both keys, but with the Data
                     // Protection format they only ever sign identity tokens, which this
                     // server never issues. Codes and access tokens are protected by the
@@ -48,7 +55,38 @@ public static class OAuthServerRegistration
                     // A plain challenge is the verifier itself, so it protects nothing once
                     // the authorization request leaks. OAuth 2.1 clients send S256.
                     options.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain);
+                    // The consent route hands the client's redirect to the SPA as a URL
+                    // (below), which only a query-mode response is.
+                    options.ResponseModes.Remove(ResponseModes.FormPost);
+                    options.ResponseModes.Remove(ResponseModes.Fragment);
                 });
+
+                // #798 — the SPA's consent route asks with its session bearer through fetch,
+                // which cannot read a cross-origin redirect. It gets the client's redirect as
+                // JSON and navigates there itself. A browser navigation carries no bearer and
+                // keeps the standard redirect.
+                server.AddEventHandler<OpenIddictServerEvents.ApplyAuthorizationResponseContext>(handler => handler
+                    .UseInlineHandler(static async context =>
+                    {
+                        var request = context.Transaction.GetHttpRequest()!;
+                        if (context.RedirectUri is null || !HasBearer(request))
+                            return;
+
+                        var location = context.RedirectUri;
+                        foreach (var (name, value) in context.Response.GetParameters())
+                            foreach (var item in (StringValues)value)
+                                if (!string.IsNullOrEmpty(item))
+                                    location = QueryHelpers.AddQueryString(location, name, item);
+
+                        // OpenIddict has already set 400 for an error, which the client
+                        // still receives through the redirect.
+                        var response = request.HttpContext.Response;
+                        response.StatusCode = StatusCodes.Status200OK;
+                        response.Headers.CacheControl = "no-store";
+                        await response.WriteAsJsonAsync(new { redirectUri = location }, request.HttpContext.RequestAborted);
+                        context.HandleRequest();
+                    })
+                    .SetOrder(Authentication.ProcessQueryResponse.Descriptor.Order - 1));
 
                 // OpenIddict also accepts a POSTed authorization request, which matches no
                 // endpoint and so no rate-limit policy or body cap. Refused before the body
@@ -62,13 +100,18 @@ public static class OAuthServerRegistration
                     })
                     .SetOrder(ExtractGetOrPostRequest<OpenIddictServerEvents.ExtractAuthorizationRequestContext>.Descriptor.Order - 1));
 
-                // #797 — OpenIddict has no registration endpoint; the API maps one beside
-                // authorize, and discovery points clients at it.
+                // #798 — discovery names endpoints under the configured issuer, not under the
+                // Host the request arrived with: behind a proxy that Host can be an internal
+                // name. #797 — OpenIddict has no registration endpoint; the API maps one
+                // beside authorize, and discovery points clients at it.
+                var publicBase = issuer.AbsoluteUri.EndsWith('/') ? issuer : new Uri(issuer.AbsoluteUri + "/");
                 server.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(handler => handler
                     .UseInlineHandler(context =>
                     {
+                        context.AuthorizationEndpoint = new Uri(publicBase, context.BaseUri!.MakeRelativeUri(context.AuthorizationEndpoint!));
+                        context.TokenEndpoint = new Uri(publicBase, context.BaseUri!.MakeRelativeUri(context.TokenEndpoint!));
                         context.Metadata["registration_endpoint"] =
-                            new Uri(context.AuthorizationEndpoint!, "register").AbsoluteUri;
+                            new Uri(context.AuthorizationEndpoint, "register").AbsoluteUri;
                         return default;
                     })
                     .SetOrder(OpenIddictServerHandlers.Discovery.AttachEndpoints.Descriptor.Order + 1));
@@ -108,4 +151,7 @@ public static class OAuthServerRegistration
 
         return services;
     }
+
+    private static bool HasBearer(HttpRequest request) =>
+        request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
 }
