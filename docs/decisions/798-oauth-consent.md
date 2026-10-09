@@ -24,7 +24,7 @@ endpoint therefore answers three kinds of caller:
    redirect URI, PKCE and the scopes. The endpoint redirects to the SPA's `/connect`
    route with the same query. The path is relative, so it cannot leave this origin.
 2. **The SPA asking** (session bearer). The endpoint returns what the consent screen
-   shows, `{ clientId, clientName, redirectHost, scopes, alreadyAllowed, alreadyApproved }`,
+   shows, `{ clientId, clientName, redirectHost, scopes, alreadyAllowed, alreadyApproved, assignedFlocks }`,
    or, when it issues a code or an error, `{ redirectUri }` for the SPA to navigate to. An inline
    handler on `ApplyAuthorizationResponseContext` writes that JSON for any request that
    carries a bearer. Response modes other than `query` are removed, so the redirect is
@@ -50,6 +50,11 @@ cancel stay on the GET authorize endpoint because #796 refuses any other method 
   for the password only, and the approval reuses that authorization. A request for more
   sets `alreadyApproved` to false and shows the permissions again, with `alreadyAllowed`
   naming what an earlier approval covered.
+- **What the app would reach.** `assignedFlocks` is the flock scope this very request
+  resolved (#388, #612): null when the user reaches every flock, which includes a Worker
+  with no assignments, else the assigned flocks' names, read through `IAccessModule`.
+  The screen states the requested scopes within that scope and the role, never what the
+  role name alone suggests.
 - **The redirect host** comes from the redirect URI OpenIddict validated, not the
   request's `redirect_uri`. A client with one registered URI may omit the parameter, and
   OpenIddict then keeps the registered one on its validation context.
