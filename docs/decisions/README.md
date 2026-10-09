@@ -67,6 +67,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [OAuth tokens run the session chain, on opted-in endpoints only (#796)](796-oauth-fail-closed.md) | src/AGENTS · Auth and credentials |
 | [OAuth client self-registration and the OAuth purge sweep (#797)](797-oauth-client-registration.md) | src/AGENTS · Auth and credentials |
 | [Consent with step-up, and the OAuth server in Production (#798)](798-oauth-consent.md) | src/AGENTS · Auth and credentials |
+| [Connected apps: listing, Disconnect, last used and audit (#799)](799-connected-apps.md) | src/AGENTS · Auth and credentials |
 | [Nothing writes an audit event without an actor (#500)](500-audit-actor.md) | AGENTS · Conventions |
 | [Break-glass recovery: `recover-admin` (#265)](265-break-glass-recovery.md) | AGENTS · Conventions · and the [runbook](../runbooks/break-glass-account-recovery.md) |
 | [Farm timezone, and the tzdata/ICU constraint (#264)](264-farm-timezone.md) | AGENTS · Conventions |

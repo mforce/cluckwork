@@ -1432,7 +1432,7 @@ grant. When an app you already approved asks for nothing new, the screen skips
 the permissions and asks only for the password; when it asks for more, the new
 permission is marked **New** and the earlier one **Already allowed**.
 **Details** holds the longer explanations and **Not you? Sign out**. The app's
-access never expires on its own; see **Disconnecting an app**.
+access never expires on its own; see **Disconnecting an app**, which also covers how approvals are audited.
 
 **Disconnecting an app (#799)** — ending a connected app's access. **Account** ›
 **Connected apps** lists the apps you allowed, each with what it **Can** do (the
@@ -1445,7 +1445,9 @@ gave that app and every token from them, so the app is refused on its next
 request; the person keeps their sign-in and can connect it again with their
 password. An Owner can disconnect anyone's app on their own farm, which does less
 than disabling the person. Each disconnect writes an **App disconnected** audit
-event naming the person who did it.
+event naming the person who did it. Approving an app writes **App connected** (a
+first approval, or one for more permissions) or **App reconnected** (an approval
+that asked for nothing new); each names the person, the app and what was allowed.
 
 **First-run admin provisioning (#283)** — how a fresh deploy gets its first
 Owner without ever shipping a repo-known credential. The default account, the

@@ -97,6 +97,8 @@ public static class OAuthEndpoints
         IAccessModule access,
         IOpenIddictApplicationManager applications,
         IOpenIddictAuthorizationManager authorizations,
+        IUnitOfWork unitOfWork,
+        IAuditWriter audit,
         [FromHeader(Name = AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
         [FromHeader(Name = ConsentHeaderName)] string? consent,
         CancellationToken ct)
@@ -174,13 +176,23 @@ public static class OAuthEndpoints
         identity.SetScopes(scopes);
         // #800 — the name rides in the token, as the user's email does, so an audit row
         // snapshots it without a lookup per write. Registration never renames a client.
-        identity.SetClaim(ClientNameClaim, await applications.GetDisplayNameAsync(application, ct));
+        var appName = await applications.GetDisplayNameAsync(application, ct);
+        identity.SetClaim(ClientNameClaim, appName);
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
         // One permanent authorization per approval, reused by every later connection that
         // asks for no more. Disconnect revokes it, and with it every token it issued (#796).
-        covering ??= await authorizations.CreateAsync(
-            identity, subject, applicationId, AuthorizationTypes.Permanent, scopes, ct);
-        identity.SetAuthorizationId(await authorizations.GetIdAsync(covering, ct));
+        // #799 — the approval and its audit row commit together. The person acted here
+        // themselves, so the row's connected-app columns stay empty; details name the app.
+        var reconnect = covering is not null;
+        await unitOfWork.ExecuteInTransactionAsync(async token =>
+        {
+            covering ??= await authorizations.CreateAsync(
+                identity, subject, applicationId, AuthorizationTypes.Permanent, scopes, token);
+            await audit.WriteAsync(reconnect ? AuditActions.UserAppReconnected : AuditActions.UserAppConnected,
+                "User", currentUser.UserId, details: new { clientId = request.ClientId, appName, scopes }, ct: token);
+            return true;
+        }, ct);
+        identity.SetAuthorizationId(await authorizations.GetIdAsync(covering!, ct));
 
         return Results.SignIn(
             new ClaimsPrincipal(identity),

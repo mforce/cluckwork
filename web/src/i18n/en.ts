@@ -2933,6 +2933,8 @@ export const en = {
     "auditAction.User.Enabled": "User enabled",
     "auditAction.User.FlockAssign": "Flock assigned to user",
     "auditAction.User.FlockUnassign": "Flock unassigned from user",
+    "auditAction.User.AppConnected": "App connected",
+    "auditAction.User.AppReconnected": "App reconnected",
     "auditAction.User.AppDisconnected": "App disconnected",
     "auditAction.Account.Export": "Data exported",
     "auditAction.Account.SetLogo": "Farm logo set",

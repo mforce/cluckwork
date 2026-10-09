@@ -160,6 +160,62 @@ public sealed partial class OAuthFailClosedTests
         Assert.True(third > backdated, "last used was not stamped once the interval passed");
     }
 
+    // #799 — approving an app is audited where the approval spends the password: a
+    // first approval and a wider one each create an authorization and read Connected;
+    // one that reuses an authorization already covering the request reads Reconnected.
+    [Fact]
+    public async Task Approval_IsAudited_AsAConnection()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var app = await ConnectAsync(host, user, ReadScope);
+
+        Assert.Equal([(AuditActions.UserAppConnected, user.Id, app.ClientId, ReadScope)], await ConnectionAuditAsync(user));
+    }
+
+    [Fact]
+    public async Task WiderApproval_IsAudited_AsAConnection()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var app = await ConnectAsync(host, user, ReadScope);
+        await ConnectAsync(host, user, [ReadScope, WriteScope], app.ClientId);
+
+        var rows = await ConnectionAuditAsync(user);
+        Assert.True(rows.Count == 2 && rows[1].Action == AuditActions.UserAppConnected,
+            $"a wider approval was not recorded as a connection: {string.Join(", ", rows)}");
+        Assert.Equal($"{ReadScope} {WriteScope}", rows[1].Scopes);
+    }
+
+    [Fact]
+    public async Task Reconnect_IsAudited_AsAReconnection()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var app = await ConnectAsync(host, user, ReadScope);
+        await ConnectAsync(host, user, [ReadScope], app.ClientId);
+
+        Assert.Equal(
+            [(AuditActions.UserAppConnected, user.Id, app.ClientId, ReadScope),
+             (AuditActions.UserAppReconnected, user.Id, app.ClientId, ReadScope)],
+            await ConnectionAuditAsync(user));
+    }
+
+    private Task<List<(string Action, Guid Actor, string ClientId, string Scopes)>> ConnectionAuditAsync(SeededUser user) =>
+        factory.WithTenantScopeAsync(user.AccountId, async db => (await db.AuditEvents
+            .Where(e => e.EntityId == user.Id
+                && (e.Action == AuditActions.UserAppConnected || e.Action == AuditActions.UserAppReconnected))
+            .OrderBy(e => EF.Property<long>(e, "Sequence"))
+            .Select(e => new { e.Action, e.ActorUserId, e.DetailsJson })
+            .ToListAsync())
+            .Select(e =>
+            {
+                var details = JsonDocument.Parse(e.DetailsJson!).RootElement;
+                return (e.Action, e.ActorUserId, details.GetProperty("clientId").GetString()!,
+                    string.Join(' ', details.GetProperty("scopes").EnumerateArray().Select(scope => scope.GetString())));
+            })
+            .ToList());
+
     private sealed record Connection(string ClientId, string Token);
 
     private static Task<Connection> ConnectAsync(WebApplicationFactory<Program> host, SeededUser user, string scope) =>

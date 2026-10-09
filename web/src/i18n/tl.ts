@@ -2277,6 +2277,8 @@ export const tl = {
     "auditAction.User.Enabled": "Na-enable ang user",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
     "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
+    "auditAction.User.AppConnected": "Naikonekta ang app",
+    "auditAction.User.AppReconnected": "Naikonektang muli ang app",
     "auditAction.User.AppDisconnected": "Na-diskonekta ang app",
     "auditAction.Account.Export": "Na-export ang datos",
     "auditAction.Account.SetLogo": "Na-set ang logo ng bukid",
