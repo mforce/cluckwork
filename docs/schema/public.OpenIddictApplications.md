@@ -80,6 +80,7 @@ erDiagram
   varchar_50_ Status
   varchar_400_ Subject
   varchar_50_ Type
+  timestamp_with_time_zone LastUsedAtUtc
 }
 "public.OpenIddictTokens" {
   uuid Id

@@ -64,12 +64,22 @@ function farmDayDiff(fromMs: number, toMs: number, timeZone?: string): number {
 // than rendered as "in N days", which would misleadingly imply a scheduled
 // event that doesn't exist.
 export function relativeTime(iso: string, timeZone: string | undefined, nowMs: number = Date.now()): string {
-  const then = new Date(iso).getTime();
-  const days = Math.max(0, farmDayDiff(then, nowMs, timeZone));
+  const days = daysSince(iso, timeZone, nowMs);
 
   if (days === 0) return i18n.t("relativeTime.today");
   if (days === 1) return i18n.t("relativeTime.yesterday");
   if (days < 7) return i18n.t("relativeTime.daysAgo", { count: days });
   if (days < 30) return i18n.t("relativeTime.weeksAgo", { count: Math.round(days / 7) });
   return i18n.t("relativeTime.monthsAgo", { count: Math.round(days / 30) });
+}
+
+// Whole farm-calendar days from an instant to now, clamped at 0 like relativeTime.
+export function daysSince(iso: string, timeZone: string | undefined, nowMs: number = Date.now()): number {
+  return Math.max(0, farmDayDiff(new Date(iso).getTime(), nowMs, timeZone));
+}
+
+// The farm-local calendar date (YYYY-MM-DD) an instant falls on.
+export function farmDateOf(iso: string, timeZone: string | undefined): string {
+  const { y, m, d } = farmLocalDateParts(new Date(iso).getTime(), timeZone);
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }

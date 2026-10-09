@@ -75,6 +75,17 @@ public interface IAccessModule
     Task<Result> ConsumeStepUpGrantAsync(
         Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct);
 
+    // #799 — the apps this user has connected, most recent first.
+    Task<IReadOnlyList<AppConnection>> ListConnectedAppsAsync(Guid userId, CancellationToken ct);
+
+    // #799 — every connection of every person on this farm, for its Owner.
+    Task<IReadOnlyList<AppConnection>> ListFarmConnectedAppsAsync(Guid accountId, CancellationToken ct);
+
+    // #799 — revokes every valid authorization the person holds for the app, and their
+    // tokens, so the app is refused on its next request. NotFound when the person is not
+    // on this farm or has nothing connected to the app.
+    Task<Result> DisconnectAppAsync(Guid accountId, Guid userId, string clientId, CancellationToken ct);
+
     // Jwt:RefreshTokenDays, the refresh cookie's lifetime. Only this value
     // leaves the JWT options; the signing keys stay in Identity.
     int RefreshTokenLifetimeDays { get; }

@@ -746,7 +746,8 @@ The name is self-chosen at registration, so it describes the app rather than
 proving who made it, and it renders as plain text. The /audit viewer shows the
 person on every event's second line, adds a plug icon and "via" with the app's
 name when an app acted, offers an **Only actions through connected apps**
-checkbox, and puts a **Show only** button for that app inside the event.
+checkbox, and puts a **Show only** button for that app inside the event. See
+**Disconnecting an app** for where people and the Owner see and end connections.
 
 **Hen-day % (#91, #780)** — eggs collected ÷ **recorded** hen-days × 100
 (spec §19.3, amended by #780). A hen-day is one bird alive for one day; the
@@ -1431,7 +1432,22 @@ grant. When an app you already approved asks for nothing new, the screen skips
 the permissions and asks only for the password; when it asks for more, the new
 permission is marked **New** and the earlier one **Already allowed**.
 **Details** holds the longer explanations and **Not you? Sign out**. The app's
-access never expires on its own; disconnecting it is #799's job.
+access never expires on its own; see **Disconnecting an app**, which also covers how approvals are audited.
+
+**Disconnecting an app (#799)** — ending a connected app's access. **Account** ›
+**Connected apps** lists the apps you allowed, each with what it **Can** do (the
+consent screen's words), when it was **Connected**, and when it was **Last used**,
+which the server records at most once every 15 minutes per approval. An app
+unused for 30 days is marked, and the panel suggests disconnecting it. The Owner's
+**Setup** › **Connected apps** page lists every app on the farm, with a **Person**
+filter. **Disconnect**, after a confirmation, revokes every approval the person
+gave that app and every token from them, so the app is refused on its next
+request; the person keeps their sign-in and can connect it again with their
+password. An Owner can disconnect anyone's app on their own farm, which does less
+than disabling the person. Each disconnect writes an **App disconnected** audit
+event naming the person who did it. Approving an app writes **App connected** (a
+first approval, or one for more permissions) or **App reconnected** (an approval
+that asked for nothing new); each names the person, the app and what was allowed.
 
 **First-run admin provisioning (#283)** — how a fresh deploy gets its first
 Owner without ever shipping a repo-known credential. The default account, the

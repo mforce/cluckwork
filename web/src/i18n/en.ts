@@ -243,6 +243,41 @@ export const en = {
     passwordTooShortError: "The new password must be at least {{min}} characters.",
     passwordChangedMessage: "Password changed. Any other devices have been signed out.",
   },
+  // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
+  connectedApps: {
+    heading: "Connected apps",
+    hint: "Apps you allowed to act as you. Each one can do only what you can.",
+    count: "{{count}} connected apps can act as you.",
+    count_one: "{{count}} connected app can act as you.",
+    empty: "No apps are connected. An app you allow to act as you appears here.",
+    nudge: "{{app}} has not been used for {{days}} days. Disconnect it if you no longer use it.",
+    inUse: "In use",
+    notUsedYet: "Not used yet",
+    idle: "Not used for {{days}} days",
+    can: "Can",
+    connected: "Connected",
+    lastUsed: "Last used",
+    disconnect: "Disconnect",
+    disconnectApp: "Disconnect {{app}}",
+    disconnectPersonApp: "Disconnect {{app}} for {{person}}",
+    confirmTitle: "Disconnect {{app}}?",
+    confirmBody: "{{app}} stops working on its next request. To use it again, connect it again with your password.",
+    confirmBodyOwner: "{{app}} stops working for {{person}} on its next request. {{person}} keeps their sign-in and can connect it again.",
+    disconnected: "{{app}} is disconnected. It stops working on its next request.",
+    failed: "{{app}} was not disconnected. Try again.",
+    loadFailed: "Connected apps could not be loaded. Reload the page to try again.",
+    farmEyebrow: "Farm-wide",
+    farmHint: "Every app anyone on this farm has connected. Disconnecting one does less than disabling the person, who keeps their sign-in and can connect it again.",
+    person: "Person",
+    everyone: "Everyone",
+    app: "App",
+    connections: "{{count}} connections",
+    connections_one: "{{count}} connection",
+    people: "{{count}} people",
+    people_one: "{{count}} person",
+    farmCount: "{{connections}}, {{people}}",
+    farmEmpty: "No one on this farm has connected an app.",
+  },
   // Keyed by the API's stable validation codes (#45), which contain dots
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
   // literal flat keys, not nested paths. Filled in Task 4.
@@ -318,6 +353,7 @@ export const en = {
     grades: "Grades",
     products: "Products",
     users: "Users",
+    connectedApps: "Connected apps",
     audit: "Audit",
     export: "Export",
     account: "Account",
@@ -2897,6 +2933,9 @@ export const en = {
     "auditAction.User.Enabled": "User enabled",
     "auditAction.User.FlockAssign": "Flock assigned to user",
     "auditAction.User.FlockUnassign": "Flock unassigned from user",
+    "auditAction.User.AppConnected": "App connected",
+    "auditAction.User.AppReconnected": "App reconnected",
+    "auditAction.User.AppDisconnected": "App disconnected",
     "auditAction.Account.Export": "Data exported",
     "auditAction.Account.SetLogo": "Farm logo set",
     "auditAction.Account.RemoveLogo": "Farm logo removed",
@@ -3135,6 +3174,13 @@ export const en = {
       + "<strong>Cancel</strong>. It can never do more than your own role. When an app you already allowed connects "
       + "again, only your password is asked. The app chose its own name, so allow it only if you just started "
       + "connecting it. <strong>Details</strong> has the longer explanation.",
+    // #799 — control names match the connectedApps and nav catalogs (#688).
+    signingInConnectedApps:
+      "<strong>Connected apps.</strong> <strong>Account</strong> lists every app you allowed to act as you, with "
+      + "what it can do and when it was connected and last used. <strong>Disconnect</strong> stops it on its next "
+      + "request; to use it again, connect it again with your password. An app unused for 30 days is marked. "
+      + "The Owner sees every app on the farm under <strong>Setup</strong> › <strong>Connected apps</strong>, can "
+      + "filter by <strong>Person</strong>, and can disconnect any of them, which does less than disabling the person.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -4126,7 +4172,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "

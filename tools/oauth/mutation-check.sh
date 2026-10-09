@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #798 OAuth claim has a test that
+# tools/oauth/mutation-check.sh — proves each #795 to #799 OAuth claim has a test that
 # fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -38,10 +38,14 @@ STAMP_CONFIG=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthApplicationC
 VERIFIER=src/Cluckwork.Infrastructure/Modules/Access/Identity/CredentialEpochVerifier.cs
 EPOCH=src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs
 MUST_CHANGE=src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs
+CONNECTED=src/Cluckwork.Infrastructure/Modules/Access/OAuth/ConnectedApps.cs
+LAST_USED=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthLastUsedStamp.cs
+ME=src/Cluckwork.Api/Modules/Access/Me/MeEndpoints.cs
+PROGRAM=src/Cluckwork.Api/Program.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth'
-SUITE_MIN=105
+SUITE_MIN=115
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -55,7 +59,7 @@ reconnect-grant-unspent#kill#ENDPOINT#        var proof = await access.ConsumeSt
 redirect-host-unvalidated#kill#ENDPOINT#new Uri(ValidatedRedirectUri(context)).Host#new Uri(request.RedirectUri!).Host#OAuthConsentTests.OmittedRedirectUri_UsesTheRegisteredOne#Expected: OK
 session-lifetime-unchecked#kill#IDENTITY#                    ValidateLifetime = true,#                    ValidateLifetime = false,#OAuthConsentTests.ExpiredSession_IsUnauthorized_NotARedirect#Expected: Unauthorized
 grant-unchecked#kill#ENDPOINT#        if (proof.IsFailure)#        if (proof.IsFailure && stepUpToken.Length < 0)#OAuthConsentTests.Approval_WithoutAValidGrant_IsRefused#Expected: Forbidden
-ad-hoc-authorization#kill#ENDPOINT#            identity, subject, applicationId, AuthorizationTypes.Permanent, scopes, ct);#            identity, subject, applicationId, AuthorizationTypes.AdHoc, scopes, ct);#OAuthConsentTests.ApprovedApp_AsksOnlyForThePassword#an approved app was shown its permissions again
+ad-hoc-authorization#kill#ENDPOINT#                identity, subject, applicationId, AuthorizationTypes.Permanent, scopes, token);#                identity, subject, applicationId, AuthorizationTypes.AdHoc, scopes, token);#OAuthConsentTests.ApprovedApp_AsksOnlyForThePassword#an approved app was shown its permissions again
 wider-request-skipped#kill#ENDPOINT#            if (covering is null && scopes.All(granted.Contains)) covering = authorization;#            if (covering is null) covering = authorization;#OAuthConsentTests.MoreScopes_AsksAgain_NamingWhatIsAlreadyAllowed#a wider request skipped the permissions
 any-users-approval#kill#ENDPOINT#            subject, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))#            null, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))#OAuthConsentTests.AnotherUsersApproval_DoesNotSkip#another user's approval skipped the permissions
 revoked-approval-skips#kill#ENDPOINT#            subject, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))#            subject, applicationId, null, AuthorizationTypes.Permanent, scopes: null, ct))#OAuthConsentTests.DisconnectedApproval_DoesNotSkip#a revoked approval skipped the permissions
@@ -112,6 +116,21 @@ loopback-query-dropped#kill#REGISTRATION#new UriBuilder(uri) { Port = -1 }#new U
 loopback-host-merged#kill#REGISTRATION#new UriBuilder(uri) { Port = -1 }#new UriBuilder(uri) { Port = -1, Host = "localhost" }#OAuthClientRegistrationTests.LoopbackClient_OnAnotherPort_StillMatchesTheRest#Expected: BadRequest
 response-normalized#kill#ENDPOINT#uri => uri.OriginalString)#uri => uri.AbsoluteUri)#OAuthClientRegistrationTests.ReturnedRedirectUri_IsUsable#Expected: OK
 reserved-parameter-500#kill#ENDPOINT#catch (OpenIddictExceptions.ValidationException exception)#catch (OpenIddictExceptions.ValidationException exception) when (exception.Results.IsDefault)#OAuthClientRegistrationTests.ReservedRedirectParameter_IsARegistrationError#Expected: BadRequest
+own-apps-anyones#kill#CONNECTED#db.OAuthAuthorizations.Where(authorization => authorization.Subject == subject)#db.OAuthAuthorizations.Where(authorization => authorization.Subject != null)#OAuthFailClosedTests.ConnectedApps_ListsOnlyYourOwn#Collections differ
+farm-apps-not-owner-only#kill#PROGRAM#    .RequireAuthorization(AuthPolicies.OwnerOnly)\n#    .RequireAuthorization()\n#OAuthFailClosedTests.FarmConnectedApps_AreOwnerOnly#Expected: Forbidden
+farm-list-every-farm#kill#CONNECTED#db.Users.Where(user => user.AccountId == accountId)#db.Users.Where(user => user.AccountId != Guid.Empty)#OAuthFailClosedTests.Owner_SeesAndDisconnectsOnlyTheirOwnFarm#Collections differ
+disconnect-any-farm#kill#CONNECTED#user => user.Id == userId && user.AccountId == accountId#user => user.Id == userId#OAuthFailClosedTests.Owner_SeesAndDisconnectsOnlyTheirOwnFarm#Expected: NotFound
+one-authorization-revoked#kill#CONNECTED#var revoked = await authorizations.ExecuteUpdateAsync(#var revoked = await authorizations.OrderBy(authorization => authorization.CreationDate).Take(1).ExecuteUpdateAsync(#OAuthFailClosedTests.Disconnect_RevokesEveryAuthorizationOfTheApp_AndItsTokens#authorization(s) of the app stayed valid
+tokens-left-valid#kill#CONNECTED#(row.Status == Statuses.Valid || row.Status == Statuses.Inactive)#row.Status == Statuses.Rejected#OAuthFailClosedTests.Disconnect_RevokesEveryAuthorizationOfTheApp_AndItsTokens#token(s) of the app stayed valid
+authorization-alone-refuses#hold#CONNECTED#(row.Status == Statuses.Valid || row.Status == Statuses.Inactive)#row.Status == Statuses.Rejected#OAuthFailClosedTests.DisconnectedApp_IsRefused_OnItsNextRequest#
+disconnect-does-nothing#kill#ME#        var result = await access.DisconnectAppAsync(tenant.AccountId, currentUser.UserId, clientId, ct);#        var result = Result.Success();#OAuthFailClosedTests.DisconnectedApp_IsRefused_OnItsNextRequest#a disconnected app still worked
+disconnect-unaudited#kill#CONNECTED#await audit.WriteAsync(AuditActions.UserAppDisconnected,#await audit.WriteAsync(AuditActions.UserAppConnected,#OAuthFailClosedTests.Disconnect_IsAudited_WithThePersonWhoDidIt#expected one audit row per disconnect
+last-used-unstamped#kill#SERVER#                validation.AddEventHandler<OpenIddictValidationEvents.ValidateTokenContext>(handler => handler\n                    .UseScopedHandler<OAuthLastUsedStamp>()\n                    .SetOrder(ValidateAuthorizationEntry.Descriptor.Order + 2_000));\n##OAuthFailClosedTests.LastUsed_IsStampedAtMostOncePerInterval#a request did not stamp last used
+last-used-every-request#kill#LAST_USED#    public static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);#    public static readonly TimeSpan Interval = TimeSpan.Zero;#OAuthFailClosedTests.LastUsed_IsStampedAtMostOncePerInterval#last used was stamped again within the interval
+last-used-once-ever#kill#LAST_USED#\n                        || EF.Property<DateTimeOffset?>(authorization, OAuthAuthorizationConfiguration.LastUsedAtUtc)\n                            < DateTimeOffset.UtcNow - Interval))#))#OAuthFailClosedTests.LastUsed_IsStampedAtMostOncePerInterval#last used was not stamped once the interval passed
+connect-unaudited#kill#ENDPOINT#            await audit.WriteAsync(reconnect ? AuditActions.UserAppReconnected : AuditActions.UserAppConnected,\n                "User", currentUser.UserId, details: new { clientId = request.ClientId, appName, scopes }, ct: token);\n##OAuthFailClosedTests.Approval_IsAudited_AsAConnection#Collections differ
+widen-as-reconnect#kill#ENDPOINT#        var reconnect = covering is not null;#        var reconnect = allowed.Count > 0;#OAuthFailClosedTests.WiderApproval_IsAudited_AsAConnection#a wider approval was not recorded as a connection
+reconnect-as-connect#kill#ENDPOINT#reconnect ? AuditActions.UserAppReconnected : AuditActions.UserAppConnected#AuditActions.UserAppConnected#OAuthFailClosedTests.Reconnect_IsAudited_AsAReconnection#Collections differ
 grant-any#kill#REGISTRATION#                || grants.Any(grant => grant is not (GrantTypes.AuthorizationCode or GrantTypes.RefreshToken))))#))#OAuthClientRegistrationTests.WiderGrant_IsRefused#Expected: BadRequest
 auth-method-any#kill#REGISTRATION#request.TokenEndpointAuthMethod is not (null or ClientAuthenticationMethods.None)#request.TokenEndpointAuthMethod is ""#OAuthClientRegistrationTests.WiderGrant_IsRefused#Expected: BadRequest
 name-keeps-bidi#kill#REGISTRATION#                or UnicodeCategory.Format or UnicodeCategory.PrivateUse#                or UnicodeCategory.PrivateUse#OAuthClientRegistrationTests.ClientName_IsSanitized#Strings differ
@@ -226,7 +245,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

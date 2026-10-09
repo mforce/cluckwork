@@ -364,6 +364,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="signingInConnectApp" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans ns="help" i18nKey="signingInConnectedApps" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="signingInCredentialEpoch" components={{ strong: <strong /> }} />
         </li>
       </ul>

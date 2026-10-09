@@ -14,6 +14,7 @@ using Cluckwork.Application.Modules.Access.Users.SetUserPassword;
 using Cluckwork.Application.Modules.Access.Users.UpdateUser;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Microsoft.Extensions.Options;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
@@ -40,7 +41,8 @@ public sealed class AccessModule(
     AuthSecurityEventLogger securityEvents,
     IOptions<JwtOptions> jwt,
     IUserRoleAssignmentRepository assignments,
-    IFlockLookup flocks) : IAccessModule
+    IFlockLookup flocks,
+    ConnectedApps connectedApps) : IAccessModule
 {
     public Task<Result<Guid>> CreateUserAsync(
         CreateUserCommand command, Guid accountId, Guid actingUserId, CancellationToken ct) =>
@@ -132,6 +134,15 @@ public sealed class AccessModule(
     public Task<Result> ConsumeStepUpGrantAsync(
         Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct) =>
         stepUp.ValidateAsync(accountId, userId, stepUpToken, ct);
+
+    public Task<IReadOnlyList<AppConnection>> ListConnectedAppsAsync(Guid userId, CancellationToken ct) =>
+        connectedApps.ListAsync(userId, ct);
+
+    public Task<IReadOnlyList<AppConnection>> ListFarmConnectedAppsAsync(Guid accountId, CancellationToken ct) =>
+        connectedApps.ListFarmAsync(accountId, ct);
+
+    public Task<Result> DisconnectAppAsync(Guid accountId, Guid userId, string clientId, CancellationToken ct) =>
+        connectedApps.DisconnectAsync(accountId, userId, clientId, ct);
 
     public int RefreshTokenLifetimeDays => jwt.Value.RefreshTokenDays;
 }

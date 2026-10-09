@@ -21,6 +21,7 @@ export const TRANSLATED_NAMESPACES = [
   "auth",
   "connect",
   "account",
+  "connectedApps",
   "errors",
   "sales",
   "enums",

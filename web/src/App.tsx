@@ -27,6 +27,7 @@ const ReportsPage = lazy(() => import("./routes/ReportsPage").then(({ ReportsPag
 const AuditPage = lazy(() => import("./routes/AuditPage").then(({ AuditPage }) => ({ default: AuditPage })));
 const ExportPage = lazy(() => import("./routes/ExportPage").then(({ ExportPage }) => ({ default: ExportPage })));
 const UsersPage = lazy(() => import("./routes/UsersPage").then(({ UsersPage }) => ({ default: UsersPage })));
+const ConnectedAppsPage = lazy(() => import("./routes/ConnectedAppsPage").then(({ ConnectedAppsPage }) => ({ default: ConnectedAppsPage })));
 const SettingsPage = lazy(() => import("./routes/SettingsPage").then(({ SettingsPage }) => ({ default: SettingsPage })));
 const AccountPage = lazy(() => import("./routes/AccountPage").then(({ AccountPage }) => ({ default: AccountPage })));
 const HelpPage = lazy(() => import("./routes/HelpPage").then(({ HelpPage }) => ({ default: HelpPage })));
@@ -77,6 +78,7 @@ export function App() {
                 <Route path="audit" element={<AuditPage />} />
                 <Route path="export" element={<ExportPage />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="connected-apps" element={<ConnectedAppsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="account" element={<AccountPage />} />
                 <Route path="help" element={<HelpPage />} />

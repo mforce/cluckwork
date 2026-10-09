@@ -140,6 +140,9 @@ public static class OAuthServerRegistration
                         return default;
                     })
                     .SetOrder(ValidateAuthorizationEntry.Descriptor.Order + 1_000));
+                validation.AddEventHandler<OpenIddictValidationEvents.ValidateTokenContext>(handler => handler
+                    .UseScopedHandler<OAuthLastUsedStamp>()
+                    .SetOrder(ValidateAuthorizationEntry.Descriptor.Order + 2_000));
                 // Header only: a token in a query string reaches request logs, and one in a
                 // form body would dodge the per-token rate-limit key (RateLimitKey.ForBearer).
                 validation.UseAspNetCore()

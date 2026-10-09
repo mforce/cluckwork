@@ -45,6 +45,15 @@ public static class AuditActions
     public const string UserBreakGlassReset = "User.BreakGlassReset";
     public const string UserFlockAssign = "User.FlockAssign";
     public const string UserFlockUnassign = "User.FlockUnassign";
+    // #799 — a person's connected app was disconnected, by them or by the farm's Owner;
+    // the actor says which. Written only when something was revoked.
+    public const string UserAppDisconnected = "User.AppDisconnected";
+    // #799 — a person approved a connected app on the consent screen (#798): a first
+    // approval or one for wider scopes, each a new authorization. Reconnected is an
+    // approval that reused one already covering every scope asked for. Both spend the
+    // person's password; details carry the app and the granted scopes.
+    public const string UserAppConnected = "User.AppConnected";
+    public const string UserAppReconnected = "User.AppReconnected";
     public const string AccountExport = "Account.Export";
     public const string AccountSetLogo = "Account.SetLogo";
     public const string AccountRemoveLogo = "Account.RemoveLogo";

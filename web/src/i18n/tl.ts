@@ -187,6 +187,41 @@ export const tl = {
     passwordTooShortError: "Dapat hindi bababa sa {{min}} na karakter ang bagong password.",
     passwordChangedMessage: "Napalitan ang password. Na-sign out na ang ibang mga device.",
   },
+  // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
+  connectedApps: {
+    heading: "Mga nakakonektang app",
+    hint: "Mga app na pinayagan mong kumilos bilang ikaw. Ang kaya mo lang ang kaya ng bawat isa.",
+    count: "{{count}} nakakonektang app ang puwedeng kumilos bilang ikaw.",
+    count_one: "{{count}} nakakonektang app ang puwedeng kumilos bilang ikaw.",
+    empty: "Walang nakakonektang app. Lalabas dito ang app na papayagan mong kumilos bilang ikaw.",
+    nudge: "Hindi nagamit ang {{app}} sa loob ng {{days}} araw. Idiskonekta ito kung hindi mo na ito ginagamit.",
+    inUse: "Ginagamit",
+    notUsedYet: "Hindi pa nagagamit",
+    idle: "Hindi nagamit sa loob ng {{days}} araw",
+    can: "Kaya",
+    connected: "Ikinonekta",
+    lastUsed: "Huling ginamit",
+    disconnect: "Idiskonekta",
+    disconnectApp: "Idiskonekta ang {{app}}",
+    disconnectPersonApp: "Idiskonekta ang {{app}} ni {{person}}",
+    confirmTitle: "Idiskonekta ang {{app}}?",
+    confirmBody: "Hihinto ang {{app}} sa susunod nitong kahilingan. Para magamit ulit, ikonekta itong muli gamit ang password mo.",
+    confirmBodyOwner: "Hihinto ang {{app}} para kay {{person}} sa susunod nitong kahilingan. Mananatili ang sign-in ni {{person}} at puwede niya itong ikonektang muli.",
+    disconnected: "Na-diskonekta ang {{app}}. Hihinto ito sa susunod nitong kahilingan.",
+    failed: "Hindi na-diskonekta ang {{app}}. Subukang muli.",
+    loadFailed: "Hindi ma-load ang mga nakakonektang app. I-reload ang page para subukang muli.",
+    farmEyebrow: "Buong bukid",
+    farmHint: "Bawat app na ikinonekta ng sinuman sa bukid na ito. Mas kaunti ang nagagawa ng pag-diskonekta ng isa kaysa sa pag-disable sa tao, na mananatiling naka-sign in at puwedeng ikonekta itong muli.",
+    person: "Tao",
+    everyone: "Lahat",
+    app: "App",
+    connections: "{{count}} koneksyon",
+    connections_one: "{{count}} koneksyon",
+    people: "{{count}} tao",
+    people_one: "{{count}} tao",
+    farmCount: "{{connections}}, {{people}}",
+    farmEmpty: "Wala pang nagkonekta ng app sa bukid na ito.",
+  },
   errors: {
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
@@ -245,6 +280,7 @@ export const tl = {
     grades: "Mga Grado",
     products: "Mga Produkto",
     users: "Mga User",
+    connectedApps: "Mga nakakonektang app",
     audit: "Audit",
     export: "Export",
     account: "Account",
@@ -2241,6 +2277,9 @@ export const tl = {
     "auditAction.User.Enabled": "Na-enable ang user",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
     "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
+    "auditAction.User.AppConnected": "Naikonekta ang app",
+    "auditAction.User.AppReconnected": "Naikonektang muli ang app",
+    "auditAction.User.AppDisconnected": "Na-diskonekta ang app",
     "auditAction.Account.Export": "Na-export ang datos",
     "auditAction.Account.SetLogo": "Na-set ang logo ng bukid",
     "auditAction.Account.RemoveLogo": "Naalis ang logo ng bukid",
@@ -2490,6 +2529,15 @@ export const tl = {
       + "makakagawa ng higit sa sarili mong role. Kapag kumonekta ulit ang app na pinayagan mo na, password mo lang ang "
       + "hihingin. Ang app ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang "
       + "ikonekta ito. Nasa <strong>Mga detalye</strong> ang mas mahabang paliwanag.",
+    // #799 — control names match the connectedApps and nav catalogs (#688).
+    signingInConnectedApps:
+      "<strong>Mga nakakonektang app.</strong> Nasa <strong>Account</strong> ang bawat app na pinayagan mong "
+      + "kumilos bilang ikaw, kasama ang kaya nito, kung kailan ito ikinonekta at huling ginamit. Hihinto ito sa "
+      + "susunod nitong kahilingan kapag pinindot mo ang <strong>Idiskonekta</strong>; para magamit ulit, ikonekta "
+      + "itong muli gamit ang password mo. May marka ang app na hindi nagamit sa loob ng 30 araw. Nakikita ng "
+      + "Owner ang bawat app sa bukid sa <strong>Setup</strong> › <strong>Mga nakakonektang app</strong>, puwede "
+      + "niyang i-filter ayon sa <strong>Tao</strong>, at puwede niyang idiskonekta ang alinman, na mas kaunti ang "
+      + "nagagawa kaysa sa pag-disable sa tao.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -3586,7 +3634,7 @@ export const tl = {
       "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
       + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
       + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
-      + "nakakonektang app.",
+      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "
