@@ -7,6 +7,7 @@ import {
 } from "@mui/material";
 import { Plug } from "lucide-react";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
+import { currentUserId } from "../auth/claims";
 import { FilterDateField } from "../components/FilterBar";
 import { usePagedList } from "../components/usePagedList";
 import { isIsoCalendarDate } from "../lib/dates";
@@ -22,12 +23,14 @@ import {
 
 const PAGE = 100;
 
-// #800 — connected-app names seen this session, by client id. AppLayout remounts the
-// screen on every URL write, filters included, so component state would forget the
-// name of a pivoted app whose filtered result turns out empty. Names come from loaded
-// rows and the pressed button, never the URL.
-// ponytail: grows by one short entry per app seen; nothing evicts within a session.
+// #800 — connected-app names already seen, keyed by the signed-in user and client id.
+// AppLayout remounts the screen on every URL write, filters included, so component
+// state would forget the name of a pivoted app whose filtered result turns out empty.
+// Sign-out does not reload the page, so the user in the key keeps one session's names
+// from another's. Names come from loaded rows and the pressed button, never the URL.
+// ponytail: grows by one short entry per app seen; nothing evicts until a reload.
 const knownAppNames = new Map<string, string | null>();
+const appNameKey = (clientId: string) => `${currentUserId() ?? ""} ${clientId}`;
 
 // Canonical 8-4-4-4-12 hex form only, not full Guid.TryParse permissiveness
 // (which also accepts braced/no-hyphen forms). This is a correctness guard,
@@ -228,7 +231,7 @@ export function AuditPage() {
   // The pressed button leaves with the remount, so the new instance moves focus to
   // the caption, which reads out the app now shown.
   const showOnlyApp = useCallback((clientId: string, name: string | null) => {
-    knownAppNames.set(clientId, name);
+    knownAppNames.set(appNameKey(clientId), name);
     const next = new URLSearchParams(searchParams);
     next.set("connectedAppClientId", clientId);
     setSearchParams(next, { state: { focusAppPivot: true } });
@@ -444,10 +447,10 @@ export function AuditPage() {
   const pivotedAppRow = appClientIdFilter && !isScopedReloading
     ? events.rows?.find((row) => row.connectedAppClientId === appClientIdFilter)
     : undefined;
-  if (pivotedAppRow) knownAppNames.set(appClientIdFilter, pivotedAppRow.connectedAppName);
+  if (pivotedAppRow) knownAppNames.set(appNameKey(appClientIdFilter), pivotedAppRow.connectedAppName);
   const pivotedAppLabel = !appClientIdFilter ? null
-    : !knownAppNames.has(appClientIdFilter) ? t("selectedConnectedApp")
-    : knownAppNames.get(appClientIdFilter) ?? t("unnamedConnectedApp");
+    : !knownAppNames.has(appNameKey(appClientIdFilter)) ? t("selectedConnectedApp")
+    : knownAppNames.get(appNameKey(appClientIdFilter)) ?? t("unnamedConnectedApp");
   const updateRecordPreview = useCallback((checked: boolean) => {
     const next = new URLSearchParams(searchParams);
     if (checked && previewEntityId) next.set("entityId", previewEntityId);

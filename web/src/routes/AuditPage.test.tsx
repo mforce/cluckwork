@@ -7,6 +7,8 @@ import { AuditPage, isFetchStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
 import i18n from "../i18n";
+import { clearAccessToken, setAccessToken } from "../auth/tokenStore";
+import { makeToken } from "../test/jwt";
 
 // AuditPage's only network dep is listAuditEvents; mock that seam so the screen
 // renders against controlled data — no network, no backend. ApiError stays real
@@ -116,6 +118,7 @@ const EVENT_B: AuditEvent = {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  clearAccessToken();
   mockListAuditEvents.mockResolvedValue([]); // default mount-load: empty page
 });
 
@@ -1780,6 +1783,22 @@ describe("AuditPage connected apps (#800)", () => {
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-20" } });
     await screen.findByText("No audit events match these filters.");
     expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
+  });
+
+  // A later sign-in in the same tab must not inherit an earlier user's app names.
+  it("does not show another signed-in user's app name", async () => {
+    const seen = { ...APP_EVENT, connectedAppClientId: "client-other-user" };
+    setAccessToken(makeToken({ sub: "user-a" }));
+    mockListAuditEvents.mockResolvedValueOnce([seen]);
+    const first = renderAudit("/audit?connectedAppClientId=client-other-user");
+    await screen.findByText("Showing only actions through Claude Desktop.");
+    first.unmount();
+
+    setAccessToken(makeToken({ sub: "user-b" }));
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?connectedAppClientId=client-other-user");
+    await screen.findByText("No audit events match these filters.");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through the selected app.");
   });
 
   it("names neither the app nor its id when a one-app URL finds no rows", async () => {
