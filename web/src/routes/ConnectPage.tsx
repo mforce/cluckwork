@@ -121,7 +121,7 @@ export function ConnectPage() {
               <StepUpPasswordField label={t("password")} value={password} onChange={setPassword} autoFocus disabled={busy} />
               <Box aria-live="assertive">{error && <Alert severity="error" role="alert">{error}</Alert>}</Box>
               <Stack direction="row" spacing={1}>
-                <BusyButton variant="contained" type="submit" busy={busy} disabled={!password} sx={{ flex: 1 }}>{t("allow")}</BusyButton>
+                <BusyButton variant="contained" type="submit" busy={busy} sx={{ flex: 1 }}>{t("allow")}</BusyButton>
                 <Button variant="outlined" onClick={() => void cancel()} disabled={busy} sx={{ flex: 1 }}>{t("cancel")}</Button>
               </Stack>
               <Typography variant="caption" color="text.secondary">{t("undo")}</Typography>
