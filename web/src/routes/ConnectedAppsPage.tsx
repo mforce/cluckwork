@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plug, Unplug } from "lucide-react";
 import {
-  Alert, Box, Button, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
+  Alert, Box, Button, FormControlLabel, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField,
+  Typography, useMediaQuery,
 } from "@mui/material";
-import { disconnectUserApp, listFarmConnectedApps, listUsers } from "../api/cluckwork";
+import { disconnectUserApp, getAccount, listFarmConnectedApps, listUsers, setConnectedApps } from "../api/cluckwork";
 import type { AppConnection, User } from "../api/cluckwork";
 import { useConnectionFacts, useDisconnect } from "../components/ConnectedApps";
 import { EmptyState } from "../components/EmptyState";
@@ -25,15 +26,40 @@ export function ConnectedAppsPage() {
   const [apps, setApps] = useState<AppConnection[] | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
+  // #1146 — the farm's switch and the Version it was read at, loaded with the rows rather
+  // than taken from the session's farm, because another Owner may have flipped it.
+  const [farmSwitch, setFarmSwitch] = useState<{ allow: boolean; version: number } | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [switchFailed, setSwitchFailed] = useState(false);
+  const [switchNews, setSwitchNews] = useState("");
+  const switchHintId = useId();
   const [person, setPerson] = useState("");
   const load = useCallback(() =>
-    Promise.all([listFarmConnectedApps(), listUsers()]).then(([rows, people]) => {
+    Promise.all([listFarmConnectedApps(), listUsers(), getAccount()]).then(([rows, people, account]) => {
       setApps(rows);
       setUsers(people);
+      setFarmSwitch({ allow: account.allowConnectedApps, version: account.version });
       setLoadFailed(false);
     }, () => setLoadFailed(true)), []);
   useEffect(() => { void load(); }, [load]);
   const { disconnect, busy, error, notice, sectionRef, confirmDialog } = useDisconnect(load);
+
+  async function flip(allow: boolean) {
+    if (farmSwitch === null) return;
+    setFarmSwitch({ ...farmSwitch, allow });
+    setSwitching(true);
+    setSwitchFailed(false);
+    setSwitchNews("");
+    try {
+      await setConnectedApps(allow, farmSwitch.version);
+      setSwitchNews(t(allow ? "allowOn" : "allowOff"));
+    } catch {
+      setSwitchFailed(true);
+    }
+    // Restores a failed flip and picks up the new Version, from what the server now holds.
+    await load();
+    setSwitching(false);
+  }
 
   const byId = new Map(users.map((user) => [user.id, user]));
   const who = (userId: string) => byId.get(userId)?.displayName ?? byId.get(userId)?.email ?? userId;
@@ -62,8 +88,19 @@ export function ConnectedAppsPage() {
         {t("farmHint")}
       </Typography>
 
+      {farmSwitch !== null && (
+        <Box>
+          <FormControlLabel label={t("allowLabel")} control={
+            <Switch checked={farmSwitch.allow} disabled={switching} onChange={(e) => void flip(e.target.checked)}
+              slotProps={{ input: { "aria-describedby": switchHintId } }} />} />
+          <Typography id={switchHintId} variant="body2" color="text.secondary">{t("allowHint")}</Typography>
+        </Box>
+      )}
+      <span role="status" className="sr-only">{switchNews}</span>
+
       {notice}
       <Stack spacing={2} sx={{ mt: 2 }}>
+        {switchFailed && <Alert severity="error">{t("allowFailed")}</Alert>}
         {loadFailed && <Alert severity="error">{t("loadFailed")}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
         {apps?.length === 0 && <EmptyState icon={Plug} message={t("farmEmpty")} />}

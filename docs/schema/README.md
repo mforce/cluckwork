@@ -31,7 +31,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
 | [public.__EFMigrationsHistory](public.__EFMigrationsHistory.md) | 2 |  | BASE TABLE |
-| [public.Accounts](public.Accounts.md) | 21 |  | BASE TABLE |
+| [public.Accounts](public.Accounts.md) | 22 |  | BASE TABLE |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
 | [public.AspNetUsers](public.AspNetUsers.md) | 26 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 13 |  | BASE TABLE |
@@ -152,6 +152,7 @@ erDiagram
   integer MaxDiscountBasisPoints
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  boolean AllowConnectedApps
 }
 "public.AspNetRoles" {
   uuid Id

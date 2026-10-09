@@ -10,7 +10,7 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 public sealed class CredentialEpochVerifier(AppDbContext db) : ICredentialEpochVerifier
 {
     public async Task<CredentialVerdict> VerifyAsync(
-        Guid userId, Guid accountId, int tokenEpoch, CancellationToken ct = default)
+        Guid userId, Guid accountId, int tokenEpoch, bool connectedApp, CancellationToken ct = default)
     {
         // #532 — Account.IsActive folds into the user read as a correlated
         // subquery: one round trip, not two. This is what makes suspension
@@ -37,6 +37,11 @@ public sealed class CredentialEpochVerifier(AppDbContext db) : ICredentialEpochV
                     .Where((Account account) => account.Id == user.AccountId)
                     .Select(account => (bool?)account.IsActive)
                     .FirstOrDefault(),
+                // #1146 — the connected-apps switch rides the same statement.
+                AccountAllowsConnectedApps = db.Accounts.IgnoreQueryFilters()
+                    .Where((Account account) => account.Id == user.AccountId)
+                    .Select(account => (bool?)account.AllowConnectedApps)
+                    .FirstOrDefault(),
             })
             .SingleOrDefaultAsync(ct);
 
@@ -46,7 +51,8 @@ public sealed class CredentialEpochVerifier(AppDbContext db) : ICredentialEpochV
         // test and the epoch test. Checking the epoch first would answer
         // Auth.CredentialsSuperseded — "sign in again" — to someone whose farm is
         // suspended and whose sign-in cannot succeed. Order: unknown user, then
-        // disabled user, then suspended farm, then epoch.
+        // disabled user, then suspended farm, then the connected-apps switch, then
+        // epoch: an app refused by the switch cannot be cured by signing in again.
         if (credentialState is null)
             return CredentialVerdict.UnknownUser;
         if (credentialState.DisabledAt is not null)
@@ -55,6 +61,8 @@ public sealed class CredentialEpochVerifier(AppDbContext db) : ICredentialEpochV
         // null must not pass.
         if (credentialState.AccountIsActive != true)
             return CredentialVerdict.FarmSuspended;
+        if (connectedApp && credentialState.AccountAllowsConnectedApps != true)
+            return CredentialVerdict.ConnectedAppsOff;
         // #1031 — the floor keeps a missing or malformed claim, parsed as 0, a
         // mismatch even when the stored row is 0 or negative.
         return credentialState.CredentialEpoch >= 1 && credentialState.CredentialEpoch == tokenEpoch

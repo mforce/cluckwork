@@ -1,5 +1,6 @@
 using Cluckwork.Application.Modules.Farm.Accounts.RemoveFarmBanner;
 using Cluckwork.Application.Modules.Farm.Accounts.RemoveFarmLogo;
+using Cluckwork.Application.Modules.Farm.Accounts.SetConnectedApps;
 using Cluckwork.Application.Modules.Farm.Accounts.SetFarmBanner;
 using Cluckwork.Application.Modules.Farm.Accounts.SetFarmLogo;
 using Cluckwork.Application.Modules.Farm.Accounts.UpdateFarmSettings;
@@ -14,6 +15,7 @@ public sealed class FarmModule(
     ICurrencyBoundRowProbe currencyBoundRows,
     IFarmLogoRepository logos,
     UpdateFarmSettingsHandler updateSettings,
+    SetConnectedAppsHandler setConnectedApps,
     SetFarmLogoHandler setLogo,
     RemoveFarmLogoHandler removeLogo,
     SetFarmBannerHandler setBanner,
@@ -27,6 +29,9 @@ public sealed class FarmModule(
 
     public Task<Result> UpdateSettingsAsync(UpdateFarmSettingsCommand command, CancellationToken ct) =>
         updateSettings.HandleAsync(command, ct);
+
+    public Task<Result> SetConnectedAppsAsync(SetConnectedAppsCommand command, CancellationToken ct) =>
+        setConnectedApps.HandleAsync(command, ct);
 
     public Task<FarmBrandingHashes> GetBrandingHashesAsync(CancellationToken ct) =>
         logos.GetBrandingHashesAsync(ct);
@@ -61,5 +66,5 @@ public sealed class FarmModule(
             a.TimeZoneId, a.Locale, a.UnitSystem, a.FirstDayOfWeek,
             a.DateFormatOverride, a.TimeFormatOverride, a.Brand,
             a.DefaultStepperUnit, a.WorkerSaleAllocationPolicy,
-            a.MaxDiscount?.Percent, a.Version);
+            a.MaxDiscount?.Percent, a.AllowConnectedApps, a.Version);
 }

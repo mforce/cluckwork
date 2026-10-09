@@ -9,8 +9,10 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // drives; it cannot prove them for every implementation, so review still must.
 public interface ICredentialEpochVerifier
 {
+    // connectedApp: the credential is an OAuth token, which the farm's
+    // connected-apps switch also governs (#1146).
     Task<CredentialVerdict> VerifyAsync(
-        Guid userId, Guid accountId, int tokenEpoch, CancellationToken ct = default);
+        Guid userId, Guid accountId, int tokenEpoch, bool connectedApp, CancellationToken ct = default);
 }
 
 // Zero is deliberately not Current: a default(CredentialVerdict), whether from a
@@ -22,5 +24,6 @@ public enum CredentialVerdict
     UnknownUser,
     Disabled,
     FarmSuspended,
+    ConnectedAppsOff,
     Superseded,
 }

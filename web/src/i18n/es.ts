@@ -143,6 +143,8 @@ export const es = {
     detailsScopes: "Leer incluye lotes, existencias, registros diarios, clientes, pedidos y pagos.",
     notYou: "¿No eres tú? Cerrar sesión",
     refusedTitle: "No hay nada que aprobar",
+    offTitle: "Las aplicaciones conectadas están desactivadas",
+    offBody: "Esta granja no permite aplicaciones conectadas. Pídeselo a un propietario.",
     refusedBody: "Esta solicitud venció o no es válida, así que no se conectó nada. Empieza de nuevo desde la aplicación.",
     refusedButton: "Ir a Cluckwork",
     loading: "Cargando la solicitud…",
@@ -211,6 +213,11 @@ export const es = {
     people: "{{count}} personas",
     people_one: "{{count}} persona",
     farmCount: "{{connections}}, {{people}}",
+    allowLabel: "Permitir aplicaciones conectadas",
+    allowHint: "Desactivado: se rechazan las conexiones nuevas y las aplicaciones conectadas se detienen en su próxima solicitud.",
+    allowOn: "Las aplicaciones conectadas están activadas.",
+    allowOff: "Las aplicaciones conectadas están desactivadas.",
+    allowFailed: "No se pudo cambiar. Inténtalo de nuevo.",
     farmEmpty: "Nadie de esta granja ha conectado una aplicación.",
   },
   errors: {
@@ -2443,7 +2450,9 @@ export const es = {
       + "detiene en su próxima solicitud; para volver a usarla, conéctala de nuevo con tu contraseña. Se marca la "
       + "aplicación que no se usa en 30 días. El propietario ve todas las aplicaciones de la granja en "
       + "<strong>Configuración</strong> › <strong>Aplicaciones conectadas</strong>, puede filtrar por "
-      + "<strong>Persona</strong> y puede desconectar cualquiera, lo que hace menos que desactivar a la persona.",
+      + "<strong>Persona</strong> y puede desconectar cualquiera, lo que hace menos que desactivar a la persona. "
+      + "Desactivar <strong>Permitir aplicaciones conectadas</strong>, arriba en esa página, detiene todas las "
+      + "aplicaciones y toda conexión nueva hasta que el propietario lo vuelva a activar; no se desconecta nada.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -3502,7 +3511,7 @@ export const es = {
       "Una aplicación externa, como un asistente de IA, que una persona de la granja autorizó a actuar por "
       + "ella. Solo puede hacer lo que esa persona puede hacer. El registro de auditoría nombra a la persona, "
       + "añade la aplicación en la línea de abajo y puede mostrar solo las acciones mediante aplicaciones "
-      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud.",
+      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "

@@ -40,10 +40,10 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.CredentialEpochVerifier.VerifyAsync(Guid userId, Guid accountId, int tokenEpoch, CancellationToken ct)",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.CredentialEpochVerifier.VerifyAsync(Guid userId, Guid accountId, int tokenEpoch, bool connectedApp, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/CredentialEpochVerifier.cs",
-            Hash = "f24c7872",
-            Justification = "DEFENSIVE bypass: reads the user's own account to check IsActive. The read is scoped to the JWT's account id; IgnoreQueryFilters makes it work even before TenantContext resolves. #364 fail-closed guarantee. Moved here from CredentialEpochMiddleware.InvokeAsync by #857, query unchanged.",
+            Hash = "f7239ce8",
+            Justification = "DEFENSIVE bypass: reads the user's own account to check IsActive and, for an OAuth token, AllowConnectedApps (#1146). The read is scoped to the JWT's account id; IgnoreQueryFilters makes it work even before TenantContext resolves. #364 fail-closed guarantee. Moved here from CredentialEpochMiddleware.InvokeAsync by #857, query unchanged.",
         },
         new()
         {

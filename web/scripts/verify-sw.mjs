@@ -315,7 +315,13 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // is reserved for #799. The planned way to win the space back is to stop
 // precaching the languages a device does not use (es/tl), tracked separately.
 // Any further raise needs a new maintainer decision.
-const PRECACHE_CEILING_KIB = 1950;
+//
+// 2026-10-09, a third raise: the maintainer approved 1,960 KiB for #1146's
+// sliding toggle on the Connected apps page. MUI `Switch` costs 5.60 KiB, and
+// the branch measures 1,952.69 KiB with it. #1149, precaching only the
+// active language, is the planned way to win the space back and lower this
+// ceiling again. Any further raise needs a new maintainer decision.
+const PRECACHE_CEILING_KIB = 1960;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {

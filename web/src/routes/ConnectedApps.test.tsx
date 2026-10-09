@@ -3,8 +3,10 @@ import { screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { AccountPage } from "./AccountPage";
 import { ConnectedAppsPage } from "./ConnectedAppsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
-  disconnectMyApp, disconnectUserApp, listFarmConnectedApps, listMyConnectedApps, listUsers,
+  disconnectMyApp, disconnectUserApp, getAccount, listFarmConnectedApps, listMyConnectedApps, listUsers,
+  setConnectedApps,
 } from "../api/cluckwork";
 import type { AppConnection } from "../api/cluckwork";
 
@@ -15,6 +17,8 @@ vi.mock("../api/cluckwork", async (importOriginal) => ({
   listFarmConnectedApps: vi.fn(),
   disconnectUserApp: vi.fn(),
   listUsers: vi.fn(),
+  getAccount: vi.fn(),
+  setConnectedApps: vi.fn(),
 }));
 
 const DAY = 86_400_000;
@@ -28,6 +32,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(disconnectMyApp).mockResolvedValue(undefined);
   vi.mocked(disconnectUserApp).mockResolvedValue(undefined);
+  vi.mocked(getAccount).mockResolvedValue(account());
 });
 
 async function confirmDisconnect(appName: string) {
@@ -175,6 +180,46 @@ describe("Setup › Connected apps, the Owner's farm-wide page (#799)", () => {
     await waitFor(() => expect(screen.queryByRole("option", { name: "Ben Cruz" })).not.toBeInTheDocument());
     expect(screen.getByLabelText("Person")).toHaveValue("");
     expect(screen.getByText("Claude Desktop")).toBeInTheDocument();
+  });
+
+  // #1146 — the farm's switch sits at the top of this page, read with the rows rather than
+  // from the session's farm, which another Owner may have changed since.
+  const owner = { token: { sub: "owner", role: "Admin" } };
+  const appSwitch = () => screen.findByRole("switch", { name: "Allow connected apps" });
+
+  it("shows the switch as the account reads it, not as this session saw it", async () => {
+    vi.mocked(getAccount).mockResolvedValue(account({ allowConnectedApps: false }));
+    const { unmount } = renderWithProviders(<ConnectedAppsPage />, { ...owner, farm: account({ allowConnectedApps: true }) });
+    expect(await appSwitch()).not.toBeChecked();
+    unmount();
+
+    vi.mocked(getAccount).mockResolvedValue(account({ allowConnectedApps: true }));
+    renderWithProviders(<ConnectedAppsPage />, { ...owner, farm: account({ allowConnectedApps: false }) });
+    expect(await appSwitch()).toBeChecked();
+    expect(await appSwitch()).toHaveAccessibleDescription(
+      "Off: new connections are refused, and connected apps stop on their next request.");
+  });
+
+  it("turns apps off at the Version it read, and announces it", async () => {
+    vi.mocked(getAccount).mockResolvedValue(account({ allowConnectedApps: true, version: 4 }));
+    vi.mocked(setConnectedApps).mockResolvedValue(undefined);
+    renderWithProviders(<ConnectedAppsPage />, owner);
+
+    fireEvent.click(await appSwitch());
+
+    await waitFor(() => expect(screen.getAllByRole("status").map((s) => s.textContent)).toContain("Connected apps are off."));
+    expect(setConnectedApps).toHaveBeenCalledWith(false, 4);
+  });
+
+  it("restores the switch and says so when the save fails", async () => {
+    vi.mocked(setConnectedApps).mockRejectedValue(new Error("409"));
+    renderWithProviders(<ConnectedAppsPage />, owner);
+
+    fireEvent.click(await appSwitch());
+
+    expect(await screen.findByText("Could not change it. Try again.")).toBeInTheDocument();
+    await waitFor(async () => expect(await appSwitch()).toBeChecked());
+    expect(screen.getAllByRole("status").map((s) => s.textContent)).not.toContain("Connected apps are off.");
   });
 
   it("disconnects the person's app, not the Owner's", async () => {

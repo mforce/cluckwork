@@ -72,6 +72,10 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
             ? DiscountCeiling.FromBasisPoints(basisPoints)
             : null;
 
+    // #1146 — off refuses consent and every OAuth token of the farm; it revokes
+    // nothing, so turning it back on restores the connections nobody disconnected.
+    public bool AllowConnectedApps { get; private set; } = true;
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
@@ -154,6 +158,15 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
         Slug = validated.Value;
         Version++;
         return Result.Success();
+    }
+
+    // #1146 — false on a no-op, which leaves Version alone for the same reason Rename does.
+    public bool SetConnectedApps(bool allow)
+    {
+        if (allow == AllowConnectedApps) return false;
+        AllowConnectedApps = allow;
+        Version++;
+        return true;
     }
 
     // #123 — the whole settings block replaced under the Version token.

@@ -550,6 +550,8 @@ export interface Account {
   // their token refreshes. The failure mode is a stale warning, never a wrong
   // outcome: the confirm handler's fresh in-transaction role read decides.
   yourMaxDiscountPercent: number | null;
+  // #1146 — the farm's switch; off refuses consent and every app's token.
+  allowConnectedApps: boolean;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
@@ -626,6 +628,10 @@ export const getFarmSettings = () => apiGet<FarmSettings>("/account/settings");
 
 export const updateFarmSettings = (body: UpdateFarmSettings, key?: string) =>
   apiPut<void>("/account/settings", body, key);
+
+// #1146 — Owner-only, under the same Version as the settings above.
+export const setConnectedApps = (allow: boolean, version: number) =>
+  apiPut<void>("/account/connected-apps", { allow, version });
 
 // --- Farm logo (#123) ---
 

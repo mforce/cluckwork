@@ -149,6 +149,8 @@ export const tl = {
     detailsScopes: "Saklaw ng pagbasa ang mga flock, stock, araw-araw na tala, customer, order at bayad.",
     notYou: "Hindi ikaw? Mag-sign out",
     refusedTitle: "Walang dapat aprubahan",
+    offTitle: "Naka-off ang mga nakakonektang app",
+    offBody: "Hindi pinapayagan ng bukid na ito ang mga nakakonektang app. Magtanong sa isang Owner.",
     refusedBody: "Nag-expire o hindi wasto ang kahilingang ito, kaya walang naikonekta. Magsimulang muli mula sa app.",
     refusedButton: "Pumunta sa Cluckwork",
     loading: "Nilo-load ang kahilingan…",
@@ -220,6 +222,11 @@ export const tl = {
     people: "{{count}} tao",
     people_one: "{{count}} tao",
     farmCount: "{{connections}}, {{people}}",
+    allowLabel: "Payagan ang mga nakakonektang app",
+    allowHint: "Kapag naka-off: tinatanggihan ang mga bagong koneksyon, at hihinto ang mga nakakonektang app sa susunod nilang kahilingan.",
+    allowOn: "Naka-on ang mga nakakonektang app.",
+    allowOff: "Naka-off ang mga nakakonektang app.",
+    allowFailed: "Hindi ito nabago. Subukang muli.",
     farmEmpty: "Wala pang nagkonekta ng app sa bukid na ito.",
   },
   errors: {
@@ -2537,7 +2544,9 @@ export const tl = {
       + "itong muli gamit ang password mo. May marka ang app na hindi nagamit sa loob ng 30 araw. Nakikita ng "
       + "Owner ang bawat app sa bukid sa <strong>Setup</strong> › <strong>Mga nakakonektang app</strong>, puwede "
       + "niyang i-filter ayon sa <strong>Tao</strong>, at puwede niyang idiskonekta ang alinman, na mas kaunti ang "
-      + "nagagawa kaysa sa pag-disable sa tao.",
+      + "nagagawa kaysa sa pag-disable sa tao. Kapag in-off ang <strong>Payagan ang mga nakakonektang app</strong> "
+      + "sa itaas ng pahinang iyon, hihinto ang bawat app at bawat bagong koneksyon hanggang buksan itong muli ng "
+      + "Owner; walang naididiskonekta.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -3634,7 +3643,7 @@ export const tl = {
       "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
       + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
       + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
-      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan.",
+      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "

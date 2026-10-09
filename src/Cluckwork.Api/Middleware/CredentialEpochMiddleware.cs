@@ -1,8 +1,10 @@
+using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Application.Modules.Access.Contracts;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using OpenIddict.Abstractions;
 
 namespace Cluckwork.Api.Middleware;
 
@@ -34,7 +36,10 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
             // An unparseable user or account claim never reaches the database.
             var verdict = Guid.TryParse(userIdClaim, out var userId)
                 && Guid.TryParse(accountIdClaim, out var accountId)
-                ? await verifier.VerifyAsync(userId, accountId, tokenEpoch, context.RequestAborted)
+                ? await verifier.VerifyAsync(userId, accountId, tokenEpoch,
+                    // #800 — only an OAuth access token carries client_id.
+                    context.User.HasClaim(claim => claim.Type == OpenIddictConstants.Claims.ClientId),
+                    context.RequestAborted)
                 : CredentialVerdict.UnknownUser;
 
             if (verdict != CredentialVerdict.Current)
@@ -45,6 +50,8 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                         ("Auth.AccountDisabled", "Your account has been disabled."),
                     CredentialVerdict.FarmSuspended =>
                         ("Auth.FarmSuspended", "This farm is suspended. Contact your administrator."),
+                    CredentialVerdict.ConnectedAppsOff =>
+                        (OAuthEndpoints.ConnectedAppsOff, "This farm doesn't allow connected apps. Ask an Owner."),
                     _ => ("Auth.CredentialsSuperseded", "Your credentials have been superseded. Sign in again."),
                 };
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;

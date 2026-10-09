@@ -37,6 +37,7 @@ internal static partial class RealModuleLedger
         ]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.GetAccount", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.GetSettings", ["Farm"]),
+        new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.SetConnectedApps", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.ShowFarmWideSaleAllocationNotice", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.ToResponse", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.UpdateSettings", ["Farm"]),
@@ -173,7 +174,7 @@ internal static partial class RealModuleLedger
         new("Cluckwork.Api.Modules.Access.Me.MeEndpoints.ListConnectedApps", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Me.MeEndpoints.SetLanguage", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Me.MeEndpoints.SetStepperUnit", ["Access"]),
-        new("Cluckwork.Api.Modules.Access.OAuth.OAuthEndpoints.Authorize", ["Access"]),
+        new("Cluckwork.Api.Modules.Access.OAuth.OAuthEndpoints.Authorize", ["Access", "Farm"]),
         new("Cluckwork.Api.Modules.Insights.Reports.ReportEndpoints.Expenses", ["Insights"]),
         new("Cluckwork.Api.Modules.Insights.Reports.ReportEndpoints.Production", [
             "FlockManagement",

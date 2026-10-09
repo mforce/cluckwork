@@ -1449,6 +1449,16 @@ event naming the person who did it. Approving an app writes **App connected** (a
 first approval, or one for more permissions) or **App reconnected** (an approval
 that asked for nothing new); each names the person, the app and what was allowed.
 
+**Allow connected apps (#1146)** — the Owner's farm-wide switch at the top of
+**Setup** › **Connected apps**, on by default. Off, the consent screen refuses
+every app without asking for a password, and every app's token is refused on its
+next request with **Connected apps are off**; registering an app is unaffected. It
+revokes nothing: turning it back on restores every connection nobody
+disconnected. It saves on its own, under the farm's settings version, so a Farm
+settings save or a second Owner holding an older version gets a conflict instead
+of overwriting it. Each change writes a **Farm settings updated** audit event with
+the switch on both sides.
+
 **First-run admin provisioning (#283)** — how a fresh deploy gets its first
 Owner without ever shipping a repo-known credential. The default account, the
 four assignable roles, and the default egg grades are **static reference

@@ -32,6 +32,12 @@ public static class AccountEndpoints
             .WithName("UpdateFarmSettings")
             .WithSummary("Replace the farm settings (base version required; mismatch is a 409). Currency is locked once anything has recorded an amount in it (§4.6).");
 
+        // #1146 — the Owner's connected-apps switch, saved apart from the settings block.
+        group.MapPut("/connected-apps", SetConnectedApps)
+            .RequireAuthorization(AuthPolicies.OwnerOnly)
+            .WithName("SetConnectedApps")
+            .WithSummary("Turn connected apps on or off for the farm (base version required; mismatch is a 409).");
+
         return group;
     }
 
@@ -151,6 +157,24 @@ public static class AccountEndpoints
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
+    private static async Task<IResult> SetConnectedApps(
+        SetConnectedAppsRequest request,
+        IFarmModule farm,
+        IValidator<SetConnectedAppsCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new SetConnectedAppsCommand(request.Allow, request.Version);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await farm.SetConnectedAppsAsync(command, ct);
+        return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
+    }
+
     private static IResult MapFailure(Error error) => error.Code switch
     {
         "Account.NotFound" => Results.NotFound(),
@@ -177,7 +201,8 @@ public static class AccountEndpoints
         a.DefaultStepperUnit.ToString(),
         bannerContentHash,
         showFarmWideSaleAllocationNotice,
-        yourMaxDiscountPercent);
+        yourMaxDiscountPercent,
+        a.AllowConnectedApps);
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -221,7 +246,9 @@ public sealed record AccountResponse(
     // Claims-derived and therefore a display hint only — ConfirmSaleHandler's
     // fresh in-transaction role read is the authority. See
     // AccountEndpoints.YourMaxDiscountPercent.
-    decimal? YourMaxDiscountPercent);
+    decimal? YourMaxDiscountPercent,
+    // #1146 — role-agnostic so the Connected apps screens can say why apps stopped.
+    bool AllowConnectedApps);
 
 public sealed record FarmSettingsResponse(
     AccountResponse Settings,
@@ -255,3 +282,5 @@ public sealed record UpdateFarmSettingsRequest(
     // #727 — a PERCENT, not basis points: basis points are the storage choice.
     // Omitted or null clears the ceiling; zero is a different, legal setting.
     decimal? MaxDiscountPercent);
+
+public sealed record SetConnectedAppsRequest(bool? Allow, int Version);

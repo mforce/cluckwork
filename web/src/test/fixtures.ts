@@ -26,6 +26,7 @@ export function account(overrides: Partial<Account> = {}): Account {
     defaultStepperUnit: "Individual",
     showFarmWideSaleAllocationNotice: false,
     yourMaxDiscountPercent: null,
+    allowConnectedApps: true,
     ...overrides,
   };
 }

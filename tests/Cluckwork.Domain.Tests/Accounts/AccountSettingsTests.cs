@@ -60,6 +60,21 @@ public sealed class AccountSettingsTests
         Assert.Equal(before + 1, account.Version);
     }
 
+    // #1146
+    [Fact]
+    public void ConnectedApps_StartOn_AndOnlyARealChangeBumpsVersion()
+    {
+        var account = UsdFarm();
+        var version = account.Version;
+        Assert.True(account.AllowConnectedApps, "a new farm starts with connected apps off");
+
+        Assert.False(account.SetConnectedApps(true));
+        Assert.Equal(version, account.Version);
+        Assert.True(account.SetConnectedApps(false));
+        Assert.False(account.AllowConnectedApps);
+        Assert.Equal(version + 1, account.Version);
+    }
+
     // #444
     [Fact]
     public void NewAccount_DefaultsToTheIndividualStepperUnit()

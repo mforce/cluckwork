@@ -8,7 +8,7 @@ Tenancy root, audit, jobs, idempotency, seeding bookkeeping.
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.Accounts](public.Accounts.md) | 21 |  | BASE TABLE |
+| [public.Accounts](public.Accounts.md) | 22 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 13 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
 | [public.FarmLogos](public.FarmLogos.md) | 20 |  | BASE TABLE |
@@ -43,6 +43,7 @@ erDiagram
   integer MaxDiscountBasisPoints
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  boolean AllowConnectedApps
 }
 "public.AuditEvents" {
   uuid Id

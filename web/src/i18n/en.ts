@@ -199,6 +199,8 @@ export const en = {
     detailsScopes: "Reading covers flocks, stock, daily entries, customers, orders and payments.",
     notYou: "Not you? Sign out",
     refusedTitle: "Nothing to approve",
+    offTitle: "Connected apps are off",
+    offBody: "This farm doesn't allow connected apps. Ask an Owner.",
     refusedBody: "This request expired or isn't valid, so nothing was connected. Start again from the app.",
     refusedButton: "Go to Cluckwork",
     loading: "Loading the request…",
@@ -276,6 +278,11 @@ export const en = {
     people: "{{count}} people",
     people_one: "{{count}} person",
     farmCount: "{{connections}}, {{people}}",
+    allowLabel: "Allow connected apps",
+    allowHint: "Off: new connections are refused, and connected apps stop on their next request.",
+    allowOn: "Connected apps are on.",
+    allowOff: "Connected apps are off.",
+    allowFailed: "Could not change it. Try again.",
     farmEmpty: "No one on this farm has connected an app.",
   },
   // Keyed by the API's stable validation codes (#45), which contain dots
@@ -3180,7 +3187,9 @@ export const en = {
       + "what it can do and when it was connected and last used. <strong>Disconnect</strong> stops it on its next "
       + "request; to use it again, connect it again with your password. An app unused for 30 days is marked. "
       + "The Owner sees every app on the farm under <strong>Setup</strong> › <strong>Connected apps</strong>, can "
-      + "filter by <strong>Person</strong>, and can disconnect any of them, which does less than disabling the person.",
+      + "filter by <strong>Person</strong>, and can disconnect any of them, which does less than disabling the person. "
+      + "Turning off <strong>Allow connected apps</strong> at the top of that page stops every app and any new "
+      + "connection until the Owner turns it back on; nothing is disconnected.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -4172,7 +4181,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps, on the Owner's Connected apps page, turns them all off.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
