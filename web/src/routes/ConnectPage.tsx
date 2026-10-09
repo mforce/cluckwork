@@ -162,17 +162,13 @@ function Line({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
-function canRecordEntries() {
-  const role = currentUserRole();
-  return role === "Admin" || role === "Manager" || role === "Worker";
-}
-
 function Permissions({ request }: { request: ConsentRequest }) {
   const { t } = useTranslation("connect");
   const had = (scope: string) => request.alreadyAllowed.includes(scope);
   // A request for more puts what is new first; what was allowed before drops to a muted line.
   const scopes = [...request.scopes].sort((a, b) => Number(had(a)) - Number(had(b)));
   const role = currentUserRole();
+  const canRecord = role === "Admin" || role === "Manager" || role === "Worker";
   return (
     <>
       <Box component="ul" aria-label={t("scopesLabel")} sx={{ listStyle: "none", margin: 0, padding: 0, borderTop: "1px solid var(--hairline)" }}>
@@ -180,7 +176,7 @@ function Permissions({ request }: { request: ConsentRequest }) {
           const old = had(scope);
           const isNew = request.alreadyAllowed.length > 0 && !old;
           const read = scope === READ;
-          const blocked = scope === WRITE && !canRecordEntries();
+          const blocked = scope === WRITE && !canRecord;
           return (
             <Box component="li" key={scope} sx={{
               display: "flex", gap: 1.5, paddingBlock: 1.25, paddingInline: isNew ? 1 : 0, marginInline: isNew ? -1 : 0,
