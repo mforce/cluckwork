@@ -19,6 +19,8 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         builder.Property(e => e.Reason).HasMaxLength(AuditEvent.MaxReasonLength);
         // Plain text, not jsonb — provider-portability rule.
         builder.Property(e => e.DetailsJson);
+        builder.Property(e => e.ConnectedAppClientId).HasMaxLength(AuditEvent.MaxConnectedAppClientIdLength);
+        builder.Property(e => e.ConnectedAppName).HasMaxLength(AuditEvent.MaxConnectedAppNameLength);
 
         // #508 — a durable monotonic ordering key. "Id" is a random v4 Guid
         // (AuditWriter), so it carries no chronology and cannot break a
@@ -41,5 +43,10 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         // Viewer: newest-first per tenant; entity drill-down.
         builder.HasIndex(e => new { e.AccountId, e.OccurredAtUtc });
         builder.HasIndex(e => new { e.AccountId, e.EntityId });
+        // #800 — the connected-apps filter, newest first. Partial, so the session writes
+        // that make up nearly every row add nothing to it, and a farm whose app actions
+        // are rare is not scanned end to end to fill one page.
+        builder.HasIndex(e => new { e.AccountId, e.OccurredAtUtc }, "IX_AuditEvents_ConnectedApp")
+            .HasFilter("\"ConnectedAppClientId\" IS NOT NULL");
     }
 }

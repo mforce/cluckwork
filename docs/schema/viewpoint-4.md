@@ -9,7 +9,7 @@ Tenancy root, audit, jobs, idempotency, seeding bookkeeping.
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
 | [public.Accounts](public.Accounts.md) | 21 |  | BASE TABLE |
-| [public.AuditEvents](public.AuditEvents.md) | 11 |  | BASE TABLE |
+| [public.AuditEvents](public.AuditEvents.md) | 13 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
 | [public.FarmLogos](public.FarmLogos.md) | 20 |  | BASE TABLE |
 | [public.idempotency_records](public.idempotency_records.md) | 13 |  | BASE TABLE |
@@ -56,6 +56,8 @@ erDiagram
   text DetailsJson
   uuid AccountId
   bigint Sequence
+  varchar_100_ ConnectedAppClientId
+  varchar_100_ ConnectedAppName
 }
 "public.durable_jobs" {
   uuid Id

@@ -14,7 +14,7 @@ public static class AuditEndpoints
     {
         group.MapGet("/", ListAuditEvents)
             .WithName("ListAuditEvents")
-            .WithSummary("List audit events newest first (optional action/record type/entity/date filters, paged).");
+            .WithSummary("List audit events newest first (optional action/record type/entity/date/connected app filters, paged).");
 
         return group;
     }
@@ -28,6 +28,8 @@ public static class AuditEndpoints
         Guid? entityId = null,
         DateOnly? from = null,
         DateOnly? to = null,
+        bool? connectedAppsOnly = null,
+        string? connectedAppClientId = null,
         int? limit = null,
         int? offset = null)
     {
@@ -37,7 +39,7 @@ public static class AuditEndpoints
         var skip = Math.Max(offset ?? 0, 0);
 
         var list = await events.ListAuditEventsAsync(action, entityType,
-            entityId, from, to, take, skip, ct);
+            entityId, from, to, connectedAppsOnly ?? false, connectedAppClientId, take, skip, ct);
         return Results.Ok(list);
     }
 }

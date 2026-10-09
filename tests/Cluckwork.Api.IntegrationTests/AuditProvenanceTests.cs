@@ -1188,7 +1188,7 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
     {
         var (accountId, createId, updateId) = await SeedListFilterEventsAsync();
         var rows = await WithRepositoryAsync(accountId, repo =>
-            repo.ListAsync(null, "Flock", null, null, null, 10, 0));
+            repo.ListAsync(null, "Flock", null, null, null, false, null, 10, 0));
         Assert.Equal([updateId, createId], rows.Select(row => row.Id));
     }
 
@@ -1197,7 +1197,7 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
     {
         var (accountId, _, updateId) = await SeedListFilterEventsAsync();
         var rows = await WithRepositoryAsync(accountId, repo =>
-            repo.ListAsync("Flock.Update", "Flock", null, null, null, 10, 0));
+            repo.ListAsync("Flock.Update", "Flock", null, null, null, false, null, 10, 0));
         Assert.Equal([updateId], rows.Select(row => row.Id));
     }
 
@@ -1207,7 +1207,7 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         var (accountId, createId, _) = await SeedListFilterEventsAsync();
         var day = DateOnly.FromDateTime(Base.UtcDateTime);
         var rows = await WithRepositoryAsync(accountId, repo =>
-            repo.ListAsync(null, "Flock", null, day, day, 10, 0));
+            repo.ListAsync(null, "Flock", null, day, day, false, null, 10, 0));
         Assert.Equal([createId], rows.Select(row => row.Id));
     }
 
@@ -1238,7 +1238,7 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
             await SeedEventsAsync(accountId, e);
 
         var rows = await WithRepositoryAsync(accountId, repo =>
-            repo.ListAsync(null, null, entityId, null, null, 10, 0));
+            repo.ListAsync(null, null, entityId, null, null, false, null, 10, 0));
 
         Assert.Collection(rows,
             row => Assert.Equal("later@farm.test", row.ActorEmail),

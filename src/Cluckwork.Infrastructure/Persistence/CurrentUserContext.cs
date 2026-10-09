@@ -1,4 +1,5 @@
 using Cluckwork.Application.Common;
+using Cluckwork.Domain.Auditing;
 
 namespace Cluckwork.Infrastructure.Persistence;
 
@@ -20,15 +21,18 @@ public sealed class CurrentUserContext : ICurrentUser
     public Guid UserId { get; private set; }
     public string Email { get; private set; } = string.Empty;
     public IReadOnlyList<string> Roles { get; private set; } = [];
+    public ConnectedApp? ConnectedApp { get; private set; }
 
     // Stores its arguments verbatim — no database read, no role re-fetch. The
     // seeders depend on that: the Roles list they pass is exactly the one
     // FlockScopeGuard later reads.
-    public void Resolve(Guid userId, string email, IReadOnlyList<string>? roles = null)
+    public void Resolve(Guid userId, string email, IReadOnlyList<string>? roles = null,
+        ConnectedApp? connectedApp = null)
     {
         UserId = userId;
         Email = email;
         Roles = roles ?? [];
+        ConnectedApp = connectedApp;
         IsResolved = true;
     }
 
@@ -47,6 +51,7 @@ public sealed class CurrentUserContext : ICurrentUser
         UserId = Guid.Empty;
         Email = label;
         Roles = [];
+        ConnectedApp = null;
         IsResolved = true;
     }
 }

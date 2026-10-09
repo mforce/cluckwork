@@ -18,6 +18,9 @@ namespace Cluckwork.Api.Modules.Access.OAuth;
 
 public static class OAuthEndpoints
 {
+    // #800 — the client's display name, carried in its access tokens beside client_id.
+    public const string ClientNameClaim = "client_name";
+
     // #796 — exactly the claims a session JWT carries (JwtTokenService), so the request
     // chain treats an OAuth principal like a session one: tenant, actor and roles,
     // flock scope, credential epoch and must-change-password all read these.
@@ -165,6 +168,9 @@ public static class OAuthEndpoints
             Claims.Name,
             Claims.Role);
         identity.SetScopes(scopes);
+        // #800 — the name rides in the token, as the user's email does, so an audit row
+        // snapshots it without a lookup per write. Registration never renames a client.
+        identity.SetClaim(ClientNameClaim, await applications.GetDisplayNameAsync(application, ct));
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
         // One permanent authorization per approval, reused by every later connection that
         // asks for no more. Disconnect revokes it, and with it every token it issued (#796).
