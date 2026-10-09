@@ -246,7 +246,7 @@ export function AuditPage() {
   const pivotCaptionRef = useRef<HTMLParagraphElement>(null);
   const focusAppPivot = (useLocation().state as { focusAppPivot?: string } | null)?.focusAppPivot;
   useEffect(() => {
-    if (focusAppPivot === undefined || focusAppPivot !== pendingPivotFocus) return;
+    if (!focusAppPivot || focusAppPivot !== pendingPivotFocus) return;
     pendingPivotFocus = null;
     pivotCaptionRef.current?.focus();
   }, [focusAppPivot]);
