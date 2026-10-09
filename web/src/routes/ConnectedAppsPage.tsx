@@ -102,8 +102,9 @@ export function ConnectedAppsPage() {
                     <TableCell>{facts.lastUsed(app)}{facts.isIdle(app) && <Box>{facts.status(app)}</Box>}</TableCell>
                     <TableCell align="right">
                       <Button variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => ask(app)}
+                        startIcon={<Unplug size={14} aria-hidden />}
                         aria-label={t("disconnectPersonApp", { app: facts.name(app), person: who(app.userId) })}>
-                        <Unplug size={14} aria-hidden /> {t("disconnect")}
+                        {t("disconnect")}
                       </Button>
                     </TableCell>
                   </TableRow>

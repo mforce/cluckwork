@@ -189,7 +189,7 @@ function ConnectedAppsPanel() {
           {idle && (
             <Alert severity="warning" icon={false} sx={{ flexWrap: { xs: "wrap", md: "nowrap" }, "& .MuiAlert-action": { ml: { xs: 0, md: "auto" }, pl: { xs: 0, md: 2 } } }}
               action={(
-                <Button variant="outlined" color="error" disabled={busy} onClick={() => ask(idle)} sx={DISCONNECT_SX}>
+                <Button variant="outlined" color="error" disabled={busy} onClick={() => ask(idle)} sx={{ ...DISCONNECT_SX, whiteSpace: { md: "nowrap" } }}>
                   {t("disconnectApp", { app: facts.name(idle) })}
                 </Button>
               )}>

@@ -20,7 +20,7 @@ vi.mock("../api/cluckwork", async (importOriginal) => ({
 const DAY = 86_400_000;
 const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
 const app = (over: Partial<AppConnection>): AppConnection => ({
-  userId: "u1", clientId: "c1", appName: "Claude Desktop", scopes: ["farm:read", "daily-entries:write"],
+  userId: "u1", clientId: "c1", appName: "Claude Desktop", scopes: ["daily-entries:write", "farm:read"],
   connectedAtUtc: ago(60), lastUsedAtUtc: ago(0), ...over,
 });
 

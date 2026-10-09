@@ -16,6 +16,11 @@ const SCOPE_KEYS: Record<string, "connect:scopeRead" | "connect:scopeWrite"> = {
   "farm:read": "connect:scopeRead",
   "daily-entries:write": "connect:scopeWrite",
 };
+// The server sorts scopes by name; consent lists reading first, and so does this.
+const rank = (scope: string) => {
+  const index = Object.keys(SCOPE_KEYS).indexOf(scope);
+  return index === -1 ? Infinity : index;
+};
 
 export function useConnectionFacts() {
   const { t } = useTranslation(["connectedApps", "connect"]);
@@ -24,7 +29,8 @@ export function useConnectionFacts() {
   const isIdle = (app: AppConnection) => idleDays(app) >= IDLE_DAYS;
   return {
     name: (app: AppConnection) => app.appName ?? t("connect:unnamedApp"),
-    can: (app: AppConnection) => app.scopes.map((scope) => SCOPE_KEYS[scope] ? t(SCOPE_KEYS[scope]) : scope).join(", "),
+    can: (app: AppConnection) => [...app.scopes].sort((a, b) => rank(a) - rank(b))
+      .map((scope) => SCOPE_KEYS[scope] ? t(SCOPE_KEYS[scope]) : scope).join(", "),
     connected: (app: AppConnection) => <FarmDate iso={farmDateOf(app.connectedAtUtc, timeZone)} />,
     lastUsed: (app: AppConnection) =>
       app.lastUsedAtUtc ? relativeTime(app.lastUsedAtUtc, timeZone) : t("connectedApps:notUsedYet"),
