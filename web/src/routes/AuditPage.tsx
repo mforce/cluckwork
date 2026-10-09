@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
 import {
-  Box, Checkbox, FormControlLabel, TextField, Tooltip, Typography,
+  Box, Button, Checkbox, FormControlLabel, TextField, Tooltip, Typography,
 } from "@mui/material";
+import { Plug } from "lucide-react";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
 import { FilterDateField } from "../components/FilterBar";
 import { usePagedList } from "../components/usePagedList";
@@ -201,6 +202,28 @@ export function AuditPage() {
   const fromFilter = isIsoCalendarDate(rawFrom) ? rawFrom : "";
   const toFilter = isIsoCalendarDate(rawTo) ? rawTo : "";
 
+  // #800 — the connected-app filters. A row's "Show only" pivot names one app, which
+  // implies the checkbox, so the box reads checked whenever either is in the URL.
+  const appClientIdFilter = searchParams.get("connectedAppClientId") ?? "";
+  const appsOnlyFilter = appClientIdFilter !== "" || searchParams.get("connectedAppsOnly") === "true";
+
+  // Unchecking also drops the one-app pivot; otherwise the box would stay checked.
+  const updateAppsOnlyFilter = useCallback((checked: boolean) => {
+    const next = new URLSearchParams(searchParams);
+    if (checked) next.set("connectedAppsOnly", "true");
+    else {
+      next.delete("connectedAppsOnly");
+      next.delete("connectedAppClientId");
+    }
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
+
+  const showOnlyApp = useCallback((clientId: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("connectedAppClientId", clientId);
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
+
   const updateActionFilter = useCallback((action: string) => {
     const next = new URLSearchParams(searchParams);
     if (action) next.set("action", action);
@@ -261,7 +284,7 @@ export function AuditPage() {
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
 
-  // #679 — the four filter controls in one write, not four. The PROTECTED
+  // #679 — every filter control in one write, not one per control. The PROTECTED
   // comment above says exactly why: separate writes in one tick lose all but
   // one, in either setSearchParams form. `entityId` is deliberately NOT
   // cleared — it is the scope this view was opened in (a per-row "Audit
@@ -274,6 +297,8 @@ export function AuditPage() {
       next.delete("action");
       next.delete("from");
       next.delete("to");
+      next.delete("connectedAppsOnly");
+      next.delete("connectedAppClientId");
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -298,7 +323,7 @@ export function AuditPage() {
   // view and is deliberately NOT here — it selects which of the two sentence
   // families applies, in the ternary below, rather than whether the view is
   // narrowed at all.
-  const isNarrowed = Boolean(entityTypeFilter || actionFilter || fromFilter || toFilter);
+  const isNarrowed = Boolean(entityTypeFilter || actionFilter || fromFilter || toFilter || appsOnlyFilter);
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
   // itself (codex review of #94) now lives in usePagedList, shared with every
@@ -316,6 +341,8 @@ export function AuditPage() {
         entityId,
         from: fromFilter || undefined,
         to: toFilter || undefined,
+        connectedAppsOnly: appsOnlyFilter || undefined,
+        connectedAppClientId: appClientIdFilter || undefined,
         limit,
         offset,
       }),
@@ -323,7 +350,7 @@ export function AuditPage() {
     // stale-window discipline below (isFetchStale, committedFetchPage, the
     // blanked table) keys on this identity: a filter missing from these deps
     // renders the previous window's rows under the new window's controls.
-    [actionFilter, entityTypeFilter, entityId, fromFilter, toFilter],
+    [actionFilter, entityTypeFilter, entityId, fromFilter, toFilter, appsOnlyFilter, appClientIdFilter],
   );
   const events = usePagedList({ fetchPage, pageSize: PAGE });
 
@@ -395,6 +422,11 @@ export function AuditPage() {
     : undefined;
 
   const previewEntityId = isScopedReloading ? undefined : events.rows?.[0]?.entityId;
+
+  // The pivoted app's name comes from a loaded row, never the URL, like scopedEntityType.
+  const pivotedAppRow = appClientIdFilter && !isScopedReloading
+    ? events.rows?.find((row) => row.connectedAppClientId === appClientIdFilter)
+    : undefined;
   const updateRecordPreview = useCallback((checked: boolean) => {
     const next = new URLSearchParams(searchParams);
     if (checked && previewEntityId) next.set("entityId", previewEntityId);
@@ -418,18 +450,31 @@ export function AuditPage() {
 
       <div className="audit-scope" data-testid="audit-scope">
         <small>{entityId ? t("scopeRetainedCaption") : t("utcTimestampsCaption")}</small>
-        <FormControlLabel
-          className="audit-scope-control"
-          label={t("previewRecordHistoryLabel")}
-          control={(
-            <Checkbox
-              size="small"
-              checked={entityId !== undefined}
-              disabled={entityId === undefined && previewEntityId === undefined}
-              onChange={(event) => updateRecordPreview(event.target.checked)}
-            />
-          )}
-        />
+        <span className="audit-scope-controls">
+          <FormControlLabel
+            className="audit-scope-control"
+            label={t("connectedAppsOnlyLabel")}
+            control={(
+              <Checkbox
+                size="small"
+                checked={appsOnlyFilter}
+                onChange={(event) => updateAppsOnlyFilter(event.target.checked)}
+              />
+            )}
+          />
+          <FormControlLabel
+            className="audit-scope-control"
+            label={t("previewRecordHistoryLabel")}
+            control={(
+              <Checkbox
+                size="small"
+                checked={entityId !== undefined}
+                disabled={entityId === undefined && previewEntityId === undefined}
+                onChange={(event) => updateRecordPreview(event.target.checked)}
+              />
+            )}
+          />
+        </span>
       </div>
 
       <Box className="audit-filters" data-testid="audit-filters">
@@ -469,6 +514,11 @@ export function AuditPage() {
           {tc("clearFiltersButton")}
         </button>
       )}
+      {pivotedAppRow && (
+        <p className="muted audit-app-pivot">
+          {t("connectedAppPivotCaption", { app: pivotedAppRow.connectedAppName ?? t("unnamedConnectedApp") })}
+        </p>
+      )}
 
       {events.error && <p className="error" role="alert">{events.error}</p>}
 
@@ -507,6 +557,9 @@ export function AuditPage() {
               const action = auditActionLabel(e.action);
               const summaryId = `audit-event-${e.id}`;
               const actorId = `audit-event-actor-${e.id}`;
+              const app = e.connectedAppClientId === null
+                ? null
+                : { clientId: e.connectedAppClientId, name: e.connectedAppName ?? t("unnamedConnectedApp") };
               return (
                 // The Tooltip trigger is the leaf span inside `<summary>`, not
                 // `<details>`: `<details>` already declares its own
@@ -516,6 +569,10 @@ export function AuditPage() {
                 // drop the JSON description instead of combining with it.
                 // `|| undefined` (not `??`) also omits the attribute for an
                 // empty string, not only for null.
+                //
+                // #800 — the actor is the summary's second line, so the
+                // article is named by the first line alone. The plug is
+                // decorative: the "via" text already says it.
                 <details
                   key={e.id}
                   className="audit-event"
@@ -523,18 +580,36 @@ export function AuditPage() {
                   aria-labelledby={summaryId}
                   aria-describedby={actorId}
                 >
-                  <summary id={summaryId}>
+                  <summary>
                     <Tooltip title={e.detailsJson || undefined} describeChild>
-                      <Box component="span">{timestamp} UTC · {action}</Box>
+                      <Box component="span" id={summaryId}>{timestamp} UTC · {action}</Box>
                     </Tooltip>
+                    <span className="audit-event-actor" id={actorId}>
+                      <strong>{e.actorEmail}</strong>
+                      {app && (
+                        <>
+                          {" "}
+                          <Plug className="audit-event-app-icon" size={14} aria-hidden="true" focusable="false" />
+                          {t("viaConnectedApp", { app: app.name })}
+                        </>
+                      )}
+                    </span>
                   </summary>
                   <div className="audit-event-body">
-                    <Typography id={actorId} component="p" variant="body2">{e.actorEmail}</Typography>
                     <Typography component="p" variant="body2">{action}</Typography>
                     <Typography component="p" variant="body2">
                       {entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}
                     </Typography>
                     <AuditDetails event={e} />
+                    {app && app.clientId !== appClientIdFilter && (
+                      <Box>
+                        <Button variant="outlined" size="small" onClick={() => showOnlyApp(app.clientId)}>
+                          {e.connectedAppName === null
+                            ? t("showOnlyThisAppButton")
+                            : t("showOnlyAppButton", { app: e.connectedAppName })}
+                        </Button>
+                      </Box>
+                    )}
                   </div>
                 </details>
               );

@@ -1964,6 +1964,12 @@ export const tl = {
     utcTimestampsCaption: "Mga UTC timestamp",
     scopeRetainedCaption: "Nananatili ang saklaw ng record kapag nililinis ang mga filter",
     previewRecordHistoryLabel: "I-preview ang kasaysayan ng isang record",
+    connectedAppsOnlyLabel: "Mga aksyon lang sa pamamagitan ng mga nakakonektang app",
+    viaConnectedApp: "sa pamamagitan ng {{app}}",
+    unnamedConnectedApp: "isang app na walang pangalan",
+    showOnlyAppButton: "Ipakita lang ang {{app}}",
+    showOnlyThisAppButton: "Ipakita lang ang app na ito",
+    connectedAppPivotCaption: "Mga aksyon lang sa pamamagitan ng {{app}} ang ipinapakita.",
     entityTypeFilterLabel: "Uri ng record",
     allEntityTypesOption: "Lahat ng uri",
     actionFilterLabel: "Aksyon",
@@ -2918,9 +2924,17 @@ export const tl = {
       + "Nililimitahan din nito ang mga pagpipilian sa \"Aksyon\" sa mga aksyon para sa uring iyon. "
       + "Nililimitahan ng Mula at Hanggang ang mga resulta sa piniling mga araw sa UTC.",
     auditClearingFilters:
-      "Ni-reset ng <strong>I-clear ang mga filter</strong> na katabi ng mga kontrol na iyon ang lahat ng apat "
+      "Ni-reset ng <strong>I-clear ang mga filter</strong> na katabi ng mga kontrol na iyon ang lahat ng iyon "
       + "nang sabay. Iniiwan nito ang record na pinanggalingan mo: kapag binuksan ang log mula sa link na "
       + "Audit history ng isang row, naka-scope ito sa record na iyon, at hindi filter ang scope na iyon.",
+    auditConnectedApps:
+      "Kapag gumagamit ang isang tao ng <strong>nakakonektang app</strong>, gaya ng AI assistant na inaprubahan "
+      + "niya, ang taong iyon pa rin ang nakapangalan sa event, at idinadagdag ng linya sa ilalim nito ang "
+      + "\"sa pamamagitan ng\" at ang pangalan ng app. Ang app ang pumili ng sarili nitong pangalan, kaya "
+      + "basahin ito bilang paglalarawan, hindi patunay kung sino ang gumawa ng app. Itinatago ng "
+      + "<strong>Mga aksyon lang sa pamamagitan ng mga nakakonektang app</strong> ang direktang ginawa ng mga "
+      + "tao. Buksan ang isang event at pindutin ang <strong>Ipakita lang ang</strong> kasunod ang pangalan ng "
+      + "app para makita lang ang mga aksyon ng app na iyon.",
     auditRecordHistory:
       "Ang Mga kawan, Grado ng itlog, Kasaysayan ng pang-araw-araw na entry, Benta at Gastos ay may "
       + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "
@@ -3510,6 +3524,12 @@ export const tl = {
     glossaryAdjustmentDiscardDef:
       "Mga pagtatama sa stock laban sa isang lote, kailangan ng dahilan. Discard = write-off (spoilage).",
 
+    glossaryConnectedAppTerm: "Nakakonektang app",
+    glossaryConnectedAppDef:
+      "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
+      + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
+      + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
+      + "nakakonektang app.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "

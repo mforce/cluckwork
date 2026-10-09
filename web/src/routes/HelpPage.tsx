@@ -809,6 +809,9 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="auditClearingFilters" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="auditConnectedApps" components={{ strong: <strong /> }} />
+        </li>
         <li>{t("auditRecordHistory")}</li>
         <li>{t("auditRecordHistoryLink")}</li>
         <li>{t("auditRecordHistorySubmit")}</li>

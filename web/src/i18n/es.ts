@@ -1891,6 +1891,12 @@ export const es = {
     utcTimestampsCaption: "Marcas de tiempo UTC",
     scopeRetainedCaption: "El alcance del registro se conserva al borrar los filtros",
     previewRecordHistoryLabel: "Vista previa del historial de un registro",
+    connectedAppsOnlyLabel: "Solo acciones mediante aplicaciones conectadas",
+    viaConnectedApp: "mediante {{app}}",
+    unnamedConnectedApp: "una aplicación sin nombre",
+    showOnlyAppButton: "Mostrar solo {{app}}",
+    showOnlyThisAppButton: "Mostrar solo esta aplicación",
+    connectedAppPivotCaption: "Se muestran solo las acciones mediante {{app}}.",
     entityTypeFilterLabel: "Tipo de registro",
     allEntityTypesOption: "Todos los tipos",
     actionFilterLabel: "Acción",
@@ -2806,9 +2812,16 @@ export const es = {
       + "elegido. También reduce las opciones de \"Acción\" a las acciones de ese tipo. Desde y Hasta "
       + "limitan los resultados a los días UTC seleccionados.",
     auditClearingFilters:
-      "<strong>Borrar filtros</strong>, junto a esos controles, restablece los cuatro a la vez. Deja el "
+      "<strong>Borrar filtros</strong>, junto a esos controles, los restablece todos a la vez. Deja el "
       + "registro en el que llegó: abrir el historial desde el enlace de una fila lo limita a ese registro, "
       + "y ese alcance no es uno de los filtros.",
+    auditConnectedApps:
+      "Cuando alguien trabaja mediante una <strong>aplicación conectada</strong>, como un asistente de IA "
+      + "que aprobó, el evento sigue nombrando a esa persona, y la línea de abajo añade \"mediante\" y el "
+      + "nombre de la aplicación. La aplicación eligió su propio nombre, así que léalo como una descripción, "
+      + "no como prueba de quién la creó. <strong>Solo acciones mediante aplicaciones conectadas</strong> "
+      + "oculta lo que las personas hicieron directamente. Abra un evento y pulse <strong>Mostrar solo</strong> "
+      + "seguido del nombre de la aplicación para ver solo las acciones de esa aplicación.",
     auditRecordHistory:
       "Lotes, Grados de huevo, Historial de registro diario, Ventas y Gastos tienen una columna Historial "
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
@@ -3381,6 +3394,12 @@ export const es = {
     glossaryAdjustmentDiscardDef:
       "Correcciones de existencias contra un lote, motivo requerido. Descarte = baja (deterioro).",
 
+    glossaryConnectedAppTerm: "Aplicación conectada",
+    glossaryConnectedAppDef:
+      "Una aplicación externa, como un asistente de IA, que una persona de la granja autorizó a actuar por "
+      + "ella. Solo puede hacer lo que esa persona puede hacer. El registro de auditoría nombra a la persona, "
+      + "añade la aplicación en la línea de abajo y puede mostrar solo las acciones mediante aplicaciones "
+      + "conectadas.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "
