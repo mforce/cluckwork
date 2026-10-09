@@ -9,6 +9,8 @@ export interface ConsentRequest {
   scopes: string[];
   alreadyAllowed: string[];
   alreadyApproved: boolean;
+  // Null when the user reaches every flock; else the flocks they are assigned to.
+  assignedFlocks: string[] | null;
 }
 
 export type AuthorizeAnswer = { redirectUri: string } | ConsentRequest;

@@ -93,6 +93,7 @@ public static class OAuthEndpoints
         HttpContext context,
         ICurrentUser currentUser,
         TenantContext tenant,
+        FlockScope flockScope,
         IAccessModule access,
         IOpenIddictApplicationManager applications,
         IOpenIddictAuthorizationManager authorizations,
@@ -155,7 +156,10 @@ public static class OAuthEndpoints
                 new Uri(ValidatedRedirectUri(context)).Host,
                 scopes,
                 [.. scopes.Where(allowed.Contains)],
-                AlreadyApproved: covering is not null));
+                AlreadyApproved: covering is not null,
+                AssignedFlocks: flockScope.IsUnrestricted ? null
+                    : [.. (await access.ListFlockAssignmentsAsync(currentUser.UserId, ct))
+                        .Select(assignment => assignment.FlockName).OfType<string>()]));
 
         var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);
         if (proof.IsFailure)
@@ -185,14 +189,16 @@ public static class OAuthEndpoints
 
     // What the consent screen shows. The name is the app's own choice (#797). When
     // AlreadyApproved, an earlier approval holds every scope and the SPA asks only for the
-    // password.
+    // password. AssignedFlocks is the user's flock scope as this request resolved it: null
+    // for every flock, else the names of the flocks they are assigned to.
     private sealed record ConsentRequest(
         string ClientId,
         string? ClientName,
         string RedirectHost,
         IReadOnlyList<string> Scopes,
         IReadOnlyList<string> AlreadyAllowed,
-        bool AlreadyApproved);
+        bool AlreadyApproved,
+        IReadOnlyList<string>? AssignedFlocks);
 
     // A client with one registered redirect URI may omit redirect_uri; OpenIddict then
     // validates that one and keeps it on the validation context, not on the request.

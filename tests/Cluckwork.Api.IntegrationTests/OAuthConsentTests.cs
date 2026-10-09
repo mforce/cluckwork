@@ -4,8 +4,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -37,7 +39,37 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         Assert.Equal([Read, Write], Strings(body, "scopes"));
         Assert.Empty(Strings(body, "alreadyAllowed"));
         Assert.False(body.GetProperty("alreadyApproved").GetBoolean(), "a first request skipped the permissions");
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("assignedFlocks").ValueKind);
         Assert.Equal(0, await CountAuthorizationsAsync(userId));
+    }
+
+    // Details describes the user's real reach: a Worker with assignments sees only those
+    // flocks; a Worker with none, like every other role, sees every flock (#388, #612).
+    [Fact]
+    public async Task Payload_NamesTheAssignedFlocks_OfAScopedWorker()
+    {
+        var (accountId, jwt) = await SeedWorkerAsync(assign: true);
+        var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read));
+
+        var flocks = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("assignedFlocks");
+        var name = await factory.WithTenantScopeAsync(accountId, db =>
+            db.Flocks.Select(flock => flock.Name).FirstAsync());
+        Assert.True(flocks.ValueKind == JsonValueKind.Array, "a flock-scoped worker was told every flock");
+        Assert.Equal([name], flocks.EnumerateArray().Select(flock => flock.GetString()!).ToArray());
+    }
+
+    [Fact]
+    public async Task Payload_SaysEveryFlock_ForAnUnassignedWorker()
+    {
+        var (_, jwt) = await SeedWorkerAsync(assign: false);
+        var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read));
+
+        Assert.Equal(JsonValueKind.Null,
+            (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("assignedFlocks").ValueKind);
     }
 
     [Fact]
@@ -326,6 +358,24 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         var query = OAuthServerTests.AuthorizeQuery(clientId, verifier);
         if (scopes.Length > 0) query["scope"] = string.Join(' ', scopes);
         return query;
+    }
+
+    private async Task<(Guid AccountId, string Jwt)> SeedWorkerAsync(bool assign)
+    {
+        var email = $"oauth-worker-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync($"oauth-owner-{Guid.NewGuid():N}@test.local");
+        await factory.SeedUserAsync(accountId, email, role: null);
+        if (assign)
+        {
+            var flockId = await factory.SeedFlockAsync(accountId, Guid.NewGuid());
+            await factory.WithTenantScopeAsync(accountId, async db =>
+            {
+                var userId = await db.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync();
+                db.UserRoleAssignments.Add(UserRoleAssignment.Create(Guid.NewGuid(), accountId, userId, null, null, flockId));
+                await db.SaveChangesAsync();
+            });
+        }
+        return (accountId, await factory.LoginForAccessTokenAsync(email));
     }
 
     private async Task<string> RegisterNamedClientAsync(string name)

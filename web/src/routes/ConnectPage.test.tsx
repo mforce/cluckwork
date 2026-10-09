@@ -24,7 +24,7 @@ vi.mock("../api/oauth", () => ({
 const SEARCH = "?client_id=c1&scope=farm%3Aread%20daily-entries%3Awrite";
 const REQUEST: ConsentRequest = {
   clientId: "c1", clientName: "Claude Desktop", redirectHost: "127.0.0.1",
-  scopes: ["farm:read", "daily-entries:write"], alreadyAllowed: [], alreadyApproved: false,
+  scopes: ["farm:read", "daily-entries:write"], alreadyAllowed: [], alreadyApproved: false, assignedFlocks: null,
 };
 const assign = vi.fn();
 const originalLocation = window.location;
@@ -135,11 +135,69 @@ describe("ConnectPage (#798, consent D)", () => {
 
     const details = screen.getByText("Details").closest("details")!;
     expect(details).toHaveTextContent("It acts as you, so it can never do more than you can.");
-    expect(details).toHaveTextContent("Your role is Worker, so it sees only the flocks assigned to you");
     expect(details).toHaveTextContent("Claude Desktop chose its own name.");
     expect(details).toHaveTextContent("Afterwards your browser goes back to 127.0.0.1, an address on this computer.");
     await act(async () => { fireEvent.click(within(details).getByRole("button", { name: "Not you? Sign out" })); });
     expect(logout).toHaveBeenCalled();
+  });
+
+  // Details states what this request would get: its scopes, within the user's role and
+  // flock scope, never what the role name alone suggests.
+  async function detailsFor(request: ConsentRequest, role: string | null) {
+    await show(request, role);
+    fireEvent.click(screen.getByText("Details"));
+    return screen.getByText("It acts as you, so it can never do more than you can.").parentElement!;
+  }
+
+  it("limits a flock-scoped Worker's app to the assigned flocks", async () => {
+    const details = await detailsFor({ ...REQUEST, assignedFlocks: ["House A", "House B"] }, null);
+
+    expect(details).toHaveTextContent(
+      "It can read farm data only for the flocks assigned to you: House A, House B. "
+      + "It can record daily entries only for the flocks assigned to you: House A, House B.");
+  });
+
+  it("tells a Worker with no assignments that the app reaches every flock", async () => {
+    const details = await detailsFor(REQUEST, null);
+
+    expect(details).toHaveTextContent(
+      "It can read farm data for every flock. It can record daily entries for any flock.");
+  });
+
+  it("promises no recording when the app asks only to read", async () => {
+    const details = await detailsFor({ ...REQUEST, scopes: ["farm:read"] }, "Manager");
+
+    expect(details).toHaveTextContent("It can read farm data for every flock.");
+    expect(details).not.toHaveTextContent("record");
+  });
+
+  it("lets a Manager's app read and record for every flock", async () => {
+    const details = await detailsFor(REQUEST, "Manager");
+
+    expect(details).toHaveTextContent(
+      "It can read farm data for every flock. It can record daily entries for any flock.");
+  });
+
+  it("starts focus at the request, not the password", async () => {
+    await show(REQUEST);
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    expect(screen.getByLabelText(/Your current password/)).not.toHaveFocus();
+  });
+
+  it("starts a reconnect at the request too", async () => {
+    await show({ ...REQUEST, alreadyAllowed: REQUEST.scopes, alreadyApproved: true });
+
+    expect(screen.getByRole("heading", { name: "Reconnect Claude Desktop?" })).toHaveFocus();
+  });
+
+  it("returns focus to the password after a wrong one", async () => {
+    vi.mocked(stepUp).mockRejectedValue(new ApiError(400, "Users.CurrentPasswordIncorrect", "Wrong"));
+    await show(REQUEST);
+
+    await allowWith("nope");
+
+    await waitFor(() => expect(screen.getByLabelText(/Your current password/)).toHaveFocus());
   });
 
   it("marks recording entries as not allowed for a role that cannot record them", async () => {

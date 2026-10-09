@@ -41,7 +41,7 @@ MUST_CHANGE=src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth'
-SUITE_MIN=102
+SUITE_MIN=104
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -62,6 +62,8 @@ revoked-approval-skips#kill#ENDPOINT#            subject, applicationId, Statuse
 cancel-ignored#kill#ENDPOINT#        if (consent == "deny")#        if (consent == "never")#OAuthConsentTests.Cancel_SendsAccessDeniedToTheClient_AndRecordsNothing#cancel did not send the user back
 expired-bearer-redirected#kill#ENDPOINT#                return Results.Unauthorized();#                return Results.Redirect("/connect");#OAuthConsentTests.ExpiredSession_IsUnauthorized_NotARedirect#Expected: Unauthorized
 preview-leaks-request#kill#ENDPOINT#                return Results.Json(new\n                {\n                    clientName = #                return Results.Json(new\n                {\n                    clientId = context.GetOpenIddictServerRequest()!.ClientId,\n                    clientName = #OAuthConsentTests.Preview_WithoutASession_NamesTheAppOnly#Collections differ
+scoped-worker-unrestricted#kill#ENDPOINT#AssignedFlocks: flockScope.IsUnrestricted ? null#AssignedFlocks: flockScope.IsResolved ? null#OAuthConsentTests.Payload_NamesTheAssignedFlocks_OfAScopedWorker#a flock-scoped worker was told every flock
+unassigned-worker-scoped#kill#ENDPOINT#AssignedFlocks: flockScope.IsUnrestricted ? null#AssignedFlocks: !flockScope.IsResolved ? null#OAuthConsentTests.Payload_SaysEveryFlock_ForAnUnassignedWorker#Expected: Null
 navigation-refused#kill#ENDPOINT#            return Results.Redirect("/connect" + context.Request.QueryString);#            return Results.Unauthorized();#OAuthServerTests.AuthorizationRequest_WithoutASignedInUser_GoesToTheConsentRoute#Unauthorized
 widest-default-scope#kill#ENDPOINT#asked : [OAuthScopes.ReadFarm];#asked : [.. OAuthScopes.All];#OAuthConsentTests.NoScope_AsksForReadOnly#Collections differ
 redirect-not-json#kill#SERVER#if (context.RedirectUri is null || !HasBearer(request))#if (context.RedirectUri is null || HasBearer(request))#OAuthConsentTests.Approval_ReturnsTheClientRedirect_AsJson#Expected: OK
