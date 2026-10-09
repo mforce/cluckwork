@@ -21,6 +21,7 @@ export function useConnectionFacts() {
   const { t } = useTranslation(["connectedApps", "connect"]);
   const timeZone = useFarm().farm?.timeZoneId;
   const idleDays = (app: AppConnection) => daysSince(app.lastUsedAtUtc ?? app.connectedAtUtc, timeZone);
+  const isIdle = (app: AppConnection) => idleDays(app) >= IDLE_DAYS;
   return {
     name: (app: AppConnection) => app.appName ?? t("connect:unnamedApp"),
     can: (app: AppConnection) => app.scopes.map((scope) => SCOPE_KEYS[scope] ? t(SCOPE_KEYS[scope]) : scope).join(", "),
@@ -28,8 +29,8 @@ export function useConnectionFacts() {
     lastUsed: (app: AppConnection) =>
       app.lastUsedAtUtc ? relativeTime(app.lastUsedAtUtc, timeZone) : t("connectedApps:notUsedYet"),
     idleDays,
-    isIdle: (app: AppConnection) => idleDays(app) >= IDLE_DAYS,
-    status: (app: AppConnection) => idleDays(app) >= IDLE_DAYS
+    isIdle,
+    status: (app: AppConnection) => isIdle(app)
       ? <span className="badge badge-warn">{t("connectedApps:idle", { days: idleDays(app) })}</span>
       : <span className="badge badge-ok">{t(app.lastUsedAtUtc ? "connectedApps:inUse" : "connectedApps:notUsedYet")}</span>,
   };
