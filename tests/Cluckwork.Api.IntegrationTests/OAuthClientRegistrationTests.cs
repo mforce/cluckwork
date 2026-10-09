@@ -243,6 +243,8 @@ public sealed class OAuthClientRegistrationTests(CluckworkWebApplicationFactory 
         using var host = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("RateLimiting:OAuthRegister:PermitLimit", "2");
+            // Clock-aligned window: a day keeps the requests inside one (see OAuthFailClosedTests.Host).
+            builder.UseSetting("RateLimiting:OAuthRegister:WindowSeconds", "86400");
             builder.UseSetting("RateLimiting:TrustedProxies:0", $"{proxy}/32");
             builder.ConfigureTestServices(services =>
             {

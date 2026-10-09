@@ -517,7 +517,12 @@ public sealed class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
         factory.WithWebHostBuilder(builder =>
         {
             foreach (var (policy, permitLimit) in limits)
+            {
                 builder.UseSetting($"RateLimiting:{policy}:PermitLimit", permitLimit.ToString());
+                // The window is clock-aligned, so two requests straddling a 60 s boundary
+                // both pass; a day makes that negligible (#840's MultiInstanceRateLimitTests).
+                builder.UseSetting($"RateLimiting:{policy}:WindowSeconds", "86400");
+            }
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter, Probe>();
