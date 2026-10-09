@@ -32,8 +32,7 @@ public static class AccountEndpoints
             .WithName("UpdateFarmSettings")
             .WithSummary("Replace the farm settings (base version required; mismatch is a 409). Currency is locked once anything has recorded an amount in it (§4.6).");
 
-        // #1146 — the Owner's connected-apps switch, on the Connected apps page rather
-        // than in the settings block. Same Version token, so either save can 409 the other.
+        // #1146 — the Owner's connected-apps switch, saved apart from the settings block.
         group.MapPut("/connected-apps", SetConnectedApps)
             .RequireAuthorization(AuthPolicies.OwnerOnly)
             .WithName("SetConnectedApps")
@@ -284,5 +283,4 @@ public sealed record UpdateFarmSettingsRequest(
     // Omitted or null clears the ceiling; zero is a different, legal setting.
     decimal? MaxDiscountPercent);
 
-// #1146 — Allow is nullable only so an omitted field is a 400, never a silent false.
 public sealed record SetConnectedAppsRequest(bool? Allow, int Version);
