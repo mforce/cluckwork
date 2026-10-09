@@ -33,7 +33,7 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
     private sealed record Created(Guid Id);
 
     private sealed record AuditRow(
-        Guid EntityId, string ActorEmail, string? ConnectedAppClientId, string? ConnectedAppName);
+        Guid Id, Guid EntityId, string ActorEmail, string? ConnectedAppClientId, string? ConnectedAppName);
 
     [Fact]
     public async Task OAuthToken_CarriesTheAppsRegisteredName()
@@ -125,6 +125,25 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
         Assert.Equal([second.Id, first.Id], await ListAsync(accountId, true, null));
         Assert.Equal([first.Id], await ListAsync(accountId, false, "client-a"));
         Assert.Equal([first.Id], await ListAsync(accountId, true, "client-a"));
+    }
+
+    // The repository tests above skip HTTP binding and the Insights contract.
+    [Fact]
+    public async Task AuditEndpoint_BindsBothConnectedAppFilters()
+    {
+        var (accountId, _, jwt) = await OwnerAsync();
+        var person = Event(accountId, app: null, minutes: 0);
+        var first = Event(accountId, new ConnectedApp("client-a", "App A"), minutes: 1);
+        var second = Event(accountId, new ConnectedApp("client-b", "App B"), minutes: 2);
+        await SeedEventsAsync(accountId, person, first, second);
+        using var client = factory.CreateAuthedClient(jwt);
+
+        async Task<Guid[]> IdsAsync(string query) =>
+            (await client.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?{query}"))!.Select(row => row.Id).ToArray();
+
+        Assert.Equal([second.Id, first.Id], await IdsAsync("connectedAppsOnly=true"));
+        Assert.Equal([first.Id], await IdsAsync("connectedAppClientId=client-a"));
+        Assert.Equal([second.Id, first.Id, person.Id], await IdsAsync("limit=50"));
     }
 
     [Fact]
