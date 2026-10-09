@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
@@ -218,10 +218,16 @@ export function AuditPage() {
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
 
-  const showOnlyApp = useCallback((clientId: string) => {
+  // The pressed button leaves with the reload, so focus moves to the checkbox, which
+  // stays; the status caption announces which app is now shown.
+  const appsOnlyRef = useRef<HTMLInputElement>(null);
+  const [knownApp, setKnownApp] = useState<{ clientId: string; name: string | null }>();
+  const showOnlyApp = useCallback((clientId: string, name: string | null) => {
+    setKnownApp({ clientId, name });
     const next = new URLSearchParams(searchParams);
     next.set("connectedAppClientId", clientId);
     setSearchParams(next);
+    appsOnlyRef.current?.focus();
   }, [searchParams, setSearchParams]);
 
   const updateActionFilter = useCallback((action: string) => {
@@ -423,10 +429,21 @@ export function AuditPage() {
 
   const previewEntityId = isScopedReloading ? undefined : events.rows?.[0]?.entityId;
 
-  // The pivoted app's name comes from a loaded row, never the URL, like scopedEntityType.
+  // The pivoted app's name comes from a loaded row or the pressed button, never the
+  // URL, like scopedEntityType. It is kept once known, so an empty result still names
+  // the app; a URL that arrives with no matching row gets a neutral label.
   const pivotedAppRow = appClientIdFilter && !isScopedReloading
     ? events.rows?.find((row) => row.connectedAppClientId === appClientIdFilter)
     : undefined;
+  useEffect(() => {
+    if (pivotedAppRow) {
+      setKnownApp({ clientId: appClientIdFilter, name: pivotedAppRow.connectedAppName });
+    }
+  }, [pivotedAppRow, appClientIdFilter]);
+  const pivotedApp = knownApp?.clientId === appClientIdFilter ? knownApp : undefined;
+  const pivotedAppLabel = !appClientIdFilter ? null
+    : !pivotedApp ? t("selectedConnectedApp")
+    : pivotedApp.name ?? t("unnamedConnectedApp");
   const updateRecordPreview = useCallback((checked: boolean) => {
     const next = new URLSearchParams(searchParams);
     if (checked && previewEntityId) next.set("entityId", previewEntityId);
@@ -457,6 +474,7 @@ export function AuditPage() {
             control={(
               <Checkbox
                 size="small"
+                slotProps={{ input: { ref: appsOnlyRef } }}
                 checked={appsOnlyFilter}
                 onChange={(event) => updateAppsOnlyFilter(event.target.checked)}
               />
@@ -514,11 +532,9 @@ export function AuditPage() {
           {tc("clearFiltersButton")}
         </button>
       )}
-      {pivotedAppRow && (
-        <p className="muted audit-app-pivot">
-          {t("connectedAppPivotCaption", { app: pivotedAppRow.connectedAppName ?? t("unnamedConnectedApp") })}
-        </p>
-      )}
+      <p className="muted audit-app-pivot" role="status">
+        {pivotedAppLabel !== null && t("connectedAppPivotCaption", { app: pivotedAppLabel })}
+      </p>
 
       {events.error && <p className="error" role="alert">{events.error}</p>}
 
@@ -603,7 +619,7 @@ export function AuditPage() {
                     <AuditDetails event={e} />
                     {app && app.clientId !== appClientIdFilter && (
                       <Box>
-                        <Button variant="outlined" size="small" onClick={() => showOnlyApp(app.clientId)}>
+                        <Button variant="outlined" size="small" onClick={() => showOnlyApp(app.clientId, e.connectedAppName)}>
                           {e.connectedAppName === null
                             ? t("showOnlyThisAppButton")
                             : t("showOnlyAppButton", { app: e.connectedAppName })}

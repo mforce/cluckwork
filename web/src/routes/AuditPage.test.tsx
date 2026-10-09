@@ -1737,6 +1737,57 @@ describe("AuditPage connected apps (#800)", () => {
     expect(screen.getByTestId("probe-search")).toHaveTextContent(/^$/);
   });
 
+  // Review round 2, F1 — the one-app filter stays visible when its result is empty.
+  it("keeps naming the pressed app when its filtered result is empty", async () => {
+    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [APP_EVENT]));
+    renderAuditWithProbe();
+    const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    expandPanel(row);
+    fireEvent.click(within(row).getByRole("button", { name: "Show only Claude Desktop" }));
+    await screen.findByText("Showing only actions through Claude Desktop.");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-20" } });
+    await screen.findByText("No audit events match these filters.");
+    expect(lastQuery()).toMatchObject({ connectedAppClientId: "client-claude", from: "2026-07-20" });
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("keeps the name a one-app URL loaded once its result goes empty", async () => {
+    mockListAuditEvents.mockImplementation(async (params) => (params?.from ? [] : [APP_EVENT]));
+    renderAudit("/audit?connectedAppClientId=client-claude");
+    await screen.findByText("Showing only actions through Claude Desktop.");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-20" } });
+    await screen.findByText("No audit events match these filters.");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through Claude Desktop.");
+  });
+
+  it("names neither the app nor its id when a one-app URL finds no rows", async () => {
+    renderAudit("/audit?connectedAppClientId=client-claude");
+
+    await screen.findByText("No audit events match these filters.");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing only actions through the selected app.");
+    expect(screen.queryByText(/client-claude/)).not.toBeInTheDocument();
+  });
+
+  // Review round 2, F2 — the pressed button leaves with the reload.
+  it("moves focus to the checkbox and announces the app after Show only", async () => {
+    mockListAuditEvents.mockResolvedValue([APP_EVENT]);
+    renderAudit();
+    const row = await screen.findByRole("article", { description: /via Claude Desktop/ });
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    expandPanel(row);
+    const button = within(row).getByRole("button", { name: "Show only Claude Desktop" });
+    button.focus();
+
+    fireEvent.click(button);
+    expect(document.activeElement).toBe(appsOnlyBox());
+    await waitFor(() => expect(status).toHaveTextContent("Showing only actions through Claude Desktop."));
+    expect(screen.getByRole("status")).toBe(status);
+  });
+
   it("restores a one-app view from the URL", async () => {
     mockListAuditEvents.mockResolvedValue([APP_EVENT]);
     renderAudit("/audit?connectedAppClientId=client-claude");

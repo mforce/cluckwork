@@ -1967,6 +1967,7 @@ export const tl = {
     connectedAppsOnlyLabel: "Mga aksyon lang sa pamamagitan ng mga nakakonektang app",
     viaConnectedApp: "sa pamamagitan ng {{app}}",
     unnamedConnectedApp: "isang app na walang pangalan",
+    selectedConnectedApp: "ang napiling app",
     showOnlyAppButton: "Ipakita lang ang {{app}}",
     showOnlyThisAppButton: "Ipakita lang ang app na ito",
     connectedAppPivotCaption: "Mga aksyon lang sa pamamagitan ng {{app}} ang ipinapakita.",

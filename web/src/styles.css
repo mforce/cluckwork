@@ -390,6 +390,11 @@ body {
   margin: -1rem 0 1rem;
 }
 
+/* The status region stays mounted so screen readers hear its first message. */
+.audit-app-pivot:empty {
+  margin: 0;
+}
+
 .audit-events {
   display: grid;
   gap: 0.75rem;

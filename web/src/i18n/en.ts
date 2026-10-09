@@ -2584,6 +2584,7 @@ export const en = {
     connectedAppsOnlyLabel: "Only actions through connected apps",
     viaConnectedApp: "via {{app}}",
     unnamedConnectedApp: "an unnamed app",
+    selectedConnectedApp: "the selected app",
     showOnlyAppButton: "Show only {{app}}",
     showOnlyThisAppButton: "Show only this app",
     connectedAppPivotCaption: "Showing only actions through {{app}}.",

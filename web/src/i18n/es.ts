@@ -1894,6 +1894,7 @@ export const es = {
     connectedAppsOnlyLabel: "Solo acciones mediante aplicaciones conectadas",
     viaConnectedApp: "mediante {{app}}",
     unnamedConnectedApp: "una aplicación sin nombre",
+    selectedConnectedApp: "la aplicación seleccionada",
     showOnlyAppButton: "Mostrar solo {{app}}",
     showOnlyThisAppButton: "Mostrar solo esta aplicación",
     connectedAppPivotCaption: "Se muestran solo las acciones mediante {{app}}.",
