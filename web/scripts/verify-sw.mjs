@@ -301,7 +301,14 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // was unbuildable: #864 had already moved both variants to `Georgia, serif`.
 // A slice that adds weight without retiring hand-built code names the reason
 // in its PR body, as a convention; it does not change this check's verdict.
-const PRECACHE_CEILING_KIB = 1900;
+//
+// 2026-10-09: raised once to 1,920 KiB for the OAuth milestone (#800, #798,
+// #799), approved by the maintainer. `main` was at 1,897.12 KiB, and #800's
+// connected-app audit UI measured 1,903.38 KiB with no retirable code left in
+// that slice. The remaining headroom is reserved for the consent screen (#798)
+// and the connected-apps screens (#799). The next raise needs a new
+// maintainer decision.
+const PRECACHE_CEILING_KIB = 1920;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
