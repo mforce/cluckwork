@@ -84,6 +84,8 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // RateLimitingTests derive a factory that tightens them back down.
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:Refresh:PermitLimit", "1000000");
+        builder.UseSetting("RateLimiting:OAuthToken:PermitLimit", "1000000");
+        builder.UseSetting("RateLimiting:OAuthAuthorize:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:OAuthRegister:PermitLimit", "1000000");
         builder.UseSetting("SharedState:Redis:KeyNamespace", _sharedStateKeyNamespace);
         // A small logo cap (#123) so the size-boundary tests allocate KB, not

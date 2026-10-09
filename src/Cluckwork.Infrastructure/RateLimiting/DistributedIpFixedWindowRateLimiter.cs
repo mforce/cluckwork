@@ -7,7 +7,7 @@ namespace Cluckwork.Infrastructure.RateLimiting;
 // #544 — the per-IP fixed-window RateLimiter that enforces its budget through the
 // SHARED IFixedWindowCounter (Redis-backed with in-process fallback, #543) instead of
 // ASP.NET's per-process partition state. One instance is created per partition key (the
-// derived client-IP key) by DistributedIpFixedWindowPolicy and cached by the framework's
+// derived client-IP key) by DistributedFixedWindowPolicy and cached by the framework's
 // PartitionedRateLimiter; the WINDOW itself is owned entirely by the counter (half-open
 // [floor(now/w), floor(now/w)+w), count resets on rollover), so this type keeps no window
 // state of its own — re-creating it after an idle eviction cannot reset a live budget,

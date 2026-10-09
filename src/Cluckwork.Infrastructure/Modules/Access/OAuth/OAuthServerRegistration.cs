@@ -1,8 +1,13 @@
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Server;
+using OpenIddict.Validation;
 using static OpenIddict.Abstractions.OpenIddictConstants;
+using static OpenIddict.Server.AspNetCore.OpenIddictServerAspNetCoreHandlers;
+using static OpenIddict.Validation.OpenIddictValidationHandlers.Protection;
 
 namespace Cluckwork.Infrastructure.Modules.Access.OAuth;
 
@@ -45,6 +50,18 @@ public static class OAuthServerRegistration
                     options.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain);
                 });
 
+                // OpenIddict also accepts a POSTed authorization request, which matches no
+                // endpoint and so no rate-limit policy or body cap. Refused before the body
+                // is read or a client looked up (#796).
+                server.AddEventHandler<OpenIddictServerEvents.ExtractAuthorizationRequestContext>(handler => handler
+                    .UseInlineHandler(static context =>
+                    {
+                        if (!HttpMethods.IsGet(context.Transaction.GetHttpRequest()!.Method))
+                            context.Reject(Errors.InvalidRequest, "Authorization requests must use GET.");
+                        return default;
+                    })
+                    .SetOrder(ExtractGetOrPostRequest<OpenIddictServerEvents.ExtractAuthorizationRequestContext>.Descriptor.Order - 1));
+
                 // #797 — OpenIddict has no registration endpoint; the API maps one beside
                 // authorize, and discovery points clients at it.
                 server.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(handler => handler
@@ -56,7 +73,11 @@ public static class OAuthServerRegistration
                     })
                     .SetOrder(OpenIddictServerHandlers.Discovery.AttachEndpoints.Descriptor.Order + 1));
 
-                var aspNetCore = server.UseAspNetCore().EnableAuthorizationEndpointPassthrough();
+                // Token passthrough maps the endpoint, which is what lets it opt into a
+                // rate-limit policy and a body cap; OpenIddict still validates first.
+                var aspNetCore = server.UseAspNetCore()
+                    .EnableAuthorizationEndpointPassthrough()
+                    .EnableTokenEndpointPassthrough();
                 if (allowPlainHttp)
                     aspNetCore.DisableTransportSecurityRequirement();
             })
@@ -64,10 +85,27 @@ public static class OAuthServerRegistration
             {
                 validation.UseLocalServer();
                 validation.UseDataProtection();
-                validation.UseAspNetCore();
+                // Disconnect revokes the authorization, so every request checks it (#796).
+                validation.EnableAuthorizationEntryValidation();
+                // OpenIddict skips that check for a token that names no authorization, so
+                // such a token is refused rather than trusted.
+                validation.AddEventHandler<OpenIddictValidationEvents.ValidateTokenContext>(handler => handler
+                    .UseInlineHandler(static context =>
+                    {
+                        if (string.IsNullOrEmpty(context.AuthorizationId))
+                            context.Reject(Errors.InvalidToken, "The token is not bound to an authorization.");
+                        return default;
+                    })
+                    .SetOrder(ValidateAuthorizationEntry.Descriptor.Order + 1_000));
+                // Header only: a token in a query string reaches request logs, and one in a
+                // form body would dodge the per-token rate-limit key (RateLimitKey.ForBearer).
+                validation.UseAspNetCore()
+                    .DisableAccessTokenExtractionFromBodyForm()
+                    .DisableAccessTokenExtractionFromQueryString();
             });
 
         services.AddScoped<IOAuthPurge, OAuthPurge>();
+
         return services;
     }
 }
