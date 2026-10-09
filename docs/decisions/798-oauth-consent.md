@@ -24,8 +24,8 @@ endpoint therefore answers three kinds of caller:
    redirect URI, PKCE and the scopes. The endpoint redirects to the SPA's `/connect`
    route with the same query. The path is relative, so it cannot leave this origin.
 2. **The SPA asking** (session bearer). The endpoint returns what the consent screen
-   shows, `{ clientId, clientName, redirectHost, scopes, alreadyAllowed }`, or, when it
-   issues a code or an error, `{ redirectUri }` for the SPA to navigate to. An inline
+   shows, `{ clientId, clientName, redirectHost, scopes, alreadyAllowed, alreadyApproved }`,
+   or, when it issues a code or an error, `{ redirectUri }` for the SPA to navigate to. An inline
    handler on `ApplyAuthorizationResponseContext` writes that JSON for any request that
    carries a bearer. Response modes other than `query` are removed, so the redirect is
    always one URL.
@@ -43,31 +43,38 @@ cancel stay on the GET authorize endpoint because #796 refuses any other method 
 - **Step-up.** `IAccessModule.ConsumeStepUpGrantAsync` validates and spends a #308 grant,
   exactly as the user-administration handlers do. `IStepUpGrantService` stays internal to
   Access (#857).
-- **Skip when nothing is new.** Approval creates a *permanent* authorization holding the
-  requested scopes. A later request whose scopes one valid permanent authorization of
-  this user for this app already holds is approved without the screen or the password,
-  and reuses that authorization. A request for more shows the screen again, with
-  `alreadyAllowed` naming what an earlier approval covered.
+- **Every code costs the password.** No path issues a code without a spent step-up
+  grant, a reconnect included. Approval creates a *permanent* authorization holding the
+  requested scopes. When one valid permanent authorization of this user for this app
+  already holds every requested scope, the payload says `alreadyApproved`, the SPA asks
+  for the password only, and the approval reuses that authorization. A request for more
+  sets `alreadyApproved` to false and shows the permissions again, with `alreadyAllowed`
+  naming what an earlier approval covered.
+- **The redirect host** comes from the redirect URI OpenIddict validated, not the
+  request's `redirect_uri`. A client with one registered URI may omit the parameter, and
+  OpenIddict then keeps the registered one on its validation context.
 - **Disconnect.** Revoking the authorization revokes every token it issued (#796), and a
   revoked authorization never skips consent. Two approvals racing can create two
   authorizations, so #799's Disconnect must revoke every valid authorization of the user
   for that app, not one.
 
-## Accepted risk: a stolen session bearer and an approved app
+## A reconnect skips the permissions, never the password
 
-No incident. The skip has a cost. Someone holding only a stolen session access token (the
-#308 threat) can ask the authorize endpoint, as the SPA does, for an app the user already
-approved, with their own PKCE challenge. Nothing new is asked, so no password is needed,
-and the JSON response hands them the code. They redeem it for an access token that lives
-until revoked, which outlives the 15-minute session token. #308 exists to stop exactly
-this kind of escalation.
+#788 decided to skip re-approval when an app asks for nothing new. The first version of
+this slice skipped the password too, and review found what that cost. Someone holding
+only a stolen session access token (the #308 threat) could ask the authorize endpoint, as
+the SPA does, for an app the user had approved, with their own PKCE challenge. The JSON
+response handed them a code, which redeemed for an access token that lives until revoked,
+far beyond the 15-minute session token. #308 exists to stop that kind of escalation.
 
-What bounds it: the token carries only scopes the user approved for that app, never more
-than the user's role, and the credential epoch revokes it on a password change, a role
-change, a disable or a suspension (#364, #796). Closing it means asking for the password
-on every connection, which #788 rejected because it trains people to click through.
-**The maintainer has not yet confirmed this trade.** Requiring step-up on every
-connection is a one-branch change in `OAuthEndpoints.Authorize`.
+The maintainer decided on 2026-10-09: a reconnect skips the permission explanation but
+still asks for the password. App tokens never expire, so a person reconnects an app
+rarely, and the password costs little each time. What #788 wanted to avoid was people
+clicking through the same permission list; the list is still skipped.
+
+Rejected: validating the refresh cookie as an independent browser proof. It keeps a
+reconnect silent, but needs a new proof endpoint under the cookie's path and its own
+replay and substitution tests, and it still falls to full same-origin script execution.
 
 ## Production
 
@@ -106,9 +113,11 @@ before.
 ## How it is enforced
 
 - `OAuthConsentTests` drives each rule: the consent payload and no row before approval,
-  a refused and a replayed grant, the JSON redirect with `state` and `iss`, the skip,
-  a wider request, another user's approval, a revoked approval, cancel, the expired
-  bearer, the read-only default, an unknown scope, and discovery from another host.
+  a refused and a replayed grant, the JSON redirect with `state` and `iss`, a reconnect
+  that gets no code from the bearer alone and spends its grant, a wider request, another
+  user's approval, a revoked approval, cancel, a signed session expired past the clock
+  skew, a malformed bearer, an omitted `redirect_uri`, the read-only default, an unknown
+  scope, and discovery from another host.
 - `OAuthServerTests.AuthorizationRequest_WithoutASignedInUser_GoesToTheConsentRoute`
   pins the navigation hand-off.
 - `OAuthServerProductionTests` runs the whole flow in a Production host and refuses

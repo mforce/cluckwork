@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using OpenIddict.Abstractions;
+using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -131,21 +132,22 @@ public static class OAuthEndpoints
             if (covering is null && scopes.All(granted.Contains)) covering = authorization;
         }
 
-        if (covering is null)
-        {
-            if (stepUpToken is null)
-                return Results.Json(new ConsentRequest(
-                    request.ClientId!,
-                    await applications.GetDisplayNameAsync(application, ct),
-                    new Uri(request.RedirectUri!).Host,
-                    scopes,
-                    [.. scopes.Where(allowed.Contains)]));
+        // Every code costs a spent step-up grant, a reconnect included: the code becomes a
+        // token that never expires, so a session bearer alone must never mint one. A
+        // reconnect only skips the permissions, because the user already approved them.
+        if (stepUpToken is null)
+            return Results.Json(new ConsentRequest(
+                request.ClientId!,
+                await applications.GetDisplayNameAsync(application, ct),
+                new Uri(ValidatedRedirectUri(context)).Host,
+                scopes,
+                [.. scopes.Where(allowed.Contains)],
+                AlreadyApproved: covering is not null));
 
-            var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);
-            if (proof.IsFailure)
-                return Results.Problem(proof.Error.Description,
-                    statusCode: StatusCodes.Status403Forbidden, title: proof.Error.Code);
-        }
+        var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);
+        if (proof.IsFailure)
+            return Results.Problem(proof.Error.Description,
+                statusCode: StatusCodes.Status403Forbidden, title: proof.Error.Code);
 
         var identity = new ClaimsIdentity(
             context.User.Claims.Where(claim => SessionClaimTypes.Contains(claim.Type)),
@@ -165,13 +167,24 @@ public static class OAuthEndpoints
             authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    // What the consent screen shows. The name is the app's own choice (#797).
+    // What the consent screen shows. The name is the app's own choice (#797). When
+    // AlreadyApproved, an earlier approval holds every scope and the SPA asks only for the
+    // password.
     private sealed record ConsentRequest(
         string ClientId,
         string? ClientName,
         string RedirectHost,
         IReadOnlyList<string> Scopes,
-        IReadOnlyList<string> AlreadyAllowed);
+        IReadOnlyList<string> AlreadyAllowed,
+        bool AlreadyApproved);
+
+    // A client with one registered redirect URI may omit redirect_uri; OpenIddict then
+    // validates that one and keeps it on the validation context, not on the request.
+    private static string ValidatedRedirectUri(HttpContext context) =>
+        context.Features.Get<OpenIddictServerAspNetCoreFeature>()!.Transaction!
+            .GetProperty<OpenIddictServerEvents.ValidateAuthorizationRequestContext>(
+                typeof(OpenIddictServerEvents.ValidateAuthorizationRequestContext).FullName!)!
+            .RedirectUri!;
 
     // OpenIddict has validated the client, the code and its authorization before this
     // runs; the code's principal becomes the access token's.

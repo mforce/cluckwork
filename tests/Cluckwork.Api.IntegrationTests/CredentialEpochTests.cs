@@ -389,8 +389,10 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         factory.WithTenantScopeAsync(accountId, async db =>
             await db.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync());
 
-    internal static string CreateAccessToken(Guid userId, Guid accountId, string? credentialEpoch)
+    internal static string CreateAccessToken(
+        Guid userId, Guid accountId, string? credentialEpoch, DateTime? expiresUtc = null)
     {
+        var expires = expiresUtc ?? DateTime.UtcNow.AddMinutes(5);
         using var rsa = RSA.Create();
         rsa.ImportFromPem(TestJwtKeys.PrivateKeyPem.Replace("\\n", "\n", StringComparison.Ordinal));
         var claims = new List<Claim>
@@ -408,7 +410,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         };
         var token = new JwtSecurityToken(
             "cluckwork-test", "cluckwork-api-test", claims,
-            DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(5),
+            expires.AddMinutes(-6), expires,
             credentials);
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

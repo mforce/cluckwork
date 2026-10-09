@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -35,6 +36,7 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         Assert.Equal("client.example", body.GetProperty("redirectHost").GetString());
         Assert.Equal([Read, Write], Strings(body, "scopes"));
         Assert.Empty(Strings(body, "alreadyAllowed"));
+        Assert.False(body.GetProperty("alreadyApproved").GetBoolean(), "a first request skipped the permissions");
         Assert.Equal(0, await CountAuthorizationsAsync(userId));
     }
 
@@ -88,18 +90,39 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
     }
 
+    // #798 — the maintainer's decision: a reconnect skips the permissions, never the
+    // password. The code becomes a token that never expires, so a session bearer alone
+    // must not mint one, even for an app the user already approved.
     [Fact]
-    public async Task NothingNew_SkipsConsent()
+    public async Task ApprovedApp_AsksOnlyForThePassword()
     {
         var (userId, jwt) = await new OAuthServerTests(factory).SeedUserAsync();
         var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
         await OAuthServerTests.ApproveAsync(factory, jwt, Query(clientId, Read, Write));
 
-        using var narrower = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read));
+        using var bearerOnly = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read));
+        var body = await bearerOnly.Content.ReadFromJsonAsync<JsonElement>();
+        var location = await OAuthServerTests.ApproveAsync(factory, jwt, Query(clientId, Read));
 
-        var location = await RedirectFromAsync(narrower, "nothing new was asked, yet consent was asked again");
-        Assert.False(string.IsNullOrEmpty(QueryHelpers.ParseQuery(location.Query)["code"]), "the skipped consent issued no code");
+        Assert.False(body.TryGetProperty("redirectUri", out _), "a session bearer alone minted a code for an approved app");
+        Assert.True(body.GetProperty("alreadyApproved").GetBoolean(), "an approved app was shown its permissions again");
+        Assert.False(string.IsNullOrEmpty(QueryHelpers.ParseQuery(location.Query)["code"]), "the reconnect issued no code");
         Assert.Equal(1, await CountAuthorizationsAsync(userId));
+    }
+
+    [Fact]
+    public async Task Reconnect_SpendsTheGrant()
+    {
+        var (_, jwt) = await new OAuthServerTests(factory).SeedUserAsync();
+        var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
+        await OAuthServerTests.ApproveAsync(factory, jwt, Query(clientId, Read));
+        var grant = await OAuthServerTests.StepUpAsync(factory, jwt);
+
+        using var reconnected = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read), stepUp: grant);
+        using var replayed = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read), stepUp: grant);
+
+        Assert.Equal(HttpStatusCode.OK, reconnected.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, replayed.StatusCode);
     }
 
     [Fact]
@@ -112,7 +135,7 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         using var wider = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read, Write));
 
         var body = await wider.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.False(body.TryGetProperty("redirectUri", out _), "a wider request skipped consent");
+        Assert.False(body.GetProperty("alreadyApproved").GetBoolean(), "a wider request skipped the permissions");
         Assert.Equal([Read, Write], Strings(body, "scopes"));
         Assert.Equal([Read], Strings(body, "alreadyAllowed"));
     }
@@ -128,8 +151,8 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
 
         using var response = await OAuthServerTests.SendAuthorizeAsync(factory, other, Query(clientId, Read));
 
-        Assert.False((await response.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("redirectUri", out _),
-            "another user's approval skipped consent");
+        Assert.False((await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("alreadyApproved").GetBoolean(),
+            "another user's approval skipped the permissions");
     }
 
     [Fact]
@@ -148,7 +171,7 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         using var response = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, Query(clientId, Read));
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.False(body.TryGetProperty("redirectUri", out _), "a revoked approval skipped consent");
+        Assert.False(body.GetProperty("alreadyApproved").GetBoolean(), "a revoked approval skipped the permissions");
         Assert.Empty(Strings(body, "alreadyAllowed"));
     }
 
@@ -169,15 +192,50 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
     }
 
     // The SPA refreshes on a 401 and asks again; a redirect to /connect would hand fetch
-    // the SPA's HTML instead.
+    // the SPA's HTML instead. The token is the user's real session, signed, and expired
+    // past the 30-second clock skew.
     [Fact]
     public async Task ExpiredSession_IsUnauthorized_NotARedirect()
     {
+        var (userId, jwt) = await new OAuthServerTests(factory).SeedUserAsync();
+        var session = new JwtSecurityTokenHandler().ReadJwtToken(jwt);
+        var expired = CredentialEpochTests.CreateAccessToken(
+            userId,
+            Guid.Parse(session.Claims.First(claim => claim.Type == "account_id").Value),
+            session.Claims.First(claim => claim.Type == "credential_epoch").Value,
+            expiresUtc: DateTime.UtcNow.AddMinutes(-2));
         var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
 
-        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, "expired.session.token", Query(clientId, Read));
+        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, expired, Query(clientId, Read));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MalformedBearer_IsUnauthorized_NotARedirect()
+    {
+        var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, "not.a.session", Query(clientId, Read));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // A client with one registered redirect URI may omit redirect_uri (OAuth 2.1 §2.3.2);
+    // OpenIddict then uses the registered one.
+    [Fact]
+    public async Task OmittedRedirectUri_UsesTheRegisteredOne()
+    {
+        var (_, jwt) = await new OAuthServerTests(factory).SeedUserAsync();
+        var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
+        var query = Query(clientId, Read);
+        query.Remove("redirect_uri");
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, query);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("client.example",
+            (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("redirectHost").GetString());
     }
 
     [Fact]
