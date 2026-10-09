@@ -224,26 +224,27 @@ test.describe("Owner", () => {
     expect(await panels.count(), "the audit log is empty — the fixture wrote no auditable events").toBeGreaterThan(0);
     await expect(page.getByText(tEn("audit:emptyMessage"))).toBeHidden();
 
+    // #800 — the summary's first line names the event and its second line the actor.
     const firstPanel = panels.first();
     const firstSummary = firstPanel.locator("summary");
-    const firstSummaryText = await firstSummary.innerText();
     await expect(firstSummary).toBeVisible();
-    await expect(firstPanel).toHaveAccessibleName(firstSummaryText);
-    const summaryId = await firstSummary.getAttribute("id");
-    if (!summaryId) throw new Error("the first Audit summary has no id");
-    await expect(firstPanel).toHaveAttribute("aria-labelledby", summaryId);
+    const summaryId = await firstPanel.getAttribute("aria-labelledby");
+    if (!summaryId) throw new Error("the first Audit panel names no summary line");
+    const summaryLine = firstSummary.locator(`#${summaryId}`);
+    await expect(firstPanel).toHaveAccessibleName(await summaryLine.innerText());
     const actorId = await firstPanel.getAttribute("aria-describedby");
     if (!actorId) throw new Error("the first Audit panel has no actor description");
     const actor = page.locator(`#${actorId}`);
     const actorText = await actor.textContent();
     if (!actorText) throw new Error("the first Audit panel has no actor text");
     await expect(firstPanel).toHaveAccessibleDescription(actorText);
+    await expect(firstSummary.locator(`#${actorId}`)).toBeVisible();
     await firstSummary.click();
     await expect(firstPanel).toHaveAttribute("open", "");
     await expect(actor).toBeVisible();
 
-    const filter = page.getByLabel(tEn("audit:actionFilterLabel"));
-    const before = (await panels.locator("summary").allTextContents())
+    const filter = page.getByLabel(tEn("audit:actionFilterLabel"), { exact: true });
+    const before = (await panels.locator("summary > span:first-child").allTextContents())
       .map((summary) => summary.split(" UTC · ")[1] ?? "");
     const counts = new Map<string, number>();
     for (const action of before) counts.set(action, (counts.get(action) ?? 0) + 1);
@@ -262,7 +263,7 @@ test.describe("Owner", () => {
     await expect
       .poll(
         async () => {
-          const actions = (await panels.locator("summary").allTextContents())
+          const actions = (await panels.locator("summary > span:first-child").allTextContents())
             .map((summary) => summary.split(" UTC · ")[1] ?? "");
           if (actions.length === 0) return "still-loading";
           return actions.every((action) => action === chosenLabel) ? "settled" : "mixed";
