@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #675; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #670 fix increment 2: the decision record names the two residuals it was silent on, and one tsv rationale describes a read
 
 You are the same implementer, in the same worktree (`/home/mforce/.herdr/worktrees/cluckwork/fix-670-user-roles-account-id`, branch `fix/670-user-roles-account-id`, PR #675 open at `6586d19b681aa35bd385363b44c0cb63fda84988`). Same rules as `01-implementer-runbook.md`; this file is committed beside it as `03-fix-increment-2.md`. Docs and one data-file rationale only — no code, no tests. Execute top to bottom: edit, build, the one narrowed test run, commit, push.

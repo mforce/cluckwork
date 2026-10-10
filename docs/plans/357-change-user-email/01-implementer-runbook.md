@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #605; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #357: let Owners change a user's login email
 
 You are the implementation owner in `/home/mforce/dev/cluckwork`. Execute

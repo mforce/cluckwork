@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Design merged in #785; issue closed. Being built under epic #789 (open): #788 shipped, #805 merged in #1181, #806 in progress (draft #1195). Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Arena synthesis note — #770 MCP server design
 
 ## Base: candidate 2 (fable)

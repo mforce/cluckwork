@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: #587 shipped in #598; #585 closed as not planned, its stable field identifiers shipped under #587. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #587 remembered-farm removal Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Design doc merged in #862; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #822 design doc: arena synthesis record
 
 **Artifact:** `docs/designs/822-mui-revamp.md`. **Base commit:** `b0638e1` (`feat/674-mui`, PR #860).

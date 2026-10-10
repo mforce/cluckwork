@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #756; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #721 — Require a discount reason when confirming a below-list order
 
 Epic #719, slice 5. Cut from `origin/main` at `ea84801`, after #720 (`cffed5e`),

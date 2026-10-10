@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #609; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Implementation plan — #606 step-up for durable flock scope
 
 > **Status:** adversarially reviewed; awaiting owner implementation approval.

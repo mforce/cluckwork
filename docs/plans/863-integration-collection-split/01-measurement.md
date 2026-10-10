@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #1000, #1002 and #1003; the collection split was measured and reverted in #1004; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #863: measure the integration collection and repair its false pass
 
 **Mode:** measurement, followed by test repair. **Pre-repair base commit:** `ce4a4ab6845c987dbeafe9152fee55a122400d1a` (`origin/main`, checked against the worktree HEAD before either run). **Date:** 2026-09-30. The post-repair local run used the same backend source after an unrelated web test change on main; the PR branch was then rebased over an unrelated web dependency update.
