@@ -14,9 +14,12 @@ matters more than count: prefer "walk everything, exclude deliberately".
 | 3b | **`McpCallContext_ChecksIsResolved_NotIsUnrestricted`** | the *correct property* is read | change the clause to `FlockScope.IsUnrestricted`. **This is the plausible WRONG fix** — `IsUnrestricted` defaults to `true`, so a guard written against it passes while the hole stays open. Graft from candidate 1 (INV-MCP-2c). |
 | 4 | `McpCallContext_Throws_WhenActorIsSystemActor` | an MCP call is never a system actor | delete the `UserId != Guid.Empty` clause; `ResolveSystemActor` sets `IsResolved = true` with an empty id and zero roles, which resolves to Worker, which with zero assignment rows is `FlockScopeGuard`'s account-wide case |
 | 5 | `McpCallContext_Throws_WhenTenantIsNotTheRequestScopes` | the injected scope really is the HTTP request's | make the comparison value-based instead of `ReferenceEquals`. This is the only guard that detects a later `SessionMode` flip. |
+| 5b | `McpCallContext_Throws_WhenNoConnectedApp` | a tool call keeps its app attribution | delete the `CurrentUserContext.ConnectedApp` clause. A session JWT carries no `client_id`; `AcceptOAuthTokens` refuses it at the route, so this is the second line. (Added 2026-10-10, #805.) |
 | 6 | `EveryToolTakes_McpCallContext` (assembly walk) | no tool can run without the parse | add a `[McpServerToolType]` whose constructor omits it. Walks every type in the assembly — not a list. |
 | 7 | `NoToolInjects_AmbientIdentityOrServiceLocator` (assembly walk) | no tool can bypass the parse | inject `TenantContext` / `CurrentUserContext` / `FlockScope` / `AppDbContext` / `IServiceProvider` / `IServiceScopeFactory` / `HttpContext` / `IHttpContextAccessor` into any tool constructor or method |
 | 7b | `NoToolReachesASecondaryScope` (dependency walk over a CLOSED registration model + causal tests) | a tool's data access happens in the request scope | **two mutations, and the second is the one that matters.** (a) inject a helper taking `IServiceScopeFactory` directly — caught by a constructor walk. (b) register that helper as `sp => new Helper(() => sp.CreateScope())` — **the constructor exposes only a delegate, so a constructor walk sees nothing**, and a static service locator adds no edge at all. The walk must therefore resolve interfaces through actual service *registrations*, reject opaque factory/delegate registrations in a tool's transitive graph unless explicitly reviewed, and define where traversal stops. **This guard bounds the hazard; it does not eliminate it** — see the honesty note below. Feasibility was checked before specifying it and the walk IS implementable — the factory/delegate-shaped registrations in `src/Cluckwork.Api` and `src/Cluckwork.Infrastructure` number in the low tens, not the hundreds, so a reviewed-exemption list is tractable. **No count is stated here on purpose**: two independent counts of it disagreed (9 vs 10) depending on the lambda parameter name matched, which is precisely how a bare count in this repo has gone stale before. Walk `ServiceDescriptor`s from the built collection rather than grepping, and stop at framework boundaries. (#770 adversarial review rounds 1 and 2.) |
+
+#805 implements rows 1 to 7b in `tests/Cluckwork.Api.IntegrationTests/Mcp/`, under different test names. Rows 1 to 5b are `McpCallContextTests`; row 3b is its pair of resolved scopes, restricted and unrestricted, that must both be accepted. Rows 6 and 7 are `McpToolSurfaceTests`. Row 7b is `McpSecondaryScopeTests`, plus the walk in `McpToolSurfaceTests` that keeps scope openers out of every declaration under `Cluckwork.Api.Mcp`. Until #806 references the SDK, a tool is recognised by its attribute's name, as `AdapterTierScanner` does.
 
 ## Transport and blast radius
 
@@ -74,6 +77,27 @@ claim the fail-open branch is *unreachable* from MCP — only that the known rou
 and the residual ones are named. #787 (flipping that branch fail-closed) backstops the **write** half
 of the residue, which is why slice 6 is blocked on it — but a secondary-scope **read** never calls
 `FlockScopeGuard` at all, so #787 does not cover it. That read residue is recorded as open risk.
+
+#805's walk has these further limits, recorded here and not fixed:
+
+- A pre-built instance registration (`AddSingleton(instance)`) ends the walk. Whatever built that
+  instance is not in the registration graph.
+- A `ReviewedFactory` row approves a service type and the type that registers it. If the delegate's
+  body changes later, the row still approves it. A second factory for the same service in another
+  type, and a row the walk no longer reaches, both fail.
+- `McpToolSurface` finds tool methods with `BindingFlags.DeclaredOnly`. A tool method inherited from
+  a base class is not walked. Whether the SDK serves inherited attributed methods is unproven until
+  #806 picks the SDK version.
+- A `ReviewedRequestReader` row is keyed by its consumer only. A changed body, an added reader
+  parameter, or a member returning a provider on a reviewed reader is not detected, the same kind
+  of drift as a `ReviewedFactory` row.
+- Inside a reviewed reader, `HttpContext.Features.Get<IServiceProvidersFeature>().RequestServices`
+  is as invisible to the walk as direct `RequestServices` access.
+- Keyed services are not modelled. The walk reduces a parameter to its type and skips keyed
+  descriptors, so a `[FromKeyedServices]` dependency is checked against the unkeyed registration.
+  None exist in `src/` today.
+- When an exact and an open-generic registration for one service coexist, the walk takes the last
+  descriptor, while the container prefers the exact closed one.
 
 Saying this here is the point: a guard described as proving more than it proves is worse than no
 guard, because it reads as safety. Round 1 found three such rows, round 2 found two more in the

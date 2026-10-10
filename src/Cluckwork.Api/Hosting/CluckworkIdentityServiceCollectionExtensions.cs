@@ -9,6 +9,7 @@ using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using System.Security.Cryptography;
 using Cluckwork.Api.Configuration;
+using Cluckwork.Api.Mcp;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Api.Security;
@@ -39,6 +40,9 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<CurrentUserContext>();
         services.AddScoped<ICurrentUser>(sp =>
             sp.GetRequiredService<CurrentUserContext>());
+        // #805 — a plain type registration, never a factory, so the secondary-scope
+        // walk sees its dependencies.
+        services.AddScoped<McpCallContext>();
 
         // #273 — IdentityProvider resolves the caller's IP for the security-event
         // log lines (login failed, lockout, refresh replay/revocation-failed) via
