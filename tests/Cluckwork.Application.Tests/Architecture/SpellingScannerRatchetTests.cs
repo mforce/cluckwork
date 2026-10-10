@@ -83,6 +83,13 @@ public sealed class SpellingScannerRatchetTests
             ("P", "CompilationParameter.cs", header + "class CompilationParameter { object M(CSharpCompilation existing, string s) => " +
                 "CSharpSyntaxTree.ParseText(s, (CSharpParseOptions)existing.SyntaxTrees.First().Options); }"),
             ("P", "Helper.cs", header + "class Helper { object M(Microsoft.CodeAnalysis.Compilation c) => c.GetSemanticModel(CSharpSyntaxTree.ParseText(\"\")); }"),
+            ("P", "Factory.cs", header + "static class Factory { internal static Microsoft.CodeAnalysis.SemanticModel For(Microsoft.CodeAnalysis.SyntaxTree t) => " +
+                "CSharpCompilation.Create(\"p\", [t]).GetSemanticModel(t); " +
+                "internal static Microsoft.CodeAnalysis.SemanticModel BindReview(this Microsoft.CodeAnalysis.SyntaxTree t) => For(t); }"),
+            ("P", "VarBinding.cs", header + "class VarBinding { object M(string s) { var tree = CSharpSyntaxTree.ParseText(s); var model = Factory.For(tree); " +
+                "return tree.GetRoot().DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax>().Select(n => model.GetSymbolInfo(n).Symbol).ToArray(); } }"),
+            ("P", "ExtensionBinding.cs", header + "class ExtensionBinding { object? M(string s) { var tree = CSharpSyntaxTree.ParseText(s); " +
+                "var model = tree.BindReview(); return model.GetDeclaredSymbol(tree.GetRoot()); } }"),
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
             ("P", "HelperOwner.cs", header + "static class HelperOwner { internal static Microsoft.CodeAnalysis.SyntaxTree Tree(string s) => CSharpSyntaxTree.ParseText(s); " +
                 "internal static Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax Root(string s) => SyntaxFactory.ParseCompilationUnit(s); " +
@@ -189,19 +196,24 @@ public sealed class SpellingScannerRatchetTests
     private static bool DerivesFrom(ITypeSymbol? type, params string[] bases)
     {
         for (; type is not null; type = type.BaseType)
-            if (bases.Contains(type.ToDisplayString()))
+            if (bases.Contains($"{type.ContainingNamespace}.{type.Name}"))
                 return true;
         return false;
     }
 
-    // A call, not a mention: creating a compilation, asking it for a model, or querying the model.
-    private static bool BindsSymbols(IMethodSymbol method) =>
-        method.ContainingType.ToDisplayString() switch
+    // A call, not a mention: creating a compilation, asking it for a model, or querying the model, including through
+    // an extension method such as GetSymbolInfo or GetDeclaredSymbol whose receiver is the model.
+    private static bool BindsSymbols(IMethodSymbol method)
+    {
+        var declared = method.ReducedFrom ?? method;
+        return method.ContainingType.ToDisplayString() switch
         {
             "Microsoft.CodeAnalysis.CSharp.CSharpCompilation" => method.Name == "Create",
             "Microsoft.CodeAnalysis.Compilation" => method.Name == "GetSemanticModel",
-            _ => DerivesFrom(method.ContainingType, "Microsoft.CodeAnalysis.SemanticModel"),
+            _ => DerivesFrom(method.ContainingType, "Microsoft.CodeAnalysis.SemanticModel")
+                || declared.IsExtensionMethod && DerivesFrom(declared.Parameters[0].Type, "Microsoft.CodeAnalysis.SemanticModel"),
         };
+    }
 
     private static INamedTypeSymbol? OutermostType(SemanticModel model, SyntaxNode node)
     {
