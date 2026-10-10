@@ -9,6 +9,7 @@ using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using System.Security.Cryptography;
 using Cluckwork.Api.Configuration;
+using Cluckwork.Api.Mcp;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Api.Security;
@@ -46,6 +47,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // the framework's own answer to "read the current request from a scoped
         // service that isn't itself in the request pipeline."
         services.AddHttpContextAccessor();
+
+        // #805 — the MCP identity bridge. Scoped, and its constructor refuses any
+        // scope that is not the populated HTTP request's.
+        services.AddScoped<McpCallContext>();
 
         // #532 — BEFORE AddIdentityCore, and that order is the entire mechanism.
         // AddIdentityCore registers the stock UserValidator<ApplicationUser> with

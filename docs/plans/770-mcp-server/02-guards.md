@@ -79,6 +79,27 @@ Saying this here is the point: a guard described as proving more than it proves 
 guard, because it reads as safety. Round 1 found three such rows, round 2 found two more in the
 fixes for round 1.
 
+### Rows 1-7b as built (#805)
+
+Rows 1-7b live in `tests/Cluckwork.Api.IntegrationTests/Mcp/`. The bridge ships before any tool
+or `MapMcp`, so each walk is also proved red against fixture tools. Row 7's list also bans
+`ICurrentUser`, which is the same object as `CurrentUserContext`. #805 added a fifth throwing case:
+`CurrentUserContext.ConnectedApp` must be non-null.
+
+Row 7b walks every module contract interface as well as every tool. CW1004 lets a tool reach only
+contracts and Platform types, so the contracts' graphs are what a tool can reach. That keeps the
+walk live while no tool exists. Factory registrations written in Cluckwork code that the walk
+reaches must be listed with a review note in `McpRequestScopeTests`. Two are listed today:
+`ICurrentUser` and `IClaimOnceStore`.
+
+The walk does not see three routes, in addition to the ones named above:
+
+- a factory written in framework code (EF's `DbContextOptions`, OpenIddict's managers). Traversal
+  stops at framework code;
+- a reviewed service type whose factory body later changes. The review is keyed by service type,
+  not by the delegate;
+- an implementation registered as an instance, which could hold the root provider.
+
 ## Deliberately not guarded, with reasons
 
 - **`ScopeRequests`** — the SDK sets it under Stateless; see row 8.
