@@ -17,7 +17,7 @@
 // `scrollLeft` fires `scroll`, which repaints the box, and the box never
 // writes back — so the chain terminates after one hop and needs no guard flag.
 // Give the box its own index state and that loop comes back.
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, LinearProgress, Modal, TextField, useMediaQuery } from "@mui/material";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -125,15 +125,19 @@ export function ExpandedLayRate({
   // opens on the days the farm just filed. Keyed on the REPORT, which is what
   // "a new range opened" means: keyed on anything derived from the day count,
   // a new range of the same length leaves the reader at the wrong end of it.
+  // `sync` and `placeReadout` are effect events so their identities stay out
+  // of the keys.
+  const syncEvent = useEffectEvent(() => sync());
   useLayoutEffect(() => {
     const region = scrollerRef.current;
     if (region !== null) region.scrollLeft = region.scrollWidth;
-    sync();
+    syncEvent();
   }, [data]);
 
   // Crossing the fit threshold moves every slot without resizing the readout
   // or its dock, so neither of the hook's observers would re-place it.
-  useLayoutEffect(() => strip.placeReadout(), [view.stretch]);
+  const placeReadout = useEffectEvent(() => strip.placeReadout());
+  useLayoutEffect(() => placeReadout(), [view.stretch]);
 
   useEffect(() => {
     const region = scrollerRef.current;

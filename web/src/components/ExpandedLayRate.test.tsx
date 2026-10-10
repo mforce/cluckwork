@@ -93,6 +93,22 @@ function Swapper() {
   );
 }
 
+// A caller that re-renders the chart with the SAME report and the same `tip`,
+// so nothing the two layout effects are keyed on changes, or hands it a new
+// report of the same days.
+const stableTip = (slot: DayStripSlot) => `${slot.date} readout`;
+function Retitler() {
+  const [title, setTitle] = useState("Eggs per day");
+  const [report, setReport] = useState(data);
+  return (
+    <>
+      <button type="button" onClick={() => setTitle((t) => `${t}!`)}>re-render</button>
+      <button type="button" onClick={() => setReport({ ...data })}>refetch</button>
+      <ExpandedLayRate {...props({ title, tip: stableTip, data: report })} />
+    </>
+  );
+}
+
 beforeEach(() => {
   stubMatchMedia(true);
 });
@@ -345,6 +361,33 @@ describe("ExpandedLayRate (#941)", () => {
     // `aria-hidden`, so a role query cannot see this caller's own button.
     fireEvent.click(screen.getByText("swap the range"));
     expect(region.scrollLeft).toBe(0); // jsdom lays nothing out, so scrollWidth is 0
+  });
+
+  // The two layout effects are keyed on the report and the stretch alone;
+  // `sync` and `placeReadout` are effect events, so a re-render with the same
+  // report must neither scroll the reader back to the newest day nor re-place
+  // the readout.
+  it("does not jump to the newest day on a re-render that keeps the report", () => {
+    renderWithProviders(<Retitler />);
+    const region = measure({ viewport: 1080, scrollLeft: 400 });
+    fireEvent.click(screen.getByText("re-render"));
+    expect(region.scrollLeft).toBe(400);
+  });
+
+  it("re-places the readout when the stretch flips, not on every render", () => {
+    renderWithProviders(<Retitler />);
+    fireEvent.click(within(screen.getByRole("group", { name: "Eggs per day" })).getAllByRole("button")[DAYS - 1]);
+    const readout = frame().querySelector(".tip") as HTMLElement;
+    readout.style.transform = "translateX(7px)";
+    fireEvent.click(screen.getByText("re-render"));
+    expect(readout.style.transform).toBe("translateX(7px)");
+    // No scroll event: the scroll handler re-places the readout itself. A
+    // refetch re-syncs through the `[data]` effect, which flips the stretch.
+    const region = frame().querySelector(".lay-expand-scroll") as HTMLElement;
+    Object.defineProperty(region, "clientWidth", { value: DAYS * (DAY_SLOT_PX + DAY_GAP_PX), configurable: true });
+    fireEvent.click(screen.getByText("refetch"));
+    expect(region.className).toContain("is-fit");
+    expect(readout.style.transform).toBe("translateX(0px)");
   });
 
   it("shows its own read failing without blaming the dashboard behind it", () => {
