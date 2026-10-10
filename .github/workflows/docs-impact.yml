@@ -26,8 +26,12 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
+      # The check imports catalog files from the PR, so that code must not see
+      # the checkout token.
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v7

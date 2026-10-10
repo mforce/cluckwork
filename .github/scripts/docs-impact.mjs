@@ -19,9 +19,19 @@ import { pathToFileURL } from "node:url";
 const EN = "web/src/i18n/en.ts";
 const SPEC = "specs/product/GLOSSARY.md";
 const IN_APP = "web/src/routes/helpGlossary.ts";
+const HEADING = /^#{1,6}(?:\s|$)/;
 const COVERAGE = "web/src/routes/glossaryCoverage.ts";
 
-export const ESCAPE = /^Docs-impact:\s*none\s*(?:—|–|-{1,2})\s*\S/;
+export const ESCAPE = /^Docs-impact:\s*none\s*(?:—|–|-{1,2})[ \t]+\S/;
+
+// The waiver line the maintainer will actually see: text inside a fenced code
+// block or an HTML comment is an example or a template note, not a reason.
+export function waiver(body) {
+  const visible = body
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, "")
+    .replace(/^ {0,3}(`{3,}|~{3,}).*$[\s\S]*?(?:^ {0,3}\1.*$|(?![\s\S]))/gm, "");
+  return visible.split("\n").find((line) => ESCAPE.test(line)) ?? null;
+}
 
 // en.ts as `namespace.key` → string. Namespaces nest one level; a key may
 // itself contain dots ("recordHistory.createdBy"), which is fine for a set.
@@ -55,10 +65,10 @@ export function termSections(markdown) {
   const lines = markdown.split("\n");
   lines.forEach((line, i) => {
     const m = /^\*\*([^*]+)\*\*|^### (.+)/.exec(line);
-    if (m && (m[2] !== undefined || i === 0 || lines[i - 1].trim() === "" || lines[i - 1].startsWith("#"))) {
+    if (m && (m[2] !== undefined || i === 0 || lines[i - 1].trim() === "" || HEADING.test(lines[i - 1]))) {
       current = normalise(m[1] ?? m[2]);
       sections.set(current, "");
-    } else if (line.startsWith("#")) {
+    } else if (HEADING.test(line)) {
       current = null;
     }
     if (current !== null) sections.set(current, sections.get(current) + line + "\n");
@@ -72,9 +82,9 @@ export function driftFindings({ baseEn, headEn, baseSpec, headSpec, entries }) {
   const keysByTerm = Map.groupBy(entries, (e) => normalise(e.spec));
   return [...keysByTerm].flatMap(([term, group]) => {
     if (!before.has(term) || before.get(term) === after.get(term)) return [];
-    const defs = group.map((e) => `help.glossary${e.key}Def`);
-    if (defs.some((d) => baseEn.get(d) !== headEn.get(d))) return [];
-    return [`${SPEC} changed "${term}", but its in-app definition did not: ${defs.join(", ")} (and es/tl).`];
+    const stale = group.map((e) => `help.glossary${e.key}Def`).filter((d) => baseEn.get(d) === headEn.get(d));
+    if (stale.length === 0) return [];
+    return [`${SPEC} changed "${term}", but these in-app definitions did not: ${stale.join(", ")} (and es/tl).`];
   });
 }
 
@@ -161,7 +171,7 @@ async function main(argv) {
       return 0;
     }
     const body = opts["body-file"] ? readFileSync(opts["body-file"], "utf8") : "";
-    const reason = body.split("\n").find((line) => ESCAPE.test(line));
+    const reason = waiver(body);
     if (reason) {
       console.log(`docs-impact: flagged, and the PR body says why not:\n  ${reason}`);
       return 0;

@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ESCAPE, deferralFindings, driftFindings, newStringFindings, termSections } from "./docs-impact.mjs";
+import { ESCAPE, deferralFindings, driftFindings, newStringFindings, termSections, waiver } from "./docs-impact.mjs";
 
 const catalog = (entries) => new Map(Object.entries(entries));
 const base = catalog({ "expenses.dateHeader": "Date", "help.expenses": "Expenses are…" });
@@ -37,6 +37,22 @@ test("the escape needs the exact label, 'none' and a reason", () => {
   assert.ok(!ESCAPE.test("Docs-impact: none —"));
   assert.ok(!ESCAPE.test("Docs-impact: some — updated later"));
   assert.ok(!ESCAPE.test("> Docs-impact: none — quoted from another PR"));
+  assert.ok(!ESCAPE.test("Docs-impact: none --"));
+  assert.ok(!ESCAPE.test("Docs-impact: none ---"));
+  assert.ok(ESCAPE.test("Docs-impact: none -- test-only strings"));
+});
+
+test("a waiver inside a code fence or an HTML comment is not a waiver; a visible one is", () => {
+  const hidden = [
+    "Example:\n```text\nDocs-impact: none — example from another PR\n```\n",
+    "~~~\nDocs-impact: none — tilde fence\n~~~",
+    "<!--\nDocs-impact: none — old template reason\n-->",
+    "<!-- never closed\nDocs-impact: none — still hidden",
+    "```\nan unclosed fence hides the rest\nDocs-impact: none — hidden",
+  ];
+  for (const body of hidden) assert.equal(waiver(body), null, body);
+  const shown = "```\ncode\n```\n<!-- note -->\nDocs-impact: none — labels only, no new concept\n";
+  assert.equal(waiver(shown), "Docs-impact: none — labels only, no new concept");
 });
 
 const spec = [
@@ -93,4 +109,23 @@ test("removing a NOT_YET row, or giving a new term a real reason, is fine; so is
   assert.deepEqual(deferralFindings({ base: coverage(baseRows), head: coverage(rest) }), []);
   assert.deepEqual(deferralFindings({ base: coverage(baseRows), head: reasoned }), []);
   assert.deepEqual(deferralFindings({ base: null, head: coverage(baseRows) }), []);
+});
+
+test("a wrapped line that starts with an issue number does not end a term's section", () => {
+  const md = "**Low-stock floor (#911)** — a warning point.\nOnly an Owner sets one (farm configuration,\n#729); Managers read it. `Available < floor` lights it.\n";
+  assert.match(termSections(md).get("low-stock floor"), /Available < floor/);
+});
+
+test("every unchanged definition of a changed term is reported, even when a sibling changed", () => {
+  const lifecycle = [
+    { key: "LockedEntry", spec: "Daily entry lifecycle" },
+    { key: "VoidEntry", spec: "Daily entry lifecycle" },
+  ];
+  const baseSpec = "**Daily entry lifecycle** — locks after 7 days; a void vacates the day.\n";
+  const headSpec = "**Daily entry lifecycle** — locks after 14 days; a void keeps the day.\n";
+  const baseEn = catalog({ "help.glossaryLockedEntryDef": "Locks after 7 days.", "help.glossaryVoidEntryDef": "Vacates the day." });
+  const headEn = new Map(baseEn).set("help.glossaryLockedEntryDef", "Locks after 14 days.");
+  const [finding] = driftFindings({ baseEn, headEn, baseSpec, headSpec, entries: lifecycle });
+  assert.match(finding, /help\.glossaryVoidEntryDef/);
+  assert.doesNotMatch(finding, /LockedEntryDef/);
 });
