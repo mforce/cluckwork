@@ -47,6 +47,7 @@ CASES = [
     ("gh api -X GET repos/mforce/cluckwork/pulls/1158/merge", "feature", "allow"),
     ("gh api -XGET repos/mforce/cluckwork/pulls/1158/merge", "feature", "allow"),
     ("gh api 'repos/mforce/cluckwork/pulls/1158/merge?x=1'", "feature", "allow"),
+    ("gh api https://api.github.com/graphql -f query='query { viewer { login } }'", "feature", "allow"),
     ("echo 'git push --force origin HEAD:main'", "main", "allow"),
     ("echo ';' git push --force", "main", "allow"),
     ("grep -rn 'gh pr merge' docs", "main", "allow"),
@@ -62,6 +63,9 @@ CASES = [
     ("gh api repos/mforce/cluckwork/pulls/12/merge -f merge_method=squash", "feature", "block"),
     ("gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"PR_x\"}) { clientMutationId } }'",
      "feature", "block"),
+    ("gh api https://api.github.com/graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"PR_x\"}) "
+     "{ clientMutationId } }'", "feature", "block"),
+    ("gh api /graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'", "feature", "block"),
     ("gh alias set land 'pr merge'", "feature", "block"),
     ("gh alias set land \"pr merge\" && gh land 1158", "feature", "block"),
     ("gh alias import aliases.yml", "feature", "block"),

@@ -300,10 +300,10 @@ def check_gh_api(args, shown):
         if name in GH_API_BODY:
             fields.append(value)
     method = method or ("POST" if fields else "GET")
-    endpoint = urllib.parse.unquote(positional[0]) if positional else ""
-    if method != "GET" and re.search(r"(^|/)pulls/[^/]+/merge(?![\w.-])", endpoint):
+    path = urllib.parse.unquote(urllib.parse.urlparse(positional[0]).path) if positional else ""  # URL, query or not
+    if method != "GET" and re.search(r"(^|/)pulls/[^/]+/merge/?$", path):
         block("merge", shown)
-    if endpoint == "graphql" and any(re.search(r"mergePullRequest|AutoMerge", f) for f in fields):
+    if re.search(r"(^|/)graphql/?$", path) and any(re.search(r"mergePullRequest|AutoMerge", f) for f in fields):
         block("merge", shown)
 
 
