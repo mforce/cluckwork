@@ -3,6 +3,10 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const inEffect = 'CallExpression:matches([callee.name="useEffect"], [callee.property.name="useEffect"])';
+const rawAsyncEffect = 'Load data with useLatestLoad or usePagedList (web/src/components/). '
+  + 'A raw async effect lets a superseded response overwrite newer state (#467, #703, #918).';
+
 export default tseslint.config(
   { ignores: ['dist/', 'dev-dist/', 'coverage/', 'lint/'] },
   {
@@ -23,6 +27,16 @@ export default tseslint.config(
       // Style, not correctness.
       'prefer-const': 'off',
       'preserve-caught-error': 'off',
+    },
+  },
+  {
+    files: ['src/routes/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error',
+        { selector: `${inEffect} AwaitExpression`, message: rawAsyncEffect },
+        { selector: `${inEffect} CallExpression[callee.property.name="then"]`, message: rawAsyncEffect },
+      ],
     },
   },
 );

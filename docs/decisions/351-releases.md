@@ -437,9 +437,11 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      `Pull requests: write` is indivisible — opening and approving a PR are the
      same scope — so **the release token can approve a PR**, and only the pinned
      action's behaviour stops it. Currently inert: `main` requires **zero**
-     approving reviews and has **no** required status checks (verified against
-     the live repo, 2026-08-02), so there is nothing for a rogue approval to
-     satisfy. It stops being inert the day required reviews are enabled, which is
+     approving reviews (verified against the live repo, 2026-08-02 and
+     2026-10-10), so there is nothing for a rogue approval to satisfy. `main`
+     has required status checks since #1182, but only a CI run can satisfy a
+     status check, never an approval. It stops being inert the day required
+     reviews are enabled, which is
      why that capability belongs behind a secret rather than behind a declared
      permission any workflow can ask for.
   2. GitHub does not trigger workflows for anything `GITHUB_TOKEN` opens or
@@ -455,8 +457,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      `tests`, `build-and-test`, `web` and `image` have all passed. **Release verification
      rests on that artifact gate, not on PR checks.** What this reason buys is
      narrower and still worth having: seeing red *before* the merge rather than
-     after, and not deadlocking releases the day required status checks are
-     enabled on `main` — a checkless PR could never satisfy them.
+     after, and not deadlocking releases now that `main` requires status
+     checks (#1182): the App-opened release PR gets CI and can satisfy them,
+     where a checkless PR never could.
 
   The token is **downscoped per permission** (`permission-contents`,
   `permission-pull-requests`, `permission-issues`) rather than taking whatever the
