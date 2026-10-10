@@ -321,7 +321,13 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // the branch measures 1,952.69 KiB with it. #1149, precaching only the
 // active language, is the planned way to win the space back and lower this
 // ceiling again. Any further raise needs a new maintainer decision.
-const PRECACHE_CEILING_KIB = 1960;
+//
+// 2026-10-10, a fourth raise: the maintainer approved 1,970 KiB for #1159's
+// SalesPage split. The split adds about 3 KiB of property names that
+// minification cannot shorten, and the branch measures 1,959.97 KiB after
+// trimming. #1149 is still the planned way to win the space back. Any further
+// raise needs a new maintainer decision.
+const PRECACHE_CEILING_KIB = 1970;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {

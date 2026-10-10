@@ -428,7 +428,7 @@ test("Sales Draft Save genuinely disables via editConflict, without aria-busy, i
   await expect(manifest.getByRole("row").filter({ hasText: "Sim Large Eggs" })).toHaveCount(1);
 
   await manifest.getByRole("button", { name: tEn("sales:edit"), exact: true }).first().click();
-  // Not `exact: true`: SalesPage.tsx renders this field's own label
+  // Not `exact: true`: sales/OrderLines.tsx renders this field's own label
   // lowercased (`t("editQuantityAriaLabel").toLowerCase()`), so it never
   // matches the catalog string's original casing exactly.
   const qtyField = manifest.getByRole("spinbutton", { name: tEn("sales:editQuantityAriaLabel"), exact: false });

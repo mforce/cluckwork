@@ -348,8 +348,6 @@
     <File Path="web/src/routes/ProtectedRoute.tsx" />
     <File Path="web/src/routes/ReportsPage.test.tsx" />
     <File Path="web/src/routes/ReportsPage.tsx" />
-    <File Path="web/src/routes/SalesPage.test.tsx" />
-    <File Path="web/src/routes/SalesPage.tsx" />
     <File Path="web/src/routes/SetPasswordPage.test.tsx" />
     <File Path="web/src/routes/SetPasswordPage.tsx" />
     <File Path="web/src/routes/SettingsPage.test.tsx" />
@@ -368,7 +366,23 @@
     <File Path="web/src/routes/nav.test.ts" />
     <File Path="web/src/routes/nav.tsx" />
     <File Path="web/src/routes/salesExpensesUS3.lifecycle.test.tsx" />
-    <File Path="web/src/routes/salesT039.default.test.tsx" />
+  </Folder>
+  <Folder Name="/web/src/routes/sales/">
+    <File Path="web/src/routes/sales/AddLineForm.tsx" />
+    <File Path="web/src/routes/sales/OrderLines.tsx" />
+    <File Path="web/src/routes/sales/OrderList.tsx" />
+    <File Path="web/src/routes/sales/SalesPage.test.tsx" />
+    <File Path="web/src/routes/sales/SalesPage.tsx" />
+    <File Path="web/src/routes/sales/SettlementRail.tsx" />
+    <File Path="web/src/routes/sales/orderMath.ts" />
+    <File Path="web/src/routes/sales/salesT039.default.test.tsx" />
+    <File Path="web/src/routes/sales/salesUi.tsx" />
+    <File Path="web/src/routes/sales/useActiveOrder.ts" />
+    <File Path="web/src/routes/sales/useIdempotencyKeys.ts" />
+    <File Path="web/src/routes/sales/useNewOrder.tsx" />
+    <File Path="web/src/routes/sales/useOrderCommands.tsx" />
+    <File Path="web/src/routes/sales/useOrderFilters.tsx" />
+    <File Path="web/src/routes/sales/usePayments.tsx" />
   </Folder>
   <Folder Name="/web/src/session/">
     <File Path="web/src/session/LanguageSelector.multilang.test.tsx" />

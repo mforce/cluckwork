@@ -12,17 +12,17 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { SalesPage } from "./SalesPage";
-import { renderWithProviders } from "../test/renderWithProviders";
-import { NO_RECORD_HISTORY } from "../test/fixtures";
+import { renderWithProviders } from "../../test/renderWithProviders";
+import { NO_RECORD_HISTORY } from "../../test/fixtures";
 import {
   createOrder, getCustomer, getOrder, listCustomers, listEggGrades,
   listEggUnitConversions, listOrderPayments, listOrders, listProducts,
-} from "../api/cluckwork";
-import type { Customer, SalesOrder } from "../api/cluckwork";
+} from "../../api/cluckwork";
+import type { Customer, SalesOrder } from "../../api/cluckwork";
 // (ApiError no longer imported here)
 
-vi.mock("../api/cluckwork", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/cluckwork")>();
+vi.mock("../../api/cluckwork", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/cluckwork")>();
   return {
     ...actual,
     listCustomers: vi.fn(),

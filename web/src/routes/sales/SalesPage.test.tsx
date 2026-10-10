@@ -1,27 +1,29 @@
+import { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { useLocation, useNavigate } from "react-router";
 import { SalesPage } from "./SalesPage";
-import { renderWithProviders } from "../test/renderWithProviders";
-import { stubMatchMedia } from "../test/matchMedia";
-import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
-import i18n from "../i18n";
-import type { DiscountReasonValue } from "../i18n/enums";
+import { renderWithProviders } from "../../test/renderWithProviders";
+import { stubMatchMedia } from "../../test/matchMedia";
+import { account, farmState, NO_RECORD_HISTORY, RECORD_HISTORY } from "../../test/fixtures";
+import { FarmContext } from "../../farm/FarmContext";
+import i18n from "../../i18n";
+import type { DiscountReasonValue } from "../../i18n/enums";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getCustomer, getOrder, listCustomers, listEggGrades,
   listEggUnitConversions, listOrderPayments, listOrders, listProducts, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
-} from "../api/cluckwork";
-import type { Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../api/cluckwork";
-import { ApiError } from "../api/client";
+} from "../../api/cluckwork";
+import type { Account, Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../../api/cluckwork";
+import { ApiError } from "../../api/client";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. Every network call the screen
 // can make is stubbed — even the ones no current test triggers (confirm/cancel/
 // void/remove/pay) — so a future edit that clicks them can't silently hit the
 // real fetch client. The screen also uses useAuth + the router → renderWithProviders.
-vi.mock("../api/cluckwork", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/cluckwork")>();
+vi.mock("../../api/cluckwork", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/cluckwork")>();
   return {
     ...actual,
     listCustomers: vi.fn(),
@@ -1735,6 +1737,32 @@ describe("SalesPage price scale", () => {
     // the product's and would show 3.00 here.
     expect(screen.getByLabelText(/Unit price/)).toHaveValue(null);
   });
+
+  // The shell holds its children until the account loads, but a failed first
+  // /account read recovered by the retry banner can deliver the farm between
+  // mount and the setup read settling. The prefill must use the scale known
+  // when the read settles, and the farm arriving must not refetch.
+  it("prefills at the farm's scale when the farm arrives while the setup read is in flight", async () => {
+    let releaseProducts!: (products: Product[]) => void;
+    mockListProducts.mockReturnValue(new Promise<Product[]>((r) => { releaseProducts = r; }));
+    let setFarm!: (farm: Account) => void;
+    function LateFarm() {
+      const [farm, set] = useState<Account | null>(null);
+      setFarm = set;
+      return <FarmContext.Provider value={farmState({ farm })}><SalesPage /></FarmContext.Provider>;
+    }
+    renderWithProviders(<LateFarm />, { token: ADMIN });
+    await waitFor(() => expect(mockListProducts).toHaveBeenCalledTimes(1));
+
+    act(() => { setFarm(KWD_FARM); });
+    await act(async () => { releaseProducts([PRODUCT_A, PRODUCT_B]); });
+    await screen.findByRole("button", { name: "New order" });
+    await createDraft(draftEmpty(3, "KWD"));
+
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(0.3);
+    expect(mockListProducts).toHaveBeenCalledTimes(1);
+    expect(mockListEggGrades).toHaveBeenCalledTimes(1);
+  });
 });
 
 // F131: taking a payment is a discrete per-order action, so it moved behind a
@@ -2511,15 +2539,15 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     await renderReadyWithProbe(`/sales?customerId=${GUID_A}`);
     await screen.findByRole("row", { name: /SO-A/ });
 
-    await act(async () => { capturedNavigate!(`/sales?customerId=${GUID_B}`); });
+    await act(async () => { await capturedNavigate!(`/sales?customerId=${GUID_B}`); });
     await screen.findByRole("row", { name: /SO-B/ });
     expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
 
-    await act(async () => { capturedNavigate!(-1); }); // Back
+    await act(async () => { await capturedNavigate!(-1); }); // Back
     await screen.findByRole("row", { name: /SO-A/ });
     expect(screen.queryByRole("row", { name: /SO-B/ })).not.toBeInTheDocument();
 
-    await act(async () => { capturedNavigate!(1); }); // Forward
+    await act(async () => { await capturedNavigate!(1); }); // Forward
     await screen.findByRole("row", { name: /SO-B/ });
     expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
   });
@@ -2540,9 +2568,11 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     // Navigate to B; its list read is HELD. Neither the A row nor the A
     // trigger name may still be on screen — synchronous hide, not "hidden
     // once B's request settles."
-    act(() => { capturedNavigate!(`/sales?customerId=${GUID_B}`); });
+    let navigation!: void | Promise<void>;
+    act(() => { navigation = capturedNavigate!(`/sales?customerId=${GUID_B}`); });
     expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
     expect(trigger()).not.toHaveValue("Filtered Farm A");
+    await act(async () => { await navigation; });
 
     await act(async () => { releaseB([{ ...DRAFT_TWO, id: "ob", referenceNumber: "SO-B", customerName: "Filtered Farm B" }]); });
     await screen.findByRole("row", { name: /SO-B/ });

@@ -515,7 +515,7 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
     }
 
     // Every row carries the property, whatever the caller's tier. Omitting it
-    // for a row that has no figure would slip past the SPA: `SalesPage.tsx`
+    // for a row that has no figure would slip past the SPA: `sales/OrderList.tsx`
     // branches on `owed === null`, and `undefined` is not null, so the
     // Outstanding cell would format a missing number and render NaN. An absent
     // property is therefore a contract break in its own right, separate from

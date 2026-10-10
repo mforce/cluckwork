@@ -38,7 +38,7 @@ public sealed class DiscountReasonVocabularyTests
     }
 
     // #721 — "Other" is the one member whose meaning the aggregate hard-codes
-    // (it is the only code that makes the note mandatory), and SalesPage passes
+    // (it is the only code that makes the note mandatory), and the Sales screen passes
     // its NAME to useConfirm's noteRequiredFor. Renaming the member without
     // renaming that literal would silently drop the inline note requirement.
     [Fact]
@@ -47,7 +47,7 @@ public sealed class DiscountReasonVocabularyTests
         Assert.Equal("Other", DiscountReasonCode.Other.ToString());
         Assert.Contains(
             "noteRequiredFor: [\"Other\" satisfies DiscountReasonValue]",
-            File.ReadAllText(Path.Combine(RepositoryRoot(), "web", "src", "routes", "SalesPage.tsx")),
+            File.ReadAllText(Path.Combine(RepositoryRoot(), "web", "src", "routes", "sales", "useOrderCommands.tsx")),
             StringComparison.Ordinal);
     }
 

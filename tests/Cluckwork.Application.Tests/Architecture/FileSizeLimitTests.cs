@@ -41,7 +41,6 @@ public sealed partial class FileSizeLimitTests
         "web/src/routes/HistoryPage.tsx",
         "web/src/routes/InventoryPage.tsx",
         "web/src/routes/ProductsPage.tsx",
-        "web/src/routes/SalesPage.tsx",
         "web/src/routes/SettingsPage.tsx",
         "web/src/routes/StockPage.tsx",
         "web/src/routes/UsersPage.tsx",
