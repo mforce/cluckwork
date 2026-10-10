@@ -20,7 +20,7 @@ rule is a convention; apply it consistently without archaeology.
 - [Communicating](#communicating) · [Layout](#layout) · [Build / test / run](#build--test--run)
 - [Browser tests, screenshots and verification](#browser-tests-screenshots-and-verification)
 - [Secrets](#secrets--never-commit) · [Host-agnostic repo](#host-agnostic-repo-deployment-boundary)
-- [Writing a guard](#writing-a-guard-a-test-that-asserts-an-invariant) · [Pre-commit hook](#pre-commit-hook-opt-in) · [CI security gates](#ci-security-gates-146)
+- [Writing a guard](#writing-a-guard-a-test-that-asserts-an-invariant) · [Enforced rules](#enforced-rules) · [Pre-commit hook](#pre-commit-hook-opt-in) · [CI security gates](#ci-security-gates-146)
 - [Scoped rule files](#scoped-rule-files) · [Git / PR workflow](#git--pr-workflow) · [Phase context](#phase-context) · [graphify](#graphify)
 
 ## Scoped rule files
@@ -106,6 +106,21 @@ A guard must *fail* when a later change violates an invariant, such as the migra
 - **When adding a registry entry, find its guards by grepping the registry's READERS, never by recall.** A registry is any list other code walks, such as `CliDispatcher.Commands`, `AuditActions`, or an enum mirrored into `web/src/i18n/enums.ts`. For #534's two verbs, recall found `CliDispatcherTests` and `ProcessRoleRegistryTests` but missed `OneShotVerbMinimalConfigTests`, which rejects a `ProcessRoles.OneShotVerbs` entry without a minimal-config case. `grep -rn "CliDispatcher.Commands\|ProcessRoles.OneShotVerbs" tests/` finds all three. A remembered guard list is the hand-maintained list those guards exist to prevent.
 - **Read a call-site SYNTAX guard before authoring the call site.** Its rule is not inferable from the guarded code, and a violation fails the build. `AuditVocabularyCoverageTests` accepts only `AuditActions.X` or a ternary of two such references as the action argument to `IAuditWriter.WriteAsync`. It fails closed otherwise and has one bespoke exemption, `IdentityProvider`'s forwarded parameter, held by three companion assertions. Forwarding the action through a shared private helper therefore fails; #534 caught that before dispatch and used the ternary.
 - **A guard that walks every TRACKED file applies to a document as soon as you commit it (#508).** `SchemaDocsTests.PostgresImagePin_IsOneIdenticalStringAcrossEveryTrackedFile` failed when a plan described a probe with bare `postgres:<tag>`. The untracked draft was outside the guard; committing it changed the guard's scope and stopped the implementer near completion. Before committing documentation, run guards that walk tracked files. If such a guard rejects the CONTENT of a copied document, fix the source and copy it again. Never edit the committed copy, which breaks "verbatim," or allow-list it, which weakens a pin guard for a comment.
+
+## Enforced rules
+
+Each rule below has a check that fails, and the failure names the fix. When a correction repeats and the rule behind it is only prose, add the check and a row here, or record why no check can hold it.
+
+| Rule | Enforced by | Runs in |
+|---|---|---|
+| React hook rules, and no floating promises, in `web/src` (#1155) | ESLint, `web/lint/eslint.config.js`; existing hits frozen in `web/lint/eslint-suppressions.json` | `npm run lint`, CI `web` |
+| Load data through `useLatestLoad` or `usePagedList`, not an `await` or `.then` inside `useEffect` (#1190) | ESLint `no-restricted-syntax`, same config and suppressions | `npm run lint`, CI `web` |
+| New user-facing strings or glossary text ship with their Help and glossary update (#1194) | `.github/scripts/docs-impact.mjs` | **Docs impact** workflow |
+| Every `GLOSSARY.md` term has an in-app entry or a reasoned exclusion (#1193) | `web/src/routes/helpGlossary.test.ts` | Vitest, CI `web` |
+| A tracked file under `src/` or `web/src/` stays within 500 lines (#1153) | `FileSizeLimitTests` | Application tests, CI |
+| A new C# guard binds symbols instead of matching names by spelling (#1189) | `SpellingScannerRatchetTests` | Application tests, CI |
+| No unused `using` (#1187) | IDE0005 at build time, set in `.editorconfig` and `Directory.Build.props` | `dotnet build`, CI |
+| An agent never merges, pushes to `main`, force-pushes, pushes a `src:dst` refspec or commits on `main` (#1158, #1172, #1175) | `tools/agent-guard/git_guard.py` (Claude Code and Codex hooks, Pi extension, Hermes plugin); `.githooks/pre-commit` and `.githooks/pre-push` | the agent harness; git, once `core.hooksPath` is `.githooks`; the guard's own tests in CI |
 
 ## Pre-commit hook (opt-in)
 
