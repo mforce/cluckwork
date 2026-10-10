@@ -95,15 +95,17 @@ public sealed class SpellingScannerRatchetTests
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
             ("P", "HelperOwner.cs", header + "static class HelperOwner { internal static Microsoft.CodeAnalysis.SyntaxTree Tree(string s) => CSharpSyntaxTree.ParseText(s); " +
                 "internal static Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax Root(string s) => SyntaxFactory.ParseCompilationUnit(s); " +
+                "internal static Microsoft.CodeAnalysis.SyntaxNode Node(string s) => CSharpSyntaxTree.ParseText(s).GetRoot(); " +
                 "internal static object? Bind(Microsoft.CodeAnalysis.Compilation c, Microsoft.CodeAnalysis.SyntaxTree t) => c.GetSemanticModel(t).GetDeclaredSymbol(t.GetRoot()); }"),
             ("P", "Reuse.cs", "class Reuse { object M() => HelperOwner.Tree(\"\").GetRoot(); }"),
+            ("P", "ReuseBase.cs", "class ReuseBase { object M() => HelperOwner.Node(\"\"); }"),
             ("P", "ReuseNode.cs", "class ReuseNode { object M() => HelperOwner.Root(\"\"); }"),
             ("P", "Group.cs", "class Group { object M(string[] s) => s.Select(HelperOwner.Tree).ToList(); }"),
             ("P", "Unresolved.cs", "class Unresolved { object M() => CSharpSyntaxTree.ParseText(\"\"); }"),
             ("Q", "ProjectUsing.cs", "class ProjectUsing { object M() => SyntaxFactory.ParseExpression(\"x\"); }"),
         ], project => project == "Q" ? "global using Microsoft.CodeAnalysis.CSharp;" : "");
 
-        Assert.Equal(["Alias", "CompilationParameter", "Direct", "Discarded", "Group", "Helper", "N.Outer", "ProjectUsing", "Reuse", "ReuseNode", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["Alias", "CompilationParameter", "Direct", "Discarded", "Group", "Helper", "N.Outer", "ProjectUsing", "Reuse", "ReuseBase", "ReuseNode", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -183,12 +185,12 @@ public sealed class SpellingScannerRatchetTests
     private static readonly HashSet<string> UnresolvedParse = new(StringComparer.Ordinal)
         { "ParseText", "ParseSyntaxTree", "ParseCompilationUnit" };
 
-    // A Roslyn parse factory, or a helper of ours that hands back a tree or C# node: its caller scans syntax too.
+    // A Roslyn parse factory, or a helper of ours that hands back a tree or syntax node: its caller scans syntax too.
     private static bool IsParser(IMethodSymbol method) =>
         method.ContainingType.ToDisplayString() is "Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree" or "Microsoft.CodeAnalysis.CSharp.SyntaxFactory"
             ? method.Name.StartsWith("Parse", StringComparison.Ordinal) || method.Name == "Create"
             : !method.ContainingAssembly.Name.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)
-              && DerivesFrom(method.ReturnType, "Microsoft.CodeAnalysis.SyntaxTree", "Microsoft.CodeAnalysis.CSharp.CSharpSyntaxNode");
+              && DerivesFrom(method.ReturnType, "Microsoft.CodeAnalysis.SyntaxTree", "Microsoft.CodeAnalysis.SyntaxNode");
 
     private static bool DerivesFrom(ITypeSymbol? type, params string[] bases)
     {
