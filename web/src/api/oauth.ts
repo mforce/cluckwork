@@ -5,6 +5,9 @@ import { apiFetch, STEP_UP_HEADER } from "./client";
 export interface ConsentRequest {
   clientId: string;
   clientName: string | null;
+  // #1148 — the host of the app's metadata document, which Cluckwork fetched itself.
+  // Null for an app that registered itself, whose details nobody checked.
+  verifiedDomain: string | null;
   redirectHost: string;
   scopes: string[];
   alreadyAllowed: string[];
@@ -33,13 +36,15 @@ export function declineConsent(search: string): Promise<AuthorizeAnswer> {
   });
 }
 
-// Before sign-in: only the app's self-chosen name, or null when the request is
-// not one the server accepts.
-export async function previewConsent(search: string): Promise<string | null> {
+export type ConsentPreview = Pick<ConsentRequest, "clientName" | "verifiedDomain">;
+
+// Before sign-in: only the app's self-chosen name and verified domain, or null when
+// the request is not one the server accepts.
+export async function previewConsent(search: string): Promise<ConsentPreview | null> {
   try {
     const res = await fetch(`/api/v1${authorizePath(search)}`, { headers: { "X-Cluckwork-Consent": "preview" } });
     if (!res.ok) return null;
-    return ((await res.json()) as { clientName: string | null }).clientName;
+    return (await res.json()) as ConsentPreview;
   } catch {
     return null;
   }

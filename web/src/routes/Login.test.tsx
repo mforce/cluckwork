@@ -132,13 +132,21 @@ describe("Login", () => {
   // #798 (login B) — the sign-in that continues to a connected app names it,
   // in the brand panel on a wide screen and above the form on a phone.
   it("names the app it continues to when sign-in leads to consent", async () => {
-    vi.mocked(previewConsent).mockResolvedValue("Claude Desktop");
+    vi.mocked(previewConsent).mockResolvedValue({ clientName: "Claude Desktop", verifiedDomain: null });
     renderWithProviders(tree(), { route: "/connect?client_id=abc&scope=farm%3Aread", token: null });
 
     expect(await screen.findAllByText("Next: approve Claude Desktop")).toHaveLength(2);
     expect(previewConsent).toHaveBeenCalledWith("?client_id=abc&scope=farm%3Aread");
     expect(screen.getAllByText(
       "After you sign in, you see what it asks for and choose whether to allow it.")).toHaveLength(2);
+  });
+
+  // #1148 — a metadata-document app's domain is the part Cluckwork checked.
+  it("names the verified domain of the app it continues to", async () => {
+    vi.mocked(previewConsent).mockResolvedValue({ clientName: "Claude Code", verifiedDomain: "claude.ai" });
+    renderWithProviders(tree(), { route: "/connect?client_id=abc", token: null });
+
+    expect(await screen.findAllByText("Next: approve Claude Code from claude.ai")).toHaveLength(2);
   });
 
   it("says an app is next even when the app has no name", async () => {

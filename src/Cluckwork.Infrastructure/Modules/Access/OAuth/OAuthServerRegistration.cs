@@ -1,4 +1,5 @@
 using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Http;
@@ -18,7 +19,7 @@ namespace Cluckwork.Infrastructure.Modules.Access.OAuth;
 public static class OAuthServerRegistration
 {
     public static IServiceCollection AddAccessOAuthServer(
-        this IServiceCollection services, Uri issuer, bool allowPlainHttp)
+        this IServiceCollection services, Uri issuer, bool allowPlainHttp, ClientMetadataOptions clientMetadata)
     {
         services.AddOpenIddict()
             .AddCore(core => core
@@ -112,9 +113,14 @@ public static class OAuthServerRegistration
                         context.TokenEndpoint = new Uri(publicBase, context.BaseUri!.MakeRelativeUri(context.TokenEndpoint!));
                         context.Metadata["registration_endpoint"] =
                             new Uri(context.AuthorizationEndpoint, "register").AbsoluteUri;
+                        // #1148 — a client may name its metadata document as its client_id.
+                        if (clientMetadata.Enabled)
+                            context.Metadata["client_id_metadata_document_supported"] = true;
                         return default;
                     })
                     .SetOrder(OpenIddictServerHandlers.Discovery.AttachEndpoints.Descriptor.Order + 1));
+
+                server.AddEventHandler(ClientMetadataDocuments.Descriptor);
 
                 // Token passthrough maps the endpoint, which is what lets it opt into a
                 // rate-limit policy and a body cap; OpenIddict still validates first.
@@ -151,6 +157,9 @@ public static class OAuthServerRegistration
             });
 
         services.AddScoped<IOAuthPurge, OAuthPurge>();
+        services.AddSingleton(clientMetadata);
+        services.AddSingleton(_ => new ClientMetadataFetcher(
+            FetchTransport.System, clientMetadata.PrivateHosts ?? new HashSet<string>()));
 
         return services;
     }

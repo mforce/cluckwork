@@ -31,6 +31,12 @@ fi
 if echo "$staged" | grep -q '^web/'; then
   echo "pre-commit: web typecheck..."
   (cd web && npm run --silent typecheck) || fail "web typecheck"
+  lint_files=$(git diff --cached --name-only --diff-filter=ACMR -- 'web/src/*.ts' 'web/src/*.tsx' | sed 's|^web/||')
+  if [ -n "$lint_files" ]; then
+    echo "pre-commit: web lint (staged files)..."
+    # shellcheck disable=SC2086 # word-splitting the file list is intended
+    (cd web && npm run --silent lint -- $lint_files) || fail "web lint (first run? npm ci --prefix web/lint)"
+  fi
 fi
 
 exit 0

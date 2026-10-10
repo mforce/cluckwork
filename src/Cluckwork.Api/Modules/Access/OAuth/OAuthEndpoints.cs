@@ -6,6 +6,7 @@ using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Farm.Contracts;
+using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore;
@@ -114,13 +115,18 @@ public static class OAuthEndpoints
             if (context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                 return Results.Unauthorized();
             // The sign-in screen names the app it continues to. The name is the app's
-            // own public choice (#797), so it needs no session.
+            // own public choice (#797), and its verified domain is its client_id's host
+            // (#1148), so neither needs a session.
             if (consent == "preview")
+            {
+                var clientId = context.GetOpenIddictServerRequest()!.ClientId!;
                 return Results.Json(new
                 {
                     clientName = await applications.GetDisplayNameAsync(
-                        (await applications.FindByClientIdAsync(context.GetOpenIddictServerRequest()!.ClientId!, ct))!, ct),
+                        (await applications.FindByClientIdAsync(clientId, ct))!, ct),
+                    verifiedDomain = ClientMetadata.VerifiedDomain(clientId),
                 });
+            }
             // A browser navigation. A relative path cannot leave this origin, and the
             // query is the request OpenIddict just validated.
             return Results.Redirect("/connect" + context.Request.QueryString);
@@ -166,6 +172,7 @@ public static class OAuthEndpoints
             return Results.Json(new ConsentRequest(
                 request.ClientId!,
                 await applications.GetDisplayNameAsync(application, ct),
+                ClientMetadata.VerifiedDomain(request.ClientId),
                 new Uri(ValidatedRedirectUri(context)).Host,
                 scopes,
                 [.. scopes.Where(allowed.Contains)],
@@ -210,13 +217,16 @@ public static class OAuthEndpoints
             authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    // What the consent screen shows. The name is the app's own choice (#797). When
+    // What the consent screen shows. The name is the app's own choice (#797). A client
+    // whose id is its metadata document's URL has a VerifiedDomain, the host Cluckwork
+    // fetched that document from (#1148); for any other client it is null. When
     // AlreadyApproved, an earlier approval holds every scope and the SPA asks only for the
     // password. AssignedFlocks is the user's flock scope as this request resolved it: null
     // for every flock, else the names of the flocks they are assigned to.
     private sealed record ConsentRequest(
         string ClientId,
         string? ClientName,
+        string? VerifiedDomain,
         string RedirectHost,
         IReadOnlyList<string> Scopes,
         IReadOnlyList<string> AlreadyAllowed,
@@ -241,7 +251,7 @@ public static class OAuthEndpoints
     private static async Task<IResult> Register(
         ClientRegistrationRequest request, IOpenIddictApplicationManager applications, CancellationToken ct)
     {
-        var registration = ClientRegistration.ToDescriptor(request);
+        var registration = ClientMetadata.ToDescriptor(request, Guid.NewGuid().ToString("N"));
         if (registration.IsFailure)
             return RegistrationError(registration.Error.Code, registration.Error.Description);
 
