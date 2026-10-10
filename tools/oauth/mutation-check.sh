@@ -52,7 +52,7 @@ SWITCH_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata'
-SUITE_MIN=263
+SUITE_MIN=272
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -220,7 +220,7 @@ cimd-idempotency-query-ignored#kill#IDEMPOTENCY#        if (request.QueryString.
 cimd-response-type-fetched#kill#DOCUMENTS#if (context.Request.ResponseType != ResponseTypes.Code)#if (context.Request.ResponseType == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
 cimd-pkce-fetched#kill#DOCUMENTS#if (string.IsNullOrEmpty(context.Request.CodeChallenge) || context.Request.CodeChallengeMethod != CodeChallengeMethods.Sha256)#if (context.Request.CodeChallengeMethod == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
 cimd-approved-shares-strangers-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: false#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
-cimd-everyone-gets-approved-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: true#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#Strings differ
+cimd-everyone-gets-approved-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: true#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
 EOF
 )
 
