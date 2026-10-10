@@ -22,13 +22,25 @@ is_zero() { case $1 in *[!0]*) return 1 ;; esac; }
 # `git push origin HEAD` reports the local ref as HEAD; names are compared by the branch it names.
 current=$(git symbolic-ref --quiet HEAD || echo HEAD)
 
+full_ref() { case $1 in refs/* | HEAD) echo "$1" ;; *) echo "refs/heads/$1" ;; esac; }
+
 # A remote.<name>.push refspec maps the branch on purpose (Paseo PR checkouts
-# push HEAD:refs/heads/<pr-branch> from a suffixed local branch). A HEAD mapping
-# covers only the checked-out branch, never another branch pushed to that name.
+# push HEAD:refs/heads/<pr-branch> from a suffixed local branch). Short names
+# are read as branches; a leading + is ignored here because the history check
+# above already refuses a forced update. A HEAD mapping covers only the
+# checked-out branch. Wildcard refspecs are not supported and never match.
 configured() {
   specs=$(git config --get-all "remote.$remote.push") || return 1
-  printf '%s\n' "$specs" | grep -qxF "$local_ref:$remote_ref" && return 0
-  [ "$local_ref" = "$current" ] && printf '%s\n' "$specs" | grep -qxF "HEAD:$remote_ref"
+  while IFS= read -r spec; do
+    spec=${spec#+}
+    [ "$(full_ref "${spec#*:}")" = "$remote_ref" ] || continue
+    src=$(full_ref "${spec%%:*}")
+    [ "$src" = "$local_ref" ] && return 0
+    [ "$src" = HEAD ] && [ "$local_ref" = "$current" ] && return 0
+  done <<EOF
+$specs
+EOF
+  return 1
 }
 
 while read -r local_ref local_sha remote_ref remote_sha; do

@@ -76,6 +76,10 @@ class PrePushTest(unittest.TestCase):
         ("paseo_remote", ["paseo", "HEAD:refs/heads/feat/z"], "refuse"),
         ("paseo_pushed", ["paseo"], "allow"),
         ("paseo_pushed", ["paseo", "feat/unrelated:refs/heads/feat/y"], "refuse"),
+        ("push=feat/x:feat/y", ["origin"], "allow"),
+        ("push=+refs/heads/feat/x:refs/heads/feat/y", ["origin"], "allow"),
+        ("push=refs/heads/feat/*:refs/heads/review/*", ["origin"], "refuse"),  # wildcards: unsupported
+        ("rewritten_with_plus_mapping", ["origin"], "refuse"),
         ("pushed_then_rewritten", ["--force", "origin", "feat/x"], "refuse"),
         ("pushed_then_rewritten", ["origin", "+feat/x"], "refuse"),
         ("pushed_then_rewritten", ["--force-with-lease", "origin", "feat/x"], "refuse"),
@@ -95,6 +99,11 @@ class PrePushTest(unittest.TestCase):
     def pushed_then_rewritten(repo):
         run(repo.work, "push", "-q", "--no-verify", "origin", "feat/x", check=True)
         run(repo.work, "commit", "-q", "--amend", "--no-verify", "-m", "rewritten", check=True)
+
+    @staticmethod
+    def rewritten_with_plus_mapping(repo):
+        PrePushTest.pushed_then_rewritten(repo)
+        run(repo.work, "config", "remote.origin.push", "+refs/heads/feat/x:refs/heads/feat/x", check=True)
 
     @staticmethod
     def paseo_remote(repo):
@@ -132,13 +141,15 @@ class PrePushTest(unittest.TestCase):
         for setup, args, expected in self.CASES:
             with tempfile.TemporaryDirectory() as root, self.subTest(push=" ".join(args), setup=setup):
                 repo = Repo(root)
-                if setup:
+                if setup and setup.startswith("push="):
+                    run(repo.work, "config", "remote.origin.push", setup[len("push="):], check=True)
+                elif setup:
                     getattr(self, setup)(repo)
                 before = refs_of(repo.bare)
                 result = run(repo.work, "push", "-q", *args)
                 verdict = "allow" if result.returncode == 0 else "refuse"
-                print(f"pre-push   {verdict:6} [{setup or 'feat/x':21}] git push {' '.join(args)}"
-                      + (f"\n{'':39}{result.stderr.strip().splitlines()[0]}" if verdict == "refuse" else ""))
+                print(f"pre-push   {verdict:6} [{setup or 'feat/x':40}] git push {' '.join(args)}"
+                      + (f"\n{'':58}{result.stderr.strip().splitlines()[0]}" if verdict == "refuse" else ""))
                 self.assertEqual(verdict, expected, result.stderr)
                 if expected == "refuse":
                     self.assertIn("pre-push: refusing", result.stderr)
@@ -148,7 +159,7 @@ class PrePushTest(unittest.TestCase):
 class PreCommitTest(unittest.TestCase):
     def check(self, label, result, expected):
         verdict = "allow" if result.returncode == 0 else "refuse"
-        print(f"pre-commit {verdict:6} [{label}]" + (f"\n{'':39}{result.stderr.strip()}" if verdict == "refuse" else ""))
+        print(f"pre-commit {verdict:6} [{label}]" + (f"\n{'':58}{result.stderr.strip()}" if verdict == "refuse" else ""))
         self.assertEqual(verdict, expected, result.stderr)
         if expected == "refuse":
             self.assertIn("pre-commit: refusing", result.stderr)
