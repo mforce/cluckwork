@@ -9,7 +9,7 @@
 // the same strip differently: the card draws it in place, the expanded view
 // draws it inside a horizontal scroll region beside a fixed axis gutter. What
 // must not differ is what a key press does.
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { DayStripSlot } from "../lib/dashboard";
 
@@ -62,7 +62,10 @@ export function useDayStrip(
   // Writing `left` here resized the box it was about to measure, so the
   // placement and the width defined each other and one of them was always a
   // step behind (#962 — the reasoning is on `.tip` in styles.css).
-  const placeReadout = () => {
+  const gutterRef = scroll?.gutterRef;
+  const scrollerRef = scroll?.scrollerRef;
+  // Stable per selected day, so a caller can key an effect on it.
+  const placeReadout = useCallback(() => {
     const dock = dockRef.current;
     const box = tipRef.current;
     // Measured from the SELECTED slot's own element, never from a remembered
@@ -73,7 +76,7 @@ export function useDayStrip(
     if (dock === null || box === null || !(slot instanceof HTMLElement)) return;
     // In the expanded view the strip is inset by the axis gutter and displaced
     // by the scroll, so the slot's own offset is not yet a dock coordinate.
-    const shift = (scroll?.gutterRef.current?.offsetWidth ?? 0) - (scroll?.scrollerRef.current?.scrollLeft ?? 0);
+    const shift = (gutterRef?.current?.offsetWidth ?? 0) - (scrollerRef?.current?.scrollLeft ?? 0);
     const centre = slot.offsetLeft + slot.offsetWidth / 2 + shift;
     // `.tip` carries `max-width: 100%` of the dock, so a box wider than its
     // row should be impossible — but #941 overrode two other declarations on
@@ -82,7 +85,7 @@ export function useDayStrip(
     const slack = Math.max(0, dock.offsetWidth - box.offsetWidth);
     const x = Math.min(Math.max(centre - box.offsetWidth / 2, 0), slack);
     box.style.transform = `translateX(${x}px)`;
-  };
+  }, [activeIndex, gutterRef, scrollerRef]);
 
   // `tip(active)` is in the deps because the farm locale resolves after mount,
   // which changes the text's width without changing which day is selected.
@@ -101,7 +104,7 @@ export function useDayStrip(
     observer.observe(box);
     observer.observe(dock);
     return () => observer.disconnect();
-  }, [activeIndex, tip]);
+  }, [placeReadout, tip]);
 
   const select = (slot: DayStripSlot, keyboard = false) => {
     setActiveDate(slot.date);

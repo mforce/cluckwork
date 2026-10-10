@@ -129,11 +129,12 @@ export function ExpandedLayRate({
     const region = scrollerRef.current;
     if (region !== null) region.scrollLeft = region.scrollWidth;
     sync();
-  }, [data]);
+  }, [data, sync]);
 
   // Crossing the fit threshold moves every slot without resizing the readout
   // or its dock, so neither of the hook's observers would re-place it.
-  useLayoutEffect(() => strip.placeReadout(), [view.stretch]);
+  const { placeReadout } = strip;
+  useLayoutEffect(() => placeReadout(), [view.stretch, placeReadout]);
 
   useEffect(() => {
     const region = scrollerRef.current;

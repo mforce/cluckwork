@@ -3,6 +3,8 @@
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Skip once:               git commit --no-verify   (or SKIP_HOOKS=1)
+# Skip the tests for good: git config cluckwork.hookTests false
+#   (the main-branch guard below still runs; only --no-verify skips it)
 #
 # Deliberately excluded: Cluckwork.Api.IntegrationTests (needs Docker, ~30s+)
 # — CI runs the full suite on every PR. This is a ~2s tripwire.
@@ -10,7 +12,20 @@
 # everywhere git does (including git-for-windows).
 set -eu
 
+# Guard first (#1171). symbolic-ref reads the HEAD of the GIT_DIR git exports
+# to hooks, so a linked worktree sees its own branch. Status 1 is a detached
+# HEAD; any other failure refuses rather than letting the commit through.
+if head=$(git symbolic-ref --quiet HEAD); then :; elif [ $? -ne 1 ]; then
+  echo "pre-commit: refusing: cannot read the current branch (git symbolic-ref failed)." >&2
+  exit 1
+fi
+if [ "$head" = refs/heads/main ]; then
+  echo "pre-commit: refusing to commit on main: main changes only through a merged PR. Run \`git switch -c <type>/<topic>\`, then commit there." >&2
+  exit 1
+fi
+
 [ "${SKIP_HOOKS:-0}" = "1" ] && exit 0
+[ "$(git config --bool cluckwork.hookTests || echo true)" = false ] && exit 0
 
 # Note: checks run against the WORKING TREE, not the staged snapshot — with
 # partial staging (git add -p) the hook can pass while the staged content

@@ -237,7 +237,9 @@ internal static class TestHarness
     // lines unless a test opts into packed units.
     public static async Task<Guid> SeedProductAsync(
         this CluckworkWebApplicationFactory factory, Guid accountId, Guid farmId,
-        Guid eggGradeId, string? name = null, long? defaultPriceMinorUnits = null)
+        Guid eggGradeId, string? name = null, long? defaultPriceMinorUnits = null,
+        Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit unit =
+            Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg)
     {
         var productId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
@@ -246,7 +248,7 @@ internal static class TestHarness
                 productId, accountId, farmId,
                 name ?? $"Product-{productId.ToString()[..8]}",
                 Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Egg,
-                Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Egg,
+                unit,
                 defaultPriceMinorUnits, "USD", 2, notes: null));
             db.ProductEggGradeMappings.Add(Cluckwork.Domain.Modules.Commerce.Catalog.ProductEggGradeMapping.Create(
                 Guid.NewGuid(), accountId, productId, eggGradeId));

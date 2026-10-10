@@ -69,35 +69,27 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                         .ToString(CultureInfo.InvariantCulture);
                 }
 
-                // #273 codex review (P1c) — a stable, alertable event for the AUTH
-                // POLICY only (RateLimitingOptions.LoginPolicyName /
-                // RefreshPolicyName): a 429 there is a brute-force/credential-
-                // stuffing signal a deployment backend should be able to page on.
-                // The client-errors policy (#217) guards log-pipeline VOLUME, not
-                // a credential, so its rejections deliberately stay plain 429s
-                // with no security event — see SecurityEvents.RateLimitRejected.
+                // #273 codex review (P1c), #1164 — a stable, alertable event for every
+                // policy guarding a credential or an OAuth surface: a 429 there is a
+                // brute-force or flooding signal a deployment backend should page on. The
+                // client-errors policy (#217) guards log-pipeline VOLUME, not a credential,
+                // so its rejections stay plain 429s — see SecurityEvents.RateLimitRejected.
                 //
-                // Keyed on the endpoint's ATTACHED POLICY (via the
-                // EnableRateLimitingAttribute metadata RequireRateLimiting sets),
-                // not a hardcoded list of literal paths: AuthEndpoints attaches
-                // LoginPolicyName to /auth/login AND /auth/step-up AND
-                // /auth/change-password (all three verify a credential and must
-                // share the brute-force budget), and the earlier path-list version
-                // here only recognized /auth/login and /auth/refresh — a rejection
-                // on step-up or change-password was silently invisible. Matching
-                // the policy name means any FUTURE route that opts into the login
-                // or refresh policy is covered automatically, with no second edit
-                // required here.
+                // Keyed on the endpoint's ATTACHED POLICY (the EnableRateLimitingAttribute
+                // metadata RequireRateLimiting sets), never on paths: a path list missed
+                // step-up and change-password, and a login/refresh allow-list missed the
+                // four OAuth policies (#1164). Path carries no query string; ClientIp is
+                // logged, never the oauth-api partition key, which hashes a bearer.
                 var policyName = context.HttpContext.GetEndpoint()?.Metadata
                     .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
-                if (policyName == RateLimitingOptions.LoginPolicyName
-                    || policyName == RateLimitingOptions.RefreshPolicyName)
+                if (policyName is not null && policyName != RateLimitingOptions.ClientErrorsPolicyName)
                 {
                     var rejectionLogger = context.HttpContext.RequestServices
                         .GetRequiredService<ILoggerFactory>()
                         .CreateLogger("Cluckwork.Api.Security.RateLimiting");
-                    rejectionLogger.LogWarning("{SecurityEvent} client={ClientIp} path={Path}",
+                    rejectionLogger.LogWarning("{SecurityEvent} policy={Policy} client={ClientIp} path={Path}",
                         SecurityEvents.RateLimitRejected,
+                        policyName,
                         RateLimitKey.ForClient(context.HttpContext.Connection.RemoteIpAddress),
                         context.HttpContext.Request.Path.Value);
                 }

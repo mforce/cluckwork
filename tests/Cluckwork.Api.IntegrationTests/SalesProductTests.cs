@@ -1,5 +1,6 @@
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;
@@ -26,14 +27,14 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
     private async Task<(HttpClient Client, Guid AccountId, Guid FarmId, Dictionary<string, Guid> Grades, Guid ProductId)>
-        SetupAsync(long? defaultPrice = 100)
+        SetupAsync(long? defaultPrice = 100, ProductUnit unit = ProductUnit.Egg)
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var farmId = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large", "Medium");
         var productId = await factory.SeedProductAsync(
-            accountId, farmId, grades["Large"], "Large Eggs", defaultPrice);
+            accountId, farmId, grades["Large"], "Large Eggs", defaultPrice, unit);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
         return (client, accountId, farmId, grades, productId);
     }
@@ -143,7 +144,8 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var (client, _, _, _, productId) = await SetupAsync();
         var orderId = await CreateDraftAsync(client);
 
-        // 2 cartons @ default 12 eggs → 24 eggs; price 100/carton.
+        // 2 cartons @ default 12 eggs → 24 eggs; the 100/egg default scales to
+        // 1200/carton (#1160).
         var first = await AddLineAsync(client, orderId, productId, 2, unit: "Carton");
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
@@ -163,8 +165,9 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(2, order!.Items.Count);
         Assert.Contains(order.Items, i => i.BaseUnitFactor == 12 && i.Quantity == 2 && i.QuantityBase == 24);
         Assert.Contains(order.Items, i => i.BaseUnitFactor == 30 && i.Quantity == 1 && i.QuantityBase == 30);
-        // Total is per selling unit: (2 + 1) × 100.
-        Assert.Equal(300, order.TotalMinorUnits);
+        // Each line's default price scales by its own snapshotted factor:
+        // 2 × 1200 + 1 × 3000.
+        Assert.Equal(5_400, order.TotalMinorUnits);
     }
 
     // #445 — the SPA previews "= N eggs" from a conversions read done at page
@@ -478,6 +481,23 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
         // 100 is SetupAsync's seeded default price, read from the fixture.
         Assert.Equal(100, order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
+    // #1160 — the default and list price scale to the line's unit.
+    [Theory]
+    [InlineData(ProductUnit.Egg, 45L, "Tray", 1_350L)]
+    [InlineData(ProductUnit.Tray, 1_350L, "Egg", 45L)]
+    public async Task AddLine_InAnotherUnit_ScalesTheDefaultAndListPrice(
+        ProductUnit productUnit, long productPrice, string lineUnit, long expected)
+    {
+        var (client, _, _, _, productId) = await SetupAsync(productPrice, productUnit);
+        var orderId = await CreateDraftAsync(client);
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, productId, 8, unit: lineUnit)).StatusCode);
+
+        var line = (await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}"))!.Items.Single();
+        Assert.Equal((expected, expected), (line.UnitPriceMinorUnits, line.ListUnitPriceMinorUnits));
     }
 
     [Fact]
