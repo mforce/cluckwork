@@ -7,7 +7,9 @@ Every harness sends one JSON object on stdin with the shell string in
 stderr shown to the agent. The shell tool's name differs: `Bash` (Claude Code,
 Codex), `bash` (`.pi/extensions/git-guard.ts`), `terminal` (Hermes, through
 `.hermes/plugins/git-guard`). Hermes may add `tool_input.workdir`, the
-directory that one command runs in.
+directory that one command runs in, and the plugin adds `backend` when the
+terminal runs somewhere other than this host. TEXT_TOOLS run text this guard
+cannot parse; that text is only screened for a git write or merge.
 
 A command that mentions a git write (`git push`, `git commit`) or a PR merge must
 be one simple command, optionally after `cd <dir> &&`. Anything else is refused
@@ -30,6 +32,10 @@ import urllib.parse
 
 MAIN = "main"
 SHELL_TOOLS = {"Bash", "bash", "terminal"}  # Claude Code and Codex, the Pi extension, Hermes
+# Tools whose text git-guard cannot read as one shell command: Pi's powershell, Hermes's Python
+# execute_code and process_manage input (write/submit). Their text is refused when it mentions, or
+# could spell, a git write or PR merge; it is never parsed.
+TEXT_TOOLS = {"powershell": "command", "execute_code": "code", "process_manage": "data"}
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 GIT_FALSE = {"false", "no", "off", "0", ""}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
@@ -71,6 +77,8 @@ MESSAGES = {
                    "wildcard or main remote.<name>.push) can update main or force. Push to a remote without it.",
     "upstream-main": "with push.default=upstream this branch would push to its upstream, main. "
                      "Run `git branch --unset-upstream`, then `git push -u origin <that-branch>`.",
+    "text": "it mentions, or could spell, a git write or PR merge, and git-guard cannot check that inside this "
+            "tool. Run the git command through the shell tool (Bash, bash or terminal) as its own simple command.",
     "commit-main": "main is protected. Run `git switch -c <type>/<topic>` first, then commit there.",
     "option": "git-guard does not know this option, so it cannot tell what the write does. Drop it or spell it out.",
 }
@@ -339,9 +347,11 @@ def mentions_write(command):
     return MENTIONS_WRITE.search(plain) or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain))
 
 
-def check(command, cwd):
+def check(command, cwd, text_only=None):
     if not mentions_write(command):
         return
+    if text_only:
+        raise Blocked(f"this {text_only} call is blocked: {MESSAGES['text']}")
     argv, cwd = simple_command(command, cwd)
     program = os.path.basename(argv[0])
     shown = " ".join(argv)
@@ -354,22 +364,36 @@ def check(command, cwd):
 
 
 def read_payload(text):
-    """(command, cwd) from a shell-tool payload, or None for another tool."""
+    """(command, cwd, text_only) for check(), or None for a tool that runs nothing.
+
+    text_only names a tool whose text is checked as text, never parsed: a TEXT_TOOLS entry, or Hermes's
+    terminal on a backend other than local, whose repository this host cannot read."""
     payload = json.loads(text)
     tool = payload.get("tool_name", "Bash")
     if not isinstance(tool, str) or not tool:
         raise ValueError("tool_name is not a non-empty string")
-    if tool not in SHELL_TOOLS:
+    if tool not in SHELL_TOOLS and tool not in TEXT_TOOLS:
         return None
     tool_input = payload.get("tool_input")
-    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if not isinstance(tool_input, dict):
+        raise ValueError("tool_input is not an object")
+    if tool in TEXT_TOOLS:
+        if tool == "process_manage" and tool_input.get("action") not in ("write", "submit"):
+            return None
+        command = tool_input.get(TEXT_TOOLS[tool])
+        if not isinstance(command, str):
+            raise ValueError(f"tool_input.{TEXT_TOOLS[tool]} is missing or not a string")
+        return command, None, tool
+    command = tool_input.get("command")
     cwd = payload.get("cwd")
     if not isinstance(command, str) or not isinstance(cwd, str) or not cwd:
         raise ValueError("tool_input.command or cwd is missing, empty or not a string")
     workdir = tool_input.get("workdir") if tool == "terminal" else None
     if workdir is not None and (not isinstance(workdir, str) or not workdir):
         raise ValueError("tool_input.workdir is empty or not a string")
-    return command, os.path.join(cwd, workdir) if workdir else cwd
+    backend = payload.get("backend", "local") if tool == "terminal" else "local"
+    text_only = None if backend == "local" else f"terminal ({backend} backend)"
+    return command, os.path.join(cwd, workdir) if workdir else cwd, text_only
 
 
 def main():

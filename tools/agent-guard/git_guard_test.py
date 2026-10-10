@@ -9,9 +9,11 @@ import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 
 GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git_guard.py")
+ROOT = os.getcwd()
 HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plugins", "git-guard", "__init__.py")
 
 # (command, directory the session runs in, expected verdict). Fixtures:
@@ -305,9 +307,28 @@ class GitGuardTest(unittest.TestCase):
                 self.assertIn("unreadable Bash hook payload", stderr)
 
     def test_other_tools_pass(self):
-        for name in ("Read", "read_file", "powershell"):
+        for name in ("Read", "read_file"):
             code, _ = run_guard(json.dumps({"tool_name": name, "tool_input": {"command": "git push --force"}}))
             self.assertEqual(code, 0, name)
+
+    def test_text_tools_screen_text_they_cannot_parse(self):
+        merge_py = 'import subprocess\nsubprocess.run(["gh", "pr", "merge", "1175"])'
+        for tool_input, tool, expected in (
+            ({"command": "gh pr merge 1175"}, "powershell", 2),
+            ({"command": "git -C $env:REPO push"}, "powershell", 2),
+            ({"command": "Get-ChildItem"}, "powershell", 0),
+            ({"code": merge_py}, "execute_code", 2),
+            ({"code": "print(sum([1, 2]))"}, "execute_code", 0),
+            ({"action": "submit", "session_id": "p1", "data": "gh pr merge 1175"}, "process_manage", 2),
+            ({"action": "write", "session_id": "p1", "data": "git push origin HEAD:main\n"}, "process_manage", 2),
+            ({"action": "submit", "session_id": "p1", "data": "ls"}, "process_manage", 0),
+            ({"action": "kill", "session_id": "p1"}, "process_manage", 0),
+            ({}, "execute_code", 2),
+        ):
+            code, stderr = run_guard(json.dumps({"tool_name": tool, "tool_input": tool_input}))
+            self.assertEqual(code, expected, f"{tool} {tool_input}: {stderr}")
+            if expected == 2 and tool_input:
+                self.assertIn("cannot check that inside this tool", stderr)
 
     def test_hermes_workdir_picks_the_repo(self):
         for workdir, expected in ((self.dirs["main"], 2), (self.dirs["feature"], 0), ("", 2), (3, 2)):
@@ -316,21 +337,58 @@ class GitGuardTest(unittest.TestCase):
             code, stderr = run_guard(json.dumps(body))
             self.assertEqual(code, expected, f"workdir={workdir!r}: {stderr}")
 
-    def test_hermes_plugin_blocks_through_the_guard(self):
+    def hermes_hook(self, terminal=None):
+        """The plugin's pre_tool_call callback; terminal stands in for Hermes's tools.terminal_tool."""
+        saved = {name: sys.modules.pop(name, None) for name in ("tools", "tools.terminal_tool")}
+
+        def restore():
+            for name, module in saved.items():
+                sys.modules.pop(name, None)
+                if module:
+                    sys.modules[name] = module
+        self.addCleanup(restore)
+        if terminal:
+            sys.modules["tools"] = types.ModuleType("tools")
+            sys.modules["tools.terminal_tool"] = module = types.ModuleType("tools.terminal_tool")
+            module._get_env_config = lambda: {"env_type": terminal.get("backend", "local"), "cwd": terminal["cwd"]}
+            module.get_session_cwd = lambda task_id: terminal.get("session")
+            module.resolve_task_overrides = lambda task_id: {}
         spec = importlib.util.spec_from_file_location("git_guard_hermes", HERMES_PLUGIN)
         plugin = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(plugin)
         hooks = {}
         plugin.register(type("Ctx", (), {"register_hook": lambda self, name, fn: hooks.__setitem__(name, fn)})())
-        hook = hooks["pre_tool_call"]
+        return hooks["pre_tool_call"]
+
+    def test_hermes_plugin_blocks_through_the_guard(self):
+        hook = self.hermes_hook({"cwd": self.dirs["feature"]})
         blocked = hook(tool_name="terminal", args={"command": "gh pr merge 1"}, task_id="")
         self.assertEqual(blocked["action"], "block")
         self.assertIn("git-guard:", blocked["message"])
         on_main = hook(tool_name="terminal", args={"command": "git commit -m x", "workdir": self.dirs["main"]}, task_id="")
         self.assertEqual(on_main["action"], "block")
-        self.assertIsNone(hook(tool_name="terminal", args={"command": "git commit -m x", "workdir": self.dirs["feature"]},
-                               task_id=""))
+        self.assertIsNone(hook(tool_name="terminal", args={"command": "git commit -m x"}, task_id=""))
         self.assertIsNone(hook(tool_name="read_file", args={"path": "x"}, task_id=""))
+        merge_py = {"code": 'import subprocess\nsubprocess.run(["gh", "pr", "merge", "1175"])'}
+        self.assertEqual(hook(tool_name="execute_code", args=merge_py, task_id="")["action"], "block")
+        submit = {"action": "submit", "session_id": "p1", "data": "gh pr merge 1175"}
+        self.assertEqual(hook(tool_name="process_manage", args=submit, task_id="")["action"], "block")
+
+    def test_hermes_first_call_uses_the_configured_terminal_cwd(self):
+        os.chdir(self.dirs["feature"])  # the Hermes process runs from a feature checkout ...
+        self.addCleanup(os.chdir, ROOT)
+        hook = self.hermes_hook({"cwd": self.dirs["main"]})  # ... but terminal.cwd points at main
+        self.assertEqual(hook(tool_name="terminal", args={"command": "git commit -m x"}, task_id="")["action"], "block")
+        hook = self.hermes_hook({"cwd": self.dirs["main"], "session": self.dirs["feature"]})  # a later call, after cd
+        self.assertIsNone(hook(tool_name="terminal", args={"command": "git commit -m x"}, task_id=""))
+
+    def test_hermes_refuses_writes_it_cannot_check(self):
+        for terminal in ({"cwd": self.dirs["feature"], "backend": "docker"}, None):  # remote backend; no terminal module
+            hook = self.hermes_hook(terminal)
+            blocked = hook(tool_name="terminal", args={"command": "git commit -m x"}, task_id="")
+            self.assertEqual(blocked["action"], "block", terminal)
+            self.assertIn("cannot check", blocked["message"])
+            self.assertIsNone(hook(tool_name="terminal", args={"command": "ls -la"}, task_id=""))
 
     def test_cdpath_makes_a_bare_cd_operand_ambiguous(self):
         env = {**os.environ, "CDPATH": self.tmp.name}
