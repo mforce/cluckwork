@@ -28,9 +28,8 @@ test("blocks what git_guard.py refuses and lets the rest run", async (t) => {
 
   assert.equal(await toolCall("bash", "git status --short", repo), undefined);
 
-  const powershellMerge = await toolCall("powershell", "gh pr merge 1158", repo);
-  assert.equal(powershellMerge.block, true);
-  assert.match(powershellMerge.reason, /cannot check that inside this tool/);
-  assert.equal(await toolCall("powershell", "Get-ChildItem", repo), undefined);
+  const powershell = await toolCall("powershell", "Get-ChildItem", repo);
+  assert.equal(powershell.block, true);
+  assert.match(powershell.reason, /powershell tool is blocked in this repository: use the bash tool/);
   assert.equal(await toolCall("read", "gh pr merge 1158", repo), undefined);
 });

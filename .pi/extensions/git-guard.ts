@@ -1,7 +1,7 @@
-// Pi extension: runs tools/agent-guard/git_guard.py before every bash and powershell
-// tool call and blocks the git writes and PR merges it refuses (#1171). PowerShell
-// text is only screened, never parsed. Pi loads this from .pi/extensions/ once the
-// project is trusted; a failing handler blocks the call.
+// Pi extension: runs tools/agent-guard/git_guard.py before every bash tool call and
+// blocks the git writes and PR merges it refuses (#1171). powershell (Windows only)
+// is refused outright, because the guard cannot check PowerShell; use bash. Pi loads
+// this from .pi/extensions/ once the project is trusted; a failing handler blocks.
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
