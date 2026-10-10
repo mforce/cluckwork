@@ -2418,15 +2418,15 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     await renderReadyWithProbe(`/sales?customerId=${GUID_A}`);
     await screen.findByRole("row", { name: /SO-A/ });
 
-    await act(async () => { capturedNavigate!(`/sales?customerId=${GUID_B}`); });
+    await act(async () => { await capturedNavigate!(`/sales?customerId=${GUID_B}`); });
     await screen.findByRole("row", { name: /SO-B/ });
     expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
 
-    await act(async () => { capturedNavigate!(-1); }); // Back
+    await act(async () => { await capturedNavigate!(-1); }); // Back
     await screen.findByRole("row", { name: /SO-A/ });
     expect(screen.queryByRole("row", { name: /SO-B/ })).not.toBeInTheDocument();
 
-    await act(async () => { capturedNavigate!(1); }); // Forward
+    await act(async () => { await capturedNavigate!(1); }); // Forward
     await screen.findByRole("row", { name: /SO-B/ });
     expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
   });
@@ -2447,9 +2447,11 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     // Navigate to B; its list read is HELD. Neither the A row nor the A
     // trigger name may still be on screen — synchronous hide, not "hidden
     // once B's request settles."
-    act(() => { capturedNavigate!(`/sales?customerId=${GUID_B}`); });
+    let navigation!: void | Promise<void>;
+    act(() => { navigation = capturedNavigate!(`/sales?customerId=${GUID_B}`); });
     expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
     expect(trigger()).not.toHaveValue("Filtered Farm A");
+    await act(async () => { await navigation; });
 
     await act(async () => { releaseB([{ ...DRAFT_TWO, id: "ob", referenceNumber: "SO-B", customerName: "Filtered Farm B" }]); });
     await screen.findByRole("row", { name: /SO-B/ });
