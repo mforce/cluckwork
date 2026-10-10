@@ -1438,8 +1438,9 @@ access never expires on its own; see **Disconnecting an app**, which also covers
 the consent screen and the sign-in screen that leads to it. An app can identify
 itself with the https address of a small document it publishes (a client ID
 metadata document); Cluckwork fetches that document itself, so the app's return
-addresses really come from whoever runs that website. Only the domain is checked:
-the app's name is still its own choice. An app that registered itself instead is
+addresses really come from whoever controls that address. **Details** names the full
+address, because some websites let anyone publish a file. Only the address is
+checked: the app's name is still its own choice. An app that registered itself instead is
 marked **Unverified app**. A verified app that returns to an address on this
 computer is still taken on trust about which program receives the approval.
 Connecting, disconnecting, auditing and the farm switch work the same either way.

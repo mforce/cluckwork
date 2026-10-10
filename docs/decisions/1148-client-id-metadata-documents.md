@@ -73,9 +73,10 @@ exactly what a DCR client with the same metadata would hold, because both come f
 - **Isolation.** The refresh runs in a child DI scope with its own `AppDbContext`. A
   failed insert then cannot stay tracked in the request's context, where the consent
   transaction would save it again.
-- **Races.** Two requests may both find no row. The loser's insert hits the unique index
-  on `ClientId`, or its update hits OpenIddict's concurrency token, and it accepts the
-  winner's copy. Both copies passed the same validation.
+- **Races.** Two requests may both find no row. The loser's insert is refused by
+  OpenIddict's own duplicate `client_id` check or by the unique index on `ClientId`, or
+  its update hits OpenIddict's concurrency token. It then accepts the winner's copy, after
+  confirming in a fresh scope that one exists. Both copies passed the same validation.
 - **Purge (#797).** Unchanged. A metadata client nobody approved is deleted after
   `OAuthPurgeSweep.UnapprovedWindow` like a registration, and the next request fetches it
   again. An approved row keeps its authorization, so it stays.
@@ -130,8 +131,11 @@ A fetch is spent only on a missing or expired row; a fresh row costs nothing. On
 shared `IFixedWindowCounter` (#544): at most 10 fetches of one URL per 5 minutes, then at
 most 60 fetches in total per minute. The per-URL key is a SHA-256 hash, so no
 client-chosen text reaches the shared store. An exhausted budget refuses with
-`temporarily_unavailable` and serves no stale copy. The per-IP `oauth-authorize` limit
-still sits in front.
+`temporarily_unavailable` for a client with no stored copy. A client whose copy has
+expired keeps using it until a fetch is possible again. Without that, anyone who drained
+the global budget with junk URLs would lock out every app already in use; the copy once
+passed every check, and a document that fails is never stored. The per-IP
+`oauth-authorize` limit still sits in front.
 
 ## Which URLs qualify
 
@@ -166,7 +170,10 @@ The consent payload and the anonymous sign-in preview gain `verifiedDomain`, the
 authority of the client id (host, plus a port if it has one), derived from the id and
 never stored. It is null for a registered client. The screen shows **Verified domain**
 with it in place of **Unverified app**, and Details says what was checked: the details
-came from that website; the name is still the app's own choice. When the redirect goes
+came from the full document URL, which Details names, so they come from whoever controls
+that address. The name is still the app's own choice. Details names the URL, not only the
+domain, because a domain that hosts files for anyone (a code host's raw file domain, a
+paste site) verifies nothing about who published one of them; the path shows that. When the redirect goes
 to this computer, Details adds that the domain cannot vouch for which program receives
 it, as MCP's localhost guidance asks.
 

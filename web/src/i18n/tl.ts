@@ -146,7 +146,7 @@ export const tl = {
     detailsWriteSome: "Makakapagtala lang ito ng araw-araw na tala para sa mga flock na naka-assign sa iyo: {{flocks}}.",
     detailsWriteBlocked: "Hinihingi nitong magtala ng araw-araw na tala, pero hindi ito kaya ng role mo ({{role}}), kaya hindi rin ito makakapagtala.",
     detailsName: "Ang {{app}} ang pumili ng sarili nitong pangalan. Hindi ito sinusuri ng Cluckwork, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
-    detailsNameVerified: "Mismong ang Cluckwork ang kumuha ng mga detalye ng app na ito mula sa {{domain}}, kaya galing ang mga ito sa nagpapatakbo ng {{domain}}. Pero ang {{app}} pa rin ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
+    detailsNameVerified: "Mismong ang Cluckwork ang kumuha ng mga detalye ng app na ito mula sa {{url}}, kaya galing ang mga ito sa may hawak ng address na iyon sa {{domain}}. Pero ang {{app}} pa rin ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
     detailsReturnHere: "Pagkatapos, babalik ang browser mo sa {{host}}, isang address sa computer na ito.",
     detailsReturnTo: "Pagkatapos, pupunta ang browser mo sa {{host}}.",
     detailsLoopbackVerified: "Hindi masisiguro ng {{domain}} kung aling programa sa computer na ito ang tatanggap nito.",

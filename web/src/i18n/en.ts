@@ -196,7 +196,7 @@ export const en = {
     detailsWriteSome: "It can record daily entries only for the flocks assigned to you: {{flocks}}.",
     detailsWriteBlocked: "It asks to record daily entries, but your role ({{role}}) cannot, so it cannot either.",
     detailsName: "{{app}} chose its own name. Cluckwork does not check it, so allow it only if you just started connecting {{app}}.",
-    detailsNameVerified: "Cluckwork fetched this app's details from {{domain}} itself, so they come from whoever runs {{domain}}. The name {{app}} is still the app's own choice, so allow it only if you just started connecting {{app}}.",
+    detailsNameVerified: "Cluckwork fetched this app's details itself from {{url}}, so they come from whoever controls that address on {{domain}}. The name {{app}} is still the app's own choice, so allow it only if you just started connecting {{app}}.",
     detailsReturnHere: "Afterwards your browser goes back to {{host}}, an address on this computer.",
     detailsReturnTo: "Afterwards your browser goes to {{host}}.",
     detailsLoopbackVerified: "{{domain}} cannot vouch for which program on this computer receives it.",

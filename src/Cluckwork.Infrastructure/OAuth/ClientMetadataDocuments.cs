@@ -81,8 +81,13 @@ internal sealed class ClientMetadataDocuments(
         if (row is not null && ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > clock.GetUtcNow())
             return Result.Success();
 
+        // With the budget spent, a copy that once passed every check stands in until it
+        // can be fetched again. Refusing it would let anyone who drains the global budget
+        // with junk URLs lock out every app already in use.
         if (!await SpendBudgetAsync(clientId, ct))
-            return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");
+            return row is not null
+                ? Result.Success()
+                : Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");
 
         var fetched = await fetcher.FetchAsync(url.Value, ct);
         if (fetched.IsFailure)
@@ -104,19 +109,29 @@ internal sealed class ClientMetadataDocuments(
             else
                 await applications.UpdateAsync(row, descriptor.Value, ct);
         }
-        catch (OpenIddictExceptions.ValidationException exception)
-        {
-            // OpenIddict's own checks, which DCR meets too: an iss parameter in a redirect
-            // URI, for one (issuer fixation).
-            return Refuse(Errors.InvalidRequest, string.Join(" ", exception.Results.Select(result => result.ErrorMessage)));
-        }
-        catch (Exception exception) when (exception is OpenIddictExceptions.ConcurrencyException
+        catch (Exception exception) when (exception is OpenIddictExceptions.ValidationException
+            or OpenIddictExceptions.ConcurrencyException
             || exception is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })
         {
-            // Another request stored a copy it validated the same way. Either copy is fine.
+            // A concurrent request may have stored its own copy first. OpenIddict reports
+            // that as a client id already in use, the database as a unique or concurrency
+            // conflict; the other copy passed the same checks, so either one is fine.
+            // Otherwise the refusal is one of OpenIddict's own checks, which DCR meets too:
+            // an iss parameter in a redirect URI, for one (issuer fixation).
+            if (exception is OpenIddictExceptions.ValidationException validation
+                && !(row is null && await StoredMeanwhileAsync(clientId, ct)))
+                return Refuse(Errors.InvalidRequest, string.Join(" ", validation.Results.Select(result => result.ErrorMessage)));
         }
 
         return Result.Success();
+    }
+
+    // A fresh scope, because this request's application cache already holds "none".
+    private async Task<bool> StoredMeanwhileAsync(string clientId, CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>()
+            .FindByClientIdAsync(clientId, ct) is not null;
     }
 
     private async Task<bool> SpendBudgetAsync(string clientId, CancellationToken ct)

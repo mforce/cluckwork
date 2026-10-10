@@ -214,8 +214,8 @@ describe("ConnectPage (#798, consent D)", () => {
     fireEvent.click(screen.getByText("Details"));
     const details = screen.getByText("Details").closest("details")!;
     expect(details).toHaveTextContent(
-      "Cluckwork fetched this app's details from claude.ai itself, so they come from whoever runs claude.ai. "
-      + "The name Claude Desktop is still the app's own choice");
+      "Cluckwork fetched this app's details itself from https://claude.ai/oauth/claude-code.json, so they come from "
+      + "whoever controls that address on claude.ai. The name Claude Desktop is still the app's own choice");
     expect(details).toHaveTextContent(
       "an address on this computer. claude.ai cannot vouch for which program on this computer receives it.");
   });

@@ -140,7 +140,7 @@ export const es = {
     detailsWriteSome: "Solo puede anotar registros diarios de los lotes que tienes asignados: {{flocks}}.",
     detailsWriteBlocked: "Pide anotar registros diarios, pero tu rol ({{role}}) no puede, así que tampoco puede ella.",
     detailsName: "{{app}} eligió su propio nombre. Cluckwork no lo comprueba, así que permítela solo si acabas de empezar a conectar {{app}}.",
-    detailsNameVerified: "Cluckwork obtuvo los datos de esta aplicación directamente de {{domain}}, así que vienen de quien administra {{domain}}. El nombre {{app}} sigue siendo elección de la aplicación, así que permítela solo si acabas de empezar a conectar {{app}}.",
+    detailsNameVerified: "Cluckwork obtuvo los datos de esta aplicación directamente de {{url}}, así que vienen de quien controla esa dirección en {{domain}}. El nombre {{app}} sigue siendo elección de la aplicación, así que permítela solo si acabas de empezar a conectar {{app}}.",
     detailsReturnHere: "Después, tu navegador vuelve a {{host}}, una dirección de este equipo.",
     detailsReturnTo: "Después, tu navegador va a {{host}}.",
     detailsLoopbackVerified: "{{domain}} no puede garantizar qué programa de este equipo la recibe.",

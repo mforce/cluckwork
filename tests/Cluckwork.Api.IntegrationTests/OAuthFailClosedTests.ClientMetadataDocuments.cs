@@ -135,6 +135,25 @@ public sealed partial class OAuthFailClosedTests
         Assert.False(await StoredAsync(url), "an unusable document was stored");
     }
 
+    // OpenIddict's own redirect URI checks still run on what is stored, as for DCR.
+    [Fact]
+    public async Task DocumentWithAnIssuerInItsRedirect_IsRefused_AndNotStored()
+    {
+        await using var metadata = await MetadataHostAsync();
+        var user = await SeedAsync(Roles.Manager);
+        var url = NewDocumentUrl();
+        const string fixation = RedirectUri + "?iss=https%3A%2F%2Fevil.example";
+        metadata.Server.Respond = metadata.Server.Serves(MetadataDocumentServer.Document(url, fixation));
+        var query = AuthorizeParameters(url, NewVerifier(), ReadScope);
+        query["redirect_uri"] = fixation;
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(metadata.Host, user.Jwt, query);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(Errors.InvalidRequest, await AuthorizeErrorOf(response));
+        Assert.False(await StoredAsync(url), "a redirect carrying iss was stored");
+    }
+
     [Fact]
     public async Task DocumentNamingAnotherClient_IsRefused_AndNotStored()
     {
@@ -173,22 +192,31 @@ public sealed partial class OAuthFailClosedTests
     }
 
     // Many different URLs share one budget, so the server cannot be made to hit hosts fast.
+    // Draining it locks out only clients never seen before: an app whose stored copy has
+    // expired keeps working on that copy until a fetch is possible again.
     [Fact]
-    public async Task ManyUrls_ShareOneGlobalBudget()
+    public async Task ManyUrls_ShareOneGlobalBudget_AndAStoredCopyOutlastsIt()
     {
         await using var metadata = await MetadataHostAsync();
-        metadata.Server.Respond = metadata.Server.Serves("", status: 404);
+        var known = NewDocumentUrl();
+        metadata.Server.Respond = context => context.Request.Path == new Uri(known).AbsolutePath
+            ? metadata.Server.Serves(MetadataDocumentServer.Document(known, RedirectUri))(context)
+            : metadata.Server.Serves("", status: 404)(context);
         using var fetcher = metadata.Network.Fetcher();
         var resolver = new ClientMetadataDocuments(new ClientMetadataOptions(), metadata.Host.Services.GetRequiredService<IServiceScopeFactory>(),
             fetcher, new InProcessFixedWindowCounter(TimeProvider.System), TimeProvider.System, NullLogger<ClientMetadataDocuments>.Instance);
+        Assert.True((await resolver.EnsureFreshAsync(known, CancellationToken.None)).IsSuccess);
+        await ExpireStoredCopyAsync(known);
 
         var outcomes = new List<string>();
-        for (var i = 0; i <= ClientMetadataDocuments.GlobalBudget.Limit; i++)
+        for (var i = 1; i <= ClientMetadataDocuments.GlobalBudget.Limit; i++)
             outcomes.Add((await resolver.EnsureFreshAsync(NewDocumentUrl(), CancellationToken.None)).Error.Code);
+        var stale = await resolver.EnsureFreshAsync(known, CancellationToken.None);
 
         Assert.Equal(ClientMetadataDocuments.GlobalBudget.Limit, metadata.Server.Requests.Count);
         Assert.All(outcomes[..^1], code => Assert.Equal(Errors.InvalidRequest, code));
         Assert.Equal(Errors.TemporarilyUnavailable, outcomes[^1]);
+        Assert.True(stale.IsSuccess, "an expired copy was refused while the budget was spent");
     }
 
     // Two first requests race to store the same document; both proceed and one row stays.

@@ -267,8 +267,8 @@ function Details({ request, email, onSignOut }: { request: ConsentRequest; email
     <Box component="details" sx={{ borderTop: "1px solid var(--hairline)", paddingTop: 1.5, "& p": { marginBlock: 1 } }}>
       <Box component="summary" sx={{ cursor: "pointer", fontWeight: 600 }}>{t("details")}</Box>
       <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[reads, writes].filter(Boolean).join(" ")}</Typography>
-      <Typography variant="body2" component="p">
-        {domain ? t("detailsNameVerified", { app, domain }) : t("detailsName", { app })}
+      <Typography variant="body2" component="p" sx={{ overflowWrap: "anywhere" }}>
+        {domain ? t("detailsNameVerified", { app, domain, url: request.clientId }) : t("detailsName", { app })}
       </Typography>
       <Typography variant="body2" component="p">
         {LOOPBACK.has(host) ? t("detailsReturnHere", { host }) : t("detailsReturnTo", { host })}
