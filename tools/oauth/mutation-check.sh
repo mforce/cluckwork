@@ -31,7 +31,6 @@ ENDPOINT=src/Cluckwork.Api/Modules/Access/OAuth/OAuthEndpoints.cs
 REGISTRATION=src/Cluckwork.Infrastructure/OAuth/ClientMetadata.cs
 FETCHER=src/Cluckwork.Infrastructure/OAuth/ClientMetadataFetcher.cs
 DOCUMENTS=src/Cluckwork.Infrastructure/OAuth/ClientMetadataDocuments.cs
-USERS=src/Cluckwork.Api/Modules/Access/Users/UserEndpoints.cs
 LIMITS=src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs
 PURGE=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthPurge.cs
 SWEEP=src/Cluckwork.Infrastructure/Jobs/OAuthPurgeSweep.cs
@@ -200,9 +199,7 @@ cimd-cache-ignored#kill#DOCUMENTS#        if (expiresAt > now)\n#        if (exp
 cimd-never-refetched#kill#DOCUMENTS#        if (expiresAt > now)\n#        if (expiresAt > DateTimeOffset.MinValue)\n#OAuthFailClosedTests.Refetch_AppliesTheNewDocument#Expected: BadRequest
 cimd-update-skipped#kill#DOCUMENTS#                await applications.UpdateAsync(row, descriptor.Value, ct);#                await Task.CompletedTask;#OAuthFailClosedTests.Refetch_AppliesTheNewDocument#Expected: BadRequest
 cimd-per-url-budget#kill#DOCUMENTS#.Count <= PerUrlBudget.Limit\n#.Count <= PerUrlBudget.Limit * 10\n#OAuthFailClosedTests.FailingUrl_IsFetchedOnlyWithinItsBudget#Expected: 10
-cimd-global-budget#kill#DOCUMENTS#.Count <= GlobalBudget.Limit;#.Count <= GlobalBudget.Limit * 10;#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget_AndARecentCopyOutlastsIt#Expected: 60
-cimd-stale-refused#kill#DOCUMENTS#            return expiresAt + StaleGrace > now\n#            return clientId.Length < 0\n#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget_AndARecentCopyOutlastsIt#a recently expired copy was refused
-cimd-stale-unbounded#kill#DOCUMENTS#            return expiresAt + StaleGrace > now\n#            return expiresAt is not null\n#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget_AndARecentCopyOutlastsIt#Strings differ
+cimd-global-budget#kill#DOCUMENTS#.Count <= GlobalBudget.Limit;#.Count <= GlobalBudget.Limit * 10;#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget#Expected: 60
 cimd-race-unhandled#kill#DOCUMENTS#catch (Exception exception) when (exception is OpenIddictExceptions.ValidationException\n            or OpenIddictExceptions.ConcurrencyException\n            || exception is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })#catch (Exception exception) when (exception is OpenIddictExceptions.ConcurrencyException)#OAuthFailClosedTests.ConcurrentFirstRequests_StoreOneRow#Assert.All() Failure
 cimd-issuer-in-redirect-stored#kill#DOCUMENTS#                return Refuse(Errors.InvalidRequest, string.Join(" ", validation.Results.Select(result => result.ErrorMessage)));#                return Result.Success();#OAuthFailClosedTests.DocumentWithAnIssuerInItsRedirect_IsRefused_AndNotStored#Assert.Contains() Failure
 cimd-disabled-still-fetches#kill#DOCUMENTS#        if (!options.Enabled)#        if (options.Enabled && !options.Enabled)#OAuthFailClosedTests.TurnedOff_NeitherAdvertisesNorFetches#Expected: BadRequest
@@ -216,6 +213,8 @@ cimd-as112-v6-admitted#kill#FETCHER#"2002::/16", "2620:4f:8000::/48", #"2002::/1
 cimd-lone-surrogate-escapes#kill#REGISTRATION#catch (Exception exception) when (exception is JsonException or InvalidOperationException)#catch (JsonException)#ClientMetadataTests.LoneSurrogate_InAnyStringField_IsInvalidMetadata#the document threw
 cimd-client-id-unchecked#kill#REGISTRATION#\n                || clientId.GetString() != documentUrl)#)#ClientMetadataTests.Document_NamingAnotherClientId_IsRefused#Strings differ
 cimd-duplicate-client-refused#kill#DOCUMENTS#                && !(row is null && await StoredMeanwhileAsync(clientId, ct)))#)#OAuthFailClosedTests.SecondRequest_MeetingTheFirstsCopy_UsesIt#Expected: OK
+cimd-stale-fallback-restored#kill#DOCUMENTS#            return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#            return row is not null ? Result.Success() : Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#OAuthFailClosedTests.RemovedDocument_IsNotRevived_ByDrainingTheBudget#Expected: BadRequest
+cimd-mixed-validation-recovered#kill#DOCUMENTS#row is null && IsOnlyDuplicateClientId(validation) && #row is null && #OAuthFailClosedTests.SecondRequest_WithAnInvalidDocument_IsRefused_DespiteTheFirstsCopy#Expected: BadRequest
 EOF
 )
 
@@ -310,7 +309,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$USERS" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

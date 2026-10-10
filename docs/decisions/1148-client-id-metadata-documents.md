@@ -76,7 +76,9 @@ exactly what a DCR client with the same metadata would hold, because both come f
 - **Races.** Two requests may both find no row. The loser's insert is refused by
   OpenIddict's own duplicate `client_id` check or by the unique index on `ClientId`, or
   its update hits OpenIddict's concurrency token. It then accepts the winner's copy, after
-  confirming in a fresh scope that one exists. Both copies passed the same validation.
+  confirming in a fresh scope that one exists. OpenIddict's refusal must be the duplicate
+  client id and nothing else: a duplicate reported beside another error, such as an `iss`
+  parameter in a version the loser fetched, is still a refused document (review round 2).
 - **Purge (#797).** Unchanged. A metadata client nobody approved is deleted after
   `OAuthPurgeSweep.UnapprovedWindow` like a registration, and the next request fetches it
   again. An approved row keeps its authorization, so it stays.
@@ -139,13 +141,13 @@ A fetch is spent only on a missing or expired row; a fresh row costs nothing. On
 shared `IFixedWindowCounter` (#544): at most 10 fetches of one URL per 5 minutes, then at
 most 60 fetches in total per minute. The per-URL key is a SHA-256 hash, so no
 client-chosen text reaches the shared store. An exhausted budget refuses with
-`temporarily_unavailable` for a client with no stored copy. A copy that expired less than
-`StaleGrace` (24 hours) ago stands in until a fetch is possible again. Without that,
-anyone who drained the global budget with junk URLs would lock out every app already in
-use. The grace is bounded because an unbounded one would let the same person keep a
-redirect URI alive after the client's publisher removed it. The copy once passed every
-check, and a document that fails is never stored. The per-IP `oauth-authorize` limit
-still sits in front.
+`temporarily_unavailable`, and an expired copy never stands in for the refresh, even while
+the budget is spent. A fallback was tried and removed (review round 2). Each failed refresh
+spends the URL's budget, so ten anonymous requests against a document its publisher took
+down would drain it, and the next request would revive the old copy's redirect URIs. The
+accepted cost: while the budget is spent, an app whose copy has expired cannot start a new
+connection until the window resets. Approved apps keep working, because their access tokens
+never fetch. The per-IP `oauth-authorize` limit still sits in front.
 
 ## Which URLs qualify
 
@@ -246,10 +248,11 @@ decode it, so a path segment could not name a metadata client reliably.
 - `OAuthFailClosedTests.ClientMetadataDocuments` runs the flow on Postgres: connect,
   list, audit and disconnect, the farm switch, consent and preview, the cache, refresh,
   unusable documents stored nowhere, OpenIddict's `iss` refusal, the per-URL and global
-  budgets with the bounded stale copy, both insert races (simultaneous, and the
-  deterministic duplicate-client schedule), discovery, turning it off, and the purge.
+  budgets, a removed document that a drained budget does not revive, the insert races
+  (simultaneous, the deterministic duplicate-client schedule, and the same schedule with
+  an invalid second version), discovery, turning it off, and the purge.
 - `tools/oauth/mutation-check.sh` carries 47 `cimd-*` mutants, one per claim, and its
-  baseline filter (`OAuth|ClientMetadata`) includes the two classes above. They ran on
-  2026-10-10 against `dbe3ac58`, and five corrected rows ran again with the stronger
-  `iss` test that followed. All 47 were killed, and the baseline and restore runs were
-  green at 261 of 261. `MUTANT_FILTER='^cimd-'` runs just these.
+  baseline filter (`OAuth|ClientMetadata`) includes the two classes above. All 47 were
+  killed on 2026-10-10, with the baseline and restore runs green; the round-2 rows
+  (`cimd-stale-fallback-restored`, `cimd-mixed-validation-recovered`) and the rows on the
+  code they touched ran again against that change. `MUTANT_FILTER='^cimd-'` runs just these.

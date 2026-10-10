@@ -42,8 +42,6 @@ internal sealed class ClientMetadataDocuments(
     public static readonly (int Limit, TimeSpan Window) PerUrlBudget = (10, TimeSpan.FromMinutes(5));
     public static readonly (int Limit, TimeSpan Window) GlobalBudget = (60, TimeSpan.FromMinutes(1));
 
-    // How long past its expiry a stored copy may stand in while the budget is spent.
-    public static readonly TimeSpan StaleGrace = TimeSpan.FromHours(24);
 
     public static OpenIddictServerHandlerDescriptor Descriptor { get; } =
         OpenIddictServerHandlerDescriptor.CreateBuilder<ValidateAuthorizationRequestContext>()
@@ -81,19 +79,13 @@ internal sealed class ClientMetadataDocuments(
         await using var scope = scopes.CreateAsyncScope();
         var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
         var row = await applications.FindByClientIdAsync(clientId, ct);
-        var expiresAt = row is null ? (DateTimeOffset?)null : ExpiresAt(await applications.GetPropertiesAsync(row, ct));
-        var now = clock.GetUtcNow();
-        if (expiresAt > now)
+        if (row is not null && ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > clock.GetUtcNow())
             return Result.Success();
 
-        // With the budget spent, a copy that once passed every check stands in for a while.
-        // Refusing it would let anyone who drains the global budget with junk URLs lock out
-        // every app in use; keeping it for ever would let them keep a redirect URI alive
-        // after the client's publisher removed it.
+        // An expired copy never stands in, even with the budget spent: a caller could drain
+        // the budget with failed fetches and revive redirect URIs the publisher removed.
         if (!await SpendBudgetAsync(clientId, ct))
-            return expiresAt + StaleGrace > now
-                ? Result.Success()
-                : Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");
+            return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");
 
         var fetched = await fetcher.FetchAsync(url.Value, ct);
         if (fetched.IsFailure)
@@ -124,12 +116,20 @@ internal sealed class ClientMetadataDocuments(
             // checks. Any other refusal is OpenIddict's own, which DCR meets too: an iss
             // parameter in a redirect URI, for one (issuer fixation).
             if (exception is OpenIddictExceptions.ValidationException validation
-                && !(row is null && await StoredMeanwhileAsync(clientId, ct)))
+                && !(row is null && IsOnlyDuplicateClientId(validation) && await StoredMeanwhileAsync(clientId, ct)))
                 return Refuse(Errors.InvalidRequest, string.Join(" ", validation.Results.Select(result => result.ErrorMessage)));
         }
 
         return Result.Success();
     }
+
+    // A duplicate alongside any other result is still a refused document: the other copy
+    // being valid says nothing about this one.
+    private static bool IsOnlyDuplicateClientId(OpenIddictExceptions.ValidationException validation) =>
+        validation.Results is [{ ErrorMessage: DuplicateClientIdMessage }];
+
+    // OpenIddict's ID2111, which it reports through ValidationResult text only.
+    private const string DuplicateClientIdMessage = "An application with the same client identifier already exists.";
 
     // A fresh scope, because this request's application cache already holds "none".
     private async Task<bool> StoredMeanwhileAsync(string clientId, CancellationToken ct)
