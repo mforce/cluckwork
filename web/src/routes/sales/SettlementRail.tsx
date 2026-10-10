@@ -8,7 +8,7 @@ import { useFormat } from "../../farm/useFormat";
 import { discountReasonLabel } from "../../i18n/enums";
 import { lineExceedsCeiling, type DiscountCeiling } from "../../lib/discountCeiling";
 import { orderDiscount, orderIsAtList, orderListPriceBasis, orderListValue } from "./orderMath";
-import { useDiscountPercent, type SalesAction } from "./salesUi";
+import { money, useDiscountPercent, type SalesAction } from "./salesUi";
 import type { ActiveOrderState } from "./useActiveOrder";
 
 export function SettlementRail({
@@ -55,9 +55,9 @@ export function SettlementRail({
       "& .actions:not([role=group])": { flexDirection: "column" },
       "& .actions > button": { minHeight: 44 },
     }}>
-      <Typography component="p" variant="body2" aria-label={t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })} sx={{ mt: 0, mb: 2 }}>
+      <Typography component="p" variant="body2" aria-label={t("orderTotal", { amount: money(fmt, active.totalMinorUnits, active) })} sx={{ mt: 0, mb: 2 }}>
         <Box component="span" sx={{ display: "block", fontSize: ".8rem" }}>{t("settlementHeading")}</Box>
-        <Box component="strong" sx={{ display: "block", fontSize: "1.75rem", fontFamily: 'Georgia, "Times New Roman", serif', fontVariantNumeric: "tabular-nums" }}>{fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit)}</Box>
+        <Box component="strong" sx={{ display: "block", fontSize: "1.75rem", fontFamily: 'Georgia, "Times New Roman", serif', fontVariantNumeric: "tabular-nums" }}>{money(fmt, active.totalMinorUnits, active)}</Box>
       </Typography>
       <Box component="dl" sx={{ m: 0,
         "& > div": { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 1.5, py: 1, borderTop: "1px solid var(--rule)", fontSize: ".8rem" },
@@ -67,7 +67,7 @@ export function SettlementRail({
         <Box>
           <Box component="dt">{t("listValue")}</Box>
           <Box component="dd" aria-label={t("listValue")} title={listValue === null ? t("listValueIncomplete") : undefined}>
-            {listValue === null ? "—" : fmt.money(listValue, active.currencyCode, active.currencyMinorUnit)}
+            {listValue === null ? "—" : money(fmt, listValue, active)}
           </Box>
         </Box>
         <Box>
@@ -99,7 +99,7 @@ export function SettlementRail({
               if (orderLevel.kind !== "below") {
                 return <span>{orderIsAtList(active.items) ? t("atListShort") : t("aboveList")}</span>;
               }
-              const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
+              const amount = money(fmt, orderLevel.amountMinorUnits, active);
               return (
                 <p className="discount" data-testid="order-discount">
                   {orderLevel.percent === null

@@ -10,7 +10,7 @@ type SellingUnit = (typeof SELLING_UNITS)[number];
 export const isSellingUnit = (u: string): u is SellingUnit =>
   (SELLING_UNITS as readonly string[]).includes(u);
 
-// The sole RAW payment-method render site (PaymentsPanel.tsx) mirrors the SAME six-value
+// The sole RAW payment-method render site (usePayments.tsx) mirrors the SAME six-value
 // vocabulary as the payment-method picker there (which already renders
 // via the translated sales:method* keys) rather than the English-only `enums`
 // module — method was deliberately left out of enums in Task 4 because it

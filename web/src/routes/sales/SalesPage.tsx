@@ -19,14 +19,11 @@ import { useFarm, useFarmToday } from "../../farm/useFarm";
 import i18n from "../../i18n";
 import { statusLabel } from "../../i18n/enums";
 import { AddLineForm, useAddLineFields } from "./AddLineForm";
-import { NewOrderDialog } from "./NewOrderDialog";
 import { OrderDetailsDialog, OrderList } from "./OrderList";
-import { OrderFilters } from "./OrderFilters";
 import { OrderLines } from "./OrderLines";
-import { PaymentsPanel } from "./PaymentsPanel";
 import { SettlementRail } from "./SettlementRail";
 import { isSellingUnit, priceInput, sellableProducts } from "./orderMath";
-import { CHIP_SX, OrderStatus } from "./salesUi";
+import { CHIP_SX, money, OrderStatus } from "./salesUi";
 import { useActiveOrder } from "./useActiveOrder";
 import { useIdempotencyKeys } from "./useIdempotencyKeys";
 import { useNewOrder } from "./useNewOrder";
@@ -89,11 +86,10 @@ export function SalesPage() {
   // workspace down with them (#469).
   const [setupError, setSetupError] = useState<string | null>(null);
 
-  const listFilter = useOrderFilters(canSettle);
   const {
     statusFilter, customerFilter, unpaidFilter, hasActiveFilter,
-    customerFilterStale, setCustomerFilterStale, customerFilterName, clearFilters,
-  } = listFilter;
+    customerFilterStale, setCustomerFilterStale, customerFilterName, clearFilters, filters,
+  } = useOrderFilters(canSettle, isDesktop);
   const activeOrder = useActiveOrder();
   const { active, setActive } = activeOrder;
   const addLine = useAddLineFields();
@@ -131,8 +127,6 @@ export function SalesPage() {
     { onAttempt: () => setMessage(null) },
   );
   const { busy, errors, dismissDialog } = action;
-  const newOrder = useNewOrder(today, action);
-  const { setCustomer, setCustomerGen, openNewOrder } = newOrder;
 
   // #512 US4 (T048/T052) — an order's own name, independent of the picker's
   // capped customer list: the row-owned `customerName` the endpoint's scoped
@@ -198,6 +192,9 @@ export function SalesPage() {
     pageSize: PAGE,
     errorText: () => i18n.t("sales:loadOrdersFailed"),
   });
+  const { setCustomer, setCustomerGen, openNewOrder, dialog: newOrderDialog } = useNewOrder({
+    today, action, orders, keyFor, clearKey, setActive,
+  });
 
   // #512 US5 (T057, FR-050) — the synchronous hide above lasts until the
   // filter's OWN replacement load actually lands (`reloading` returns to
@@ -260,10 +257,9 @@ export function SalesPage() {
     listEggUnitConversions().then(setConversions).catch(() => {});
   }, []);
 
-  const pay = usePayments({
-    active, activeIdRef: activeOrder.activeIdRef, canSettle, today, orders, action, keyFor, clearKey, setMessage, askReason,
+  const { payments, panel: paymentsPanel } = usePayments({
+    active, activeIdRef: activeOrder.activeIdRef, canSettle, today, orders, action, keyFor, clearKey, setMessage, askReason, isDesktop, isAdmin,
   });
-  const { payments, paymentDetailsId, setPaymentDetailsId } = pay;
 
   useEffect(() => {
     if (busy) return;
@@ -289,9 +285,9 @@ export function SalesPage() {
     setActive(null);
   };
 
-  const { onCreateOrder, onAddItem, onUpdateItem, onRemoveItem, onConfirm, onCancel, onVoid, onOpen } = useOrderCommands({
+  const { onAddItem, onUpdateItem, onRemoveItem, onConfirm, onCancel, onVoid, onOpen } = useOrderCommands({
     action, orders, keyFor, clearKey, setMessage, dialogs: { confirm, askReason, askChoice },
-    activeOrder, newOrder, addLine, products, productName, eggsPerUnit, listPriceFor, setConversions, setAllProducts, setProducts,
+    activeOrder, addLine, products, productName, eggsPerUnit, listPriceFor, setConversions, setAllProducts, setProducts,
   });
 
   // A list failure no longer replaces the workspace: it renders as a banner
@@ -306,15 +302,10 @@ export function SalesPage() {
   // here, a refreshed list) invalidates: an id whose record left the window is
   // retired, so a later load cannot silently reopen the peek on it.
   if (detailsId !== null && !orders.rows.some((o) => o.id === detailsId)) setDetailsId(null);
-  if (paymentDetailsId !== null && payments !== null
-    && !payments.items.some((p) => p.id === paymentDetailsId)) setPaymentDetailsId(null);
   const details = orders.rows.find((o) => o.id === detailsId) ?? null;
-  const paymentDetails = payments?.items.find((p) => p.id === paymentDetailsId) ?? null;
 
   const outstanding = active?.status === "Confirmed" && payments
     ? payments.outstandingMinorUnits : active?.outstandingMinorUnits;
-
-  const filters = <OrderFilters filter={listFilter} canSettle={canSettle} isDesktop={isDesktop} />;
 
   // #655 — withheld exactly when the truly-empty state below is offering this
   // same action (never for the filtered-empty branch, which offers "Clear
@@ -368,12 +359,12 @@ export function SalesPage() {
       )}
 
       {/* Native form validation would intercept the page's own money validation messages. */}
-      <NewOrderDialog newOrder={newOrder} action={action} today={today} onCreateOrder={onCreateOrder} />
+      {newOrderDialog}
 
       {active && <ConsoleSummary label={t("orderContext")} items={[
         { label: t("reference"), value: `${active.referenceNumber} · ${statusLabel(active.status)}` },
-        { label: t("total"), value: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) },
-        ...(canSettle ? [{ label: t("outstanding"), value: outstanding == null ? "—" : fmt.money(outstanding, active.currencyCode, active.currencyMinorUnit) }] : []),
+        { label: t("total"), value: money(fmt, active.totalMinorUnits, active) },
+        ...(canSettle ? [{ label: t("outstanding"), value: outstanding == null ? "—" : money(fmt, outstanding, active) }] : []),
       ]} />}
 
       {active && (
@@ -401,10 +392,7 @@ export function SalesPage() {
             <SettlementRail active={active} activeOrder={activeOrder} ceiling={ceiling} ceilingPercent={ceilingPercent}
               canSettle={canSettle} isAdmin={isAdmin} action={action} onCancel={onCancel} onConfirm={onConfirm}
               onVoid={onVoid} closeOrderPanel={closeOrderPanel}
-              paymentsPanel={payments && (
-                <PaymentsPanel pay={pay} payments={payments} paymentDetails={paymentDetails} isDesktop={isDesktop}
-                  isAdmin={isAdmin} action={action} today={today} />
-              )} />
+              paymentsPanel={paymentsPanel} />
           </Box>
         </Box>
       )}
@@ -452,7 +440,7 @@ export function SalesPage() {
       {/* One window's orders must never sit under another window's filters,
           not even for the length of the request (#469). FR-050: `customerFilterStale`
           extends the hide to cover the render(s) between a URL identity change
-          and `reloading` taking over — see its declaration in useOrderFilters.ts. */}
+          and `reloading` taking over — see its declaration in useOrderFilters.tsx. */}
       {(orders.reloading || customerFilterStale) ? (
         <p className="muted">{t("loading")}</p>
       ) : orders.rows.length === 0 ? (

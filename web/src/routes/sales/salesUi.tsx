@@ -59,6 +59,12 @@ export function OrderStatus({ status }: { status: SalesOrder["status"] }) {
 // amount, so the pair contradicts itself. Below the rendering threshold say
 // "<0.1" instead. Built from fmt.count rather than a literal so the decimal
 // separator stays the locale's — es writes 0,1.
+// An amount in the currency of the record it belongs to: the shape every money
+// figure on this screen formats.
+export const money = (fmt: ReturnType<typeof useFormat>, minorUnits: number,
+  priced: { currencyCode: string; currencyMinorUnit: number }) =>
+  fmt.money(minorUnits, priced.currencyCode, priced.currencyMinorUnit);
+
 export function useDiscountPercent() {
   const fmt = useFormat();
   return (percent: number) =>

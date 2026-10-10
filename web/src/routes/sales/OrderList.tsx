@@ -12,7 +12,7 @@ import { ProvenanceCell, ProvenanceSummary } from "../../components/ProvenanceCe
 import { useFormat } from "../../farm/useFormat";
 import { discountReasonLabel, listPriceBasisLabel } from "../../i18n/enums";
 import { orderDiscount, orderIsAtList, orderListPriceBasis, type OrderDiscount } from "./orderMath";
-import { LINK_ACTION_SX, NOWRAP, OrderStatus, useDiscountPercent, type PagedOrders } from "./salesUi";
+import { LINK_ACTION_SX, NOWRAP, money, OrderStatus, useDiscountPercent, type PagedOrders } from "./salesUi";
 
 function useOrderSegments() {
   const { t } = useTranslation("sales");
@@ -24,7 +24,7 @@ function useOrderSegments() {
   // cells would print an em dash: Details carries the full answer.
   const settlementSegment = (o: SalesOrder) => {
     if (o.outstandingMinorUnits === null) return null;
-    const amount = fmt.money(o.outstandingMinorUnits, o.currencyCode, o.currencyMinorUnit);
+    const amount = money(fmt, o.outstandingMinorUnits, o);
     return o.outstandingMinorUnits === 0
       ? <Box component="span" sx={{ color: "var(--success)" }}>{t("settledBadge")}</Box>
       : <Box component="span" sx={{ color: "var(--error)" }}>{t("dueShort", { amount })}</Box>;
@@ -32,7 +32,7 @@ function useOrderSegments() {
 
   const discountBadgeText = (o: SalesOrder, discount: OrderDiscount, short: boolean) => {
     if (discount.kind !== "below") return orderIsAtList(o.items) ? t("atListShort") : null;
-    const amount = fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
+    const amount = money(fmt, discount.amountMinorUnits, o);
     if (discount.percent === null) return t("discountBadgeNoPct", { amount });
     const percent = discountPercent(discount.percent);
     return short ? t("discountShort", { percent }) : t("discountBadge", { percent, amount });
@@ -128,9 +128,9 @@ export function OrderList({
                     {discount.kind === "below" ? (
                       <Box component="span" className="discount" sx={{ ...NOWRAP, fontWeight: 750 }}>
                         {discount.percent === null
-                          ? t("discountBadgeNoPct", { amount: fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit) })
+                          ? t("discountBadgeNoPct", { amount: money(fmt, discount.amountMinorUnits, o) })
                           : t("discountBadge", {
-                              amount: fmt.money(discount.amountMinorUnits, o.currencyCode, o.currencyMinorUnit),
+                              amount: money(fmt, discount.amountMinorUnits, o),
                               percent: discountPercent(discount.percent),
                             })}
                       </Box>
@@ -138,7 +138,7 @@ export function OrderList({
                     {discountDescription && <>{" "}<span id={`${rowId}-discount`} className="muted discount-note">{discountDescription}</span></>}
                     {reason && <span id={`${rowId}-reason`} className="sr-only" aria-hidden="true" data-testid="row-discount-reason">{reason}</span>}
                   </TableCell>
-                  <TableCell align="right" sx={NOWRAP}>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</TableCell>
+                  <TableCell align="right" sx={NOWRAP}>{money(fmt, o.totalMinorUnits, o)}</TableCell>
                   {canSettle && (
                     <TableCell align="right" sx={NOWRAP}
                       title={partlyPaid ? t("partlyPaidNote") : undefined}
@@ -146,7 +146,7 @@ export function OrderList({
                       {o.outstandingMinorUnits === null ? "—"
                         : o.outstandingMinorUnits === 0
                           ? <span>{t("settledBadge")}</span>
-                          : fmt.money(o.outstandingMinorUnits, o.currencyCode, o.currencyMinorUnit)}
+                          : money(fmt, o.outstandingMinorUnits, o)}
                       {partlyPaid && <span id={`${rowId}-payment`} className="sr-only" aria-hidden="true">{t("partlyPaidNote")}</span>}
                     </TableCell>
                   )}
@@ -171,7 +171,7 @@ export function OrderList({
         {rows.map((o) => <li key={o.id}>
           <PhoneLedgerRow rowId={o.id} onClick={() => setDetailsId(o.id)} disabled={busy} date={<FarmDate iso={o.orderDate} />}
             primary={rowCustomerName(o)}
-            trailing={<strong>{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</strong>}
+            trailing={<strong>{money(fmt, o.totalMinorUnits, o)}</strong>}
             summary={<PhoneLedgerSummary parts={[
               <strong><OrderStatus status={o.status} /></strong>,
               canSettle && settlementSegment(o),
@@ -229,7 +229,7 @@ export function OrderDetailsDialog({
         <PhoneDetailsField label={t("status")}><OrderStatus status={details.status} /></PhoneDetailsField>
         <PhoneDetailsField label={t("linesHeader")}>{fmt.count(details.items.length)}</PhoneDetailsField>
         <PhoneDetailsField label={t("discount")}>{detailsDiscount(details)}</PhoneDetailsField>
-        <PhoneDetailsField label={t("total")}>{fmt.money(details.totalMinorUnits, details.currencyCode, details.currencyMinorUnit)}</PhoneDetailsField>
+        <PhoneDetailsField label={t("total")}>{money(fmt, details.totalMinorUnits, details)}</PhoneDetailsField>
         {canSettle && <PhoneDetailsField label={t("outstanding")}>
           {details.outstandingMinorUnits === null ? "—" : settlementSegment(details)}
         </PhoneDetailsField>}

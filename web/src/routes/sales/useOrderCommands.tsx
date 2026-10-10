@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import {
-  addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listEggGrades, listEggUnitConversions,
+  addOrderItem, cancelOrder, confirmOrder, getOrder, listEggGrades, listEggUnitConversions,
   listProducts, parseMoneyToMinorUnits, removeOrderItem, updateOrderItem, voidOrder,
 } from "../../api/cluckwork";
 import type { EggUnitConversion, OrderItem, Product, SalesOrder } from "../../api/cluckwork";
@@ -13,9 +13,8 @@ import type { DiscountReasonValue } from "../../i18n/enums";
 import { newId } from "../../lib/ids";
 import type { AddLineFields } from "./AddLineForm";
 import { editableLine, lineChanged, lineDiscount, orderDiscount, sellableProducts } from "./orderMath";
-import { useDiscountPercent, type PagedOrders, type SalesAction } from "./salesUi";
+import { money, useDiscountPercent, type PagedOrders, type SalesAction } from "./salesUi";
 import type { ActiveOrderState } from "./useActiveOrder";
-import type { NewOrderState } from "./useNewOrder";
 
 interface CommandDeps {
   action: SalesAction;
@@ -25,7 +24,6 @@ interface CommandDeps {
   setMessage: (message: string | null) => void;
   dialogs: Pick<ReturnType<typeof useConfirm>, "confirm" | "askReason" | "askChoice">;
   activeOrder: ActiveOrderState;
-  newOrder: NewOrderState;
   addLine: AddLineFields;
   products: Product[];
   productName: (id: string) => string;
@@ -38,7 +36,7 @@ interface CommandDeps {
 
 // The order and line writes, and the order panel's read.
 export function useOrderCommands({
-  action, orders, keyFor, clearKey, setMessage, dialogs, activeOrder, newOrder, addLine,
+  action, orders, keyFor, clearKey, setMessage, dialogs, activeOrder, addLine,
   products, productName, eggsPerUnit, listPriceFor, setConversions, setAllProducts, setProducts,
 }: CommandDeps) {
   const { t } = useTranslation("sales");
@@ -47,40 +45,7 @@ export function useOrderCommands({
   const { run, startLoad } = action;
   const { confirm, askReason, askChoice } = dialogs;
   const { active, activeRef, activeIdRef, editorRef, setActive, setEditor, itemUpdateAttempts } = activeOrder;
-  const { customer, customerSnapshot, orderDate, setNewOrderCustomerPickerOpen, setCreatingOrder } = newOrder;
   const { productId, unit, qty, price } = addLine;
-
-  const onCreateOrder = () => run("create-order", async (current) => {
-    // #512 (T039) — the handler's own guard: canSubmit is the write-safety
-    // boundary (a disabled button alone is not). An exploring/uninitialized
-    // or unavailable picker must not ship a stale committed id.
-    if (!customer || !customerSnapshot.canSubmit) return;
-    // runWrite claims the list ticket before the POST, so a filter change
-    // made while it is in flight keeps the view (#469).
-    await orders.runWrite(async () => {
-      const created = await createOrder({ customerId: customer.id, orderDate }, keyFor("create-order"));
-      // The key rotates the moment the WRITE lands — the same rule the payment
-      // path states (#90). Releasing it after the follow-up read instead left a
-      // spent key stranded whenever that read failed, and the next order then
-      // replayed this one, so the customer the user actually chose never got
-      // an order (codex review of this branch).
-      clearKey("create-order");
-      // Superseded: the order exists and the list write stands, but the panel
-      // belongs to whatever session is on screen now (#477).
-      if (!current()) return;
-      const loaded = await getOrder(created.id);
-      // Checked AGAIN, after the second await. The first version of this fix
-      // checked once and then wrote the result of a further round trip, which
-      // is the same hijack one hop later: the POST lands while the user is
-      // still here, the GET is issued, and only THEN do they cancel and reopen.
-      // A gate before an await says nothing about the state after it.
-      if (!current()) return;
-      setActive(loaded);
-    });
-    if (!current()) return;
-    setNewOrderCustomerPickerOpen(false);
-    setCreatingOrder(false); // only on success — a throw keeps the dialog up
-  });
 
   const onAddItem = () => run("add-item", async () => {
     if (!active) return;
@@ -89,7 +54,7 @@ export function useOrderCommands({
     // value BEFORE sending rather than letting the server's JSON binding
     // fail with an internal parameter-binding message. NumberField's typed
     // input isn't step-constrained (no wrapping <form> — see the comment
-    // above NewOrderDialog in SalesPage.tsx), so `qty` can legitimately hold
+    // above the new-order dialog in SalesPage.tsx), so `qty` can legitimately hold
     // e.g. 2.5 here.
     if (!Number.isInteger(qty)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
     // Empty price → omit it: the server falls back to the product's default.
@@ -186,7 +151,7 @@ export function useOrderCommands({
   const discountHeadline = (order: SalesOrder) => {
     const level = orderDiscount(order.items);
     if (level.kind !== "below") return null;
-    const amount = fmt.money(level.amountMinorUnits, order.currencyCode, order.currencyMinorUnit);
+    const amount = money(fmt, level.amountMinorUnits, order);
     const counts = {
       below: order.items.filter((i) => lineDiscount(i).kind === "below").length,
       total: order.items.length,
@@ -204,7 +169,7 @@ export function useOrderCommands({
   const lineDiscountText = (item: OrderItem) => {
     const line = lineDiscount(item);
     if (line.kind !== "below") return null;
-    const amount = fmt.money(line.amountMinorUnits, item.currencyCode, item.currencyMinorUnit);
+    const amount = money(fmt, line.amountMinorUnits, item);
     // A zero list price cannot reach here — lineDiscount's "below" needs a
     // negative unit price, which the validator refuses — but percent is still
     // computed from `list`, so the amount-only variant stays as the honest
@@ -343,5 +308,5 @@ export function useOrderCommands({
     if (current()) setActive(loaded);
   });
 
-  return { onCreateOrder, onAddItem, onUpdateItem, onRemoveItem, onConfirm, onCancel, onVoid, onOpen };
+  return { onAddItem, onUpdateItem, onRemoveItem, onConfirm, onCancel, onVoid, onOpen };
 }

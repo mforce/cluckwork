@@ -8,7 +8,7 @@ import { CONSOLE_FORM_SX } from "../../components/FieldConsole";
 import { NumberField } from "../../components/NumberField";
 import { useFormat } from "../../farm/useFormat";
 import { priceInput, SELLING_UNITS } from "./orderMath";
-import { useDiscountPercent, type SalesAction } from "./salesUi";
+import { money, useDiscountPercent, type SalesAction } from "./salesUi";
 
 export function useAddLineFields() {
   const [productId, setProductId] = useState("");
@@ -121,7 +121,7 @@ export function AddLineForm({
         const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
         if (!Number.isFinite(typed) || typed === list) return null;
         const perUnit = Math.abs(typed - list);
-        const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
+        const amount = money(fmt, perUnit, active);
         // A zero list price is legal, and min does not prevent negative input.
         // Percentages require a nonzero list-price denominator.
         if (typed < list) {

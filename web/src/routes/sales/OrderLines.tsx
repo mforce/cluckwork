@@ -8,7 +8,7 @@ import { useFormat } from "../../farm/useFormat";
 import { listPriceBasisLabel } from "../../i18n/enums";
 import { lineExceedsCeiling, type DiscountCeiling } from "../../lib/discountCeiling";
 import { lineDiscount, lineDraft } from "./orderMath";
-import { LINK_ACTION_SX, MANIFEST_ACTIONS_SX, SECONDARY_ACTION_SX, useDiscountPercent, type SalesAction } from "./salesUi";
+import { LINK_ACTION_SX, MANIFEST_ACTIONS_SX, SECONDARY_ACTION_SX, money, useDiscountPercent, type SalesAction } from "./salesUi";
 import type { ActiveOrderState } from "./useActiveOrder";
 
 export function OrderLines({
@@ -78,7 +78,7 @@ export function OrderLines({
 
           const discountCell = discount.kind === "below"
             ? <span className="discount">
-                {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${discountPercent(discount.percent)}%`}
+                {`${money(fmt, discount.amountMinorUnits, i)} · ${discountPercent(discount.percent)}%`}
               </span>
             : discount.kind === "above" ? t("aboveList")
               : discount.kind === "none" ? listPriceBasisLabel(i.listPriceBasis)
@@ -100,8 +100,8 @@ export function OrderLines({
               )}
               {/* Concept B hides these columns on phones; keep their labelled values accessible (#831). */}
               {!editingThis && <Box component="span" className="sr-only" sx={{ display: { xs: "inline", md: "none" } }}>
-                {t("unitPrice")} {fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}{", "}
-                {t("lineTotal")} {fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}
+                {t("unitPrice")} {money(fmt, i.unitPriceMinorUnits, i)}{", "}
+                {t("lineTotal")} {money(fmt, i.unitPriceMinorUnits * i.quantity, i)}
               </Box>}
             </TableCell>
             {editor && editingLine?.id === i.id ? (
@@ -118,7 +118,7 @@ export function OrderLines({
                 <TableCell align="right" sx={{ color: "var(--muted)" }}>
                   <Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("listPrice")}: </Box>{i.listUnitPriceMinorUnits === null
                     ? "—"
-                    : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                    : money(fmt, i.listUnitPriceMinorUnits, i)}
                 </TableCell>
                 <TableCell align="right"><Box component="span" sx={{ display: { xs: "block", md: "none" } }}>{t("unitPrice")}</Box><input className="cell" type="number" min={0}
                   aria-label={t("editUnitPriceAriaLabel")}
@@ -151,12 +151,12 @@ export function OrderLines({
                   <Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("listPrice")}: </Box>{i.listUnitPriceMinorUnits === null
                     ? "—"
                     : discount.kind === "below"
-                      ? <s>{fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</s>
-                      : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                      ? <s>{money(fmt, i.listUnitPriceMinorUnits, i)}</s>
+                      : money(fmt, i.listUnitPriceMinorUnits, i)}
                 </TableCell>
-                <TableCell align="right">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</TableCell>
+                <TableCell align="right">{money(fmt, i.unitPriceMinorUnits, i)}</TableCell>
                 <TableCell align="right"><Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>{t("discount")}: </Box>{discountCell}</TableCell>
-                <TableCell align="right">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</TableCell>
+                <TableCell align="right">{money(fmt, i.unitPriceMinorUnits * i.quantity, i)}</TableCell>
                 <TableCell sx={MANIFEST_ACTIONS_SX}>
                   {active.status === "Draft" && (
                     <>

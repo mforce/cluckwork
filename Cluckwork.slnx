@@ -369,11 +369,8 @@
   </Folder>
   <Folder Name="/web/src/routes/sales/">
     <File Path="web/src/routes/sales/AddLineForm.tsx" />
-    <File Path="web/src/routes/sales/NewOrderDialog.tsx" />
-    <File Path="web/src/routes/sales/OrderFilters.tsx" />
     <File Path="web/src/routes/sales/OrderLines.tsx" />
     <File Path="web/src/routes/sales/OrderList.tsx" />
-    <File Path="web/src/routes/sales/PaymentsPanel.tsx" />
     <File Path="web/src/routes/sales/SalesPage.test.tsx" />
     <File Path="web/src/routes/sales/SalesPage.tsx" />
     <File Path="web/src/routes/sales/SettlementRail.tsx" />
@@ -382,10 +379,10 @@
     <File Path="web/src/routes/sales/salesUi.tsx" />
     <File Path="web/src/routes/sales/useActiveOrder.ts" />
     <File Path="web/src/routes/sales/useIdempotencyKeys.ts" />
-    <File Path="web/src/routes/sales/useNewOrder.ts" />
+    <File Path="web/src/routes/sales/useNewOrder.tsx" />
     <File Path="web/src/routes/sales/useOrderCommands.tsx" />
-    <File Path="web/src/routes/sales/useOrderFilters.ts" />
-    <File Path="web/src/routes/sales/usePayments.ts" />
+    <File Path="web/src/routes/sales/useOrderFilters.tsx" />
+    <File Path="web/src/routes/sales/usePayments.tsx" />
   </Folder>
   <Folder Name="/web/src/session/">
     <File Path="web/src/session/LanguageSelector.multilang.test.tsx" />
