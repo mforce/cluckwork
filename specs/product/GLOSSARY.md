@@ -830,18 +830,19 @@ ranges live in the **Expanded lay rate chart** below.
 **Expanded lay rate chart (#941)** — the **Expand** control on the Lay rate
 card opens the same chart on a full screen, framed like the post-login brand
 splash and following the app theme. There the window is the last **30**
-finished days or a custom span of up to **90**, kept in its own memory so
+finished days or a custom span of up to **365** (#1161), kept in its own memory so
 opening it never moves the card's own window. Above the daily bars sits a map
 of the whole range with a box marking the days on screen; the bars are a
 native horizontal scroll region, so scrolling or swiping them moves the box,
 and pressing the map scrolls the window there. The pager buttons, Page Up and
 Page Down move the window without moving the selection, and the strip keeps
-its one tab stop and arrow keys. A bar is always **22px** at every range, so
-the newest day sits at the right edge and a range narrower than the window
-leaves its empty space before the oldest day. Whether the window scrolls at
-all is decided from that layout — days times the slot against the region's
-width — never from a measured `scrollWidth`, so the date rule's overhanging
-end label cannot light an edge cue on a chart hiding nothing. **Back to
+its one tab stop and arrow keys. A range whose **22px** slots fit the window
+stretches to fill it from the axis to the right edge, each bar capped at
+40px; a longer range keeps the 22px slots and scrolls, opening on the newest
+day at the right edge (#1161). Whether it fits is decided from that layout —
+days times the slot against the region's width — never from a measured
+`scrollWidth`, so the date rule's overhanging end label cannot light an edge
+cue on a chart hiding nothing. **Back to
 dashboard** or Escape closes it and returns focus to Expand.
 
 **Lay rate flock scope (#916)** — the Dashboard's Lay rate card reads one

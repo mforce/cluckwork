@@ -133,7 +133,7 @@ public sealed class AppHostModelTests
         AssertWaits(apiRebuilder);
         AssertWaits(webInstaller);
 
-        AssertReferenceRelationships(api, "database", "redis", "redis-password");
+        AssertReferenceRelationships(api, "api", "database", "redis", "redis-password");
         AssertReferenceRelationships(web, "api", "api");
         AssertReferenceRelationships(postgres);
         AssertReferenceRelationships(database);
@@ -276,6 +276,7 @@ public sealed class AppHostModelTests
         Assert.Equal(
             "{redis.bindings.tcp.host}:{redis.bindings.tcp.port},password={redis-password.value}{cond-redis-bindings-tcp-tlsenabled-d148d83a.connectionString}",
             apiEnvironment["SharedState__Redis__ConnectionString"]);
+        Assert.Equal("{api.bindings.http.url}", apiEnvironment["OAuth__Issuer"]);
 
         var webEnvironment = await GetPublishEnvironmentAsync(web);
         Assert.Equal("{api.bindings.http.url}", webEnvironment["VITE_API_TARGET"]);

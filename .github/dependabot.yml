@@ -64,6 +64,23 @@ updates:
         dependency-type: "production"
         update-types: ["minor", "patch"]
 
+  # The web linter's own install (web/AGENTS.md). typescript-eslint cannot load
+  # TypeScript 7, so its TypeScript stays on 6.x until typescript-eslint
+  # supports 7.
+  - package-ecosystem: "npm"
+    directory: "/web/lint"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(web)"
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    groups:
+      lint-tooling:
+        patterns: ["*"]
+
   # Finds the projects via Cluckwork.slnx. Bumps regenerate packages.lock.json,
   # which Dependabot includes in the PR — CI restores with --locked-mode, so a
   # stale lock file fails the run rather than silently drifting.

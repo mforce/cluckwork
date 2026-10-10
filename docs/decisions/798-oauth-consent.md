@@ -97,7 +97,9 @@ authorization, token and registration endpoints are rebased onto it.
 
 The sim harness supplies `https://cluckwork-sim.local/`. That stack is plain http, so
 OpenIddict refuses its protocol requests; only the boot needs the value. The AppHost runs
-Development, where `appsettings.Development.json` already sets an issuer.
+Development and passes the API's own endpoint as `OAuth__Issuer`, so discovery follows
+`LocalPorts:Api`; a Development run outside the AppHost uses
+`appsettings.Development.json`'s `http://localhost:8080/`.
 
 ## The return path after sign-in
 
@@ -109,11 +111,17 @@ before.
 
 ## What this does NOT cover
 
-- **The consent and login screens.** The SPA route, the login notice, the shared step-up
-  password component, translations, Help and the glossary follow in this PR once the
-  maintainer picks a direction.
 - **`prompt` and `max_age`.** Ignored, so `prompt=consent` cannot force the screen.
-- **Audit events for connect and cancel.** Not decided (#788's mockup question 4).
+- **An audit event for cancel.** Cancel writes no audit row. Whether it should is still
+  open (#788's mockup question 4).
+
+Delivered since this record was written: the consent screen at `/connect`, the login
+notice, the shared step-up password component, their translations, Help and glossary
+entries (#798); the Connected apps panel and page, Disconnect and its
+`User.AppDisconnected` audit (#799); connected-app attribution on audit rows (#800); the
+farm switch (#1146). Approving an app spends the step-up grant
+first, then commits the approval and its `User.AppConnected` or `User.AppReconnected`
+row in one transaction ([`799-connected-apps.md`](799-connected-apps.md)).
 
 ## How it is enforced
 

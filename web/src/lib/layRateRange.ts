@@ -8,9 +8,8 @@ import { daysBefore, inclusiveDays, isIsoCalendarDate } from "./dates";
 // Only what the card can draw ONE BAR A DAY (owner, 2026-09-23). Longer
 // ranges, and the display that carries them, are the expanded chart's (#941).
 export const RANGE_PRESETS = [7, 14] as const;
-// #941 — the expanded chart's own presets. It scrolls, so a bar stays 22px at
-// every range and the ceiling is what a farm manager can reason about rather
-// than what fits a column.
+// #941 — the expanded chart's own presets. It scrolls, so the ceiling is what
+// a farm manager can reason about rather than what fits a column.
 export const EXPANDED_RANGE_PRESETS = [30] as const;
 export type RangePreset = (typeof RANGE_PRESETS)[number] | (typeof EXPANDED_RANGE_PRESETS)[number];
 
@@ -27,10 +26,10 @@ export const DEFAULT_EXPANDED_RANGE: LayRateRange = { kind: "preset", days: 30 }
 // that is #941's job rather than a quiet re-scaling of this one.
 export const MAX_RANGE_DAYS = 14;
 
-// The expanded chart's ceiling (#941). A quarter is as far back as the farm's
-// own reasoning goes, and 90 slots is 2,336px of strip — long enough to need
-// the overview map, short enough that the map still marks single days.
-export const MAX_EXPANDED_RANGE_DAYS = 90;
+// The expanded chart's ceiling: a year (#1161, raised from #941's quarter).
+// It is one server-aggregated report read, and the endpoint's own ceiling is
+// 366 days (ReportEndpoints.MaxRangeDays), so no page or drain limit applies.
+export const MAX_EXPANDED_RANGE_DAYS = 365;
 
 export interface TrendWindow {
   from: string;
@@ -58,7 +57,7 @@ const CALENDAR_START = "0001-01-01";
 
 // `latest` is the newest day the card will plot, which is the farm's yesterday.
 // `maxDays` is the ceiling of the SURFACE asking: the card's 14, or the
-// expanded chart's 90.
+// expanded chart's 365.
 export function customRangeError(
   from: string, to: string, latest: string, maxDays: number = MAX_RANGE_DAYS,
 ): CustomRangeError | null {

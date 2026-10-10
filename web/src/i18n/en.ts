@@ -3123,11 +3123,11 @@ export const en = {
       + "or a single flock above the chart to scope the whole card to that flock, including bars, "
       + "completeness, Avg and both hen-day periods. With only one accessible flock its name shows without "
       + "a picker. <strong>Expand</strong> opens the same chart on a full screen, where <strong>Range</strong> "
-      + "offers the last 30 finished days or a <strong>Custom range…</strong> of up to 90. A map of the whole "
+      + "offers the last 30 finished days or a <strong>Custom range…</strong> of up to 365. A map of the whole "
       + "range sits above the bars with a box marking the days on screen: scroll or swipe the bars to move "
-      + "it, or press the map to jump there. Bars keep the same width at every range, so the newest day is "
-      + "always at the right edge. <strong>Back to dashboard</strong> or Escape closes it, and the card's own "
-      + "window is unchanged.",
+      + "it, or press the map to jump there. A range that fits on screen fills the chart; a longer one "
+      + "scrolls, with the newest day at the right edge. <strong>Back to dashboard</strong> or Escape closes "
+      + "it, and the card's own window is unchanged.",
     dashboardOrders: "<strong>Recent orders</strong> shows each customer, amount and status, with the first line’s quantity and current grade name, five orders a page. Paging forward fetches the next five, so the total appears once the last page arrives. +N counts additional lines. Renaming a grade also changes its name here on old orders; an unavailable grade leaves the quantity alone.",
     dashboardStock: "<strong>Available stock</strong> shows the total and a <strong>stacked bar</strong> of its grade composition, followed by a <strong>Grade</strong>, <strong>Count</strong> and <strong>Share</strong> table. Hover or focus a row to highlight it. Restricted eggs are listed separately. These are the same available counts as Stock.",
 
@@ -4024,7 +4024,7 @@ export const en = {
     glossaryLayRateRangeDef: "The window the Lay rate card plots: the last 7 or 14 finished days, or a custom range of two dates up to 14 days. The card draws one bar per day and nothing coarser, so a longer range is refused in the form rather than redrawn at another scale. The window always ends yesterday or earlier, the choice is remembered on this device, and the hen-day figure compares the chosen window with the window of the same length before it.",
 
     glossaryExpandedLayRateChartTerm: "Expanded lay rate chart",
-    glossaryExpandedLayRateChartDef: "The Lay rate card's <strong>Expand</strong> control opens the same chart on a full screen, where <strong>Range</strong> offers the last 30 finished days or a <strong>Custom range…</strong> of up to 90, remembered separately from the card's own window. A map of the whole range sits above the daily bars with a box marking the days on screen: scrolling or swiping the bars moves the box, and pressing the map scrolls the window there. The pager buttons, Page Up and Page Down move the window without moving the selection. Bars keep the same width at every range, so the newest day sits at the right edge and a short range leaves its space on the left. <strong>Back to dashboard</strong> or Escape closes it and returns focus to Expand.",
+    glossaryExpandedLayRateChartDef: "The Lay rate card's <strong>Expand</strong> control opens the same chart on a full screen, where <strong>Range</strong> offers the last 30 finished days or a <strong>Custom range…</strong> of up to 365, remembered separately from the card's own window. A map of the whole range sits above the daily bars with a box marking the days on screen: scrolling or swiping the bars moves the box, and pressing the map scrolls the window there. The pager buttons, Page Up and Page Down move the window without moving the selection. A range that fits on screen stretches its bars to fill the chart; a longer one keeps narrow bars and scrolls, opening on the newest day at the right edge. <strong>Back to dashboard</strong> or Escape closes it and returns focus to Expand.",
 
     glossaryLayRateFlockScopeTerm: "Lay rate flock scope",
     glossaryLayRateFlockScopeDef: "The Dashboard's Lay rate card can show All flocks or one chosen flock. The whole card follows the choice — the strip, completeness, the average and both hen-day comparison periods — and the figures come from the server, not from filtering the All flocks view. Other Dashboard panels do not change.",
