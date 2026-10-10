@@ -121,11 +121,8 @@ class PrePushTest(unittest.TestCase):
 
 
 class PreCommitTest(unittest.TestCase):
-    def verdict(self, result):
-        return "allow" if result.returncode == 0 else "refuse"
-
     def check(self, label, result, expected):
-        verdict = self.verdict(result)
+        verdict = "allow" if result.returncode == 0 else "refuse"
         print(f"pre-commit {verdict:6} [{label}]" + (f"\n{'':39}{result.stderr.strip()}" if verdict == "refuse" else ""))
         self.assertEqual(verdict, expected, result.stderr)
         if expected == "refuse":
