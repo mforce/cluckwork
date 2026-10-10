@@ -15,31 +15,31 @@ public sealed class SpellingScannerRatchetTests
     // Fails an enumeration that silently finds nothing; 387 tracked test files on 2026-10-10.
     private const int ScannedFileFloor = 300;
 
-    // Type → what it guards and why it may stay until someone next changes it.
+    // Type → what it guards.
     private static readonly Dictionary<string, string> Legacy = new(StringComparer.Ordinal)
     {
         ["Cluckwork.Api.IntegrationTests.TrackedMutationReadTests"] =
-            "#546/#1057 tracked-read guard; matches repository members and DbSet entity names by spelling. Legacy, predates #1184.",
+            "#546/#1057 tracked-read guard; matches repository members and DbSet entity names by spelling.",
         ["Cluckwork.Application.Tests.Architecture.AdapterReachScanner"] =
-            "#846 adapter reach ratchet; resolves parameter types by name. Legacy, predates #1184.",
+            "#846 adapter reach ratchet; resolves parameter types by name.",
         ["Cluckwork.Application.Tests.Architecture.AdapterTierScanner"] =
-            "#843 adapter tiers; matches [McpServerToolType] and MapMcp by name. Legacy, predates #1184.",
+            "#843 adapter tiers; matches [McpServerToolType] and MapMcp by name.",
         ["Cluckwork.Application.Tests.Architecture.ExportSnapshotSourceTests"] =
-            "#1025 export snapshot pin; matches the activeDb identifier by name. Legacy, predates #1184.",
+            "#1025 export snapshot pin; matches the activeDb identifier by name.",
         ["Cluckwork.Application.Tests.Architecture.NamespaceFolderAgreementTests"] =
             "Namespace declarations against folders; the declaration's text is the subject, so syntax is enough.",
         ["Cluckwork.Application.Tests.Architecture.SourcePreprocessorTests"] =
             "#1056 tests ModuleLedgerScanner.ParseOptions itself; which #if branches parse is the subject.",
         ["Cluckwork.Application.Tests.Eggs.EggLotLockSqlTests"] =
-            "#1028 pins lock SQL string literals; literal text is the subject. Legacy, predates #1184.",
+            "#1028 pins lock SQL string literals; literal text is the subject.",
         ["Cluckwork.Application.Tests.Sales.TransactionDelegateShapeTests"] =
-            "#751 add-item transaction shape; matches call names inside the delegate. Legacy, predates #1184.",
+            "#751 add-item transaction shape; matches call names inside the delegate.",
         ["Cluckwork.Application.Tests.TenantBypass.FarmDirectoryCallerTests"] =
-            "#1043 IFarmDirectory caller allow-list; matches callers by name. Legacy, predates #1184.",
+            "#1043 IFarmDirectory caller allow-list; matches callers by name.",
         ["Cluckwork.Application.Tests.TenantBypass.FindBySlugCallerTests"] =
-            "#1061 FindBySlugAsync caller allow-list; matches callers by name. Legacy, predates #1184.",
+            "#1061 FindBySlugAsync caller allow-list; matches callers by name.",
         ["Cluckwork.Application.Tests.TenantBypass.GuardScanner"] =
-            "#584 tenant-bypass scanner; matches banned methods by name, keyed by #632 token hash. Legacy, predates #1184.",
+            "#584 tenant-bypass scanner; matches banned methods by name, keyed by #632 token hash.",
     };
 
     [Fact]
