@@ -70,8 +70,9 @@ side: a small bulk price rounds to a zero list price, and a free line is then
 - Lines recorded before this fix keep their unscaled list price. No migration
   or backfill corrects them.
 - A scaled price that is a valid server `long` but beyond
-  `Number.MAX_SAFE_INTEGER` gets no SPA prefill or list-price expectation. The
-  money parser refuses such a typed price anyway.
+  `Number.MAX_SAFE_INTEGER` gets no SPA prefill or list-price expectation.
+- A typed price is still parsed through a float, which loses precision above
+  2^53 minor units. That predates this fix and is not addressed here.
 
 ## How it is enforced
 
