@@ -219,8 +219,8 @@ cimd-mixed-validation-recovered#kill#DOCUMENTS#row is null && IsOnlyDuplicateCli
 cimd-idempotency-query-ignored#kill#IDEMPOTENCY#        if (request.QueryString.HasValue)#        if (request.ContentLength < 0)#OAuthFailClosedTests.Disconnect_ReusingAKeyForAnotherApp_IsAConflict_NotAReplay#Expected: Conflict
 cimd-response-type-fetched#kill#DOCUMENTS#if (context.Request.ResponseType != ResponseTypes.Code)#if (context.Request.ResponseType == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
 cimd-pkce-fetched#kill#DOCUMENTS#if (string.IsNullOrEmpty(context.Request.CodeChallenge) || context.Request.CodeChallengeMethod != CodeChallengeMethods.Sha256)#if (context.Request.CodeChallengeMethod == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
-cimd-approved-spends-global#kill#DOCUMENTS#global: !await IsApprovedAsync(scope, applications, row, ct)#global: true#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
-cimd-everyone-skips-global#kill#DOCUMENTS#global: !await IsApprovedAsync(scope, applications, row, ct)#global: false#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#Strings differ
+cimd-approved-shares-strangers-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: false#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
+cimd-everyone-gets-approved-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: true#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#Strings differ
 EOF
 )
 

@@ -234,9 +234,9 @@ public sealed partial class OAuthFailClosedTests
         Assert.Equal(Errors.TemporarilyUnavailable, outcomes[^1]);
     }
 
-    // Strangers can drain the global budget, so it does not gate an app someone approved:
-    // its expired copy is still refreshed, never served. A stored copy nobody approved, and
-    // an unknown URL, are refused.
+    // Strangers can drain their global budget, but an app someone approved spends a budget
+    // of its own: its expired copy is still refreshed, never served. A stored copy nobody
+    // approved, and an unknown URL, are refused.
     [Fact]
     public async Task ApprovedApp_IsRefreshed_PastADrainedGlobalBudget()
     {

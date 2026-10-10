@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Domain.Common;
-using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -101,9 +100,9 @@ internal sealed class ClientMetadataDocuments(
 
         // An expired copy never stands in, even with the budget spent: a caller could drain
         // the budget with failed fetches and revive redirect URIs the publisher removed.
-        // A client someone approved with their password skips the global budget, which
-        // strangers can drain, and still spends its own.
-        if (!await SpendBudgetAsync(clientId, global: !await IsApprovedAsync(scope, applications, row, ct), ct))
+        // A client someone approved with their password spends a global budget of its own,
+        // so strangers draining theirs cannot block it, and every fetch stays bounded.
+        if (!await SpendBudgetAsync(clientId, approved: await IsApprovedAsync(scope, applications, row, ct), ct))
             return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");
 
         var fetched = await fetcher.FetchAsync(url.Value, ct);
@@ -158,12 +157,13 @@ internal sealed class ClientMetadataDocuments(
             .FindByClientIdAsync(clientId, ct) is not null;
     }
 
-    private async Task<bool> SpendBudgetAsync(string clientId, bool global, CancellationToken ct)
+    private async Task<bool> SpendBudgetAsync(string clientId, bool approved, CancellationToken ct)
     {
         // A hash, so no client-chosen text reaches the shared store's keys.
         var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(clientId)));
         return (await counter.IncrementAsync($"oauth-metadata:url:{key}", PerUrlBudget.Window, ct)).Count <= PerUrlBudget.Limit
-            && (!global || (await counter.IncrementAsync("oauth-metadata:global", GlobalBudget.Window, ct)).Count <= GlobalBudget.Limit);
+            && (await counter.IncrementAsync(approved ? "oauth-metadata:approved" : "oauth-metadata:global", GlobalBudget.Window, ct))
+                .Count <= GlobalBudget.Limit;
     }
 
     // At least one valid authorization: a person approved this client, which no anonymous
@@ -173,9 +173,11 @@ internal sealed class ClientMetadataDocuments(
     {
         if (row is null)
             return false;
-        var id = Guid.Parse((await applications.GetIdAsync(row, ct))!);
-        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().OAuthAuthorizations
-            .AnyAsync(authorization => authorization.Application!.Id == id && authorization.Status == Statuses.Valid, ct);
+        var authorizations = scope.ServiceProvider.GetRequiredService<IOpenIddictAuthorizationManager>();
+        await foreach (var authorization in authorizations.FindByApplicationIdAsync((await applications.GetIdAsync(row, ct))!, ct))
+            if (await authorizations.HasStatusAsync(authorization, Statuses.Valid, ct))
+                return true;
+        return false;
     }
 
     private static DateTimeOffset ExpiresAt(IReadOnlyDictionary<string, JsonElement> properties) =>

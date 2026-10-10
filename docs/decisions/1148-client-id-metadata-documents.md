@@ -151,10 +151,12 @@ the default certificate validation. No configuration reaches it.
 A fetch is spent only on a missing or expired row; a fresh row costs nothing. On the
 shared `IFixedWindowCounter` (#544): at most 10 fetches of one URL per 5 minutes, then at
 most 60 fetches in total per minute. The refresh of a client that holds at least one
-valid authorization skips the global budget and still spends its per-URL one. A person
-approved that client with their password, which no anonymous caller can bring about, so
-the global budget still bounds every fetch a stranger can cause, and draining it no longer
-blocks apps people use (Fable review, round 1). It changes nothing else: the copy is
+valid authorization spends a second global budget of the same size instead, plus its
+per-URL one. A person approved that client with their password, which no anonymous caller
+can bring about, so strangers draining the first budget no longer block apps people use.
+The second budget is separate rather than an exemption because anyone with an account can
+approve clients of their own: an exemption would let them fetch outside every global
+bound. Total fetches stay at most 120 a minute. Nothing else changes: the copy is
 refreshed, never served stale. The per-URL key is a SHA-256 hash, so no
 client-chosen text reaches the shared store. An exhausted budget refuses with
 `temporarily_unavailable`, and an expired copy never stands in for the refresh, even while
