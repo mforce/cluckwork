@@ -22,8 +22,8 @@ def run(cwd, *args, check=False):
     return result
 
 
-def head_of(bare, ref):
-    return run(bare, "rev-parse", "--verify", "--quiet", ref).stdout.strip()
+def refs_of(bare):
+    return run(bare, "for-each-ref", "--format=%(refname) %(objectname)", check=True).stdout
 
 
 class Repo:
@@ -79,6 +79,9 @@ class PrePushTest(unittest.TestCase):
         ("pushed_then_rewritten", ["--force-with-lease", "origin", "feat/x"], "refuse"),
         ("on_main", ["origin", "HEAD"], "refuse"),
         ("on_main", [], "refuse"),
+        ("tag_moved", ["--force", "origin", "v1"], "refuse"),
+        ("annotated_tag_replaced", ["--force", "origin", "v2"], "refuse"),
+        ("annotated_tag_replaced", ["origin", "v3"], "allow"),
     ]
 
     @staticmethod
@@ -98,6 +101,18 @@ class PrePushTest(unittest.TestCase):
         run(repo.work, "config", "remote.paseo.push", "HEAD:refs/heads/feat/y", check=True)
 
     @staticmethod
+    def tag_moved(repo):
+        run(repo.work, "push", "-q", "--no-verify", "origin", "v1", check=True)
+        run(repo.work, "tag", "-f", "v1", "HEAD", check=True)  # a descendant of the pushed commit
+
+    @staticmethod
+    def annotated_tag_replaced(repo):
+        run(repo.work, "tag", "-a", "v2", "-m", "first", check=True)
+        run(repo.work, "push", "-q", "--no-verify", "origin", "v2", check=True)
+        run(repo.work, "tag", "-f", "-a", "v2", "-m", "second", check=True)  # same commit, new tag object
+        run(repo.work, "tag", "-a", "v3", "-m", "new", check=True)
+
+    @staticmethod
     def on_main(repo):
         run(repo.work, "switch", "-q", "main", check=True)
         run(repo.work, "branch", "-q", "--set-upstream-to=origin/main", check=True)
@@ -108,7 +123,7 @@ class PrePushTest(unittest.TestCase):
                 repo = Repo(root)
                 if setup:
                     getattr(self, setup)(repo)
-                before = {ref: head_of(repo.bare, ref) for ref in ("refs/heads/main", "refs/heads/feat/x")}
+                before = refs_of(repo.bare)
                 result = run(repo.work, "push", "-q", *args)
                 verdict = "allow" if result.returncode == 0 else "refuse"
                 print(f"pre-push   {verdict:6} [{setup or 'feat/x':21}] git push {' '.join(args)}"
@@ -116,8 +131,7 @@ class PrePushTest(unittest.TestCase):
                 self.assertEqual(verdict, expected, result.stderr)
                 if expected == "refuse":
                     self.assertIn("pre-push: refusing", result.stderr)
-                    after = {ref: head_of(repo.bare, ref) for ref in before}
-                    self.assertEqual(after, before, "a refused push changed the remote")
+                    self.assertEqual(refs_of(repo.bare), before, "a refused push changed the remote")
 
 
 class PreCommitTest(unittest.TestCase):

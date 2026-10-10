@@ -1,6 +1,6 @@
 #!/bin/sh
-# pre-push: refuse pushes that change main, rewrite history, or land a branch
-# under another name (#1171).
+# pre-push: refuse pushes that change main, rewrite history, move a pushed tag,
+# or land a branch under another name (#1171).
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Skip once:               git push --no-verify
@@ -31,6 +31,11 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     refuse "main changes only through a merged PR. Run \`git switch -c <type>/<topic>\`, then push that branch."
   fi
   is_zero "$local_sha" && continue # deleting another branch
+  case $remote_ref in refs/tags/*)
+    if ! is_zero "$remote_sha" && [ "$remote_sha" != "$local_sha" ]; then
+      refuse "a pushed tag is never moved or replaced, even when its commit moves forward. Push a new tag instead."
+    fi
+  esac
   # `git push origin HEAD` reports the local ref as HEAD; compare the branch it names.
   [ "$local_ref" = HEAD ] && local_ref=$(git symbolic-ref --quiet HEAD || echo HEAD)
   if ! is_zero "$remote_sha" && ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
