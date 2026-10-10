@@ -1,0 +1,43 @@
+#!/bin/sh
+# pre-push: refuse pushes that change main, rewrite history, or land a branch
+# under another name (#1171).
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Skip once:               git push --no-verify
+#
+# Git passes one line per ref on stdin: <local ref> <local sha> <remote ref>
+# <remote sha>, so this reads what will actually be pushed and parses no
+# command line. POSIX sh on purpose (see pre-commit).
+set -eu
+
+remote=$1
+
+refuse() {
+  printf 'pre-push: refusing %s -> %s on %s: %s\n' "$local_ref" "$remote_ref" "$remote" "$1" >&2
+  exit 1
+}
+
+is_zero() { case $1 in *[!0]*) return 1 ;; esac; }
+
+# A remote.<name>.push refspec maps the branch on purpose (Paseo PR checkouts
+# push HEAD:refs/heads/<pr-branch> from a suffixed local branch).
+configured() {
+  git config --get-all "remote.$remote.push" 2>/dev/null |
+    grep -qxF -e "HEAD:$remote_ref" -e "$local_ref:$remote_ref"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = refs/heads/main ]; then
+    refuse "main changes only through a merged PR. Run \`git switch -c <type>/<topic>\`, then push that branch."
+  fi
+  is_zero "$local_sha" && continue # deleting another branch
+  # `git push origin HEAD` reports the local ref as HEAD; compare the branch it names.
+  [ "$local_ref" = HEAD ] && local_ref=$(git symbolic-ref --quiet HEAD || echo HEAD)
+  if ! is_zero "$remote_sha" && ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    refuse "not a fast-forward (a force push, or the remote has commits you lack). Fetch, merge, and push a new commit."
+  fi
+  if [ "$local_ref" != "$remote_ref" ] && ! configured; then
+    refuse "the local and remote names differ, a src:dst push (#900). Run \`git branch --show-current\`, then \`git push -u origin <that-branch>\`."
+  fi
+done
+exit 0
