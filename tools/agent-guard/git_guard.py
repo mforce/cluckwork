@@ -12,8 +12,9 @@ rather than parsed, so the agent re-runs the write on its own.
 
 Not covered: gh aliases defined earlier, a GraphQL merge whose query comes from a
 file, git aliases from config, other commands that create commits (merge, rebase,
-cherry-pick, pull), and Codex `exec_command` calls whose `workdir` differs from
-the session `cwd` (Codex does not send `workdir`).
+cherry-pick, pull), a configured push destination that the remote resolves as a
+symbolic ref to main (no remote lookups), and Codex `exec_command` calls whose
+`workdir` differs from the session `cwd` (Codex does not send `workdir`).
 """
 import json
 import os
