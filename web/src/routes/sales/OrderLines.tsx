@@ -20,8 +20,8 @@ export function OrderLines({
   action: SalesAction;
   editQtyId: string;
   productName: (id: string) => string;
-  onUpdateItem: (itemId: string) => void;
-  onRemoveItem: (itemId: string) => void;
+  onUpdateItem: (itemId: string) => Promise<unknown>;
+  onRemoveItem: (itemId: string) => Promise<unknown>;
 }) {
   const { t } = useTranslation("sales");
   const fmt = useFormat();

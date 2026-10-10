@@ -11,7 +11,7 @@ export function NewOrderDialog({ newOrder, action, today, onCreateOrder }: {
   newOrder: NewOrderState;
   action: SalesAction;
   today: string;
-  onCreateOrder: () => void;
+  onCreateOrder: () => Promise<unknown>;
 }) {
   const { t } = useTranslation("sales");
   const { t: tc } = useTranslation("common");

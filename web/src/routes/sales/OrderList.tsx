@@ -78,7 +78,7 @@ export function OrderList({
   busy: boolean;
   fieldId: string;
   rowCustomerName: (o: { customerName?: string | null }) => string;
-  onOpen: (id: string) => void;
+  onOpen: (id: string) => Promise<unknown>;
   setDetailsId: (id: string | null) => void;
 }) {
   const { t } = useTranslation("sales");
@@ -199,7 +199,7 @@ export function OrderDetailsDialog({
   busy: boolean;
   focusAfterWrite: RefObject<string | null>;
   rowCustomerName: (o: { customerName?: string | null }) => string;
-  onOpen: (id: string) => void;
+  onOpen: (id: string) => Promise<unknown>;
   setDetailsId: (id: string | null) => void;
 }) {
   const { t } = useTranslation("sales");
@@ -217,11 +217,11 @@ export function OrderDetailsDialog({
           {tc("recordHistory.viewHistoryLink")}
         </Button>}
         <Button variant="contained" sx={{ ml: "auto", borderRadius: "4px" }} disabled={busy}
-          onClick={() => {
+          onClick={async () => {
             const id = details.id;
             focusAfterWrite.current = id;
             setDetailsId(null);
-            onOpen(id);
+            await onOpen(id);
           }}>{t("open")}</Button>
       </Box>}>
       {details && <Box component="dl" sx={{ m: 0 }}>

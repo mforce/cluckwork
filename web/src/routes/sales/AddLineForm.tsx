@@ -31,7 +31,7 @@ export function AddLineForm({
   unitWord: (sellingUnit: string) => string;
   addQtyId: string;
   action: SalesAction;
-  onAddItem: () => void;
+  onAddItem: () => Promise<unknown>;
 }) {
   const { t } = useTranslation("sales");
   const fmt = useFormat();
