@@ -119,25 +119,27 @@ def simple_command(command, cwd):
     if len(parts) > 2 or not all(parts) or (len(parts) == 2 and (parts[0][0] != "cd" or len(parts[0]) != 2)):
         block("simple", command)
     if len(parts) == 2:
-        cwd = resolve_dir(cwd, parts[0][1])
+        cwd = cd_dir(cwd, parts[0][1], command)
     argv = parts[-1]
     if any(set(token) <= {"&"} for token in argv):
         block("simple", command)
     return argv, cwd
 
 
-def resolve_dir(base, target):
-    """Directory a `cd`/`-C` lands in, or None when it depends on runtime state."""
-    if base is None or target == "-":
-        return None
-    return os.path.normpath(os.path.join(base, os.path.expanduser(target)))
+def cd_dir(base, operand, shown):
+    """Directory `cd <operand>` lands in (bash's default -L resolves `..` by text, as normpath does)."""
+    searched = os.environ.get("CDPATH") and not operand.startswith("/") and operand.split("/")[0] not in (".", "..")
+    if operand.startswith(("-", "~")) or searched:
+        raise Blocked(f"`{shown}` is blocked: where `cd {operand}` lands depends on the shell (an option, `~` or "
+                      "CDPATH). Use `cd /absolute/path &&` or `cd ./relative/path &&`.")
+    return os.path.normpath(os.path.join(base, operand))
 
 
 class Repo:
     """Read-only git lookups in the directory the command runs in; a failed lookup blocks."""
 
     def __init__(self, cwd, options, shown):
-        if cwd is None or not os.path.isdir(cwd):
+        if not os.path.isdir(cwd):
             raise Blocked(f"`{shown}` is blocked: git-guard cannot find the directory it runs in. "
                           "Run it from an existing directory, or with `cd <absolute dir> &&`.")
         self.cwd, self.options, self.shown = cwd, options, shown
@@ -250,10 +252,7 @@ def check_git(args, cwd, shown):
             value = args[i + 1]
             if arg == "-c" and re.match(r"(alias|push|remote|branch)\.", value, re.I):
                 block("git-config", shown)
-            if arg == "-C":
-                cwd = resolve_dir(cwd, value)
-            else:
-                options += [arg, value]
+            options += [arg, value]  # -C included: git resolves the path itself, symlinks and all
             i += 2
         elif arg in GIT_GLOBAL_FLAGS or (name in ("--git-dir", "--work-tree") and "=" in arg):
             options.append(arg)

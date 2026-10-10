@@ -14,7 +14,7 @@ GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git_guard.py")
 
 # (command, directory the session runs in, expected verdict). Fixtures:
 #   main      repo on main
-#   feature   repo on feat/x inside main; remotes `backup` (push = HEAD:refs/heads/main), `mirror`
+#   feature   repo on feat/x inside main, with `link` -> main/sub; remotes `backup` (push = HEAD:refs/heads/main), `mirror`
 #             (mirror = true) and `paseo` (push = HEAD:refs/heads/feat/y, as Paseo PR checkouts have)
 #   tracking  repo on feat/t, upstream origin/main, push.default=upstream
 #   matching  repo on feat/m with push.default=matching
@@ -91,6 +91,12 @@ CASES = [
     ("git -C .. commit -m x", "feature", "block"),
     ("cd new-dir && git push", "feature", "block"),
     ("cd - && git commit -m x", "feature", "block"),
+    ("cd -- && git commit -m x", "feature", "block"),
+    ("cd -P feature && git commit -m x", "main", "block"),
+    ("cd \"~\" && git commit -m x", "feature", "block"),
+    ("cd ~ && git commit -m x", "feature", "block"),
+    ("git -C link/.. commit -m x", "feature", "block"),
+    ("git -C missing-dir commit -m x", "feature", "block"),
     ("git commit -m x", "plain", "block"),
     # Push configuration (finding 3).
     ("git push", "tracking", "block"),
@@ -210,6 +216,8 @@ class GitGuardTest(unittest.TestCase):
         feature, tracking, remote = cls.dirs["feature"], cls.dirs["tracking"], os.path.join(root, "remote.git")
         git("init", "-q", "-b", "main", main)
         git("init", "-q", "-b", "feat/x", feature)
+        os.mkdir(os.path.join(main, "sub"))
+        os.symlink(os.path.join(main, "sub"), os.path.join(feature, "link"))
         git("-C", feature, "config", "remote.backup.url", remote)
         git("-C", feature, "config", "remote.backup.push", "HEAD:refs/heads/main")
         git("-C", feature, "config", "remote.mirror.url", remote)
@@ -254,6 +262,13 @@ class GitGuardTest(unittest.TestCase):
     def test_other_tools_pass(self):
         code, _ = run_guard(json.dumps({"tool_name": "Read", "tool_input": {"file_path": "/x"}}))
         self.assertEqual(code, 0)
+
+    def test_cdpath_makes_a_bare_cd_operand_ambiguous(self):
+        env = {**os.environ, "CDPATH": self.tmp.name}
+        for command, expected in (("cd feature && git commit -m x", 2), ("cd ./feature && git commit -m x", 0)):
+            body = json.dumps(payload("claude", command, self.dirs["main"]))
+            result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, expected, f"{command}: {result.stderr}")
 
     def test_switch_then_separate_commit(self):
         with tempfile.TemporaryDirectory() as repo:
