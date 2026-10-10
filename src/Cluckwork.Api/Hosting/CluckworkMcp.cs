@@ -60,7 +60,9 @@ internal static class CluckworkMcp
     }
 
     // A tool narrows this with its own role and scope policies; tools/list hides a tool
-    // whose policies the caller fails.
+    // whose policies the caller fails. The SDK reads the body itself, so the marker reports
+    // a failed read as a body error (#398). No guard holds it: the SDK maps a
+    // RequestDelegate, which BodyReadingEndpointTests cannot see.
     public static void MapCluckworkMcp(this WebApplication app) =>
         app.MapMcp(Path)
             .WithMetadata(app.Services.GetRequiredService<McpEndpoint>(), new ReadsRequestBodyAttribute())

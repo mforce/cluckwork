@@ -58,8 +58,20 @@ public sealed class OAuthServerProductionTests(OAuthProductionFactory factory)
         Assert.Equal("Claude Desktop",
             (await consent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("clientName").GetString());
         Assert.Equal(HttpStatusCode.OK, token.StatusCode);
-        Assert.False(string.IsNullOrEmpty(
-            (await token.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("access_token").GetString()));
+        var accessToken = (await token.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("access_token").GetString();
+        Assert.False(string.IsNullOrEmpty(accessToken));
+
+        // #806 — /mcp needs no configuration beyond the issuer.
+        using var initialize = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        {
+            Content = new StringContent(
+                """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"cw806","version":"1"}}}""",
+                System.Text.Encoding.UTF8, "application/json"),
+        };
+        initialize.Headers.Accept.ParseAdd("application/json");
+        initialize.Headers.Accept.ParseAdd("text/event-stream");
+        using var mcp = await OAuthServerTests.HttpsClient(factory, accessToken).SendAsync(initialize);
+        Assert.Equal(HttpStatusCode.OK, mcp.StatusCode);
     }
 
     [Theory]
