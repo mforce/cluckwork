@@ -14,9 +14,9 @@
 #   INCONCLUSIVE  no TRX, no result, the mutant did not apply or did not compile
 #
 # Rows 6, 7 and 7b's mutations are tools a later PR would add, so they live as
-# permanent fixtures in McpToolSurfaceTests and McpSecondaryScopeTests. The two walk
-# mutants below remove the request-reader check, to show that its fixture and the
-# real-host walk depend on it.
+# permanent fixtures in McpToolSurfaceTests and McpSecondaryScopeTests. The walk
+# mutants below remove the request-reader check, or stop the walk at an approved
+# reader edge, to show that the fixtures and the real-host walk depend on each.
 #
 # Usage:  sg docker -c 'bash tools/mcp/mutation-check.sh'   (two tests boot the API)
 
@@ -47,6 +47,9 @@ flock-restriction-dropped#kill#BRIDGE#IsFlockRestricted = !flockScope.IsUnrestri
 bridge-unregistered#kill#IDENTITY#        services.AddScoped<McpCallContext>();\n##McpCallContextPipelineTests.OAuthCaller_ResolvesTheRequestsIdentity#Expected: OK
 bridge-registered-by-factory#kill#IDENTITY#services.AddScoped<McpCallContext>();#services.AddScoped(sp => new McpCallContext(sp.GetRequiredService<IHttpContextAccessor>(), sp.GetRequiredService<TenantContext>(), sp.GetRequiredService<CurrentUserContext>(), sp.GetRequiredService<FlockScope>()));#McpSecondaryScopeTests.RealHost_NoToolOrContractReachesASecondaryScope#McpCallContext: registered through a factory delegate
 request-reader-unchecked#kill#WALK#    private static bool ReadsTheRequest(Type type) => Reaches(RequestReaders, type);#    private static bool ReadsTheRequest(Type type) => false;#McpSecondaryScopeTests.HelperReadingRequestServices_IsAFinding#Assert.Single() Failure
+approved-reader-stops-walk#kill#WALK#                readersReached.Add(reader);\n            }#                readersReached.Add(reader);\n                continue;\n            }#McpSecondaryScopeTests.ReviewedConsumer_StillWalksAnAccessorThatOpensAScope#Assert.Single() Failure
+approved-reader-stops-walk-factory#kill#WALK#                readersReached.Add(reader);\n            }#                readersReached.Add(reader);\n                continue;\n            }#McpSecondaryScopeTests.ReviewedConsumer_StillRefusesAnAccessorFromAnUnreviewedFactory#Assert.Single() Failure
+approved-reader-stops-walk-wrapper#kill#WALK#                readersReached.Add(reader);\n            }#                readersReached.Add(reader);\n                continue;\n            }#McpSecondaryScopeTests.ReviewedConsumer_StillWalksAGenericReaderWrapper#Assert.Contains() Failure
 request-reader-unchecked-real-host#kill#WALK#    private static bool ReadsTheRequest(Type type) => Reaches(RequestReaders, type);#    private static bool ReadsTheRequest(Type type) => false;#McpSecondaryScopeTests.RealHost_NoToolOrContractReachesASecondaryScope#stale review: McpCallContext reads the request
 EOF
 )
@@ -87,11 +90,14 @@ if test == '*':
     failed = [r.get('testName') for r in results if r.get('outcome') != 'Passed']
     print(f"{len(results)} ran, {len(failed)} not passed {failed[:3]}" if failed or not results else f"green, {len(results)} passed")
     sys.exit()
-results = [r for r in results if r.get('testName') == test]
-if len(results) != 1:
-    print(f"INCONCLUSIVE {len(results)} results for {test}"); sys.exit()
-outcome = results[0].get('outcome')
-error = results[0].find(f'{ns}Output/{ns}ErrorInfo/{ns}Message')
+# A theory reports one result per case, named test(args); the mutant counts as caught
+# when any case fails, and that case's message is the one judged.
+results = [r for r in results if r.get('testName') == test or r.get('testName', '').startswith(test + '(')]
+if not results:
+    print(f"INCONCLUSIVE no result for {test}"); sys.exit()
+result = next((r for r in results if r.get('outcome') == 'Failed'), results[0])
+outcome = result.get('outcome')
+error = result.find(f'{ns}Output/{ns}ErrorInfo/{ns}Message')
 message = ''.join(error.itertext()) if error is not None else ''
 first = (message.strip().splitlines() or [''])[0][:160]
 if outcome == 'Passed':

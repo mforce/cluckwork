@@ -78,7 +78,7 @@ and the residual ones are named. #787 (flipping that branch fail-closed) backsto
 of the residue, which is why slice 6 is blocked on it — but a secondary-scope **read** never calls
 `FlockScopeGuard` at all, so #787 does not cover it. That read residue is recorded as open risk.
 
-#805's walk has three more limits, recorded here and not fixed:
+#805's walk has these further limits, recorded here and not fixed:
 
 - A pre-built instance registration (`AddSingleton(instance)`) ends the walk. Whatever built that
   instance is not in the registration graph.
@@ -88,6 +88,16 @@ of the residue, which is why slice 6 is blocked on it — but a secondary-scope 
 - `McpToolSurface` finds tool methods with `BindingFlags.DeclaredOnly`. A tool method inherited from
   a base class is not walked. Whether the SDK serves inherited attributed methods is unproven until
   #806 picks the SDK version.
+- A `ReviewedRequestReader` row is keyed by its consumer only. A changed body, an added reader
+  parameter, or a member returning a provider on a reviewed reader is not detected, the same kind
+  of drift as a `ReviewedFactory` row.
+- Inside a reviewed reader, `HttpContext.Features.Get<IServiceProvidersFeature>().RequestServices`
+  is as invisible to the walk as direct `RequestServices` access.
+- Keyed services are not modelled. The walk reduces a parameter to its type and skips keyed
+  descriptors, so a `[FromKeyedServices]` dependency is checked against the unkeyed registration.
+  None exist in `src/` today.
+- When an exact and an open-generic registration for one service coexist, the walk takes the last
+  descriptor, while the container prefers the exact closed one.
 
 Saying this here is the point: a guard described as proving more than it proves is worse than no
 guard, because it reads as safety. Round 1 found three such rows, round 2 found two more in the

@@ -17,6 +17,7 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 // HttpContext.RequestServices: a helper can call CreateScope() on it and read with an
 // unresolved, so unrestricted, FlockScope. Each type that takes one needs a
 // ReviewedRequestReader row, checked per consuming type rather than per dependency.
+// The row approves only the consumer; the reader's own registration is still walked.
 //
 // A reviewed factory is keyed by its service type and the type whose code holds the
 // delegate, so a second factory for the same service, registered elsewhere, is not
@@ -74,11 +75,15 @@ internal static class SecondaryScopeWalk
             {
                 var reader = reviewedReaders.FirstOrDefault(r => r.Consumer == consumer);
                 if (reader is null)
+                {
                     findings.Add($"{path}: reaches HttpContext.RequestServices, which can open a scope; " +
                         "review the consumer and add a ReviewedRequestReader row");
-                else
-                    readersReached.Add(reader);
-                continue;
+                    continue;
+                }
+
+                // The row approves the consumer reading the request, not whatever the reader
+                // is registered as: its registration is walked like any other dependency.
+                readersReached.Add(reader);
             }
 
             if (!visited.Add(type))

@@ -164,6 +164,47 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
             "which can open a scope; review the consumer and add a ReviewedRequestReader row", finding);
     }
 
+    // A reviewed reader row approves the consumer reading the request. It does not approve
+    // what the reader is registered as, so a replaced accessor is still walked.
+    [Fact]
+    public void ReviewedConsumer_StillWalksAnAccessorThatOpensAScope()
+    {
+        var services = BridgeServices();
+        services.AddSingleton<IHttpContextAccessor, ScopeOpeningAccessor>();
+
+        var finding = Assert.Single(WalkTool<BridgeOnlyTool>(services, []).Findings);
+        Assert.EndsWith("McpCallContext -> IHttpContextAccessor -> IServiceScopeFactory: opens a scope", finding);
+    }
+
+    [Fact]
+    public void ReviewedConsumer_StillRefusesAnAccessorFromAnUnreviewedFactory()
+    {
+        var services = BridgeServices();
+        services.AddSingleton<IHttpContextAccessor>(_ => new HttpContextAccessor());
+
+        var finding = Assert.Single(WalkTool<BridgeOnlyTool>(services, []).Findings);
+        Assert.Contains("McpCallContext -> IHttpContextAccessor: registered through a factory delegate", finding);
+    }
+
+    // A wrapper whose type argument reads the request counts as a reader; approving its
+    // consumer must not skip the wrapper's own constructor or factory.
+    [Theory]
+    [InlineData(false, "Reader<IHttpContextAccessor> -> IServiceScopeFactory: opens a scope")]
+    [InlineData(true, "Reader<IHttpContextAccessor>: registered through a factory delegate")]
+    public void ReviewedConsumer_StillWalksAGenericReaderWrapper(bool byFactory, string expected)
+    {
+        var services = BridgeServices();
+        services.AddScoped<WrapperConsumer>();
+        if (byFactory)
+            services.AddScoped(sp => new Reader<IHttpContextAccessor>(sp.GetRequiredService<IServiceScopeFactory>()));
+        else
+            services.AddScoped(typeof(Reader<>));
+
+        var report = WalkTool<WrapperTool>(services, [], [Bridge, new(typeof(WrapperConsumer), "test")]);
+
+        Assert.Contains(report.Findings, f => f.Contains(expected));
+    }
+
     [Fact]
     public void ReviewedFactory_ExcusesOnlyTheTypeThatRegistersIt()
     {
@@ -177,8 +218,9 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
         Assert.Single(WalkTool<DelegateHelperTool>(services, [elsewhere]).Findings);
     }
 
-    private static SecondaryScopeReport WalkTool<TTool>(IServiceCollection services, ReviewedFactory[] reviewed) =>
-        SecondaryScopeWalk.Walk(services.ToArray(), McpToolSurface.Injections(typeof(TTool)), reviewed, [Bridge]);
+    private static SecondaryScopeReport WalkTool<TTool>(
+        IServiceCollection services, ReviewedFactory[] reviewed, ReviewedRequestReader[]? readers = null) =>
+        SecondaryScopeWalk.Walk(services.ToArray(), McpToolSurface.Injections(typeof(TTool)), reviewed, readers ?? [Bridge]);
 
     private static async Task<Guid[]> FlockIdsAsync(IServiceProvider services) =>
         [.. (await services.GetRequiredService<AppDbContext>().Flocks.Select(f => f.Id).ToListAsync()).Order()];
@@ -225,6 +267,35 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
     {
         [McpServerTool]
         public string Read() => $"{call.UserId} {helper.Unrestricted()}";
+    }
+
+    private sealed class ScopeOpeningAccessor(IServiceScopeFactory scopes) : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; } = scopes.CreateScope().ServiceProvider.GetService<HttpContext>();
+    }
+
+    private sealed class Reader<T>(IServiceScopeFactory scopes)
+    {
+        public IServiceScope Open() => scopes.CreateScope();
+    }
+
+    private sealed class WrapperConsumer(Reader<IHttpContextAccessor> reader)
+    {
+        public IServiceScope Open() => reader.Open();
+    }
+
+    [McpServerToolType]
+    private sealed class BridgeOnlyTool(McpCallContext call)
+    {
+        [McpServerTool]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class WrapperTool(McpCallContext call, WrapperConsumer consumer)
+    {
+        [McpServerTool]
+        public string Read() => $"{call.UserId} {consumer.Open()}";
     }
 
     [McpServerToolType]
