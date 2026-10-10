@@ -1,6 +1,6 @@
 # CI security gates, lock-file healing, Dependabot, action pinning (#146)
 
-> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it; this file is the rationale (what shipped and what not to break).
+> **Rule** — CI enforces the audit gates, and `CONTRIBUTING.md` and `SECURITY.md` document them, so no `AGENTS.md` restates them. The remaining compact constraint, pinning third-party Actions to a full commit SHA, lives in [`.github/AGENTS.md`](../../.github/AGENTS.md). This file is the rationale (what shipped and what not to break).
 
 
 CI fails a PR when a dependency carries a known **high+** advisory:

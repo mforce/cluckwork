@@ -1,6 +1,7 @@
 # Put flock lifecycle behind a Flock Management contract with two peer ports (#852)
 
-> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it;
+> **Rule** — the remaining compact constraint, that `IMortalityLedger.AppendAsync` never saves, lives in
+> [`src/AGENTS.md`](../../src/AGENTS.md) with the other transaction-joining ports;
 > this file records why Flock Management has three
 > contract interfaces and what the contract leaves alone.
 

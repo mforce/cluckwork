@@ -1,6 +1,7 @@
 # Container image hardening (#267)
 
-> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it;
+> **Rule** — a guard, a verb or the Dockerfile carries this rule, so [`src/AGENTS.md`](../../src/AGENTS.md)
+> only lists it under *Enforced rules and their records*;
 > this file is the rationale.
 
 **Status:** accepted; the CI scan gate was reversed 2026-10-02 (see below) · **Date:** 2026-07

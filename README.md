@@ -90,7 +90,7 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 | Document | For |
 |---|---|
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Local development, tests, branches, commit messages |
-| [`AGENTS.md`](AGENTS.md) | Rules for coding agents that no guard or how-to already enforces |
+| [`AGENTS.md`](AGENTS.md) | Rules for coding agents, split into scoped files by path |
 | [`SECURITY.md`](SECURITY.md) | Reporting a vulnerability; what CI enforces |
 | [`docs/releasing.md`](docs/releasing.md) | Cutting a release; deploying by digest |
 | [`docs/architecture.md`](docs/architecture.md) | The request pipeline and the egg-loop state machine, drawn |

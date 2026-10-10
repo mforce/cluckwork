@@ -1,6 +1,7 @@
 # Design-time migration connection, fail-closed (#318)
 
-> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it;
+> **Rule** — a guard, a verb or the Dockerfile carries this rule, so [`src/Cluckwork.Infrastructure/Persistence/AGENTS.md`](../../src/Cluckwork.Infrastructure/Persistence/AGENTS.md)
+> only lists it under *Enforced rules and their records*;
 > this file is the rationale.
 
 **Status:** accepted · **Date:** 2026-07
