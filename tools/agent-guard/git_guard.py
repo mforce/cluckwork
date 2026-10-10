@@ -220,8 +220,6 @@ def main():
         command = payload["tool_input"]["command"]
     except (ValueError, KeyError, TypeError):
         return 0
-    if isinstance(command, list):
-        command = shlex.join(command)
     if not isinstance(command, str):
         return 0
     try:
