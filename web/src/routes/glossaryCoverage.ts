@@ -12,7 +12,7 @@ export function glossaryTerms(markdown: string): string[] {
   const lines = markdown.split("\n");
   return lines.flatMap((line, i) => {
     const m = /^\*\*([^*]+)\*\*|^### (.+)/.exec(line);
-    const opensParagraph = i === 0 || lines[i - 1].trim() === "" || lines[i - 1].startsWith("#");
+    const opensParagraph = i === 0 || lines[i - 1].trim() === "" || /^#{1,6}(?:\s|$)/.test(lines[i - 1]);
     return m && (m[2] !== undefined || opensParagraph) ? [normalise(m[1] ?? m[2])] : [];
   });
 }
