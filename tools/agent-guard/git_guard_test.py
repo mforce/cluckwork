@@ -161,6 +161,10 @@ MALFORMED = ["", "not json", "{\"tool_name\": \"Bash\"", "{}", "[]", "null", "["
              json.dumps({"tool_name": "Bash", "tool_input": {"command": 7}}),
              json.dumps({"tool_name": "Bash", "tool_input": {"cmd": "git push --force"}}),
              json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}, "cwd": 3})]
+MALFORMED += [json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}, **cwd})
+              for cwd in ({}, {"cwd": None}, {"cwd": ""}, {"cwd": 0}, {"cwd": False}, {"cwd": []}, {"cwd": {}})]
+MALFORMED += [json.dumps({"tool_name": name, "tool_input": {"command": "git commit -m x"}, "cwd": "/"})
+              for name in (None, 0, False, [], {}, "")]
 
 
 def payload(harness, command, cwd):

@@ -358,13 +358,16 @@ def check(command, cwd):
 def read_payload(text):
     """(command, cwd) from a Bash PreToolUse payload, or None for another tool."""
     payload = json.loads(text)
-    if payload.get("tool_name", "Bash") != "Bash":
+    tool = payload.get("tool_name", "Bash")
+    if not isinstance(tool, str) or not tool:
+        raise ValueError("tool_name is not a non-empty string")
+    if tool != "Bash":
         return None
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
-    cwd = payload.get("cwd") or os.getcwd()
-    if not isinstance(command, str) or not isinstance(cwd, str):
-        raise ValueError("tool_input.command or cwd is missing or not a string")
+    cwd = payload.get("cwd")
+    if not isinstance(command, str) or not isinstance(cwd, str) or not cwd:
+        raise ValueError("tool_input.command or cwd is missing, empty or not a string")
     return command, cwd
 
 
