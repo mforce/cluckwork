@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""PreToolUse hook for Claude Code and Codex: blocks agent git commands that take
-a merge away from the maintainer or rewrite main (AGENTS.md, "Git / PR workflow").
+"""Pre-command hook for Claude Code, Codex, Pi and Hermes: blocks agent git commands
+that take a merge away from the maintainer or rewrite main (AGENTS.md, "Git / PR workflow").
 
-Both harnesses send one JSON object on stdin with the shell string in
-`tool_input.command` and the session directory in `cwd`; both block the call on
-exit 2 and show stderr to the agent.
+Every harness sends one JSON object on stdin with the shell string in
+`tool_input.command` and a directory in `cwd`, and blocks the call on exit 2 with
+stderr shown to the agent. The shell tool's name differs: `Bash` (Claude Code,
+Codex), `bash` (`.pi/extensions/git-guard.ts`), `terminal` (Hermes, through
+`.hermes/plugins/git-guard`). Hermes may add `tool_input.workdir`, the
+directory that one command runs in.
 
 A command that mentions a git write (`git push`, `git commit`) or a PR merge must
 be one simple command, optionally after `cd <dir> &&`. Anything else is refused
@@ -26,6 +29,7 @@ import sys
 import urllib.parse
 
 MAIN = "main"
+SHELL_TOOLS = {"Bash", "bash", "terminal"}  # Claude Code and Codex, the Pi extension, Hermes
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 GIT_FALSE = {"false", "no", "off", "0", ""}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
@@ -350,19 +354,22 @@ def check(command, cwd):
 
 
 def read_payload(text):
-    """(command, cwd) from a Bash PreToolUse payload, or None for another tool."""
+    """(command, cwd) from a shell-tool payload, or None for another tool."""
     payload = json.loads(text)
     tool = payload.get("tool_name", "Bash")
     if not isinstance(tool, str) or not tool:
         raise ValueError("tool_name is not a non-empty string")
-    if tool != "Bash":
+    if tool not in SHELL_TOOLS:
         return None
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     cwd = payload.get("cwd")
     if not isinstance(command, str) or not isinstance(cwd, str) or not cwd:
         raise ValueError("tool_input.command or cwd is missing, empty or not a string")
-    return command, cwd
+    workdir = tool_input.get("workdir") if tool == "terminal" else None
+    if workdir is not None and (not isinstance(workdir, str) or not workdir):
+        raise ValueError("tool_input.workdir is empty or not a string")
+    return command, os.path.join(cwd, workdir) if workdir else cwd
 
 
 def main():

@@ -360,6 +360,11 @@ jobs:
       - name: Test the precache-ceiling guard
         run: node --test scripts/verify-sw.test.mjs
 
+      # Node 26 strips the types from .pi/extensions/git-guard.ts; the test drives
+      # the extension against the real git_guard.py with the runner's Python 3.
+      - name: Test the Pi git-guard extension
+        run: node --test ../tools/agent-guard/pi_extension_test.mjs
+
       - name: Install dependencies
         run: npm ci
 

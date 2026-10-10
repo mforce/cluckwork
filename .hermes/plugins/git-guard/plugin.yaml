@@ -1,0 +1,5 @@
+name: git-guard
+version: "1.0.0"
+description: "Runs tools/agent-guard/git_guard.py before every terminal command and blocks the git writes and PR merges it refuses (#1171)."
+provides_hooks:
+  - pre_tool_call

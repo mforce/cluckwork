@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Table test for git_guard.py, fed through stdin in both harness payload shapes.
+"""Table test for git_guard.py, fed through stdin in each harness's payload shape.
 
 Run: python3 tools/agent-guard/git_guard_test.py
 """
+import importlib.util
 import json
 import os
 import subprocess
@@ -11,6 +12,7 @@ import tempfile
 import unittest
 
 GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git_guard.py")
+HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plugins", "git-guard", "__init__.py")
 
 # (command, directory the session runs in, expected verdict). Fixtures:
 #   main      repo on main
@@ -214,10 +216,17 @@ def payload(harness, command, cwd):
         return {"session_id": "s", "transcript_path": "/t.jsonl", "cwd": cwd, "permission_mode": "default",
                 "hook_event_name": "PreToolUse", "tool_name": "Bash",
                 "tool_input": {"command": command, "description": "d"}, "tool_use_id": "toolu_1"}
-    # Codex: codex-rs hook_runtime.rs PreToolUseRequest; exec_command sends only {"command"}
-    return {"session_id": "s", "turn_id": "t", "cwd": cwd, "transcript_path": None, "model": "m",
-            "permission_mode": "default", "hook_event_name": "PreToolUse", "tool_name": "Bash",
-            "tool_use_id": "call_1", "tool_input": {"command": command}}
+    if harness == "codex":  # codex-rs hook_runtime.rs PreToolUseRequest; exec_command sends only {"command"}
+        return {"session_id": "s", "turn_id": "t", "cwd": cwd, "transcript_path": None, "model": "m",
+                "permission_mode": "default", "hook_event_name": "PreToolUse", "tool_name": "Bash",
+                "tool_use_id": "call_1", "tool_input": {"command": command}}
+    if harness == "pi":  # .pi/extensions/git-guard.ts: Pi's bash tool_call input and ctx.cwd
+        return {"tool_name": "bash", "tool_input": {"command": command, "timeout": 120}, "cwd": cwd}
+    # Hermes: .hermes/plugins/git-guard, shaped like Hermes's own shell-hook payload (agent/shell_hooks.py)
+    return {"hook_event_name": "pre_tool_call", "tool_name": "terminal", "tool_input": {"command": command}, "cwd": cwd}
+
+
+HARNESSES = ("claude", "codex", "pi", "hermes")
 
 
 def run_guard(body):
@@ -276,7 +285,7 @@ class GitGuardTest(unittest.TestCase):
 
     def test_table(self):
         counts = {}
-        for harness in ("claude", "codex"):
+        for harness in HARNESSES:
             for command, where, expected in CASES:
                 code, stderr = run_guard(json.dumps(payload(harness, command, self.dirs[where])))
                 verdict = {0: "allow", 2: "block"}.get(code, f"exit {code}")
@@ -286,7 +295,7 @@ class GitGuardTest(unittest.TestCase):
                     self.assertEqual(verdict, expected, stderr)
                     if expected == "block":
                         self.assertIn("git-guard:", stderr)
-        print(f"{len(CASES)} commands x 2 payload shapes: {counts}")
+        print(f"{len(CASES)} commands x {len(HARNESSES)} payload shapes: {counts}")
 
     def test_malformed_bash_payload_blocks(self):
         for body in MALFORMED:
@@ -296,8 +305,32 @@ class GitGuardTest(unittest.TestCase):
                 self.assertIn("unreadable Bash hook payload", stderr)
 
     def test_other_tools_pass(self):
-        code, _ = run_guard(json.dumps({"tool_name": "Read", "tool_input": {"file_path": "/x"}}))
-        self.assertEqual(code, 0)
+        for name in ("Read", "read_file", "powershell"):
+            code, _ = run_guard(json.dumps({"tool_name": name, "tool_input": {"command": "git push --force"}}))
+            self.assertEqual(code, 0, name)
+
+    def test_hermes_workdir_picks_the_repo(self):
+        for workdir, expected in ((self.dirs["main"], 2), (self.dirs["feature"], 0), ("", 2), (3, 2)):
+            body = {**payload("hermes", "git commit -m x", self.dirs["plain"])}
+            body["tool_input"] = {**body["tool_input"], "workdir": workdir}
+            code, stderr = run_guard(json.dumps(body))
+            self.assertEqual(code, expected, f"workdir={workdir!r}: {stderr}")
+
+    def test_hermes_plugin_blocks_through_the_guard(self):
+        spec = importlib.util.spec_from_file_location("git_guard_hermes", HERMES_PLUGIN)
+        plugin = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plugin)
+        hooks = {}
+        plugin.register(type("Ctx", (), {"register_hook": lambda self, name, fn: hooks.__setitem__(name, fn)})())
+        hook = hooks["pre_tool_call"]
+        blocked = hook(tool_name="terminal", args={"command": "gh pr merge 1"}, task_id="")
+        self.assertEqual(blocked["action"], "block")
+        self.assertIn("git-guard:", blocked["message"])
+        on_main = hook(tool_name="terminal", args={"command": "git commit -m x", "workdir": self.dirs["main"]}, task_id="")
+        self.assertEqual(on_main["action"], "block")
+        self.assertIsNone(hook(tool_name="terminal", args={"command": "git commit -m x", "workdir": self.dirs["feature"]},
+                               task_id=""))
+        self.assertIsNone(hook(tool_name="read_file", args={"path": "x"}, task_id=""))
 
     def test_cdpath_makes_a_bare_cd_operand_ambiguous(self):
         env = {**os.environ, "CDPATH": self.tmp.name}
