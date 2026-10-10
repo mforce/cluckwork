@@ -3563,8 +3563,8 @@ export const tl = {
 
     glossaryListPriceTerm: "Presyo sa listahan",
     glossaryListPriceDef:
-      "Ang presyo ng produkto nang idagdag ang linya, na kinonbert sa unit ng linya at ni-round sa "
-      + "pinakamalapit na sentimo, na iniingatan kasama ng linya para ang susunod na "
+      "Ang presyo ng produkto nang idagdag ang linya, na kinonbert sa unit ng linya at ni-round "
+      + "pataas sa pinakamaliit na yunit ng pera, na iniingatan kasama ng linya para ang susunod na "
       + "pagbabago ng presyo ay hindi na muling isulat ang isang nakaraang order. Ang \"Walang presyo sa "
       + "listahan\" ay nangangahulugang walang presyong maikukumpara, at iyon ay isang naitalang "
       + "katotohanan. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan ang sakahan ay "

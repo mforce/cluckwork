@@ -4114,8 +4114,8 @@ export const en = {
 
     glossaryListPriceTerm: "List price",
     glossaryListPriceDef:
-      "The product's price at the moment a line was added, converted to the line's unit and rounded to "
-      + "the nearest cent, kept with the line so a later price change "
+      "The product's price at the moment a line was added, converted to the line's unit and rounded up "
+      + "to the currency's smallest unit, kept with the line so a later price change "
       + "never rewrites a past order. \"No list price\" means there was nothing comparable to measure "
       + "against, which is a recorded fact. A line taken before the farm started keeping list prices shows "
       + "\"List price not recorded\" instead. That is missing information rather than an answer, so nobody "

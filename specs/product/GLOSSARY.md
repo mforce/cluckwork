@@ -521,9 +521,10 @@ prefilled from the product's default scaled to the line's unit (#1160) and
 editable per line.
 
 **List price (#720)** — a **sales line's** product's default price as it stood
-the moment the line was added, scaled to the line's unit and rounded half up to
-a whole minor unit (#1160): a product at $0.45 per egg lists at $13.50 on a
-tray line, and one at $13.00 a tray lists at $0.43 on a per-egg line. It is
+the moment the line was added, scaled to the line's unit and rounded UP to the
+currency's smallest unit (#1160): a product at $0.45 per egg lists at $13.50 on
+a tray line, and one at $13.00 a tray lists at $0.44 on a per-egg line, so a
+positive price never scales to zero. It is
 snapshotted onto the line in **minor units of
 the order's currency** — not literally cents, though the spec column is named
 `list_unit_price_cents` (spec §10.5, that section's own `_cents` naming

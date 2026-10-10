@@ -3435,7 +3435,7 @@ export const es = {
     glossaryListPriceTerm: "Precio de lista",
     glossaryListPriceDef:
       "El precio del producto en el momento en que se agregó la línea, convertido a la unidad de la línea "
-      + "y redondeado al centavo más cercano, guardado junto con la línea para "
+      + "y redondeado hacia arriba a la unidad más pequeña de la moneda, guardado junto con la línea para "
       + "que un cambio de precio posterior nunca reescriba un pedido pasado. \"Sin precio de lista\" "
       + "significa que no había nada comparable con qué medirla, lo cual es un hecho registrado. Una línea "
       + "tomada antes de que la granja empezara a guardar precios de lista muestra \"Precio de lista no "
