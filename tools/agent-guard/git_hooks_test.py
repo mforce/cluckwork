@@ -79,7 +79,8 @@ class PrePushTest(unittest.TestCase):
         (None, ["origin", "HEAD:feat/y"], "refuse"),
         (None, ["origin", "HEAD~0:refs/heads/feat/x"], "refuse"),
         ("paseo_remote", ["paseo", "HEAD:refs/heads/feat/z"], "refuse"),
-        ("paseo_pushed", ["paseo"], "allow"),
+        ("paseo_pushed", ["paseo"], "allow"),  # attached control for the detached rows below
+        ("paseo_pushed_detached", ["paseo"], "refuse"),
         ("paseo_pushed", ["paseo", "feat/unrelated:refs/heads/feat/y"], "refuse"),
         ("push=feat/x:feat/y", ["origin"], "allow"),
         ("push=+refs/heads/feat/x:refs/heads/feat/y", ["origin"], "allow"),
@@ -124,6 +125,45 @@ class PrePushTest(unittest.TestCase):
         repo.commit("unrelated", hooks=False)
         run(repo.work, "switch", "-q", "feat/y-1", check=True)
         repo.commit("next", hooks=False)  # so plain `git push paseo` is a forward update
+
+    @staticmethod
+    def paseo_pushed_detached(repo):
+        PrePushTest.paseo_pushed(repo)
+        run(repo.work, "switch", "-q", "--detach", check=True)
+        repo.commit("detached", hooks=False)
+
+    def test_detached_linked_worktree_gets_no_head_mapping(self):
+        with tempfile.TemporaryDirectory() as root:
+            repo = Repo(root)
+            self.paseo_pushed(repo)
+            detached = os.path.join(root, "wt-detached")
+            run(repo.work, "worktree", "add", "-q", "--detach", detached, "feat/y-1", check=True)
+            repo.commit("detached in worktree", hooks=False, cwd=detached)
+            before = refs_of(repo.bare)
+            result = run(detached, "push", "-q", "paseo")
+            print("pre-push   refuse? [detached linked worktree] git push paseo -> exit", result.returncode)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("pre-push: refusing", result.stderr)
+            self.assertEqual(refs_of(repo.bare), before)
+
+    def test_unreadable_branch_refuses(self):
+        with tempfile.TemporaryDirectory() as root:
+            repo = Repo(root)
+            self.paseo_pushed(repo)
+            shim = os.path.join(root, "bin")
+            os.mkdir(shim)
+            with open(os.path.join(shim, "git"), "w") as f:
+                f.write(f'#!/bin/sh\n[ "$1" = symbolic-ref ] && exit 128\nexec {shutil.which("git")} "$@"\n')
+            os.chmod(os.path.join(shim, "git"), 0o755)
+            env = {**ENV, "PATH": shim + os.pathsep + ENV["PATH"]}
+            sha = run(repo.work, "rev-parse", "HEAD", check=True).stdout.strip()
+            remote_sha = run(repo.bare, "rev-parse", "feat/y", check=True).stdout.strip()
+            # Called directly: git puts its exec-path first in a hook's PATH, which would bypass the shim.
+            result = subprocess.run([os.path.join(HOOKS, "pre-push"), "paseo", repo.bare], cwd=repo.work,
+                                    input=f"HEAD {sha} refs/heads/feat/y {remote_sha}\n",
+                                    capture_output=True, text=True, env=env)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("pre-push: refusing: cannot read the current branch", result.stderr)
 
     @staticmethod
     def tag_moved(repo):

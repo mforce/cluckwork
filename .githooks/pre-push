@@ -25,7 +25,8 @@ refuse() {
 is_zero() { case $1 in *[!0]*) return 1 ;; esac; }
 
 # `git push origin HEAD` reports the local ref as HEAD; names are compared by the branch it names.
-current=$(git symbolic-ref --quiet HEAD || echo HEAD)
+# current is empty on a detached HEAD (status 1); any other lookup failure refuses.
+current=$(git symbolic-ref --quiet HEAD) || [ $? -eq 1 ] || { echo "pre-push: refusing: cannot read the current branch." >&2; exit 1; }
 
 full_ref() { case $1 in refs/* | HEAD) echo "$1" ;; *) echo "refs/heads/$1" ;; esac; }
 
@@ -33,15 +34,18 @@ full_ref() { case $1 in refs/* | HEAD) echo "$1" ;; *) echo "refs/heads/$1" ;; e
 # push HEAD:refs/heads/<pr-branch> from a suffixed local branch). Short names
 # are read as branches; a leading + is ignored here because the history check
 # above already refuses a forced update. A HEAD mapping covers only the
-# checked-out branch. Wildcard refspecs are not supported and never match.
+# checked-out branch, never a detached HEAD. Wildcard refspecs are not
+# supported and never match.
 configured() {
   specs=$(git config --get-all "remote.$remote.push") || return 1
   while IFS= read -r spec; do
     spec=${spec#+}
     [ "$(full_ref "${spec#*:}")" = "$remote_ref" ] || continue
     src=$(full_ref "${spec%%:*}")
-    [ "$src" = "$local_ref" ] && return 0
-    [ "$src" = HEAD ] && [ "$local_ref" = "$current" ] && return 0
+    case $src in
+      HEAD) [ "$local_ref" = "$current" ] && return 0 ;; # a detached local ref stays HEAD
+      "$local_ref") return 0 ;;
+    esac
   done <<EOF
 $specs
 EOF
@@ -58,7 +62,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       refuse "a pushed tag is never moved or replaced, even when its commit moves forward. Push a new tag instead."
     fi
   esac
-  [ "$local_ref" = HEAD ] && local_ref=$current
+  [ "$local_ref" = HEAD ] && [ -n "$current" ] && local_ref=$current
   if ! is_zero "$remote_sha" && ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
     refuse "not a fast-forward (a force push, or the remote has commits you lack). Fetch, merge, and push a new commit."
   fi
