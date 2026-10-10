@@ -49,10 +49,21 @@ internal static class CluckworkMcp
     }
 
     // Either scope admits the request; each tool then requires its own (AuthPolicies).
-    public static IEndpointConventionBuilder MapCluckworkMcp(this IEndpointRouteBuilder app) =>
+    public static void MapCluckworkMcp(this IEndpointRouteBuilder app)
+    {
         app.MapMcp(Path)
             .WithMetadata(new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute())
             .WithMaxRequestBodyBytes(MaxRequestBodyBytes)
             .AcceptOAuthTokens(OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries)
             .RequireAuthorization();
+
+        // Stateless serves no GET stream, and the MCP spec then wants 405. Without this the
+        // SPA fallback, which takes every GET and HEAD, would answer with the app's HTML.
+        app.MapMethods(Path, [HttpMethods.Get, HttpMethods.Head], (HttpResponse response) =>
+            {
+                response.Headers.Allow = HttpMethods.Post;
+                return Results.StatusCode(StatusCodes.Status405MethodNotAllowed);
+            })
+            .ExcludeFromDescription();
+    }
 }

@@ -25,7 +25,9 @@ endpoint serves MCP 2026-07-28 and 2025-11-25 clients.
 **Stateless, pinned.** `SessionMode = Stateless` makes the SDK run each tool in the HTTP
 request's own services, so `McpCallContext` (#805) sees the request's tenant, actor and flock
 scope, and each tool call is one authenticated request that `CredentialEpochMiddleware`
-re-checks (#364). The SDK's idle-session sweep is registered but never starts.
+re-checks (#364). The SDK's idle-session sweep is registered but never starts. Stateless
+serves no GET stream, so `GET` and `HEAD /mcp` answer 405, as the MCP spec asks; otherwise
+the SPA fallback would answer them with the app's HTML.
 
 **Tokens are bound to `/mcp` (RFC 8707).** The resource is `<OAuth:Issuer>/mcp`, never the
 request's Host. The authorization server registers it as its only resource, so an authorize

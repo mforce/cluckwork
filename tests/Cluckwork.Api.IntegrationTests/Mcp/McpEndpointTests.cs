@@ -93,6 +93,20 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
     }
 
+    // Stateless serves no GET stream, so the MCP spec wants 405. In Production the SPA
+    // fallback would otherwise answer GET and HEAD with the app's HTML.
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("HEAD")]
+    public async Task GetAndHead_Get405(string method)
+    {
+        using var response = await OAuthServerTests.HttpsClient(factory, bearer: null)
+            .SendAsync(new HttpRequestMessage(new HttpMethod(method), CluckworkMcp.Path));
+
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+        Assert.Equal(["POST"], response.Content.Headers.Allow);
+    }
+
     // OAuth tokens are the only way in, so without the server that issues them there is no /mcp.
     [Fact]
     public void WithoutAnIssuer_McpIsNotMapped()
