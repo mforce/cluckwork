@@ -94,6 +94,8 @@ describe("useLatestLoad", () => {
       save.resolve();
       await handler;
       calls[0].resolve("rows from before the save");
+      // Let the old run settle completely before act lets the effect run.
+      await new Promise((settled) => setTimeout(settled, 0));
     });
     expect(calls).toHaveLength(2);
     expect(result.current).toMatchObject({ data: null, loading: true });
