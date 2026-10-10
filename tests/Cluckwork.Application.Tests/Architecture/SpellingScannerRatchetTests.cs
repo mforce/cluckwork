@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
-// A test type that parses C# but never builds a CSharpCompilation resolves names by spelling, and reviewers then
+// A test type that parses C# but never queries a SemanticModel resolves names by spelling, and reviewers then
 // find one bypass per round: aliases, generic arity, nested types, `global using`, `#if !DEBUG` (#1010, #1013,
 // #1033, #1056; 30 PRs in all, #1184). New C# invariants go in Cluckwork.Analyzers, where the compiler binds every
 // name. The types already written this way are listed by fully qualified name and may change freely; the list only
@@ -58,7 +58,7 @@ public sealed class SpellingScannerRatchetTests
         var failures = new List<string>();
         foreach (var (type, path) in found.Where(f => !Legacy.ContainsKey(f.Key)).OrderBy(f => f.Key, StringComparer.Ordinal))
         {
-            failures.Add($"{type} ({path}) parses C# without a CSharpCompilation, so it matches names by spelling. " +
+            failures.Add($"{type} ({path}) parses C# without querying a SemanticModel, so it matches names by spelling. " +
                 "Write the invariant as a Cluckwork.Analyzers diagnostic (see src/Cluckwork.Analyzers/ModuleEdgeAnalyzer.cs, " +
                 "CW1004), or bind symbols through CSharpCompilation and its SemanticModel.");
         }
@@ -90,6 +90,8 @@ public sealed class SpellingScannerRatchetTests
                 "return tree.GetRoot().DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax>().Select(n => model.GetSymbolInfo(n).Symbol).ToArray(); } }"),
             ("P", "ExtensionBinding.cs", header + "class ExtensionBinding { object? M(string s) { var tree = CSharpSyntaxTree.ParseText(s); " +
                 "var model = tree.BindReview(); return model.GetDeclaredSymbol(tree.GetRoot()); } }"),
+            ("P", "Discarded.cs", header + "class Discarded { object M(string s) { var tree = CSharpSyntaxTree.ParseText(s); " +
+                "_ = CSharpCompilation.Create(\"unused\", [tree]); return tree; } }"),
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
             ("P", "HelperOwner.cs", header + "static class HelperOwner { internal static Microsoft.CodeAnalysis.SyntaxTree Tree(string s) => CSharpSyntaxTree.ParseText(s); " +
                 "internal static Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax Root(string s) => SyntaxFactory.ParseCompilationUnit(s); " +
@@ -101,7 +103,7 @@ public sealed class SpellingScannerRatchetTests
             ("Q", "ProjectUsing.cs", "class ProjectUsing { object M() => SyntaxFactory.ParseExpression(\"x\"); }"),
         ], project => project == "Q" ? "global using Microsoft.CodeAnalysis.CSharp;" : "");
 
-        Assert.Equal(["Alias", "CompilationParameter", "Direct", "Group", "N.Outer", "ProjectUsing", "Reuse", "ReuseNode", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["Alias", "CompilationParameter", "Direct", "Discarded", "Group", "Helper", "N.Outer", "ProjectUsing", "Reuse", "ReuseNode", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -119,8 +121,8 @@ public sealed class SpellingScannerRatchetTests
     }
 
     // Keyed by the outermost type, merged across partial declarations. Every invocation and method-group argument is
-    // bound; a parse call is one whose symbol IsParser, or an unbound call spelled like a Roslyn parse method. The type is exempt when any of its code creates a CSharpCompilation or
-    // asks a compilation for its SemanticModel, which also covers a compilation built by a shared helper.
+    // bound; a parse call is one whose symbol IsParser, or an unbound call spelled like a Roslyn parse method. The type
+    // is exempt when any of its code makes a BindsSymbols call, wherever its model came from.
     internal static Dictionary<string, string> SpellingOnlyParsers(
         IEnumerable<(string Project, string Path, string Source)> files, Func<string, string> projectUsings)
     {
@@ -201,18 +203,14 @@ public sealed class SpellingScannerRatchetTests
         return false;
     }
 
-    // A call, not a mention: creating a compilation, asking it for a model, or querying the model, including through
-    // an extension method such as GetSymbolInfo or GetDeclaredSymbol whose receiver is the model.
+    // A query on a SemanticModel, not a mention of one: a member call, or an extension method such as GetSymbolInfo or
+    // GetDeclaredSymbol whose receiver is the model. Creating a compilation or asking it for a model does not count on
+    // its own; a discarded `CSharpCompilation.Create` binds nothing.
     private static bool BindsSymbols(IMethodSymbol method)
     {
         var declared = method.ReducedFrom ?? method;
-        return method.ContainingType.ToDisplayString() switch
-        {
-            "Microsoft.CodeAnalysis.CSharp.CSharpCompilation" => method.Name == "Create",
-            "Microsoft.CodeAnalysis.Compilation" => method.Name == "GetSemanticModel",
-            _ => DerivesFrom(method.ContainingType, "Microsoft.CodeAnalysis.SemanticModel")
-                || declared.IsExtensionMethod && DerivesFrom(declared.Parameters[0].Type, "Microsoft.CodeAnalysis.SemanticModel"),
-        };
+        return DerivesFrom(method.ContainingType, "Microsoft.CodeAnalysis.SemanticModel")
+            || declared.IsExtensionMethod && DerivesFrom(declared.Parameters[0].Type, "Microsoft.CodeAnalysis.SemanticModel");
     }
 
     private static INamedTypeSymbol? OutermostType(SemanticModel model, SyntaxNode node)
