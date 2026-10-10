@@ -74,6 +74,8 @@ class PrePushTest(unittest.TestCase):
         (None, ["origin", "HEAD:feat/y"], "refuse"),
         (None, ["origin", "HEAD~0:refs/heads/feat/x"], "refuse"),
         ("paseo_remote", ["paseo", "HEAD:refs/heads/feat/z"], "refuse"),
+        ("paseo_pushed", ["paseo"], "allow"),
+        ("paseo_pushed", ["paseo", "feat/unrelated:refs/heads/feat/y"], "refuse"),
         ("pushed_then_rewritten", ["--force", "origin", "feat/x"], "refuse"),
         ("pushed_then_rewritten", ["origin", "+feat/x"], "refuse"),
         ("pushed_then_rewritten", ["--force-with-lease", "origin", "feat/x"], "refuse"),
@@ -99,6 +101,15 @@ class PrePushTest(unittest.TestCase):
         run(repo.work, "switch", "-q", "-c", "feat/y-1", check=True)
         run(repo.work, "remote", "add", "paseo", repo.bare, check=True)
         run(repo.work, "config", "remote.paseo.push", "HEAD:refs/heads/feat/y", check=True)
+
+    @staticmethod
+    def paseo_pushed(repo):
+        PrePushTest.paseo_remote(repo)
+        run(repo.work, "push", "-q", "--no-verify", "paseo", check=True)
+        run(repo.work, "switch", "-q", "-c", "feat/unrelated", check=True)
+        repo.commit("unrelated", hooks=False)
+        run(repo.work, "switch", "-q", "feat/y-1", check=True)
+        repo.commit("next", hooks=False)  # so plain `git push paseo` is a forward update
 
     @staticmethod
     def tag_moved(repo):

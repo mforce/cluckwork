@@ -19,11 +19,16 @@ refuse() {
 
 is_zero() { case $1 in *[!0]*) return 1 ;; esac; }
 
+# `git push origin HEAD` reports the local ref as HEAD; names are compared by the branch it names.
+current=$(git symbolic-ref --quiet HEAD || echo HEAD)
+
 # A remote.<name>.push refspec maps the branch on purpose (Paseo PR checkouts
-# push HEAD:refs/heads/<pr-branch> from a suffixed local branch).
+# push HEAD:refs/heads/<pr-branch> from a suffixed local branch). A HEAD mapping
+# covers only the checked-out branch, never another branch pushed to that name.
 configured() {
-  git config --get-all "remote.$remote.push" 2>/dev/null |
-    grep -qxF -e "HEAD:$remote_ref" -e "$local_ref:$remote_ref"
+  specs=$(git config --get-all "remote.$remote.push") || return 1
+  printf '%s\n' "$specs" | grep -qxF "$local_ref:$remote_ref" && return 0
+  [ "$local_ref" = "$current" ] && printf '%s\n' "$specs" | grep -qxF "HEAD:$remote_ref"
 }
 
 while read -r local_ref local_sha remote_ref remote_sha; do
@@ -36,8 +41,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       refuse "a pushed tag is never moved or replaced, even when its commit moves forward. Push a new tag instead."
     fi
   esac
-  # `git push origin HEAD` reports the local ref as HEAD; compare the branch it names.
-  [ "$local_ref" = HEAD ] && local_ref=$(git symbolic-ref --quiet HEAD || echo HEAD)
+  [ "$local_ref" = HEAD ] && local_ref=$current
   if ! is_zero "$remote_sha" && ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
     refuse "not a fast-forward (a force push, or the remote has commits you lack). Fetch, merge, and push a new commit."
   fi
