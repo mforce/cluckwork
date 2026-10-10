@@ -109,18 +109,18 @@ A guard must *fail* when a later change violates an invariant, such as the migra
 
 ## Enforced rules
 
-Each rule below has a check that fails, and the failure names the fix. When a correction repeats and the rule behind it is only prose, add the check and a row here, or record why no check can hold it.
+Each row states what its check fails on, which can be narrower than the prose rule it backs. Existing hits are frozen where a row says so, so a check stops new cases rather than proving the rule everywhere. When a correction repeats and the rule behind it is only prose, add the check and a row here, or record why no check can hold it.
 
-| Rule | Enforced by | Runs in |
+| Check fails on | Enforced by | Runs in |
 |---|---|---|
-| React hook rules, and no floating promises, in `web/src` (#1155) | ESLint, `web/lint/eslint.config.js`; existing hits frozen in `web/lint/eslint-suppressions.json` | `npm run lint`, CI `web` |
-| Load data through `useLatestLoad` or `usePagedList`, not an `await` or `.then` inside `useEffect` (#1190) | ESLint `no-restricted-syntax`, same config and suppressions | `npm run lint`, CI `web` |
-| New user-facing strings or glossary text ship with their Help and glossary update (#1194) | `.github/scripts/docs-impact.mjs` | **Docs impact** workflow |
-| Every `GLOSSARY.md` term has an in-app entry or a reasoned exclusion (#1193) | `web/src/routes/helpGlossary.test.ts` | Vitest, CI `web` |
-| A tracked file under `src/` or `web/src/` stays within 500 lines (#1153) | `FileSizeLimitTests` | Application tests, CI |
-| A new C# guard binds symbols instead of matching names by spelling (#1189) | `SpellingScannerRatchetTests` | Application tests, CI |
-| No unused `using` (#1187) | IDE0005 at build time, set in `.editorconfig` and `Directory.Build.props` | `dotnet build`, CI |
-| An agent never merges, pushes to `main`, force-pushes, pushes a `src:dst` refspec or commits on `main` (#1158, #1172, #1175) | `tools/agent-guard/git_guard.py` (Claude Code and Codex hooks, Pi extension, Hermes plugin); `.githooks/pre-commit` and `.githooks/pre-push` | the agent harness; git, once `core.hooksPath` is `.githooks`; the guard's own tests in CI |
+| A React hook rule or floating-promise violation in `web/src/**/*.{ts,tsx}` outside the frozen suppressions (#1155) | ESLint, `web/lint/eslint.config.js`; `web/lint/eslint-suppressions.json` | `npm run lint`, CI `web` |
+| An `await` or `.then` inside a `useEffect` in non-test files under `web/src/routes` or `web/src/components`, outside the suppressions; use `useLatestLoad` or `usePagedList` instead (#1190) | ESLint `no-restricted-syntax`, same config | `npm run lint`, CI `web` |
+| A new non-`help` key in `en.ts` with no Help or glossary change, or changed `GLOSSARY.md` term text whose English in-app definition stayed the same; a `Docs-impact: none — <reason>` body line waives both (#1194, see [Keep documentation in sync](#git--pr-workflow)) | `.github/scripts/docs-impact.mjs` | **Docs impact** workflow |
+| A `GLOSSARY.md` term with neither an in-app entry nor a `SPEC_ONLY` row; the existing `NOT_YET` backlog is pinned (#1193) | `web/src/routes/helpGlossary.test.ts` | Vitest, CI `web` |
+| A tracked `.cs`, `.ts`, `.tsx` or `.css` file under `src/` or `web/src/` over 500 lines, excluding tests, migrations, locale catalogs and the listed legacy files, which may grow (#1153) | `FileSizeLimitTests` | Application tests, CI |
+| A new C# test type that parses syntax and never queries a `SemanticModel`; legacy types are listed (#1189) | `SpellingScannerRatchetTests` | Application tests, CI |
+| An unused `using` in any project's C# source, except the EF migrations tree and generated files (#1187) | IDE0005 at build time, set in `.editorconfig` and `Directory.Build.props` | `dotnet build`, CI |
+| An agent's merge, push to `main`, force-push, `src:dst` refspec push or commit on `main`, when the harness hook is enabled or git uses `.githooks`; the guard's parser limits apply (#1158, #1172, #1175) | `tools/agent-guard/git_guard.py` (Claude Code and Codex hooks, Pi extension, Hermes plugin); `.githooks/pre-commit` and `.githooks/pre-push` | the agent harness; git; the guard's own tests in CI |
 
 ## Pre-commit hook (opt-in)
 
