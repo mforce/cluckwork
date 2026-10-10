@@ -99,11 +99,16 @@ and the purge removes unapproved rows after a day.
   special-use, and dials the first vetted address. Nothing resolves the name a second
   time, so DNS rebinding has nothing to change. TLS runs over that connection with the
   original host name, so the certificate is still checked against it.
-- **Special-use addresses.** IPv4: the RFC 6890 and IANA special-purpose blocks, among
-  them private, CGNAT, loopback, link-local (cloud metadata), documentation, benchmarking,
-  multicast and reserved. IPv6 is an allow-list: only global unicast `2000::/3`, minus its
-  special blocks (`2001::/23`, `2001:db8::/32`, `2002::/16`, `3fff::/20`). So loopback,
-  unspecified, link-local, unique-local, multicast, NAT64 and IPv4-mapped never qualify.
+- **Special-use addresses.** The table was checked on 2026-10-10 against IANA's
+  [IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/) and
+  [IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/) Special-Purpose
+  Address Registries (RFC 6890). IPv4 refuses every registry block, plus multicast
+  `224/4`; the registry's narrower entries sit inside those blocks. IPv6 is an allow-list:
+  only global unicast `2000::/3`, minus the registry blocks inside it (`2001::/23`,
+  `2001:db8::/32`, `2002::/16`, `2620:4f:8000::/48`, `3fff::/20`). Every other registry
+  entry (loopback, unspecified, IPv4-mapped, NAT64, discard, SRv6, unique-local,
+  link-local) and multicast lie outside `2000::/3`, so they never qualify. Review round 1
+  found `2620:4f:8000::/48` (AS112) missing.
   IPv4-mapped addresses are refused explicitly before any range check, because .NET 10's
   `IPNetwork.Contains` reports `::ffff:10.0.0.1` as inside `2000::/3`. A test found that.
 - **No redirect** (draft §5): a 3xx is an error. **Only 200** is accepted.
@@ -112,6 +117,9 @@ and the purge removes unapproved rows after a day.
 - **Size.** 5 KB (the draft's recommendation). A larger `Content-Length` is refused from
   the headers; otherwise the body is read into a 5 KB + 1 buffer and refused when it
   fills, so a chunked body cannot exceed it either.
+- **Read failures.** A connection that fails after the headers throws an `IOException`
+  (`HttpIOException`), not an `HttpRequestException`; both are a failed fetch and an
+  OAuth refusal, never a server error. Review round 1 found the gap.
 - **Time.** One 5-second deadline covers resolving, connecting, the headers and the
   whole body, plus a 3-second connect timeout. `HttpClient.Timeout` alone would not cover
   a body read after `ResponseHeadersRead`.
@@ -131,11 +139,13 @@ A fetch is spent only on a missing or expired row; a fresh row costs nothing. On
 shared `IFixedWindowCounter` (#544): at most 10 fetches of one URL per 5 minutes, then at
 most 60 fetches in total per minute. The per-URL key is a SHA-256 hash, so no
 client-chosen text reaches the shared store. An exhausted budget refuses with
-`temporarily_unavailable` for a client with no stored copy. A client whose copy has
-expired keeps using it until a fetch is possible again. Without that, anyone who drained
-the global budget with junk URLs would lock out every app already in use; the copy once
-passed every check, and a document that fails is never stored. The per-IP
-`oauth-authorize` limit still sits in front.
+`temporarily_unavailable` for a client with no stored copy. A copy that expired less than
+`StaleGrace` (24 hours) ago stands in until a fetch is possible again. Without that,
+anyone who drained the global budget with junk URLs would lock out every app already in
+use. The grace is bounded because an unbounded one would let the same person keep a
+redirect URI alive after the client's publisher removed it. The copy once passed every
+check, and a document that fails is never stored. The per-IP `oauth-authorize` limit
+still sits in front.
 
 ## Which URLs qualify
 
@@ -152,7 +162,9 @@ Widening both columns is a migration nobody needs yet.
 
 ## What the document may say
 
-Every field is untrusted. The document must be a JSON object with no duplicate keys
+Every field is untrusted. A string holding a lone surrogate parses as JSON but throws
+`InvalidOperationException` when read; any such field is invalid metadata, never a
+server error (review round 1). The document must be a JSON object with no duplicate keys
 whose `client_id` is a string equal, ordinally, to the URL (draft §4). It must not carry
 `client_secret` or `client_secret_expires_at` (draft §4.1). The rest goes through
 `ToDescriptor`, the #797 rules: a public client, `authorization_code` only

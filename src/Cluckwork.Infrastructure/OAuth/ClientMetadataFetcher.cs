@@ -63,9 +63,12 @@ internal sealed class ClientMetadataFetcher(
     public const string BadContentType = "metadata.content_type";
     public const string TooLarge = "metadata.too_large";
 
-    // Special-use IPv4 blocks (RFC 6890 and the IANA registry). IPv6 is an allow-list:
-    // global unicast 2000::/3 minus the special blocks inside it, so NAT64, loopback,
-    // link-local, unique-local and multicast addresses never qualify.
+    // Checked on 2026-10-10 against IANA's IPv4 and IPv6 Special-Purpose Address
+    // Registries (RFC 6890), plus IPv4 multicast. IPv4 refuses every listed block; the
+    // narrower entries sit inside these. IPv6 is an allow-list: global unicast 2000::/3
+    // minus the registry blocks inside it, so every other registry entry (loopback,
+    // unspecified, NAT64, discard, SRv6, unique-local, link-local) and multicast never
+    // qualify.
     private static readonly IPNetwork[] RefusedV4 =
     [
         .. new[]
@@ -79,7 +82,7 @@ internal sealed class ClientMetadataFetcher(
     private static readonly IPNetwork GlobalUnicastV6 = IPNetwork.Parse("2000::/3");
 
     private static readonly IPNetwork[] RefusedV6 =
-        [.. new[] { "2001::/23", "2001:db8::/32", "2002::/16", "3fff::/20" }.Select(IPNetwork.Parse)];
+        [.. new[] { "2001::/23", "2001:db8::/32", "2002::/16", "2620:4f:8000::/48", "3fff::/20" }.Select(IPNetwork.Parse)];
 
     // What OAuth:ClientMetadata:PrivateHosts may reach: private networks, never loopback,
     // link-local (cloud metadata services live there) or multicast.
@@ -131,7 +134,9 @@ internal sealed class ClientMetadataFetcher(
         {
             return Fail(AddressRefused, "The metadata document's host resolves to an address this server does not fetch from.");
         }
-        catch (HttpRequestException)
+        // HttpRequestException before the headers; IOException (HttpIOException among
+        // them) when the connection fails while the body is read.
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
             return Fail(Unreachable, "The metadata document could not be fetched.");
         }

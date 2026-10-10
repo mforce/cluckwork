@@ -192,34 +192,42 @@ public sealed partial class OAuthFailClosedTests
     }
 
     // Many different URLs share one budget, so the server cannot be made to hit hosts fast.
-    // Draining it locks out only clients never seen before: an app whose stored copy has
-    // expired keeps working on that copy until a fetch is possible again.
+    // Draining it locks out only clients never seen before, and clients whose copy expired
+    // more than StaleGrace ago; a recently expired copy keeps working until a fetch is
+    // possible again.
     [Fact]
-    public async Task ManyUrls_ShareOneGlobalBudget_AndAStoredCopyOutlastsIt()
+    public async Task ManyUrls_ShareOneGlobalBudget_AndARecentCopyOutlastsIt()
     {
         await using var metadata = await MetadataHostAsync();
-        var known = NewDocumentUrl();
-        metadata.Server.Respond = context => context.Request.Path == new Uri(known).AbsolutePath
-            ? metadata.Server.Serves(MetadataDocumentServer.Document(known, RedirectUri))(context)
+        var recent = NewDocumentUrl();
+        var old = NewDocumentUrl();
+        var stored = new[] { new Uri(recent).AbsolutePath, new Uri(old).AbsolutePath };
+        metadata.Server.Respond = context => stored.Contains(context.Request.Path.Value)
+            ? metadata.Server.Serves(MetadataDocumentServer.Document("https://app.test" + context.Request.Path, RedirectUri))(context)
             : metadata.Server.Serves("", status: 404)(context);
         using var fetcher = metadata.Network.Fetcher();
         var resolver = new ClientMetadataDocuments(new ClientMetadataOptions(), metadata.Host.Services.GetRequiredService<IServiceScopeFactory>(),
             fetcher, new InProcessFixedWindowCounter(TimeProvider.System), TimeProvider.System, NullLogger<ClientMetadataDocuments>.Instance);
-        Assert.True((await resolver.EnsureFreshAsync(known, CancellationToken.None)).IsSuccess);
-        await ExpireStoredCopyAsync(known);
+        Assert.True((await resolver.EnsureFreshAsync(recent, CancellationToken.None)).IsSuccess);
+        Assert.True((await resolver.EnsureFreshAsync(old, CancellationToken.None)).IsSuccess);
+        await ExpireStoredCopyAsync(recent);
+        await ExpireStoredCopyAsync(old, ClientMetadataDocuments.StaleGrace + TimeSpan.FromMinutes(1));
 
         var outcomes = new List<string>();
-        for (var i = 1; i <= ClientMetadataDocuments.GlobalBudget.Limit; i++)
+        for (var i = 2; i <= ClientMetadataDocuments.GlobalBudget.Limit; i++)
             outcomes.Add((await resolver.EnsureFreshAsync(NewDocumentUrl(), CancellationToken.None)).Error.Code);
-        var stale = await resolver.EnsureFreshAsync(known, CancellationToken.None);
+        var stale = await resolver.EnsureFreshAsync(recent, CancellationToken.None);
+        var tooStale = await resolver.EnsureFreshAsync(old, CancellationToken.None);
 
         Assert.Equal(ClientMetadataDocuments.GlobalBudget.Limit, metadata.Server.Requests.Count);
         Assert.All(outcomes[..^1], code => Assert.Equal(Errors.InvalidRequest, code));
         Assert.Equal(Errors.TemporarilyUnavailable, outcomes[^1]);
-        Assert.True(stale.IsSuccess, "an expired copy was refused while the budget was spent");
+        Assert.True(stale.IsSuccess, "a recently expired copy was refused while the budget was spent");
+        Assert.Equal(Errors.TemporarilyUnavailable, tooStale.Error.Code);
     }
 
-    // Two first requests race to store the same document; both proceed and one row stays.
+    // Two first requests race to store the same document and arrive together; both
+    // proceed and one row stays. Which conflict the loser meets depends on timing.
     [Fact]
     public async Task ConcurrentFirstRequests_StoreOneRow()
     {
@@ -232,7 +240,7 @@ public sealed partial class OAuthFailClosedTests
         metadata.Server.Respond = async context =>
         {
             if (Interlocked.Increment(ref arrived) == 2) bothArrived.TrySetResult();
-            await bothArrived.Task.WaitAsync(TimeSpan.FromSeconds(2)).ContinueWith(_ => { });
+            await bothArrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
             await serve(context);
         };
         var query = AuthorizeParameters(url, NewVerifier(), ReadScope);
@@ -247,6 +255,47 @@ public sealed partial class OAuthFailClosedTests
         foreach (var response in responses) response.Dispose();
     }
 
+    // Both requests read no row; the first stores its copy before the second's document
+    // arrives, so OpenIddict refuses the second's insert as a duplicate client id. The
+    // second must use the stored copy, not refuse a valid client.
+    [Fact]
+    public async Task SecondRequest_MeetingTheFirstsCopy_UsesIt()
+    {
+        await using var metadata = await MetadataHostAsync();
+        var user = await SeedAsync(Roles.Manager);
+        var url = NewDocumentUrl();
+        var arrived = 0;
+        var bothArrived = new TaskCompletionSource();
+        var releaseSecond = new TaskCompletionSource();
+        var serve = metadata.Server.Respond;
+        metadata.Server.Respond = async context =>
+        {
+            var order = Interlocked.Increment(ref arrived);
+            if (order == 2) bothArrived.TrySetResult();
+            await bothArrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (order == 2) await releaseSecond.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await serve(context);
+        };
+        var query = AuthorizeParameters(url, NewVerifier(), ReadScope);
+
+        var first = OAuthServerTests.SendAuthorizeAsync(metadata.Host, user.Jwt, query);
+        var second = OAuthServerTests.SendAuthorizeAsync(metadata.Host, user.Jwt, query);
+        await bothArrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (!await StoredAsync(url))
+        {
+            Assert.True(waited.Elapsed < TimeSpan.FromSeconds(10), "the first request never stored its copy");
+            await Task.Delay(20);
+        }
+        releaseSecond.SetResult();
+        using var firstResponse = await first;
+        using var secondResponse = await second;
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        Assert.Equal(2, metadata.Server.Requests.Count);
+    }
+
     [Fact]
     public async Task Discovery_AdvertisesMetadataDocuments()
     {
@@ -255,7 +304,8 @@ public sealed partial class OAuthFailClosedTests
         var discovery = await Client(metadata.Host, bearer: null)
             .GetFromJsonAsync<JsonElement>("/.well-known/oauth-authorization-server");
 
-        Assert.True(discovery.GetProperty("client_id_metadata_document_supported").GetBoolean());
+        Assert.True(discovery.TryGetProperty("client_id_metadata_document_supported", out var supported)
+            && supported.GetBoolean(), "discovery does not advertise metadata documents");
     }
 
     // A deployment without outbound https turns them off: discovery stops offering them,
@@ -350,11 +400,12 @@ public sealed partial class OAuthFailClosedTests
             .AnyAsync(application => application.ClientId == url);
     }
 
-    private async Task ExpireStoredCopyAsync(string url)
+    private async Task ExpireStoredCopyAsync(string url, TimeSpan? ago = null)
     {
+        var expiredAt = (DateTimeOffset.UtcNow - (ago ?? TimeSpan.FromMinutes(1))).ToUnixTimeSeconds();
         await using var scope = factory.Services.CreateAsyncScope();
         var updated = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.ExecuteSqlInterpolatedAsync(
-            $$"""UPDATE "OpenIddictApplications" SET "Properties" = '{"cimd_expires_at":0}' WHERE "ClientId" = {{url}}""");
+            $$"""UPDATE "OpenIddictApplications" SET "Properties" = '{"cimd_expires_at":' || {{expiredAt}} || '}' WHERE "ClientId" = {{url}}""");
         Assert.Equal(1, updated);
     }
 

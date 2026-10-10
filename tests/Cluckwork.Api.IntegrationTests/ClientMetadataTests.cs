@@ -1,6 +1,8 @@
 using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.OAuth;
+using OpenIddict.Abstractions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
@@ -97,6 +99,24 @@ public sealed class ClientMetadataTests
     [InlineData("not json")]
     public void UntrustedDocument_IsRefused(string json) =>
         Assert.Equal("invalid_client_metadata", ClientMetadata.FromDocument(Url, Json(json)).Error.Code);
+
+    // A lone surrogate parses as JSON but cannot be read as a string; every string field
+    // must refuse it as invalid metadata rather than throw.
+    [Theory]
+    [InlineData("""{"client_id":"\uD800","redirect_uris":["https://app.test/cb"]}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","client_name":"\uD800","redirect_uris":["https://app.test/cb"]}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb\uD800"]}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"grant_types":["\uDC00"]}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"response_types":["\uD800"]}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_method":"\uD800"}""")]
+    public void LoneSurrogate_InAnyStringField_IsInvalidMetadata(string json)
+    {
+        Result<OpenIddictApplicationDescriptor>? result = null;
+        var thrown = Record.Exception(() => result = ClientMetadata.FromDocument(Url, Json(json)));
+
+        Assert.True(thrown is null, $"the document threw {thrown?.GetType().Name}");
+        Assert.Equal("invalid_client_metadata", result!.Error.Code);
+    }
 
     [Theory]
     [InlineData("http://evil.test/cb")]

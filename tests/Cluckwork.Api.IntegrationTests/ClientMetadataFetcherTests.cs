@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.OAuth;
 using Microsoft.AspNetCore.Http;
 
@@ -59,6 +60,10 @@ public sealed class ClientMetadataFetcherTests : IAsyncLifetime
     [InlineData("64:ff9b::a00:1")]
     [InlineData("2002:a00:1::1")]
     [InlineData("2001:db8::1")]
+    [InlineData("2620:4f:8000::1")]
+    [InlineData("192.175.48.1")]
+    [InlineData("5f00::1")]
+    [InlineData("100::1")]
     public async Task SpecialUseAddress_IsRefused_BeforeAnyConnection(string address)
     {
         _network.Answer = _ => [IPAddress.Parse(address)];
@@ -223,6 +228,27 @@ public sealed class ClientMetadataFetcherTests : IAsyncLifetime
 
         Assert.Equal(ClientMetadataFetcher.TooLarge, result.Error.Code);
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"waited {clock.Elapsed} for a body it should refuse");
+    }
+
+    // A body cut short after the headers is a failed fetch, not a server error.
+    [Fact]
+    public async Task InterruptedBody_IsUnreachable()
+    {
+        _server.Respond = async context =>
+        {
+            context.Response.ContentType = "application/json";
+            context.Response.ContentLength = 100;
+            await context.Response.Body.WriteAsync("{}"u8.ToArray());
+            await context.Response.Body.FlushAsync();
+            context.Abort();
+        };
+        using var fetcher = _network.Fetcher();
+
+        Result<FetchedDocument>? result = null;
+        var thrown = await Record.ExceptionAsync(async () => result = await fetcher.FetchAsync(new Uri(Url), CancellationToken.None));
+
+        Assert.True(thrown is null, $"the fetch threw {thrown?.GetType().Name}");
+        Assert.Equal(ClientMetadataFetcher.Unreachable, result!.Error.Code);
     }
 
     // A server that sends its headers at once and then trickles the body cannot hold the

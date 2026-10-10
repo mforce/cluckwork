@@ -77,7 +77,9 @@ public static class ClientMetadata
                 return InvalidMetadata("A metadata document must not carry a client secret.");
             request = root.Deserialize<ClientRegistrationRequest>();
         }
-        catch (JsonException)
+        // GetString and Deserialize throw InvalidOperationException, not JsonException, for
+        // a string holding a lone surrogate.
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
             return InvalidMetadata("The metadata document is not valid client metadata.");
         }

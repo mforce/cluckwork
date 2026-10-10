@@ -42,6 +42,9 @@ internal sealed class ClientMetadataDocuments(
     public static readonly (int Limit, TimeSpan Window) PerUrlBudget = (10, TimeSpan.FromMinutes(5));
     public static readonly (int Limit, TimeSpan Window) GlobalBudget = (60, TimeSpan.FromMinutes(1));
 
+    // How long past its expiry a stored copy may stand in while the budget is spent.
+    public static readonly TimeSpan StaleGrace = TimeSpan.FromHours(24);
+
     public static OpenIddictServerHandlerDescriptor Descriptor { get; } =
         OpenIddictServerHandlerDescriptor.CreateBuilder<ValidateAuthorizationRequestContext>()
             .UseScopedHandler<ClientMetadataDocuments>()
@@ -78,14 +81,17 @@ internal sealed class ClientMetadataDocuments(
         await using var scope = scopes.CreateAsyncScope();
         var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
         var row = await applications.FindByClientIdAsync(clientId, ct);
-        if (row is not null && ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > clock.GetUtcNow())
+        var expiresAt = row is null ? (DateTimeOffset?)null : ExpiresAt(await applications.GetPropertiesAsync(row, ct));
+        var now = clock.GetUtcNow();
+        if (expiresAt > now)
             return Result.Success();
 
-        // With the budget spent, a copy that once passed every check stands in until it
-        // can be fetched again. Refusing it would let anyone who drains the global budget
-        // with junk URLs lock out every app already in use.
+        // With the budget spent, a copy that once passed every check stands in for a while.
+        // Refusing it would let anyone who drains the global budget with junk URLs lock out
+        // every app in use; keeping it for ever would let them keep a redirect URI alive
+        // after the client's publisher removed it.
         if (!await SpendBudgetAsync(clientId, ct))
-            return row is not null
+            return expiresAt + StaleGrace > now
                 ? Result.Success()
                 : Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");
 
