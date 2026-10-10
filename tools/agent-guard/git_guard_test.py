@@ -19,6 +19,9 @@ GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git_guard.py")
 #   tracking  repo on feat/t, upstream origin/main, push.default=upstream
 #   matching  repo on feat/m with push.default=matching
 #   plain     a directory outside any repo
+#   solo      repo on feat/x whose only remote, `backup`, has push = HEAD:refs/heads/main
+#   tagged    repo on main that also has a tag named main
+#   feature also has remotes `matchall` (push = :), `mirror2` (mirror = 2), `nomirror` (mirror = false)
 CASES = [
     # Plain forms agents need.
     ("git push", "feature", "allow"),
@@ -113,6 +116,12 @@ CASES = [
     ("git push backup", "feature", "block"),
     ("git push mirror", "feature", "block"),
     ("git push", "matching", "block"),
+    ("git push", "solo", "block"),
+    ("git push matchall", "feature", "block"),
+    ("git push mirror2", "feature", "block"),
+    ("git push nomirror", "feature", "allow"),
+    ("git commit -m x", "tagged", "block"),
+    ("git push", "tagged", "block"),
     # Shapes the guard refuses instead of parsing (findings 1, 2, 4).
     ("git status &&\ngit push origin HEAD:main", "feature", "block"),
     ("git status;\ngh pr merge 1158", "feature", "block"),
@@ -212,7 +221,8 @@ class GitGuardTest(unittest.TestCase):
         root = cls.tmp.name
         main = os.path.join(root, "repo")
         cls.dirs = {"main": main, "feature": os.path.join(main, "feature"),
-                    "tracking": os.path.join(root, "tracking"), "matching": os.path.join(root, "matching"), "plain": root}
+                    "tracking": os.path.join(root, "tracking"), "matching": os.path.join(root, "matching"), "plain": root,
+                    "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged")}
         feature, tracking, remote = cls.dirs["feature"], cls.dirs["tracking"], os.path.join(root, "remote.git")
         git("init", "-q", "-b", "main", main)
         git("init", "-q", "-b", "feat/x", feature)
@@ -224,6 +234,15 @@ class GitGuardTest(unittest.TestCase):
         git("-C", feature, "config", "remote.mirror.mirror", "true")
         git("-C", feature, "config", "remote.paseo.url", remote)
         git("-C", feature, "config", "remote.paseo.push", "HEAD:refs/heads/feat/y")
+        for name, key, value in (("matchall", "push", ":"), ("mirror2", "mirror", "2"), ("nomirror", "mirror", "false")):
+            git("-C", feature, "config", f"remote.{name}.url", remote)
+            git("-C", feature, "config", f"remote.{name}.{key}", value)
+        git("init", "-q", "-b", "feat/x", cls.dirs["solo"])
+        git("-C", cls.dirs["solo"], "config", "remote.backup.url", remote)
+        git("-C", cls.dirs["solo"], "config", "remote.backup.push", "HEAD:refs/heads/main")
+        git("init", "-q", "-b", "main", cls.dirs["tagged"])
+        git("-C", cls.dirs["tagged"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
+        git("-C", cls.dirs["tagged"], "tag", "main")
         git("init", "-q", "-b", "feat/m", cls.dirs["matching"])
         git("-C", cls.dirs["matching"], "config", "push.default", "matching")
         git("init", "-q", "--bare", "-b", "main", remote)

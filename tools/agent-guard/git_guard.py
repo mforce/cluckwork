@@ -25,6 +25,7 @@ import urllib.parse
 
 MAIN = "main"
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
+GIT_FALSE = {"false", "no", "off", "0", ""}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
 MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergePullRequest|AutoMerge")
 EXPANSIONS = re.compile(r"[$`*?\[{(]")  # can spell a program or verb the text check cannot read
@@ -60,8 +61,8 @@ MESSAGES = {
     "force": "a fix is a new commit, never a rewrite of pushed history. Commit the fix and push normally.",
     "all": "it pushes or deletes more than your branch (--all, --branches, --prune). " + PUSH_YOUR_BRANCH,
     "push-main": "main changes only through a merged PR. Run `git switch -c <type>/<topic>`, then push that branch.",
-    "push-config": "the push configuration (push.default=matching, remote.<name>.mirror, or a forced, wildcard "
-                   "or main remote.<name>.push) can update main or force. Push to a remote without it.",
+    "push-config": "the push configuration (push.default=matching, remote.<name>.mirror, or a forced, matching, "
+                   "wildcard or main remote.<name>.push) can update main or force. Push to a remote without it.",
     "upstream-main": "with push.default=upstream this branch would push to its upstream, main. "
                      "Run `git branch --unset-upstream`, then `git push -u origin <that-branch>`.",
     "commit-main": "main is protected. Run `git switch -c <type>/<topic>` first, then commit there.",
@@ -152,11 +153,11 @@ class Repo:
                        f"({result.stderr.strip() or 'exit ' + str(result.returncode)}). Fix that, then retry.")
 
     def branch(self):
-        """Checked-out branch, or None for a detached HEAD."""
-        result = self.git("symbolic-ref", "--quiet", "--short", "HEAD")
+        """Checked-out branch from HEAD's full ref (`--short` can say heads/main), or None when detached."""
+        result = self.git("symbolic-ref", "--quiet", "HEAD")
         if result.returncode not in (0, 1):
             raise self.lookup_failed("the current branch", result)
-        return result.stdout.strip() or None
+        return result.stdout.strip().removeprefix("refs/heads/") or None
 
     def config(self):
         """Effective config, `-c` overrides included: key -> values (None for a bare boolean)."""
@@ -217,15 +218,17 @@ def check_push(args, repo):
     def setting(key, default=None):
         return (config.get(key) or [default])[-1]
 
+    remotes = {key[len("remote."):].rsplit(".", 1)[0] for key in config if key.startswith("remote.") and key.count(".") > 1}
     remote = positional[0] if positional else (
-        setting(f"branch.{branch}.pushremote") or setting("remote.pushdefault")
-        or setting(f"branch.{branch}.remote") or "origin")
+        setting(f"branch.{branch}.pushremote") or setting("remote.pushdefault") or setting(f"branch.{branch}.remote")
+        or (remotes.pop() if len(remotes) == 1 else "origin"))  # git falls back to a sole remote before origin
     push_default = (setting("push.default") or "simple").lower()
-    mirror = setting(f"remote.{remote}.mirror", "false")
-    if push_default == "matching" or mirror is None or mirror.lower() in ("true", "yes", "on", "1"):
+    mirror = config.get(f"remote.{remote}.mirror")
+    if push_default == "matching" or (mirror and (mirror[-1] is None or mirror[-1].lower() not in GIT_FALSE)):
         block("push-config", shown)
     for configured in config.get(f"remote.{remote}.push") or []:
-        if not configured or configured.startswith("+") or "*" in configured or configured.split(":")[-1] in MAIN_REFS:
+        destination = (configured or "").split(":")[-1]
+        if not destination or configured.startswith("+") or "*" in configured or destination in MAIN_REFS:
             block("push-config", shown)
 
     sources = []
