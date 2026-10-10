@@ -2662,7 +2662,8 @@ export const es = {
     salesDrafts:
       "Los pedidos comienzan como <strong>borradores</strong>. Agregue líneas eligiendo un "
       + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "
-      + "precio por unidad, precargado desde el valor predeterminado del producto y con decimales "
+      + "precio por unidad, precargado desde el valor predeterminado del producto convertido a la "
+      + "unidad de <strong>Por</strong> (un huevo a $0.45 es $13.50 por bandeja) y con decimales "
       + "permitidos. Edite libremente, o <strong>cancele</strong>, que conserva el borrador en modo de solo "
       + "lectura. La cantidad cuenta <strong>unidades, no huevos</strong>. El campo indica la unidad y "
       + "muestra el total de huevos resultante mientras escribe, así que 2 bandejas se leen como 60 huevos, "
@@ -3302,7 +3303,8 @@ export const es = {
 
     glossaryListPriceTerm: "Precio de lista",
     glossaryListPriceDef:
-      "El precio del producto en el momento en que se agregó la línea, guardado junto con la línea para "
+      "El precio del producto en el momento en que se agregó la línea, convertido a la unidad de la línea "
+      + "y redondeado hacia arriba a la unidad más pequeña de la moneda, guardado junto con la línea para "
       + "que un cambio de precio posterior nunca reescriba un pedido pasado. \"Sin precio de lista\" "
       + "significa que no había nada comparable con qué medirla, lo cual es un hecho registrado. Una línea "
       + "tomada antes de que la granja empezara a guardar precios de lista muestra \"Precio de lista no "
