@@ -123,13 +123,13 @@ internal sealed class ClientMetadataDocuments(
         return Result.Success();
     }
 
-    // A duplicate alongside any other result is still a refused document: the other copy
-    // being valid says nothing about this one.
+    // OpenIddict's ID2111, reported through ValidationResult text only. A duplicate beside
+    // any other result is still a refused document: the other copy being valid says nothing
+    // about this one.
+    private const string DuplicateClientIdMessage = "An application with the same client identifier already exists.";
+
     private static bool IsOnlyDuplicateClientId(OpenIddictExceptions.ValidationException validation) =>
         validation.Results is [{ ErrorMessage: DuplicateClientIdMessage }];
-
-    // OpenIddict's ID2111, which it reports through ValidationResult text only.
-    private const string DuplicateClientIdMessage = "An application with the same client identifier already exists.";
 
     // A fresh scope, because this request's application cache already holds "none".
     private async Task<bool> StoredMeanwhileAsync(string clientId, CancellationToken ct)
