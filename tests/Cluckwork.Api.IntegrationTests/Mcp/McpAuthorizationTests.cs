@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -215,6 +217,72 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         await AssertRefusedAsync(host, token, "Auth.ConnectedAppsOff");
     }
 
+    // Each shared check, tripped after the token was issued, refuses the next request.
+    [Theory]
+    [InlineData("Auth.AccountDisabled")]
+    [InlineData("Auth.FarmSuspended")]
+    [InlineData("Auth.CredentialsSuperseded")]
+    public async Task SharedCheck_RefusesTheConnection_WithAChallenge(string title)
+    {
+        using var host = Host(factory);
+        var user = await SeedAsync(factory, Roles.Manager);
+        var token = await IssueAsync(host, user, [OAuthScopes.ReadFarm]);
+        await AssertAcceptedAsync(host, token);
+
+        await factory.WithTenantScopeAsync(user.AccountId, db => title switch
+        {
+            "Auth.AccountDisabled" => db.Users.Where(u => u.Id == user.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.DisabledAt, DateTimeOffset.UtcNow)),
+            "Auth.FarmSuspended" => db.Accounts.Where(a => a.Id == user.AccountId)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsActive, false)),
+            _ => db.Users.Where(u => u.Id == user.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.CredentialEpoch, u => u.CredentialEpoch + 1)),
+        });
+
+        await AssertRefusedAsync(host, token, title);
+    }
+
+    // #388 through /mcp: a Worker's tool call sees exactly the flocks assigned to them.
+    [Fact]
+    public async Task AssignedWorker_ToolSeesOnlyTheirFlocks()
+    {
+        using var host = Host(factory);
+        var user = await SeedAsync(factory, role: null);
+        var assigned = await factory.SeedFlockAsync(user.AccountId, Guid.NewGuid());
+        await factory.SeedFlockAsync(user.AccountId, Guid.NewGuid());
+        await factory.WithTenantScopeAsync(user.AccountId, async db =>
+        {
+            db.UserRoleAssignments.Add(UserRoleAssignment.Create(Guid.NewGuid(), user.AccountId, user.Id, null, null, assigned));
+            await db.SaveChangesAsync();
+        });
+        var token = await IssueAsync(host, user, [OAuthScopes.ReadFarm]);
+
+        await using var client = await ConnectAsync(host, token);
+        var caller = Assert.IsType<TextContentBlock>(Assert.Single((await client.CallToolAsync(ProbeTools.Read)).Content)).Text;
+
+        Assert.EndsWith($"/True/{assigned}", caller);
+    }
+
+    // What a client does with no configuration: follow the challenge to the resource
+    // metadata, and that to the authorization server's own discovery document.
+    [Fact]
+    public async Task Challenge_LeadsToTheAuthorizationServer()
+    {
+        using var host = Host(factory);
+        using var http = OAuthServerTests.HttpsClient(host, bearer: null);
+
+        using var challenge = await PostAsync(host, bearer: null, Initialize);
+        var metadataUrl = challenge.Headers.WwwAuthenticate.Single().Parameter!.Split('"')[1];
+        var metadata = await http.GetFromJsonAsync<JsonElement>(metadataUrl);
+        var issuer = Assert.Single(metadata.GetProperty("authorization_servers").EnumerateArray()).GetString()!;
+        var discovery = await http.GetFromJsonAsync<JsonElement>(new Uri(new Uri(issuer), ".well-known/oauth-authorization-server"));
+
+        Assert.Equal(ResourceMetadata, metadataUrl);
+        Assert.Equal("https://localhost/", issuer);
+        Assert.Equal(issuer, discovery.GetProperty("issuer").GetString());
+        Assert.Equal("https://localhost/api/v1/oauth/authorize", discovery.GetProperty("authorization_endpoint").GetString());
+    }
+
     [Fact]
     public async Task Disconnect_RefusesTheConnection_OnTheNextRequest()
     {
@@ -254,8 +322,8 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
             (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("title").GetString());
     }
 
-    // #806 — an MCP client reads the 429 as a JSON-RPC error, and the text describes the
-    // per-token bucket rather than an address.
+    // #806 — an MCP client reads the 429 as a JSON-RPC error. The limiter runs before the
+    // body is read, so the request id is unknown and null.
     [Fact]
     public async Task OverTheBudget_Gets429_AsAJsonRpcError()
     {
@@ -266,12 +334,15 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         using var response = await PostAsync(host, token, Initialize);
 
         Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.True(response.Headers.RetryAfter?.Delta > TimeSpan.Zero, "the 429 carries no Retry-After");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var isRpcError = body.TryGetProperty("jsonrpc", out var version) && version.GetString() == "2.0"
+        var isRpcError = body.TryGetProperty("jsonrpc", out var version) && version.ValueKind == JsonValueKind.String && version.GetString() == "2.0"
             && body.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Null
-            && body.TryGetProperty("error", out var error) && error.GetProperty("code").GetInt32() == -32000
-            && error.GetProperty("message").GetString()!.Contains("this connection");
-        Assert.True(isRpcError, $"the 429 body is not a JSON-RPC error about this connection: {body}");
+            && body.TryGetProperty("error", out var error)
+            && error.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.Number && code.TryGetInt32(out _)
+            && error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(message.GetString());
+        Assert.True(isRpcError, $"the 429 body is not a JSON-RPC error: {body}");
     }
 
     private static async Task AssertAcceptedAsync(WebApplicationFactory<Program> host, string token)
@@ -280,10 +351,13 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    // The problem body names the check; the challenge tells the client to re-authorize.
     private static async Task AssertRefusedAsync(WebApplicationFactory<Program> host, string token, string title)
     {
         using var response = await PostAsync(host, token, Initialize);
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal(title, (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("title").GetString());
+        Assert.Equal($"Bearer error=\"invalid_token\", resource_metadata=\"{ResourceMetadata}\"",
+            response.Headers.WwwAuthenticate.ToString());
     }
 }

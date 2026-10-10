@@ -10,7 +10,9 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 // #805 rows 6 and 7 — what a tool may inject. A tool is a type carrying an attribute
 // NAMED McpServerToolTypeAttribute, and a tool method one carrying McpServerToolAttribute.
 // Matched by name, as AdapterTierScanner matches it, so the fixtures here can declare
-// look-alikes that prove the walk goes red.
+// look-alikes that prove the walk goes red. Types and methods are found the way the SDK's
+// WithTools finds them (McpServerBuilderExtensions, 2.2.0): attributes read with
+// inheritance, and every public instance method a tool type inherits.
 internal static class McpToolSurface
 {
     // A supertype is banned too: ICurrentUser is CurrentUserContext's port and DbContext
@@ -24,11 +26,14 @@ internal static class McpToolSurface
     private const BindingFlags Declared =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
+    private const BindingFlags AsTheSdkFindsTools =
+        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+
     public static IEnumerable<Type> ToolTypes(IEnumerable<Type> types) =>
         types.Where(t => HasAttribute(t, "McpServerToolTypeAttribute"));
 
     public static IEnumerable<MethodInfo> ToolMethods(Type tool) =>
-        tool.GetMethods(Declared).Where(m => HasAttribute(m, "McpServerToolAttribute"));
+        tool.GetMethods(AsTheSdkFindsTools).Where(m => HasAttribute(m, "McpServerToolAttribute"));
 
     // Everything DI hands a tool: constructor parameters and tool-method parameters.
     public static IEnumerable<(string Site, Type Type)> Injections(Type tool) =>
@@ -70,7 +75,10 @@ internal static class McpToolSurface
         foreach (var tool in ToolTypes(types))
             foreach (var method in ToolMethods(tool))
             {
-                var attributes = method.GetCustomAttributes(inherit: true).Concat(tool.GetCustomAttributes(inherit: true)).ToList();
+                // The SDK reads a tool's policies from the method and its DECLARING type, so an
+                // inherited method carries its base class's attributes, not the tool type's.
+                var attributes = method.GetCustomAttributes(inherit: true)
+                    .Concat(method.DeclaringType!.GetCustomAttributes(inherit: true)).ToList();
                 var site = $"{tool.FullName}.{method.Name}";
                 if (attributes.OfType<IAllowAnonymous>().Any())
                     findings.Add($"{site} allows anonymous callers, so the SDK skips every policy on it");
@@ -109,5 +117,5 @@ internal static class McpToolSurface
         || (type.HasElementType && IsBanned(type.GetElementType()!));
 
     private static bool HasAttribute(MemberInfo member, string name) =>
-        member.CustomAttributes.Any(a => a.AttributeType.Name == name);
+        member.GetCustomAttributes(inherit: true).Any(a => a.GetType().Name == name);
 }

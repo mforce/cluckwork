@@ -14,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Server;
+using Cluckwork.Api.Mcp;
 using static Cluckwork.Api.IntegrationTests.Mcp.McpConnection;
 
 namespace Cluckwork.Api.IntegrationTests.Mcp;
@@ -107,6 +109,20 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(["POST"], response.Content.Headers.Allow);
     }
 
+    // The tool walks in McpToolSurfaceTests must reach every tool the SDK serves. The
+    // probe host adds two tools, so a walk that finds nothing fails here today.
+    [Fact]
+    public void ToolWalk_ReachesEveryToolTheSdkRegisters()
+    {
+        var apiTypes = typeof(McpCallContext).Assembly.GetTypes();
+        using var probed = Host(factory);
+        var registered = probed.Services.GetServices<McpServerTool>().Count();
+
+        Assert.Equal(factory.Services.GetServices<McpServerTool>().Count(), Walked(apiTypes));
+        Assert.True(registered >= 2, $"the probe host registered {registered} tools");
+        Assert.Equal(registered, Walked(apiTypes.Append(typeof(ProbeTools))));
+    }
+
     // OAuth tokens are the only way in, so without the server that issues them there is no /mcp.
     [Fact]
     public void WithoutAnIssuer_McpIsNotMapped()
@@ -119,6 +135,9 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(routes, r => r?.StartsWith("/api/v1/flocks", StringComparison.Ordinal) == true);
         Assert.DoesNotContain(routes, r => r?.TrimEnd('/') == CluckworkMcp.Path);
     }
+
+    private static int Walked(IEnumerable<Type> types) =>
+        McpToolSurface.ToolTypes(types).SelectMany(McpToolSurface.ToolMethods).Count();
 
     private static RouteEndpoint McpPost(WebApplicationFactory<Program> host) =>
         Assert.Single(host.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>(),

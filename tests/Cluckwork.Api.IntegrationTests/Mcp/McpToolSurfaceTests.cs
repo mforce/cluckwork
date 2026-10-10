@@ -72,6 +72,33 @@ public sealed class McpToolSurfaceTests
     public void GatedTools_HaveNoGateFindings() =>
         Assert.Empty(McpToolSurface.GateFindings([typeof(GatedTool), typeof(TypeGatedTool)]));
 
+    // The floor for the gate fixtures: the walk reaches every tool method in them,
+    // including one a tool type inherits. McpEndpointTests holds the real tree to the
+    // tools the SDK actually registers.
+    [Fact]
+    public void GateWalk_ReachesEveryFixtureToolMethod()
+    {
+        Type[] fixtures = [typeof(GatedTool), typeof(TypeGatedTool), typeof(RoleOnlyTool),
+            typeof(ScopeOnlyTool), typeof(AnonymousTool), typeof(InheritingTool)];
+
+        var methods = McpToolSurface.ToolTypes(fixtures).SelectMany(McpToolSurface.ToolMethods)
+            .Select(m => $"{m.DeclaringType!.Name}.{m.Name}").Order();
+
+        Assert.Equal(["AnonymousTool.Read", "GatedTool.Read", "InheritingTool.Read", "RoleOnlyTool.Read",
+            "ScopeOnlyTool.Read", "TypeGatedTool.Write", "UngatedBase.Leak"], methods);
+    }
+
+    // The SDK serves a public tool method a tool type inherits, under the attributes of
+    // the class that declares it, so the gates on InheritingTool do not cover Leak.
+    [Fact]
+    public void InheritedToolMethod_IsGatedByItsDeclaringType()
+    {
+        var findings = McpToolSurface.GateFindings([typeof(InheritingTool)]);
+
+        Assert.Contains(findings, f => f.EndsWith(".Leak has no scope policy; add [Authorize(Policy = AuthPolicies.<Scope>Scope)]", StringComparison.Ordinal));
+        Assert.DoesNotContain(findings, f => f.Contains(".Read ", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(typeof(RoleOnlyTool), "has no scope policy")]
     [InlineData(typeof(ScopeOnlyTool), "has no role policy")]
@@ -183,6 +210,19 @@ public sealed class McpToolSurfaceTests
     private sealed class AnonymousTool(McpCallContext call)
     {
         [McpServerTool, AllowAnonymous]
+        public string Read() => call.Email;
+    }
+
+    private class UngatedBase
+    {
+        [McpServerTool]
+        public string Leak() => "";
+    }
+
+    [McpServerToolType, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
+    private sealed class InheritingTool(McpCallContext call) : UngatedBase
+    {
+        [McpServerTool]
         public string Read() => call.Email;
     }
 

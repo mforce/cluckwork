@@ -1,9 +1,8 @@
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using ModelContextProtocol.AspNetCore.Authentication;
 
 namespace Cluckwork.Api.Middleware;
 
@@ -28,10 +27,7 @@ public sealed class ForbiddenProblemResultHandler : IAuthorizationMiddlewareResu
             if (onlyScopesFailed)
             {
                 var scopes = failed.Cast<OAuthScopeRequirement>().SelectMany(r => r.AnyOf).Distinct();
-                var metadata = context.RequestServices.GetRequiredService<IOptionsMonitor<McpAuthenticationOptions>>()
-                    .Get(McpAuthenticationDefaults.AuthenticationScheme).ResourceMetadataUri;
-                context.Response.Headers.WWWAuthenticate =
-                    $"Bearer error=\"insufficient_scope\", scope=\"{string.Join(' ', scopes)}\", resource_metadata=\"{metadata}\"";
+                CluckworkMcp.AddChallenge(context, $"error=\"insufficient_scope\", scope=\"{string.Join(' ', scopes)}\"");
             }
 
             context.Response.StatusCode = StatusCodes.Status403Forbidden;

@@ -4,7 +4,9 @@ using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.AspNetCore.Authentication;
 using ModelContextProtocol.Authentication;
 using OpenIddict.Validation.AspNetCore;
 
@@ -46,6 +48,17 @@ internal static class CluckworkMcp
                 ResourceName = "Cluckwork",
             };
         });
+    }
+
+    // RFC 6750 §3 and RFC 9728 §5.1: a refused OAuth token is answered with a bearer
+    // challenge naming the protected-resource metadata, which is how an MCP client
+    // re-authorizes. The SDK's handler adds it to a challenge; the shared request checks
+    // and the scope gate write their own responses and call this.
+    public static void AddChallenge(HttpContext context, string parameters)
+    {
+        var metadata = context.RequestServices.GetRequiredService<IOptionsMonitor<McpAuthenticationOptions>>()
+            .Get(McpAuthenticationDefaults.AuthenticationScheme).ResourceMetadataUri;
+        context.Response.Headers.WWWAuthenticate = $"Bearer {parameters}, resource_metadata=\"{metadata}\"";
     }
 
     // Either scope admits the request; each tool then requires its own (AuthPolicies).

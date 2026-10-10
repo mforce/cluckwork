@@ -158,7 +158,8 @@ internal static class McpConnection
         [McpServerTool(Name = Read, ReadOnly = true), Description("Who is calling.")]
         [Authorize]
         [Authorize(Policy = AuthPolicies.FarmReadScope)]
-        public string WhoIsCalling() => $"{call.AccountId}/{call.UserId}/{call.ConnectedApp.ClientId}";
+        public string WhoIsCalling() =>
+            $"{call.AccountId}/{call.UserId}/{call.ConnectedApp.ClientId}/{call.IsFlockRestricted}/{string.Join(',', call.AssignedFlockIds.Order())}";
 
         [McpServerTool(Name = Write), Description("A write a Worker may make.")]
         [Authorize(Policy = AuthPolicies.ProductionWrite)]

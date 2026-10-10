@@ -52,6 +52,15 @@ missing either gate, and one carrying `[AllowAnonymous]`, because the SDK runs s
 for anyone. `AcceptOAuthTokens(ReadFarm, WriteDailyEntries)` stays on the mapping as the
 outer gate.
 
+**Every refusal of an OAuth token carries a challenge.** RFC 6750 §3 asks for a bearer
+challenge whenever the credentials do not grant access, and an MCP client re-authorizes from
+it. `CluckworkMcp.AddChallenge` writes `Bearer <error>, resource_metadata="..."`, the same
+header the SDK's handler emits. `CredentialEpochMiddleware` adds it with
+`error="invalid_token"` beside its problem body when a disabled user, a suspended farm, a
+superseded credential or the farm switch refuses a token on an `AcceptOAuthTokens` endpoint.
+`TenantResolutionMiddleware`'s bodiless 401s are left alone: they refuse a principal with no
+`account_id` or `sub`, and consent copies both from the session into every token.
+
 **A missing scope says which one.** When only scope requirements failed,
 `ForbiddenProblemResultHandler` answers 403 with
 `WWW-Authenticate: Bearer error="insufficient_scope", scope="...", resource_metadata="..."`
@@ -64,10 +73,12 @@ client sends an `Idempotency-Key`, so `IdempotencyMiddleware` skips an endpoint 
 `McpEndpointTests.IdempotencyExemption_IsCarriedByTheMcpPostAlone`. The write tool keys its
 own claim (#809).
 
-**Budget: 300 messages per minute per token.** `oauth-api` rose from 120. Measured with the
+**Budget: 300 messages per minute per token.** `oauth-api` rose from 120. Traced with the
 SDK's own client against this endpoint, a session spends 3 POSTs to its first tool result on
-2026-07-28 (`server/discover`, `tools/list`, `tools/call`) and 4 on 2025-11-25 (`initialize`
-and its notification replace discovery); each later call is one POST. No account-wide
+2026-07-28 (`server/discover`, `tools/list`, `tools/call`) and 4 on 2025-11-25 (`initialize`,
+`notifications/initialized`, `tools/list`, `tools/call`, plus a `GET` the limiter does not
+count); each later call is one POST. In process a call took 4 to 6 ms, so only a runaway loop
+reaches the limit; a model spends seconds between calls. No account-wide
 ceiling: each token costs a step-up password entry (#798), which the password limiter
 already bounds. A 429 on `oauth-api` is a JSON-RPC error with a null id, because the limiter
 runs before the body is read, and its text names the connection, not an address.
@@ -81,10 +92,6 @@ which only classifies binding errors.
 
 ## What this does NOT cover
 
-- **401s from the shared request checks carry no challenge header.** A disabled user, a
-  suspended farm, a superseded credential or the farm switch writes its 401 directly
-  (#796). An MCP client then probes `/.well-known/oauth-protected-resource/mcp` itself, as
-  the MCP authorization spec requires, and that document is served.
 - **A tool-level scope denial is a JSON-RPC error, not an HTTP 403.** The SDK refuses a
   `tools/call` for a tool the caller cannot see with `InvalidRequest` inside a 200. Only the
   endpoint gate answers `insufficient_scope`. A client that follows `tools/list` never calls

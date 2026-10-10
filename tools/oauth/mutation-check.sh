@@ -52,10 +52,11 @@ SWITCH_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193
 MCP=src/Cluckwork.Api/Hosting/CluckworkMcp.cs
 FORBIDDEN=src/Cluckwork.Api/Middleware/ForbiddenProblemResultHandler.cs
 POLICIES=src/Cluckwork.Api/AuthPolicies.cs
+TOOL_SURFACE=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurface.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
-SUITE_MIN=340
+SUITE_MIN=355
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -235,6 +236,11 @@ mcp-idempotency-exemption-ignored#kill#IDEMPOTENCY#GetMetadata<HandlesOwnIdempot
 mcp-tools-list-unfiltered#kill#MCP#\n            .AddAuthorizationFilters()##Mcp.McpAuthorizationTests.ToolsList_ShowsOnlyToolsTheRoleAndScopesAllow#Request failed (remote): An error occurred.
 mcp-read-scope-policy-wrong#kill#POLICIES#new OAuthScopeRequirement(OAuthScopes.ReadFarm)#new OAuthScopeRequirement(OAuthScopes.WriteDailyEntries)#Mcp.McpAuthorizationTests.ToolsList_ShowsOnlyToolsTheRoleAndScopesAllow#Collections differ
 mcp-get-falls-to-spa#kill#MCP#        app.MapMethods(Path, [HttpMethods.Get, HttpMethods.Head], (HttpResponse response) =>#        app.MapMethods(Path + "/unused", [HttpMethods.Get, HttpMethods.Head], (HttpResponse response) =>#Mcp.McpEndpointTests.GetAndHead_Get405#Expected: MethodNotAllowed
+shared-check-unchallenged#kill#EPOCH#                if (OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()))#                if (OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()) && false)#Mcp.McpAuthorizationTests.SharedCheck_RefusesTheConnection_WithAChallenge#Strings differ
+rpc-429-no-retry-after#kill#LIMITS#context.HttpContext.Response.Headers.RetryAfter =#_ =#Mcp.McpAuthorizationTests.OverTheBudget_Gets429_AsAJsonRpcError#no Retry-After
+tool-walk-declared-only#kill#TOOL_SURFACE#        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;#        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;#Mcp.McpToolSurfaceTests.InheritedToolMethod_IsGatedByItsDeclaringType#Assert.Contains() Failure
+tool-walk-reflected-type-gates#kill#TOOL_SURFACE#.Concat(method.DeclaringType!.GetCustomAttributes(inherit: true))#.Concat(method.ReflectedType!.GetCustomAttributes(inherit: true))#Mcp.McpToolSurfaceTests.InheritedToolMethod_IsGatedByItsDeclaringType#Assert.Contains() Failure
+tool-walk-finds-nothing#kill#TOOL_SURFACE#Where(m => HasAttribute(m, "McpServerToolAttribute"))#Where(m => HasAttribute(m, "NoSuchAttribute"))#Mcp.McpEndpointTests.ToolWalk_ReachesEveryToolTheSdkRegisters#Values differ
 mcp-mapped-without-issuer#kill#PROGRAM#        .MapOAuthEndpoints();\n    app.MapCluckworkMcp();\n}#        .MapOAuthEndpoints();\n}\napp.MapCluckworkMcp();#Mcp.McpEndpointTests.WithoutAnIssuer_McpIsNotMapped#WithHttpTransport
 audience-unchecked#kill#SERVER#\n                validation.AddAudiences(resource);##Mcp.McpAuthorizationTests.TokenIssuedForAnotherResource_IsRefused#Expected: Unauthorized
 audience-unchecked-unbound#kill#SERVER#\n                validation.AddAudiences(resource);##Mcp.McpAuthorizationTests.TokenWithoutTheMcpAudience_IsRefused#Expected: Unauthorized
@@ -339,7 +345,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

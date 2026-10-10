@@ -1,3 +1,4 @@
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Application.Modules.Access.Contracts;
 using System.Globalization;
@@ -55,6 +56,9 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                     _ => ("Auth.CredentialsSuperseded", "Your credentials have been superseded. Sign in again."),
                 };
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                // #806 — the token no longer grants access, so an MCP client must re-authorize.
+                if (OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()))
+                    CluckworkMcp.AddChallenge(context, "error=\"invalid_token\"");
                 context.Response.ContentType = "application/problem+json";
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {

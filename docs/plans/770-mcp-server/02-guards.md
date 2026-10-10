@@ -35,8 +35,9 @@ matters more than count: prefer "walk everything, exclude deliberately".
 Row 10's premise does not hold on 2.2.0: `MapMcp` maps a `RequestDelegate`, which carries no
 `MethodInfo` metadata, so `BodyReadingEndpointTests` never walks `/mcp` (a mutant removing the
 marker left it green). `McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate` pins the marker instead.
-Row 11 has no test of its own: `/mcp` adds no config key, and `ProcessRoleGuardTests` already
-boots a Production-shaped serving process, which maps `/mcp`.
+Row 11 is `OAuthServerProductionTests.Production_ServesTheConnectFlow`: a Production host with
+only `OAuth:Issuer` set connects an app and calls `/mcp` with its token. (`ProcessRoleGuardTests`
+only proves that each serving guard fails a boot, not that `/mcp` works.)
 
 ## RBAC
 
@@ -106,9 +107,10 @@ of the residue, which is why slice 6 is blocked on it — but a secondary-scope 
 - A `ReviewedFactory` row approves a service type and the type that registers it. If the delegate's
   body changes later, the row still approves it. A second factory for the same service in another
   type, and a row the walk no longer reaches, both fail.
-- `McpToolSurface` finds tool methods with `BindingFlags.DeclaredOnly`. A tool method inherited from
-  a base class is not walked. Whether the SDK serves inherited attributed methods is unproven until
-  #806 picks the SDK version.
+- Since #806, `McpToolSurface` finds tool types and methods the way SDK 2.2.0's `WithTools` does,
+  including a public method a tool type inherits, whose policies come from the class declaring it.
+  `McpEndpointTests.ToolWalk_ReachesEveryToolTheSdkRegisters` fails if the walk and the SDK's
+  registrations ever count differently, for example after an SDK upgrade.
 - A `ReviewedRequestReader` row is keyed by its consumer only. A changed body, an added reader
   parameter, or a member returning a provider on a reviewed reader is not detected, the same kind
   of drift as a `ReviewedFactory` row.
