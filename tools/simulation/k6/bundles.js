@@ -333,7 +333,7 @@ export function dailyEntryScreen(session, persona, idemKeyFn) {
   );
 }
 
-// --- sales (SalesPage.tsx: list + the draft-order write path) ----------
+// --- sales (routes/sales/: list + the draft-order write path) ----------
 
 export function salesBundle(session, persona, idemKeyFn) {
   authedGet(session, '/api/v1/sales?limit=50', tagsFor(persona, 'sales', 'sales_list'));

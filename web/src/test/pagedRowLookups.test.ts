@@ -18,7 +18,8 @@ import {
 
 const routesDir = resolve(process.cwd(), "src/routes");
 
-const screenSources = readdirSync(routesDir)
+// Recursive: a screen split into a feature folder (routes/sales/) stays covered.
+const screenSources = readdirSync(routesDir, { recursive: true, encoding: "utf8" })
   .filter((file) => file.endsWith(".tsx") && !file.endsWith(".test.tsx"))
   .map((file) => ({ file, source: readFileSync(resolve(routesDir, file), "utf8") }));
 

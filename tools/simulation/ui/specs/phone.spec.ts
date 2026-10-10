@@ -622,7 +622,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // proves the shell mounted, and `networkidle` proves the requests
       // settled — neither proves the table rendered. Both SalesPage and
       // CustomersPage answer a failed read with a small error section and NO
-      // table (SalesPage.tsx, CustomersPage.tsx), which is a perfectly
+      // table (sales/SalesPage.tsx, CustomersPage.tsx), which is a perfectly
       // 390px-wide screen. So every route on this walk could break, render an
       // error, measure exactly 390, and report clean.
       //

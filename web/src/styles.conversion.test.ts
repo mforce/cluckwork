@@ -302,7 +302,7 @@ describe("MUI source policy (#824)", () => {
       // identity instead of keeping the same collected count.
       "components/FieldConsole.tsx#FieldConsole > & .MuiTableCell-head > textTransform:\"uppercase\"",
       "routes/Dashboard.tsx#Dashboard > textTransform:\"uppercase\"",
-      "routes/SalesPage.tsx#SalesPage > textTransform:\"uppercase\"",
+      "routes/sales/SalesPage.tsx#SalesPage > textTransform:\"uppercase\"",
     ]);
   });
 

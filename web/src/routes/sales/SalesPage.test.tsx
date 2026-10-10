@@ -2,26 +2,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { useLocation, useNavigate } from "react-router";
 import { SalesPage } from "./SalesPage";
-import { renderWithProviders } from "../test/renderWithProviders";
-import { stubMatchMedia } from "../test/matchMedia";
-import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
-import i18n from "../i18n";
-import type { DiscountReasonValue } from "../i18n/enums";
+import { renderWithProviders } from "../../test/renderWithProviders";
+import { stubMatchMedia } from "../../test/matchMedia";
+import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../../test/fixtures";
+import i18n from "../../i18n";
+import type { DiscountReasonValue } from "../../i18n/enums";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getCustomer, getOrder, listCustomers, listEggGrades,
   listEggUnitConversions, listOrderPayments, listOrders, listProducts, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
-} from "../api/cluckwork";
-import type { Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../api/cluckwork";
-import { ApiError } from "../api/client";
+} from "../../api/cluckwork";
+import type { Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../../api/cluckwork";
+import { ApiError } from "../../api/client";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. Every network call the screen
 // can make is stubbed — even the ones no current test triggers (confirm/cancel/
 // void/remove/pay) — so a future edit that clicks them can't silently hit the
 // real fetch client. The screen also uses useAuth + the router → renderWithProviders.
-vi.mock("../api/cluckwork", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/cluckwork")>();
+vi.mock("../../api/cluckwork", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/cluckwork")>();
   return {
     ...actual,
     listCustomers: vi.fn(),

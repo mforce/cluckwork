@@ -1,0 +1,346 @@
+import { useTranslation } from "react-i18next";
+import {
+  addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listEggGrades, listEggUnitConversions,
+  listProducts, parseMoneyToMinorUnits, removeOrderItem, updateOrderItem, voidOrder,
+} from "../../api/cluckwork";
+import type { EggUnitConversion, OrderItem, Product, SalesOrder } from "../../api/cluckwork";
+import { ApiError } from "../../api/client";
+import type { useConfirm } from "../../components/useConfirm";
+import { useFormat } from "../../farm/useFormat";
+import i18n from "../../i18n";
+import { DISCOUNT_REASON_VALUES, discountReasonLabel } from "../../i18n/enums";
+import type { DiscountReasonValue } from "../../i18n/enums";
+import { newId } from "../../lib/ids";
+import type { AddLineFields } from "./AddLineForm";
+import { editableLine, lineChanged, lineDiscount, orderDiscount, sellableProducts } from "./orderMath";
+import { useDiscountPercent, type PagedOrders, type SalesAction } from "./salesUi";
+import type { ActiveOrderState } from "./useActiveOrder";
+import type { NewOrderState } from "./useNewOrder";
+
+interface CommandDeps {
+  action: SalesAction;
+  orders: PagedOrders;
+  keyFor: (scope: string) => string;
+  clearKey: (scope: string) => void;
+  setMessage: (message: string | null) => void;
+  dialogs: ReturnType<typeof useConfirm>;
+  activeOrder: ActiveOrderState;
+  newOrder: NewOrderState;
+  addLine: AddLineFields;
+  products: Product[];
+  productName: (id: string) => string;
+  eggsPerUnit: (sellingUnit: string) => number | null;
+  setConversions: (conversions: EggUnitConversion[]) => void;
+  setAllProducts: (products: Product[]) => void;
+  setProducts: (products: Product[]) => void;
+}
+
+// The order and line writes, and the order panel's read.
+export function useOrderCommands({
+  action, orders, keyFor, clearKey, setMessage, dialogs, activeOrder, newOrder, addLine,
+  products, productName, eggsPerUnit, setConversions, setAllProducts, setProducts,
+}: CommandDeps) {
+  const { t } = useTranslation("sales");
+  const fmt = useFormat();
+  const discountPercent = useDiscountPercent();
+  const { run, startLoad } = action;
+  const { confirm, askReason, askChoice } = dialogs;
+  const { active, activeRef, activeIdRef, editorRef, setActive, setEditor, itemUpdateAttempts } = activeOrder;
+  const { customer, customerSnapshot, orderDate, setNewOrderCustomerPickerOpen, setCreatingOrder } = newOrder;
+  const { productId, unit, qty, price } = addLine;
+
+  const onCreateOrder = () => run("create-order", async (current) => {
+    // #512 (T039) — the handler's own guard: canSubmit is the write-safety
+    // boundary (a disabled button alone is not). An exploring/uninitialized
+    // or unavailable picker must not ship a stale committed id.
+    if (!customer || !customerSnapshot.canSubmit) return;
+    // runWrite claims the list ticket before the POST, so a filter change
+    // made while it is in flight keeps the view (#469).
+    await orders.runWrite(async () => {
+      const created = await createOrder({ customerId: customer.id, orderDate }, keyFor("create-order"));
+      // The key rotates the moment the WRITE lands — the same rule the payment
+      // path states (#90). Releasing it after the follow-up read instead left a
+      // spent key stranded whenever that read failed, and the next order then
+      // replayed this one, so the customer the user actually chose never got
+      // an order (codex review of this branch).
+      clearKey("create-order");
+      // Superseded: the order exists and the list write stands, but the panel
+      // belongs to whatever session is on screen now (#477).
+      if (!current()) return;
+      const loaded = await getOrder(created.id);
+      // Checked AGAIN, after the second await. The first version of this fix
+      // checked once and then wrote the result of a further round trip, which
+      // is the same hijack one hop later: the POST lands while the user is
+      // still here, the GET is issued, and only THEN do they cancel and reopen.
+      // A gate before an await says nothing about the state after it.
+      if (!current()) return;
+      setActive(loaded);
+    });
+    if (!current()) return;
+    setNewOrderCustomerPickerOpen(false);
+    setCreatingOrder(false); // only on success — a throw keeps the dialog up
+  });
+
+  const onAddItem = () => run("add-item", async () => {
+    if (!active) return;
+    const id = active.id;
+    // #398 — sales quantities are whole selling units; reject a fractional
+    // value BEFORE sending rather than letting the server's JSON binding
+    // fail with an internal parameter-binding message. NumberField's typed
+    // input isn't step-constrained (no wrapping <form> — see the comment
+    // above NewOrderDialog in SalesPage.tsx), so `qty` can legitimately hold
+    // e.g. 2.5 here.
+    if (!Number.isInteger(qty)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
+    // Empty price → omit it: the server falls back to the product's default.
+    let minorUnits: number | undefined;
+    if (price.trim() !== "") {
+      minorUnits = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
+      if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
+    }
+    const scope = `add-item:${id}`;
+    // #445 — bind the previewed factor to the write: if an admin redefined
+    // the unit after this page read its conversions, the server refuses
+    // (SalesOrder.UnitDefinitionChanged) instead of recording a QuantityBase
+    // different from the "= N eggs" the seller saw. undefined when nothing
+    // was previewed (per-egg unit, or no/failed conversions read).
+    const previewed = unit === "Egg" ? null : eggsPerUnit(unit);
+    try {
+      await addOrderItem(id,
+        {
+          productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
+          expectedEggsPerUnit: previewed ?? undefined,
+          ...(() => {
+            // #720 — presence matters: "the seller saw no list price" is an
+            // expectation, and it is not the same as having no opinion.
+            const shown = products.find((p) => p.id === productId);
+            if (!shown) return {};
+            return shown.defaultPriceMinorUnits === null
+              ? { expectedListPriceIsUnset: true }
+              : { expectedListUnitPriceMinorUnits: shown.defaultPriceMinorUnits };
+          })(),
+        },
+        keyFor(scope));
+    } catch (err) {
+      // Any server rejection may mean the conversions moved under us (the
+      // UnitDefinitionChanged case) — refresh them so the preview and the
+      // next attempt use the current factors instead of looping on stale
+      // ones. Fire-and-forget: the thrown error still surfaces normally.
+      // #720 — products too, not just conversions: a ListPriceChanged refusal
+      // means the catalogue moved, and without this the retry loops on the
+      // same stale price forever.
+      if (err instanceof ApiError) {
+        listEggUnitConversions().then(setConversions).catch(() => {});
+        Promise.all([listProducts({ includeInactive: true }), listEggGrades()])
+          .then(([p, g]) => { setAllProducts(p); setProducts(sellableProducts(p, g)); })
+          .catch(() => {});
+      }
+      throw err;
+    }
+    const refreshed = await getOrder(id);
+    if (activeIdRef.current === id) setActive(refreshed);
+    clearKey(scope);
+  });
+
+  const onUpdateItem = (itemId: string) => run(`update-item:${itemId}`, async () => {
+    const order = activeRef.current;
+    const draft = editorRef.current;
+    const item = editableLine(order, draft);
+    if (!order || !draft || !item || draft.itemId !== itemId || lineChanged(item, draft)) return;
+    const id = order.id;
+    // #398 — same whole-number guard as the add-line control, above.
+    if (!Number.isInteger(draft.quantity)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
+    const minorUnits = parseMoneyToMinorUnits(draft.price, order.currencyMinorUnit);
+    if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
+    const scope = `update-item:${itemId}`;
+    const previous = itemUpdateAttempts.current.get(scope);
+    const attempt = previous?.quantity === draft.quantity && previous.unitPriceMinorUnits === minorUnits
+      ? previous
+      : {
+        quantity: draft.quantity, unitPriceMinorUnits: minorUnits, key: newId(),
+        serverQuantity: draft.serverQuantity, serverPrice: draft.serverPrice,
+      };
+    itemUpdateAttempts.current.set(scope, attempt);
+    await updateOrderItem(id, itemId,
+      { quantity: draft.quantity, unitPriceMinorUnits: minorUnits }, attempt.key);
+    if (editorRef.current === draft) setEditor(null);
+    const refreshed = await getOrder(id);
+    if (activeIdRef.current === id) setActive(refreshed);
+    itemUpdateAttempts.current.delete(scope);
+  });
+
+  const onRemoveItem = (itemId: string) => run(`remove-item:${itemId}`, async () => {
+    if (!active) return;
+    const id = active.id;
+    const scope = `remove-item:${itemId}`;
+    await removeOrderItem(id, itemId, keyFor(scope));
+    const refreshed = await getOrder(id);
+    if (activeIdRef.current === id) setActive(refreshed);
+    clearKey(scope);
+  });
+
+  // #721 — the two figures the confirm dialog shows before it asks for a
+  // reason. Both read the SAME orderDiscount/lineDiscount the order panel and
+  // the Orders list already render, so the dialog can never quote a different
+  // number from the screen behind it.
+  const discountHeadline = (order: SalesOrder) => {
+    const level = orderDiscount(order.items);
+    if (level.kind !== "below") return null;
+    const amount = fmt.money(level.amountMinorUnits, order.currencyCode, order.currencyMinorUnit);
+    const counts = {
+      below: order.items.filter((i) => lineDiscount(i).kind === "below").length,
+      total: order.items.length,
+    };
+    return (
+      <p className="discount" data-testid="confirm-discount-headline">
+        {level.percent === null
+          ? t("discountReasonHeadlineNoPct", { amount, ...counts })
+          : t("discountReasonHeadline",
+              { amount, percent: discountPercent(level.percent), ...counts })}
+      </p>
+    );
+  };
+
+  const lineDiscountText = (item: OrderItem) => {
+    const line = lineDiscount(item);
+    if (line.kind !== "below") return null;
+    const amount = fmt.money(line.amountMinorUnits, item.currencyCode, item.currencyMinorUnit);
+    // A zero list price cannot reach here — lineDiscount's "below" needs a
+    // negative unit price, which the validator refuses — but percent is still
+    // computed from `list`, so the amount-only variant stays as the honest
+    // fallback rather than a division nobody can read.
+    return line.percent > 0
+      ? t("discountReasonLine", { amount, percent: discountPercent(line.percent) })
+      : t("discountReasonLineNoPct", { amount });
+  };
+
+  // One-way actions (#59). Confirm BEFORE run() so buttons don't flash
+  // disabled while the user decides.
+  const onConfirm = async () => {
+    if (!active) return;
+    // #721 — a below-list order must carry a reason, and the server refuses one
+    // on an order that has nothing below list, so the same predicate decides
+    // both which dialog opens and whether a body is sent. lineDiscount is that
+    // predicate already; a second one here could drift from it.
+    const belowLines = active.items.filter((item) => lineDiscount(item).kind === "below");
+    let body: { discountReasonCode: string; discountReasonNote?: string } | undefined;
+    if (belowLines.length > 0) {
+      const picked = await askChoice({
+        title: i18n.t("sales:confirmOrderTitle"),
+        // The FIFO prose the plain confirmation has always carried, then what
+        // this order gives away, then the lines it gives it away on: the person
+        // confirming sees the number before they justify it.
+        body: (
+          <>
+            <p>{i18n.t("sales:confirmOrderBody")}</p>
+            {discountHeadline(active)}
+            <ul className="discount-breakdown" data-testid="confirm-discount-lines">
+              {belowLines.map((item) => (
+                <li key={item.id}>
+                  <span>{productName(item.productId)}</span>
+                  <span className="discount">{lineDiscountText(item)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ),
+        confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
+        choiceLabel: i18n.t("sales:discountReasonLabel"),
+        choices: DISCOUNT_REASON_VALUES.map((value) => ({
+          value,
+          label: discountReasonLabel(value),
+        })),
+        // `satisfies` so a rename of the server member that reaches
+        // DISCOUNT_REASON_VALUES fails typecheck here rather than silently
+        // dropping the inline note requirement. Pinned from the C# side too by
+        // DiscountReasonVocabularyTests.
+        noteRequiredFor: ["Other" satisfies DiscountReasonValue],
+        noteLabel: i18n.t("sales:discountReasonNoteLabel"),
+        noteRequiredMessage: i18n.t("sales:discountReasonNoteRequired"),
+        choiceRequiredMessage: i18n.t("sales:discountReasonRequired"),
+      });
+      if (picked === null) return;
+      body = { discountReasonCode: picked.value };
+      if (picked.note !== null) body.discountReasonNote = picked.note;
+    } else {
+      const ok = await confirm({
+        title: i18n.t("sales:confirmOrderTitle"),
+        body: i18n.t("sales:confirmOrderBody"),
+        confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
+      });
+      if (!ok) return;
+    }
+    const id = active.id;
+    void run(`confirm:${id}`, async () => {
+      const scope = `confirm:${id}`;
+      await orders.runWrite(async () => {
+        await confirmOrder(id, body, keyFor(scope));
+        const refreshed = await getOrder(id);
+        if (activeIdRef.current === id) {
+          setActive(refreshed);
+          setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
+        }
+      });
+      clearKey(scope);
+    });
+  };
+
+  const onCancel = async () => {
+    // Cancel is a status change: the order keeps its lines but becomes
+    // read-only and can't be confirmed.
+    const ok = await confirm({
+      title: i18n.t("sales:cancelDraftTitle"),
+      body: i18n.t("sales:cancelDraftBody"),
+      confirmLabel: i18n.t("sales:cancelDraft"),
+      destructive: true,
+    });
+    if (!ok || !active) return;
+    const id = active.id;
+    void run(`cancel:${id}`, async () => {
+      const scope = `cancel:${id}`;
+      await orders.runWrite(async () => {
+        await cancelOrder(id, keyFor(scope));
+        if (activeIdRef.current === id) {
+          setActive(null);
+          setMessage(i18n.t("sales:draftOrderCancelled"));
+        }
+      });
+      clearKey(scope);
+    });
+  };
+
+  // Undo of a mistaken confirm (#60). Reason prompt doubles as the confirm
+  // dialog, hoisted above run() like the other one-way actions; cancelling the
+  // prompt aborts the void.
+  const onVoid = async () => {
+    const reason = await askReason({
+      title: i18n.t("sales:voidOrderTitle"),
+      body: i18n.t("sales:voidOrderBody"),
+      confirmLabel: i18n.t("sales:voidOrderConfirmLabel"),
+      destructive: true,
+    });
+    if (reason === null || !active) return;
+    const id = active.id;
+    void run(`void:${id}`, async () => {
+      const scope = `void:${id}`;
+      await orders.runWrite(async () => {
+        await voidOrder(id, reason, keyFor(scope));
+        const refreshed = await getOrder(id);
+        if (activeIdRef.current === id) {
+          setActive(refreshed);
+          setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
+        }
+      });
+      clearKey(scope);
+    });
+  };
+
+  // Always fetch fresh on open — the list row may be stale relative to
+  // mutations made through the panel since the list was loaded.
+  const onOpen = (id: string) => run(`open:${id}`, async () => {
+    const current = startLoad("order-panel");
+    const loaded = await getOrder(id);
+    if (current()) setActive(loaded);
+  });
+
+  return { onCreateOrder, onAddItem, onUpdateItem, onRemoveItem, onConfirm, onCancel, onVoid, onOpen };
+}

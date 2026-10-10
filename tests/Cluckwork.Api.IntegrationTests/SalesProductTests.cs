@@ -387,7 +387,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         // the handler's pre-existing ProductPriceCurrencyMismatch guard sees
         // nothing wrong — only #720's minor-unit clause catches this. 1234 here
         // means $1234, not $12.34; snapshotting it would be a 100x error, and
-        // it is the exact hazard SalesPage.tsx:191-203 already documents.
+        // it is the exact hazard the priceScale comment in sales/SalesPage.tsx documents.
         var skewed = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
