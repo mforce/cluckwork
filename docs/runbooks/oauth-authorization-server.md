@@ -116,11 +116,13 @@ request. It can connect again only through the consent screen.
 Replacing the Data Protection certificate, or deleting every stored key (procedure C of
 [`data-protection-key-ring.md`](data-protection-key-ring.md)), makes every outstanding
 authorization code and access token unreadable. Every connected app on every farm gets
-401 on its next request. There are no refresh tokens, so each app has to send its user
-through authorization again.
+401 on its next API request. An app that was between authorization and redemption gets
+400 `invalid_grant` from `POST /api/v1/oauth/token` instead. There are no refresh tokens,
+so each app has to send its user through authorization again.
 
 Procedure B deletes only the plaintext keys it names. Only codes and tokens protected by
-those keys fail; the apps holding them get 401 and must reauthorize. Tokens protected by
+those keys fail. An app holding such an access token gets 401; redeeming such a code
+gets 400 `invalid_grant`. Either way the app must reauthorize. Tokens protected by
 the encrypted keys B keeps still work.
 
 The approvals and the app registrations live in the database, not in the ring, so they
