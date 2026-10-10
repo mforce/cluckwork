@@ -119,11 +119,10 @@ internal sealed class ClientMetadataDocuments(
             or OpenIddictExceptions.ConcurrencyException
             || exception is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })
         {
-            // A concurrent request may have stored its own copy first. OpenIddict reports
-            // that as a client id already in use, the database as a unique or concurrency
-            // conflict; the other copy passed the same checks, so either one is fine.
-            // Otherwise the refusal is one of OpenIddict's own checks, which DCR meets too:
-            // an iss parameter in a redirect URI, for one (issuer fixation).
+            // A concurrent request stored its copy first (a duplicate client id to OpenIddict,
+            // a unique or concurrency conflict to the database), and that copy passed the same
+            // checks. Any other refusal is OpenIddict's own, which DCR meets too: an iss
+            // parameter in a redirect URI, for one (issuer fixation).
             if (exception is OpenIddictExceptions.ValidationException validation
                 && !(row is null && await StoredMeanwhileAsync(clientId, ct)))
                 return Refuse(Errors.InvalidRequest, string.Join(" ", validation.Results.Select(result => result.ErrorMessage)));

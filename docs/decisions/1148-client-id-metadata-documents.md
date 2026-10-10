@@ -249,7 +249,7 @@ decode it, so a path segment could not name a metadata client reliably.
   budgets with the bounded stale copy, both insert races (simultaneous, and the
   deterministic duplicate-client schedule), discovery, turning it off, and the purge.
 - `tools/oauth/mutation-check.sh` carries 47 `cimd-*` mutants, one per claim, and its
-  baseline filter (`OAuth|ClientMetadata`) includes the two classes above. Run on
-  2026-10-10 against `dbe3ac58`, plus the corrected rows and the stronger `iss` test in
-  the commit after it: all 47 killed, baseline and
-  restore green at 261 of 261. `MUTANT_FILTER='^cimd-'` reruns just these.
+  baseline filter (`OAuth|ClientMetadata`) includes the two classes above. They ran on
+  2026-10-10 against `dbe3ac58`, and five corrected rows ran again with the stronger
+  `iss` test that followed. All 47 were killed, and the baseline and restore runs were
+  green at 261 of 261. `MUTANT_FILTER='^cimd-'` runs just these.

@@ -63,12 +63,10 @@ internal sealed class ClientMetadataFetcher(
     public const string BadContentType = "metadata.content_type";
     public const string TooLarge = "metadata.too_large";
 
-    // Checked on 2026-10-10 against IANA's IPv4 and IPv6 Special-Purpose Address
-    // Registries (RFC 6890), plus IPv4 multicast. IPv4 refuses every listed block; the
-    // narrower entries sit inside these. IPv6 is an allow-list: global unicast 2000::/3
-    // minus the registry blocks inside it, so every other registry entry (loopback,
-    // unspecified, NAT64, discard, SRv6, unique-local, link-local) and multicast never
-    // qualify.
+    // IANA's IPv4 and IPv6 Special-Purpose Address Registries (RFC 6890), checked
+    // 2026-10-10, plus IPv4 multicast; narrower registry entries sit inside these blocks.
+    // IPv6 is an allow-list: 2000::/3 minus the registry blocks inside it, so every other
+    // registry entry (loopback, NAT64, unique-local, link-local, ...) never qualifies.
     private static readonly IPNetwork[] RefusedV4 =
     [
         .. new[]
