@@ -5,8 +5,8 @@
 // overview map, the two edge cues, the strip's tab stop and the "days shown"
 // caption cannot each measure the DOM their own way and disagree.
 
-// #912's slot, fixed at every range (owner, 2026-09-24): a bar never stretches
-// to fill the column, so a 30-day chart draws the same bar as a 90-day one.
+// #912's slot. A range that scrolls is laid out on it, and it decides whether
+// a range fits; one that fits stretches to fill the window instead (#1161).
 //
 // The GAP is not a constant here, because the stylesheet narrows it on a phone
 // and two declarations of one number disagreed at exactly 900px, where both
@@ -35,6 +35,10 @@ export interface DayWindow {
   boxWidthPct: number;
   atStart: boolean;
   atEnd: boolean;
+  // `fits`, measured: the strip should fill the window. An unmeasured region
+  // fits but does not stretch, so the open lays the strip out on fixed slots
+  // and its scroll to the newest day lands before the first measurement.
+  stretch: boolean;
 }
 
 // What the strip actually lays out: n slots and n-1 gaps. The week hairline
@@ -59,11 +63,13 @@ export function dayWindow(metrics: StripMetrics, scrollLeft: number): DayWindow 
     boxWidthPct: 100,
     atStart: true,
     atEnd: true,
+    stretch: false,
   };
   // An unmeasured region (0) is not a clipped one: before the first resize
   // observation there is nothing to say is hidden, and answering "clipped"
   // there would flash an edge cue on every open.
-  if (viewport <= 0 || width <= viewport) return whole;
+  if (viewport <= 0) return whole;
+  if (width <= viewport) return { ...whole, stretch: true };
 
   const per = slot + gap;
   const max = width - viewport;
@@ -80,5 +86,6 @@ export function dayWindow(metrics: StripMetrics, scrollLeft: number): DayWindow 
     // exact comparison leaves the right-hand cue lit over nothing.
     atStart: left <= 1,
     atEnd: left >= max - 1,
+    stretch: false,
   };
 }

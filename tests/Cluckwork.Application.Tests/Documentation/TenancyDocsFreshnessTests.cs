@@ -54,13 +54,11 @@ public sealed class TenancyDocsFreshnessTests
     // `git rev-parse`, not a walk looking for a .git DIRECTORY: in a git worktree
     // .git is a FILE, so Directory.Exists walks past the root and returns null.
     // This repo is worked in worktrees, so that is a real path, not a hypothetical.
-    private static string RepoRoot() => Git("rev-parse --show-toplevel", AppContext.BaseDirectory).Trim();
+    internal static string RepoRoot() => Git("rev-parse --show-toplevel", AppContext.BaseDirectory).Trim();
 
-    private static IEnumerable<string> TrackedFiles(string root) =>
-        Git("ls-files", root)
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(l => l.Trim())
-            .Where(l => l.Length > 0);
+    // -z: without it git quotes and octal-escapes any non-ASCII path, which then matches no prefix.
+    internal static IEnumerable<string> TrackedFiles(string root) =>
+        Git("ls-files -z", root).Split('\0', StringSplitOptions.RemoveEmptyEntries);
 
     private static string Git(string arguments, string workingDirectory)
     {
