@@ -46,6 +46,9 @@ const EDGE_TICK_SLOTS = 3;
 // drag crosses a day boundary every 26px, so an undebounced live region would
 // speak forty times on one sweep of a quarter.
 const ANNOUNCE_SETTLE_MS = 500;
+// Past this many days the overview map drops its 1px gaps (#1161). Up to it the
+// map looks as it did under #941's 90-day ceiling.
+const DENSE_MAP_DAYS = 90;
 
 export function ExpandedLayRate({
   data, failed, label, title, peak, average, legend, tip,
@@ -127,6 +130,10 @@ export function ExpandedLayRate({
     if (region !== null) region.scrollLeft = region.scrollWidth;
     sync();
   }, [data]);
+
+  // Crossing the fit threshold moves every slot without resizing the readout
+  // or its dock, so neither of the hook's observers would re-place it.
+  useLayoutEffect(() => strip.placeReadout(), [view.stretch]);
 
   useEffect(() => {
     const region = scrollerRef.current;
@@ -315,7 +322,9 @@ export function ExpandedLayRate({
                     only way to get there — the pager, Page Up/Down and the
                     strip's own arrow keys all move the window without it. */}
                 <div
-                  className={view.fits ? "daymap is-static" : "daymap"} ref={mapRef}
+                  className={["daymap", view.fits && "is-static", days > DENSE_MAP_DAYS && "is-dense"]
+                    .filter(Boolean).join(" ")}
+                  ref={mapRef}
                   role="img" aria-label={t("expandMapLabel", { count: days, days: fmt.count(days) })}
                   onPointerDown={onMapPointerDown}
                 >

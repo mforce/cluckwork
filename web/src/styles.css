@@ -2006,6 +2006,12 @@ label.check {
   cursor: default;
 }
 
+/* Past a quarter the 1px gaps alone outgrow a phone's map: 364 of them in a
+   332px map leave every mark zero wide (#1161). */
+.daymap.is-dense {
+  gap: 0;
+}
+
 .daymap i {
   flex: 1 1 0;
   min-width: 0;
@@ -2156,6 +2162,9 @@ label.check {
 .lay-expand-scroll.is-fit .datebar > span {
   flex: 1 1 0;
   width: auto;
+  /* Without it a cell holding a date keeps the date's width as its floor, and
+     the date row divides the plot differently from the bars above it. */
+  min-width: 0;
 }
 
 /* The slot stretches; the bar inside it stops at 40px, a little under two
