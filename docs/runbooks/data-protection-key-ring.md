@@ -9,9 +9,13 @@ DataProtection:PrivateKeyPem are not configured` or `are not a usable certificat
 a configuration error. Fix the two values (procedure A). Nothing in the database needs
 changing.
 
-**Blast radius:** procedures B and C delete stored keys. Every token those keys
-protected stops validating (password-reset tokens today, and anything else built on
-ASP.NET Core Data Protection later). Signed-in sessions are not affected; they use JWTs.
+**Blast radius:** procedures B and C delete stored keys, and replacing the certificate
+makes them unreadable. Every token those keys protected stops validating: password-reset
+tokens, and the authorization codes and access tokens of connected apps (#795). Every
+connected app on every farm is refused on its next request and has to send its user
+through authorization again; see
+[`oauth-authorization-server.md`](oauth-authorization-server.md#d-after-the-key-ring-is-replaced-or-lost).
+Signed-in sessions are not affected; they use JWTs.
 
 **Prerequisites:** the ability to change the deployment's configuration secrets, to stop
 and start every serving instance, and SQL access to the Production database.
