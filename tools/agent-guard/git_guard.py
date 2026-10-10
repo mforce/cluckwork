@@ -27,9 +27,9 @@ MAIN = "main"
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
 MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergePullRequest|AutoMerge")
-EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
+EXPANSIONS = re.compile(r"[$`*?\[{(]")  # can spell a program or verb the text check cannot read
+ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
-REDIRECTS = {">", ">>", ">&", "&>", "&>>"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects"}
 GIT_GLOBAL_VALUES = {"-C", "-c", "--git-dir", "--work-tree"}
 PUSH_LONG_OPTIONS = [
@@ -47,7 +47,8 @@ MESSAGES = {
     "simple": (
         "it contains, or may spell, a git write or PR merge, so it must run as its own simple command: one command, optionally "
         "after `cd <dir> &&`, with no `;`, `||`, `|`, `&`, newlines, comments, subshells, braces, if/for/while, "
-        "heredocs, `$(…)`, backticks, variables, unquoted globs, env assignments or wrappers (env, command, timeout, sudo, bash -c). "
+        "heredocs, redirections other than a trailing `2>&1` or `2>/dev/null`, `$(…)`, backticks, variables, "
+        "unquoted globs, env assignments or wrappers (env, command, timeout, sudo, bash -c). "
         "Allowed forms: `git push -u origin <branch>`, `cd <dir> && git commit -m \"<message>\"`. "
         "For a multi-line message use `git commit -F <file>` or repeated `-m`."
     ),
@@ -77,7 +78,7 @@ def block(rule, shown):
 
 
 def has_simple_shape(command):
-    """True when every unquoted shell operator is `&&` or an output redirection."""
+    """True when the only unquoted shell operator is `&&`."""
     quote = None
     i = 0
     while i < len(command):
@@ -95,17 +96,18 @@ def has_simple_shape(command):
             quote = None if c == '"' else quote
         elif c in "'\"":
             quote = c
-        elif c in "\n;|(){}<*?[" or (c == "#" and (i == 0 or command[i - 1] in " \t")):
+        elif c in "\n;|(){}<>*?[" or (c == "#" and (i == 0 or command[i - 1] in " \t")):
             return False
         i += 1
     return True  # an unclosed quote fails in shlex below
 
 
 def simple_command(command, cwd):
-    """(argv, cwd) for `[cd <dir> &&] <argv> [redirections]`; block any other shape."""
+    """(argv, cwd) for `[cd <dir> &&] <argv> [2>&1 | 2>/dev/null]`; block any other shape."""
+    command = ALLOWED_SUFFIX.sub("", command)
     if not has_simple_shape(command):
         block("simple", command)
-    lex = shlex.shlex(command, posix=True, punctuation_chars="&>")
+    lex = shlex.shlex(command, posix=True, punctuation_chars="&")
     lex.whitespace_split = True
     lex.commenters = ""
     parts = [[]]
@@ -118,20 +120,8 @@ def simple_command(command, cwd):
         block("simple", command)
     if len(parts) == 2:
         cwd = resolve_dir(cwd, parts[0][1])
-    argv = []
-    tokens = iter(parts[-1])
-    for token in tokens:
-        if token in REDIRECTS:
-            target = next(tokens, None)
-            if target is None or set(target) <= set("&>"):
-                block("simple", command)
-            if argv and argv[-1].isdigit():
-                argv.pop()
-        elif set(token) <= set("&>"):
-            block("simple", command)
-        else:
-            argv.append(token)
-    if not argv:
+    argv = parts[-1]
+    if any(set(token) <= {"&"} for token in argv):
         block("simple", command)
     return argv, cwd
 
@@ -337,7 +327,7 @@ def check_gh(args, shown):
 def mentions_write(command):
     """Text check before parsing: quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be.
     An expansion beside git, gh or a write verb counts too, since it can spell the rest (`/usr/bin/gi? push`)."""
-    plain = urllib.parse.unquote(re.sub(r"[\"'\\]", "", command))
+    plain = urllib.parse.unquote(re.sub(r"[\"'\\]", "", command.replace("\\\n", "")))
     return MENTIONS_WRITE.search(plain) or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain))
 
 
