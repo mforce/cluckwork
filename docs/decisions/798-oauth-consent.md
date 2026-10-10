@@ -119,9 +119,9 @@ Delivered since this record was written: the consent screen at `/connect`, the l
 notice, the shared step-up password component, their translations, Help and glossary
 entries (#798); the Connected apps panel and page, Disconnect and its
 `User.AppDisconnected` audit (#799); connected-app attribution on audit rows (#800); the
-farm switch (#1146). Approving an app writes `User.AppConnected` or
-`User.AppReconnected` in the transaction that spends the step-up grant
-([`799-connected-apps.md`](799-connected-apps.md)).
+farm switch (#1146). Approving an app spends the step-up grant
+first, then commits the approval and its `User.AppConnected` or `User.AppReconnected`
+row in one transaction ([`799-connected-apps.md`](799-connected-apps.md)).
 
 ## How it is enforced
 
