@@ -18,6 +18,15 @@
             "command": "~/.local/bin/graphify hook-guard read"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/tools/agent-guard/git_guard.py"
+          }
+        ]
       }
     ]
   },
