@@ -3500,7 +3500,8 @@ export const en = {
     salesDrafts:
       "Orders start as <strong>drafts</strong>. Add lines by picking a <strong>product</strong>, a packed "
       + "unit (dozen, carton, …), a whole-number quantity, and a price per unit, prefilled from the "
-      + "product's default and allowing decimals. Edit freely, or <strong>cancel</strong>, which keeps the "
+      + "product's default converted to the unit in <strong>Per</strong> (an egg at $0.45 is $13.50 a "
+      + "tray) and allowing decimals. Edit freely, or <strong>cancel</strong>, which keeps the "
       + "draft read-only. The quantity counts <strong>units, not eggs</strong>. The field is labeled with "
       + "the unit and shows the resulting egg count while you type, so 2 trays reads as 60 eggs, not 60 "
       + "trays. Each line remembers how many eggs its unit held when it was added, so redefining a carton "
@@ -4113,7 +4114,8 @@ export const en = {
 
     glossaryListPriceTerm: "List price",
     glossaryListPriceDef:
-      "The product's price at the moment a line was added, kept with the line so a later price change "
+      "The product's price at the moment a line was added, converted to the line's unit and rounded up "
+      + "to the currency's smallest unit, kept with the line so a later price change "
       + "never rewrites a past order. \"No list price\" means there was nothing comparable to measure "
       + "against, which is a recorded fact. A line taken before the farm started keeping list prices shows "
       + "\"List price not recorded\" instead. That is missing information rather than an answer, so nobody "

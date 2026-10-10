@@ -63,6 +63,27 @@ public sealed class AddOrderItemHandler(
                 $"The eggs-per-unit definition for '{unit}' is now {conversion.EggsPerUnit}, not {expected} — " +
                 "re-check the quantity and try again."));
 
+        // #1160 — the product's default price is per its OWN selling unit, so a
+        // line in another unit defaults to, and lists at, that price scaled by
+        // the two factors, rounded UP to a whole minor unit so a positive price
+        // never scales to zero (docs/decisions/1160-unit-scaled-list-price.md).
+        var lineListPrice = product.DefaultPriceMinorUnits;
+        if (lineListPrice is { } productPrice && unit != product.DefaultUnit)
+        {
+            var productConversion = await conversions.GetByUnitAsync(
+                EggUnits.ToConversionUnit(product.DefaultUnit), ct);
+            if (productConversion is null || !productConversion.Active)
+                return Result.Failure<Guid>(Error.Validation(
+                    "SalesOrder.NoUnitConversion",
+                    $"No active eggs-per-unit definition for '{product.DefaultUnit}' — set one on the Products screen."));
+            var scaled = ((Int128)productPrice * conversion.EggsPerUnit + productConversion.EggsPerUnit - 1)
+                / productConversion.EggsPerUnit;
+            if (scaled > long.MaxValue)
+                return Result.Failure<Guid>(Error.Validation(
+                    "SalesOrder.LineTotalTooLarge", "Line total exceeds the supported amount range."));
+            lineListPrice = (long)scaled;
+        }
+
         // #720 — "did the catalogue move under the seller?" A bare long? cannot
         // tell OMITTED (no opinion: raw API callers, both seeders) from
         // EXPECTED-UNSET (the seller looked and saw no list price). Zero is a
@@ -77,16 +98,15 @@ public sealed class AddOrderItemHandler(
             command.ExpectedListUnitPriceMinorUnits is not null
             || command.ExpectedListPriceIsUnset;
         if (listPriceExpectationGiven
-            && command.ExpectedListUnitPriceMinorUnits != product.DefaultPriceMinorUnits)
+            && command.ExpectedListUnitPriceMinorUnits != lineListPrice)
             return Result.Failure<Guid>(Error.Validation(
                 "SalesOrder.ListPriceChanged",
                 $"This product's list price is now " +
-                $"{(product.DefaultPriceMinorUnits?.ToString() ?? "unset")}, not " +
+                $"{(lineListPrice?.ToString() ?? "unset")}, not " +
                 $"{(command.ExpectedListUnitPriceMinorUnits?.ToString() ?? "unset")} — " +
                 "re-check the price and try again."));
 
-        // Price defaults from the product (per selling unit).
-        var priceMinorUnits = command.UnitPriceMinorUnits ?? product.DefaultPriceMinorUnits;
+        var priceMinorUnits = command.UnitPriceMinorUnits ?? lineListPrice;
         if (priceMinorUnits is null)
             return Result.Failure<Guid>(Error.Validation(
                 "SalesOrder.PriceRequired",
@@ -140,7 +160,7 @@ public sealed class AddOrderItemHandler(
         // product is legal, and the denomination branch is the backstop #123's
         // currency lock makes unreachable through the API today.
         var (listUnitPriceMinorUnits, listPriceBasis) =
-            product.DefaultPriceMinorUnits is not { } catalogListPrice
+            lineListPrice is not { } catalogListPrice
                 ? ((long?)null, ListPriceBasis.ProductUnpriced)
                 : !string.Equals(
                       product.CurrencyCode,
