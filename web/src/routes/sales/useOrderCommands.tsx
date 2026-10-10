@@ -30,6 +30,7 @@ interface CommandDeps {
   products: Product[];
   productName: (id: string) => string;
   eggsPerUnit: (sellingUnit: string) => number | null;
+  listPriceFor: (product: Product, lineUnit: string) => number | null;
   setConversions: (conversions: EggUnitConversion[]) => void;
   setAllProducts: (products: Product[]) => void;
   setProducts: (products: Product[]) => void;
@@ -38,7 +39,7 @@ interface CommandDeps {
 // The order and line writes, and the order panel's read.
 export function useOrderCommands({
   action, orders, keyFor, clearKey, setMessage, dialogs, activeOrder, newOrder, addLine,
-  products, productName, eggsPerUnit, setConversions, setAllProducts, setProducts,
+  products, productName, eggsPerUnit, listPriceFor, setConversions, setAllProducts, setProducts,
 }: CommandDeps) {
   const { t } = useTranslation("sales");
   const fmt = useFormat();
@@ -114,9 +115,9 @@ export function useOrderCommands({
             // expectation, and it is not the same as having no opinion.
             const shown = products.find((p) => p.id === productId);
             if (!shown) return {};
-            return shown.defaultPriceMinorUnits === null
-              ? { expectedListPriceIsUnset: true }
-              : { expectedListUnitPriceMinorUnits: shown.defaultPriceMinorUnits };
+            if (shown.defaultPriceMinorUnits === null) return { expectedListPriceIsUnset: true };
+            const list = listPriceFor(shown, unit);
+            return list === null ? {} : { expectedListUnitPriceMinorUnits: list };
           })(),
         },
         keyFor(scope));

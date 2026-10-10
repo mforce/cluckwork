@@ -156,6 +156,19 @@ export function SalesPage() {
     const c = conversions.find((x) => x.unitCode === sellingUnit && x.active);
     return c?.eggsPerUnit ?? null;
   };
+  // #1160 — the list price of `p` on a line sold per `lineUnit`: its default
+  // price scaled by the two factors and rounded up, in exact integers like the
+  // server. null when unpriced, a factor is unknown, or the result is not a
+  // safe integer. The per-egg conversion's code is "Individual", so Egg is 1.
+  const listPriceFor = (p: Product, lineUnit: string): number | null => {
+    if (p.defaultPriceMinorUnits === null || lineUnit === p.defaultUnit) return p.defaultPriceMinorUnits;
+    const factor = (u: string) => (u === "Egg" ? 1 : eggsPerUnit(u));
+    const line = factor(lineUnit);
+    const own = factor(p.defaultUnit);
+    if (line === null || own === null) return null;
+    const scaled = (BigInt(p.defaultPriceMinorUnits) * BigInt(line) + BigInt(own) - 1n) / BigInt(own);
+    return scaled <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(scaled) : null;
+  };
   // Lowercased to match the row display's `perUnit` convention ("per tray").
   // The membership guard is what lets the typed i18n key accept the template:
   // `unit${SellingUnit}` is a closed union of real catalog keys, while an
@@ -278,7 +291,7 @@ export function SalesPage() {
 
   const { onCreateOrder, onAddItem, onUpdateItem, onRemoveItem, onConfirm, onCancel, onVoid, onOpen } = useOrderCommands({
     action, orders, keyFor, clearKey, setMessage, dialogs: { confirm, askReason, askChoice },
-    activeOrder, newOrder, addLine, products, productName, eggsPerUnit, setConversions, setAllProducts, setProducts,
+    activeOrder, newOrder, addLine, products, productName, eggsPerUnit, listPriceFor, setConversions, setAllProducts, setProducts,
   });
 
   // A list failure no longer replaces the workspace: it renders as a banner
@@ -382,7 +395,7 @@ export function SalesPage() {
               )}
               {active.status === "Draft" && (
                 <AddLineForm active={active} fields={addLine} products={products} priceScale={priceScale}
-                  eggsPerUnit={eggsPerUnit} unitWord={unitWord} addQtyId={addQtyId} action={action} onAddItem={onAddItem} />
+                  eggsPerUnit={eggsPerUnit} listPriceFor={listPriceFor} unitWord={unitWord} addQtyId={addQtyId} action={action} onAddItem={onAddItem} />
               )}
             </Box>
             <SettlementRail active={active} activeOrder={activeOrder} ceiling={ceiling} ceilingPercent={ceilingPercent}

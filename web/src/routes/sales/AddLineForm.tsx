@@ -21,13 +21,14 @@ export function useAddLineFields() {
 export type AddLineFields = ReturnType<typeof useAddLineFields>;
 
 export function AddLineForm({
-  active, fields, products, priceScale, eggsPerUnit, unitWord, addQtyId, action, onAddItem,
+  active, fields, products, priceScale, eggsPerUnit, listPriceFor, unitWord, addQtyId, action, onAddItem,
 }: {
   active: SalesOrder;
   fields: AddLineFields;
   products: Product[];
   priceScale: number | null;
   eggsPerUnit: (sellingUnit: string) => number | null;
+  listPriceFor: (product: Product, lineUnit: string) => number | null;
   unitWord: (sellingUnit: string) => string;
   addQtyId: string;
   action: SalesAction;
@@ -78,7 +79,11 @@ export function AddLineForm({
           value={unit}
           size="small"
           slotProps={{ select: { native: true } }}
-          onChange={(e) => setUnit(e.target.value)}
+          onChange={(e) => {
+            setUnit(e.target.value);
+            const p = products.find((x) => x.id === productId);
+            if (p) setPrice(priceInput(listPriceFor(p, e.target.value), priceScale));
+          }}
         >
           {SELLING_UNITS.map((u) =>
             <option key={u} value={u}>{t(`unit${u}`)}</option>)}
@@ -110,7 +115,8 @@ export function AddLineForm({
       {/* Keep the hint outside the grid so translations cannot overlap the input. */}
       {(() => {
         // Match the list-price snapshot AddOrderItemHandler would save.
-        const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
+        const shown = products.find((p) => p.id === productId);
+        const list = shown ? listPriceFor(shown, unit) : null;
         if (list === null) return null;
         const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
         if (!Number.isFinite(typed) || typed === list) return null;
