@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""PreToolUse hook for Claude Code and Codex: blocks agent git commands that take
-a merge away from the maintainer or rewrite main (AGENTS.md, "Git / PR workflow").
+"""Pre-command hook for Claude Code, Codex, Pi and Hermes: blocks agent git commands
+that take a merge away from the maintainer or rewrite main (AGENTS.md, "Git / PR workflow").
 
-Both harnesses send one JSON object on stdin with the shell string in
-`tool_input.command` and the session directory in `cwd`; both block the call on
-exit 2 and show stderr to the agent.
+Every harness sends one JSON object on stdin with the shell string in
+`tool_input.command` and a directory in `cwd`, and blocks the call on exit 2 with
+stderr shown to the agent. The shell tool's name differs: `Bash` (Claude Code,
+Codex), `bash` (`.pi/extensions/git-guard.ts`), `terminal` (Hermes, through
+`.hermes/plugins/git-guard`). Hermes may add `tool_input.workdir`, the
+directory that one command runs in, and the plugin adds `unchecked` when it
+cannot say which repository the terminal runs in; a git write or merge is then
+refused. Hermes's `process_manage` write/submit input is shell input to a running
+process: it gets the same check with no known directory. Tools whose text this
+guard cannot parse (Hermes `execute_code`, Pi `powershell`) are refused outright.
 
 A command that mentions a git write (`git push`, `git commit`) or a PR merge must
 be one simple command, optionally after `cd <dir> &&`. Anything else is refused
@@ -26,6 +33,12 @@ import sys
 import urllib.parse
 
 MAIN = "main"
+SHELL_TOOLS = {"Bash", "bash", "terminal"}  # Claude Code and Codex, the Pi extension, Hermes
+# Tools that run text this guard cannot parse are refused outright, naming the checked tool to use.
+REFUSED_TOOLS = {
+    "execute_code": "use the terminal tool for shell and git commands; git-guard cannot check Python code.",
+    "powershell": "use the bash tool; git-guard cannot check PowerShell.",
+}
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 GIT_FALSE = {"false", "no", "off", "0", ""}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
@@ -135,14 +148,16 @@ def cd_dir(base, operand, shown):
     if operand.startswith(("-", "~")) or searched:
         raise Blocked(f"`{shown}` is blocked: where `cd {operand}` lands depends on the shell (an option, `~` or "
                       "CDPATH). Use `cd /absolute/path &&` or `cd ./relative/path &&`.")
-    return os.path.normpath(os.path.join(base, operand))
+    if base is None and not operand.startswith("/"):
+        return None  # process input: the running shell's directory is unknown
+    return os.path.normpath(os.path.join(base or "/", operand))
 
 
 class Repo:
     """Read-only git lookups in the directory the command runs in; a failed lookup blocks."""
 
     def __init__(self, cwd, options, shown):
-        if not os.path.isdir(cwd):
+        if not cwd or not os.path.isdir(cwd):
             raise Blocked(f"`{shown}` is blocked: git-guard cannot find the directory it runs in. "
                           "Run it from an existing directory, or with `cd <absolute dir> &&`.")
         self.cwd, self.options, self.shown = cwd, options, shown
@@ -335,9 +350,12 @@ def mentions_write(command):
     return MENTIONS_WRITE.search(plain) or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain))
 
 
-def check(command, cwd):
+def check(command, cwd, unchecked=None):
     if not mentions_write(command):
         return
+    if unchecked:
+        raise Blocked(f"this terminal call mentions, or could spell, a git write or PR merge, and {unchecked}. "
+                      "Run the git command on the local backend with an absolute `workdir`.")
     argv, cwd = simple_command(command, cwd)
     program = os.path.basename(argv[0])
     shown = " ".join(argv)
@@ -350,24 +368,42 @@ def check(command, cwd):
 
 
 def read_payload(text):
-    """(command, cwd) from a Bash PreToolUse payload, or None for another tool."""
+    """(command, cwd, unchecked) for check(), or None for a tool that runs nothing.
+
+    cwd is None for process input; unchecked is the plugin's reason it cannot name the repository."""
     payload = json.loads(text)
     tool = payload.get("tool_name", "Bash")
     if not isinstance(tool, str) or not tool:
         raise ValueError("tool_name is not a non-empty string")
-    if tool != "Bash":
+    if tool in REFUSED_TOOLS:
+        raise Blocked(f"the {tool} tool is blocked in this repository: {REFUSED_TOOLS[tool]}")
+    if tool not in SHELL_TOOLS and tool != "process_manage":
         return None
     tool_input = payload.get("tool_input")
-    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if not isinstance(tool_input, dict):
+        raise ValueError("tool_input is not an object")
+    if tool == "process_manage":  # only write and submit carry data
+        command = tool_input.get("data", "")  # Hermes sends Enter alone when data is absent
+        if not isinstance(command, str):
+            raise ValueError("tool_input.data is not a string")
+        return command, None, None
+    command = tool_input.get("command")
     cwd = payload.get("cwd")
     if not isinstance(command, str) or not isinstance(cwd, str) or not cwd:
         raise ValueError("tool_input.command or cwd is missing, empty or not a string")
-    return command, cwd
+    workdir = tool_input.get("workdir") if tool == "terminal" else None
+    if workdir is not None and (not isinstance(workdir, str) or not workdir):
+        raise ValueError("tool_input.workdir is empty or not a string")
+    unchecked = payload.get("unchecked") if tool == "terminal" else None
+    return command, os.path.join(cwd, workdir) if workdir else cwd, unchecked
 
 
 def main():
     try:
         request = read_payload(sys.stdin.read())
+    except Blocked as reason:
+        print(f"git-guard: {reason}", file=sys.stderr)
+        return 2
     except Exception as error:
         print(f"git-guard: unreadable Bash hook payload ({type(error).__name__}: {str(error)[:200]}). "
               "The harness payload format may have changed; fix tools/agent-guard/git_guard.py.", file=sys.stderr)

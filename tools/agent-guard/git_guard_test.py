@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Table test for git_guard.py, fed through stdin in both harness payload shapes.
+"""Table test for git_guard.py, fed through stdin in each harness's payload shape.
 
 Run: python3 tools/agent-guard/git_guard_test.py
 """
+import importlib.util
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 
 GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git_guard.py")
+ROOT = os.getcwd()
+HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plugins", "git-guard", "__init__.py")
 
 # (command, directory the session runs in, expected verdict). Fixtures:
 #   main      repo on main
@@ -214,10 +218,17 @@ def payload(harness, command, cwd):
         return {"session_id": "s", "transcript_path": "/t.jsonl", "cwd": cwd, "permission_mode": "default",
                 "hook_event_name": "PreToolUse", "tool_name": "Bash",
                 "tool_input": {"command": command, "description": "d"}, "tool_use_id": "toolu_1"}
-    # Codex: codex-rs hook_runtime.rs PreToolUseRequest; exec_command sends only {"command"}
-    return {"session_id": "s", "turn_id": "t", "cwd": cwd, "transcript_path": None, "model": "m",
-            "permission_mode": "default", "hook_event_name": "PreToolUse", "tool_name": "Bash",
-            "tool_use_id": "call_1", "tool_input": {"command": command}}
+    if harness == "codex":  # codex-rs hook_runtime.rs PreToolUseRequest; exec_command sends only {"command"}
+        return {"session_id": "s", "turn_id": "t", "cwd": cwd, "transcript_path": None, "model": "m",
+                "permission_mode": "default", "hook_event_name": "PreToolUse", "tool_name": "Bash",
+                "tool_use_id": "call_1", "tool_input": {"command": command}}
+    if harness == "pi":  # .pi/extensions/git-guard.ts: Pi's bash tool_call input and ctx.cwd
+        return {"tool_name": "bash", "tool_input": {"command": command, "timeout": 120}, "cwd": cwd}
+    # Hermes: .hermes/plugins/git-guard, shaped like Hermes's own shell-hook payload (agent/shell_hooks.py)
+    return {"hook_event_name": "pre_tool_call", "tool_name": "terminal", "tool_input": {"command": command}, "cwd": cwd}
+
+
+HARNESSES = ("claude", "codex", "pi", "hermes")
 
 
 def run_guard(body):
@@ -276,7 +287,7 @@ class GitGuardTest(unittest.TestCase):
 
     def test_table(self):
         counts = {}
-        for harness in ("claude", "codex"):
+        for harness in HARNESSES:
             for command, where, expected in CASES:
                 code, stderr = run_guard(json.dumps(payload(harness, command, self.dirs[where])))
                 verdict = {0: "allow", 2: "block"}.get(code, f"exit {code}")
@@ -286,7 +297,7 @@ class GitGuardTest(unittest.TestCase):
                     self.assertEqual(verdict, expected, stderr)
                     if expected == "block":
                         self.assertIn("git-guard:", stderr)
-        print(f"{len(CASES)} commands x 2 payload shapes: {counts}")
+        print(f"{len(CASES)} commands x {len(HARNESSES)} payload shapes: {counts}")
 
     def test_malformed_bash_payload_blocks(self):
         for body in MALFORMED:
@@ -296,8 +307,123 @@ class GitGuardTest(unittest.TestCase):
                 self.assertIn("unreadable Bash hook payload", stderr)
 
     def test_other_tools_pass(self):
-        code, _ = run_guard(json.dumps({"tool_name": "Read", "tool_input": {"file_path": "/x"}}))
-        self.assertEqual(code, 0)
+        for name in ("Read", "read_file"):
+            code, _ = run_guard(json.dumps({"tool_name": name, "tool_input": {"command": "git push --force"}}))
+            self.assertEqual(code, 0, name)
+
+    def test_execute_code_and_powershell_are_refused(self):
+        for tool, tool_input, hint in (("execute_code", {"code": "print(1)"}, "use the terminal tool"),
+                                       ("powershell", {"command": "Get-ChildItem"}, "use the bash tool")):
+            code, stderr = run_guard(json.dumps({"tool_name": tool, "tool_input": tool_input}))
+            self.assertEqual(code, 2, tool)
+            self.assertIn(hint, stderr)
+
+    def test_process_input_gets_the_shell_check_without_a_directory(self):
+        feature = self.dirs["feature"]
+        for tool_input, expected in (
+            ({"action": "submit", "session_id": "p1", "data": "gh pr merge 1175"}, 2),
+            ({"action": "write", "session_id": "p1", "data": "git push origin HEAD:main\n"}, 2),
+            ({"action": "submit", "session_id": "p1", "data": "git commit -m x"}, 2),  # the shell's directory is unknown
+            ({"action": "submit", "session_id": "p1", "data": f"cd {feature} && git commit -m x"}, 0),
+            ({"action": "submit", "session_id": "p1", "data": f"cd {feature[1:]} && git commit -m x"}, 2),  # relative
+            ({"action": "submit", "session_id": "p1", "data": 'echo "git commit"'}, 0),
+            ({"action": "submit", "session_id": "p1", "data": "ls"}, 0),
+            ({"action": "submit", "session_id": "p1"}, 0),  # Enter alone: Hermes defaults data to ""
+            ({"action": "submit", "session_id": "p1", "data": ""}, 0),
+            ({"action": "submit", "session_id": "p1", "data": 3}, 2),
+            ({"action": "kill", "session_id": "p1"}, 0),
+        ):
+            code, stderr = run_guard(json.dumps({"tool_name": "process_manage", "tool_input": tool_input}))
+            self.assertEqual(code, expected, f"{tool_input}: {stderr}")
+            if "git commit" in str(tool_input.get("data")) and expected == 2:
+                self.assertIn("cannot find the directory it runs in", stderr)
+
+    def test_hermes_workdir_picks_the_repo(self):
+        for workdir, expected in ((self.dirs["main"], 2), (self.dirs["feature"], 0), ("", 2), (3, 2)):
+            body = {**payload("hermes", "git commit -m x", self.dirs["plain"])}
+            body["tool_input"] = {**body["tool_input"], "workdir": workdir}
+            code, stderr = run_guard(json.dumps(body))
+            self.assertEqual(code, expected, f"workdir={workdir!r}: {stderr}")
+
+    def hermes_hook(self, terminal=None):
+        """The plugin's pre_tool_call callback. terminal stands in for Hermes's tools.terminal_tool and
+        tools.approval: cwd (terminal.cwd), backend, records (session key -> cwd), override, context_key."""
+        saved = {name: sys.modules.pop(name, None) for name in ("tools", "tools.terminal_tool", "tools.approval")}
+
+        def restore():
+            for name, module in saved.items():
+                sys.modules.pop(name, None)
+                if module:
+                    sys.modules[name] = module
+        self.addCleanup(restore)
+        if terminal:
+            records = terminal.get("records", {})
+            sys.modules["tools"] = types.ModuleType("tools")
+            sys.modules["tools.terminal_tool"] = tool = types.ModuleType("tools.terminal_tool")
+            tool._get_env_config = lambda: {"env_type": terminal.get("backend", "local"), "cwd": terminal["cwd"]}
+            tool.get_session_cwd = lambda key: records.get(key or "default")
+            tool.resolve_task_overrides = lambda task_id: {"cwd": terminal["override"]} if "override" in terminal else {}
+            sys.modules["tools.approval"] = approval = types.ModuleType("tools.approval")
+            approval.get_current_session_key = lambda default="default": terminal.get("context_key", default)
+        spec = importlib.util.spec_from_file_location("git_guard_hermes", HERMES_PLUGIN)
+        plugin = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plugin)
+        hooks = {}
+        plugin.register(type("Ctx", (), {"register_hook": lambda self, name, fn: hooks.__setitem__(name, fn)})())
+        return hooks["pre_tool_call"]
+
+    def assert_hook(self, hook, args, expected, tool="terminal"):
+        result = hook(tool_name=tool, args=args, task_id="t1")
+        if expected == "block":
+            self.assertEqual((result or {}).get("action"), "block", args)
+            self.assertIn("git-guard:", result["message"])
+        else:
+            self.assertIsNone(result, args)
+        return result
+
+    def test_hermes_plugin_routes_each_tool(self):
+        hook = self.hermes_hook({"cwd": self.dirs["feature"]})
+        self.assert_hook(hook, {"command": "gh pr merge 1"}, "block")
+        self.assert_hook(hook, {"command": "git commit -m x"}, "allow")
+        self.assert_hook(hook, {"command": "git commit -m x", "workdir": self.dirs["main"]}, "block")
+        self.assert_hook(hook, {"command": "git commit -m x", "workdir": self.dirs["feature"]}, "allow")
+        self.assert_hook(hook, {"path": "x"}, "allow", tool="read_file")
+        self.assert_hook(hook, {"code": "print(1)"}, "block", tool="execute_code")
+        self.assert_hook(hook, {"action": "submit", "session_id": "p1", "data": "gh pr merge 1"}, "block", "process_manage")
+        self.assert_hook(hook, {"action": "submit", "session_id": "p1"}, "allow", tool="process_manage")
+
+    def test_hermes_first_call_uses_the_configured_terminal_cwd(self):
+        os.chdir(self.dirs["feature"])  # the Hermes process runs from a feature checkout ...
+        self.addCleanup(os.chdir, ROOT)
+        hook = self.hermes_hook({"cwd": self.dirs["main"]})  # ... but terminal.cwd points at main
+        self.assert_hook(hook, {"command": "git commit -m x"}, "block")
+
+    def test_hermes_session_record_wins_over_the_task_override(self):
+        # Review round 2: an ACP workspace override on a feature branch, then `cd <main checkout>`.
+        moved = {"cwd": self.dirs["plain"], "override": self.dirs["feature"], "records": {"t1": self.dirs["main"]}}
+        self.assert_hook(self.hermes_hook(moved), {"command": "git commit -m x"}, "block")
+        stayed = {"cwd": self.dirs["plain"], "override": self.dirs["main"], "records": {"t1": self.dirs["feature"]}}
+        self.assert_hook(self.hermes_hook(stayed), {"command": "git commit -m x"}, "allow")
+
+    def test_hermes_refuses_writes_whose_directory_is_unclear(self):
+        # Review round 2: the session sits on a feature branch while an explicit-workdir call moved the cached
+        # environment to main, so a relative workdir resolves under main.
+        session = {"cwd": self.dirs["plain"], "records": {"t1": self.dirs["feature"]}}
+        relative = self.assert_hook(self.hermes_hook(session), {"command": "git commit -m x", "workdir": "sub"}, "block")
+        self.assertIn("relative `workdir`", relative["message"])
+        self.assert_hook(self.hermes_hook(session), {"command": "ls", "workdir": "sub"}, "allow")
+        # A session contextvar whose record differs from the task's.
+        split = {"cwd": self.dirs["plain"], "context_key": "s9", "records": {"s9": self.dirs["main"], "t1": self.dirs["feature"]}}
+        self.assertIn("ambiguous", self.assert_hook(self.hermes_hook(split), {"command": "git commit -m x"}, "block")["message"])
+        same = {"cwd": self.dirs["plain"], "context_key": "s9", "records": {"s9": self.dirs["feature"], "t1": self.dirs["feature"]}}
+        self.assert_hook(self.hermes_hook(same), {"command": "git commit -m x"}, "allow")
+
+    def test_hermes_refuses_writes_it_cannot_check(self):
+        for terminal, reason in (({"cwd": self.dirs["feature"], "backend": "docker"}, "docker backend"),
+                                 (None, "could not read Hermes's terminal settings")):
+            hook = self.hermes_hook(terminal)
+            self.assertIn(reason, self.assert_hook(hook, {"command": "git commit -m x"}, "block")["message"])
+            self.assert_hook(hook, {"command": "ls -la"}, "allow")
 
     def test_cdpath_makes_a_bare_cd_operand_ambiguous(self):
         env = {**os.environ, "CDPATH": self.tmp.name}
