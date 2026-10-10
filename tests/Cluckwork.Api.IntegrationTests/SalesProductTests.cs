@@ -27,14 +27,14 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
     private async Task<(HttpClient Client, Guid AccountId, Guid FarmId, Dictionary<string, Guid> Grades, Guid ProductId)>
-        SetupAsync(long? defaultPrice = 100)
+        SetupAsync(long? defaultPrice = 100, ProductUnit unit = ProductUnit.Egg)
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var farmId = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large", "Medium");
         var productId = await factory.SeedProductAsync(
-            accountId, farmId, grades["Large"], "Large Eggs", defaultPrice);
+            accountId, farmId, grades["Large"], "Large Eggs", defaultPrice, unit);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
         return (client, accountId, farmId, grades, productId);
     }
@@ -483,22 +483,14 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(100, order!.Items.Single().ListUnitPriceMinorUnits);
     }
 
-    // #1160 — the product's default price is per its own selling unit; a line
-    // in another unit defaults to, and snapshots as its list price, that price
-    // scaled by the two eggs-per-unit factors.
+    // #1160 — the default and list price scale to the line's unit.
     [Theory]
     [InlineData(ProductUnit.Egg, 45L, "Tray", 1_350L)]
     [InlineData(ProductUnit.Tray, 1_350L, "Egg", 45L)]
     public async Task AddLine_InAnotherUnit_ScalesTheDefaultAndListPrice(
         ProductUnit productUnit, long productPrice, string lineUnit, long expected)
     {
-        var email = $"u-{Guid.NewGuid():N}@test.local";
-        var accountId = await factory.SeedAccountWithUserAsync(email);
-        var farmId = Guid.NewGuid();
-        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
-        var productId = await factory.SeedProductAsync(
-            accountId, farmId, grades["Large"], "Large Eggs", productPrice, productUnit);
-        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var (client, _, _, _, productId) = await SetupAsync(productPrice, productUnit);
         var orderId = await CreateDraftAsync(client);
 
         Assert.Equal(HttpStatusCode.Created,
