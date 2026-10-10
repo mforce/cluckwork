@@ -194,9 +194,10 @@ export function SalesPage() {
     if (customerFilterStale && !orders.reloading) setCustomerFilterStale(false);
   }, [customerFilterStale, orders.reloading, setCustomerFilterStale]);
 
-  // An effect event, so the price prefill reads the farm's scale when the setup
-  // read lands. A mount-time capture missed a farm that arrived in between (a
-  // cold load renders before /account answers) and left the price blank.
+  // An effect event, so the price prefill uses the farm scale available when the
+  // setup read settles. A mount-time capture missed a farm that arrived in
+  // between (a failed first /account read recovered by the shell's retry
+  // banner) and left the price blank.
   const applySetupRead = useEffectEvent((c: Customer[], p: Product[], g: EggGrade[]) => {
     setCustomers(c);
     setAllProducts(p);

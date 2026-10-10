@@ -1645,9 +1645,10 @@ describe("SalesPage price scale", () => {
     expect(screen.getByLabelText(/Unit price/)).toHaveValue(null);
   });
 
-  // On a cold load the shell renders before /account answers, so the farm can
-  // arrive between mount and the setup read landing. The prefill must use the
-  // scale known when the read lands, and the farm arriving must not refetch.
+  // The shell holds its children until the account loads, but a failed first
+  // /account read recovered by the retry banner can deliver the farm between
+  // mount and the setup read settling. The prefill must use the scale known
+  // when the read settles, and the farm arriving must not refetch.
   it("prefills at the farm's scale when the farm arrives while the setup read is in flight", async () => {
     let releaseProducts!: (products: Product[]) => void;
     mockListProducts.mockReturnValue(new Promise<Product[]>((r) => { releaseProducts = r; }));
