@@ -78,12 +78,15 @@ public sealed class SpellingScannerRatchetTests
             ("P", "Alias.cs", "using T = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree;\nclass Alias { object M() => T.ParseText(\"\"); }"),
             ("P", "Static.cs", "using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;\nclass Static { object M() => ParseCompilationUnit(\"\"); }"),
             ("P", "Nested.cs", header + "namespace N { class Outer { class Inner { System.Func<string, object> F = s => CSharpSyntaxTree.ParseText(s); } } }"),
-            ("P", "Bound.cs", header + "class Bound { object M() => CSharpCompilation.Create(\"x\", [CSharpSyntaxTree.ParseText(\"\")]); }"),
+            ("P", "Bound.cs", header + "class Bound { object? M() { var t = CSharpSyntaxTree.ParseText(\"\"); " +
+                "return CSharpCompilation.Create(\"x\", [t]).GetSemanticModel(t).GetDeclaredSymbol(t.GetRoot()); } }"),
+            ("P", "CompilationParameter.cs", header + "class CompilationParameter { object M(CSharpCompilation existing, string s) => " +
+                "CSharpSyntaxTree.ParseText(s, (CSharpParseOptions)existing.SyntaxTrees.First().Options); }"),
             ("P", "Helper.cs", header + "class Helper { object M(Microsoft.CodeAnalysis.Compilation c) => c.GetSemanticModel(CSharpSyntaxTree.ParseText(\"\")); }"),
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
             ("P", "HelperOwner.cs", header + "static class HelperOwner { internal static Microsoft.CodeAnalysis.SyntaxTree Tree(string s) => CSharpSyntaxTree.ParseText(s); " +
                 "internal static Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax Root(string s) => SyntaxFactory.ParseCompilationUnit(s); " +
-                "internal static object Bind(Microsoft.CodeAnalysis.Compilation c, Microsoft.CodeAnalysis.SyntaxTree t) => c.GetSemanticModel(t); }"),
+                "internal static object? Bind(Microsoft.CodeAnalysis.Compilation c, Microsoft.CodeAnalysis.SyntaxTree t) => c.GetSemanticModel(t).GetDeclaredSymbol(t.GetRoot()); }"),
             ("P", "Reuse.cs", "class Reuse { object M() => HelperOwner.Tree(\"\").GetRoot(); }"),
             ("P", "ReuseNode.cs", "class ReuseNode { object M() => HelperOwner.Root(\"\"); }"),
             ("P", "Group.cs", "class Group { object M(string[] s) => s.Select(HelperOwner.Tree).ToList(); }"),
@@ -91,7 +94,7 @@ public sealed class SpellingScannerRatchetTests
             ("Q", "ProjectUsing.cs", "class ProjectUsing { object M() => SyntaxFactory.ParseExpression(\"x\"); }"),
         ], project => project == "Q" ? "global using Microsoft.CodeAnalysis.CSharp;" : "");
 
-        Assert.Equal(["Alias", "Direct", "Group", "N.Outer", "ProjectUsing", "Reuse", "ReuseNode", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["Alias", "CompilationParameter", "Direct", "Group", "N.Outer", "ProjectUsing", "Reuse", "ReuseNode", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -140,17 +143,15 @@ public sealed class SpellingScannerRatchetTests
                     var info = model.GetSymbolInfo(call);
                     var symbol = info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
                     var text = (call as MemberAccessExpressionSyntax)?.Name.Identifier.ValueText ?? (call as SimpleNameSyntax)?.Identifier.ValueText;
-                    if ((symbol is IMethodSymbol method ? IsParser(method) : symbol is null && text is not null && UnresolvedParse.Contains(text))
-                        && OutermostType(model, node) is { } owner)
-                        parsers.TryAdd(owner, tree.FilePath);
-                }
-                foreach (var name in tree.GetRoot().DescendantNodes().OfType<SimpleNameSyntax>())
-                {
-                    if (name.Identifier.ValueText is not ("Create" or "CSharpCompilation" or "GetSemanticModel" or "SemanticModel"))
-                        continue;
-                    var info = model.GetSymbolInfo(name);
-                    if (BindsSymbols(info.Symbol ?? info.CandidateSymbols.FirstOrDefault()) && OutermostType(model, name) is { } owner)
+                    if (symbol is IMethodSymbol method ? IsParser(method) : symbol is null && text is not null && UnresolvedParse.Contains(text))
+                    {
+                        if (OutermostType(model, node) is { } owner)
+                            parsers.TryAdd(owner, tree.FilePath);
+                    }
+                    else if (symbol is IMethodSymbol binding && BindsSymbols(binding) && OutermostType(model, node) is { } owner)
+                    {
                         bound.Add(owner);
+                    }
                 }
             }
 
@@ -193,9 +194,14 @@ public sealed class SpellingScannerRatchetTests
         return false;
     }
 
-    private static bool BindsSymbols(ISymbol? symbol) =>
-        (symbol as INamedTypeSymbol ?? symbol?.ContainingType)?.ToDisplayString() is
-            "Microsoft.CodeAnalysis.CSharp.CSharpCompilation" or "Microsoft.CodeAnalysis.Compilation" or "Microsoft.CodeAnalysis.SemanticModel";
+    // A call, not a mention: creating a compilation, asking it for a model, or querying the model.
+    private static bool BindsSymbols(IMethodSymbol method) =>
+        method.ContainingType.ToDisplayString() switch
+        {
+            "Microsoft.CodeAnalysis.CSharp.CSharpCompilation" => method.Name == "Create",
+            "Microsoft.CodeAnalysis.Compilation" => method.Name == "GetSemanticModel",
+            _ => DerivesFrom(method.ContainingType, "Microsoft.CodeAnalysis.SemanticModel"),
+        };
 
     private static INamedTypeSymbol? OutermostType(SemanticModel model, SyntaxNode node)
     {
