@@ -40,6 +40,9 @@ var api = builder.AddProject<Projects.Cluckwork_Api>("api")
     .WaitFor(redis)
     .WithHttpHealthCheck("/health/live")
     .WithHttpHealthCheck("/health/ready");
+// OAuth discovery advertises endpoints under the issuer, so it follows the port
+// `LocalPorts:Api` chose instead of appsettings.Development.json's 8080.
+api.WithEnvironment("OAuth__Issuer", api.GetEndpoint("http"));
 
 // AddViteApp takes no port argument, so the endpoint it already declared is
 // mutated in place rather than a second one being added.

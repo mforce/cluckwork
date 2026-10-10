@@ -53,12 +53,18 @@ describe("the expanded chart's slot geometry (#941)", () => {
     expect(phone).not.toBe(value(".bigstrip", "--gap"));
   });
 
-  it("packs the days to the right, so the newest sits at the edge whatever the range", () => {
-    // The owner's rule, 2026-09-24: bars are never stretched, and a range too
-    // short to fill the region leaves its empty space before the OLDEST day.
-    expect(bodyOf(".bigstrip")).toMatch(/justify-content:\s*flex-end/);
-    expect(bodyOf(".bigstrip")).toMatch(/width:\s*max-content/);
-    expect(bodyOf(".datebar")).toMatch(/justify-content:\s*flex-end/);
+  // #1161 (maintainer, 2026-10-10): a range that fits stretches to fill the
+  // plot; one that does not keeps the fixed slot the window arithmetic uses.
+  it("holds the fixed slot while scrolling, and stretches both rows when the range fits", () => {
+    expect(value(".bigstrip .day", "flex")).toBe("0 0 var(--slot)");
+    expect(value(".datebar > span", "flex")).toBe("0 0 var(--slot)");
+    expect(value(".lay-expand-scroll.is-fit .bigstrip, .lay-expand-scroll.is-fit .datebar", "width")).toBe("100%");
+    expect(value(".lay-expand-scroll.is-fit .bigstrip .day, .lay-expand-scroll.is-fit .datebar > span", "flex"))
+      .toBe("1 1 0");
+  });
+
+  it("caps a stretched bar, so a two-day range does not draw two slabs", () => {
+    expect(value(".lay-expand-scroll.is-fit .day > i", "max-width")).toBe("40px");
   });
 
   it("keeps the date rule's end label out of the region's scrollable width", () => {
