@@ -10,9 +10,11 @@ links there rather than restating rationale.
 git config core.hooksPath .githooks
 ```
 
-Enables two fast hooks: **pre-commit** (unit tests for staged .NET changes,
-`npm run typecheck` for staged `web/` changes) and **commit-msg** (rejects a
-message release-please would silently drop from the changelog). Integration tests
+Enables three hooks: **pre-commit** (refuses a commit on `main`, then runs unit
+tests for staged .NET changes and `npm run typecheck` for staged `web/` changes),
+**commit-msg** (rejects a message release-please would silently drop from the
+changelog) and **pre-push** (refuses a push to `main`, a force push, and a push
+under another branch name). Integration tests
 are deliberately excluded — Docker, slow; CI is the authority. Skip once with
 `--no-verify`.
 

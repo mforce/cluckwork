@@ -93,6 +93,8 @@ jobs:
       # Node and the runner's Python 3, no toolchain setup needed.
       - name: Run the classifier self-tests
         run: node --test .github/scripts/changed-paths.test.mjs
+      - name: Run the git hooks table test
+        run: python3 tools/agent-guard/git_hooks_test.py
       - name: Run the image-scan issue logic self-tests
         run: node --test .github/scripts/image-scan-issues.test.mjs
       - name: Run the release-line decision self-tests
