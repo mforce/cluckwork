@@ -55,6 +55,7 @@ export const tl = {
   auth: {
     loginNextHeading: "Susunod: aprubahan ang {{app}}",
     loginNextHeadingUnnamed: "Susunod: aprubahan ang isang app",
+    loginNextHeadingVerified: "Susunod: aprubahan ang {{app}} mula sa {{domain}}",
     loginNextBody: "Pagkatapos mong mag-sign in, makikita mo ang hinihingi nito at pipiliin mo kung papayagan ito.",
     title: "Cluckwork",
     shellEyebrow: "Pamamahala ng poultry farm",
@@ -117,6 +118,7 @@ export const tl = {
     reconnectBody: "Pinayagan mo na ito dati. Ilagay ang password mo para kumpirmahing ikaw ito.",
     unnamedApp: "Isang app na walang pangalan",
     unverified: "Hindi beripikadong app",
+    verifiedDomain: "Beripikadong domain: {{domain}}",
     signedInAs: "Naka-sign in bilang",
     returnsHere: "Babalik sa computer na ito",
     returnsTo: "Babalik sa {{host}}",
@@ -144,8 +146,10 @@ export const tl = {
     detailsWriteSome: "Makakapagtala lang ito ng araw-araw na tala para sa mga flock na naka-assign sa iyo: {{flocks}}.",
     detailsWriteBlocked: "Hinihingi nitong magtala ng araw-araw na tala, pero hindi ito kaya ng role mo ({{role}}), kaya hindi rin ito makakapagtala.",
     detailsName: "Ang {{app}} ang pumili ng sarili nitong pangalan. Hindi ito sinusuri ng Cluckwork, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
+    detailsNameVerified: "Mismong ang Cluckwork ang kumuha ng mga detalye ng app na ito mula sa {{url}}, kaya galing ang mga ito sa may hawak ng address na iyon sa {{domain}}. Pero ang {{app}} pa rin ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
     detailsReturnHere: "Pagkatapos, babalik ang browser mo sa {{host}}, isang address sa computer na ito.",
     detailsReturnTo: "Pagkatapos, pupunta ang browser mo sa {{host}}.",
+    detailsLoopbackVerified: "Hindi masisiguro ng {{domain}} kung aling programa sa computer na ito ang tatanggap nito.",
     detailsScopes: "Saklaw ng pagbasa ang mga flock, stock, araw-araw na tala, customer, order at bayad.",
     notYou: "Hindi ikaw? Mag-sign out",
     refusedTitle: "Walang dapat aprubahan",
@@ -3422,7 +3426,10 @@ export const tl = {
     glossaryAppConsentDef:
       "Pag-apruba sa isang panlabas na app, gaya ng AI assistant, na kumilos bilang ikaw. Makikita mo ang hinihingi "
       + "nito at papayagan mo ito gamit ang kasalukuyan mong password; hindi ito makakagawa ng higit sa role mo. Ang "
-      + "app na pinayagan na ay password lang ang hihingin kapag kumonekta ulit.",
+      + "app na pinayagan na ay password lang ang hihingin kapag kumonekta ulit. Kapag nakuha ng Cluckwork ang mga "
+      + "detalye ng app mula sa sarili nitong website, ipinapakita ng screen ang <strong>Beripikadong domain</strong> "
+      + "at ang address ng website na iyon; kung hindi, <strong>Hindi beripikadong app</strong> ang nakasulat. Alinman "
+      + "dito, ang app ang pumili ng sarili nitong pangalan.",
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "

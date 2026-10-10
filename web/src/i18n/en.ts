@@ -84,6 +84,7 @@ export const en = {
   auth: {
     loginNextHeading: "Next: approve {{app}}",
     loginNextHeadingUnnamed: "Next: approve an app",
+    loginNextHeadingVerified: "Next: approve {{app}} from {{domain}}",
     loginNextBody: "After you sign in, you see what it asks for and choose whether to allow it.",
     title: "Cluckwork",
     shellEyebrow: "Poultry farm management",
@@ -167,6 +168,7 @@ export const en = {
     reconnectBody: "You allowed it before. Enter your password to confirm it's you.",
     unnamedApp: "An unnamed app",
     unverified: "Unverified app",
+    verifiedDomain: "Verified domain: {{domain}}",
     signedInAs: "Signed in as",
     returnsHere: "Returns to this computer",
     returnsTo: "Returns to {{host}}",
@@ -194,8 +196,10 @@ export const en = {
     detailsWriteSome: "It can record daily entries only for the flocks assigned to you: {{flocks}}.",
     detailsWriteBlocked: "It asks to record daily entries, but your role ({{role}}) cannot, so it cannot either.",
     detailsName: "{{app}} chose its own name. Cluckwork does not check it, so allow it only if you just started connecting {{app}}.",
+    detailsNameVerified: "Cluckwork fetched this app's details itself from {{url}}, so they come from whoever controls that address on {{domain}}. The name {{app}} is still the app's own choice, so allow it only if you just started connecting {{app}}.",
     detailsReturnHere: "Afterwards your browser goes back to {{host}}, an address on this computer.",
     detailsReturnTo: "Afterwards your browser goes to {{host}}.",
+    detailsLoopbackVerified: "{{domain}} cannot vouch for which program on this computer receives it.",
     detailsScopes: "Reading covers flocks, stock, daily entries, customers, orders and payments.",
     notYou: "Not you? Sign out",
     refusedTitle: "Nothing to approve",
@@ -3990,7 +3994,9 @@ export const en = {
     glossaryAppConsentDef:
       "Approving an outside app, such as an AI assistant, to act as you. You see what it asks for and allow it with "
       + "your current password; it can never do more than your role. An app already allowed asks only for the "
-      + "password when it connects again.",
+      + "password when it connects again. When Cluckwork could fetch the app's details from its own website, the "
+      + "screen shows <strong>Verified domain</strong> and that website's address; otherwise it says "
+      + "<strong>Unverified app</strong>. Either way the app chose its own name.",
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "

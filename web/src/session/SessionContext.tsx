@@ -20,14 +20,11 @@ const SPLASH_SHOWN_KEY = "cluckwork.splashShown";
 // marking the app authenticated, so "once per login" is actually per login,
 // not per tab lifetime; a silent token refresh (same session, not a new
 // login) deliberately does NOT call this.
-// eslint-disable-next-line react-refresh/only-export-components
 export function clearSplashSeenMarker(): void {
   sessionStorage.removeItem(SPLASH_SHOWN_KEY);
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const MeContext = createContext<Me | null>(null);
-// eslint-disable-next-line react-refresh/only-export-components
 export function useMe(): Me | null {
   return useContext(MeContext);
 }
@@ -38,9 +35,7 @@ export function useMe(): Me | null {
 // useMe() by DailyEntryPage — without a way to update the context, a change
 // on the Account screen would not apply until the next login. A no-op default
 // so the selector stays renderable (and testable) outside SessionProvider.
-// eslint-disable-next-line react-refresh/only-export-components
 export const MeUpdateContext = createContext<(patch: Partial<Me>) => void>(() => {});
-// eslint-disable-next-line react-refresh/only-export-components
 export function useMeUpdate(): (patch: Partial<Me>) => void {
   return useContext(MeUpdateContext);
 }

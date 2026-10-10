@@ -49,6 +49,7 @@ export const es = {
   auth: {
     loginNextHeading: "Siguiente: aprobar {{app}}",
     loginNextHeadingUnnamed: "Siguiente: aprobar una aplicación",
+    loginNextHeadingVerified: "Siguiente: aprobar {{app}} de {{domain}}",
     loginNextBody: "Después de iniciar sesión, verás lo que pide y decidirás si lo permites.",
     title: "Cluckwork",
     shellEyebrow: "Gestión de granjas avícolas",
@@ -111,6 +112,7 @@ export const es = {
     reconnectBody: "Ya la permitiste antes. Escribe tu contraseña para confirmar que eres tú.",
     unnamedApp: "Una aplicación sin nombre",
     unverified: "Aplicación no verificada",
+    verifiedDomain: "Dominio verificado: {{domain}}",
     signedInAs: "Sesión iniciada como",
     returnsHere: "Vuelve a este equipo",
     returnsTo: "Vuelve a {{host}}",
@@ -138,8 +140,10 @@ export const es = {
     detailsWriteSome: "Solo puede anotar registros diarios de los lotes que tienes asignados: {{flocks}}.",
     detailsWriteBlocked: "Pide anotar registros diarios, pero tu rol ({{role}}) no puede, así que tampoco puede ella.",
     detailsName: "{{app}} eligió su propio nombre. Cluckwork no lo comprueba, así que permítela solo si acabas de empezar a conectar {{app}}.",
+    detailsNameVerified: "Cluckwork obtuvo los datos de esta aplicación directamente de {{url}}, así que vienen de quien controla esa dirección en {{domain}}. El nombre {{app}} sigue siendo elección de la aplicación, así que permítela solo si acabas de empezar a conectar {{app}}.",
     detailsReturnHere: "Después, tu navegador vuelve a {{host}}, una dirección de este equipo.",
     detailsReturnTo: "Después, tu navegador va a {{host}}.",
+    detailsLoopbackVerified: "{{domain}} no puede garantizar qué programa de este equipo la recibe.",
     detailsScopes: "Leer incluye lotes, existencias, registros diarios, clientes, pedidos y pagos.",
     notYou: "¿No eres tú? Cerrar sesión",
     refusedTitle: "No hay nada que aprobar",
@@ -3296,7 +3300,9 @@ export const es = {
     glossaryAppConsentDef:
       "Aprobar que una aplicación externa, como un asistente de IA, actúe como tú. Ves lo que pide y la permites con tu "
       + "contraseña actual; nunca puede hacer más que tu rol. Una aplicación ya permitida solo pide la contraseña "
-      + "cuando se conecta otra vez.",
+      + "cuando se conecta otra vez. Si Cluckwork pudo obtener los datos de la aplicación de su propio sitio web, la "
+      + "pantalla muestra <strong>Dominio verificado</strong> y la dirección de ese sitio; si no, dice "
+      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre.",
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "

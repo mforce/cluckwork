@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799 OAuth claim has a test that
+# tools/oauth/mutation-check.sh — proves each #795 to #799 and #1148 OAuth claim has a test that
 # fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -28,7 +28,10 @@ IDENTITY=src/Cluckwork.Api/Hosting/CluckworkIdentityServiceCollectionExtensions.
 TELEMETRY=src/Cluckwork.Api/Hosting/CluckworkTelemetryServiceCollectionExtensions.cs
 SERVER=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthServerRegistration.cs
 ENDPOINT=src/Cluckwork.Api/Modules/Access/OAuth/OAuthEndpoints.cs
-REGISTRATION=src/Cluckwork.Api/Modules/Access/OAuth/ClientRegistration.cs
+REGISTRATION=src/Cluckwork.Infrastructure/OAuth/ClientMetadata.cs
+FETCHER=src/Cluckwork.Infrastructure/OAuth/ClientMetadataFetcher.cs
+DOCUMENTS=src/Cluckwork.Infrastructure/OAuth/ClientMetadataDocuments.cs
+IDEMPOTENCY=src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs
 LIMITS=src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs
 PURGE=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthPurge.cs
 SWEEP=src/Cluckwork.Infrastructure/Jobs/OAuthPurgeSweep.cs
@@ -48,8 +51,8 @@ SWITCH_HANDLER=src/Cluckwork.Application/Modules/Farm/Accounts/SetConnectedApps/
 SWITCH_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193717_AddAccountAllowConnectedApps.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
-SUITE='FullyQualifiedName~OAuth'
-SUITE_MIN=115
+SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata'
+SUITE_MIN=272
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -58,7 +61,7 @@ production-issuer-optional#kill#IDENTITY#        if (environment.IsProduction())
 production-http-issuer#kill#IDENTITY# && uri.Scheme == Uri.UriSchemeHttps##OAuthServerProductionTests.Production_WithoutAnHttpsIssuer_RefusesToStart#No exception was thrown
 production-issuer-query#kill#IDENTITY#\n            && uri.Query.Length == 0 && uri.Fragment.Length == 0##OAuthServerProductionTests.Production_WithoutAnHttpsIssuer_RefusesToStart#No exception was thrown
 scope-permissions-enforced#kill#SERVER#                    .IgnoreScopePermissions()\n##OAuthServerProductionTests.Production_ServesTheConnectFlow#Expected: OK
-reconnect-without-password#kill#ENDPOINT#        if (stepUpToken is null)\n            return Results.Json(new ConsentRequest(\n                request.ClientId!,\n                await applications.GetDisplayNameAsync(application, ct),\n                new Uri(ValidatedRedirectUri(context)).Host,\n                scopes,\n                [.. scopes.Where(allowed.Contains)],\n                AlreadyApproved: covering is not null,\n                AssignedFlocks: flockScope.IsUnrestricted ? null\n                    : [.. (await access.ListFlockAssignmentsAsync(currentUser.UserId, ct))\n                        .Select(assignment => assignment.FlockName).OfType<string>()]));\n\n        var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);\n        if (proof.IsFailure)\n            return Results.Problem(proof.Error.Description,\n                statusCode: StatusCodes.Status403Forbidden, title: proof.Error.Code);\n#        if (covering is null)\n        {\n            if (stepUpToken is null)\n                return Results.Json(new ConsentRequest(request.ClientId!, null, "", scopes, [], false, null));\n            var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);\n            if (proof.IsFailure)\n                return Results.Problem(proof.Error.Description,\n                    statusCode: StatusCodes.Status403Forbidden, title: proof.Error.Code);\n        }\n#OAuthConsentTests.ApprovedApp_AsksOnlyForThePassword#a session bearer alone minted a code
+reconnect-without-password#kill#ENDPOINT#        if (stepUpToken is null)\n            return Results.Json(new ConsentRequest(\n                request.ClientId!,\n                await applications.GetDisplayNameAsync(application, ct),\n                ClientMetadata.VerifiedDomain(request.ClientId),\n                new Uri(ValidatedRedirectUri(context)).Host,\n                scopes,\n                [.. scopes.Where(allowed.Contains)],\n                AlreadyApproved: covering is not null,\n                AssignedFlocks: flockScope.IsUnrestricted ? null\n                    : [.. (await access.ListFlockAssignmentsAsync(currentUser.UserId, ct))\n                        .Select(assignment => assignment.FlockName).OfType<string>()]));\n\n        var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);\n        if (proof.IsFailure)\n            return Results.Problem(proof.Error.Description,\n                statusCode: StatusCodes.Status403Forbidden, title: proof.Error.Code);\n#        if (covering is null)\n        {\n            if (stepUpToken is null)\n                return Results.Json(new ConsentRequest(request.ClientId!, null, null, "", scopes, [], false, null));\n            var proof = await access.ConsumeStepUpGrantAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);\n            if (proof.IsFailure)\n                return Results.Problem(proof.Error.Description,\n                    statusCode: StatusCodes.Status403Forbidden, title: proof.Error.Code);\n        }\n#OAuthConsentTests.ApprovedApp_AsksOnlyForThePassword#a session bearer alone minted a code
 reconnect-grant-unspent#kill#ENDPOINT#        var proof = await access.ConsumeStepUpGrantAsync(#        var proof = covering is not null ? Cluckwork.Domain.Common.Result.Success() : await access.ConsumeStepUpGrantAsync(#OAuthConsentTests.Reconnect_SpendsTheGrant#Expected: Forbidden
 redirect-host-unvalidated#kill#ENDPOINT#new Uri(ValidatedRedirectUri(context)).Host#new Uri(request.RedirectUri!).Host#OAuthConsentTests.OmittedRedirectUri_UsesTheRegisteredOne#Expected: OK
 session-lifetime-unchecked#kill#IDENTITY#                    ValidateLifetime = true,#                    ValidateLifetime = false,#OAuthConsentTests.ExpiredSession_IsUnauthorized_NotARedirect#Expected: Unauthorized
@@ -69,7 +72,7 @@ any-users-approval#kill#ENDPOINT#            subject, applicationId, Statuses.Va
 revoked-approval-skips#kill#ENDPOINT#            subject, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))#            subject, applicationId, null, AuthorizationTypes.Permanent, scopes: null, ct))#OAuthConsentTests.DisconnectedApproval_DoesNotSkip#a revoked approval skipped the permissions
 cancel-ignored#kill#ENDPOINT#        if (consent == "deny")#        if (consent == "never")#OAuthConsentTests.Cancel_SendsAccessDeniedToTheClient_AndRecordsNothing#cancel did not send the user back
 expired-bearer-redirected#kill#ENDPOINT#                return Results.Unauthorized();#                return Results.Redirect("/connect");#OAuthConsentTests.ExpiredSession_IsUnauthorized_NotARedirect#Expected: Unauthorized
-preview-leaks-request#kill#ENDPOINT#                return Results.Json(new\n                {\n                    clientName = #                return Results.Json(new\n                {\n                    clientId = context.GetOpenIddictServerRequest()!.ClientId,\n                    clientName = #OAuthConsentTests.Preview_WithoutASession_NamesTheAppOnly#Collections differ
+preview-leaks-request#kill#ENDPOINT#                return Results.Json(new\n                {\n                    clientName = #                return Results.Json(new\n                {\n                    clientId,\n                    clientName = #OAuthConsentTests.Preview_WithoutASession_NamesTheAppOnly#Collections differ
 scoped-worker-unrestricted#kill#ENDPOINT#AssignedFlocks: flockScope.IsUnrestricted ? null#AssignedFlocks: flockScope.IsResolved ? null#OAuthConsentTests.Payload_NamesTheAssignedFlocks_OfAScopedWorker#a flock-scoped worker was told every flock
 unassigned-worker-scoped#kill#ENDPOINT#AssignedFlocks: flockScope.IsUnrestricted ? null#AssignedFlocks: !flockScope.IsResolved ? null#OAuthConsentTests.Payload_SaysEveryFlock_ForAnUnassignedWorker#Expected: Null
 navigation-refused#kill#ENDPOINT#            return Results.Redirect("/connect" + context.Request.QueryString);#            return Results.Unauthorized();#OAuthServerTests.AuthorizationRequest_WithoutASignedInUser_GoesToTheConsentRoute#Unauthorized
@@ -166,6 +169,58 @@ switch-consent-unchecked#kill#ENDPOINT#        if ((await farm.GetSettingsAsync(
 switch-registration-checked#kill#ENDPOINT#        ClientRegistrationRequest request, IOpenIddictApplicationManager applications, CancellationToken ct)\n    {\n#        ClientRegistrationRequest request, IOpenIddictApplicationManager applications, IFarmModule farm, CancellationToken ct)\n    {\n        if ((await farm.GetSettingsAsync(ct))?.AllowConnectedApps != true) return RegistrationError("access_denied", "off");\n#OAuthFailClosedTests.ConnectedAppsOff_LeavesRegistrationAlone#Expected: Created
 switch-unaudited#kill#SWITCH_HANDLER#                before = new { AllowConnectedApps = before },#                before = new { },#OAuthFailClosedTests.ConnectedAppsSwitch_IsAudited_WithTheOwnerAsActor#Expected: "true"
 switch-race-unversioned#kill#ACCOUNT#        AllowConnectedApps = allow;\n        Version++;#        AllowConnectedApps = allow;#OAuthFailClosedTests.ConnectedAppsSwitch_TwoOwnersAtOneVersion_ExactlyOneWins#Expected: 1
+cimd-mixed-answer-admitted#kill#FETCHER#!addresses.All(address => IsPublic(address)#!addresses.Any(address => IsPublic(address)#ClientMetadataFetcherTests.MixedAnswer_IsRefused_WhicheverAddressComesFirst#Strings differ
+cimd-mapped-admitted#kill#FETCHER#!address.IsIPv4MappedToIPv6 && GlobalUnicastV6.Contains(address)#GlobalUnicastV6.Contains(address)#ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
+cimd-v6-not-allow-list#kill#FETCHER#!address.IsIPv4MappedToIPv6 && GlobalUnicastV6.Contains(address)#!address.IsIPv4MappedToIPv6#ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
+cimd-private-v4-admitted#kill#FETCHER#"0.0.0.0/8", "10.0.0.0/8", #"0.0.0.0/8", #ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
+cimd-link-local-admitted#kill#FETCHER#"127.0.0.0/8", "169.254.0.0/16", #"127.0.0.0/8", #ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
+cimd-cgnat-admitted#kill#FETCHER#"10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8"#"10.0.0.0/8", "127.0.0.0/8"#ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
+cimd-rebinding#kill#FETCHER#return await transport.Dial(new IPEndPoint(addresses[0], context.DnsEndPoint.Port), ct);#return await transport.Dial(new IPEndPoint((await transport.Resolve(host, ct))[0], context.DnsEndPoint.Port), ct);#ClientMetadataFetcherTests.Connection_IsPinnedToTheVettedAddress#metadata.unreachable
+cimd-private-hosts-any-name#kill#FETCHER#|| privateHosts.Contains(host) && #|| privateHosts.Count > 0 && #ClientMetadataFetcherTests.PrivateHosts_AdmitsOnlyTheNamedHost_OnAPrivateNetwork#Values differ
+cimd-private-hosts-loopback#kill#FETCHER#{ "10.0.0.0/8", "100.64.0.0/10", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7" }#{ "0.0.0.0/0", "fc00::/7" }#ClientMetadataFetcherTests.PrivateHosts_AdmitsOnlyTheNamedHost_OnAPrivateNetwork#Values differ
+cimd-redirect-followed#kill#FETCHER#AllowAutoRedirect = false,#AllowAutoRedirect = true,#ClientMetadataFetcherTests.Redirect_IsNotFollowed#Strings differ
+cimd-any-2xx#kill#FETCHER#if (response.StatusCode != HttpStatusCode.OK)#if (!response.IsSuccessStatusCode)#ClientMetadataFetcherTests.OnlyOk_IsAccepted#Strings differ
+cimd-content-type-unchecked#kill#FETCHER#if (!string.Equals(response.Content.Headers.ContentType?.MediaType, "application/json", StringComparison.OrdinalIgnoreCase))#if (response.Content.Headers.ContentType is null)#ClientMetadataFetcherTests.OtherContentType_IsRefused#Strings differ
+cimd-stream-uncapped#kill#FETCHER#            if (length > MaxBodyBytes)\n#            if (length > MaxBodyBytes + 1)\n#ClientMetadataFetcherTests.StreamedBody_IsCappedWhileReading#Values differ
+cimd-declared-length-unchecked#kill#FETCHER#if (response.Content.Headers.ContentLength > MaxBodyBytes)#if (response.Content.Headers.ContentLength > MaxBodyBytes * 10_000)#ClientMetadataFetcherTests.DeclaredLength_OverTheCap_IsRefusedBeforeReading#Strings differ
+cimd-body-no-deadline#kill#FETCHER#body.ReadAsync(buffer.AsMemory(length), timeout.Token)#body.ReadAsync(buffer.AsMemory(length), ct)#ClientMetadataFetcherTests.SlowBody_StopsAtTheDeadline#Strings differ
+cimd-no-deadline#kill#FETCHER#        timeout.CancelAfter(_deadline);\n##ClientMetadataFetcherTests.SlowConnect_StopsAtTheDeadline#the connect held the fetch
+cimd-cookies-kept#kill#FETCHER#UseCookies = false,#UseCookies = true,#ClientMetadataFetcherTests.Request_CarriesNoCookie_AndAnHonestUserAgent#Collections differ
+cimd-proxy-used#kill#FETCHER#UseProxy = false,#UseProxy = true,#ClientMetadataFetcherTests.Handler_FollowsNoRedirect_UsesNoProxy_KeepsNoCookies#Assert.False() Failure
+cimd-lifetime-unclamped#kill#FETCHER#Math.Clamp((cacheControl?.MaxAge ?? Default).Ticks, Floor.Ticks, Ceiling.Ticks)#(cacheControl?.MaxAge ?? Default).Ticks#ClientMetadataFetcherTests.Lifetime_FollowsCacheControl_WithinTheBounds#Values differ
+cimd-no-cache-kept-long#kill#FETCHER#cacheControl is { NoStore: true } or { NoCache: true }#cacheControl is { NoStore: true }#ClientMetadataFetcherTests.Lifetime_FollowsCacheControl_WithinTheBounds#Values differ
+cimd-client-id-case#kill#REGISTRATION#|| clientId.GetString() != documentUrl)#|| !string.Equals(clientId.GetString(), documentUrl, StringComparison.OrdinalIgnoreCase))#ClientMetadataTests.Document_NamingAnotherClientId_IsRefused#Strings differ
+cimd-secret-allowed#kill#REGISTRATION#if (root.TryGetProperty("client_secret", out _) || root.TryGetProperty("client_secret_expires_at", out _))#if (root.TryGetProperty("client_secret_x", out _))#ClientMetadataTests.UntrustedDocument_IsRefused#Strings differ
+cimd-duplicate-keys#kill#REGISTRATION#AllowDuplicateProperties = false#AllowDuplicateProperties = true#ClientMetadataTests.UntrustedDocument_IsRefused#Strings differ
+cimd-url-noncanonical#kill#REGISTRATION#|| url.AbsolutePath == "/" || url.AbsoluteUri != clientId)#|| url.AbsolutePath == "/")#ClientMetadataTests.OtherForms_AreRefused#Strings differ
+cimd-url-query#kill#REGISTRATION#url.Query.Length != 0 || ##ClientMetadataTests.OtherForms_AreRefused#Strings differ
+cimd-url-ip-literal#kill#REGISTRATION# || url.HostNameType != UriHostNameType.Dns##ClientMetadataTests.OtherForms_AreRefused#Strings differ
+cimd-url-length#kill#REGISTRATION#if (clientId.Length > MaxDocumentUrlLength)#if (clientId.Length > 2 * MaxDocumentUrlLength)#ClientMetadataTests.Url_LongerThanTheColumn_IsRefused#Strings differ
+cimd-cache-ignored#kill#DOCUMENTS#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > clock.GetUtcNow())#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > DateTimeOffset.MaxValue)#OAuthFailClosedTests.StoredCopy_IsReused_UntilItExpires#Assert.Single() Failure
+cimd-never-refetched#kill#DOCUMENTS#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > clock.GetUtcNow())#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > DateTimeOffset.MinValue)#OAuthFailClosedTests.Refetch_AppliesTheNewDocument#Expected: BadRequest
+cimd-update-skipped#kill#DOCUMENTS#                await applications.UpdateAsync(row, descriptor.Value, ct);#                await Task.CompletedTask;#OAuthFailClosedTests.Refetch_AppliesTheNewDocument#Expected: BadRequest
+cimd-per-url-budget#kill#DOCUMENTS#.Count <= PerUrlBudget.Limit\n#.Count <= PerUrlBudget.Limit * 10\n#OAuthFailClosedTests.FailingUrl_IsFetchedOnlyWithinItsBudget#Expected: 10
+cimd-global-budget#kill#DOCUMENTS#.Count <= GlobalBudget.Limit;#.Count <= GlobalBudget.Limit * 10;#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget#Expected: 60
+cimd-race-unhandled#kill#DOCUMENTS#catch (Exception exception) when (exception is OpenIddictExceptions.ValidationException\n            or OpenIddictExceptions.ConcurrencyException\n            || exception is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })#catch (Exception exception) when (exception is OpenIddictExceptions.ConcurrencyException)#OAuthFailClosedTests.ConcurrentFirstRequests_StoreOneRow#Assert.All() Failure
+cimd-issuer-in-redirect-stored#kill#DOCUMENTS#                return Refuse(Errors.InvalidRequest, string.Join(" ", validation.Results.Select(result => result.ErrorMessage)));#                return Result.Success();#OAuthFailClosedTests.DocumentWithAnIssuerInItsRedirect_IsRefused_AndNotStored#Assert.Contains() Failure
+cimd-disabled-still-fetches#kill#DOCUMENTS#        if (!options.Enabled)#        if (options.Enabled && !options.Enabled)#OAuthFailClosedTests.TurnedOff_NeitherAdvertisesNorFetches#Expected: BadRequest
+cimd-not-advertised#kill#SERVER#context.Metadata["client_id_metadata_document_supported"] = true;#context.Metadata["client_id_metadata_document_supported"] = false;#OAuthFailClosedTests.Discovery_AdvertisesMetadataDocuments#discovery does not advertise
+cimd-handler-unregistered#kill#SERVER#                server.AddEventHandler(ClientMetadataDocuments.Descriptor);\n##OAuthFailClosedTests.MetadataClient_ConnectsListsAuditsAndDisconnects_LikeAnyOther#Expected: OK
+cimd-consent-domain-hidden#kill#ENDPOINT#                ClientMetadata.VerifiedDomain(request.ClientId),#                null,#OAuthFailClosedTests.Consent_AndPreview_NameTheVerifiedDomain#Strings differ
+cimd-preview-domain-hidden#kill#ENDPOINT#                    verifiedDomain = ClientMetadata.VerifiedDomain(clientId),#                    verifiedDomain = (string?)null,#OAuthFailClosedTests.Consent_AndPreview_NameTheVerifiedDomain#Strings differ
+cimd-disconnect-by-path#kill#ME#group.MapDelete("/connected-apps", DisconnectApp)#group.MapDelete("/connected-apps/{clientId}", DisconnectApp)#OAuthFailClosedTests.MetadataClient_ConnectsListsAuditsAndDisconnects_LikeAnyOther#Expected: NoContent
+cimd-interrupted-body-escapes#kill#FETCHER#catch (Exception exception) when (exception is HttpRequestException or IOException)#catch (HttpRequestException)#ClientMetadataFetcherTests.InterruptedBody_IsUnreachable#the fetch threw
+cimd-as112-v6-admitted#kill#FETCHER#"2002::/16", "2620:4f:8000::/48", #"2002::/16", #ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
+cimd-lone-surrogate-escapes#kill#REGISTRATION#catch (Exception exception) when (exception is JsonException or InvalidOperationException)#catch (JsonException)#ClientMetadataTests.LoneSurrogate_InAnyStringField_IsInvalidMetadata#the document threw
+cimd-client-id-unchecked#kill#REGISTRATION#\n                || clientId.GetString() != documentUrl)#)#ClientMetadataTests.Document_NamingAnotherClientId_IsRefused#Strings differ
+cimd-duplicate-client-refused#kill#DOCUMENTS#                && !(row is null && IsOnlyDuplicateClientId(validation) && await StoredMeanwhileAsync(clientId, ct)))#)#OAuthFailClosedTests.SecondRequest_MeetingTheFirstsCopy_UsesIt#Expected: OK
+cimd-stale-fallback-restored#kill#DOCUMENTS#            return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#            return row is not null ? Result.Success() : Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#OAuthFailClosedTests.RemovedDocument_IsNotRevived_ByDrainingTheBudget#Expected: BadRequest
+cimd-mixed-validation-recovered#kill#DOCUMENTS#row is null && IsOnlyDuplicateClientId(validation) && #row is null && #OAuthFailClosedTests.SecondRequest_WithAnInvalidDocument_IsRefused_DespiteTheFirstsCopy#Expected: BadRequest
+cimd-idempotency-query-ignored#kill#IDEMPOTENCY#        if (request.QueryString.HasValue)#        if (request.ContentLength < 0)#OAuthFailClosedTests.Disconnect_ReusingAKeyForAnotherApp_IsAConflict_NotAReplay#Expected: Conflict
+cimd-response-type-fetched#kill#DOCUMENTS#if (context.Request.ResponseType != ResponseTypes.Code)#if (context.Request.ResponseType == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
+cimd-pkce-fetched#kill#DOCUMENTS#if (string.IsNullOrEmpty(context.Request.CodeChallenge) || context.Request.CodeChallengeMethod != CodeChallengeMethods.Sha256)#if (context.Request.CodeChallengeMethod == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
+cimd-approved-shares-strangers-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: false#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
+cimd-everyone-gets-approved-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: true#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
 EOF
 )
 
@@ -260,7 +315,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

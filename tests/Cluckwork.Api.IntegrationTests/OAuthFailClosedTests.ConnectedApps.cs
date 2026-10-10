@@ -37,7 +37,7 @@ public sealed partial class OAuthFailClosedTests
         var app = await ConnectAsync(host, manager, ReadScope);
 
         using var listed = await Client(host, manager.Jwt).GetAsync("/api/v1/users/connected-apps");
-        using var disconnected = await DisconnectAsync(host, manager.Jwt, $"/api/v1/users/{manager.Id}/connected-apps/{app.ClientId}");
+        using var disconnected = await DisconnectAsync(host, manager.Jwt, $"/api/v1/users/{manager.Id}/connected-apps?clientId={Uri.EscapeDataString(app.ClientId)}");
 
         Assert.Equal(HttpStatusCode.Forbidden, listed.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, disconnected.StatusCode);
@@ -54,7 +54,7 @@ public sealed partial class OAuthFailClosedTests
         var theirs = await ConnectAsync(host, stranger, ReadScope);
 
         var farm = await Client(host, owner).GetFromJsonAsync<JsonElement>("/api/v1/users/connected-apps");
-        using var refused = await DisconnectAsync(host, owner, $"/api/v1/users/{stranger.Id}/connected-apps/{theirs.ClientId}");
+        using var refused = await DisconnectAsync(host, owner, $"/api/v1/users/{stranger.Id}/connected-apps?clientId={Uri.EscapeDataString(theirs.ClientId)}");
         using var stillWorks = await Client(host, theirs.Token).GetAsync(Probe.Read);
 
         Assert.Equal([(user.Id, app.ClientId)], farm.EnumerateArray()
@@ -74,7 +74,7 @@ public sealed partial class OAuthFailClosedTests
         await ConnectAsync(host, user, [ReadScope, WriteScope], first.ClientId);
 
         var before = await Client(host, user.Jwt).GetFromJsonAsync<JsonElement>("/api/v1/me/connected-apps");
-        using var disconnected = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{first.ClientId}");
+        using var disconnected = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(first.ClientId)}");
         var (authorizations, tokens) = await StillValidAsync(user);
 
         Assert.Equal([ReadScope, WriteScope], before.EnumerateArray().Single().GetProperty("scopes")
@@ -95,8 +95,8 @@ public sealed partial class OAuthFailClosedTests
         using (var before = await Client(host, own.Token).GetAsync(Probe.Read))
             Assert.Equal(HttpStatusCode.OK, before.StatusCode);
 
-        using var self = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{own.ClientId}");
-        using var byOwner = await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps/{other.ClientId}");
+        using var self = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(own.ClientId)}");
+        using var byOwner = await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps?clientId={Uri.EscapeDataString(other.ClientId)}");
         using var afterSelf = await Client(host, own.Token).GetAsync(Probe.Read);
         using var afterOwner = await Client(host, other.Token).GetAsync(Probe.Read);
 
@@ -117,9 +117,9 @@ public sealed partial class OAuthFailClosedTests
         var own = await ConnectAsync(host, user, ReadScope);
         var other = await ConnectAsync(host, user, ReadScope);
 
-        (await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{own.ClientId}")).Dispose();
-        (await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps/{other.ClientId}")).Dispose();
-        using var nothingLeft = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{own.ClientId}");
+        (await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(own.ClientId)}")).Dispose();
+        (await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps?clientId={Uri.EscapeDataString(other.ClientId)}")).Dispose();
+        using var nothingLeft = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(own.ClientId)}");
 
         var rows = await factory.WithTenantScopeAsync(user.AccountId, db => db.AuditEvents
             .Where(e => e.Action == AuditActions.UserAppDisconnected)
@@ -201,6 +201,29 @@ public sealed partial class OAuthFailClosedTests
             await ConnectionAuditAsync(user));
     }
 
+    // #1148 — the app to disconnect travels in the query, so the idempotency fingerprint
+    // must cover it: one key reused for another app is a conflict, never a replay of the
+    // first app's 204 that would leave the second app connected.
+    [Fact]
+    public async Task Disconnect_ReusingAKeyForAnotherApp_IsAConflict_NotAReplay()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var first = await ConnectAsync(host, user, ReadScope);
+        var second = await ConnectAsync(host, user, ReadScope);
+        var key = Guid.NewGuid().ToString();
+
+        using var disconnected = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(first.ClientId)}", key);
+        using var retried = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(first.ClientId)}", key);
+        using var reused = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(second.ClientId)}", key);
+        using var stillConnected = await Client(host, second.Token).GetAsync(Probe.Read);
+
+        Assert.Equal(HttpStatusCode.NoContent, disconnected.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, retried.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, reused.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, stillConnected.StatusCode);
+    }
+
     private Task<List<(string Action, Guid Actor, string ClientId, string Scopes)>> ConnectionAuditAsync(SeededUser user) =>
         factory.WithTenantScopeAsync(user.AccountId, async db => (await db.AuditEvents
             .Where(e => e.EntityId == user.Id
@@ -241,10 +264,11 @@ public sealed partial class OAuthFailClosedTests
         return new(id, accountId, await factory.LoginForAccessTokenAsync(email), "");
     }
 
-    private static async Task<HttpResponseMessage> DisconnectAsync(WebApplicationFactory<Program> host, string jwt, string path)
+    private static async Task<HttpResponseMessage> DisconnectAsync(
+        WebApplicationFactory<Program> host, string jwt, string path, string? idempotencyKey = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, path);
-        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString());
         return await Client(host, jwt).SendAsync(request);
     }
 
