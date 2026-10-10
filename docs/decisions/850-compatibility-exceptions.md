@@ -1,6 +1,6 @@
 # Register every read of a contracted module's tables from outside it (#850)
 
-> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it;
+> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file records what counts as an exception and the limits of the guard.
 
 **Status:** accepted

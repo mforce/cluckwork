@@ -1,6 +1,6 @@
 # Walk table ownership from the EF model (#845)
 
-> **Rule:** no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it.
+> **Rule:** the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md).
 > This record explains the enforcement boundary for epic #514, slice 3, Track B.
 
 **Status:** accepted

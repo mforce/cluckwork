@@ -6,7 +6,7 @@ Rules for the React SPA. The root [`AGENTS.md`](../AGENTS.md) applies too.
 
 - When you remove a presentational transform (`text-transform`, casing), check every string it transformed in every locale.
 - Help or glossary prose that names a control uses that control's label word in each locale. Look the label up per locale. Nothing checks this. → [`688-i18n-help-label-pairing.md`](../docs/decisions/688-i18n-help-label-pairing.md)
-- Before you style a selector, count its call sites: `grep -rn "<class>" web/src --include='*.tsx'`. Zero means your change does nothing on screen. Before you delete one, grep the whole repo: `git grep -n "<class>" -- ':!web/src/styles.css'`. The Playwright harness selects by class too.
+- Before you style a selector, count its call sites: `grep -rn "<class>" web/src --include='*.tsx'`. Record the count in the design. Zero means your change does nothing on screen; zero is legitimate only for deliberate groundwork, and that decision is recorded before merge. Before you delete one, grep the whole repo: `git grep -n "<class>" -- ':!web/src/styles.css'`. The Playwright harness selects by class too.
 - Retire a style-guard assertion only together with the CSS it reads, and name its successor guard or record the coverage loss. A postcss assertion left behind after MUI replaced its selector stays green with nothing to test. → [`824-style-guard-conversion.md`](../docs/decisions/824-style-guard-conversion.md)
 
 ## Lint
