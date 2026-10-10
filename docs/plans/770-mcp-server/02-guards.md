@@ -32,7 +32,9 @@ matters more than count: prefer "walk everything, exclude deliberately".
 | 12 | `Mcp_AddsNoLiveHostedServiceUnderStateless` | #271's blocker list is not extended | set `SessionMode = Stateful`, which makes `IdleTrackingBackgroundService.StartAsync` run its prune timer instead of returning early. **Asserts inertness, not absence** — the service IS registered unconditionally by `WithHttpTransport`; a guard asserting zero `IHostedService` descriptors would be red on the correct configuration. Candidate 1 proposed exactly that wrong guard. |
 
 #806 implements rows 8 to 12 in `tests/Cluckwork.Api.IntegrationTests/Mcp/McpEndpointTests.cs`.
-Row 10 is the existing `BodyReadingEndpointTests` plus `McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate`.
+Row 10's premise does not hold on 2.2.0: `MapMcp` maps a `RequestDelegate`, which carries no
+`MethodInfo` metadata, so `BodyReadingEndpointTests` never walks `/mcp` (a mutant removing the
+marker left it green). `McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate` pins the marker instead.
 Row 11 has no test of its own: `/mcp` adds no config key, and `ProcessRoleGuardTests` already
 boots a Production-shaped serving process, which maps `/mcp`.
 
