@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ESCAPE, newStringFindings } from "./docs-impact.mjs";
+import { ESCAPE, driftFindings, newStringFindings, termSections } from "./docs-impact.mjs";
 
 const catalog = (entries) => new Map(Object.entries(entries));
 const base = catalog({ "expenses.dateHeader": "Date", "help.expenses": "Expenses are…" });
@@ -37,4 +37,37 @@ test("the escape needs the exact label, 'none' and a reason", () => {
   assert.ok(!ESCAPE.test("Docs-impact: none —"));
   assert.ok(!ESCAPE.test("Docs-impact: some — updated later"));
   assert.ok(!ESCAPE.test("> Docs-impact: none — quoted from another PR"));
+});
+
+const spec = [
+  "# Glossary",
+  "",
+  "**Farm code (account slug, #531)** — the short code a farm signs in with.",
+  "",
+  "**Flock** — a group of birds.",
+  "",
+].join("\n");
+const entries = [{ key: "FarmCode", spec: "Farm code" }];
+const en = catalog({ "help.glossaryFarmCodeDef": "The code you type at sign-in." });
+
+test("a term's text runs to the next term, so a paragraph added under it belongs to it", () => {
+  const sections = termSections(spec.replace("**Flock**", "It can be prefilled from a link.\n\n**Flock**"));
+  assert.match(sections.get("farm code"), /prefilled from a link/);
+  assert.doesNotMatch(sections.get("flock"), /prefilled/);
+});
+
+test("#588's shape: a term's GLOSSARY.md text changes and its in-app definition does not", () => {
+  const headSpec = spec.replace("signs in with.", "signs in with.\n\nA `?farm=` link prefills it.");
+  const [finding] = driftFindings({ baseEn: en, headEn: en, baseSpec: spec, headSpec, entries });
+  assert.match(finding, /"farm code".*help\.glossaryFarmCodeDef/);
+  const updated = catalog({ "help.glossaryFarmCodeDef": "The code you type, or a link prefills it." });
+  assert.deepEqual(driftFindings({ baseEn: en, headEn: updated, baseSpec: spec, headSpec, entries }), []);
+});
+
+test("a change to a term with no in-app entry, or a brand-new term, is not drift", () => {
+  const other = spec.replace("a group of birds.", "a group of birds managed as one unit.");
+  const added = `${spec}\n**Tray deposit** — a refundable charge.\n`;
+  for (const headSpec of [other, added]) {
+    assert.deepEqual(driftFindings({ baseEn: en, headEn: en, baseSpec: spec, headSpec, entries }), []);
+  }
 });

@@ -1,6 +1,8 @@
 // #1186 — a pull request that adds user-facing strings must also touch the
 // docs that explain them: specs/product/GLOSSARY.md or an en.ts `help.*` key.
-// A body line `Docs-impact: none — <reason>` lets it through; the maintainer
+// And a GLOSSARY.md term whose text changes must change its in-app definition
+// too, when it has one (#588 updated the spec and left the app's copy stale).
+// A body line `Docs-impact: none — <reason>` lets either through; the maintainer
 // reads that line at merge. Whether a change is user-visible is a judgment,
 // so this is a trigger for that judgment, not a verdict.
 //
@@ -16,6 +18,7 @@ import { pathToFileURL } from "node:url";
 
 const EN = "web/src/i18n/en.ts";
 const SPEC = "specs/product/GLOSSARY.md";
+const IN_APP = "web/src/routes/helpGlossary.ts";
 
 export const ESCAPE = /^Docs-impact:\s*none\s*(?:—|–|-{1,2})\s*\S/;
 
@@ -40,6 +43,39 @@ export function newStringFindings({ baseEn, headEn, glossaryChanged }) {
   ];
 }
 
+// The same term rule as web/src/routes/helpGlossary.test.ts: a bold run that
+// opens a paragraph, or an h3, with any parenthetical dropped. A term's text
+// runs to the next term or heading, so a paragraph added under it counts.
+export const normalise = (term) => term.replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
+export function termSections(markdown) {
+  const sections = new Map();
+  let current = null;
+  const lines = markdown.split("\n");
+  lines.forEach((line, i) => {
+    const m = /^\*\*([^*]+)\*\*|^### (.+)/.exec(line);
+    if (m && (m[2] !== undefined || i === 0 || lines[i - 1].trim() === "")) {
+      current = normalise(m[1] ?? m[2]);
+      sections.set(current, "");
+    } else if (line.startsWith("#")) {
+      current = null;
+    }
+    if (current !== null) sections.set(current, sections.get(current) + line + "\n");
+  });
+  return sections;
+}
+
+export function driftFindings({ baseEn, headEn, baseSpec, headSpec, entries }) {
+  const before = termSections(baseSpec);
+  const after = termSections(headSpec);
+  const keysByTerm = Map.groupBy(entries, (e) => normalise(e.spec));
+  return [...keysByTerm].flatMap(([term, group]) => {
+    if (!before.has(term) || before.get(term) === after.get(term)) return [];
+    const defs = group.map((e) => `help.glossary${e.key}Def`);
+    if (defs.some((d) => baseEn.get(d) !== headEn.get(d))) return [];
+    return [`${SPEC} changed "${term}", but its in-app definition did not: ${defs.join(", ")} (and es/tl).`];
+  });
+}
+
 function git(...args) {
   return execFileSync("git", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 }
@@ -54,6 +90,20 @@ async function loadCatalog(source, dir, name) {
   const file = join(dir, `${name}.ts`);
   writeFileSync(file, source);
   return flatten((await import(pathToFileURL(file).href)).en);
+}
+
+// helpGlossary.ts carries no imports either; a revision before it existed has
+// no in-app entries to drift from.
+async function loadEntries(ref, dir) {
+  let source;
+  try {
+    source = read(ref, IN_APP);
+  } catch {
+    return [];
+  }
+  const file = join(dir, "glossary.ts");
+  writeFileSync(file, source);
+  return (await import(pathToFileURL(file).href)).GLOSSARY;
 }
 
 async function main(argv) {
@@ -71,11 +121,14 @@ async function main(argv) {
   }
   const dir = mkdtempSync(join(tmpdir(), "docs-impact-"));
   try {
-    const findings = newStringFindings({
-      baseEn: await loadCatalog(read(opts.base, EN), dir, "base"),
-      headEn: await loadCatalog(read(opts.head, EN), dir, "head"),
-      glossaryChanged: read(opts.base, SPEC) !== read(opts.head, SPEC),
-    });
+    const baseEn = await loadCatalog(read(opts.base, EN), dir, "base");
+    const headEn = await loadCatalog(read(opts.head, EN), dir, "head");
+    const baseSpec = read(opts.base, SPEC);
+    const headSpec = read(opts.head, SPEC);
+    const findings = [
+      ...newStringFindings({ baseEn, headEn, glossaryChanged: baseSpec !== headSpec }),
+      ...driftFindings({ baseEn, headEn, baseSpec, headSpec, entries: await loadEntries(opts.head, dir) }),
+    ];
     if (findings.length === 0) {
       console.log("docs-impact: nothing to flag.");
       return 0;
