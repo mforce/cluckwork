@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/mforce/cluckwork/compare/v1.0.0...v1.0.1) (2026-10-10)
+
+
+### Bug fixes
+
+* **sales:** scale a line's default and list price to its unit ([#1179](https://github.com/mforce/cluckwork/issues/1179)) ([729a86e](https://github.com/mforce/cluckwork/commit/729a86e9d797122aa29fd21c702a721ebba1692e))
+* **web:** fill the expanded Lay rate chart and allow ranges up to a year ([#1173](https://github.com/mforce/cluckwork/issues/1173)) ([4bdcec0](https://github.com/mforce/cluckwork/commit/4bdcec06f281942711548cf3825110813d9697ae))
+
 ## [1.0.0](https://github.com/mforce/cluckwork/compare/v0.1.5...v1.0.0) (2026-10-08)
 
 
