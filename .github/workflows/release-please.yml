@@ -69,6 +69,13 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-26.04
     timeout-minutes: 10
+    # The App secrets live in the `app-token` environment, whose branch policy
+    # admits only main and release/v*.*.x (#1131). A workflow edited on any other
+    # branch cannot read them. Every job that mints the App token declares it.
+    # `deployment: false` keeps the branch policy without a deployment record.
+    environment:
+      name: app-token
+      deployment: false
     # Scoped to THIS job only: every write it performs goes through the App
     # token minted below, so its GITHUB_TOKEN keeps read. The `promote` job
     # below still needs a write-capable GITHUB_TOKEN (it publishes the release
@@ -667,6 +674,9 @@ jobs:
       && needs.promote.result != 'failure'
     runs-on: ubuntu-26.04
     timeout-minutes: 10
+    environment:
+      name: app-token
+      deployment: false
     # Same posture as the cut job: every write goes through the App token, so
     # GITHUB_TOKEN stays read.
     permissions:
