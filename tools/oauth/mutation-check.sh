@@ -51,7 +51,7 @@ SWITCH_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata'
-SUITE_MIN=261
+SUITE_MIN=263
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -195,8 +195,8 @@ cimd-url-noncanonical#kill#REGISTRATION#|| url.AbsolutePath == "/" || url.Absolu
 cimd-url-query#kill#REGISTRATION#url.Query.Length != 0 || ##ClientMetadataTests.OtherForms_AreRefused#Strings differ
 cimd-url-ip-literal#kill#REGISTRATION# || url.HostNameType != UriHostNameType.Dns##ClientMetadataTests.OtherForms_AreRefused#Strings differ
 cimd-url-length#kill#REGISTRATION#if (clientId.Length > MaxDocumentUrlLength)#if (clientId.Length > 2 * MaxDocumentUrlLength)#ClientMetadataTests.Url_LongerThanTheColumn_IsRefused#Strings differ
-cimd-cache-ignored#kill#DOCUMENTS#        if (expiresAt > now)\n#        if (expiresAt > DateTimeOffset.MaxValue)\n#OAuthFailClosedTests.StoredCopy_IsReused_UntilItExpires#Assert.Single() Failure
-cimd-never-refetched#kill#DOCUMENTS#        if (expiresAt > now)\n#        if (expiresAt > DateTimeOffset.MinValue)\n#OAuthFailClosedTests.Refetch_AppliesTheNewDocument#Expected: BadRequest
+cimd-cache-ignored#kill#DOCUMENTS#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > clock.GetUtcNow())#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > DateTimeOffset.MaxValue)#OAuthFailClosedTests.StoredCopy_IsReused_UntilItExpires#Assert.Single() Failure
+cimd-never-refetched#kill#DOCUMENTS#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > clock.GetUtcNow())#ExpiresAt(await applications.GetPropertiesAsync(row, ct)) > DateTimeOffset.MinValue)#OAuthFailClosedTests.Refetch_AppliesTheNewDocument#Expected: BadRequest
 cimd-update-skipped#kill#DOCUMENTS#                await applications.UpdateAsync(row, descriptor.Value, ct);#                await Task.CompletedTask;#OAuthFailClosedTests.Refetch_AppliesTheNewDocument#Expected: BadRequest
 cimd-per-url-budget#kill#DOCUMENTS#.Count <= PerUrlBudget.Limit\n#.Count <= PerUrlBudget.Limit * 10\n#OAuthFailClosedTests.FailingUrl_IsFetchedOnlyWithinItsBudget#Expected: 10
 cimd-global-budget#kill#DOCUMENTS#.Count <= GlobalBudget.Limit;#.Count <= GlobalBudget.Limit * 10;#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget#Expected: 60
@@ -212,7 +212,7 @@ cimd-interrupted-body-escapes#kill#FETCHER#catch (Exception exception) when (exc
 cimd-as112-v6-admitted#kill#FETCHER#"2002::/16", "2620:4f:8000::/48", #"2002::/16", #ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
 cimd-lone-surrogate-escapes#kill#REGISTRATION#catch (Exception exception) when (exception is JsonException or InvalidOperationException)#catch (JsonException)#ClientMetadataTests.LoneSurrogate_InAnyStringField_IsInvalidMetadata#the document threw
 cimd-client-id-unchecked#kill#REGISTRATION#\n                || clientId.GetString() != documentUrl)#)#ClientMetadataTests.Document_NamingAnotherClientId_IsRefused#Strings differ
-cimd-duplicate-client-refused#kill#DOCUMENTS#                && !(row is null && await StoredMeanwhileAsync(clientId, ct)))#)#OAuthFailClosedTests.SecondRequest_MeetingTheFirstsCopy_UsesIt#Expected: OK
+cimd-duplicate-client-refused#kill#DOCUMENTS#                && !(row is null && IsOnlyDuplicateClientId(validation) && await StoredMeanwhileAsync(clientId, ct)))#)#OAuthFailClosedTests.SecondRequest_MeetingTheFirstsCopy_UsesIt#Expected: OK
 cimd-stale-fallback-restored#kill#DOCUMENTS#            return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#            return row is not null ? Result.Success() : Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#OAuthFailClosedTests.RemovedDocument_IsNotRevived_ByDrainingTheBudget#Expected: BadRequest
 cimd-mixed-validation-recovered#kill#DOCUMENTS#row is null && IsOnlyDuplicateClientId(validation) && #row is null && #OAuthFailClosedTests.SecondRequest_WithAnInvalidDocument_IsRefused_DespiteTheFirstsCopy#Expected: BadRequest
 EOF
