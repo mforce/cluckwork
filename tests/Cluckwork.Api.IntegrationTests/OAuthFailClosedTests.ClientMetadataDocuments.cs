@@ -9,7 +9,6 @@ using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.SharedState;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;

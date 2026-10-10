@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
@@ -6,6 +5,7 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Cluckwork.Api.Modules.Access.Me;
 

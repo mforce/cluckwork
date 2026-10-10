@@ -55,7 +55,6 @@ internal sealed class ClientMetadataFetcher(
     // One deadline covers resolving, connecting, the headers and the whole body.
     private readonly TimeSpan _deadline = deadline ?? TimeSpan.FromSeconds(5);
 
-    // Asserted by the tests, so one refusal cannot pass for another.
     public const string AddressRefused = "metadata.address_refused";
     public const string Unreachable = "metadata.unreachable";
     public const string TimedOut = "metadata.timeout";
@@ -65,8 +64,8 @@ internal sealed class ClientMetadataFetcher(
     public const string TooLarge = "metadata.too_large";
 
     // Special-use IPv4 blocks (RFC 6890 and the IANA registry). IPv6 is an allow-list:
-    // global unicast 2000::/3 only, so IPv4-mapped, NAT64, loopback, link-local,
-    // unique-local and multicast addresses never qualify, minus the special blocks inside it.
+    // global unicast 2000::/3 minus the special blocks inside it, so NAT64, loopback,
+    // link-local, unique-local and multicast addresses never qualify.
     private static readonly IPNetwork[] RefusedV4 =
     [
         .. new[]
