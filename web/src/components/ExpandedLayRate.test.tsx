@@ -124,6 +124,25 @@ describe("ExpandedLayRate (#941)", () => {
     expect(caption()).toBe("All 90 days shown");
   });
 
+  // #1161: a range that fits fills the plot from the axis to the right edge;
+  // one that does not keeps #912's 22px slots and scrolls.
+  it("stretches a range that fits to fill the window", () => {
+    view();
+    const region = frame().querySelector(".lay-expand-scroll") as HTMLElement;
+    // Unmeasured, the strip stays on its fixed slots, so the open can still
+    // land on the newest day before the region is measured.
+    expect(region).not.toHaveClass("is-fit");
+    measure({ viewport: DAYS * (DAY_SLOT_PX + DAY_GAP_PX), scrollLeft: 0 });
+    expect(region).toHaveClass("is-fit");
+  });
+
+  it("keeps a range that does not fit on its fixed slots, scrolling", () => {
+    view();
+    const region = measure({ viewport: 1080, scrollLeft: 0 });
+    expect(region).not.toHaveClass("is-fit");
+    expect(cue("right").hidden).toBe(false);
+  });
+
   it("keeps each edge cue OUTSIDE the scroll region, where an edge stays an edge", () => {
     // Inside it, a cue is positioned against the scrolled CONTENT rather than
     // the region, which drew a pale band down the middle of the chart

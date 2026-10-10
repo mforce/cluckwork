@@ -2123,17 +2123,14 @@ label.check {
   background: linear-gradient(to left, var(--surface), transparent);
 }
 
-/* The window itself: #912's slot at every range (owner, 2026-09-24), never
-   stretched to fill the column. `justify-content: flex-end` is the whole of
-   "the newest day sits at the right edge": a range too short to fill the
-   region leaves its empty space before the OLDEST day. */
+/* The window itself, on #912's slot whenever the range scrolls. A range whose
+   slots fit stretches to fill the window instead (`.is-fit` below, #1161). */
 .bigstrip {
   --slot: 22px;
   --gap: 4px;
   position: relative;
   display: flex;
   align-items: flex-end;
-  justify-content: flex-end;
   gap: var(--gap);
   width: max-content;
   min-width: 100%;
@@ -2144,6 +2141,27 @@ label.check {
 .bigstrip .day {
   flex: 0 0 var(--slot);
   width: var(--slot);
+}
+
+/* #1161 (maintainer, 2026-10-10): a range that fits fills the plot from the
+   axis to the right edge, and the date rule's cells widen with its slots so
+   each label stays under its day. "Fits" is `dayWindow`'s layout answer on
+   the fixed slot, never `scrollWidth`. */
+.lay-expand-scroll.is-fit .bigstrip,
+.lay-expand-scroll.is-fit .datebar {
+  width: 100%;
+}
+
+.lay-expand-scroll.is-fit .bigstrip .day,
+.lay-expand-scroll.is-fit .datebar > span {
+  flex: 1 1 0;
+  width: auto;
+}
+
+/* The slot stretches; the bar inside it stops at 40px, a little under two
+   fixed slots, so a week reads as seven bars rather than seven slabs. */
+.lay-expand-scroll.is-fit .day > i {
+  max-width: 40px;
 }
 
 /* The week hairline without the card's 9px jog. Over ninety days that jog is
@@ -2167,7 +2185,6 @@ label.check {
   gap: var(--gap);
   width: max-content;
   min-width: 100%;
-  justify-content: flex-end;
   /* The end label is laid out 22px into its slot and only PAINTED back inside
      it by a transform, so its layout box hangs 64px past the strip. Left to
      propagate, that is 64px of scroll the chart has no days for: measured at

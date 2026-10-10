@@ -2385,28 +2385,28 @@ describe("Dashboard expanded Lay rate chart (#941)", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Expand the lay rate chart" }));
   });
 
-  it("takes a quarter where the card stops at a fortnight", async () => {
+  it("takes a year where the card stops at a fortnight (#1161)", async () => {
     const user = userEvent.setup();
     await open(user);
     const dialog = screen.getByRole("dialog");
     await user.selectOptions(within(dialog).getByLabelText("Range"), "custom");
-    fireEvent.change(within(dialog).getByLabelText("From"), { target: { value: daysBefore(today, 90) } });
+    fireEvent.change(within(dialog).getByLabelText("From"), { target: { value: daysBefore(today, 365) } });
     fireEvent.change(within(dialog).getByLabelText("To"), { target: { value: daysBefore(today, 1) } });
     await user.click(within(dialog).getByRole("button", { name: "Apply" }));
-    await waitFor(() => expect(expandedBars()).toHaveLength(90));
+    await waitFor(() => expect(expandedBars()).toHaveLength(365));
     expect(mockReport).toHaveBeenCalledWith(
-      daysBefore(today, 90), daysBefore(today, 1), undefined, expect.any(AbortSignal));
+      daysBefore(today, 365), daysBefore(today, 1), undefined, expect.any(AbortSignal));
   });
 
-  it("refuses the day past the quarter, naming its own ceiling rather than the card's", async () => {
+  it("refuses the day past the year, naming its own ceiling rather than the card's", async () => {
     const user = userEvent.setup();
     await open(user);
     const dialog = screen.getByRole("dialog");
     await user.selectOptions(within(dialog).getByLabelText("Range"), "custom");
-    fireEvent.change(within(dialog).getByLabelText("From"), { target: { value: daysBefore(today, 91) } });
+    fireEvent.change(within(dialog).getByLabelText("From"), { target: { value: daysBefore(today, 366) } });
     fireEvent.change(within(dialog).getByLabelText("To"), { target: { value: daysBefore(today, 1) } });
     await user.click(within(dialog).getByRole("button", { name: "Apply" }));
-    expect(await within(dialog).findByText("Choose a range of at most 90 days.")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Choose a range of at most 365 days.")).toBeInTheDocument();
   });
 
   it("remembers its own window on this device, without touching the card's", async () => {

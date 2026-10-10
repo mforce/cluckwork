@@ -8,9 +8,9 @@
 // a fixed full-viewport backdrop, the content centred on both axes, one clear
 // way out that takes focus on open, and a fade only under
 // prefers-reduced-motion: no-preference. Two departures, both the owner's: the
-// column is wider than the splash's 640px because the subject is 90 bars
-// rather than one image, and it follows the app theme instead of forcing a
-// dark lightbox.
+// column is wider than the splash's 640px because the subject is up to a
+// year of bars rather than one image, and it follows the app theme instead of
+// forcing a dark lightbox.
 //
 // The sync between the map and the window has ONE writer each way. Scrolling
 // writes the box's style; pressing the map writes `scrollLeft`. A programmatic
@@ -115,7 +115,7 @@ export function ExpandedLayRate({
     }
     setView((prev) => (prev.fits === next.fits && prev.firstVisible === next.firstVisible
       && prev.lastVisible === next.lastVisible && prev.atStart === next.atStart
-      && prev.atEnd === next.atEnd) ? prev : next);
+      && prev.atEnd === next.atEnd && prev.stretch === next.stretch) ? prev : next);
   }, [metricsOf]);
 
   // The newest day sits at the right edge, as it does on the card, so the view
@@ -349,7 +349,7 @@ export function ExpandedLayRate({
                     </div>
                     <div className="lay-expand-window">
                       <div
-                        className="lay-expand-scroll" ref={scrollerRef}
+                        className={view.stretch ? "lay-expand-scroll is-fit" : "lay-expand-scroll"} ref={scrollerRef}
                         onScroll={() => { sync(); strip.placeReadout(); }}
                       >
                         <DaySlots variant="expanded" data={data} label={label} tip={tip} strip={strip} />
@@ -400,7 +400,7 @@ export function ExpandedLayRate({
 }
 
 // The same native select and plain date fields the card uses (#914), held to
-// the expanded chart's own 90-day ceiling.
+// the expanded chart's own one-year ceiling.
 function ExpandedRangePicker({ range, from, to, latestDay, onRangeChange }: {
   range: LayRateRange;
   // The window on screen, which is what the custom form opens on: switching to

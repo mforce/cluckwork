@@ -41,6 +41,13 @@ describe("dayWindow (#941)", () => {
     expect(dayWindow(desktop(42), 0).fits).toBe(false);
   });
 
+  it("stretches a measured range that fits, and only that one (#1161)", () => {
+    expect(dayWindow(desktop(30), 0).stretch).toBe(true);
+    expect(dayWindow(desktop(41), 0).stretch).toBe(true);
+    expect(dayWindow(desktop(42), 0).stretch).toBe(false);
+    expect(dayWindow(desktop(90), 0).stretch).toBe(false);
+  });
+
   it("puts the box at the start of the map with the window at the start of the range", () => {
     const w = dayWindow(desktop(90), 0);
     expect(w).toEqual({
@@ -51,6 +58,7 @@ describe("dayWindow (#941)", () => {
       boxWidthPct: 46.23,
       atStart: true,
       atEnd: false,
+      stretch: false,
     });
   });
 
@@ -84,6 +92,9 @@ describe("dayWindow (#941)", () => {
     expect(w.fits).toBe(true);
     expect(w.atStart).toBe(true);
     expect(w.atEnd).toBe(true);
+    // Not stretched, though: the open lays the strip out on 22px slots so the
+    // scroll to the newest day lands before the first measurement decides.
+    expect(w.stretch).toBe(false);
   });
 
   it("scrolls at every range on a phone, where the narrower gap still does not save it", () => {
