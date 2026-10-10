@@ -4797,3 +4797,40 @@ function deferredOrder() {
   const promise = new Promise<SalesOrder>((res, rej) => { resolve = res; reject = rej; });
   return { promise, resolve, reject };
 }
+
+// #1183 — a line change moves the order's total, so its Orders list row must
+// re-read too, not only the open panel.
+describe("SalesPage Orders list row after a line change (#1183)", () => {
+  const AFTER: SalesOrder = { ...DRAFT_TWO, totalMinorUnits: 3800 };
+  const listRow = () => screen.getByRole("row", { name: /SO-2/ });
+
+  it.each([
+    ["add", async () => {
+      mockAddOrderItem.mockResolvedValue({ orderId: "o2", itemId: "new" });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add line" })); });
+    }],
+    ["inline edit", async () => {
+      mockUpdateOrderItem.mockResolvedValue(undefined as never);
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+      const editRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+      fireEvent.change(within(editRow).getByRole("spinbutton", { name: "Edit quantity" }), { target: { value: "6" } });
+      await act(async () => { fireEvent.click(within(editRow).getByRole("button", { name: "save" })); });
+    }],
+    ["remove", async () => {
+      vi.mocked(removeOrderItem).mockResolvedValue(undefined as never);
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "remove" }));
+      });
+    }],
+  ])("refreshes the row's total after %s", async (_name, mutate) => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    expect(within(listRow()).getByText("$29.00")).toBeInTheDocument();
+
+    mockListOrders.mockResolvedValue([AFTER]);
+    mockGetOrder.mockResolvedValue(AFTER);
+    await mutate();
+
+    await waitFor(() => expect(within(listRow()).getByText("$38.00")).toBeInTheDocument());
+    expect(within(listRow()).queryByText("$29.00")).not.toBeInTheDocument();
+  });
+});
