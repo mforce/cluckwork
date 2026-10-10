@@ -53,9 +53,12 @@ internal static class CluckworkMcp
     // RFC 6750 §3 and RFC 9728 §5.1: a refused OAuth token is answered with a bearer
     // challenge naming the protected-resource metadata, which is how an MCP client
     // re-authorizes. The SDK's handler adds it to a challenge; the shared request checks
-    // and the scope gate write their own responses and call this.
+    // and the scope gate write their own responses and call this. Other endpoints take
+    // session JWTs, which have no protected-resource metadata.
     public static void AddChallenge(HttpContext context, string parameters)
     {
+        if (!OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()))
+            return;
         var metadata = context.RequestServices.GetRequiredService<IOptionsMonitor<McpAuthenticationOptions>>()
             .Get(McpAuthenticationDefaults.AuthenticationScheme).ResourceMetadataUri;
         context.Response.Headers.WWWAuthenticate = $"Bearer {parameters}, resource_metadata=\"{metadata}\"";
