@@ -69,7 +69,7 @@ public sealed class SpellingScannerRatchetTests
     }
 
     [Fact]
-    public void Detection_BindsAliasesAndStaticImports_AndExemptsCompilations()
+    public void Detection_BindsAliasesAndStaticImports_AndExemptsSemanticModels()
     {
         const string header = "using Microsoft.CodeAnalysis.CSharp;\n";
         var found = SpellingOnlyParsers(
@@ -79,6 +79,7 @@ public sealed class SpellingScannerRatchetTests
             ("P", "Static.cs", "using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;\nclass Static { object M() => ParseCompilationUnit(\"\"); }"),
             ("P", "Nested.cs", header + "namespace N { class Outer { class Inner { System.Func<string, object> F = s => CSharpSyntaxTree.ParseText(s); } } }"),
             ("P", "Bound.cs", header + "class Bound { object M() => CSharpCompilation.Create(\"x\", [CSharpSyntaxTree.ParseText(\"\")]); }"),
+            ("P", "Helper.cs", header + "class Helper { object M(Microsoft.CodeAnalysis.Compilation c) => c.GetSemanticModel(CSharpSyntaxTree.ParseText(\"\")); }"),
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
         ]);
 
@@ -87,7 +88,8 @@ public sealed class SpellingScannerRatchetTests
 
     // Keyed by the outermost type, merged across partial declarations. A parse call counts when its bound symbol is a
     // Parse* or Create method on CSharpSyntaxTree or SyntaxFactory; a method name cannot be aliased, so the name
-    // prefilter loses nothing short of reflection. The type is exempt when any of its code binds CSharpCompilation.
+    // prefilter loses nothing short of reflection. The type is exempt when any of its code creates a CSharpCompilation or
+    // asks a compilation for its SemanticModel, which also covers a compilation built by a shared helper.
     internal static Dictionary<string, string> SpellingOnlyParsers(IEnumerable<(string Project, string Path, string Source)> files)
     {
         var found = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -105,13 +107,13 @@ public sealed class SpellingScannerRatchetTests
                 foreach (var name in tree.GetRoot().DescendantNodes().OfType<SimpleNameSyntax>())
                 {
                     var text = name.Identifier.ValueText;
-                    if (!text.StartsWith("Parse", StringComparison.Ordinal) && text is not ("Create" or "CSharpCompilation"))
+                    if (!text.StartsWith("Parse", StringComparison.Ordinal) && text is not ("Create" or "CSharpCompilation" or "GetSemanticModel" or "SemanticModel"))
                         continue;
                     var info = model.GetSymbolInfo(name);
                     var symbol = info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
                     if (OutermostType(model, name) is not { } owner)
                         continue;
-                    if (IsCompilation(symbol))
+                    if (BindsSymbols(symbol))
                         bound.Add(owner);
                     else if (symbol is IMethodSymbol method && IsParse(method))
                         parsers.TryAdd(owner, tree.FilePath);
@@ -129,8 +131,9 @@ public sealed class SpellingScannerRatchetTests
         method.ContainingType.ToDisplayString() is "Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree" or "Microsoft.CodeAnalysis.CSharp.SyntaxFactory"
         && (method.Name.StartsWith("Parse", StringComparison.Ordinal) || method.Name == "Create");
 
-    private static bool IsCompilation(ISymbol? symbol) =>
-        (symbol as INamedTypeSymbol ?? symbol?.ContainingType)?.ToDisplayString() == "Microsoft.CodeAnalysis.CSharp.CSharpCompilation";
+    private static bool BindsSymbols(ISymbol? symbol) =>
+        (symbol as INamedTypeSymbol ?? symbol?.ContainingType)?.ToDisplayString() is
+            "Microsoft.CodeAnalysis.CSharp.CSharpCompilation" or "Microsoft.CodeAnalysis.Compilation" or "Microsoft.CodeAnalysis.SemanticModel";
 
     private static INamedTypeSymbol? OutermostType(SemanticModel model, SyntaxNode node)
     {
