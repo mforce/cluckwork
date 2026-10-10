@@ -390,7 +390,7 @@ export function Dashboard() {
   }, [expanded]);
 
   // #941 — the expanded chart's own read, issued only while it is open, so a
-  // reader who never expands pays nothing for a 90-day report. It needs the
+  // reader who never expands pays nothing for a year-long report. It needs the
   // plotted window alone: the hen-day comparison against the previous equal
   // window is the CARD's measure and stays there.
   useEffect(() => {

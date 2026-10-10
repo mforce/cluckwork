@@ -139,7 +139,7 @@ describe("the expanded chart's range (#941)", () => {
   it("offers 30 days and starts there", () => {
     expect(EXPANDED_RANGE_PRESETS).toEqual([30]);
     expect(DEFAULT_EXPANDED_RANGE).toEqual({ kind: "preset", days: 30 });
-    expect(MAX_EXPANDED_RANGE_DAYS).toBe(90);
+    expect(MAX_EXPANDED_RANGE_DAYS).toBe(365);
   });
 
   it("plots a 30-day preset ending on the farm's yesterday", () => {
@@ -149,11 +149,12 @@ describe("the expanded chart's range (#941)", () => {
     });
   });
 
-  it("accepts a quarter and rejects the day past it", () => {
-    expect(customRangeError("2026-04-22", LATEST, LATEST, MAX_EXPANDED_RANGE_DAYS)).toBeNull();
-    expect(customRangeError("2026-04-21", LATEST, LATEST, MAX_EXPANDED_RANGE_DAYS)).toBe("tooLong");
+  it("accepts a year and rejects the day past it (#1161)", () => {
+    expect(customRangeError("2025-07-21", LATEST, LATEST, MAX_EXPANDED_RANGE_DAYS)).toBeNull();
+    expect(customRangeError("2025-07-20", LATEST, LATEST, MAX_EXPANDED_RANGE_DAYS)).toBe("tooLong");
     // The card's own ceiling is untouched by any of this.
-    expect(customRangeError("2026-04-22", LATEST, LATEST)).toBe("tooLong");
+    expect(customRangeError("2026-07-07", LATEST, LATEST)).toBeNull();
+    expect(customRangeError("2026-07-06", LATEST, LATEST)).toBe("tooLong");
     expect(MAX_RANGE_DAYS).toBe(14);
   });
 
@@ -166,7 +167,9 @@ describe("the expanded chart's range (#941)", () => {
     // 14 is the card's preset, not one of these, so it is not a remembered
     // window here — the two surfaces keep separate memories.
     expect(parseStoredRange("14", LATEST, presets, max)).toBeNull();
-    expect(parseStoredRange("2026-04-21..2026-07-20", LATEST, presets, max)).toBeNull();
+    expect(parseStoredRange("2025-07-21..2026-07-20", LATEST, presets, max))
+      .toEqual({ kind: "custom", from: "2025-07-21", to: "2026-07-20" });
+    expect(parseStoredRange("2025-07-20..2026-07-20", LATEST, presets, max)).toBeNull();
   });
 
   it("writes a window back in the form it reads", () => {
