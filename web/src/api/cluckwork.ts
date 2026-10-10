@@ -897,10 +897,10 @@ export interface AppConnection {
 
 export const listMyConnectedApps = () => apiGet<AppConnection[]>("/me/connected-apps");
 export const disconnectMyApp = (clientId: string) =>
-  apiDelete<void>(`/me/connected-apps/${encodeURIComponent(clientId)}`);
+  apiDelete<void>(`/me/connected-apps?clientId=${encodeURIComponent(clientId)}`);
 export const listFarmConnectedApps = () => apiGet<AppConnection[]>("/users/connected-apps");
 export const disconnectUserApp = (userId: string, clientId: string) =>
-  apiDelete<void>(`/users/${userId}/connected-apps/${encodeURIComponent(clientId)}`);
+  apiDelete<void>(`/users/${userId}/connected-apps?clientId=${encodeURIComponent(clientId)}`);
 
 export interface FlockAssignment {
   id: string;
