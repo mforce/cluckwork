@@ -155,7 +155,7 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         Assert.Contains("Recovery failed", stderr);
     }
 
-    // #450 — recover-admin is documented (AGENTS.md, #265) to run under the
+    // #450 — recover-admin is documented (docs/runbooks/break-glass-account-recovery.md, #265) to run under the
     // app's least-privilege DML-only runtime role, never the higher-privileged
     // migrator credential — the whole point being that an operator never needs
     // to keep the elevated credential warm just for incident response. Every

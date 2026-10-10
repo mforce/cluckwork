@@ -21,7 +21,7 @@ public sealed class VoidPaymentHandler(
             return Result.Failure(Error.NotFound(nameof(Payment), command.PaymentId))
                 .LogFailure(logger, "VoidPayment");
 
-        // End-to-end optimistic concurrency (AGENTS.md): base-version mismatch
+        // End-to-end optimistic concurrency (src/AGENTS.md): base-version mismatch
         // is a deterministic 409; the EF token backstops the racing-save window.
         if (payment.Version != command.Version)
             return Result.Failure(Error.Conflict(

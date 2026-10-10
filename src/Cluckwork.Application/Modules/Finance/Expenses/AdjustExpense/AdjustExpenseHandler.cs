@@ -18,7 +18,7 @@ public sealed class AdjustExpenseHandler(
         if (expense is null)
             return Result.Failure(Error.NotFound("Expense", command.ExpenseId));
 
-        // End-to-end optimistic concurrency (AGENTS.md): the client edits
+        // End-to-end optimistic concurrency (src/AGENTS.md): the client edits
         // against a base version; a mismatch is a deterministic 409, and the
         // EF concurrency token backstops the racing-save window after this.
         if (expense.Version != command.Version)
