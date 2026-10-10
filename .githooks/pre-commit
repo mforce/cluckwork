@@ -13,8 +13,13 @@
 set -eu
 
 # Guard first (#1171). symbolic-ref reads the HEAD of the GIT_DIR git exports
-# to hooks, so a linked worktree sees its own branch.
-if [ "$(git symbolic-ref --quiet HEAD || true)" = refs/heads/main ]; then
+# to hooks, so a linked worktree sees its own branch. Status 1 is a detached
+# HEAD; any other failure refuses rather than letting the commit through.
+if head=$(git symbolic-ref --quiet HEAD); then :; elif [ $? -ne 1 ]; then
+  echo "pre-commit: refusing: cannot read the current branch (git symbolic-ref failed)." >&2
+  exit 1
+fi
+if [ "$head" = refs/heads/main ]; then
   echo "pre-commit: refusing to commit on main: main changes only through a merged PR. Run \`git switch -c <type>/<topic>\`, then commit there." >&2
   exit 1
 fi

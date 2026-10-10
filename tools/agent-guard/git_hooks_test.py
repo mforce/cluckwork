@@ -5,6 +5,7 @@ against local bare repositories. No network.
 Run: python3 tools/agent-guard/git_hooks_test.py
 """
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -209,6 +210,18 @@ class PreCommitTest(unittest.TestCase):
             run(repo.work, "switch", "-q", "main", check=True)
             self.check("linked worktree on feat/wt, main checkout on main", repo.commit("wt feature", cwd=on_main), "allow")
             self.check("main checkout on main", repo.commit("checkout main"), "refuse")
+
+    def test_unreadable_branch_refuses(self):
+        with tempfile.TemporaryDirectory() as root:
+            repo = Repo(root)
+            shim = os.path.join(root, "bin")
+            os.mkdir(shim)
+            with open(os.path.join(shim, "git"), "w") as f:
+                f.write(f'#!/bin/sh\n[ "$1" = symbolic-ref ] && exit 128\nexec {shutil.which("git")} "$@"\n')
+            os.chmod(os.path.join(shim, "git"), 0o755)
+            env = {**ENV, "PATH": shim + os.pathsep + ENV["PATH"]}
+            result = subprocess.run([os.path.join(HOOKS, "pre-commit")], cwd=repo.work, capture_output=True, text=True, env=env)
+            self.check("feat/x, symbolic-ref exits 128", result, "refuse")
 
     def test_tests_skipped_when_hook_tests_off(self):
         with tempfile.TemporaryDirectory() as root:
