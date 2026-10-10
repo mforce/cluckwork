@@ -56,11 +56,9 @@ public sealed class TenancyDocsFreshnessTests
     // This repo is worked in worktrees, so that is a real path, not a hypothetical.
     internal static string RepoRoot() => Git("rev-parse --show-toplevel", AppContext.BaseDirectory).Trim();
 
+    // -z: without it git quotes and octal-escapes any non-ASCII path, which then matches no prefix.
     internal static IEnumerable<string> TrackedFiles(string root) =>
-        Git("ls-files", root)
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(l => l.Trim())
-            .Where(l => l.Length > 0);
+        Git("ls-files -z", root).Split('\0', StringSplitOptions.RemoveEmptyEntries);
 
     private static string Git(string arguments, string workingDirectory)
     {
