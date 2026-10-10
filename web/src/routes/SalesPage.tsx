@@ -834,6 +834,14 @@ export function SalesPage() {
     setCreatingOrder(false); // only on success — a throw keeps the dialog up
   });
 
+  // #1183 — a line change moves the order's total, discount and outstanding,
+  // so the Orders list re-reads its window too, under runWrite's ticket (#469).
+  const writeLine = (id: string, write: () => Promise<unknown>) => orders.runWrite(async () => {
+    await write();
+    const refreshed = await getOrder(id);
+    if (activeIdRef.current === id) setActive(refreshed);
+  });
+
   const onAddItem = () => run("add-item", async () => {
     if (!active) return;
     const id = active.id;
@@ -857,7 +865,7 @@ export function SalesPage() {
     // was previewed (per-egg unit, or no/failed conversions read).
     const previewed = unit === "Egg" ? null : eggsPerUnit(unit);
     try {
-      await addOrderItem(id,
+      await writeLine(id, () => addOrderItem(id,
         {
           productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
           expectedEggsPerUnit: previewed ?? undefined,
@@ -871,7 +879,7 @@ export function SalesPage() {
             return list === null ? {} : { expectedListUnitPriceMinorUnits: list };
           })(),
         },
-        keyFor(scope));
+        keyFor(scope)));
     } catch (err) {
       // Any server rejection may mean the conversions moved under us (the
       // UnitDefinitionChanged case) — refresh them so the preview and the
@@ -888,8 +896,6 @@ export function SalesPage() {
       }
       throw err;
     }
-    const refreshed = await getOrder(id);
-    if (activeIdRef.current === id) setActive(refreshed);
     clearKey(scope);
   });
 
@@ -912,11 +918,11 @@ export function SalesPage() {
         serverQuantity: draft.serverQuantity, serverPrice: draft.serverPrice,
       };
     itemUpdateAttempts.current.set(scope, attempt);
-    await updateOrderItem(id, itemId,
-      { quantity: draft.quantity, unitPriceMinorUnits: minorUnits }, attempt.key);
-    if (editorRef.current === draft) setEditor(null);
-    const refreshed = await getOrder(id);
-    if (activeIdRef.current === id) setActive(refreshed);
+    await writeLine(id, async () => {
+      await updateOrderItem(id, itemId,
+        { quantity: draft.quantity, unitPriceMinorUnits: minorUnits }, attempt.key);
+      if (editorRef.current === draft) setEditor(null);
+    });
     itemUpdateAttempts.current.delete(scope);
   });
 
@@ -924,9 +930,7 @@ export function SalesPage() {
     if (!active) return;
     const id = active.id;
     const scope = `remove-item:${itemId}`;
-    await removeOrderItem(id, itemId, keyFor(scope));
-    const refreshed = await getOrder(id);
-    if (activeIdRef.current === id) setActive(refreshed);
+    await writeLine(id, () => removeOrderItem(id, itemId, keyFor(scope)));
     clearKey(scope);
   });
 
