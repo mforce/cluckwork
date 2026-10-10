@@ -134,6 +134,16 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
             return;
         }
 
+        // #806 — /mcp carries every MCP message as a POST, initialize and tools/list
+        // included, and no MCP client sends an Idempotency-Key. A write tool keys its own
+        // claim on the tool and its arguments (#809). Matched on endpoint metadata, never
+        // a path, so the bearer set is what the endpoint table says it is.
+        if (context.GetEndpoint()?.Metadata.GetMetadata<HandlesOwnIdempotencyAttribute>() is not null)
+        {
+            await next(context);
+            return;
+        }
+
         if (ResponseNotCacheable.Any(p =>
                 context.Request.Path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase)))
         {
@@ -610,3 +620,8 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
     private static string Sha256(string value) => Convert.ToHexString(
         SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 }
+
+// #806 — marks an endpoint IdempotencyMiddleware skips because the endpoint keys its own
+// writes. Only /mcp carries it; McpEndpointTests pins that set.
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public sealed class HandlesOwnIdempotencyAttribute : Attribute;

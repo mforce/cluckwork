@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799 and #1148 OAuth claim has a test that
-# fails when the claim breaks.
+# tools/oauth/mutation-check.sh — proves each #795 to #799, #806 and #1148 OAuth claim has a
+# test that fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
 # rebuild, run the ONE named test with a TRX logger, and classify from the TRX, never
@@ -49,10 +49,14 @@ ACCOUNT=src/Cluckwork.Domain/Modules/Farm/Accounts/Account.cs
 ACCOUNT_ENDPOINTS=src/Cluckwork.Api/Modules/Farm/Accounts/AccountEndpoints.cs
 SWITCH_HANDLER=src/Cluckwork.Application/Modules/Farm/Accounts/SetConnectedApps/SetConnectedAppsHandler.cs
 SWITCH_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193717_AddAccountAllowConnectedApps.cs
+MCP=src/Cluckwork.Api/Hosting/CluckworkMcp.cs
+FORBIDDEN=src/Cluckwork.Api/Middleware/ForbiddenProblemResultHandler.cs
+POLICIES=src/Cluckwork.Api/AuthPolicies.cs
+TOOL_SURFACE=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurface.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
-SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata'
-SUITE_MIN=272
+SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
+SUITE_MIN=355
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -92,15 +96,15 @@ verifier-logged#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddic
 parent-override-only#kill#TELEMETRY#                    .Filter.ByExcluding(OpenIddictBelowWarning),#                    .MinimumLevel.Override("OpenIddict", LogEventLevel.Warning),#OAuthServerTests.ProtocolSecrets_NeverReachTheLog#protocol secrets reached the log
 oauth-on-default-scheme#kill#IDENTITY#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())\n#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()) || context.Request.Headers.Authorization.ToString().Count(ch => ch == '.') != 2\n#OAuthServerTests.OAuthToken_IsRejectedByBusinessEndpoints_AtAuthentication#Expected: Unauthorized
 jwt-by-token-shape#kill#IDENTITY#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())\n#                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint()) && context.Request.Headers.Authorization.ToString().Count(ch => ch == '.') != 2\n#OAuthFailClosedTests.SessionJwt_IsRefused_WhereOAuthTokensAreAccepted#Expected: Unauthorized
-authenticate-at-authorization#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.RequireAssertion(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").RequireAssertion(#OAuthFailClosedTests.DisabledUser_IsRefused_OnTheNextRequest#Expected: Unauthorized
-authenticate-at-authorization-flocks#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.RequireAssertion(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").RequireAssertion(#OAuthFailClosedTests.Worker_IsFlockScoped#the worker's OAuth caller is unrestricted
+authenticate-at-authorization#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddRequirements(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").AddRequirements(#OAuthFailClosedTests.DisabledUser_IsRefused_OnTheNextRequest#Expected: Unauthorized
+authenticate-at-authorization-flocks#kill#ENDPOINT#            .WithMetadata(new AcceptsOAuthTokensMarker())\n            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddRequirements(#            .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)\n            .RequireAuthorization(policy => policy.AddAuthenticationSchemes("OpenIddict.Validation.AspNetCore").AddRequirements(#OAuthFailClosedTests.Worker_IsFlockScoped#the worker's OAuth caller is unrestricted
 role-claim-dropped#kill#ENDPOINT#"credential_epoch", Claims.Role, #"credential_epoch", #OAuthFailClosedTests.OAuthToken_CarriesTheSessionPrincipal_ThroughTheWholeChain#Collections differ
 disabled-unchecked#kill#VERIFIER#        if (credentialState.DisabledAt is not null)\n            return CredentialVerdict.Disabled;\n##OAuthFailClosedTests.DisabledUser_IsRefused_OnTheNextRequest#Expected: Unauthorized
 suspended-unchecked#kill#VERIFIER#        if (credentialState.AccountIsActive != true)\n            return CredentialVerdict.FarmSuspended;\n##OAuthFailClosedTests.SuspendedFarm_IsRefused_OnTheNextRequest#Expected: Unauthorized
 epoch-exempts-oauth#kill#EPOCH#            && !IsLogoutPath(context.Request.Path))#            && !IsLogoutPath(context.Request.Path) && context.User.FindFirst("oi_au_id") is null)#OAuthFailClosedTests.RoleChange_RevokesTheToken#Expected: Unauthorized
 epoch-exempts-oauth-suspended#kill#EPOCH#            && !IsLogoutPath(context.Request.Path))#            && !IsLogoutPath(context.Request.Path) && context.User.FindFirst("oi_au_id") is null)#OAuthFailClosedTests.SuspendedFarm_IsRefused_OnTheNextRequest#Expected: Unauthorized
 must-change-may-authorize#kill#MUST_CHANGE#        "/api/v1/auth/logout",\n#        "/api/v1/auth/logout",\n        "/api/v1/oauth/authorize",\n#OAuthFailClosedTests.MustChangePassword_BlocksIssuance#Expected: Forbidden
-scope-gate-removed#kill#ENDPOINT#\n            .RequireAuthorization(policy => policy.RequireAssertion(context =>\n                scopes.Any(context.User.HasScope)));#;#OAuthFailClosedTests.ScopeAndRole_AreBothRequired#Expected: Forbidden
+scope-gate-removed#kill#ENDPOINT#\n            .RequireAuthorization(policy => policy.AddRequirements(new OAuthScopeRequirement(scopes)));#;#OAuthFailClosedTests.ScopeAndRole_AreBothRequired#Expected: Forbidden
 authorization-unchecked#kill#SERVER#                validation.EnableAuthorizationEntryValidation();\n##OAuthFailClosedTests.Disconnect_RefusesTheAccessToken_OnTheNextRequest#Expected: Unauthorized
 unbound-token-trusted#kill#SERVER#                        if (string.IsNullOrEmpty(context.AuthorizationId))\n                            context.Reject(Errors.InvalidToken, "The token is not bound to an authorization.");\n##OAuthFailClosedTests.TokenWithoutAnAuthorization_IsRefused#Expected: Unauthorized
 refresh-grant-allowed#kill#SERVER#                    .AllowAuthorizationCodeFlow()#                    .AllowAuthorizationCodeFlow().AllowRefreshTokenFlow()#OAuthFailClosedTests.Disconnect_LeavesNoWayToANewToken#unsupported_grant_type
@@ -221,6 +225,32 @@ cimd-response-type-fetched#kill#DOCUMENTS#if (context.Request.ResponseType != Re
 cimd-pkce-fetched#kill#DOCUMENTS#if (string.IsNullOrEmpty(context.Request.CodeChallenge) || context.Request.CodeChallengeMethod != CodeChallengeMethods.Sha256)#if (context.Request.CodeChallengeMethod == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
 cimd-approved-shares-strangers-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: false#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
 cimd-everyone-gets-approved-budget#kill#DOCUMENTS#approved: await IsApprovedAsync(scope, applications, row, ct)#approved: true#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
+mcp-stateful#kill#MCP#options.SessionMode = HttpServerSessionMode.Stateless#options.SessionMode = HttpServerSessionMode.Stateful#Mcp.McpEndpointTests.Transport_IsStateless_WithNoSessionHook#Stateful
+mcp-stateful-sweep-runs#kill#MCP#options.SessionMode = HttpServerSessionMode.Stateless#options.SessionMode = HttpServerSessionMode.Stateful#Mcp.McpEndpointTests.IdleSessionSweep_IsRegistered_ButNeverStarts#Assert.Null() Failure
+mcp-session-hook#kill#MCP#options => options.SessionMode = HttpServerSessionMode.Stateless)#options => { options.SessionMode = HttpServerSessionMode.Stateless; options.ConfigureSessionOptions = (_, _, _) => Task.CompletedTask; })#Mcp.McpEndpointTests.Transport_IsStateless_WithNoSessionHook#Assert.Null() Failure
+mcp-body-unclassified#kill#MCP#new ReadsRequestBodyAttribute(), ##Mcp.McpEndpointTests.McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate#Assert.NotNull() Failure
+mcp-body-uncapped#kill#MCP#\n            .WithMaxRequestBodyBytes(MaxRequestBodyBytes)##Mcp.McpEndpointTests.OversizedBody_IsRefused#Expected: RequestEntityTooLarge
+mcp-idempotency-unmarked#kill#MCP#, new HandlesOwnIdempotencyAttribute()##Mcp.McpEndpointTests.McpMessages_WithoutAnIdempotencyKey_AreServed#Expected: OK
+mcp-idempotency-second-bearer#kill#ENDPOINT#.WithMetadata(new IgnoresAmbientPrincipalAttribute(), new ReadsRequestBodyAttribute())#.WithMetadata(new IgnoresAmbientPrincipalAttribute(), new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute())#Mcp.McpEndpointTests.IdempotencyExemption_IsCarriedByTheMcpPostAlone#Assert.Single() Failure
+mcp-idempotency-exemption-ignored#kill#IDEMPOTENCY#GetMetadata<HandlesOwnIdempotencyAttribute>() is not null)#GetMetadata<HandlesOwnIdempotencyAttribute>() is null && false)#Mcp.McpEndpointTests.McpMessages_WithoutAnIdempotencyKey_AreServed#Expected: OK
+mcp-tools-list-unfiltered#kill#MCP#\n            .AddAuthorizationFilters()##Mcp.McpAuthorizationTests.ToolsList_ShowsOnlyToolsTheRoleAndScopesAllow#Request failed (remote): An error occurred.
+mcp-read-scope-policy-wrong#kill#POLICIES#new OAuthScopeRequirement(OAuthScopes.ReadFarm)#new OAuthScopeRequirement(OAuthScopes.WriteDailyEntries)#Mcp.McpAuthorizationTests.ToolsList_ShowsOnlyToolsTheRoleAndScopesAllow#Collections differ
+mcp-get-falls-to-spa#kill#MCP#        app.MapMethods(Path, [HttpMethods.Get, HttpMethods.Head], (HttpResponse response) =>#        app.MapMethods(Path + "/unused", [HttpMethods.Get, HttpMethods.Head], (HttpResponse response) =>#Mcp.McpEndpointTests.GetAndHead_Get405#Expected: MethodNotAllowed
+shared-check-unchallenged#kill#EPOCH#                CluckworkMcp.AddChallenge(context, "error=\"invalid_token\"");\n##Mcp.McpAuthorizationTests.SharedCheck_RefusesTheConnection_WithAChallenge#Strings differ
+rpc-429-no-retry-after#kill#LIMITS#context.HttpContext.Response.Headers.RetryAfter =#var unusedRetryAfter =#Mcp.McpAuthorizationTests.OverTheBudget_Gets429_AsAJsonRpcError#no Retry-After
+tool-walk-declared-only#kill#TOOL_SURFACE#        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;#        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;#Mcp.McpToolSurfaceTests.InheritedToolMethod_IsGatedByItsDeclaringType#Assert.Contains() Failure
+tool-walk-reflected-type-gates#kill#TOOL_SURFACE#.Concat(method.DeclaringType!.GetCustomAttributes(inherit: true))#.Concat(method.ReflectedType!.GetCustomAttributes(inherit: true))#Mcp.McpToolSurfaceTests.InheritedToolMethod_IsGatedByItsDeclaringType#Assert.Contains() Failure
+tool-walk-finds-nothing#kill#TOOL_SURFACE#Where(m => HasAttribute(m, "McpServerToolAttribute"))#Where(m => HasAttribute(m, "NoSuchAttribute"))#Mcp.McpEndpointTests.ToolWalk_ReachesEveryToolTheSdkRegisters#Values differ
+mcp-mapped-without-issuer#kill#PROGRAM#        .MapOAuthEndpoints();\n    app.MapCluckworkMcp();\n}#        .MapOAuthEndpoints();\n}\napp.MapCluckworkMcp();#Mcp.McpEndpointTests.WithoutAnIssuer_McpIsNotMapped#WithHttpTransport
+audience-unchecked#kill#SERVER#\n                validation.AddAudiences(resource);##Mcp.McpAuthorizationTests.TokenIssuedForAnotherResource_IsRefused#Expected: Unauthorized
+audience-unchecked-unbound#kill#SERVER#\n                validation.AddAudiences(resource);##Mcp.McpAuthorizationTests.TokenWithoutTheMcpAudience_IsRefused#Expected: Unauthorized
+resource-not-stamped#kill#SERVER#context.Principal!.SetResources(context.Request!.GetResources() is { IsEmpty: false } asked\n                                ? asked\n                                : [resource]);#_ = resource;#Mcp.McpAuthorizationTests.TokenForMcp_IsAccepted#Expected: OK
+default-resource-dropped#kill#SERVER#                                : [resource]);#                                : []);#Mcp.McpAuthorizationTests.TokenForMcp_IsAccepted#Expected: OK
+resource-unregistered#kill#SERVER#\n                    .RegisterResources(resource)##Mcp.McpAuthorizationTests.TokenForMcp_IsAccepted#Expected: OK
+challenge-without-metadata#kill#IDENTITY#? McpAuthenticationDefaults.AuthenticationScheme#? "OpenIddict.Validation.AspNetCore"#Mcp.McpAuthorizationTests.NoToken_Gets401_NamingTheProtectedResourceMetadata#Strings differ
+metadata-from-request-host#kill#MCP#\n            options.ResourceMetadataUri = new Uri(resource, "/.well-known/oauth-protected-resource" + resource.AbsolutePath);##Mcp.McpAuthorizationTests.Challenge_NamesTheIssuer_NotTheRequestHost#Sub-string not found
+insufficient-scope-unannounced#kill#FORBIDDEN#var onlyScopesFailed = failed.Count > 0 && failed.All(r => r is OAuthScopeRequirement);#var onlyScopesFailed = false;#Mcp.McpAuthorizationTests.TokenWithoutAnMcpScope_Gets403InsufficientScope#Strings differ
+rpc-429-as-problem#kill#LIMITS#if (policyName == RateLimitingOptions.OAuthApiPolicyName)\n                {\n                    context.HttpContext.Response.StatusCode#if (policyName == "none")\n                {\n                    context.HttpContext.Response.StatusCode#Mcp.McpAuthorizationTests.OverTheBudget_Gets429_AsAJsonRpcError#not a JSON-RPC error
 EOF
 )
 
@@ -315,7 +345,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

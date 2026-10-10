@@ -17,7 +17,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
-using OpenIddict.Validation.AspNetCore;
+using ModelContextProtocol.AspNetCore.Authentication;
 
 namespace Cluckwork.Api.Hosting;
 
@@ -186,13 +186,15 @@ internal static class CluckworkIdentityServiceCollectionExtensions
                     configuration.GetSection("OAuth:ClientMetadata:PrivateHosts").Get<string[]>()?.ToHashSet(StringComparer.OrdinalIgnoreCase)));
             // #796 — one handler per endpoint: OpenIddict validation where the endpoint
             // opted in through AcceptOAuthTokens, the session JWT scheme everywhere else.
-            // Neither token is ever handed to the other's handler.
-            services.AddAuthentication(options => options.DefaultScheme = BearerSelectorScheme)
+            // Neither token is ever handed to the other's handler. #806 — the OAuth side
+            // is the MCP scheme, which authenticates through OpenIddict validation.
+            var authentication = services.AddAuthentication(options => options.DefaultScheme = BearerSelectorScheme)
                 .AddPolicyScheme(BearerSelectorScheme, displayName: null, options =>
                     options.ForwardDefaultSelector = context =>
                         OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())
-                            ? OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
+                            ? McpAuthenticationDefaults.AuthenticationScheme
                             : JwtBearerDefaults.AuthenticationScheme);
+            services.AddCluckworkMcp(authentication, oauthIssuer);
         }
 
         return new(OAuthServer: oauthIssuer is not null);
