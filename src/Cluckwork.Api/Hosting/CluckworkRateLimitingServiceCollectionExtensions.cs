@@ -94,10 +94,25 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                         context.HttpContext.Request.Path.Value);
                 }
 
+                // #806 — an MCP client reads JSON-RPC, and oauth-api counts per token, not per
+                // address. The request's id is unknown here, so the error carries none.
+                if (McpEndpoint.Of(context.HttpContext) is not null)
+                {
+                    await Results.Json(new
+                        {
+                            jsonrpc = "2.0",
+                            id = (object?)null,
+                            error = new { code = -32000, message = "Too many requests on this connection. Try again later." },
+                        }, statusCode: StatusCodes.Status429TooManyRequests)
+                        .ExecuteAsync(context.HttpContext);
+                    return;
+                }
+
                 await Results.Problem(
                         title: "Too many requests",
-                        detail:
-                            "Too many requests from this address. Try again later.",
+                        detail: policyName == RateLimitingOptions.OAuthApiPolicyName
+                            ? "Too many requests with this access token. Try again later."
+                            : "Too many requests from this address. Try again later.",
                         statusCode: StatusCodes.Status429TooManyRequests)
                     .ExecuteAsync(context.HttpContext);
             };

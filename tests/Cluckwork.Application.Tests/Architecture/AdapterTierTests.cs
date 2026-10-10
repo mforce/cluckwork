@@ -20,7 +20,7 @@ public sealed class AdapterTierTests : IDisposable
             new ModuleLedger([new("Hub", "platform", ["Cluckwork.Temp"], [])], [], []) { AdapterTiers = tiers }));
     }
 
-    private static AdapterTier Tier(string ns = "Cluckwork.Temp.Mcp", string privilege = "DirectRepository",
+    private static AdapterTier Tier(string ns = "Cluckwork.Temp.Mcp", string privilege = "ContractsOnly",
         string surface = "MapMcp", string reason = "test reason", string reviewBy = "#1") =>
         new(ns, privilege, surface, reason, reviewBy);
 
@@ -144,7 +144,7 @@ public sealed class AdapterTierTests : IDisposable
         Assert.Contains("MapMcp", failure);
         Assert.Contains("src/Program.cs:1", failure);
         Assert.EndsWith("add the row to PlatformModuleRules in src/Cluckwork.Domain/Common/Architecture/Modules/Platform.cs:\n" +
-            "[AdapterTier(\"<the tool namespace>\", \"DirectRepository\", " +
+            "[AdapterTier(\"<the tool namespace>\", \"ContractsOnly\", " +
             "\"MapMcp\", \"<why this surface needs the privilege, with a citation>\", \"<#issue>\")]", failure);
     }
 
@@ -308,7 +308,7 @@ public sealed class AdapterTierTests : IDisposable
         Assert.Contains(Scan(row).RegistryErrors,
             e => e.Contains("privilege", StringComparison.Ordinal)
                 && e.Contains("MapMcp", StringComparison.Ordinal)
-                && e.Contains("DirectRepository", StringComparison.Ordinal));
+                && e.Contains("ContractsOnly", StringComparison.Ordinal));
     }
 
     [Fact]

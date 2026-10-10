@@ -19,6 +19,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using ModelContextProtocol.AspNetCore.Authentication;
 using OpenIddict.Validation.AspNetCore;
 
 namespace Cluckwork.Api.Hosting;
@@ -188,13 +189,20 @@ internal static class CluckworkIdentityServiceCollectionExtensions
                     configuration.GetSection("OAuth:ClientMetadata:PrivateHosts").Get<string[]>()?.ToHashSet(StringComparer.OrdinalIgnoreCase)));
             // #796 — one handler per endpoint: OpenIddict validation where the endpoint
             // opted in through AcceptOAuthTokens, the session JWT scheme everywhere else.
-            // Neither token is ever handed to the other's handler.
+            // Neither token is ever handed to the other's handler. #806 — /mcp goes through
+            // the MCP scheme, which forwards authentication to OpenIddict and adds the
+            // protected-resource metadata to its challenge.
             services.AddAuthentication(options => options.DefaultScheme = BearerSelectorScheme)
                 .AddPolicyScheme(BearerSelectorScheme, displayName: null, options =>
-                    options.ForwardDefaultSelector = context =>
-                        OAuthEndpoints.AcceptsOAuthTokens(context.GetEndpoint())
-                            ? OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
-                            : JwtBearerDefaults.AuthenticationScheme);
+                    options.ForwardDefaultSelector = context => context.GetEndpoint() switch
+                    {
+                        { } endpoint when endpoint.Metadata.GetMetadata<McpEndpoint>() is not null =>
+                            McpAuthenticationDefaults.AuthenticationScheme,
+                        { } endpoint when OAuthEndpoints.AcceptsOAuthTokens(endpoint) =>
+                            OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme,
+                        _ => JwtBearerDefaults.AuthenticationScheme,
+                    })
+                .AddCluckworkMcp(oauthIssuer);
         }
 
         return new(OAuthServer: oauthIssuer is not null);

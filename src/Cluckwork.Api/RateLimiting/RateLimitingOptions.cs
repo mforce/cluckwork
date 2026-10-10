@@ -34,7 +34,8 @@ public sealed class RateLimitingOptions
     public FixedWindow OAuthToken { get; init; } = new() { PermitLimit = 20, WindowSeconds = 60 };
     public FixedWindow OAuthAuthorize { get; init; } = new() { PermitLimit = 20, WindowSeconds = 60 };
     // An assistant calls far faster than a person clicks (#796), so this is per minute.
-    public FixedWindow OAuthApi { get; init; } = new() { PermitLimit = 120, WindowSeconds = 60 };
+    // #806 — /mcp is its only endpoint, and every MCP message is one request.
+    public FixedWindow OAuthApi { get; init; } = new() { PermitLimit = 300, WindowSeconds = 60 };
     public FixedWindow OAuthRegister { get; init; } = new() { PermitLimit = 10, WindowSeconds = 3600 };
     // Small on purpose: a report query is a bounded-range aggregate (#311), not
     // a hot path — a genuine user rarely has more than one or two in flight at

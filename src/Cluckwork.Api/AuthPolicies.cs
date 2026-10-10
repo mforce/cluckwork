@@ -1,4 +1,6 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
+using OpenIddict.Abstractions;
 
 namespace Cluckwork.Api;
 
@@ -56,6 +58,12 @@ public static class AuthPolicies
         // ReadOnly exist precisely to fence their holders off production.
         opts.AddPolicy(ProductionWrite, p => p.RequireAuthenticatedUser().RequireAssertion(ctx =>
             EffectiveRole(ctx.User) is Roles.Owner or Roles.Manager or WorkerRole));
+
+        // #806 — one policy per OAuth scope, named for it. An MCP tool carries a scope
+        // policy beside its role policy; stacked [Authorize] attributes AND together, so
+        // the tool admits role ∩ scope and tools/list hides it from everyone else.
+        foreach (var scope in OAuthScopes.All)
+            opts.AddPolicy(scope, p => p.RequireAuthenticatedUser().RequireAssertion(ctx => ctx.User.HasScope(scope)));
     }
 
     private const string WorkerRole = "Worker";

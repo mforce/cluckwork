@@ -39,7 +39,7 @@ public sealed class AdapterReachTests : IDisposable
         AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), Ledger(adapters, adapterTiers, farmContract));
 
     private static AdapterTier Tier(string ns = "Cluckwork.Temp.Mcp") =>
-        new(ns, "DirectRepository", "MapMcp", "test", "#1");
+        new(ns, "ContractsOnly", "MapMcp", "test", "#1");
 
     private static AdapterClaim Row(string symbol = Symbol, IReadOnlyList<string>? reaches = null) =>
         new(symbol, reaches ?? ["Farm"]);

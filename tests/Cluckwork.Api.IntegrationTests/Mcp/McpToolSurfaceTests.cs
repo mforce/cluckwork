@@ -1,15 +1,17 @@
 using System.Reflection;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests.Mcp;
 
-// #805 rows 6, 7 and the namespace half of 7b. The real tree holds no tool until #806,
-// so the fixtures below carry the red mutations.
+// #805 rows 6, 7 and the namespace half of 7b, and #806's scope-and-role rule. The real
+// tree holds no tool until #807, so the fixtures below carry the red mutations.
 public sealed class McpToolSurfaceTests
 {
     private static readonly Type[] ApiTypes = typeof(McpCallContext).Assembly.GetTypes();
@@ -26,6 +28,21 @@ public sealed class McpToolSurfaceTests
         Assert.Contains(typeof(McpCallContext), mcpTypes);
         AssertNone(McpToolSurface.ScopeOpenerDeclarations(mcpTypes));
     }
+
+    [Fact]
+    public void RealTree_EveryToolNamesAScopeAndARolePolicy() =>
+        AssertNone(McpToolSurface.AuthorizationFindings(ApiTypes));
+
+    [Fact]
+    public void ToolsNamingAScopeAndARole_HaveNoAuthorizationFindings() =>
+        Assert.Empty(McpToolSurface.AuthorizationFindings([typeof(ScopedTool), typeof(TypeScopedTool)]));
+
+    [Theory]
+    [InlineData(typeof(ConstructorTool), "no scope policy", "no role policy")]
+    [InlineData(typeof(RoleOnlyTool), "no scope policy")]
+    [InlineData(typeof(ScopeOnlyTool), "no role policy")]
+    public void ToolMissingAScopeOrARole_IsAnAuthorizationFinding(Type tool, params string[] expected) =>
+        Assert.Equal(expected, McpToolSurface.AuthorizationFindings([tool]).Select(f => f[(f.IndexOf(" names ") + 7)..]));
 
     [Fact]
     public void ToolsTakingTheContext_HaveNoFindings() =>
@@ -102,6 +119,40 @@ public sealed class McpToolSurfaceTests
     {
         [McpServerTool]
         public static string Read(McpCallContext call) => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class ScopedTool(McpCallContext call)
+    {
+        [McpServerTool]
+        [Authorize(Policy = OAuthScopes.ReadFarm)]
+        [Authorize]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType]
+    [Authorize(Policy = AuthPolicies.ProductionWrite)]
+    private sealed class TypeScopedTool(McpCallContext call)
+    {
+        [McpServerTool]
+        [Authorize(Policy = OAuthScopes.WriteDailyEntries)]
+        public string Write() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class RoleOnlyTool(McpCallContext call)
+    {
+        [McpServerTool]
+        [Authorize(Policy = AuthPolicies.SalesAccess)]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class ScopeOnlyTool(McpCallContext call)
+    {
+        [McpServerTool]
+        [Authorize(Policy = OAuthScopes.ReadFarm)]
+        public string Read() => call.Email;
     }
 
     [McpServerToolType]

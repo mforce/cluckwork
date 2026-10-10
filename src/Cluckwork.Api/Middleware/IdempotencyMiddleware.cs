@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
@@ -129,6 +130,14 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
             && !HttpMethods.IsPut(context.Request.Method)
             && !HttpMethods.IsPatch(context.Request.Method)
             && !HttpMethods.IsDelete(context.Request.Method))
+        {
+            await next(context);
+            return;
+        }
+
+        // #806 — MCP sends every message as a POST, initialize and tools/list included,
+        // and no MCP client sends an Idempotency-Key. A write tool keys its own retries.
+        if (McpEndpoint.Of(context) is not null)
         {
             await next(context);
             return;

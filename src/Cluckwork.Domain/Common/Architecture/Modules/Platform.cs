@@ -29,8 +29,8 @@ namespace Cluckwork.Domain.Common.Architecture;
     PersistenceForbiddenNamespaces = ["Cluckwork.Api.Endpoints", "Cluckwork.Api.Modules"])]
 [AdapterTier(
     "Cluckwork.Api.Mcp",
-    "DirectRepository",
+    "ContractsOnly",
     "MapMcp",
-    "MCP tool classes inject repositories by design (docs/plans/770-mcp-server/01-design.md:112); the contract-first shape is Track C (#514)",
-    "#806")]
+    "MCP tool classes are adapters like the endpoints: CW1004 and the reach guard hold them to module contracts (#1123, #806)",
+    "#789")]
 internal static class PlatformModuleRules { }

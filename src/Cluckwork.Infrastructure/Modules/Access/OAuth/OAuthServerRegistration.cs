@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
+using OpenIddict.Abstractions;
 using OpenIddict.Server;
 using OpenIddict.Validation;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -18,9 +19,17 @@ namespace Cluckwork.Infrastructure.Modules.Access.OAuth;
 // authorization code with PKCE, reference access tokens that live until revoked (#788).
 public static class OAuthServerRegistration
 {
+    // #806 — the one resource these tokens are for (RFC 8707), derived from the issuer
+    // and never from a request's Host.
+    public static Uri McpResource(Uri issuer) => new(PublicBase(issuer), "mcp");
+
+    private static Uri PublicBase(Uri issuer) =>
+        issuer.AbsoluteUri.EndsWith('/') ? issuer : new Uri(issuer.AbsoluteUri + "/");
+
     public static IServiceCollection AddAccessOAuthServer(
         this IServiceCollection services, Uri issuer, bool allowPlainHttp, ClientMetadataOptions clientMetadata)
     {
+        var mcpResource = McpResource(issuer);
         services.AddOpenIddict()
             .AddCore(core => core
                 .UseEntityFrameworkCore()
@@ -37,10 +46,13 @@ public static class OAuthServerRegistration
                     .UseReferenceAccessTokens()
                     .SetAccessTokenLifetime(null)
                     .RegisterScopes([.. OAuthScopes.All])
+                    // #806 — any other resource is refused with invalid_target.
+                    .RegisterResources(mcpResource)
                     // Every client registers itself anonymously (#797), so a per-client
                     // scope permission would be granted to all of them anyway. The user's
                     // consent is what limits a connection's scopes (#798).
                     .IgnoreScopePermissions()
+                    .IgnoreResourcePermissions()
                     // OpenIddict refuses to start without both keys, but with the Data
                     // Protection format they only ever sign identity tokens, which this
                     // server never issues. Codes and access tokens are protected by the
@@ -105,7 +117,7 @@ public static class OAuthServerRegistration
                 // Host the request arrived with: behind a proxy that Host can be an internal
                 // name. #797 — OpenIddict has no registration endpoint; the API maps one
                 // beside authorize, and discovery points clients at it.
-                var publicBase = issuer.AbsoluteUri.EndsWith('/') ? issuer : new Uri(issuer.AbsoluteUri + "/");
+                var publicBase = PublicBase(issuer);
                 server.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(handler => handler
                     .UseInlineHandler(context =>
                     {
@@ -122,6 +134,20 @@ public static class OAuthServerRegistration
 
                 server.AddEventHandler(ClientMetadataDocuments.Descriptor);
 
+                // #806 — every code, and so every access token, names its resource. A client
+                // that sent none gets /mcp, the only resource, as the scope default above
+                // gets farm:read.
+                server.AddEventHandler<OpenIddictServerEvents.ProcessSignInContext>(handler => handler
+                    .UseInlineHandler(context =>
+                    {
+                        if (context.EndpointType is OpenIddictServerEndpointType.Authorization)
+                            context.Principal!.SetResources(context.Request.GetResources() is { IsEmpty: false } asked
+                                ? asked
+                                : [mcpResource.AbsoluteUri]);
+                        return default;
+                    })
+                    .SetOrder(OpenIddictServerHandlers.InferResources.Descriptor.Order + 500));
+
                 // Token passthrough maps the endpoint, which is what lets it opt into a
                 // rate-limit policy and a body cap; OpenIddict still validates first.
                 var aspNetCore = server.UseAspNetCore()
@@ -133,6 +159,8 @@ public static class OAuthServerRegistration
             .AddValidation(validation =>
             {
                 validation.UseLocalServer();
+                // #806 — a token issued for another resource, or for none, is refused.
+                validation.AddAudiences(mcpResource.AbsoluteUri);
                 validation.UseDataProtection();
                 // Disconnect revokes the authorization, so every request checks it (#796).
                 validation.EnableAuthorizationEntryValidation();
