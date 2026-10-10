@@ -1,6 +1,3 @@
-using Cluckwork.Application.Common;
-using Cluckwork.Domain.Common;
-
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
 // #857 — Access's surface for HTTP adapters: user administration, the

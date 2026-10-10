@@ -56,6 +56,21 @@ A wrong guard is worse than none, because it looks safe. → [`407-writing-a-gua
 - Some guards check call-site syntax, for example `AuditVocabularyCoverageTests` on `IAuditWriter.WriteAsync`. Read the guard before you write the call.
 - Some guards walk every tracked file (image pins, tenancy wording). They apply to a doc as soon as you commit it. Run them before you commit docs. If one rejects the content of a copied document, fix the source and copy it again; never edit the committed copy or allow-list it.
 
+## Enforced rules
+
+Each row states what its check fails on, which can be narrower than the prose rule it backs. Existing hits are frozen where a row says so, so a check stops new cases rather than proving the rule everywhere. When a correction repeats and the rule behind it is only prose, add the check and a row here, or record why no check can hold it.
+
+| Check fails on | Enforced by | Runs in |
+|---|---|---|
+| A React hook rule or floating-promise violation in `web/src/**/*.{ts,tsx}` outside the frozen suppressions (#1155) | ESLint, `web/lint/eslint.config.js`; `web/lint/eslint-suppressions.json` | `npm run lint`, CI `web` |
+| An `await` or `.then` inside a `useEffect` in non-test files under `web/src/routes` or `web/src/components`, outside the suppressions; use `useLatestLoad` or `usePagedList` instead (#1190) | ESLint `no-restricted-syntax`, same config | `npm run lint`, CI `web` |
+| A new non-`help` key in `en.ts` with no Help or glossary change, or changed `GLOSSARY.md` term text whose English in-app definition stayed the same; a `Docs-impact: none — <reason>` body line waives both (#1194, see [UI changes](#ui-changes-screenshots-and-verification)) | `.github/scripts/docs-impact.mjs` | **Docs impact** workflow |
+| A `GLOSSARY.md` term with neither an in-app entry nor a `SPEC_ONLY` row; the existing `NOT_YET` backlog is pinned (#1193) | `web/src/routes/helpGlossary.test.ts` | Vitest, CI `web` |
+| A tracked `.cs`, `.ts`, `.tsx` or `.css` file under `src/` or `web/src/` over 500 lines, excluding tests, migrations, locale catalogs and the listed legacy files, which may grow (#1153) | `FileSizeLimitTests` | Application tests, CI |
+| A new C# test type that parses syntax and never queries a `SemanticModel`; legacy types are listed (#1189) | `SpellingScannerRatchetTests` | Application tests, CI |
+| An unused `using` in any project's C# source, except the EF migrations tree and generated files (#1187) | IDE0005 at build time, set in `.editorconfig` and `Directory.Build.props` | `dotnet build`, CI |
+| An agent's merge, push to `main`, force-push, `src:dst` refspec push or commit on `main`, when the harness hook is enabled or git uses `.githooks`; the guard's parser limits apply (#1158, #1172, #1175) | `tools/agent-guard/git_guard.py` (Claude Code and Codex hooks, Pi extension, Hermes plugin); `.githooks/pre-commit` and `.githooks/pre-push` | the agent harness; git; the guard's own tests in CI |
+
 ## UI changes: screenshots and verification
 
 - A PR that changes what a user sees attaches screenshots: before and after at the same viewport and scenario, after-only for new UI. Capture at 1:1 from a stack rebuilt at the PR head; a long-running sim stack serves the build it started with. Attach with `gh pr comment --attach` or `gh pr create --attach`, never by committing images to a branch.

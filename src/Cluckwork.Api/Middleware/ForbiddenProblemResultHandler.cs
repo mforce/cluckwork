@@ -1,3 +1,5 @@
+using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Mvc;
@@ -16,11 +18,25 @@ public sealed class ForbiddenProblemResultHandler : IAuthorizationMiddlewareResu
     {
         if (authorizeResult.Forbidden)
         {
+            var failed = authorizeResult.AuthorizationFailure?.FailedRequirements.ToList() ?? [];
+            var onlyScopesFailed = failed.Count > 0 && failed.All(r => r is OAuthScopeRequirement);
+
+            // #806 — RFC 6750 §3.1 and the MCP scope challenge: a token that lacks a scope
+            // tells its client which scopes to ask the user for. When the role failed too,
+            // no new token would help, so the role body below answers instead.
+            if (onlyScopesFailed)
+            {
+                var scopes = failed.Cast<OAuthScopeRequirement>().SelectMany(r => r.AnyOf).Distinct();
+                CluckworkMcp.AddChallenge(context, $"error=\"insufficient_scope\", scope=\"{string.Join(' ', scopes)}\"");
+            }
+
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsJsonAsync(new ProblemDetails
             {
                 Title = "Forbidden",
-                Detail = "This action requires the Admin role.",
+                Detail = onlyScopesFailed
+                    ? "This connection was not given the permission this action needs. Reconnect the app and allow it."
+                    : "This action requires the Admin role.",
                 Status = StatusCodes.Status403Forbidden
             });
             return;

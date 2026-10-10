@@ -266,7 +266,7 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Api.Middleware.IdempotencyMiddleware.InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)",
             File = "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
-            Hash = "81a2888e",
+            Hash = "4c659505",
             Justification = "Raw-SQL UPDATE of idempotency_records on successful completion; the statement carries WHERE \"AccountId\" = {accountId} (the claim was scoped to this tenant on insert). Not a row lock, so the predicate walk does not flag it — allow-listed as a raw-SQL occurrence.",
         },
         new()

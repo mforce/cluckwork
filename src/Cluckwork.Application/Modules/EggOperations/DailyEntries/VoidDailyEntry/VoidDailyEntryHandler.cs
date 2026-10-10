@@ -4,7 +4,6 @@ using Cluckwork.Application.Modules.EggOperations.EggGrades;
 using Cluckwork.Application.Modules.EggOperations.EggLots;
 using Cluckwork.Application.Modules.EggOperations.Eggs;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Microsoft.Extensions.Logging;

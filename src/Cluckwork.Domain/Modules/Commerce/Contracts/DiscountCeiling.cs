@@ -43,7 +43,7 @@ public readonly record struct DiscountCeiling
     /// </summary>
     /// <remarks>
     /// This is the ONE parser, in the same spirit as
-    /// <see cref="DiscountReason.TryParseCode"/>: UpdateFarmSettingsValidator
+    /// <see cref="Sales.DiscountReason.TryParseCode"/>: UpdateFarmSettingsValidator
     /// turns a malformed percent into a 400 with it, and the handler converts
     /// with it, so the boundary and the storage cannot disagree about which
     /// percents are expressible. More than two decimal places is refused rather

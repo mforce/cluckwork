@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Microsoft.AspNetCore.TestHost;

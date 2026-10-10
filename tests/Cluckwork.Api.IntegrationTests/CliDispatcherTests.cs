@@ -1,4 +1,3 @@
-using System.Linq;
 using Cluckwork.Api.Cli;
 
 namespace Cluckwork.Api.IntegrationTests;

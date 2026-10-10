@@ -5,7 +5,6 @@ using Cluckwork.Application.Modules.FlockManagement.Flocks.DepleteFlock;
 using Cluckwork.Application.Modules.FlockManagement.Flocks.ReactivateFlock;
 using Cluckwork.Application.Modules.FlockManagement.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Modules.FlockManagement.Flocks.UpdateFlock;
-using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Modules.FlockManagement.Flocks;
 

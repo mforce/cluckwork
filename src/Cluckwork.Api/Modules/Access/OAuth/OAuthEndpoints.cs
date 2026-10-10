@@ -76,8 +76,7 @@ public static class OAuthEndpoints
         return builder
             .WithMetadata(new AcceptsOAuthTokensMarker())
             .RequireRateLimiting(RateLimitingOptions.OAuthApiPolicyName)
-            .RequireAuthorization(policy => policy.RequireAssertion(context =>
-                scopes.Any(context.User.HasScope)));
+            .RequireAuthorization(policy => policy.AddRequirements(new OAuthScopeRequirement(scopes)));
     }
 
     public static bool AcceptsOAuthTokens(Endpoint? endpoint) =>

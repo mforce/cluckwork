@@ -1,5 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
 using Cluckwork.Application.Common;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;

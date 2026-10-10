@@ -2,7 +2,6 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 

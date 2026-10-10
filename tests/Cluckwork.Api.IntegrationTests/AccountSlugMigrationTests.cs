@@ -1,5 +1,4 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using System.Text.RegularExpressions;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;

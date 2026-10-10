@@ -1,6 +1,5 @@
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
-using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;

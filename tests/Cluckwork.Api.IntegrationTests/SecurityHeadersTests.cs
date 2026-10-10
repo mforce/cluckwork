@@ -1,11 +1,8 @@
-using System.Collections.Generic;
 using System.Net;
 using System.Text.RegularExpressions;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Api.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;

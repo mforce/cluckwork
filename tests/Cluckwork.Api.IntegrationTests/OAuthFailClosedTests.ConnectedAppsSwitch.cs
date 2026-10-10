@@ -1,13 +1,10 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Modules.Farm.Contracts;
-using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;

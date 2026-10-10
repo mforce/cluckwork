@@ -1,4 +1,3 @@
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 

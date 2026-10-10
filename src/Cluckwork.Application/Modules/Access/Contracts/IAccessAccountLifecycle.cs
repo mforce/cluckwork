@@ -1,5 +1,3 @@
-using Cluckwork.Domain.Common;
-
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
 public interface IAccessAccountLifecycle

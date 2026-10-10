@@ -1,5 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
 using StackExchange.Redis;
 
 namespace Cluckwork.Infrastructure.SharedState;

@@ -1,4 +1,3 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Application.Modules.Access.Users.AssignFlock;

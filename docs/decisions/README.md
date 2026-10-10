@@ -85,6 +85,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [A farm code changes only through `rename-account` (#732)](732-farm-code-rename.md) | src/AGENTS · Data and correctness · and the [runbook](../runbooks/provisioning-a-new-farm.md) |
 | [Backend test coverage measurement, report only (#776)](776-backend-coverage.md) | src/AGENTS · Accepted risks |
 | [Skip the web and image jobs on documentation-only pull requests (#782)](782-ci-job-gating.md) | .github/AGENTS · Workflow rules |
+| [Require seven CI checks on `main`, tested against the latest `main` (#1182)](1182-required-checks.md) | .github/AGENTS · Workflow rules |
 | [Adopt a UI component library, and which one: MUI (#674)](674-ui-component-library.md) | `web/README.md` · Stack · and `specs/technical/tech_spec.md` §8.1 |
 | [Gate two C# style rules at build time (#985)](985-csharp-style-gate.md) | src/AGENTS · Application shape |
 | [Cross-module references are declared in the module ledger (#514, #842)](514-module-ledger.md) | src/AGENTS · Application shape |

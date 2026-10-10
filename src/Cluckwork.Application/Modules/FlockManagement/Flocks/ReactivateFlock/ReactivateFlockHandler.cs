@@ -1,5 +1,4 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
 
 namespace Cluckwork.Application.Modules.FlockManagement.Flocks.ReactivateFlock;
