@@ -86,6 +86,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Gate two C# style rules at build time (#985)](985-csharp-style-gate.md) | AGENTS · Conventions |
 | [Cross-module references are declared in the module ledger (#514, #842)](514-module-ledger.md) | AGENTS · Conventions |
 | [No persistence type crosses an Application seam (#514, #847)](847-seam-surface-guard.md) | AGENTS · Conventions |
+| [Scale a sales line's list price to its unit, rounded half up (#1160)](1160-unit-scaled-list-price.md) | `specs/product/GLOSSARY.md` · Sales line, List price |
 
 **Every bullet that cites an issue has a record here; the plain conventions do
 not, and should not.** The Result pattern, handler-per-feature, FluentValidation,

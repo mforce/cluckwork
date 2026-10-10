@@ -2887,7 +2887,8 @@ export const tl = {
     salesDrafts:
       "Nagsisimula ang mga order bilang <strong>draft</strong>. Magdagdag ng linya sa pamamagitan ng "
       + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang na "
-      + "dami, at isang presyo kada unit, na naka-prefill mula sa default ng produkto at pinapayagan ang "
+      + "dami, at isang presyo kada unit, na naka-prefill mula sa default ng produkto na kinonbert sa "
+      + "unit sa <strong>Bawat</strong> (ang itlog na $0.45 ay $13.50 bawat tray) at pinapayagan ang "
       + "decimal. I-edit nang malaya, o <strong>kanselahin</strong>, na nagpapanatili sa draft bilang "
       + "read-only. Ang dami ay bilang ng <strong>mga unit, hindi mga itlog</strong>. Nakasaad sa field ang "
       + "unit at ipinapakita nito ang kabuuang itlog habang nagta-type, kaya ang 2 tray ay 60 itlog, hindi "
@@ -3562,7 +3563,8 @@ export const tl = {
 
     glossaryListPriceTerm: "Presyo sa listahan",
     glossaryListPriceDef:
-      "Ang presyo ng produkto nang idagdag ang linya, na iniingatan kasama ng linya para ang susunod na "
+      "Ang presyo ng produkto nang idagdag ang linya, na kinonbert sa unit ng linya at ni-round sa "
+      + "pinakamalapit na sentimo, na iniingatan kasama ng linya para ang susunod na "
       + "pagbabago ng presyo ay hindi na muling isulat ang isang nakaraang order. Ang \"Walang presyo sa "
       + "listahan\" ay nangangahulugang walang presyong maikukumpara, at iyon ay isang naitalang "
       + "katotohanan. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan ang sakahan ay "

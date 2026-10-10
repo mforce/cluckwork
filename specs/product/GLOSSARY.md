@@ -517,10 +517,14 @@ while `quantity_base = quantity × factor` is individual eggs; allocation and
 the stock guard run on `quantity_base`. Re-pointing a product's grade or
 redefining a packed unit only affects future lines, never recorded ones.
 Price is per selling unit (decimal money, stored as integer minor units),
-prefilled from the product's default and editable per line.
+prefilled from the product's default scaled to the line's unit (#1160) and
+editable per line.
 
 **List price (#720)** — a **sales line's** product's default price as it stood
-the moment the line was added, snapshotted onto the line in **minor units of
+the moment the line was added, scaled to the line's unit and rounded half up to
+a whole minor unit (#1160): a product at $0.45 per egg lists at $13.50 on a
+tray line, and one at $13.00 a tray lists at $0.43 on a per-egg line. It is
+snapshotted onto the line in **minor units of
 the order's currency** — not literally cents, though the spec column is named
 `list_unit_price_cents` (spec §10.5, that section's own `_cents` naming
 convention throughout; the persisted/API name is `ListUnitPriceMinorUnits`) —
