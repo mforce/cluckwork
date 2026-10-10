@@ -92,6 +92,11 @@ public sealed class SpellingScannerRatchetTests
                 "var model = tree.BindReview(); return model.GetDeclaredSymbol(tree.GetRoot()); } }"),
             ("P", "Discarded.cs", header + "class Discarded { object M(string s) { var tree = CSharpSyntaxTree.ParseText(s); " +
                 "_ = CSharpCompilation.Create(\"unused\", [tree]); return tree; } }"),
+            ("P", "Finder.cs", "using Microsoft.CodeAnalysis; using Microsoft.CodeAnalysis.CSharp.Syntax;\nstatic class Finder { " +
+                "internal static ClassDeclarationSyntax? Find(this SemanticModel model, SyntaxNode root) { " +
+                "foreach (var c in root.DescendantNodes().OfType<ClassDeclarationSyntax>()) if (model.GetDeclaredSymbol((SyntaxNode)c) is not null) return c; " +
+                "return null; } }"),
+            ("P", "SemanticFind.cs", "class SemanticFind { object? M(Microsoft.CodeAnalysis.SemanticModel model, Microsoft.CodeAnalysis.SyntaxNode root) => model.Find(root); }"),
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
             ("P", "HelperOwner.cs", header + "static class HelperOwner { internal static Microsoft.CodeAnalysis.SyntaxTree Tree(string s) => CSharpSyntaxTree.ParseText(s); " +
                 "internal static Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax Root(string s) => SyntaxFactory.ParseCompilationUnit(s); " +
@@ -138,7 +143,7 @@ public sealed class SpellingScannerRatchetTests
 
             // Binding dominates the run time; models of different trees bind independently.
             var calls = trees.AsParallel().SelectMany(tree => Calls(compilation, tree)).ToList();
-            var bound = calls.Where(c => !c.Parses).Select(c => c.Owner).ToHashSet(SymbolEqualityComparer.Default);
+            var bound = calls.Where(c => c.Binds).Select(c => c.Owner).ToHashSet(SymbolEqualityComparer.Default);
             foreach (var call in calls.Where(c => c.Parses && !bound.Contains(c.Owner)).OrderBy(c => c.Path, StringComparer.Ordinal))
                 found.TryAdd(call.Owner.ToDisplayString(), call.Path);
         }
@@ -159,7 +164,7 @@ public sealed class SpellingScannerRatchetTests
             .SelectMany(p => MsBuildGlobalUsings(System.Xml.Linq.XDocument.Load(p))));
 
 
-    private static IEnumerable<(INamedTypeSymbol Owner, bool Parses, string Path)> Calls(Compilation compilation, SyntaxTree tree)
+    private static IEnumerable<(INamedTypeSymbol Owner, bool Parses, bool Binds, string Path)> Calls(Compilation compilation, SyntaxTree tree)
     {
         var model = compilation.GetSemanticModel(tree);
         foreach (var node in tree.GetRoot().DescendantNodes())
@@ -176,8 +181,10 @@ public sealed class SpellingScannerRatchetTests
             var symbol = info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
             var text = (call as MemberAccessExpressionSyntax)?.Name.Identifier.ValueText ?? (call as SimpleNameSyntax)?.Identifier.ValueText;
             var parses = symbol is IMethodSymbol method ? IsParser(method) : symbol is null && text is not null && UnresolvedParse.Contains(text);
-            if ((parses || symbol is IMethodSymbol binding && BindsSymbols(binding)) && OutermostType(model, node) is { } owner)
-                yield return (owner, parses, tree.FilePath);
+            // One call can do both, such as a SemanticModel extension that returns the node it found.
+            var binds = symbol is IMethodSymbol binding && BindsSymbols(binding);
+            if ((parses || binds) && OutermostType(model, node) is { } owner)
+                yield return (owner, parses, binds, tree.FilePath);
         }
     }
 
