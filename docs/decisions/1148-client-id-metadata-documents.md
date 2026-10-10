@@ -273,12 +273,16 @@ decode it, so a path segment could not name a metadata client reliably.
   field, against literal inputs.
 - `OAuthFailClosedTests.ClientMetadataDocuments` runs the flow on Postgres: connect,
   list, audit and disconnect, the farm switch, consent and preview, the cache, refresh,
-  unusable documents stored nowhere, OpenIddict's `iss` refusal, the per-URL and global
-  budgets, a removed document that a drained budget does not revive, the insert races
+  unusable documents stored nowhere, OpenIddict's `iss` refusal, a malformed request
+  refused before any fetch, the per-URL and both global budgets, an approved app refreshed
+  past a drained strangers' budget, a removed document that a drained budget does not
+  revive, the column lengths behind the URL cap, the insert races
   (simultaneous, the deterministic duplicate-client schedule, and the same schedule with
   an invalid second version), discovery, turning it off, and the purge.
-- `tools/oauth/mutation-check.sh` carries 47 `cimd-*` mutants, one per claim, and its
-  baseline filter (`OAuth|ClientMetadata`) includes the two classes above. All 47 were
-  killed on 2026-10-10, with the baseline and restore runs green; the round-2 rows
-  (`cimd-stale-fallback-restored`, `cimd-mixed-validation-recovered`) and the rows on the
-  code they touched ran again against that change. `MUTANT_FILTER='^cimd-'` runs just these.
+- `OAuthFailClosedTests.ConnectedApps` also pins the Disconnect fingerprint: a key reused
+  for another app is a 409, never a replay.
+- `tools/oauth/mutation-check.sh` carries 52 `cimd-*` mutants, one per claim, and its
+  baseline filter (`OAuth|ClientMetadata`) includes the two Docker-free classes. All 52
+  ran on 2026-10-10 against `a3a56fd6`, and all were killed, one after correcting the
+  assertion text it declared. Baseline and restore were green at 272 of 272.
+  `MUTANT_FILTER='^cimd-'` runs just these.
