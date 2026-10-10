@@ -41,6 +41,7 @@ CASES = [
     ("gh api repos/mforce/cluckwork/pulls/1158/merge", "feature", "allow"),
     ("gh api -X GET repos/mforce/cluckwork/pulls/1158/merge", "feature", "allow"),
     ("gh api -XGET repos/mforce/cluckwork/pulls/1158/merge", "feature", "allow"),
+    ("gh api 'repos/mforce/cluckwork/pulls/1158/merge?x=1'", "feature", "allow"),
     ("echo 'git push --force origin HEAD:main'", "main", "allow"),
     ("echo ';' git push --force", "main", "allow"),
     ("grep -rn 'gh pr merge' docs", "main", "allow"),
@@ -135,6 +136,19 @@ CASES = [
     ("git push # note", "main", "block"),
     ("git status & git commit -m x", "main", "block"),
     ("git commit -m \"unclosed", "feature", "block"),
+    # Quoting that the shell joins back into a write (parser differentials).
+    ("git pu\"\"sh origin HEAD:main", "feature", "block"),
+    ("g'i't push --force", "feature", "block"),
+    ("git p\\ush --force", "feature", "block"),
+    ("git $'\\x70ush' --force", "feature", "block"),
+    ("gh pr mer''ge 12", "feature", "block"),
+    ("git push origin ma?n", "feature", "block"),
+    ("gh api -X PUT 'repos/mforce/cluckwork/pulls/12/merge?x=1'", "feature", "block"),
+    ("gh api -X PUT 'repos/mforce/cluckwork/pulls/12/merge#x'", "feature", "block"),
+    ("gh api -X PUT repos/mforce/cluckwork/pulls/12/merg%65", "feature", "block"),
+    ("gh api -X PUT https://api.github.com/repos/mforce/cluckwork/pulls/12/merge/", "feature", "block"),
+    ("gh api -X PATCH repos/mforce/cluckwork/pulls/12 -f state=open --jq .mergeable", "feature", "allow"),
+    ("rg --pre ./run.sh 'git push' .", "feature", "block"),
 ]
 
 MALFORMED = ["", "not json", "{\"tool_name\": \"Bash\"", "{}", "[]", "null", "[" * 100000,

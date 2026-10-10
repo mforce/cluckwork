@@ -21,11 +21,12 @@ import re
 import shlex
 import subprocess
 import sys
+import urllib.parse
 
 MAIN = "main"
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
-INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "rg", "tail", "wc"}
+INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
 REDIRECTS = {">", ">>", ">&", "&>", "&>>"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects"}
 GIT_GLOBAL_VALUES = {"-C", "-c", "--git-dir", "--work-tree"}
@@ -44,7 +45,7 @@ MESSAGES = {
     "simple": (
         "it contains a git write or PR merge, so it must run as its own simple command: one command, optionally "
         "after `cd <dir> &&`, with no `;`, `||`, `|`, `&`, newlines, comments, subshells, braces, if/for/while, "
-        "heredocs, `$(…)`, backticks, variables, env assignments or wrappers (env, command, timeout, sudo, bash -c). "
+        "heredocs, `$(…)`, backticks, variables, unquoted globs, env assignments or wrappers (env, command, timeout, sudo, bash -c). "
         "Allowed forms: `git push -u origin <branch>`, `cd <dir> && git commit -m \"<message>\"`. "
         "For a multi-line message use `git commit -F <file>` or repeated `-m`."
     ),
@@ -92,7 +93,7 @@ def has_simple_shape(command):
             quote = None if c == '"' else quote
         elif c in "'\"":
             quote = c
-        elif c in "\n;|(){}<" or (c == "#" and (i == 0 or command[i - 1] in " \t")):
+        elif c in "\n;|(){}<*?[" or (c == "#" and (i == 0 or command[i - 1] in " \t")):
             return False
         i += 1
     return True  # an unclosed quote fails in shlex below
@@ -305,8 +306,8 @@ def check_gh_api(args, shown):
         if name in GH_API_BODY:
             fields.append(value)
     method = method or ("POST" if fields else "GET")
-    endpoint = positional[0] if positional else ""
-    if method != "GET" and re.search(r"(^|/)pulls/[^/]+/merge/?$", endpoint):
+    endpoint = urllib.parse.unquote(positional[0]) if positional else ""
+    if method != "GET" and re.search(r"(^|/)pulls/[^/]+/merge(?![\w.-])", endpoint):
         block("merge", shown)
     if endpoint == "graphql" and any(re.search(r"mergePullRequest|AutoMerge", f) for f in fields):
         block("merge", shown)
@@ -331,8 +332,14 @@ def check_gh(args, shown):
         check_gh_api(args[words[0][0] + 1 :], shown)
 
 
+def mentions_write(command):
+    """Text check before parsing: quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be."""
+    plain = urllib.parse.unquote(re.sub(r"[\"'\\]", "", command))
+    return MENTIONS_WRITE.search(plain) or ("$'" in command and re.search(r"\b(git|gh)\b", plain))
+
+
 def check(command, cwd):
-    if not MENTIONS_WRITE.search(command):
+    if not mentions_write(command):
         return
     argv, cwd = simple_command(command, cwd)
     program = os.path.basename(argv[0])
