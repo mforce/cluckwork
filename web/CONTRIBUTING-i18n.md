@@ -182,6 +182,6 @@ The current `es` and `tl` packs are **machine-drafted, pending native-speaker re
 ## Worked examples
 
 - **Login screen** ([`src/routes/Login.tsx`](./src/routes/Login.tsx)): simple keys, module-level helper with imperative `i18n.t()`, no interpolation
-- **Sales page** ([`src/routes/SalesPage.tsx`](./src/routes/SalesPage.tsx)): namespaced keys, interpolation, `<Trans>` with JSX, farm-locale formatting
+- **Sales page** ([`src/routes/sales/`](./src/routes/sales/)): namespaced keys, interpolation, `<Trans>` with JSX, farm-locale formatting
 
 See also [`src/i18n/en.ts`](./src/i18n/en.ts) — the full catalog and comment notes.
