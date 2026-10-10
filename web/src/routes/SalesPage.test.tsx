@@ -677,6 +677,56 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(screen.getByText("$1.00 above list (33.3%)")).toBeInTheDocument();
   });
 
+  // #1160 — PRODUCT_A lists at 300 per dozen, so a tray of 30 lists at 750.
+  it("re-prefills the unit price scaled to the new unit when Per changes", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(7.5);
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(0.25);
+  });
+
+  it("sends the list price scaled to the line's unit as the expectation", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject(
+      { unit: "Tray", unitPriceMinorUnits: 750, expectedListUnitPriceMinorUnits: 750 });
+  });
+
+  it("hints against the list price scaled to the line's unit", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "6.00" } });
+    expect(screen.getByText("$1.50 below list (20.0%)")).toBeInTheDocument();
+  });
+
+  it("leaves the price blank and sends no list-price expectation when the line's unit has no active definition", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    // CONVERSIONS carries Case as inactive; the server applies its own default.
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Case" } });
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(null);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    const body = mockAddOrderItem.mock.calls[0][1];
+    expect(body.unitPriceMinorUnits).toBeUndefined();
+    expect(body).not.toHaveProperty("expectedListUnitPriceMinorUnits");
+    expect(body).not.toHaveProperty("expectedListPriceIsUnset");
+  });
+
   // #720 R11 — R8 (a hint inside its own grid cell) and R9 (position:absolute
   // out of that cell) both broke on the SAME shape: a cell taller than its
   // siblings floats above the row under .form-grid's align-items:end, and a
