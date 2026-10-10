@@ -19,7 +19,7 @@ Elsewhere in the repo:
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Local development, tests, branches, commits |
 | [`runbooks/aspire-local-development.md`](runbooks/aspire-local-development.md) | Local Aspire stack, persistence and safe reset |
 | [`runbooks/simulation-fixture-on-a-dev-database.md`](runbooks/simulation-fixture-on-a-dev-database.md) | Bulk fixture data in a local debug database (Compose or Aspire) |
-| [`../AGENTS.md`](../AGENTS.md) | The canonical rule set — every invariant, for humans and coding agents |
+| [`../AGENTS.md`](../AGENTS.md) | Rules for coding agents that no guard or how-to already enforces |
 | [`../SECURITY.md`](../SECURITY.md) | Reporting a vulnerability; what CI enforces |
 | [`../specs/product/`](../specs/product/) | Product & technical spec, phase plan, [glossary](../specs/product/GLOSSARY.md) |
 | [`../deploy/README.md`](../deploy/README.md) | Compose topology, caching, rollout ordering |
@@ -34,7 +34,8 @@ screen, because that is where a search result drops you.
 
 A rule lives in **one** place, compressed, and links to the rest:
 
-- the **rule** and the consequence of breaking it → `AGENTS.md`;
+- the **rule** and the consequence of breaking it → `AGENTS.md`, unless a guard,
+  a how-to or the code already states it where an agent will meet it;
 - the **narrative that earned it** — what shipped, which review round found it,
   what the wrong fix was → a record in `decisions/`;
 - the **procedure** a human follows → a `runbooks/` entry with a drill;

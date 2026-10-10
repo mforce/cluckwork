@@ -1,7 +1,7 @@
 # Put flock lifecycle behind a Flock Management contract with two peer ports (#852)
 
-> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md),
-> beside the #849 contract rule; this file records why Flock Management has three
+> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it;
+> this file records why Flock Management has three
 > contract interfaces and what the contract leaves alone.
 
 **Status:** accepted

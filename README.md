@@ -90,7 +90,7 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 | Document | For |
 |---|---|
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Local development, tests, branches, commit messages |
-| [`AGENTS.md`](AGENTS.md) | The canonical rule set: every invariant, for humans and coding agents |
+| [`AGENTS.md`](AGENTS.md) | Rules for coding agents that no guard or how-to already enforces |
 | [`SECURITY.md`](SECURITY.md) | Reporting a vulnerability; what CI enforces |
 | [`docs/releasing.md`](docs/releasing.md) | Cutting a release; deploying by digest |
 | [`docs/architecture.md`](docs/architecture.md) | The request pipeline and the egg-loop state machine, drawn |
@@ -152,7 +152,7 @@ current. Work is tracked as GitHub issues (epics + slices).
 ## Contributing
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for humans, [`AGENTS.md`](AGENTS.md) for
-coding agents and for the full rule set behind both.
+coding agents.
 
 ## License
 

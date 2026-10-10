@@ -1,6 +1,6 @@
 # Declare adapter tiers before the surfaces that need them exist (#843)
 
-> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
+> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it;
 > this file records the rationale and the limits of the guard.
 
 **Status:** accepted

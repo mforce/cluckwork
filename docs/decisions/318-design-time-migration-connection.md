@@ -1,7 +1,7 @@
 # Design-time migration connection, fail-closed (#318)
 
-> **Rule** — the one-paragraph version lives in [`src/Cluckwork.Infrastructure/Persistence/AGENTS.md`](../../src/Cluckwork.Infrastructure/Persistence/AGENTS.md);
-> this file is the relocated rationale.
+> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it;
+> this file is the rationale.
 
 **Status:** accepted · **Date:** 2026-07
 

@@ -1,6 +1,6 @@
 # CI security gates, lock-file healing, Dependabot, action pinning (#146)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
+> **Rule** — no `AGENTS.md` restates this rule, because a guard, a how-to or the code already carries it; this file is the rationale (what shipped and what not to break).
 
 
 CI fails a PR when a dependency carries a known **high+** advisory:
