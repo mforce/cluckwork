@@ -1,4 +1,3 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;

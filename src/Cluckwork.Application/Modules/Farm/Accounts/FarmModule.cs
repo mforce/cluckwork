@@ -5,7 +5,6 @@ using Cluckwork.Application.Modules.Farm.Accounts.SetFarmBanner;
 using Cluckwork.Application.Modules.Farm.Accounts.SetFarmLogo;
 using Cluckwork.Application.Modules.Farm.Accounts.UpdateFarmSettings;
 using Cluckwork.Application.Modules.Farm.Contracts;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 
 namespace Cluckwork.Application.Modules.Farm.Accounts;

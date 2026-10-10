@@ -1,5 +1,4 @@
 using Cluckwork.Infrastructure.Modules.Access.Identity;
-using System.Linq;
 
 namespace Cluckwork.Api.IntegrationTests;
 

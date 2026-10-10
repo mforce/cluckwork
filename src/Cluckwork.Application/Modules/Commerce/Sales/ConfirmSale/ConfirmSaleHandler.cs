@@ -8,7 +8,6 @@ using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using System.Globalization;
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Common;
 using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Application.Modules.Commerce.Sales.ConfirmSale;

@@ -1,4 +1,3 @@
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Finance.Expenses;
 
 namespace Cluckwork.Application.Modules.Finance.Contracts;

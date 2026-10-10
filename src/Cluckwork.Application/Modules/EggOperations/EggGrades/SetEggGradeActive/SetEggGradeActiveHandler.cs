@@ -1,5 +1,4 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Modules.EggOperations.EggGrades.SetEggGradeActive;
 

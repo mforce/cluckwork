@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.Logging;

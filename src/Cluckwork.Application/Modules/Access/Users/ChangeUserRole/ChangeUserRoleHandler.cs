@@ -1,6 +1,5 @@
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users.CreateUser;
-using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Modules.Access.Users.ChangeUserRole;
 

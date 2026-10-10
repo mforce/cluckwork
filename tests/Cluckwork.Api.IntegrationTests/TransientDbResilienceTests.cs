@@ -1,6 +1,5 @@
 using Cluckwork.Domain.Modules.Commerce.Sales;
 using System.Net;
-using System.Threading;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Persistence;

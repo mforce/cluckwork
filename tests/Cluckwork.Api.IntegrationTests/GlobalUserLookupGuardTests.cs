@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace Cluckwork.Api.IntegrationTests;
 
 // #532 — a globally-scoped Identity user lookup is a tenant-isolation defect

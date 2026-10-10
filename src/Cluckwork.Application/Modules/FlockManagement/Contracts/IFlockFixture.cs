@@ -1,5 +1,3 @@
-using Cluckwork.Domain.Common;
-
 namespace Cluckwork.Application.Modules.FlockManagement.Contracts;
 
 // Seed fixture reads and writes; registered beside the seeders outside Production.

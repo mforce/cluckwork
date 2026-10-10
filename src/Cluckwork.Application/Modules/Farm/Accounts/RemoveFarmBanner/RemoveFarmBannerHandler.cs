@@ -1,5 +1,4 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 
 namespace Cluckwork.Application.Modules.Farm.Accounts.RemoveFarmBanner;

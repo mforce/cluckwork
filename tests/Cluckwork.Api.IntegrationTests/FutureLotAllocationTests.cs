@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 
 namespace Cluckwork.Api.IntegrationTests;

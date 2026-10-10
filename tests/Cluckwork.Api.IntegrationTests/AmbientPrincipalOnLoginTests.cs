@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Middleware;
-using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;
