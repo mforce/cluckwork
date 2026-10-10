@@ -236,13 +236,20 @@ decode it, so a path segment could not name a metadata client reliably.
   connection to `MetadataDocumentServer`, a loopback Kestrel reached only through
   `FakeNetwork`'s scripted resolver and dialler. It covers each refused address class,
   a mixed answer, the DNS-rebinding pin, `PrivateHosts`, redirect, status, content type,
-  the streamed and declared size caps, slow body, slow connect, headers and cookies,
-  handler settings, the lifetime clamp and the address table.
-- `ClientMetadataTests` pins the URL shape, the 100-character cap, `verifiedDomain`, and
-  the document rules against literal inputs.
+  the streamed and declared size caps, an interrupted body, slow body, slow connect,
+  headers and cookies, handler settings, the lifetime clamp and the address table.
+  Proxy exclusion and production certificate validation are asserted as handler
+  settings, not driven end to end, and there is no separate slow-DNS or slow-header case.
+- `ClientMetadataTests` (no database) pins the URL shape, the 100-character cap,
+  `verifiedDomain`, and the document rules, including a lone surrogate in each string
+  field, against literal inputs.
 - `OAuthFailClosedTests.ClientMetadataDocuments` runs the flow on Postgres: connect,
   list, audit and disconnect, the farm switch, consent and preview, the cache, refresh,
-  unusable documents stored nowhere, the per-URL and global budgets, the insert race,
-  discovery, turning it off, and the purge.
-- `tools/oauth/mutation-check.sh` applies one mutation per claim and requires the named
-  test to fail.
+  unusable documents stored nowhere, OpenIddict's `iss` refusal, the per-URL and global
+  budgets with the bounded stale copy, both insert races (simultaneous, and the
+  deterministic duplicate-client schedule), discovery, turning it off, and the purge.
+- `tools/oauth/mutation-check.sh` carries 47 `cimd-*` mutants, one per claim, and its
+  baseline filter (`OAuth|ClientMetadata`) includes the two classes above. Run on
+  2026-10-10 against `dbe3ac58`, plus the corrected rows and the stronger `iss` test in
+  the commit after it: all 47 killed, baseline and
+  restore green at 261 of 261. `MUTANT_FILTER='^cimd-'` reruns just these.

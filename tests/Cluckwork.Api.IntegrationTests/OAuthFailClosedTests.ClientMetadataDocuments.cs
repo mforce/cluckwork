@@ -149,8 +149,12 @@ public sealed partial class OAuthFailClosedTests
 
         using var response = await OAuthServerTests.SendAuthorizeAsync(metadata.Host, user.Jwt, query);
 
+        var body = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(Errors.InvalidRequest, await AuthorizeErrorOf(response));
+        Assert.Contains("error:invalid_request", body);
+        // OpenIddict's own reason, rather than the unknown-client refusal that would follow
+        // if the handler let the refused document through unstored.
+        Assert.Contains("Callback URIs cannot contain an \"iss\" parameter.", body);
         Assert.False(await StoredAsync(url), "a redirect carrying iss was stored");
     }
 

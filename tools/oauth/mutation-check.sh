@@ -52,7 +52,7 @@ SWITCH_MIGRATION=src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata'
-SUITE_MIN=115
+SUITE_MIN=261
 
 # name # expect # file # find # replace # test # declared failure text
 # ('#' because C# anchors contain '|'; '\n' in a find or replace is a newline)
@@ -204,16 +204,16 @@ cimd-global-budget#kill#DOCUMENTS#.Count <= GlobalBudget.Limit;#.Count <= Global
 cimd-stale-refused#kill#DOCUMENTS#            return expiresAt + StaleGrace > now\n#            return clientId.Length < 0\n#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget_AndARecentCopyOutlastsIt#a recently expired copy was refused
 cimd-stale-unbounded#kill#DOCUMENTS#            return expiresAt + StaleGrace > now\n#            return expiresAt is not null\n#OAuthFailClosedTests.ManyUrls_ShareOneGlobalBudget_AndARecentCopyOutlastsIt#Strings differ
 cimd-race-unhandled#kill#DOCUMENTS#catch (Exception exception) when (exception is OpenIddictExceptions.ValidationException\n            or OpenIddictExceptions.ConcurrencyException\n            || exception is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })#catch (Exception exception) when (exception is OpenIddictExceptions.ConcurrencyException)#OAuthFailClosedTests.ConcurrentFirstRequests_StoreOneRow#Assert.All() Failure
-cimd-issuer-in-redirect-stored#kill#DOCUMENTS#                return Refuse(Errors.InvalidRequest, string.Join(" ", validation.Results.Select(result => result.ErrorMessage)));#                return Result.Success();#OAuthFailClosedTests.DocumentWithAnIssuerInItsRedirect_IsRefused_AndNotStored#Expected: BadRequest
+cimd-issuer-in-redirect-stored#kill#DOCUMENTS#                return Refuse(Errors.InvalidRequest, string.Join(" ", validation.Results.Select(result => result.ErrorMessage)));#                return Result.Success();#OAuthFailClosedTests.DocumentWithAnIssuerInItsRedirect_IsRefused_AndNotStored#Assert.Contains() Failure
 cimd-disabled-still-fetches#kill#DOCUMENTS#        if (!options.Enabled)#        if (options.Enabled && !options.Enabled)#OAuthFailClosedTests.TurnedOff_NeitherAdvertisesNorFetches#Expected: BadRequest
 cimd-not-advertised#kill#SERVER#context.Metadata["client_id_metadata_document_supported"] = true;#context.Metadata["client_id_metadata_document_supported"] = false;#OAuthFailClosedTests.Discovery_AdvertisesMetadataDocuments#discovery does not advertise
 cimd-handler-unregistered#kill#SERVER#                server.AddEventHandler(ClientMetadataDocuments.Descriptor);\n##OAuthFailClosedTests.MetadataClient_ConnectsListsAuditsAndDisconnects_LikeAnyOther#Expected: OK
-cimd-consent-domain-hidden#kill#ENDPOINT#                ClientMetadata.VerifiedDomain(request.ClientId),#                null,#OAuthFailClosedTests.Consent_AndPreview_NameTheVerifiedDomain#Expected: app.test
-cimd-preview-domain-hidden#kill#ENDPOINT#                    verifiedDomain = ClientMetadata.VerifiedDomain(clientId),#                    verifiedDomain = (string?)null,#OAuthFailClosedTests.Consent_AndPreview_NameTheVerifiedDomain#Expected: app.test
+cimd-consent-domain-hidden#kill#ENDPOINT#                ClientMetadata.VerifiedDomain(request.ClientId),#                null,#OAuthFailClosedTests.Consent_AndPreview_NameTheVerifiedDomain#Strings differ
+cimd-preview-domain-hidden#kill#ENDPOINT#                    verifiedDomain = ClientMetadata.VerifiedDomain(clientId),#                    verifiedDomain = (string?)null,#OAuthFailClosedTests.Consent_AndPreview_NameTheVerifiedDomain#Strings differ
 cimd-disconnect-by-path#kill#ME#group.MapDelete("/connected-apps", DisconnectApp)#group.MapDelete("/connected-apps/{clientId}", DisconnectApp)#OAuthFailClosedTests.MetadataClient_ConnectsListsAuditsAndDisconnects_LikeAnyOther#Expected: NoContent
-cimd-interrupted-body-escapes#kill#FETCHER#catch (Exception exception) when (exception is HttpRequestException or IOException)#catch (HttpRequestException exception)#ClientMetadataFetcherTests.InterruptedBody_IsUnreachable#the fetch threw
+cimd-interrupted-body-escapes#kill#FETCHER#catch (Exception exception) when (exception is HttpRequestException or IOException)#catch (HttpRequestException)#ClientMetadataFetcherTests.InterruptedBody_IsUnreachable#the fetch threw
 cimd-as112-v6-admitted#kill#FETCHER#"2002::/16", "2620:4f:8000::/48", #"2002::/16", #ClientMetadataFetcherTests.SpecialUseAddress_IsRefused_BeforeAnyConnection#Strings differ
-cimd-lone-surrogate-escapes#kill#REGISTRATION#catch (Exception exception) when (exception is JsonException or InvalidOperationException)#catch (JsonException exception)#ClientMetadataTests.LoneSurrogate_InAnyStringField_IsInvalidMetadata#the document threw
+cimd-lone-surrogate-escapes#kill#REGISTRATION#catch (Exception exception) when (exception is JsonException or InvalidOperationException)#catch (JsonException)#ClientMetadataTests.LoneSurrogate_InAnyStringField_IsInvalidMetadata#the document threw
 cimd-client-id-unchecked#kill#REGISTRATION#\n                || clientId.GetString() != documentUrl)#)#ClientMetadataTests.Document_NamingAnotherClientId_IsRefused#Strings differ
 cimd-duplicate-client-refused#kill#DOCUMENTS#                && !(row is null && await StoredMeanwhileAsync(clientId, ct)))#)#OAuthFailClosedTests.SecondRequest_MeetingTheFirstsCopy_UsesIt#Expected: OK
 EOF
