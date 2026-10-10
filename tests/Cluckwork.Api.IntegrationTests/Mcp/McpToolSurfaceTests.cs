@@ -2,6 +2,7 @@ using System.Reflection;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,10 @@ public sealed class McpToolSurfaceTests
     [Fact]
     public void RealTree_EveryToolTakesMcpCallContext_AndInjectsNoAmbientIdentity() =>
         AssertNone(McpToolSurface.Findings(ApiTypes));
+
+    [Fact]
+    public void RealTree_EveryToolCarriesARolePolicyAndAScopePolicy() =>
+        AssertNone(McpToolSurface.GateFindings(ApiTypes));
 
     [Fact]
     public void RealTree_NoTypeUnderTheMcpNamespace_DeclaresAScopeOpener()
@@ -62,6 +67,17 @@ public sealed class McpToolSurfaceTests
             Assert.Contains($"injects {injected.Name}", finding);
         }
     }
+
+    [Fact]
+    public void GatedTools_HaveNoGateFindings() =>
+        Assert.Empty(McpToolSurface.GateFindings([typeof(GatedTool), typeof(TypeGatedTool)]));
+
+    [Theory]
+    [InlineData(typeof(RoleOnlyTool), "has no scope policy")]
+    [InlineData(typeof(ScopeOnlyTool), "has no role policy")]
+    [InlineData(typeof(AnonymousTool), "allows anonymous callers")]
+    public void ToolMissingAGate_IsAGateFinding(Type tool, string finding) =>
+        Assert.Contains(McpToolSurface.GateFindings([tool]), f => f.Contains(finding));
 
     [Fact]
     public void ScopeFactoryHelper_IsADeclarationFinding()
@@ -133,6 +149,41 @@ public sealed class McpToolSurfaceTests
     {
         [McpServerTool]
         public string Read(T injected) => $"{call.UserId} {injected}";
+    }
+
+    [McpServerToolType]
+    private sealed class GatedTool(McpCallContext call)
+    {
+        [McpServerTool, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType, Authorize(Policy = AuthPolicies.ProductionWrite), Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]
+    private sealed class TypeGatedTool(McpCallContext call)
+    {
+        [McpServerTool]
+        public string Write() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class RoleOnlyTool(McpCallContext call)
+    {
+        [McpServerTool, Authorize(Policy = AuthPolicies.AdminOnly)]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class ScopeOnlyTool(McpCallContext call)
+    {
+        [McpServerTool, Authorize(Policy = AuthPolicies.FarmReadScope)]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
+    private sealed class AnonymousTool(McpCallContext call)
+    {
+        [McpServerTool, AllowAnonymous]
+        public string Read() => call.Email;
     }
 
     private sealed class ScopeFactoryHelper(IServiceScopeFactory scopes)

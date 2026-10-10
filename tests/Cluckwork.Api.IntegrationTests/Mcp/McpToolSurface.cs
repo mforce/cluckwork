@@ -1,6 +1,7 @@
 using System.Reflection;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,8 +9,8 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 
 // #805 rows 6 and 7 — what a tool may inject. A tool is a type carrying an attribute
 // NAMED McpServerToolTypeAttribute, and a tool method one carrying McpServerToolAttribute.
-// Matched by name because the SDK arrives with #806; AdapterTierScanner matches the
-// same name, and the fixtures here declare look-alikes to prove the walk goes red.
+// Matched by name, as AdapterTierScanner matches it, so the fixtures here can declare
+// look-alikes that prove the walk goes red.
 internal static class McpToolSurface
 {
     // A supertype is banned too: ICurrentUser is CurrentUserContext's port and DbContext
@@ -54,6 +55,31 @@ internal static class McpToolSurface
             findings.AddRange(Injections(tool).Where(i => IsBanned(i.Type))
                 .Select(i => $"{tool.FullName}: {i.Site} injects {i.Type.Name}; take McpCallContext instead"));
         }
+
+        return findings;
+    }
+
+    // #806 — the SDK authorizes a tool only from attributes on it or its type, and runs
+    // one that carries none, or carries [AllowAnonymous], for any caller. So every tool
+    // carries a role policy and a scope policy, which AND together into role ∩ scope.
+    public static readonly string[] ScopePolicies = [AuthPolicies.FarmReadScope, AuthPolicies.DailyEntriesWriteScope];
+
+    public static IReadOnlyList<string> GateFindings(IEnumerable<Type> types)
+    {
+        var findings = new List<string>();
+        foreach (var tool in ToolTypes(types))
+            foreach (var method in ToolMethods(tool))
+            {
+                var attributes = method.GetCustomAttributes(inherit: true).Concat(tool.GetCustomAttributes(inherit: true)).ToList();
+                var site = $"{tool.FullName}.{method.Name}";
+                if (attributes.OfType<IAllowAnonymous>().Any())
+                    findings.Add($"{site} allows anonymous callers, so the SDK skips every policy on it");
+                var gates = attributes.OfType<IAuthorizeData>().ToList();
+                if (!gates.Any(g => ScopePolicies.Contains(g.Policy)))
+                    findings.Add($"{site} has no scope policy; add [Authorize(Policy = AuthPolicies.<Scope>Scope)]");
+                if (!gates.Any(g => !ScopePolicies.Contains(g.Policy)))
+                    findings.Add($"{site} has no role policy; add [Authorize] or [Authorize(Policy = AuthPolicies.<Tier>)]");
+            }
 
         return findings;
     }

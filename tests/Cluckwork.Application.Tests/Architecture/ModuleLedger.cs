@@ -36,7 +36,7 @@ public sealed record AdapterClaim(string Symbol, IReadOnlyList<string> Reaches);
 
 public sealed record AdapterTier(string Namespace, string Privilege, string Surface, string Reason, string ReviewBy)
 {
-    public const string DirectRepositoryPrivilege = "DirectRepository";
+    public const string ContractOnlyPrivilege = "ContractOnly";
 
     // The closed set of surfaces a tier row may name, each mapped to the
     // privilege it grants. AdapterTierScanner reads this same map, so a surface
@@ -44,7 +44,7 @@ public sealed record AdapterTier(string Namespace, string Privilege, string Surf
     public static readonly IReadOnlyDictionary<string, string> KnownSurfaces =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["MapMcp"] = DirectRepositoryPrivilege,
+            ["MapMcp"] = ContractOnlyPrivilege,
         };
 }
 

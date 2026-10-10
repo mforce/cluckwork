@@ -1,3 +1,5 @@
+using Cluckwork.Api.Modules.Access.OAuth;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 
 namespace Cluckwork.Api;
@@ -21,6 +23,11 @@ public static class AuthPolicies
     public const string SalesAccess = "SalesAccess";   // Owner/Manager/Sales
     public const string SalesFlow = "SalesFlow";       // everyone but ReadOnly (workers sell — #73 principle)
     public const string ProductionWrite = "ProductionWrite"; // Owner/Manager/Worker(no elevated role)
+
+    // #806 — one policy per OAuth scope. An MCP tool carries one of these beside its role
+    // policy; stacked [Authorize] attributes AND together, so a tool runs for role ∩ scope.
+    public const string FarmReadScope = "scope:" + OAuthScopes.ReadFarm;
+    public const string DailyEntriesWriteScope = "scope:" + OAuthScopes.WriteDailyEntries;
 
     // Kept for existing references; prefer Roles.* (#84).
     public const string AdminRole = Roles.Owner;
@@ -56,6 +63,9 @@ public static class AuthPolicies
         // ReadOnly exist precisely to fence their holders off production.
         opts.AddPolicy(ProductionWrite, p => p.RequireAuthenticatedUser().RequireAssertion(ctx =>
             EffectiveRole(ctx.User) is Roles.Owner or Roles.Manager or WorkerRole));
+
+        opts.AddPolicy(FarmReadScope, p => p.AddRequirements(new OAuthScopeRequirement(OAuthScopes.ReadFarm)));
+        opts.AddPolicy(DailyEntriesWriteScope, p => p.AddRequirements(new OAuthScopeRequirement(OAuthScopes.WriteDailyEntries)));
     }
 
     private const string WorkerRole = "Worker";
