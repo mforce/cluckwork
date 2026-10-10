@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { useLocation, useNavigate } from "react-router";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { stubMatchMedia } from "../../test/matchMedia";
-import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../../test/fixtures";
+import { account, farmState, NO_RECORD_HISTORY, RECORD_HISTORY } from "../../test/fixtures";
+import { FarmContext } from "../../farm/FarmContext";
 import i18n from "../../i18n";
 import type { DiscountReasonValue } from "../../i18n/enums";
 import {
@@ -12,7 +14,7 @@ import {
   listEggUnitConversions, listOrderPayments, listOrders, listProducts, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../../api/cluckwork";
-import type { Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../../api/cluckwork";
+import type { Account, Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../../api/cluckwork";
 import { ApiError } from "../../api/client";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
@@ -1641,6 +1643,31 @@ describe("SalesPage price scale", () => {
     // The mount prefill ran with no scale to divide by. The old code divided by
     // the product's and would show 3.00 here.
     expect(screen.getByLabelText(/Unit price/)).toHaveValue(null);
+  });
+
+  // On a cold load the shell renders before /account answers, so the farm can
+  // arrive between mount and the setup read landing. The prefill must use the
+  // scale known when the read lands, and the farm arriving must not refetch.
+  it("prefills at the farm's scale when the farm arrives while the setup read is in flight", async () => {
+    let releaseProducts!: (products: Product[]) => void;
+    mockListProducts.mockReturnValue(new Promise<Product[]>((r) => { releaseProducts = r; }));
+    let setFarm!: (farm: Account) => void;
+    function LateFarm() {
+      const [farm, set] = useState<Account | null>(null);
+      setFarm = set;
+      return <FarmContext.Provider value={farmState({ farm })}><SalesPage /></FarmContext.Provider>;
+    }
+    renderWithProviders(<LateFarm />, { token: ADMIN });
+    await waitFor(() => expect(mockListProducts).toHaveBeenCalledTimes(1));
+
+    act(() => { setFarm(KWD_FARM); });
+    await act(async () => { releaseProducts([PRODUCT_A, PRODUCT_B]); });
+    await screen.findByRole("button", { name: "New order" });
+    await createDraft(draftEmpty(3, "KWD"));
+
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(0.3);
+    expect(mockListProducts).toHaveBeenCalledTimes(1);
+    expect(mockListEggGrades).toHaveBeenCalledTimes(1);
   });
 });
 

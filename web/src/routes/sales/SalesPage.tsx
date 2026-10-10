@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, Stack, Typography, useMediaQuery } from "@mui/material";
 import { listCustomers, listEggGrades, listEggUnitConversions, listOrders, listProducts } from "../../api/cluckwork";
-import type { Customer, EggUnitConversion, Product } from "../../api/cluckwork";
+import type { Customer, EggGrade, EggUnitConversion, Product } from "../../api/cluckwork";
 import { useFormat } from "../../farm/useFormat";
 import { useAuth } from "../../auth/useAuth";
 import { FieldConsole, ConsoleSubhead, ConsoleSummary, CONSOLE_LINK_SX, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX } from "../../components/FieldConsole";
@@ -192,7 +192,38 @@ export function SalesPage() {
   // when this effect first sees the stale flag.
   useEffect(() => {
     if (customerFilterStale && !orders.reloading) setCustomerFilterStale(false);
-  }, [customerFilterStale, orders.reloading]);
+  }, [customerFilterStale, orders.reloading, setCustomerFilterStale]);
+
+  // An effect event, so the price prefill reads the farm's scale when the setup
+  // read lands. A mount-time capture missed a farm that arrived in between (a
+  // cold load renders before /account answers) and left the price blank.
+  const applySetupRead = useEffectEvent((c: Customer[], p: Product[], g: EggGrade[]) => {
+    setCustomers(c);
+    setAllProducts(p);
+    const sellable = sellableProducts(p, g);
+    setProducts(sellable);
+    if (c.length > 0) {
+      // #512 (T039) — the explicit first-customer default (FR-037): the
+      // exact first customer from the page's own read, committed through
+      // a controlled generation the moment the setup read settles. The
+      // engine admits an entity it already knows as-is (no spurious
+      // exact GET), and the create handler ships `customer.id` — never a
+      // raw id the picker has not committed.
+      setCustomer(c[0]);
+      setCustomerGen((g) => g + 1);
+    }
+    if (sellable.length > 0) {
+      const first = sellable[0];
+      setProductId(first.id);
+      setUnit(first.defaultUnit);
+      // Prefill the price from the FIRST product too — the hard-coded
+      // starter value used to shadow the product default until the user
+      // changed the selection (codex review of #100). At the farm's scale:
+      // there is no order yet, and the order this will be typed into will
+      // carry the farm's currency.
+      setPrice(priceInput(first.defaultPriceMinorUnits, farmScale));
+    }
+  });
 
   useEffect(() => {
     // includeInactive: existing order lines may reference deactivated
@@ -205,33 +236,7 @@ export function SalesPage() {
       listProducts({ includeInactive: true }),
       listEggGrades(),
     ])
-      .then(([c, p, g]) => {
-        setCustomers(c);
-        setAllProducts(p);
-        const sellable = sellableProducts(p, g);
-        setProducts(sellable);
-        if (c.length > 0) {
-          // #512 (T039) — the explicit first-customer default (FR-037): the
-          // exact first customer from the page's own read, committed through
-          // a controlled generation the moment the setup read settles. The
-          // engine admits an entity it already knows as-is (no spurious
-          // exact GET), and the create handler ships `customer.id` — never a
-          // raw id the picker has not committed.
-          setCustomer(c[0]);
-          setCustomerGen((g) => g + 1);
-        }
-        if (sellable.length > 0) {
-          const first = sellable[0];
-          setProductId(first.id);
-          setUnit(first.defaultUnit);
-          // Prefill the price from the FIRST product too — the hard-coded
-          // starter value used to shadow the product default until the user
-          // changed the selection (codex review of #100). At the farm's scale:
-          // there is no order yet, and the order this will be typed into will
-          // carry the farm's currency.
-          setPrice(priceInput(first.defaultPriceMinorUnits, farmScale));
-        }
-      })
+      .then(([c, p, g]) => applySetupRead(c, p, g))
       .catch(() => setSetupError(i18n.t("sales:loadSalesDataFailed")));
     // Separate from the Promise.all above ON PURPOSE: the conversions only
     // feed supplementary display (the live "= N eggs" hint and the option
