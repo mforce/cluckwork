@@ -81,11 +81,17 @@ public sealed class SpellingScannerRatchetTests
             ("P", "Bound.cs", header + "class Bound { object M() => CSharpCompilation.Create(\"x\", [CSharpSyntaxTree.ParseText(\"\")]); }"),
             ("P", "Helper.cs", header + "class Helper { object M(Microsoft.CodeAnalysis.Compilation c) => c.GetSemanticModel(CSharpSyntaxTree.ParseText(\"\")); }"),
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
+            ("P", "HelperOwner.cs", header + "static class HelperOwner { internal static Microsoft.CodeAnalysis.SyntaxTree Tree(string s) => CSharpSyntaxTree.ParseText(s); " +
+                "internal static Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax Root(string s) => SyntaxFactory.ParseCompilationUnit(s); " +
+                "internal static object Bind(Microsoft.CodeAnalysis.Compilation c, Microsoft.CodeAnalysis.SyntaxTree t) => c.GetSemanticModel(t); }"),
+            ("P", "Reuse.cs", "class Reuse { object M() => HelperOwner.Tree(\"\").GetRoot(); }"),
+            ("P", "ReuseNode.cs", "class ReuseNode { object M() => HelperOwner.Root(\"\"); }"),
+            ("P", "Group.cs", "class Group { object M(string[] s) => s.Select(HelperOwner.Tree).ToList(); }"),
             ("P", "Unresolved.cs", "class Unresolved { object M() => CSharpSyntaxTree.ParseText(\"\"); }"),
             ("Q", "ProjectUsing.cs", "class ProjectUsing { object M() => SyntaxFactory.ParseExpression(\"x\"); }"),
         ], project => project == "Q" ? "global using Microsoft.CodeAnalysis.CSharp;" : "");
 
-        Assert.Equal(["Alias", "Direct", "N.Outer", "ProjectUsing", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["Alias", "Direct", "Group", "N.Outer", "ProjectUsing", "Reuse", "ReuseNode", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -102,9 +108,8 @@ public sealed class SpellingScannerRatchetTests
         Assert.Equal(["global using A.B;", "global using static A.C;", "global using E = A.D;"], usings);
     }
 
-    // Keyed by the outermost type, merged across partial declarations. A parse call counts when its bound symbol is a
-    // Parse* or Create method on CSharpSyntaxTree or SyntaxFactory; a method name cannot be aliased, so the name
-    // prefilter loses nothing short of reflection. The type is exempt when any of its code creates a CSharpCompilation or
+    // Keyed by the outermost type, merged across partial declarations. Every invocation and method-group argument is
+    // bound; a parse call is one whose symbol IsParser, or an unbound call spelled like a Roslyn parse method. The type is exempt when any of its code creates a CSharpCompilation or
     // asks a compilation for its SemanticModel, which also covers a compilation built by a shared helper.
     internal static Dictionary<string, string> SpellingOnlyParsers(
         IEnumerable<(string Project, string Path, string Source)> files, Func<string, string> projectUsings)
@@ -122,19 +127,30 @@ public sealed class SpellingScannerRatchetTests
             foreach (var tree in trees)
             {
                 var model = compilation.GetSemanticModel(tree);
+                foreach (var node in tree.GetRoot().DescendantNodes())
+                {
+                    var call = node switch
+                    {
+                        InvocationExpressionSyntax invocation => invocation.Expression,
+                        ArgumentSyntax { Expression: IdentifierNameSyntax or MemberAccessExpressionSyntax } group => group.Expression,
+                        _ => null,
+                    };
+                    if (call is null)
+                        continue;
+                    var info = model.GetSymbolInfo(call);
+                    var symbol = info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
+                    var text = (call as MemberAccessExpressionSyntax)?.Name.Identifier.ValueText ?? (call as SimpleNameSyntax)?.Identifier.ValueText;
+                    if ((symbol is IMethodSymbol method ? IsParser(method) : symbol is null && text is not null && UnresolvedParse.Contains(text))
+                        && OutermostType(model, node) is { } owner)
+                        parsers.TryAdd(owner, tree.FilePath);
+                }
                 foreach (var name in tree.GetRoot().DescendantNodes().OfType<SimpleNameSyntax>())
                 {
-                    var text = name.Identifier.ValueText;
-                    if (!text.StartsWith("Parse", StringComparison.Ordinal) && text is not ("Create" or "CSharpCompilation" or "GetSemanticModel" or "SemanticModel"))
+                    if (name.Identifier.ValueText is not ("Create" or "CSharpCompilation" or "GetSemanticModel" or "SemanticModel"))
                         continue;
                     var info = model.GetSymbolInfo(name);
-                    var symbol = info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
-                    if (OutermostType(model, name) is not { } owner)
-                        continue;
-                    if (BindsSymbols(symbol))
+                    if (BindsSymbols(info.Symbol ?? info.CandidateSymbols.FirstOrDefault()) && OutermostType(model, name) is { } owner)
                         bound.Add(owner);
-                    else if (symbol is IMethodSymbol method ? IsParse(method) : symbol is null && UnresolvedParse.Contains(text))
-                        parsers.TryAdd(owner, tree.FilePath);
                 }
             }
 
@@ -162,9 +178,20 @@ public sealed class SpellingScannerRatchetTests
     private static readonly HashSet<string> UnresolvedParse = new(StringComparer.Ordinal)
         { "ParseText", "ParseSyntaxTree", "ParseCompilationUnit" };
 
-    private static bool IsParse(IMethodSymbol method) =>
+    // A Roslyn parse factory, or a helper of ours that hands back a tree or C# node: its caller scans syntax too.
+    private static bool IsParser(IMethodSymbol method) =>
         method.ContainingType.ToDisplayString() is "Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree" or "Microsoft.CodeAnalysis.CSharp.SyntaxFactory"
-        && (method.Name.StartsWith("Parse", StringComparison.Ordinal) || method.Name == "Create");
+            ? method.Name.StartsWith("Parse", StringComparison.Ordinal) || method.Name == "Create"
+            : !method.ContainingAssembly.Name.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)
+              && DerivesFrom(method.ReturnType, "Microsoft.CodeAnalysis.SyntaxTree", "Microsoft.CodeAnalysis.CSharp.CSharpSyntaxNode");
+
+    private static bool DerivesFrom(ITypeSymbol? type, params string[] bases)
+    {
+        for (; type is not null; type = type.BaseType)
+            if (bases.Contains(type.ToDisplayString()))
+                return true;
+        return false;
+    }
 
     private static bool BindsSymbols(ISymbol? symbol) =>
         (symbol as INamedTypeSymbol ?? symbol?.ContainingType)?.ToDisplayString() is
