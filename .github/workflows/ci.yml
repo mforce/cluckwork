@@ -414,6 +414,28 @@ jobs:
           node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level moderate --warn-only \
             --exceptions ../.github/security-exceptions.json < npm-audit-all.json
 
+      # web/lint has its own install: typescript-eslint cannot load TypeScript 7.
+      - name: Lint
+        run: |
+          npm ci --prefix lint
+          npm run lint
+
+      # Suppressions may only shrink (web/AGENTS.md). On push and dispatch there
+      # is no PR base, and only the path check runs: main takes changes only
+      # through PRs, which ran the growth check. The first PR has no base file.
+      - name: Check lint suppressions
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="$RUNNER_TEMP/base-suppressions.json"
+          if [ -n "$BASE_SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            if git cat-file -e "$BASE_SHA:web/lint/eslint-suppressions.json"; then
+              git show "$BASE_SHA:web/lint/eslint-suppressions.json" > "$base"
+            fi
+          fi
+          if [ -f "$base" ]; then node lint/check-suppressions.mjs "$base"; else node lint/check-suppressions.mjs; fi
+
       - name: Test with coverage gate
         run: npm run test:coverage
 

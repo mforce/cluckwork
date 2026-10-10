@@ -35,6 +35,7 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         Assert.False(body.TryGetProperty("redirectUri", out _), "a code was issued without consent");
         Assert.Equal(clientId, body.GetProperty("clientId").GetString());
         Assert.Equal("Claude Desktop", body.GetProperty("clientName").GetString());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("verifiedDomain").ValueKind);
         Assert.Equal("client.example", body.GetProperty("redirectHost").GetString());
         Assert.Equal([Read, Write], Strings(body, "scopes"));
         Assert.Empty(Strings(body, "alreadyAllowed"));
@@ -306,8 +307,9 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(["clientName"], body.EnumerateObject().Select(property => property.Name).ToArray());
+        Assert.Equal(["clientName", "verifiedDomain"], body.EnumerateObject().Select(property => property.Name).ToArray());
         Assert.Equal("Claude Desktop", body.GetProperty("clientName").GetString());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("verifiedDomain").ValueKind);
     }
 
     [Theory]

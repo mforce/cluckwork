@@ -123,7 +123,7 @@ specification revision **2026-07-28**, the current one:
   advertises `client_id_metadata_document_supported`, then registration when it
   advertises `registration_endpoint`.
 
-**This slice supports DCR only. Client ID Metadata Documents are deferred.** Discovery
+**This slice supports DCR only. Client ID Metadata Documents are deferred.** (#1148 added them later; see [`1148-client-id-metadata-documents.md`](1148-client-id-metadata-documents.md).) Discovery
 does not advertise `client_id_metadata_document_supported`, so a client that implements
 only metadata documents cannot connect. If the MCP milestone targets a revision that
 requires them, adding them is OAuth-side follow-up work: fetching a client's document over

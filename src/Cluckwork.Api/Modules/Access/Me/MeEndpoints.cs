@@ -5,6 +5,7 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Cluckwork.Api.Modules.Access.Me;
 
@@ -36,7 +37,7 @@ public static class MeEndpoints
             .WithName("ListOwnConnectedApps")
             .WithSummary("The apps you have allowed to act as you.");
 
-        group.MapDelete("/connected-apps/{clientId}", DisconnectApp)
+        group.MapDelete("/connected-apps", DisconnectApp)
             // Binds no body; caps what IdempotencyMiddleware buffers to hash it.
             .WithMaxRequestBodyBytes(512)
             .WithName("DisconnectOwnApp")
@@ -104,7 +105,7 @@ public static class MeEndpoints
             : Results.Unauthorized();
 
     private static async Task<IResult> DisconnectApp(
-        string clientId, IAccessModule access, ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
+        [FromQuery] string clientId, IAccessModule access, ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
         var result = await access.DisconnectAppAsync(tenant.AccountId, currentUser.UserId, clientId, ct);

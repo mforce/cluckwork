@@ -177,7 +177,10 @@ function Headline({ request, ref }: { request: ConsentRequest; ref: Ref<HTMLHead
       <Typography ref={ref} tabIndex={-1} variant="h2" component="h1" sx={{ overflowWrap: "anywhere", "&:focus": { outline: "none" } }}>
         {t(title, { app })}
       </Typography>
-      <span className="badge badge-warn">{t("unverified")}</span>
+      {/* #1148 — only the domain is checked; the name above stays the app's own claim. */}
+      {request.verifiedDomain
+        ? <span className="badge badge-ok">{t("verifiedDomain", { domain: request.verifiedDomain })}</span>
+        : <span className="badge badge-warn">{t("unverified")}</span>}
       {!request.alreadyApproved && (
         <Line icon={<Laptop size={16} aria-hidden />}>
           {LOOPBACK.has(request.redirectHost) ? t("returnsHere") : t("returnsTo", { host: request.redirectHost })}
@@ -253,6 +256,7 @@ function Details({ request, email, onSignOut }: { request: ConsentRequest; email
   const app = request.clientName ?? t("unnamedApp");
   const role = currentUserRole();
   const host = request.redirectHost;
+  const domain = request.verifiedDomain;
   // What this request would get: its scopes, within the user's role and flock scope.
   const flocks = request.assignedFlocks?.join(", ");
   const reads = request.scopes.includes(READ) && (flocks === undefined ? t("detailsReadAll") : t("detailsReadSome", { flocks }));
@@ -263,9 +267,12 @@ function Details({ request, email, onSignOut }: { request: ConsentRequest; email
     <Box component="details" sx={{ borderTop: "1px solid var(--hairline)", paddingTop: 1.5, "& p": { marginBlock: 1 } }}>
       <Box component="summary" sx={{ cursor: "pointer", fontWeight: 600 }}>{t("details")}</Box>
       <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[reads, writes].filter(Boolean).join(" ")}</Typography>
-      <Typography variant="body2" component="p">{t("detailsName", { app })}</Typography>
+      <Typography variant="body2" component="p" sx={{ overflowWrap: "anywhere" }}>
+        {domain ? t("detailsNameVerified", { app, domain, url: request.clientId }) : t("detailsName", { app })}
+      </Typography>
       <Typography variant="body2" component="p">
         {LOOPBACK.has(host) ? t("detailsReturnHere", { host }) : t("detailsReturnTo", { host })}
+        {domain && LOOPBACK.has(host) && <> {t("detailsLoopbackVerified", { domain })}</>}
       </Typography>
       <Typography variant="body2" component="p">{t("detailsScopes")}</Typography>
       <Typography variant="body2" component="p">

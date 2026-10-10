@@ -69,6 +69,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Consent with step-up, and the OAuth server in Production (#798)](798-oauth-consent.md) | src/AGENTS · Auth and credentials |
 | [Connected apps: listing, Disconnect, last used and audit (#799)](799-connected-apps.md) | src/AGENTS · Auth and credentials |
 | [The farm's connected-apps switch refuses; it never revokes (#1146)](1146-connected-apps-switch.md) | src/AGENTS · Auth and credentials |
+| [Client ID metadata documents beside registration (#1148)](1148-client-id-metadata-documents.md) | src/AGENTS · Auth and credentials |
 | [Nothing writes an audit event without an actor (#500)](500-audit-actor.md) | AGENTS · Conventions |
 | [Break-glass recovery: `recover-admin` (#265)](265-break-glass-recovery.md) | AGENTS · Conventions · and the [runbook](../runbooks/break-glass-account-recovery.md) |
 | [Farm timezone, and the tzdata/ICU constraint (#264)](264-farm-timezone.md) | AGENTS · Conventions |
