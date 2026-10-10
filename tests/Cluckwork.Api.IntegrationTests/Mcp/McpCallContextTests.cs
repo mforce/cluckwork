@@ -28,6 +28,8 @@ public sealed class McpCallContextTests
         Assert.Equal(UserId, call.UserId);
         Assert.Equal("worker@farm.test", call.Email);
         Assert.Equal(App, call.ConnectedApp);
+        Assert.True(call.IsFlockRestricted);
+        Assert.Equal([FlockId], call.AssignedFlockIds);
     }
 
     // Row 3b, with the restricted case above: a clause on IsUnrestricted instead of
@@ -38,7 +40,11 @@ public sealed class McpCallContextTests
         using var request = new Request();
         request.ResolveAsTheOAuthMiddlewareDoes(unrestricted: true);
 
-        Assert.Equal(UserId, request.Resolve().UserId);
+        var call = request.Resolve();
+
+        Assert.Equal(UserId, call.UserId);
+        Assert.False(call.IsFlockRestricted);
+        Assert.Empty(call.AssignedFlockIds);
     }
 
     [Fact]

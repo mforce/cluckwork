@@ -23,6 +23,8 @@ public sealed class McpCallContext
     public Guid UserId { get; }
     public string Email { get; }
     public ConnectedApp ConnectedApp { get; }
+    public bool IsFlockRestricted { get; }
+    public IReadOnlyCollection<Guid> AssignedFlockIds { get; }
 
     public McpCallContext(
         IHttpContextAccessor httpContextAccessor,
@@ -58,6 +60,8 @@ public sealed class McpCallContext
         AccountId = tenant.AccountId;
         UserId = user.UserId;
         Email = user.Email;
+        IsFlockRestricted = !flockScope.IsUnrestricted;
+        AssignedFlockIds = flockScope.AssignedFlockIds;
     }
 
     private static InvalidOperationException Refused(string reason) =>

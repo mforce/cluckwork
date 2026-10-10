@@ -14,7 +14,9 @@
 #   INCONCLUSIVE  no TRX, no result, the mutant did not apply or did not compile
 #
 # Rows 6, 7 and 7b's mutations are tools a later PR would add, so they live as
-# permanent fixtures in McpToolSurfaceTests and McpSecondaryScopeTests, not here.
+# permanent fixtures in McpToolSurfaceTests and McpSecondaryScopeTests. The two walk
+# mutants below remove the request-reader check, to show that its fixture and the
+# real-host walk depend on it.
 #
 # Usage:  sg docker -c 'bash tools/mcp/mutation-check.sh'   (two tests boot the API)
 
@@ -23,6 +25,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 BRIDGE=src/Cluckwork.Api/Mcp/McpCallContext.cs
 IDENTITY=src/Cluckwork.Api/Hosting/CluckworkIdentityServiceCollectionExtensions.cs
+WALK=tests/Cluckwork.Api.IntegrationTests/Mcp/SecondaryScopeWalk.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests.Mcp
 SUITE="FullyQualifiedName~$TEST_NS."
@@ -40,8 +43,11 @@ isunrestricted-wrong-fix#kill#BRIDGE#if (!flockScope.IsResolved)#if (!flockScope
 isunrestricted-inverted-fix#kill#BRIDGE#if (!flockScope.IsResolved)#if (flockScope.IsUnrestricted)#McpCallContextTests.ResolvedUnrestrictedScope_IsAccepted#flock scope is unresolved
 connected-app-unchecked#kill#BRIDGE#?? throw Refused("the caller did not arrive through a connected app");#?? new ConnectedApp("", null);#McpCallContextTests.SessionJwtCaller_Throws#No exception was thrown
 session-jwt-admitted#kill#BRIDGE#?? throw Refused("the caller did not arrive through a connected app");#?? new ConnectedApp("", null);#McpCallContextPipelineTests.SessionJwtCaller_IsRefused#Expected: Conflict
+flock-restriction-dropped#kill#BRIDGE#IsFlockRestricted = !flockScope.IsUnrestricted;#IsFlockRestricted = false;#McpCallContextTests.RestrictedWorkerThroughAConnectedApp_ExposesTheRequestIdentity#Assert.True() Failure
 bridge-unregistered#kill#IDENTITY#        services.AddScoped<McpCallContext>();\n##McpCallContextPipelineTests.OAuthCaller_ResolvesTheRequestsIdentity#Expected: OK
 bridge-registered-by-factory#kill#IDENTITY#services.AddScoped<McpCallContext>();#services.AddScoped(sp => new McpCallContext(sp.GetRequiredService<IHttpContextAccessor>(), sp.GetRequiredService<TenantContext>(), sp.GetRequiredService<CurrentUserContext>(), sp.GetRequiredService<FlockScope>()));#McpSecondaryScopeTests.RealHost_NoToolOrContractReachesASecondaryScope#McpCallContext: registered through a factory delegate
+request-reader-unchecked#kill#WALK#    private static bool ReadsTheRequest(Type type) => Reaches(RequestReaders, type);#    private static bool ReadsTheRequest(Type type) => false;#McpSecondaryScopeTests.HelperReadingRequestServices_IsAFinding#Assert.Single() Failure
+request-reader-unchecked-real-host#kill#WALK#    private static bool ReadsTheRequest(Type type) => Reaches(RequestReaders, type);#    private static bool ReadsTheRequest(Type type) => false;#McpSecondaryScopeTests.RealHost_NoToolOrContractReachesASecondaryScope#stale review: McpCallContext reads the request
 EOF
 )
 
@@ -99,7 +105,7 @@ else:
 PY
 }
 
-FILES=("$BRIDGE" "$IDENTITY")
+FILES=("$BRIDGE" "$IDENTITY" "$WALK")
 restore() { git checkout -- "${FILES[@]}"; }
 if ! git diff --quiet -- "${FILES[@]}"; then
   echo "refusing: mutated files have uncommitted changes, and restore would discard them" >&2

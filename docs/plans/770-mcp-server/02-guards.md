@@ -78,6 +78,17 @@ and the residual ones are named. #787 (flipping that branch fail-closed) backsto
 of the residue, which is why slice 6 is blocked on it — but a secondary-scope **read** never calls
 `FlockScopeGuard` at all, so #787 does not cover it. That read residue is recorded as open risk.
 
+#805's walk has three more limits, recorded here and not fixed:
+
+- A pre-built instance registration (`AddSingleton(instance)`) ends the walk. Whatever built that
+  instance is not in the registration graph.
+- A `ReviewedFactory` row approves a service type and the type that registers it. If the delegate's
+  body changes later, the row still approves it. A second factory for the same service in another
+  type, and a row the walk no longer reaches, both fail.
+- `McpToolSurface` finds tool methods with `BindingFlags.DeclaredOnly`. A tool method inherited from
+  a base class is not walked. Whether the SDK serves inherited attributed methods is unproven until
+  #806 picks the SDK version.
+
 Saying this here is the point: a guard described as proving more than it proves is worse than no
 guard, because it reads as safety. Round 1 found three such rows, round 2 found two more in the
 fixes for round 1.

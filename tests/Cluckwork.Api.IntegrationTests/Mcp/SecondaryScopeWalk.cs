@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests.Mcp;
@@ -12,6 +13,11 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 // pre-built instance or a reviewed factory. Any other factory is a finding, and so
 // is any dependency on a scope opener.
 //
+// IHttpContextAccessor and HttpContext count as scope openers too, through
+// HttpContext.RequestServices: a helper can call CreateScope() on it and read with an
+// unresolved, so unrestricted, FlockScope. Each type that takes one needs a
+// ReviewedRequestReader row, checked per consuming type rather than per dependency.
+//
 // A reviewed factory is keyed by its service type and the type whose code holds the
 // delegate, so a second factory for the same service, registered elsewhere, is not
 // excused by the first one's review.
@@ -20,38 +26,63 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 // no edge, so no walk over registrations can see them.
 internal sealed record ReviewedFactory(Type Service, Type RegisteredBy, string Reason);
 
-internal sealed record SecondaryScopeReport(IReadOnlyList<string> Findings, IReadOnlySet<ReviewedFactory> ReviewedReached);
+internal sealed record ReviewedRequestReader(Type Consumer, string Reason);
+
+internal sealed record SecondaryScopeReport(
+    IReadOnlyList<string> Findings,
+    IReadOnlySet<ReviewedFactory> FactoriesReached,
+    IReadOnlySet<ReviewedRequestReader> ReadersReached);
 
 internal static class SecondaryScopeWalk
 {
     private static readonly Type[] ScopeOpeners = [typeof(IServiceProvider), typeof(IServiceScopeFactory)];
+    private static readonly Type[] RequestReaders = [typeof(IHttpContextAccessor), typeof(HttpContext)];
 
-    public static bool OpensAScope(Type type) =>
-        ScopeOpeners.Any(opener => opener.IsAssignableFrom(type))
-        || type.GetGenericArguments().Any(OpensAScope)
-        || (type.HasElementType && OpensAScope(type.GetElementType()!));
+    public static bool OpensAScope(Type type) => Reaches(ScopeOpeners, type);
+
+    private static bool ReadsTheRequest(Type type) => Reaches(RequestReaders, type);
+
+    private static bool Reaches(Type[] targets, Type type) =>
+        targets.Any(target => target.IsAssignableFrom(type))
+        || type.GetGenericArguments().Any(argument => Reaches(targets, argument))
+        || (type.HasElementType && Reaches(targets, type.GetElementType()!));
 
     public static SecondaryScopeReport Walk(
         IReadOnlyCollection<ServiceDescriptor> services,
         IEnumerable<(string Root, Type Dependency)> roots,
-        IReadOnlyCollection<ReviewedFactory> reviewedFactories)
+        IReadOnlyCollection<ReviewedFactory> reviewedFactories,
+        IReadOnlyCollection<ReviewedRequestReader> reviewedReaders)
     {
         var findings = new List<string>();
-        var reached = new HashSet<ReviewedFactory>();
+        var factoriesReached = new HashSet<ReviewedFactory>();
+        var readersReached = new HashSet<ReviewedRequestReader>();
         var visited = new HashSet<Type>();
-        var pending = new Queue<(Type Type, string Path)>(roots.Select(r => (r.Dependency, $"{r.Root} -> {Name(r.Dependency)}")));
+        var pending = new Queue<(Type Type, Type? Consumer, string Path)>(
+            roots.Select(r => (r.Dependency, (Type?)null, $"{r.Root} -> {Name(r.Dependency)}")));
 
+        // Edges are judged before the visited check, so every consumer of an opener is reported.
         while (pending.TryDequeue(out var item))
         {
-            var (type, path) = item;
-            if (!visited.Add(type))
-                continue;
-
+            var (type, consumer, path) = item;
             if (OpensAScope(type))
             {
                 findings.Add($"{path}: opens a scope");
                 continue;
             }
+
+            if (ReadsTheRequest(type))
+            {
+                var reader = reviewedReaders.FirstOrDefault(r => r.Consumer == consumer);
+                if (reader is null)
+                    findings.Add($"{path}: reaches HttpContext.RequestServices, which can open a scope; " +
+                        "review the consumer and add a ReviewedRequestReader row");
+                else
+                    readersReached.Add(reader);
+                continue;
+            }
+
+            if (!visited.Add(type))
+                continue;
 
             var element = type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>)
                 ? type.GetGenericArguments()[0]
@@ -74,7 +105,7 @@ internal static class SecondaryScopeWalk
                         findings.Add($"{path}: registered through a factory delegate in {registeredBy.FullName}, " +
                             "which the walk cannot see into; review it and add a ReviewedFactory row");
                     else
-                        reached.Add(review);
+                        factoriesReached.Add(review);
                     continue;
                 }
 
@@ -84,11 +115,11 @@ internal static class SecondaryScopeWalk
                     implementation = implementation.MakeGenericType((element ?? type).GetGenericArguments());
 
                 foreach (var parameter in implementation.GetConstructors().SelectMany(c => c.GetParameters()))
-                    pending.Enqueue((parameter.ParameterType, $"{path} -> {Name(parameter.ParameterType)}"));
+                    pending.Enqueue((parameter.ParameterType, implementation, $"{path} -> {Name(parameter.ParameterType)}"));
             }
         }
 
-        return new(findings, reached);
+        return new(findings, factoriesReached, readersReached);
     }
 
     private static Type Outermost(Type type) => type.DeclaringType is { } outer ? Outermost(outer) : type;

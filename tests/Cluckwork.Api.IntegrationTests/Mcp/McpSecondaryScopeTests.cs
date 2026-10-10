@@ -4,8 +4,11 @@ using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
+using Cluckwork.Domain.Auditing;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.SharedState;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +39,18 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
             "OpenIddict forwards to its typed authorization manager in the same scope"),
     ];
 
+    private static readonly ReviewedRequestReader Bridge =
+        new(typeof(McpCallContext), "reads RequestServices only to compare its TenantContext with the injected one");
+
+    // Each type below was read: it uses the request only as listed and never touches
+    // RequestServices.
+    private static readonly ReviewedRequestReader[] ReviewedReaders =
+    [
+        Bridge,
+        new(typeof(IdentityProvider), "reads the caller's IP address for security-event log lines"),
+        new(typeof(AuthSecurityEventLogger), "reads the caller's IP address for security-event log lines"),
+    ];
+
     [Fact]
     public void RealHost_NoToolOrContractReachesASecondaryScope()
     {
@@ -57,12 +72,58 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
             contracts.Select(c => ("contract", c))
                 .Concat(tools)
                 .Append(("bridge", typeof(McpCallContext))),
-            Reviewed);
+            Reviewed, ReviewedReaders);
 
         var failures = report.Findings
-            .Concat(Reviewed.Except(report.ReviewedReached).Select(r => $"stale review: {r.Service.Name} by {r.RegisteredBy.Name}"))
+            .Concat(Reviewed.Except(report.FactoriesReached).Select(r => $"stale review: {r.Service.Name} by {r.RegisteredBy.Name}"))
+            .Concat(ReviewedReaders.Except(report.ReadersReached).Select(r => $"stale review: {r.Consumer.Name} reads the request"))
             .ToList();
         Assert.True(failures.Count == 0, "secondary-scope walk failed:\n" + string.Join("\n", failures));
+    }
+
+    // The hazard on the real EF filters. A Worker is assigned one flock of two. A helper's
+    // second scope, with the account copied in, reads both, because its FlockScope is
+    // unresolved and so unrestricted; the bridge refuses to exist there.
+    [Fact]
+    public async Task SecondScope_WidensAWorkersFlocks_AndMcpCallContextRefusesIt()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"mcp-{Guid.NewGuid():N}@test.local");
+        var farmId = Guid.NewGuid();
+        var assigned = await factory.SeedFlockAsync(accountId, farmId);
+        var unassigned = await factory.SeedFlockAsync(accountId, farmId);
+
+        using var request = factory.Services.CreateScope();
+        var services = request.ServiceProvider;
+        services.GetRequiredService<TenantContext>().Resolve(accountId);
+        services.GetRequiredService<CurrentUserContext>()
+            .Resolve(Guid.NewGuid(), "worker@test.local", ["Worker"], new ConnectedApp("client-805", "Field Assistant"));
+        services.GetRequiredService<FlockScope>().Resolve(unrestricted: false, [assigned]);
+        var accessor = services.GetRequiredService<IHttpContextAccessor>();
+        accessor.HttpContext = new DefaultHttpContext { RequestServices = services };
+        try
+        {
+            var call = services.GetRequiredService<McpCallContext>();
+            var requestFlocks = await FlockIdsAsync(services);
+
+            using var second = services.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            second.ServiceProvider.GetRequiredService<TenantContext>().Resolve(call.AccountId);
+            var secondFlocks = await FlockIdsAsync(second.ServiceProvider);
+            var refusal = Record.Exception(() => second.ServiceProvider.GetRequiredService<McpCallContext>());
+
+            Assert.Equivalent(
+                new
+                {
+                    Request = new[] { assigned },
+                    Second = new[] { assigned, unassigned }.Order().ToArray(),
+                    Refusal = "An MCP tool cannot run: the injected TenantContext is not the HTTP request's.",
+                },
+                new { Request = requestFlocks, Second = secondFlocks, Refusal = refusal?.Message },
+                strict: true);
+        }
+        finally
+        {
+            accessor.HttpContext = null;
+        }
     }
 
     // Mutation (a): a helper that takes IServiceScopeFactory.
@@ -89,6 +150,20 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
         Assert.Contains("DelegateHelper: registered through a factory delegate", finding);
     }
 
+    // Mutation (c): a Platform helper outside the MCP namespace takes IHttpContextAccessor
+    // and opens a scope from RequestServices. The tool's constructor names no banned type.
+    [Fact]
+    public void HelperReadingRequestServices_IsAFinding()
+    {
+        var services = BridgeServices();
+        services.AddScoped<RequestServicesHelper>();
+
+        Assert.Empty(McpToolSurface.Findings([typeof(RequestServicesHelperTool)]));
+        var finding = Assert.Single(WalkTool<RequestServicesHelperTool>(services, []).Findings);
+        Assert.EndsWith("RequestServicesHelper -> IHttpContextAccessor: reaches HttpContext.RequestServices, " +
+            "which can open a scope; review the consumer and add a ReviewedRequestReader row", finding);
+    }
+
     [Fact]
     public void ReviewedFactory_ExcusesOnlyTheTypeThatRegistersIt()
     {
@@ -103,7 +178,10 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
     }
 
     private static SecondaryScopeReport WalkTool<TTool>(IServiceCollection services, ReviewedFactory[] reviewed) =>
-        SecondaryScopeWalk.Walk(services.ToArray(), McpToolSurface.Injections(typeof(TTool)), reviewed);
+        SecondaryScopeWalk.Walk(services.ToArray(), McpToolSurface.Injections(typeof(TTool)), reviewed, [Bridge]);
+
+    private static async Task<Guid[]> FlockIdsAsync(IServiceProvider services) =>
+        [.. (await services.GetRequiredService<AppDbContext>().Flocks.Select(f => f.Id).ToListAsync()).Order()];
 
     private static void RegisterDelegateHelper(IServiceCollection services) =>
         services.AddScoped(sp => new DelegateHelper(() => sp.CreateScope().ServiceProvider.GetRequiredService<FlockScope>()));
@@ -134,6 +212,19 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
     private sealed class DelegateHelper(Func<FlockScope> flocks)
     {
         public bool Unrestricted() => flocks().IsUnrestricted;
+    }
+
+    private sealed class RequestServicesHelper(IHttpContextAccessor accessor)
+    {
+        public bool Unrestricted() =>
+            accessor.HttpContext!.RequestServices.CreateScope().ServiceProvider.GetRequiredService<FlockScope>().IsUnrestricted;
+    }
+
+    [McpServerToolType]
+    private sealed class RequestServicesHelperTool(McpCallContext call, RequestServicesHelper helper)
+    {
+        [McpServerTool]
+        public string Read() => $"{call.UserId} {helper.Unrestricted()}";
     }
 
     [McpServerToolType]
