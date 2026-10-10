@@ -34,6 +34,7 @@ public sealed class AddOrderItemHandlerTests
             EggUnitConversion.Create(Guid.NewGuid(), AccountId, EggUnit.Individual, 1),
             EggUnitConversion.Create(Guid.NewGuid(), AccountId, EggUnit.Dozen, 12),
             EggUnitConversion.Create(Guid.NewGuid(), AccountId, EggUnit.Tray, 30),
+            EggUnitConversion.Create(Guid.NewGuid(), AccountId, EggUnit.Case, 360),
         ]);
     }
 
@@ -58,9 +59,13 @@ public sealed class AddOrderItemHandlerTests
     [InlineData(ProductUnit.Tray, 1_350L, ProductUnit.Egg, 45L)]
     // Packed unit to packed unit: 6.00 a dozen is 15.00 a tray.
     [InlineData(ProductUnit.Dozen, 600L, ProductUnit.Tray, 1_500L)]
-    // Uneven scaling rounds half up to a whole minor unit: 43.33 and 43.5.
-    [InlineData(ProductUnit.Tray, 1_300L, ProductUnit.Egg, 43L)]
+    // Uneven scaling rounds UP to a whole minor unit: 43.33 and 43.5 both
+    // become 44, and a positive price never scales to a free line (0.36 → 1).
+    [InlineData(ProductUnit.Tray, 1_300L, ProductUnit.Egg, 44L)]
     [InlineData(ProductUnit.Tray, 1_305L, ProductUnit.Egg, 44L)]
+    [InlineData(ProductUnit.Case, 130L, ProductUnit.Egg, 1L)]
+    // A genuinely free product stays free.
+    [InlineData(ProductUnit.Case, 0L, ProductUnit.Egg, 0L)]
     // The product's own unit is untouched.
     [InlineData(ProductUnit.Tray, 1_300L, ProductUnit.Tray, 1_300L)]
     public async Task OmittedPrice_DefaultsAndSnapshotsTheListPriceInTheLinesUnit(

@@ -727,6 +727,49 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(body).not.toHaveProperty("expectedListPriceIsUnset");
   });
 
+  // #1160 — exact integer arithmetic at the edge of the safe range, where a
+  // float quotient lands on the wrong side of a whole minor unit.
+  it.each([
+    // 9007199254740991 / 3 = …330.33, rounded up to …331.
+    ["Carton", 9007199254740991, "Egg", 3002399751580331],
+    // 9007199254740988 × 12 / 30 = …395.2, rounded up to …396; floats give …395.
+    ["Tray", 9007199254740988, "Dozen", 3602879701896396],
+  ])("sends the exactly scaled list price for a %s product at %i sold per %s", async (own, price, line, expected) => {
+    mockListEggUnitConversions.mockResolvedValue([
+      ...CONVERSIONS,
+      { id: "cv5", unitCode: "Carton", eggsPerUnit: 3, active: true, version: 1 },
+    ]);
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultUnit: own, defaultPriceMinorUnits: price }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: line } });
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "1.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject({ expectedListUnitPriceMinorUnits: expected });
+  });
+
+  it("treats a scaled list price beyond the safe integer range as unknown", async () => {
+    mockListProducts.mockResolvedValue(
+      [{ ...PRODUCT_A, defaultUnit: "Egg", defaultPriceMinorUnits: Number.MAX_SAFE_INTEGER }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(null);
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "1.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    const body = mockAddOrderItem.mock.calls[0][1];
+    expect(body).not.toHaveProperty("expectedListUnitPriceMinorUnits");
+    expect(body).not.toHaveProperty("expectedListPriceIsUnset");
+  });
+
   // #720 R11 — R8 (a hint inside its own grid cell) and R9 (position:absolute
   // out of that cell) both broke on the SAME shape: a cell taller than its
   // siblings floats above the row under .form-grid's align-items:end, and a
