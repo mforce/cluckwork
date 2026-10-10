@@ -53,7 +53,7 @@ public sealed class SpellingScannerRatchetTests
         Assert.True(files.Count >= ScannedFileFloor,
             $"Scanned {files.Count} test files, below the floor of {ScannedFileFloor}; the enumeration is excluding too much.");
 
-        var found = SpellingOnlyParsers(files);
+        var found = SpellingOnlyParsers(files, project => ProjectUsings(root, project));
 
         var failures = new List<string>();
         foreach (var (type, path) in found.Where(f => !Legacy.ContainsKey(f.Key)).OrderBy(f => f.Key, StringComparer.Ordinal))
@@ -81,23 +81,41 @@ public sealed class SpellingScannerRatchetTests
             ("P", "Bound.cs", header + "class Bound { object M() => CSharpCompilation.Create(\"x\", [CSharpSyntaxTree.ParseText(\"\")]); }"),
             ("P", "Helper.cs", header + "class Helper { object M(Microsoft.CodeAnalysis.Compilation c) => c.GetSemanticModel(CSharpSyntaxTree.ParseText(\"\")); }"),
             ("P", "Unrelated.cs", "class Unrelated { int ParseText(string s) => s.Length; int M() => ParseText(\"\"); }"),
-        ]);
+            ("P", "Unresolved.cs", "class Unresolved { object M() => CSharpSyntaxTree.ParseText(\"\"); }"),
+            ("Q", "ProjectUsing.cs", "class ProjectUsing { object M() => SyntaxFactory.ParseExpression(\"x\"); }"),
+        ], project => project == "Q" ? "global using Microsoft.CodeAnalysis.CSharp;" : "");
 
-        Assert.Equal(["Alias", "Direct", "N.Outer", "Static"], found.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["Alias", "Direct", "N.Outer", "ProjectUsing", "Static", "Unresolved"], found.Keys.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void MsBuildUsingItems_BecomeGlobalUsings()
+    {
+        var usings = MsBuildGlobalUsings(System.Xml.Linq.XDocument.Parse("""
+            <Project><ItemGroup>
+              <Using Include="A.B" />
+              <Using Include="A.C" Static="true" />
+              <Using Include="A.D" Alias="E" />
+            </ItemGroup></Project>
+            """));
+
+        Assert.Equal(["global using A.B;", "global using static A.C;", "global using E = A.D;"], usings);
     }
 
     // Keyed by the outermost type, merged across partial declarations. A parse call counts when its bound symbol is a
     // Parse* or Create method on CSharpSyntaxTree or SyntaxFactory; a method name cannot be aliased, so the name
     // prefilter loses nothing short of reflection. The type is exempt when any of its code creates a CSharpCompilation or
     // asks a compilation for its SemanticModel, which also covers a compilation built by a shared helper.
-    internal static Dictionary<string, string> SpellingOnlyParsers(IEnumerable<(string Project, string Path, string Source)> files)
+    internal static Dictionary<string, string> SpellingOnlyParsers(
+        IEnumerable<(string Project, string Path, string Source)> files, Func<string, string> projectUsings)
     {
         var found = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var project in files.GroupBy(f => f.Project))
         {
             var trees = project.Select(f => CSharpSyntaxTree.ParseText(f.Source, ModuleLedgerScanner.ParseOptions, f.Path)).ToList();
             var compilation = CompatibilityExceptionScanner.Compile(project.Key, trees,
-                CompatibilityExceptionScanner.ImplicitUsings, CompatibilityExceptionScanner.References(project.Key));
+                CompatibilityExceptionScanner.ImplicitUsings + "\n" + projectUsings(project.Key),
+                CompatibilityExceptionScanner.References(project.Key));
 
             var parsers = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
             var bound = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
@@ -115,7 +133,7 @@ public sealed class SpellingScannerRatchetTests
                         continue;
                     if (BindsSymbols(symbol))
                         bound.Add(owner);
-                    else if (symbol is IMethodSymbol method && IsParse(method))
+                    else if (symbol is IMethodSymbol method ? IsParse(method) : symbol is null && UnresolvedParse.Contains(text))
                         parsers.TryAdd(owner, tree.FilePath);
                 }
             }
@@ -126,6 +144,23 @@ public sealed class SpellingScannerRatchetTests
 
         return found;
     }
+
+    // The SDK turns <Using> items into generated global usings, which tracked source does not contain.
+    internal static IEnumerable<string> MsBuildGlobalUsings(System.Xml.Linq.XDocument project) =>
+        project.Descendants("Using").Where(u => u.Attribute("Include") is not null).Select(u =>
+            (string?)u.Attribute("Alias") is { } alias ? $"global using {alias} = {(string)u.Attribute("Include")!};"
+            : (string?)u.Attribute("Static") == "true" ? $"global using static {(string)u.Attribute("Include")!};"
+            : $"global using {(string)u.Attribute("Include")!};");
+
+    private static string ProjectUsings(string root, string project) => string.Join("\n",
+        new[] { "Directory.Build.props", "tests/Directory.Build.props", $"tests/{project}/{project}.csproj" }
+            .Select(p => Path.Combine(root, p)).Where(File.Exists)
+            .SelectMany(p => MsBuildGlobalUsings(System.Xml.Linq.XDocument.Load(p))));
+
+
+    // Fail closed: a parser call that does not bind (a missing import or reference) still counts as one.
+    private static readonly HashSet<string> UnresolvedParse = new(StringComparer.Ordinal)
+        { "ParseText", "ParseSyntaxTree", "ParseCompilationUnit" };
 
     private static bool IsParse(IMethodSymbol method) =>
         method.ContainingType.ToDisplayString() is "Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree" or "Microsoft.CodeAnalysis.CSharp.SyntaxFactory"
