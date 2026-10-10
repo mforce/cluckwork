@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 
 // #1185 — the supported way for a screen to READ data for a set of inputs
 // (paged lists use usePagedList; dialog writes use useDialogAction). A raw
@@ -8,7 +8,10 @@ import { useCallback, useEffect, useEffectEvent, useState } from "react";
 //
 // Each run owns an AbortController, which is also its generation: inputs
 // changing, `retry` or unmount abort it, and an aborted run touches no state,
-// in its failure path as much as its success path. `load` is read through an
+// in its failure path as much as its success path. `retry` aborts at once, not
+// when the replacement effect runs: a retry after an awaited save must drop a
+// response that lands in between. A `load` that throws before returning a
+// promise is reported like a rejection. `load` is read through an
 // effect event, so an inline arrow does not reload on every render; only
 // `inputs` and `retry` do.
 //
@@ -24,12 +27,14 @@ export function useLatestLoad<T>(
   );
   const [attempt, setAttempt] = useState(0);
   const run = useEffectEvent(load);
+  const active = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    active.current = controller;
     setState((prev) => ({ data: prev.data, error: null, loading: true }));
     // eslint-disable-next-line no-restricted-syntax -- this hook is the guard the rule points to
-    run(controller.signal).then(
+    new Promise<T>((resolve) => resolve(run(controller.signal))).then(
       (data) => { if (!controller.signal.aborted) setState({ data, error: null, loading: false }); },
       (error: unknown) => { if (!controller.signal.aborted) setState({ data: null, error, loading: false }); },
     );
@@ -37,6 +42,9 @@ export function useLatestLoad<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the caller's inputs are the keys
   }, [...inputs, attempt]);
 
-  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const retry = useCallback(() => {
+    active.current?.abort();
+    setAttempt((n) => n + 1);
+  }, []);
   return { ...state, retry };
 }

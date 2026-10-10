@@ -79,6 +79,35 @@ describe("useLatestLoad", () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
+  it("drops the old run's response the moment retry is called, before the new run starts", async () => {
+    const calls: ReturnType<typeof deferred<string>>[] = [];
+    const { result } = renderHook(() => useLatestLoad(["a"], () => {
+      const d = deferred<string>();
+      calls.push(d);
+      return d.promise;
+    }));
+    const save = deferred<void>();
+    // A handler that saves, then retries: the old load answers in the gap
+    // after retry and before React runs the replacement effect.
+    await act(async () => {
+      const handler = save.promise.then(() => result.current.retry());
+      save.resolve();
+      await handler;
+      calls[0].resolve("rows from before the save");
+    });
+    expect(calls).toHaveLength(2);
+    expect(result.current).toMatchObject({ data: null, loading: true });
+  });
+
+  it("reports a load that throws before returning a promise as an error, not a crash", async () => {
+    const { result } = renderHook(() => useLatestLoad(["a"], (): Promise<string> => {
+      throw new RangeError("Invalid time value");
+    }));
+    await act(async () => {});
+    expect(result.current).toMatchObject({ data: null, loading: false });
+    expect(result.current.error).toEqual(new RangeError("Invalid time value"));
+  });
+
   it("does not reload when only the load function's identity changes", async () => {
     const load = vi.fn(async () => "rows");
     const { rerender } = renderHook(() => useLatestLoad(["a"], () => load()));
