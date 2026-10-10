@@ -161,3 +161,11 @@ When #806 lands `/mcp` and its tool classes under `Cluckwork.Api.Mcp`: add each
 tool class's repository reach as an `adapters` row exactly like an endpoint's,
 and drop `AdapterTierRealTreeTests.McpTierRow_IsDormantToday` — its own failure
 is the signal that the row it pins is no longer dormant.
+
+**Amended by #806.** `/mcp` is mapped, so the row is active and
+`McpTierRow_IsDormantToday` is gone. The privilege is renamed from
+`DirectRepository` to `ContractsOnly`, because since #1123 CW1004 and the reach
+guard hold a tool to module contracts like any endpoint: no scanner ever read
+`DirectRepository` as an exemption, and a tool cannot inject a repository. The
+row's reason now says so, and its `reviewBy` is the epic, #789. #806 ships no
+tool class, so no `adapters` row is added yet; the first tools (#807) add theirs.

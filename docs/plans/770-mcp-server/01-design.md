@@ -46,18 +46,21 @@ harnesses; #684/#146 packaging.
 
 ### Connecting
 
-No new process and nothing to install. The server is the API already running.
+No new process and nothing to install. The server is the API already running, and the
+client needs only its URL.
 
 ```jsonc
-{ "mcpServers": { "cluckwork": {
-    "type": "http",
-    "url": "https://farm.example/mcp",
-    "headers": { "Authorization": "Bearer ${CLUCKWORK_TOKEN}" } } } }
+{ "mcpServers": { "cluckwork": { "type": "http", "url": "https://farm.example/mcp" } } }
 ```
 
-The bearer is an ordinary Cluckwork access token from `POST /api/v1/auth/login` with a farm
-code — the same one the SPA carries. Farm, role and flock assignments all come from it. There
-is no MCP-specific identity, no API key, and **no new server config key**.
+The client connects through OAuth, not with a session token. (Corrected in #806: this section
+first said a token from `POST /api/v1/auth/login` connects, and `/mcp` refuses every session
+JWT.) An unauthenticated request gets a 401 whose `WWW-Authenticate` names
+`/.well-known/oauth-protected-resource/mcp`. That document names the farm's authorization
+server (#788), where the client registers, the user approves it, and the client receives an
+access token for the resource `https://farm.example/mcp`. Farm, role and flock assignments come
+from the approving user. The resource URL is derived from `OAuth:Issuer`, so there is **no new
+server config key**.
 
 ### Discovery is role-filtered, not merely enforced
 

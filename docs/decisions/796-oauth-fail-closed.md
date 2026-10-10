@@ -64,7 +64,7 @@ logs) or a form body (they would dodge the per-token rate-limit key).
 |---|---|---|---|
 | `oauth-token` | `POST /api/v1/oauth/token` | client IP | 20 / 60 s |
 | `oauth-authorize` | `GET /api/v1/oauth/authorize` | client IP | 20 / 60 s |
-| `oauth-api` | every `AcceptOAuthTokens` endpoint | SHA-256 of the bearer | 120 / 60 s |
+| `oauth-api` | every `AcceptOAuthTokens` endpoint | SHA-256 of the bearer | 300 / 60 s (#806; 120 before) |
 
 OpenIddict also accepts a POSTed authorization request, which would match no endpoint and
 so no policy or body cap. A server handler refuses any non-GET authorization request
@@ -83,7 +83,13 @@ ignores any ambient session bearer, which would otherwise resolve a tenant and d
   lookup. A per-IP ceiling beside the per-token key is not built.
 - **Response shape for OAuth callers.** The chain's 401s carry no `WWW-Authenticate:
   Bearer error="invalid_token"`, and a scope denial uses the role-denial body. #806 decides
-  what an MCP client needs.
+  what an MCP client needs. **Decided in #806:** on `/mcp`, a missing, revoked or
+  wrong-audience token gets the MCP scheme's challenge naming the protected-resource
+  metadata, and a token with neither MCP scope gets `403` with `error="insufficient_scope"`.
+  The shared middleware's own 401s (disabled user, suspended farm, superseded credentials,
+  connected apps off) still carry no header; an MCP client then falls back to the
+  well-known metadata URL, which the MCP authorization spec requires it to try. A `429` on
+  `/mcp` is a JSON-RPC error.
 - **Audit attribution** of the acting client (#788 plans first-class columns).
 
 ## How it is enforced

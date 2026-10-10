@@ -23,6 +23,14 @@ matters more than count: prefer "walk everything, exclude deliberately".
 
 ## Transport and blast radius
 
+#806 implements rows 8 to 12, 16 to 18, 29 and 30 in `tests/Cluckwork.Api.IntegrationTests/Mcp/McpEndpointTests.cs`,
+under different names, behind the real pipeline and with the SDK's own client. Row 10 is the existing
+`BodyReadingEndpointTests`. Row 11 is covered by the existing Production boot tests, because `/mcp` adds no
+config key. Row 18's exemption is the `McpEndpoint` endpoint metadata rather than a separate
+`HandlesOwnIdempotencyAttribute`. Rows 13 to 15 wait for the first tool (#807): with no tool in the tree,
+a parity walk has nothing to check. #806 adds the rule rows 13 to 15 build on: every tool names a scope
+policy and a role policy (`McpToolSurfaceTests`).
+
 | # | Guard | Invariant | Red mutation |
 |---|---|---|---|
 | 8 | `SessionMode_IsStateless` | the actual load-bearing setting | set `SessionMode = Stateful` or `StatefulForInitializeClients`. **Note what is deliberately NOT guarded:** `ScopeRequests`. The SDK forces it under Stateless, so a guard on it reddens on a mutation that leaves the product safe — a false alarm, which all three candidates proposed. |
