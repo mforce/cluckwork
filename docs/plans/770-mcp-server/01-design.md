@@ -137,7 +137,10 @@ Four things are forced by guards, none by convention:
 ### `McpCallContext` — a parse at the boundary, not a check inside
 
 A scoped record carrying `AccountId`, `UserId`, `Email`, `EffectiveRole`, `IsFlockRestricted`,
-`AssignedFlockIds` and the `ClaimsPrincipal`. Its factory **throws** unless all of:
+`AssignedFlockIds` and the `ClaimsPrincipal`. As built in #805 it carries `AccountId`, `UserId`,
+`Email`, `ConnectedApp`, `IsFlockRestricted` and `AssignedFlockIds`, and leaves out `EffectiveRole`
+and the `ClaimsPrincipal`, because tools authorize through `[Authorize]` and raw claims would let a
+tool read identity without passing the checks below. Its factory **throws** unless all of:
 
 1. an `HttpContext` is present;
 2. the injected `TenantContext` is **reference-equal** to
