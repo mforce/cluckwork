@@ -36,6 +36,10 @@ indent_size = 4
 # --severity warn --include <file>`.
 csharp_using_directive_placement = outside_namespace:warning
 csharp_style_namespace_declarations = file_scoped:warning
+# Gated (#1187). Reports only because Directory.Build.props sets
+# GenerateDocumentationFile. Fix with `dotnet format style <project>
+# --diagnostics IDE0005 --severity warn`.
+dotnet_diagnostic.IDE0005.severity = warning
 
 # #514: SeamSurfaceTests.cs and TableOwnerTests.cs each declare several
 # namespaces in one file, one per fixture scenario. Their inside-namespace
@@ -55,6 +59,8 @@ csharp_using_directive_placement = inside_namespace:silent
 # already place usings outside, so the placement rule needs no exemption.
 [src/Cluckwork.Infrastructure/Persistence/Migrations/**]
 csharp_style_namespace_declarations = block_scoped:silent
+# The scaffold also writes `using System;`, which ImplicitUsings makes unused.
+dotnet_diagnostic.IDE0005.severity = none
 
 [*.{csproj,props,targets,sln,slnx}]
 indent_size = 2
