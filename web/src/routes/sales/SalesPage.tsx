@@ -271,7 +271,7 @@ export function SalesPage() {
   };
 
   const { onCreateOrder, onAddItem, onUpdateItem, onRemoveItem, onConfirm, onCancel, onVoid, onOpen } = useOrderCommands({
-    action, orders, keyFor, clearKey, setMessage, dialogs: { confirm, askReason, askChoice, confirmDialog },
+    action, orders, keyFor, clearKey, setMessage, dialogs: { confirm, askReason, askChoice },
     activeOrder, newOrder, addLine, products, productName, eggsPerUnit, setConversions, setAllProducts, setProducts,
   });
 

@@ -23,7 +23,7 @@ interface CommandDeps {
   keyFor: (scope: string) => string;
   clearKey: (scope: string) => void;
   setMessage: (message: string | null) => void;
-  dialogs: ReturnType<typeof useConfirm>;
+  dialogs: Pick<ReturnType<typeof useConfirm>, "confirm" | "askReason" | "askChoice">;
   activeOrder: ActiveOrderState;
   newOrder: NewOrderState;
   addLine: AddLineFields;
