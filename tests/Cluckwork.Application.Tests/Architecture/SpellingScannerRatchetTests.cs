@@ -134,38 +134,11 @@ public sealed class SpellingScannerRatchetTests
                 CompatibilityExceptionScanner.ImplicitUsings + "\n" + projectUsings(project.Key),
                 CompatibilityExceptionScanner.References(project.Key));
 
-            var parsers = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
-            var bound = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-            foreach (var tree in trees)
-            {
-                var model = compilation.GetSemanticModel(tree);
-                foreach (var node in tree.GetRoot().DescendantNodes())
-                {
-                    var call = node switch
-                    {
-                        InvocationExpressionSyntax invocation => invocation.Expression,
-                        ArgumentSyntax { Expression: IdentifierNameSyntax or MemberAccessExpressionSyntax } group => group.Expression,
-                        _ => null,
-                    };
-                    if (call is null)
-                        continue;
-                    var info = model.GetSymbolInfo(call);
-                    var symbol = info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
-                    var text = (call as MemberAccessExpressionSyntax)?.Name.Identifier.ValueText ?? (call as SimpleNameSyntax)?.Identifier.ValueText;
-                    if (symbol is IMethodSymbol method ? IsParser(method) : symbol is null && text is not null && UnresolvedParse.Contains(text))
-                    {
-                        if (OutermostType(model, node) is { } owner)
-                            parsers.TryAdd(owner, tree.FilePath);
-                    }
-                    else if (symbol is IMethodSymbol binding && BindsSymbols(binding) && OutermostType(model, node) is { } owner)
-                    {
-                        bound.Add(owner);
-                    }
-                }
-            }
-
-            foreach (var (owner, path) in parsers.Where(p => !bound.Contains(p.Key)))
-                found[owner.ToDisplayString()] = path;
+            // Binding dominates the run time; models of different trees bind independently.
+            var calls = trees.AsParallel().SelectMany(tree => Calls(compilation, tree)).ToList();
+            var bound = calls.Where(c => !c.Parses).Select(c => c.Owner).ToHashSet(SymbolEqualityComparer.Default);
+            foreach (var call in calls.Where(c => c.Parses && !bound.Contains(c.Owner)).OrderBy(c => c.Path, StringComparer.Ordinal))
+                found.TryAdd(call.Owner.ToDisplayString(), call.Path);
         }
 
         return found;
@@ -183,6 +156,28 @@ public sealed class SpellingScannerRatchetTests
             .Select(p => Path.Combine(root, p)).Where(File.Exists)
             .SelectMany(p => MsBuildGlobalUsings(System.Xml.Linq.XDocument.Load(p))));
 
+
+    private static IEnumerable<(INamedTypeSymbol Owner, bool Parses, string Path)> Calls(Compilation compilation, SyntaxTree tree)
+    {
+        var model = compilation.GetSemanticModel(tree);
+        foreach (var node in tree.GetRoot().DescendantNodes())
+        {
+            var call = node switch
+            {
+                InvocationExpressionSyntax invocation => invocation.Expression,
+                ArgumentSyntax { Expression: IdentifierNameSyntax or MemberAccessExpressionSyntax } group => group.Expression,
+                _ => null,
+            };
+            if (call is null)
+                continue;
+            var info = model.GetSymbolInfo(call);
+            var symbol = info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
+            var text = (call as MemberAccessExpressionSyntax)?.Name.Identifier.ValueText ?? (call as SimpleNameSyntax)?.Identifier.ValueText;
+            var parses = symbol is IMethodSymbol method ? IsParser(method) : symbol is null && text is not null && UnresolvedParse.Contains(text);
+            if ((parses || symbol is IMethodSymbol binding && BindsSymbols(binding)) && OutermostType(model, node) is { } owner)
+                yield return (owner, parses, tree.FilePath);
+        }
+    }
 
     // Fail closed: a parser call that does not bind (a missing import or reference) still counts as one.
     private static readonly HashSet<string> UnresolvedParse = new(StringComparer.Ordinal)
