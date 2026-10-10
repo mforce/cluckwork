@@ -46,8 +46,6 @@ internal sealed class ClientMetadataDocuments(
     public static OpenIddictServerHandlerDescriptor Descriptor { get; } =
         OpenIddictServerHandlerDescriptor.CreateBuilder<ValidateAuthorizationRequestContext>()
             .UseScopedHandler<ClientMetadataDocuments>()
-            // ValidateAuthentication is the first handler that looks the client up, and every
-            // parameter check runs after it.
             .SetOrder(OpenIddictServerHandlers.Authentication.ValidateClientIdParameter.Descriptor.Order + 500)
             .SetType(OpenIddictServerHandlerType.Custom)
             .Build();
@@ -64,9 +62,9 @@ internal sealed class ClientMetadataDocuments(
             return;
         }
 
-        // OpenIddict's parameter checks run only after the client lookup, so the requirements
-        // every request to this server must meet are checked here, before any fetch: a
-        // malformed request spends no budget and reaches no network.
+        // OpenIddict's first client lookup is in ValidateAuthentication, before its parameter
+        // checks, so what every request to this server needs is checked here, before any
+        // fetch: a malformed request spends no budget and reaches no network.
         if (context.Request.ResponseType != ResponseTypes.Code)
         {
             context.Reject(Errors.UnsupportedResponseType, "The specified 'response_type' is not supported.");

@@ -592,10 +592,9 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
     // already applies ahead of this middleware (Kestrel's default, or the
     // #309 per-endpoint cap) — no additional limit needed here.
     //
-    // #1148 — a write that names its target in the query (the Connected apps
-    // Disconnect takes ?clientId=) hashes the query too, so one key reused for
-    // another app is a conflict, not a replay of the first app's 204. A write
-    // without a query hashes exactly as before, so no stored row's hash changes.
+    // #1148 — a write naming its target in the query (Disconnect's ?clientId=)
+    // hashes the query too: one key reused for another app is a conflict, not a
+    // replay of the first app's 204. Without a query the hash is unchanged.
     private static async Task<string> ComputeRequestHashAsync(HttpRequest request, CancellationToken ct)
     {
         request.EnableBuffering();
