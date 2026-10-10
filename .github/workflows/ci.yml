@@ -418,6 +418,10 @@ jobs:
           npm ci --prefix lint
           npm run lint
 
+      # ESLint never checks a suppression whose file is gone (web/AGENTS.md).
+      - name: Check lint suppressions
+        run: node lint/check-suppressions.mjs
+
       - name: Test with coverage gate
         run: npm run test:coverage
 
