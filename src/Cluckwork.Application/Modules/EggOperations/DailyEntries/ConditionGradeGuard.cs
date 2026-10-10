@@ -1,5 +1,4 @@
 using Cluckwork.Application.Modules.EggOperations.EggGrades;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 
 namespace Cluckwork.Application.Modules.EggOperations.DailyEntries;

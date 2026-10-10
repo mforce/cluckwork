@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Json;
 using System.Net.Sockets;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;

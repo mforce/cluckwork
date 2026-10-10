@@ -1,6 +1,5 @@
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Commerce.Contracts;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 
 namespace Cluckwork.Application.Modules.Access.Users.SetStepperUnit;

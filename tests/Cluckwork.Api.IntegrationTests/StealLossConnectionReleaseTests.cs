@@ -3,7 +3,6 @@ using Cluckwork.Domain.Modules.Finance.Expenses;
 using System.Diagnostics;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

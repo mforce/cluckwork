@@ -1,6 +1,5 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Microsoft.Extensions.Logging;
 

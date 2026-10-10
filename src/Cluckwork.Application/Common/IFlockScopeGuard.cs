@@ -1,5 +1,3 @@
-using Cluckwork.Domain.Common;
-
 namespace Cluckwork.Application.Common;
 
 // #103 (spec §5.3): workers may record production only for assigned flocks.

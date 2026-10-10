@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 

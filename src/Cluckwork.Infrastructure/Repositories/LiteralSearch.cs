@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace Cluckwork.Infrastructure.Repositories;
 
 // #512 — literal name search, shared by the flock and customer discovery

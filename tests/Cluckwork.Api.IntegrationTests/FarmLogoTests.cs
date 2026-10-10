@@ -4,7 +4,6 @@ using Cluckwork.Domain.Modules.Farm.Media;
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;

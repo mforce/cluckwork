@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;

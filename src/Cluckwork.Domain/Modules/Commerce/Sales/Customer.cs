@@ -1,5 +1,3 @@
-using Cluckwork.Domain.Common;
-
 namespace Cluckwork.Domain.Modules.Commerce.Sales;
 
 // MVP customer (issue #10): reference-app shape — name + phone required,

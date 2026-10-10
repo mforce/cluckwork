@@ -2,7 +2,6 @@ using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
-using System.IO;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;

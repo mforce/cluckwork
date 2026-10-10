@@ -1,6 +1,5 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Farm.Contracts;

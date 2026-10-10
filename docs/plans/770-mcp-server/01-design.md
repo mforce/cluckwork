@@ -50,15 +50,18 @@ harnesses; #684/#146 packaging.
 No new process and nothing to install. The server is the API already running.
 
 ```jsonc
-{ "mcpServers": { "cluckwork": {
-    "type": "http",
-    "url": "https://farm.example/mcp",
-    "headers": { "Authorization": "Bearer ${CLUCKWORK_TOKEN}" } } } }
+{ "mcpServers": { "cluckwork": { "type": "http", "url": "https://farm.example/mcp" } } }
 ```
 
-The bearer is an ordinary Cluckwork access token from `POST /api/v1/auth/login` with a farm
-code — the same one the SPA carries. Farm, role and flock assignments all come from it. There
-is no MCP-specific identity, no API key, and **no new server config key**.
+The assistant connects with OAuth, not a pasted token. **Corrected by #806:** the original text
+said a session token from `POST /api/v1/auth/login` connects, and `/mcp` refuses session JWTs.
+An unauthenticated request gets a 401 whose `WWW-Authenticate` names
+`/.well-known/oauth-protected-resource/mcp` (RFC 9728). That document names the authorization
+server (`OAuth:Issuer`, #795), where the assistant registers and a person approves it on the
+consent screen (#797, #798). The resulting token is bound to the `/mcp` resource (RFC 8707) and
+carries the approver's farm, role and flock assignments, so the assistant acts as that person.
+There is no API key and **no new server config key**. See
+[`docs/decisions/806-mcp-endpoint.md`](../../decisions/806-mcp-endpoint.md).
 
 ### Discovery is role-filtered, not merely enforced
 

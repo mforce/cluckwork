@@ -1,5 +1,3 @@
-using Cluckwork.Domain.Common;
-
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
 // #857 — Access's surface for the operator verbs: one-shot commands whose only

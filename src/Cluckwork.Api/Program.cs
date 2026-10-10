@@ -26,9 +26,7 @@ using Cluckwork.Api.Security;
 using Cluckwork.Api.Validation;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.RateLimiting;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -473,10 +471,14 @@ app.MapGroup("/api/v1/export")
     .MapExportEndpoints();
 
 // #795 — OpenIddict answers the token endpoint itself; only authorization reaches an endpoint.
+// #806 — /mcp accepts only OAuth tokens, so it exists only beside the server that issues them.
 if (identity.OAuthServer)
+{
     app.MapGroup("/api/v1/oauth")
         .WithTags("OAuth")
         .MapOAuthEndpoints();
+    app.MapCluckworkMcp();
+}
 
 // #217 — browser error reports. Anonymous (the login screen can crash too);
 // the endpoint carries its own per-IP rate limit and size cap inside.

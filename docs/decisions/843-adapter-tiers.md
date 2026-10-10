@@ -27,7 +27,7 @@ namespace, tied to the surface that will map it and a review issue that gives
 the exemption an end date. `RealModuleLedger.AdapterTiers` in
 `tests/Cluckwork.Application.Tests/Architecture/RealModuleLedger.Adapters.cs` is an
 array of `AdapterTier(Namespace, Privilege, Surface, Reason, ReviewBy)` rows; today it
-holds one, `Cluckwork.Api.Mcp` → `DirectRepository`, surfaced by `MapMcp`,
+holds one, `Cluckwork.Api.Mcp` → `ContractOnly`, surfaced by `MapMcp`,
 reviewed by `#806`. `AdapterTierScanner` walks every `.cs` under `src/` for a
 type carrying `[McpServerToolType]` (simple, qualified, or `Attribute`-suffixed,
 or reached through a `using X = ...;` alias — a file-level or namespace-block
@@ -38,9 +38,9 @@ is red, and the failure prints the C# row to add. A tier row whose surface is
 never invoked and whose namespace holds no type is `Dormant` — informational,
 never red, because the row is meant to be committed before the code exists.
 `privilege` and `surface` are each a closed set, both read from
-`AdapterTier.KnownSurfaces` beside `AdapterTier.DirectRepositoryPrivilege` — a
+`AdapterTier.KnownSurfaces` beside `AdapterTier.ContractOnlyPrivilege` — a
 map from each supported surface to the privilege it grants, today just
-`MapMcp` → `DirectRepository`. `AdapterTierScanner` walks invocations of the
+`MapMcp` → `ContractOnly`. `AdapterTierScanner` walks invocations of the
 same map's keys, so a row naming a surface the scanner does not walk is a
 registry error rather than a silently inert exemption. `reviewBy` must match
 `^#[0-9]+$`, so an exemption with no end date is a registry error, alongside a
@@ -49,8 +49,10 @@ blank or missing field and a duplicated `namespace` or `surface`.
 A tier is also an adapter root with a privilege. `AdapterReachScanner` unions
 every `adapterTiers[].namespace` into its own namespace roots — so a tool
 class's repository parameters are walked for module reach exactly like an
-endpoint's — and into its persistence-forbidden set, because `DirectRepository`
-authorizes a repository, not a direct `AppDbContext`. A tool class reaching an
+endpoint's — and into its persistence-forbidden set, so a tool class never takes a
+direct `AppDbContext`. **Amended by #806:** the privilege was named `DirectRepository`
+until #806 mapped `/mcp`. Since #1123 CW1004 holds tool classes to module contracts, so the
+row grants no repository reach, and the name now says so. A tool class reaching an
 undeclared module still needs an `adapters` row; one that takes `AppDbContext`
 still fails.
 

@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <!-- Expose Program for WebApplicationFactory in integration tests -->
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <UserSecretsId>ccc186ee-a603-40b6-b2e6-cf481efff44c</UserSecretsId>
   </PropertyGroup>
 
@@ -11,6 +9,7 @@
     <!-- Pin patched Microsoft.OpenApi: transitive 2.0.0 has GHSA-v5pm-xwqc-g5wc (NU1903) -->
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

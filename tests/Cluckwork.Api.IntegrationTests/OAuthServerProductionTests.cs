@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Access.Contracts;
@@ -58,8 +57,12 @@ public sealed class OAuthServerProductionTests(OAuthProductionFactory factory)
         Assert.Equal("Claude Desktop",
             (await consent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("clientName").GetString());
         Assert.Equal(HttpStatusCode.OK, token.StatusCode);
-        Assert.False(string.IsNullOrEmpty(
-            (await token.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("access_token").GetString()));
+        var accessToken = (await token.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("access_token").GetString();
+        Assert.False(string.IsNullOrEmpty(accessToken));
+
+        // #806 — /mcp needs no configuration beyond the issuer.
+        using var mcp = await Mcp.McpConnection.PostAsync(factory, accessToken, Mcp.McpConnection.Initialize);
+        Assert.Equal(HttpStatusCode.OK, mcp.StatusCode);
     }
 
     [Theory]

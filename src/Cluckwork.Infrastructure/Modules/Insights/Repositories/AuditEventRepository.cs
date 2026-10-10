@@ -1,7 +1,6 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Insights.Audit;
 using Cluckwork.Application.Modules.Insights.Contracts;
-using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

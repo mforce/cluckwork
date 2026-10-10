@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Builder;
-
 namespace Cluckwork.Api.Cli;
 
 // Routes args[0] to a one-off ICliCommand. Program.cs calls TryRunAsync right

@@ -1,5 +1,4 @@
 using Cluckwork.Application.Common;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 
 namespace Cluckwork.Application.Modules.GeneralInventory.Inventory;

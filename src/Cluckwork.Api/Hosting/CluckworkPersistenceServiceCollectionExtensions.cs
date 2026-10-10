@@ -1,4 +1,3 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Commerce.Contracts;
 using Cluckwork.Application.Modules.EggOperations.Contracts;

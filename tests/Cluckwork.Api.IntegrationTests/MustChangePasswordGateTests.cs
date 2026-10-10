@@ -8,7 +8,6 @@ using System.Net.Http.Headers;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

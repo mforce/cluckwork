@@ -64,7 +64,7 @@ logs) or a form body (they would dodge the per-token rate-limit key).
 |---|---|---|---|
 | `oauth-token` | `POST /api/v1/oauth/token` | client IP | 20 / 60 s |
 | `oauth-authorize` | `GET /api/v1/oauth/authorize` | client IP | 20 / 60 s |
-| `oauth-api` | every `AcceptOAuthTokens` endpoint | SHA-256 of the bearer | 120 / 60 s |
+| `oauth-api` | every `AcceptOAuthTokens` endpoint | SHA-256 of the bearer | 300 / 60 s (120 until #806) |
 
 OpenIddict also accepts a POSTed authorization request, which would match no endpoint and
 so no policy or body cap. A server handler refuses any non-GET authorization request
@@ -82,8 +82,9 @@ ignores any ambient session bearer, which would otherwise resolve a tenant and d
 - **Junk bearers.** Each invalid token gets its own `oauth-api` bucket and costs one token
   lookup. A per-IP ceiling beside the per-token key is not built.
 - **Response shape for OAuth callers.** The chain's 401s carry no `WWW-Authenticate:
-  Bearer error="invalid_token"`, and a scope denial uses the role-denial body. #806 decides
-  what an MCP client needs.
+  Bearer error="invalid_token"`. #806 decided what an MCP client needs: a challenge naming
+  the protected-resource metadata, and `insufficient_scope` on a scope denial
+  ([`806-mcp-endpoint.md`](806-mcp-endpoint.md)).
 - **Audit attribution** of the acting client (#788 plans first-class columns).
 
 ## How it is enforced

@@ -32,6 +32,14 @@ matters more than count: prefer "walk everything, exclude deliberately".
 | 11 | `McpBoots_UnderProductionShapedConfig` | #370/#565 stay untouched — no new required config key | add any required config key without teaching `bootstrap.sh`, `docker-compose.sim.yml`, `verify-harness.sh` and the AppHost |
 | 12 | `Mcp_AddsNoLiveHostedServiceUnderStateless` | #271's blocker list is not extended | set `SessionMode = Stateful`, which makes `IdleTrackingBackgroundService.StartAsync` run its prune timer instead of returning early. **Asserts inertness, not absence** — the service IS registered unconditionally by `WithHttpTransport`; a guard asserting zero `IHostedService` descriptors would be red on the correct configuration. Candidate 1 proposed exactly that wrong guard. |
 
+#806 implements rows 8 to 12 in `tests/Cluckwork.Api.IntegrationTests/Mcp/McpEndpointTests.cs`.
+Row 10's premise does not hold on 2.2.0: `MapMcp` maps a `RequestDelegate`, which carries no
+`MethodInfo` metadata, so `BodyReadingEndpointTests` never walks `/mcp` (a mutant removing the
+marker left it green). `McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate` pins the marker instead.
+Row 11 is `OAuthServerProductionTests.Production_ServesTheConnectFlow`: a Production host with
+only `OAuth:Issuer` set connects an app and calls `/mcp` with its token. (`ProcessRoleGuardTests`
+only proves that each serving guard fails a boot, not that `/mcp` works.)
+
 ## RBAC
 
 | # | Guard | Invariant | Red mutation |
@@ -40,6 +48,12 @@ matters more than count: prefer "walk everything, exclude deliberately".
 | 14 | `ToolAdmittedRoles_AreSubsetOfMirroredRouteRoles` | the tool cannot admit a role its route denies | tighten `/api/v1/customers` to `AdminOnly` in `Program.cs` and change nothing under `Mcp/` — **proves drift detection fires from outside the MCP code.** Sets are derived from the live `IAuthorizationService`, keyed by `WithName()` (what the code says about itself, per #632), never by URL or `file:line`. Set containment, not policy-name equality: `ProductionWrite` = {Owner,Manager,Worker} and `SalesAccess` = {Owner,Manager,Sales} — neither contains the other. |
 | 15 | `MirrorsRoute_NamesResolve` | the registry stays honest | rename a route's `WithName()` and leave the attribute stale |
 | 16 | `ToolsList_IsFilteredByRole` (integration, real request) | unauthorized tools are invisible, not merely refused | remove `AddAuthorizationFilters()`. Single point of proof for SDK list-filtering behaviour — flagged as a risk in [`01-design.md`](01-design.md). |
+
+#806 implements row 16 as `McpAuthorizationTests.ToolsList_ShowsOnlyToolsTheRoleAndScopesAllow`,
+over probe tools that exist only in its test host, for role and for scope. Rows 13 to 15 wait
+for the first tool (#807): with no tool there is no route to mirror. #806 adds a walk the
+table did not have, `McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy`:
+the SDK runs a tool with no `[Authorize]`, or with `[AllowAnonymous]`, for any caller.
 
 ## Idempotency
 
@@ -53,6 +67,9 @@ matters more than count: prefer "walk everything, exclude deliberately".
 | 22 | `SameKey_DifferentArguments_IsRefused` | key reuse is refused, not silently executed or ignored | drop the request-fingerprint comparison |
 | 23 | `Replay_WritesNoSecondAuditRow` | replay is a true no-op | drop the publish guard. **Asserts the absence of a second `DailyEntryUpdate` audit row, NOT the entry count** — the handler upserts on `(account, farm, house, flock, date)`, so a count assertion passes with idempotency entirely removed. Graft from candidate 1. |
 | 24 | `AtomicIdempotencyProtocolTests` + the other #307 suites | the extraction changed no behaviour | **these must pass UNEDITED.** An edit to a #307 test in the implementing PR is a stop-and-review, not a fix. This is the mitigation for the design's largest risk. |
+
+#806 implements rows 17 and 18 as `McpEndpointTests.IdempotencyExemption_IsCarriedByTheMcpPostAlone`
+and `McpMessages_WithoutAnIdempotencyKey_AreServed`.
 
 ## Domain surface
 
@@ -68,6 +85,11 @@ matters more than count: prefer "walk everything, exclude deliberately".
 | 31 | `ReadTools_ReturnBoundedResponses` | every read tool's **reply** is bounded and says so | remove the page cap from a read tool; the reply grows past it and carries no completeness field. |
 | 31b | `BalanceReads_AreBoundedInTheDATABASE` (row-consumption assertion) | the **query** is bounded, not just the reply | keep the reply's `Take(cap)` and remove the bound from the query. Row 31 stays GREEN — every response is correctly capped with correct continuation metadata — while `ListCustomerBalancesAsync` materializes the entire farm's balance book first. `PaymentRepository` takes no paging arguments and materializes both grouped queries before building its list, so **reusing it at all is the defect**; this needs a paged balance query, and the test must assert rows consumed from the database, not items returned. A signature walk cannot establish this. **Measure rows CONSUMED, not SQL shape.** `ReportQueryBoundingTests`' `SqlCaptureInterceptor` is the right harness shape and the right precedent (#311 was the identical "loaded the whole ledger, walked it in memory" defect), but it records `(Sql, Parameters)` only — so an implementation that fetches every page in a loop and accumulates the book emits perfectly paged SQL and passes. Keep SQL inspection as *supporting* evidence and count consumption across the whole operation: wrap the returned `DbDataReader` and count successful `Read`/`ReadAsync` calls, covering both aggregate queries and any page-fetch loop. (Round-3 finding 3 — the round-2 fix named a mechanism that cannot measure what the row requires.) (Round-2 finding 2 — row 31 alone claimed an invariant its mutation did not test.) |
 | 32 | `NameResolution_IsExactlyOneAccessibleMatch` | a name-addressed write cannot hit the wrong row | make resolution take the first match. **Duplicate flock names are legal** (`FlockRepository.cs` says so, and its `ThenBy(f => f.Id)` tie-break exists because of it), so first-match records production against an arbitrary flock and `Single` throws on valid farm data. Zero matches → not-found; two or more → an ambiguity error listing candidate ids and distinguishing fields, and the follow-up write must pass an id. Test two same-name flocks in one accessible scope. (#770 adversarial review, finding 3.) |
+
+#806 implements rows 29 and 30 as `McpEndpointTests.McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate`
+and `OversizedBody_IsRefused`. `/mcp` takes its budget from `AcceptOAuthTokens`, the
+`oauth-api` policy, which `OAuthFailClosedTests.OAuthLimits_AreDecidedByTheSharedCounter`
+proves is decided by the shared counter.
 
 ## Where these guards stop, stated plainly
 
@@ -86,9 +108,10 @@ of the residue, which is why slice 6 is blocked on it — but a secondary-scope 
 - A `ReviewedFactory` row approves a service type and the type that registers it. If the delegate's
   body changes later, the row still approves it. A second factory for the same service in another
   type, and a row the walk no longer reaches, both fail.
-- `McpToolSurface` finds tool methods with `BindingFlags.DeclaredOnly`. A tool method inherited from
-  a base class is not walked. Whether the SDK serves inherited attributed methods is unproven until
-  #806 picks the SDK version.
+- Since #806, `McpToolSurface` finds tool types and methods the way SDK 2.2.0's `WithTools` does,
+  including a public method a tool type inherits, whose policies come from the class declaring it.
+  `McpEndpointTests.ToolWalk_ReachesEveryToolTheSdkRegisters` fails if the walk and the SDK's
+  registrations ever count differently, for example after an SDK upgrade.
 - A `ReviewedRequestReader` row is keyed by its consumer only. A changed body, an added reader
   parameter, or a member returning a provider on a reviewed reader is not detected, the same kind
   of drift as a `ReviewedFactory` row.

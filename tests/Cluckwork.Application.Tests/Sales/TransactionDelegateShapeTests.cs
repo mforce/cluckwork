@@ -1,4 +1,3 @@
-using System.Linq;
 using Cluckwork.Application.Tests.Architecture;
 using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;

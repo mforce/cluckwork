@@ -1,6 +1,5 @@
 using Cluckwork.Application.Modules.Farm.Accounts.RemoveFarmBanner;
 using Cluckwork.Application.Modules.Farm.Accounts.RemoveFarmLogo;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;

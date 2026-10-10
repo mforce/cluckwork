@@ -22,15 +22,4 @@ public sealed class AdapterTierRealTreeTests
     {
         Assert.Contains(RealModuleLedger.Value.AdapterTiers, t => t.Namespace == "Cluckwork.Api.Mcp" && t.Surface == "MapMcp");
     }
-
-    // /mcp is not mapped yet (#806 has not landed). This pins today's green: the
-    // row is committed but its namespace holds no tool type and MapMcp is not
-    // invoked. It goes stale the day #806 maps /mcp under this namespace — that
-    // author drops this assertion, not works around it.
-    [Fact]
-    public void McpTierRow_IsDormantToday()
-    {
-        var report = Scan();
-        Assert.Contains(report.Dormant, t => t.Namespace == "Cluckwork.Api.Mcp");
-    }
 }

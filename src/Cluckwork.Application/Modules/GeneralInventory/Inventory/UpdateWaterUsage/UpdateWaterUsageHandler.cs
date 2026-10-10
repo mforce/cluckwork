@@ -1,7 +1,6 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Application.Modules.GeneralInventory.Contracts;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 
 namespace Cluckwork.Application.Modules.GeneralInventory.Inventory.UpdateWaterUsage;

@@ -6,7 +6,6 @@ using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Data.Common;
 using System.Net;
-using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Common;
