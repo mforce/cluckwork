@@ -1,10 +1,15 @@
 using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Api.Modules.Access.OAuth;
+using Cluckwork.Api.RateLimiting;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
@@ -36,12 +41,33 @@ public sealed class AuthRateLimitLoggingFactory : CluckworkWebApplicationFactory
         builder.UseSetting("RateLimiting:ClientErrors:PermitLimit", LoginLimit.ToString());
         builder.UseSetting("RateLimiting:ClientErrors:WindowSeconds", "86400");
         builder.UseSetting("RateLimiting:TrustedProxies:0", $"{TrustedProxy}/32");
+        // #1164 — one permit per OAuth policy, so the second request is the rejection.
+        foreach (var policy in new[] { "OAuthAuthorize", "OAuthToken", "OAuthRegister", "OAuthApi" })
+        {
+            builder.UseSetting($"RateLimiting:{policy}:PermitLimit", "1");
+            builder.UseSetting($"RateLimiting:{policy}:WindowSeconds", "86400");
+        }
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<IStartupFilter, FakeRemoteIpStartupFilter>();
+            services.AddSingleton<IStartupFilter, OAuthApiProbe>();
             services.AddSingleton<ILogEventSink>(Sink);
         });
     }
+
+    // No real endpoint accepts OAuth tokens yet; the limiter runs before authentication,
+    // so an unauthenticated call still spends the oauth-api permit.
+    private sealed class OAuthApiProbe : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            next(app);
+            var endpoints = (IEndpointRouteBuilder)app.Properties["__EndpointRouteBuilder"]!;
+            endpoints.MapGet(OAuthApiProbePath, () => Results.Ok()).AcceptOAuthTokens("cw1164.read");
+        };
+    }
+
+    public const string OAuthApiProbePath = "/test/oauth/rate-limited";
 
     public sealed class CollectingSink : ILogEventSink
     {
@@ -61,9 +87,11 @@ public sealed class AuthRateLimitLoggingTests(AuthRateLimitLoggingFactory factor
     private IReadOnlyList<LogEvent> EventsFor(string securityEvent) =>
         [.. factory.Sink.Events.Where(e => ScalarOf(e, "SecurityEvent") == securityEvent)];
 
-    private HttpClient ProxiedClient(string clientIp)
+    private HttpClient ProxiedClient(string clientIp, Uri? baseAddress = null)
     {
-        var client = factory.CreateClient();
+        var client = baseAddress is null
+            ? factory.CreateClient()
+            : factory.CreateClient(new() { BaseAddress = baseAddress, AllowAutoRedirect = false });
         client.DefaultRequestHeaders.Add("X-Test-Remote", AuthRateLimitLoggingFactory.TrustedProxy);
         client.DefaultRequestHeaders.Add("X-Forwarded-For", clientIp);
         return client;
@@ -128,6 +156,61 @@ public sealed class AuthRateLimitLoggingTests(AuthRateLimitLoggingFactory factor
         Assert.Equal(clientIp, ScalarOf(rejected, "ClientIp"));
         Assert.Contains("step-up", ScalarOf(rejected, "Path"));
     }
+
+    // #1164 — every OAuth policy emits the event with its policy name. Each request
+    // carries a secret where that endpoint takes one (query string, form body, bearer);
+    // none may reach the event.
+    private const string Secret = "cw1164-secret-sentinel";
+
+    [Theory]
+    [InlineData(RateLimitingOptions.OAuthAuthorizePolicyName, "203.0.113.211")]
+    [InlineData(RateLimitingOptions.OAuthTokenPolicyName, "203.0.113.212")]
+    [InlineData(RateLimitingOptions.OAuthRegisterPolicyName, "203.0.113.213")]
+    [InlineData(RateLimitingOptions.OAuthApiPolicyName, "203.0.113.214")]
+    public async Task OAuth_rate_limit_rejection_emits_RateLimitRejected_with_policy_ip_and_path(
+        string policy, string clientIp)
+    {
+        factory.Sink.Events.Clear();
+        var client = ProxiedClient(clientIp, new Uri("https://localhost"));
+        // Unique per run: oauth-api is keyed per bearer, and the factory outlives one test.
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", $"{Secret}-{Guid.NewGuid():N}");
+        var (path, send) = OAuthRequest(policy, client);
+
+        using var allowed = await send();
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, allowed.StatusCode);
+        Assert.Empty(EventsFor(SecurityEvents.RateLimitRejected));
+
+        using var limited = await send();
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.NotNull(limited.Headers.RetryAfter);
+        var rejected = Assert.Single(EventsFor(SecurityEvents.RateLimitRejected));
+        Assert.Equal(LogEventLevel.Warning, rejected.Level);
+        Assert.Equal(policy, ScalarOf(rejected, "Policy"));
+        Assert.Equal(clientIp, ScalarOf(rejected, "ClientIp"));
+        Assert.Equal(path, ScalarOf(rejected, "Path"));
+        Assert.DoesNotContain(Secret, rejected.RenderMessage());
+    }
+
+    private static (string Path, Func<Task<HttpResponseMessage>> Send) OAuthRequest(string policy, HttpClient client) =>
+        policy switch
+        {
+            RateLimitingOptions.OAuthAuthorizePolicyName => ("/api/v1/oauth/authorize",
+                () => client.GetAsync($"/api/v1/oauth/authorize?client_id=cw1164&code_challenge={Secret}")),
+            RateLimitingOptions.OAuthTokenPolicyName => ("/api/v1/oauth/token",
+                () => client.PostAsync("/api/v1/oauth/token", new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["grant_type"] = "authorization_code",
+                    ["client_id"] = "cw1164",
+                    ["code"] = Secret,
+                    ["code_verifier"] = Secret,
+                }))),
+            RateLimitingOptions.OAuthRegisterPolicyName => ("/api/v1/oauth/register",
+                () => client.PostAsJsonAsync("/api/v1/oauth/register", new { client_name = Secret })),
+            RateLimitingOptions.OAuthApiPolicyName => (AuthRateLimitLoggingFactory.OAuthApiProbePath,
+                () => client.GetAsync(AuthRateLimitLoggingFactory.OAuthApiProbePath)),
+            _ => throw new ArgumentOutOfRangeException(nameof(policy), policy, null),
+        };
 
     // Scope guard — proves the event is NOT over-fired for the non-auth policy
     // sharing the same OnRejected delegate.
