@@ -62,6 +62,7 @@ internal sealed class ClientMetadataFetcher(
     public const string BadStatus = "metadata.status";
     public const string BadContentType = "metadata.content_type";
     public const string TooLarge = "metadata.too_large";
+    private static readonly string TooLargeDescription = $"The metadata document is larger than {MaxBodyBytes} bytes.";
 
     // IANA's IPv4 and IPv6 Special-Purpose Address Registries (RFC 6890), checked
     // 2026-10-10, plus IPv4 multicast; narrower registry entries sit inside these blocks.
@@ -111,7 +112,7 @@ internal sealed class ClientMetadataFetcher(
             if (!string.Equals(response.Content.Headers.ContentType?.MediaType, "application/json", StringComparison.OrdinalIgnoreCase))
                 return Fail(BadContentType, "The metadata document is not served as application/json.");
             if (response.Content.Headers.ContentLength > MaxBodyBytes)
-                return Fail(TooLarge, $"The metadata document is larger than {MaxBodyBytes} bytes.");
+                return Fail(TooLarge, TooLargeDescription);
 
             await using var body = await response.Content.ReadAsStreamAsync(timeout.Token);
             var buffer = new byte[MaxBodyBytes + 1];
@@ -120,7 +121,7 @@ internal sealed class ClientMetadataFetcher(
             while (length < buffer.Length && (read = await body.ReadAsync(buffer.AsMemory(length), timeout.Token)) > 0)
                 length += read;
             if (length > MaxBodyBytes)
-                return Fail(TooLarge, $"The metadata document is larger than {MaxBodyBytes} bytes.");
+                return Fail(TooLarge, TooLargeDescription);
 
             return new FetchedDocument(buffer[..length], Lifetime(response.Headers.CacheControl));
         }

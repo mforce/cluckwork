@@ -591,11 +591,18 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
     // binder downstream still reads it). Bounded by whatever body-size cap
     // already applies ahead of this middleware (Kestrel's default, or the
     // #309 per-endpoint cap) — no additional limit needed here.
+    //
+    // #1148 — a write that names its target in the query (the Connected apps
+    // Disconnect takes ?clientId=) hashes the query too, so one key reused for
+    // another app is a conflict, not a replay of the first app's 204. A write
+    // without a query hashes exactly as before, so no stored row's hash changes.
     private static async Task<string> ComputeRequestHashAsync(HttpRequest request, CancellationToken ct)
     {
         request.EnableBuffering();
         request.Body.Position = 0;
         using var ms = new MemoryStream();
+        if (request.QueryString.HasValue)
+            ms.Write(Encoding.UTF8.GetBytes(request.QueryString.Value + "\n"));
         await request.Body.CopyToAsync(ms, ct);
         request.Body.Position = 0;
         return Convert.ToHexString(SHA256.HashData(ms.ToArray())).ToLowerInvariant();

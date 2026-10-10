@@ -201,6 +201,29 @@ public sealed partial class OAuthFailClosedTests
             await ConnectionAuditAsync(user));
     }
 
+    // #1148 — the app to disconnect travels in the query, so the idempotency fingerprint
+    // must cover it: one key reused for another app is a conflict, never a replay of the
+    // first app's 204 that would leave the second app connected.
+    [Fact]
+    public async Task Disconnect_ReusingAKeyForAnotherApp_IsAConflict_NotAReplay()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var first = await ConnectAsync(host, user, ReadScope);
+        var second = await ConnectAsync(host, user, ReadScope);
+        var key = Guid.NewGuid().ToString();
+
+        using var disconnected = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(first.ClientId)}", key);
+        using var retried = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(first.ClientId)}", key);
+        using var reused = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(second.ClientId)}", key);
+        using var stillConnected = await Client(host, second.Token).GetAsync(Probe.Read);
+
+        Assert.Equal(HttpStatusCode.NoContent, disconnected.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, retried.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, reused.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, stillConnected.StatusCode);
+    }
+
     private Task<List<(string Action, Guid Actor, string ClientId, string Scopes)>> ConnectionAuditAsync(SeededUser user) =>
         factory.WithTenantScopeAsync(user.AccountId, async db => (await db.AuditEvents
             .Where(e => e.EntityId == user.Id
@@ -241,10 +264,11 @@ public sealed partial class OAuthFailClosedTests
         return new(id, accountId, await factory.LoginForAccessTokenAsync(email), "");
     }
 
-    private static async Task<HttpResponseMessage> DisconnectAsync(WebApplicationFactory<Program> host, string jwt, string path)
+    private static async Task<HttpResponseMessage> DisconnectAsync(
+        WebApplicationFactory<Program> host, string jwt, string path, string? idempotencyKey = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, path);
-        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString());
         return await Client(host, jwt).SendAsync(request);
     }
 

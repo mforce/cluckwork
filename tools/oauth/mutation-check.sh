@@ -31,6 +31,7 @@ ENDPOINT=src/Cluckwork.Api/Modules/Access/OAuth/OAuthEndpoints.cs
 REGISTRATION=src/Cluckwork.Infrastructure/OAuth/ClientMetadata.cs
 FETCHER=src/Cluckwork.Infrastructure/OAuth/ClientMetadataFetcher.cs
 DOCUMENTS=src/Cluckwork.Infrastructure/OAuth/ClientMetadataDocuments.cs
+IDEMPOTENCY=src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs
 LIMITS=src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs
 PURGE=src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthPurge.cs
 SWEEP=src/Cluckwork.Infrastructure/Jobs/OAuthPurgeSweep.cs
@@ -215,6 +216,11 @@ cimd-client-id-unchecked#kill#REGISTRATION#\n                || clientId.GetStri
 cimd-duplicate-client-refused#kill#DOCUMENTS#                && !(row is null && IsOnlyDuplicateClientId(validation) && await StoredMeanwhileAsync(clientId, ct)))#)#OAuthFailClosedTests.SecondRequest_MeetingTheFirstsCopy_UsesIt#Expected: OK
 cimd-stale-fallback-restored#kill#DOCUMENTS#            return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#            return row is not null ? Result.Success() : Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");#OAuthFailClosedTests.RemovedDocument_IsNotRevived_ByDrainingTheBudget#Expected: BadRequest
 cimd-mixed-validation-recovered#kill#DOCUMENTS#row is null && IsOnlyDuplicateClientId(validation) && #row is null && #OAuthFailClosedTests.SecondRequest_WithAnInvalidDocument_IsRefused_DespiteTheFirstsCopy#Expected: BadRequest
+cimd-idempotency-query-ignored#kill#IDEMPOTENCY#        if (request.QueryString.HasValue)#        if (request.ContentLength < 0)#OAuthFailClosedTests.Disconnect_ReusingAKeyForAnotherApp_IsAConflict_NotAReplay#Expected: Conflict
+cimd-response-type-fetched#kill#DOCUMENTS#if (context.Request.ResponseType != ResponseTypes.Code)#if (context.Request.ResponseType == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
+cimd-pkce-fetched#kill#DOCUMENTS#if (string.IsNullOrEmpty(context.Request.CodeChallenge) || context.Request.CodeChallengeMethod != CodeChallengeMethods.Sha256)#if (context.Request.CodeChallengeMethod == "unchecked")#OAuthFailClosedTests.MalformedRequest_IsRefused_BeforeAnyFetch#Assert.Empty() Failure
+cimd-approved-spends-global#kill#DOCUMENTS#global: !await IsApprovedAsync(scope, applications, row, ct)#global: true#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#an approved app was refused
+cimd-everyone-skips-global#kill#DOCUMENTS#global: !await IsApprovedAsync(scope, applications, row, ct)#global: false#OAuthFailClosedTests.ApprovedApp_IsRefreshed_PastADrainedGlobalBudget#Strings differ
 EOF
 )
 
@@ -309,7 +315,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

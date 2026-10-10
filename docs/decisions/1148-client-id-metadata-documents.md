@@ -34,9 +34,15 @@ any anonymous visitor can make the server fetch from its own network.
 ## Where the seam is
 
 The seam is an OpenIddict server event handler on `ValidateAuthorizationRequestContext`,
-ordered 500 after `ValidateClientIdParameter` and so before `ValidateAuthentication`,
-where OpenIddict's `ValidateClientId` calls `FindByClientIdAsync`. OpenIddict 7.7.1 has
-no metadata document support of its own.
+ordered 500 after `ValidateClientIdParameter` and so before `ValidateAuthentication`.
+`ValidateAuthentication` dispatches the authentication pipeline, whose generic
+`ValidateClientId` makes the first `FindByClientIdAsync` of an authorization request;
+ordered any later, a metadata client is refused there with ID2052, which a test run
+showed. OpenIddict's parameter checks (response type, PKCE, scopes and the rest) all run
+after that lookup. So the handler itself refuses, before any fetch, what every request to
+this server needs: `response_type=code` and a `code_challenge` using S256. A malformed
+request then spends no budget and reaches no network. OpenIddict 7.7.1 has no metadata
+document support of its own.
 
 The alternative was a custom `IOpenIddictApplicationStore` whose `FindByClientIdAsync`
 resolves a URL by fetching it. It lost for three reasons:
@@ -87,9 +93,14 @@ exactly what a DCR client with the same metadata would hold, because both come f
   so they treat a metadata client exactly like a registered one. The token carries the
   URL as `client_id`.
 
-Unlike DCR, an anonymous authorization request can create a row. Rows are bounded by
-the fetch budget below, each needs a URL serving a valid document that names itself,
-and the purge removes unapproved rows after a day.
+Unlike DCR, an anonymous authorization request can create a row, and the bound is worth
+stating. Each row needs a URL serving a valid document that names itself, and each costs
+one unit of the global budget, 60 fetches a minute. One server answering every path with
+a valid document, driven from three addresses at the default 20 authorization requests a
+minute each, saturates that budget: about 86,400 rows a day, each with up to ten redirect
+URIs of up to 2,048 characters. The purge deletes a row nobody approved once it is a day
+old, so the table holds about one day of that rate at most, and it stops growing when the
+traffic stops. DCR's equivalent is 10 registrations an hour per address.
 
 ## The fetcher
 
@@ -139,7 +150,12 @@ the default certificate validation. No configuration reaches it.
 
 A fetch is spent only on a missing or expired row; a fresh row costs nothing. On the
 shared `IFixedWindowCounter` (#544): at most 10 fetches of one URL per 5 minutes, then at
-most 60 fetches in total per minute. The per-URL key is a SHA-256 hash, so no
+most 60 fetches in total per minute. The refresh of a client that holds at least one
+valid authorization skips the global budget and still spends its per-URL one. A person
+approved that client with their password, which no anonymous caller can bring about, so
+the global budget still bounds every fetch a stranger can cause, and draining it no longer
+blocks apps people use (Fable review, round 1). It changes nothing else: the copy is
+refreshed, never served stale. The per-URL key is a SHA-256 hash, so no
 client-chosen text reaches the shared store. An exhausted budget refuses with
 `temporarily_unavailable`, and an expired copy never stands in for the refresh, even while
 the budget is spent. A fallback was tried and removed (review round 2). Each failed refresh
@@ -157,9 +173,12 @@ spelling: ASCII without `%`, a DNS host (no IP literal), a path other than `/`, 
 at most 100 characters, and `new Uri(id).AbsoluteUri == id`, which refuses an upper-case
 host, dot segments and an explicit `:443` in one clause.
 
-The 100-character cap is load-bearing. OpenIddict stores `ClientId` as `varchar(100)`,
-and `AuditEvent.MaxConnectedAppClientIdLength` is 100, so a longer URL would fail at
-insert or at the first audited write. Known metadata document URLs are far shorter.
+The 100-character cap is load-bearing. OpenIddict's own EF configuration stores
+`ClientId` as `varchar(100)`, the limit a longer URL would hit first, at insert, as a
+`DbUpdateException` the handler does not catch. `AuditEvent.MaxConnectedAppClientIdLength`
+is also 100, so the first audited write would fail too. The constant names the audit
+column, and `MetadataUrlCap_FitsEveryColumnThatStoresIt` reads both lengths from the EF
+model and fails if either drops below it. Known metadata document URLs are far shorter.
 Widening both columns is a migration nobody needs yet.
 
 ## What the document may say
@@ -197,8 +216,10 @@ Both keys are optional, so neither the sim harness (#370) nor the AppHost (#565)
 them.
 
 - `OAuth:ClientMetadata:Enabled` (default `true`). A deployment without outbound https
-  turns it off. Discovery then stops advertising support, and an `https` client id is
-  refused before any fetch, so a copy stored earlier stops working as well.
+  turns it off. Discovery then stops advertising support, and an authorization request
+  naming an `https` client id is refused before any fetch, so no new connection uses a
+  copy stored earlier. Like the farm switch (#1146), it refuses and never revokes:
+  connections already approved keep their tokens and stay in Connected apps.
 - `OAuth:ClientMetadata:PrivateHosts` (default empty) names hosts that may resolve to a
   private network (`10/8`, `100.64/10`, `172.16/12`, `192.168/16`, `fc00::/7`), for a
   document served inside a test stack or an internal network. It is a list of exact

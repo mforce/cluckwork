@@ -116,6 +116,26 @@ public sealed partial class OAuthFailClosedTests
         Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
     }
 
+    // A request missing what this server always requires is refused before any fetch, so
+    // it spends no budget and reaches no network.
+    [Theory]
+    [InlineData("response_type", null)]
+    [InlineData("response_type", "token")]
+    [InlineData("code_challenge", null)]
+    [InlineData("code_challenge_method", "plain")]
+    [InlineData("code_challenge_method", null)]
+    public async Task MalformedRequest_IsRefused_BeforeAnyFetch(string parameter, string? value)
+    {
+        await using var metadata = await MetadataHostAsync();
+        var query = AuthorizeParameters(NewDocumentUrl(), NewVerifier(), ReadScope);
+        if (value is null) query.Remove(parameter); else query[parameter] = value;
+
+        using var preview = await OAuthServerTests.SendAuthorizeAsync(metadata.Host, null, query, consent: "preview");
+
+        Assert.Equal(HttpStatusCode.BadRequest, preview.StatusCode);
+        Assert.Empty(metadata.Network.Resolves);
+    }
+
     // A failed fetch or a document that breaks a rule leaves nothing behind (draft §5.2).
     [Theory]
     [InlineData(404, "application/json")]
@@ -212,6 +232,41 @@ public sealed partial class OAuthFailClosedTests
         Assert.Equal(ClientMetadataDocuments.GlobalBudget.Limit, metadata.Server.Requests.Count);
         Assert.All(outcomes[..^1], code => Assert.Equal(Errors.InvalidRequest, code));
         Assert.Equal(Errors.TemporarilyUnavailable, outcomes[^1]);
+    }
+
+    // Strangers can drain the global budget, so it does not gate an app someone approved:
+    // its expired copy is still refreshed, never served. A stored copy nobody approved, and
+    // an unknown URL, are refused.
+    [Fact]
+    public async Task ApprovedApp_IsRefreshed_PastADrainedGlobalBudget()
+    {
+        await using var metadata = await MetadataHostAsync();
+        var user = await SeedAsync(Roles.Manager);
+        var approved = NewDocumentUrl();
+        var unapproved = NewDocumentUrl();
+        var served = new[] { new Uri(approved).AbsolutePath, new Uri(unapproved).AbsolutePath };
+        metadata.Server.Respond = context => served.Contains(context.Request.Path.Value)
+            ? metadata.Server.Serves(MetadataDocumentServer.Document("https://app.test" + context.Request.Path, RedirectUri))(context)
+            : metadata.Server.Serves("", status: 404)(context);
+        await ConnectAsync(metadata.Host, user, [ReadScope], clientId: approved);
+        await AskConsentAsync(metadata, user, unapproved);
+        await ExpireStoredCopyAsync(approved);
+        await ExpireStoredCopyAsync(unapproved);
+        using var fetcher = metadata.Network.Fetcher();
+        var resolver = new ClientMetadataDocuments(new ClientMetadataOptions(), metadata.Host.Services.GetRequiredService<IServiceScopeFactory>(),
+            fetcher, new InProcessFixedWindowCounter(TimeProvider.System), TimeProvider.System, NullLogger<ClientMetadataDocuments>.Instance);
+        for (var i = 0; i < ClientMetadataDocuments.GlobalBudget.Limit; i++)
+            await resolver.EnsureFreshAsync(NewDocumentUrl(), CancellationToken.None);
+        var fetchedBefore = metadata.Server.Requests.Count;
+
+        var refreshed = await resolver.EnsureFreshAsync(approved, CancellationToken.None);
+        var notApproved = await resolver.EnsureFreshAsync(unapproved, CancellationToken.None);
+        var unknown = await resolver.EnsureFreshAsync(NewDocumentUrl(), CancellationToken.None);
+
+        Assert.True(refreshed.IsSuccess, "an approved app was refused while strangers drained the global budget");
+        Assert.Equal(fetchedBefore + 1, metadata.Server.Requests.Count);
+        Assert.Equal(Errors.TemporarilyUnavailable, notApproved.Error.Code);
+        Assert.Equal(Errors.TemporarilyUnavailable, unknown.Error.Code);
     }
 
     // The publisher took the document down after its copy expired. Each request's refetch
@@ -354,6 +409,23 @@ public sealed partial class OAuthFailClosedTests
         Assert.Equal(HttpStatusCode.OK, stored.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         Assert.Contains("Callback URIs cannot contain an \"iss\" parameter.", await refused.Content.ReadAsStringAsync());
+    }
+
+    // A document URL is stored as an application's ClientId and audited as the connected
+    // app's id. A column narrower than the cap would turn a valid URL into a failed insert.
+    [Fact]
+    public async Task MetadataUrlCap_FitsEveryColumnThatStoresIt()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var model = scope.ServiceProvider.GetRequiredService<AppDbContext>().Model;
+
+        var clientId = model.FindEntityType(typeof(OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication<Guid>))!
+            .FindProperty("ClientId")!.GetMaxLength();
+        var audited = model.FindEntityType(typeof(Cluckwork.Domain.Auditing.AuditEvent))!
+            .FindProperty("ConnectedAppClientId")!.GetMaxLength();
+
+        Assert.True(clientId >= ClientMetadata.MaxDocumentUrlLength, $"OpenIddict's ClientId holds {clientId}");
+        Assert.True(audited >= ClientMetadata.MaxDocumentUrlLength, $"the audit column holds {audited}");
     }
 
     [Fact]

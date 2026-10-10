@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Domain.Common;
+using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,6 +47,8 @@ internal sealed class ClientMetadataDocuments(
     public static OpenIddictServerHandlerDescriptor Descriptor { get; } =
         OpenIddictServerHandlerDescriptor.CreateBuilder<ValidateAuthorizationRequestContext>()
             .UseScopedHandler<ClientMetadataDocuments>()
+            // ValidateAuthentication is the first handler that looks the client up, and every
+            // parameter check runs after it.
             .SetOrder(OpenIddictServerHandlers.Authentication.ValidateClientIdParameter.Descriptor.Order + 500)
             .SetType(OpenIddictServerHandlerType.Custom)
             .Build();
@@ -59,6 +62,20 @@ internal sealed class ClientMetadataDocuments(
         if (!options.Enabled)
         {
             context.Reject(Errors.InvalidRequest, "This server does not accept client ID metadata documents.");
+            return;
+        }
+
+        // OpenIddict's parameter checks run only after the client lookup, so the requirements
+        // every request to this server must meet are checked here, before any fetch: a
+        // malformed request spends no budget and reaches no network.
+        if (context.Request.ResponseType != ResponseTypes.Code)
+        {
+            context.Reject(Errors.UnsupportedResponseType, "The specified 'response_type' is not supported.");
+            return;
+        }
+        if (string.IsNullOrEmpty(context.Request.CodeChallenge) || context.Request.CodeChallengeMethod != CodeChallengeMethods.Sha256)
+        {
+            context.Reject(Errors.InvalidRequest, "A 'code_challenge' using the S256 method is required.");
             return;
         }
 
@@ -84,7 +101,9 @@ internal sealed class ClientMetadataDocuments(
 
         // An expired copy never stands in, even with the budget spent: a caller could drain
         // the budget with failed fetches and revive redirect URIs the publisher removed.
-        if (!await SpendBudgetAsync(clientId, ct))
+        // A client someone approved with their password skips the global budget, which
+        // strangers can drain, and still spends its own.
+        if (!await SpendBudgetAsync(clientId, global: !await IsApprovedAsync(scope, applications, row, ct), ct))
             return Refuse(Errors.TemporarilyUnavailable, "Too many metadata documents were fetched recently. Try again later.");
 
         var fetched = await fetcher.FetchAsync(url.Value, ct);
@@ -139,12 +158,24 @@ internal sealed class ClientMetadataDocuments(
             .FindByClientIdAsync(clientId, ct) is not null;
     }
 
-    private async Task<bool> SpendBudgetAsync(string clientId, CancellationToken ct)
+    private async Task<bool> SpendBudgetAsync(string clientId, bool global, CancellationToken ct)
     {
         // A hash, so no client-chosen text reaches the shared store's keys.
         var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(clientId)));
         return (await counter.IncrementAsync($"oauth-metadata:url:{key}", PerUrlBudget.Window, ct)).Count <= PerUrlBudget.Limit
-            && (await counter.IncrementAsync("oauth-metadata:global", GlobalBudget.Window, ct)).Count <= GlobalBudget.Limit;
+            && (!global || (await counter.IncrementAsync("oauth-metadata:global", GlobalBudget.Window, ct)).Count <= GlobalBudget.Limit);
+    }
+
+    // At least one valid authorization: a person approved this client, which no anonymous
+    // caller can bring about.
+    private static async Task<bool> IsApprovedAsync(
+        AsyncServiceScope scope, IOpenIddictApplicationManager applications, object? row, CancellationToken ct)
+    {
+        if (row is null)
+            return false;
+        var id = Guid.Parse((await applications.GetIdAsync(row, ct))!);
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().OAuthAuthorizations
+            .AnyAsync(authorization => authorization.Application!.Id == id && authorization.Status == Statuses.Valid, ct);
     }
 
     private static DateTimeOffset ExpiresAt(IReadOnlyDictionary<string, JsonElement> properties) =>

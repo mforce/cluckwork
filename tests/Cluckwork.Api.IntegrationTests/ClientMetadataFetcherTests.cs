@@ -77,10 +77,13 @@ public sealed class ClientMetadataFetcherTests : IAsyncLifetime
 
     // A rebinding host answers one public and one private address; any special-use answer
     // refuses the host, so the order the resolver returns them in cannot matter.
-    [Fact]
-    public async Task MixedAnswer_IsRefused_WhicheverAddressComesFirst()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MixedAnswer_IsRefused_WhicheverAddressComesFirst(bool publicFirst)
     {
-        _network.Answer = _ => [FakeNetwork.Public, IPAddress.Parse("10.0.0.5")];
+        var refused = IPAddress.Parse("10.0.0.5");
+        _network.Answer = _ => publicFirst ? [FakeNetwork.Public, refused] : [refused, FakeNetwork.Public];
         using var fetcher = _network.Fetcher();
 
         var result = await fetcher.FetchAsync(new Uri(Url), CancellationToken.None);
