@@ -14,7 +14,7 @@ GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git_guard.py")
 
 # (command, directory the session runs in, expected verdict). Fixtures:
 #   main      repo on main
-#   feature   repo on feat/x inside main, with `link` -> main/sub; remotes `backup` (push = HEAD:refs/heads/main), `mirror`
+#   feature   repo on feat/x inside main, with `link` -> main/sub and directories `--` and `~`; remotes `backup` (push = HEAD:refs/heads/main), `mirror`
 #             (mirror = true) and `paseo` (push = HEAD:refs/heads/feat/y, as Paseo PR checkouts have)
 #   tracking  repo on feat/t, upstream origin/main, push.default=upstream
 #   matching  repo on feat/m with push.default=matching
@@ -232,6 +232,8 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "feat/x", feature)
         os.mkdir(os.path.join(main, "sub"))
         os.symlink(os.path.join(main, "sub"), os.path.join(feature, "link"))
+        for name in ("--", "~"):  # bash's `cd --` and `cd ~` go to HOME, never to these
+            os.mkdir(os.path.join(feature, name))
         git("-C", feature, "config", "remote.backup.url", remote)
         git("-C", feature, "config", "remote.backup.push", "HEAD:refs/heads/main")
         git("-C", feature, "config", "remote.mirror.url", remote)
