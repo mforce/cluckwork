@@ -8,6 +8,11 @@
 # Git passes one line per ref on stdin: <local ref> <local sha> <remote ref>
 # <remote sha>, so this reads what will actually be pushed and parses no
 # command line. POSIX sh on purpose (see pre-commit).
+#
+# Not covered: `git push --mirror` deletes remote refs the clone does not have
+# without sending their records (git skips a ref with no local peer), so
+# deleting main that way never reaches this hook. The agent command guard
+# refuses --mirror, and GitHub's protection of main refuses the deletion.
 set -eu
 
 remote=$1

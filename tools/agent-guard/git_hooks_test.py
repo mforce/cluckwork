@@ -22,6 +22,10 @@ def run(cwd, *args, check=False):
     return result
 
 
+def head(bare, ref):
+    return run(bare, "rev-parse", "--verify", "--quiet", ref).stdout.strip()
+
+
 def refs_of(bare):
     return run(bare, "for-each-ref", "--format=%(refname) %(objectname)", check=True).stdout
 
@@ -154,6 +158,21 @@ class PrePushTest(unittest.TestCase):
                 if expected == "refuse":
                     self.assertIn("pre-push: refusing", result.stderr)
                     self.assertEqual(refs_of(repo.bare), before, "a refused push changed the remote")
+
+
+class KnownLimitTest(unittest.TestCase):
+    def test_mirror_deletion_of_main_sends_the_hook_no_record(self):
+        """Pins a documented limit: if this fails, git now sends the record, so make it a refusal row."""
+        with tempfile.TemporaryDirectory() as root:
+            repo = Repo(root)
+            run(repo.bare, "config", "receive.denyDeleteCurrent", "ignore", check=True)
+            run(repo.work, "branch", "-q", "-D", "main", check=True)
+            result = run(repo.work, "push", "-q", "--mirror", "origin")
+            print("known limit: git push --mirror from a clone without main ->",
+                  "exit", result.returncode, "| remote main", head(repo.bare, "refs/heads/main") or "deleted")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("pre-push: refusing", result.stderr)
+            self.assertEqual(head(repo.bare, "refs/heads/main"), "")
 
 
 class PreCommitTest(unittest.TestCase):
