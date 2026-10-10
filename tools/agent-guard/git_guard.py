@@ -12,7 +12,8 @@ rather than parsed, so the agent re-runs the write on its own.
 
 Not covered: gh aliases defined earlier, a GraphQL merge whose query comes from a
 file, git aliases from config, other commands that create commits (merge, rebase,
-cherry-pick, pull), a configured push destination that the remote resolves as a
+cherry-pick, pull), a verb spelled by brace or extglob expansion (`pu{s..s}h`,
+`p@(u)sh`), a configured push destination that the remote resolves as a
 symbolic ref to main (no remote lookups), and Codex `exec_command` calls whose
 `workdir` differs from the session `cwd` (Codex does not send `workdir`).
 """
@@ -29,7 +30,7 @@ MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 GIT_FALSE = {"false", "no", "off", "0", ""}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
 MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergePullRequest|AutoMerge")
-EXPANSIONS = re.compile(r"[$`*?\[{(]")  # can spell a program or verb the text check cannot read
+EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects"}

@@ -53,6 +53,13 @@ CASES = [
     ("grep -rn 'gh pr merge' docs", "main", "allow"),
     ("ls -la | wc -l", "main", "allow"),
     ("ls *.py | wc -l", "main", "allow"),
+    ("git rev-parse @{upstream}", "tracking", "allow"),
+    ("git log @{u}..HEAD --oneline", "tracking", "allow"),
+    ("git show HEAD@{1}", "tracking", "allow"),
+    ("gh api repos/{owner}/{repo}/pulls/1158", "feature", "allow"),
+    ("git log --format=\"%h %s (%cr)\" | head -20", "tracking", "allow"),
+    ("gh pr view 1158 --json number,title --jq '{number, title}' | cat", "feature", "allow"),
+    ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { name } }' | cat", "feature", "allow"),
     ("gh api 'repos/mforce/cluckwork/pulls?state=open' --jq '.[].number'", "main", "allow"),
     # Merges.
     ("gh pr merge 12 --squash", "feature", "block"),
@@ -173,8 +180,6 @@ CASES = [
     ("gh api -X PATCH repos/mforce/cluckwork/pulls/12 -f state=open --jq .mergeable", "feature", "allow"),
     ("rg --pre ./run.sh 'git push' .", "feature", "block"),
     ("/usr/bin/gi? push --force", "feature", "block"),
-    ("git pu{s..s}h origin HEAD:main", "feature", "block"),
-    ("git p@(u)sh --force", "feature", "block"),
     ("git pu\\\nsh --force", "feature", "block"),
     ("g\\\nit push --force", "feature", "block"),
     ("gh pr mer\\\nge 1158", "feature", "block"),
@@ -186,6 +191,12 @@ CASES = [
     ("$G push --force", "feature", "block"),
     ("git $VERB --force", "feature", "block"),
     ("git -C \"$WT\" status", "feature", "block"),
+]
+
+# Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
+CASES += [
+    ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
+    ("git p@(u)sh --force", "feature", "allow"),
 ]
 
 MALFORMED = ["", "not json", "{\"tool_name\": \"Bash\"", "{}", "[]", "null", "[" * 100000,
