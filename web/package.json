@@ -9,6 +9,7 @@
     "verify:sw": "node scripts/verify-sw.mjs",
     "i18n:scan": "node scripts/i18n-scan.mjs",
     "typecheck": "tsc -b --noEmit",
+    "lint": "node lint/node_modules/eslint/bin/eslint.js --suppressions-location lint/eslint-suppressions.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",

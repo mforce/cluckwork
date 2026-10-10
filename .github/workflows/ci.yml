@@ -412,6 +412,12 @@ jobs:
           node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level moderate --warn-only \
             --exceptions ../.github/security-exceptions.json < npm-audit-all.json
 
+      # web/lint has its own install: typescript-eslint cannot load TypeScript 7.
+      - name: Lint
+        run: |
+          npm ci --prefix lint
+          npm run lint
+
       - name: Test with coverage gate
         run: npm run test:coverage
 
