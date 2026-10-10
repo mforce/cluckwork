@@ -517,10 +517,15 @@ while `quantity_base = quantity × factor` is individual eggs; allocation and
 the stock guard run on `quantity_base`. Re-pointing a product's grade or
 redefining a packed unit only affects future lines, never recorded ones.
 Price is per selling unit (decimal money, stored as integer minor units),
-prefilled from the product's default and editable per line.
+prefilled from the product's default scaled to the line's unit (#1160) and
+editable per line.
 
 **List price (#720)** — a **sales line's** product's default price as it stood
-the moment the line was added, snapshotted onto the line in **minor units of
+the moment the line was added, scaled to the line's unit and rounded UP to the
+currency's smallest unit (#1160): a product at $0.45 per egg lists at $13.50 on
+a tray line, and one at $13.00 a tray lists at $0.44 on a per-egg line, so a
+positive price never scales to zero. It is
+snapshotted onto the line in **minor units of
 the order's currency** — not literally cents, though the spec column is named
 `list_unit_price_cents` (spec §10.5, that section's own `_cents` naming
 convention throughout; the persisted/API name is `ListUnitPriceMinorUnits`) —
@@ -825,18 +830,19 @@ ranges live in the **Expanded lay rate chart** below.
 **Expanded lay rate chart (#941)** — the **Expand** control on the Lay rate
 card opens the same chart on a full screen, framed like the post-login brand
 splash and following the app theme. There the window is the last **30**
-finished days or a custom span of up to **90**, kept in its own memory so
+finished days or a custom span of up to **365** (#1161), kept in its own memory so
 opening it never moves the card's own window. Above the daily bars sits a map
 of the whole range with a box marking the days on screen; the bars are a
 native horizontal scroll region, so scrolling or swiping them moves the box,
 and pressing the map scrolls the window there. The pager buttons, Page Up and
 Page Down move the window without moving the selection, and the strip keeps
-its one tab stop and arrow keys. A bar is always **22px** at every range, so
-the newest day sits at the right edge and a range narrower than the window
-leaves its empty space before the oldest day. Whether the window scrolls at
-all is decided from that layout — days times the slot against the region's
-width — never from a measured `scrollWidth`, so the date rule's overhanging
-end label cannot light an edge cue on a chart hiding nothing. **Back to
+its one tab stop and arrow keys. A range whose **22px** slots fit the window
+stretches to fill it from the axis to the right edge, each bar capped at
+40px; a longer range keeps the 22px slots and scrolls, opening on the newest
+day at the right edge (#1161). Whether it fits is decided from that layout —
+days times the slot against the region's width — never from a measured
+`scrollWidth`, so the date rule's overhanging end label cannot light an edge
+cue on a chart hiding nothing. **Back to
 dashboard** or Escape closes it and returns focus to Expand.
 
 **Lay rate flock scope (#916)** — the Dashboard's Lay rate card reads one

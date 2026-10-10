@@ -90,13 +90,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-      # Pure Node, no toolchain setup needed.
+      # Node and the runner's Python 3, no toolchain setup needed.
       - name: Run the classifier self-tests
         run: node --test .github/scripts/changed-paths.test.mjs
       - name: Run the image-scan issue logic self-tests
         run: node --test .github/scripts/image-scan-issues.test.mjs
       - name: Run the release-line decision self-tests
         run: node --test .github/scripts/release-line.test.mjs
+      - name: Run the agent git-guard table test
+        run: python3 tools/agent-guard/git_guard_test.py
 
   changes:
     name: Classify the changed paths

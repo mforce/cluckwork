@@ -15,7 +15,7 @@ namespace Cluckwork.Infrastructure.RateLimiting;
 //
 // OnRejected is null on purpose: the single global RateLimiterOptions.OnRejected handler in
 // CluckworkRateLimitingServiceCollectionExtensions owns the 429 body, the Retry-After header,
-// and the auth-only SecurityEvents.RateLimitRejected event. A per-policy OnRejected here
+// and the SecurityEvents.RateLimitRejected event. A per-policy OnRejected here
 // would double-handle or split that logic.
 public sealed class DistributedFixedWindowPolicy : IRateLimiterPolicy<string>
 {
@@ -37,7 +37,7 @@ public sealed class DistributedFixedWindowPolicy : IRateLimiterPolicy<string>
     }
 
     // Null on purpose: the single global RateLimiterOptions.OnRejected handler owns the 429
-    // body, the Retry-After header, and the auth-only RateLimitRejected security event. That the
+    // body, the Retry-After header, and the RateLimitRejected security event. That the
     // framework falls back to the global handler when a policy's OnRejected is null is guarded by
     // DistributedRateLimiterWiringTests.No_attacker_supplied_dimension_in_key_or_log (it asserts
     // the event fires); a runtime change to that behaviour fails there by name, not silently.

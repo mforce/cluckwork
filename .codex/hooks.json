@@ -9,6 +9,15 @@
             "command": "~/.local/bin/graphify hook-check"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/tools/agent-guard/git_guard.py"
+          }
+        ]
       }
     ]
   }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -240,6 +241,37 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
             : await ConfirmAsync(sales, orderId);
 
         Assert.Equal(expected, confirm.StatusCode);
+    }
+
+    // #1160 — 1.30 a case of 360 rounds UP to 0.01 an egg, so a free per-egg
+    // line is a measured full discount, never a line "at list" price zero.
+    [Fact]
+    public async Task AFreePerEggLineFromACasePrice_IsRefusedUnderAZeroCeiling()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"o-{Guid.NewGuid():N}@test.local");
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var productId = await factory.SeedProductAsync(
+            accountId, farmId, grades["Large"], "Large Eggs", 130, ProductUnit.Case);
+        await factory.SeedEggLotAsync(accountId, grades["Large"], SeededStock);
+        await SetCeilingAsync(accountId, 0);
+        var sales = await SeedUserAsync(accountId, Roles.Sales);
+        var customerId = await CreatedId(await sales.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await sales.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+        Assert.Equal(HttpStatusCode.Created, (await sales.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 360, unit = "Egg", unitPriceMinorUnits = 0 })).StatusCode);
+
+        var order = await sales.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Equal(1, order!.Items[0].ListUnitPriceMinorUnits);
+        var confirm = await ConfirmAsync(sales, orderId);
+        Assert.Equal(
+            "SalesOrder.DiscountCeilingExceeded",
+            (await confirm.Content.ReadFromJsonAsync<ProblemDto>())!.Title);
+        Assert.Equal(("Draft", SeededStock), await SnapshotAsync(accountId, orderId));
     }
 
     // --- the unmeasurable line ---------------------------------------------
