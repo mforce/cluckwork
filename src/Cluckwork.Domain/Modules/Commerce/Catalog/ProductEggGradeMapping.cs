@@ -1,5 +1,3 @@
-using Cluckwork.Domain.Common;
-
 namespace Cluckwork.Domain.Modules.Commerce.Catalog;
 
 // Spec §10.2 — egg products map to egg grades; part 2 allocates a sold line's

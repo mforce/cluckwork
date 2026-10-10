@@ -24,7 +24,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>, IMutableRecord
     public DiscountReasonCode? DiscountReasonCode { get; private set; }
     /// <summary>
     /// Free text beside <see cref="DiscountReasonCode"/>. Optional for every
-    /// code except <see cref="Sales.DiscountReasonCode.Other"/>, which is
+    /// code except <see cref="Contracts.DiscountReasonCode.Other"/>, which is
     /// meaningless without it. Never non-null while the code is null.
     /// </summary>
     public string? DiscountReasonNote { get; private set; }
@@ -343,9 +343,11 @@ public enum LineCeilingStatus
 /// The offending line a ceiling refusal names (#727). The domain decides WHO
 /// breaches and the caller composes the refusal, because the grade NAME lives
 /// in a repository this assembly cannot reach — the same seam
-/// <see cref="SaleAllocationPlan"/>'s ShortEggGradeId already uses for
+/// <c>SaleAllocationPlan</c>'s ShortEggGradeId already uses for
 /// insufficient stock.
 /// </summary>
+/// <param name="EggGradeId">The breaching line's grade.</param>
+/// <param name="Status">Why the line breaches: over the ceiling, or unmeasurable.</param>
 /// <param name="DiscountPercent">
 /// Exact and unrounded, and null EXACTLY when <paramref name="Status"/> is
 /// <see cref="LineCeilingStatus.Unmeasurable"/> — printing a percent for a line

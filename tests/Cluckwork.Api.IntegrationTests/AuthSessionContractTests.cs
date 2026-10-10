@@ -2,7 +2,6 @@ using Cluckwork.Api.Modules.Access.Auth;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Microsoft.AspNetCore.Mvc;

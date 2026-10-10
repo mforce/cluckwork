@@ -14,6 +14,12 @@
          Combined with TreatWarningsAsErrors above, a violation is a build
          error, not just an IDE squiggle. -->
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- IDE0005 (unused using, gated in .editorconfig) reports at build time
+         only when the compiler produces documentation; without this a planted
+         unused using passed the build (#858, #1187). CS1591 (missing XML
+         comment on a public member) would otherwise fail every project. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>

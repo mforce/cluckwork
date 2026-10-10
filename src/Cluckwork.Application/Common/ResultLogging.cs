@@ -1,4 +1,3 @@
-using Cluckwork.Domain.Common;
 using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Application.Common;

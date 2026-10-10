@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;

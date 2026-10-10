@@ -1,7 +1,5 @@
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.Cli;
 

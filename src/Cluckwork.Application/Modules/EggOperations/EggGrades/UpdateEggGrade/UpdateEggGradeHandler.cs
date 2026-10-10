@@ -1,6 +1,5 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
-using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Modules.EggOperations.EggGrades.UpdateEggGrade;
 

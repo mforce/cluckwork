@@ -1,6 +1,4 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
-using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Modules.Access.Users.ChangeOwnPassword;
 

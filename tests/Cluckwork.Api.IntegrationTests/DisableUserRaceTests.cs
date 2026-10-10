@@ -4,7 +4,6 @@ using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Application.Modules.Access.Users.DisableUser;
 using Cluckwork.Application.Modules.Access.Users.EnableUser;
 using System.Net;
-using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;

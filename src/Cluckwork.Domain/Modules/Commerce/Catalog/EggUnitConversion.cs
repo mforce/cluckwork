@@ -1,4 +1,3 @@
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Commerce.Contracts;
 
 namespace Cluckwork.Domain.Modules.Commerce.Catalog;

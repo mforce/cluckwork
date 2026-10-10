@@ -1,4 +1,3 @@
-using System.Threading;
 using System.Threading.RateLimiting;
 using Cluckwork.Infrastructure.SharedState;
 

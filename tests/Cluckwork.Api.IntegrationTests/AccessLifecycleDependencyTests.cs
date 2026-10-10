@@ -1,5 +1,4 @@
 using Cluckwork.Api.Cli;
-using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.IntegrationTests.Infrastructure;

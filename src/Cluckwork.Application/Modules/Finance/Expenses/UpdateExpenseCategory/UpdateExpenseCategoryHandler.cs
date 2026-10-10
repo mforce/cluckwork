@@ -1,6 +1,5 @@
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Finance.Contracts;
-using Cluckwork.Domain.Common;
 
 namespace Cluckwork.Application.Modules.Finance.Expenses.UpdateExpenseCategory;
 

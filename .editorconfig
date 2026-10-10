@@ -2,12 +2,12 @@
 # no dependency and no CI job. Its job is to stop whitespace-only diffs from
 # burying real changes in review.
 #
-# TWO C# rules below are gated at build time, both under [*.{cs,csx}]:
-# file-scoped namespaces and using-directive placement. EnforceCodeStyleInBuild
-# in Directory.Build.props runs the IDE analyzers during the build, and
-# TreatWarningsAsErrors is already true there, so a `:warning` severity here is
-# a BUILD ERROR. That applies to any rule written at `:warning` in this file,
-# not only these two. Everything else here is a convenience — do not cite an
+# THREE C# rules below are gated at build time, all under [*.{cs,csx}]:
+# file-scoped namespaces, using-directive placement and unused usings.
+# EnforceCodeStyleInBuild in Directory.Build.props runs the IDE analyzers during
+# the build, and TreatWarningsAsErrors is already true there, so a `:warning`
+# severity here is a BUILD ERROR. That applies to any rule written at `:warning`
+# in this file, not only these three. Everything else here is a convenience — do not cite an
 # unenforced entry as the reason a formatter is unnecessary.
 root = true
 
@@ -36,6 +36,10 @@ indent_size = 4
 # --severity warn --include <file>`.
 csharp_using_directive_placement = outside_namespace:warning
 csharp_style_namespace_declarations = file_scoped:warning
+# Gated (#1187). Reports only because Directory.Build.props sets
+# GenerateDocumentationFile. Fix with `dotnet format style <project>
+# --diagnostics IDE0005 --severity warn`.
+dotnet_diagnostic.IDE0005.severity = warning
 
 # #514: SeamSurfaceTests.cs and TableOwnerTests.cs each declare several
 # namespaces in one file, one per fixture scenario. Their inside-namespace
@@ -55,6 +59,8 @@ csharp_using_directive_placement = inside_namespace:silent
 # already place usings outside, so the placement rule needs no exemption.
 [src/Cluckwork.Infrastructure/Persistence/Migrations/**]
 csharp_style_namespace_declarations = block_scoped:silent
+# The scaffold also writes `using System;`, which ImplicitUsings makes unused.
+dotnet_diagnostic.IDE0005.severity = none
 
 [*.{csproj,props,targets,sln,slnx}]
 indent_size = 2

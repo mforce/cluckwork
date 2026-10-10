@@ -1,7 +1,6 @@
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using OpenTelemetry.Exporter;
 

@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Cluckwork.Application.Tests.TenantBypass;
 
 // #536 Part 1 — allow-list semantics. Each behaviour gets its OWN named

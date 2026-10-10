@@ -1,8 +1,6 @@
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.Cli;
 

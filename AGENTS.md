@@ -20,7 +20,7 @@ rule is a convention; apply it consistently without archaeology.
 - [Communicating](#communicating) · [Layout](#layout) · [Build / test / run](#build--test--run)
 - [Browser tests, screenshots and verification](#browser-tests-screenshots-and-verification)
 - [Secrets](#secrets--never-commit) · [Host-agnostic repo](#host-agnostic-repo-deployment-boundary)
-- [Writing a guard](#writing-a-guard-a-test-that-asserts-an-invariant) · [Pre-commit hook](#pre-commit-hook-opt-in) · [CI security gates](#ci-security-gates-146)
+- [Writing a guard](#writing-a-guard-a-test-that-asserts-an-invariant) · [Enforced rules](#enforced-rules) · [Pre-commit hook](#pre-commit-hook-opt-in) · [CI security gates](#ci-security-gates-146)
 - [Scoped rule files](#scoped-rule-files) · [Git / PR workflow](#git--pr-workflow) · [Phase context](#phase-context) · [graphify](#graphify)
 
 ## Scoped rule files
@@ -106,6 +106,21 @@ A guard must *fail* when a later change violates an invariant, such as the migra
 - **When adding a registry entry, find its guards by grepping the registry's READERS, never by recall.** A registry is any list other code walks, such as `CliDispatcher.Commands`, `AuditActions`, or an enum mirrored into `web/src/i18n/enums.ts`. For #534's two verbs, recall found `CliDispatcherTests` and `ProcessRoleRegistryTests` but missed `OneShotVerbMinimalConfigTests`, which rejects a `ProcessRoles.OneShotVerbs` entry without a minimal-config case. `grep -rn "CliDispatcher.Commands\|ProcessRoles.OneShotVerbs" tests/` finds all three. A remembered guard list is the hand-maintained list those guards exist to prevent.
 - **Read a call-site SYNTAX guard before authoring the call site.** Its rule is not inferable from the guarded code, and a violation fails the build. `AuditVocabularyCoverageTests` accepts only `AuditActions.X` or a ternary of two such references as the action argument to `IAuditWriter.WriteAsync`. It fails closed otherwise and has one bespoke exemption, `IdentityProvider`'s forwarded parameter, held by three companion assertions. Forwarding the action through a shared private helper therefore fails; #534 caught that before dispatch and used the ternary.
 - **A guard that walks every TRACKED file applies to a document as soon as you commit it (#508).** `SchemaDocsTests.PostgresImagePin_IsOneIdenticalStringAcrossEveryTrackedFile` failed when a plan described a probe with bare `postgres:<tag>`. The untracked draft was outside the guard; committing it changed the guard's scope and stopped the implementer near completion. Before committing documentation, run guards that walk tracked files. If such a guard rejects the CONTENT of a copied document, fix the source and copy it again. Never edit the committed copy, which breaks "verbatim," or allow-list it, which weakens a pin guard for a comment.
+
+## Enforced rules
+
+Each row states what its check fails on, which can be narrower than the prose rule it backs. Existing hits are frozen where a row says so, so a check stops new cases rather than proving the rule everywhere. When a correction repeats and the rule behind it is only prose, add the check and a row here, or record why no check can hold it.
+
+| Check fails on | Enforced by | Runs in |
+|---|---|---|
+| A React hook rule or floating-promise violation in `web/src/**/*.{ts,tsx}` outside the frozen suppressions (#1155) | ESLint, `web/lint/eslint.config.js`; `web/lint/eslint-suppressions.json` | `npm run lint`, CI `web` |
+| An `await` or `.then` inside a `useEffect` in non-test files under `web/src/routes` or `web/src/components`, outside the suppressions; use `useLatestLoad` or `usePagedList` instead (#1190) | ESLint `no-restricted-syntax`, same config | `npm run lint`, CI `web` |
+| A new non-`help` key in `en.ts` with no Help or glossary change, or changed `GLOSSARY.md` term text whose English in-app definition stayed the same; a `Docs-impact: none — <reason>` body line waives both (#1194, see [Keep documentation in sync](#git--pr-workflow)) | `.github/scripts/docs-impact.mjs` | **Docs impact** workflow |
+| A `GLOSSARY.md` term with neither an in-app entry nor a `SPEC_ONLY` row; the existing `NOT_YET` backlog is pinned (#1193) | `web/src/routes/helpGlossary.test.ts` | Vitest, CI `web` |
+| A tracked `.cs`, `.ts`, `.tsx` or `.css` file under `src/` or `web/src/` over 500 lines, excluding tests, migrations, locale catalogs and the listed legacy files, which may grow (#1153) | `FileSizeLimitTests` | Application tests, CI |
+| A new C# test type that parses syntax and never queries a `SemanticModel`; legacy types are listed (#1189) | `SpellingScannerRatchetTests` | Application tests, CI |
+| An unused `using` in any project's C# source, except the EF migrations tree and generated files (#1187) | IDE0005 at build time, set in `.editorconfig` and `Directory.Build.props` | `dotnet build`, CI |
+| An agent's merge, push to `main`, force-push, `src:dst` refspec push or commit on `main`, when the harness hook is enabled or git uses `.githooks`; the guard's parser limits apply (#1158, #1172, #1175) | `tools/agent-guard/git_guard.py` (Claude Code and Codex hooks, Pi extension, Hermes plugin); `.githooks/pre-commit` and `.githooks/pre-push` | the agent harness; git; the guard's own tests in CI |
 
 ## Pre-commit hook (opt-in)
 

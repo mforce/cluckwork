@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 // StackExchange.Redis exports its own TestHarness, which collides with the

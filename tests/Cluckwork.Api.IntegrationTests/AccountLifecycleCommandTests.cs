@@ -1,7 +1,6 @@
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

@@ -6,7 +6,6 @@ using Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordPurchase;
 using Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordWaterUsage;
 using Cluckwork.Application.Modules.GeneralInventory.Inventory.UpdateInventoryItem;
 using Cluckwork.Application.Modules.GeneralInventory.Inventory.UpdateWaterUsage;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.GeneralInventory.Inventory;
 
 namespace Cluckwork.Application.Modules.GeneralInventory.Inventory;

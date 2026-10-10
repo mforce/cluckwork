@@ -4,9 +4,7 @@ using System.Threading.RateLimiting;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.RateLimiting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Logging;
 
 namespace Cluckwork.Api.Hosting;
 
