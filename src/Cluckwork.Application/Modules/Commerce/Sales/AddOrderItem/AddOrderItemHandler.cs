@@ -65,8 +65,8 @@ public sealed class AddOrderItemHandler(
 
         // #1160 — the product's default price is per its OWN selling unit, so a
         // line in another unit defaults to, and lists at, that price scaled by
-        // the two factors, rounded half up to a whole minor unit
-        // (docs/decisions/1160-unit-scaled-list-price.md).
+        // the two factors, rounded UP to a whole minor unit so a positive price
+        // never scales to zero (docs/decisions/1160-unit-scaled-list-price.md).
         var lineListPrice = product.DefaultPriceMinorUnits;
         if (lineListPrice is { } productPrice && unit != product.DefaultUnit)
         {
@@ -76,8 +76,8 @@ public sealed class AddOrderItemHandler(
                 return Result.Failure<Guid>(Error.Validation(
                     "SalesOrder.NoUnitConversion",
                     $"No active eggs-per-unit definition for '{product.DefaultUnit}' — set one on the Products screen."));
-            var scaled = (2 * (Int128)productPrice * conversion.EggsPerUnit + productConversion.EggsPerUnit)
-                / (2 * (Int128)productConversion.EggsPerUnit);
+            var scaled = ((Int128)productPrice * conversion.EggsPerUnit + productConversion.EggsPerUnit - 1)
+                / productConversion.EggsPerUnit;
             if (scaled > long.MaxValue)
                 return Result.Failure<Guid>(Error.Validation(
                     "SalesOrder.LineTotalTooLarge", "Line total exceeds the supported amount range."));

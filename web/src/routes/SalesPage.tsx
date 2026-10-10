@@ -590,15 +590,17 @@ export function SalesPage() {
     return c?.eggsPerUnit ?? null;
   };
   // #1160 — the list price of `p` on a line sold per `lineUnit`: its default
-  // price scaled by the two factors, null when unpriced or a factor is unknown.
-  // Math.round matches the server's half-up rounding while price × factor is a
-  // safe integer. The per-egg conversion's code is "Individual", so Egg is 1 here.
+  // price scaled by the two factors and rounded up, in exact integers like the
+  // server. null when unpriced, a factor is unknown, or the result is not a
+  // safe integer. The per-egg conversion's code is "Individual", so Egg is 1.
   const listPriceFor = (p: Product, lineUnit: string): number | null => {
     if (p.defaultPriceMinorUnits === null || lineUnit === p.defaultUnit) return p.defaultPriceMinorUnits;
     const factor = (u: string) => (u === "Egg" ? 1 : eggsPerUnit(u));
     const line = factor(lineUnit);
     const own = factor(p.defaultUnit);
-    return line === null || own === null ? null : Math.round((p.defaultPriceMinorUnits * line) / own);
+    if (line === null || own === null) return null;
+    const scaled = (BigInt(p.defaultPriceMinorUnits) * BigInt(line) + BigInt(own) - 1n) / BigInt(own);
+    return scaled <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(scaled) : null;
   };
   // Lowercased to match the row display's `perUnit` convention ("per tray").
   // The membership guard is what lets the typed i18n key accept the template:
