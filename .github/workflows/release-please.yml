@@ -134,8 +134,9 @@ jobs:
       #      request. "Pull requests: write" is indivisible — opening a PR and
       #      approving one are the same scope — so nothing but the pinned
       #      action's behaviour stops it. Inert today, because `main` requires
-      #      zero approving reviews and no status checks, so there is nothing
-      #      for a rogue approval to satisfy. The point is to keep that
+      #      zero approving reviews, so there is nothing for a rogue approval
+      #      to satisfy. `main` does require status checks (#1182), but only a
+      #      CI run can satisfy those, never an approval. The point is to keep that
       #      capability behind a secret rather than behind a declared
       #      permission, before the day required reviews are switched on.
       #   2. GitHub does not trigger workflows for anything GITHUB_TOKEN pushes
@@ -152,9 +153,9 @@ jobs:
       #      tests, build-and-test, web and image have all passed. Release
       #      verification rests on that artifact gate, not on PR checks. What
       #      this reason actually buys is (a) seeing red BEFORE the merge
-      #      instead of after, and (b) not deadlocking the release the day
-      #      required status checks are enabled on main — a checkless PR could
-      #      never satisfy them.
+      #      instead of after, and (b) not deadlocking the release now that
+      #      `main` requires status checks (#1182): this App-opened PR gets CI
+      #      and can satisfy them, where a checkless PR never could.
       #
       # Downscoped per-permission: the same App backs the lockfix workflow, and
       # `permission-*` caps this token at release-please's needs regardless of
