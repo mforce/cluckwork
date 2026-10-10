@@ -11,7 +11,7 @@
 // Without --head it reads the working tree.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -19,6 +19,7 @@ import { pathToFileURL } from "node:url";
 const EN = "web/src/i18n/en.ts";
 const SPEC = "specs/product/GLOSSARY.md";
 const IN_APP = "web/src/routes/helpGlossary.ts";
+const COVERAGE = "web/src/routes/glossaryCoverage.ts";
 
 export const ESCAPE = /^Docs-impact:\s*none\s*(?:—|–|-{1,2})\s*\S/;
 
@@ -43,8 +44,9 @@ export function newStringFindings({ baseEn, headEn, glossaryChanged }) {
   ];
 }
 
-// The same term rule as web/src/routes/helpGlossary.test.ts: a bold run that
-// opens a paragraph, or an h3, with any parenthetical dropped. A term's text
+// The same term rule as web/src/routes/glossaryCoverage.ts: a bold run that
+// opens a paragraph (after a blank line or a heading), or an h3, with any
+// parenthetical dropped. A term's text
 // runs to the next term or heading, so a paragraph added under it counts.
 export const normalise = (term) => term.replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
 export function termSections(markdown) {
@@ -53,7 +55,7 @@ export function termSections(markdown) {
   const lines = markdown.split("\n");
   lines.forEach((line, i) => {
     const m = /^\*\*([^*]+)\*\*|^### (.+)/.exec(line);
-    if (m && (m[2] !== undefined || i === 0 || lines[i - 1].trim() === "")) {
+    if (m && (m[2] !== undefined || i === 0 || lines[i - 1].trim() === "" || lines[i - 1].startsWith("#"))) {
       current = normalise(m[1] ?? m[2]);
       sections.set(current, "");
     } else if (line.startsWith("#")) {
@@ -76,12 +78,25 @@ export function driftFindings({ baseEn, headEn, baseSpec, headSpec, entries }) {
   });
 }
 
+// A count of NOT_YET rows cannot tell a removal from a swap, so the rows are
+// compared by term with the base: a term deferred at head but not at the base
+// is new debt. Not escapable by the body line; a real reason row is the way.
+export function deferralFindings({ base, head }) {
+  if (!base || !head) return [];
+  const deferred = ({ SPEC_ONLY, NOT_YET }) => Object.keys(SPEC_ONLY).filter((term) => SPEC_ONLY[term] === NOT_YET);
+  const before = new Set(deferred(base));
+  return deferred(head).filter((term) => !before.has(term)).map((term) =>
+    `"${term}" is newly deferred as NOT_YET in ${COVERAGE}. Give it an in-app glossary entry, or a SPEC_ONLY row whose reason says why users never meet it.`);
+}
+
 function git(...args) {
   return execFileSync("git", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 }
 
+// null only when the revision has no such file; any git failure throws.
 function read(ref, path) {
-  return ref === undefined ? readFileSync(path, "utf8") : git("show", `${ref}:${path}`);
+  if (ref === undefined) return existsSync(path) ? readFileSync(path, "utf8") : null;
+  return git("ls-tree", "--name-only", ref, "--", path).trim() === "" ? null : git("show", `${ref}:${path}`);
 }
 
 // en.ts carries no imports, so Node loads it as TypeScript straight from a
@@ -92,18 +107,14 @@ async function loadCatalog(source, dir, name) {
   return flatten((await import(pathToFileURL(file).href)).en);
 }
 
-// helpGlossary.ts carries no imports either; a revision before it existed has
-// no in-app entries to drift from.
-async function loadEntries(ref, dir) {
-  let source;
-  try {
-    source = read(ref, IN_APP);
-  } catch {
-    return [];
-  }
-  const file = join(dir, "glossary.ts");
+// helpGlossary.ts and glossaryCoverage.ts carry no imports either. A revision
+// that predates one of them yields null.
+async function loadModule(ref, path, dir, name) {
+  const source = read(ref, path);
+  if (source === null) return null;
+  const file = join(dir, `${name}.ts`);
   writeFileSync(file, source);
-  return (await import(pathToFileURL(file).href)).GLOSSARY;
+  return import(pathToFileURL(file).href);
 }
 
 async function main(argv) {
@@ -119,6 +130,14 @@ async function main(argv) {
     console.error("--base is required.");
     return 2;
   }
+  for (const ref of [opts.base, opts.head].filter(Boolean)) {
+    try {
+      git("rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`);
+    } catch {
+      console.error(`${ref} is not a commit this checkout has. Fetch it first.`);
+      return 2;
+    }
+  }
   const dir = mkdtempSync(join(tmpdir(), "docs-impact-"));
   try {
     const baseEn = await loadCatalog(read(opts.base, EN), dir, "base");
@@ -127,8 +146,16 @@ async function main(argv) {
     const headSpec = read(opts.head, SPEC);
     const findings = [
       ...newStringFindings({ baseEn, headEn, glossaryChanged: baseSpec !== headSpec }),
-      ...driftFindings({ baseEn, headEn, baseSpec, headSpec, entries: await loadEntries(opts.head, dir) }),
+      ...driftFindings({ baseEn, headEn, baseSpec, headSpec, entries: (await loadModule(opts.head, IN_APP, dir, "glossary"))?.GLOSSARY ?? [] }),
     ];
+    const deferrals = deferralFindings({
+      base: await loadModule(opts.base, COVERAGE, dir, "coverage-base"),
+      head: await loadModule(opts.head, COVERAGE, dir, "coverage-head"),
+    });
+    if (deferrals.length > 0) {
+      console.error(deferrals.join("\n"));
+      return 1;
+    }
     if (findings.length === 0) {
       console.log("docs-impact: nothing to flag.");
       return 0;

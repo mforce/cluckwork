@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ESCAPE, driftFindings, newStringFindings, termSections } from "./docs-impact.mjs";
+import { ESCAPE, deferralFindings, driftFindings, newStringFindings, termSections } from "./docs-impact.mjs";
 
 const catalog = (entries) => new Map(Object.entries(entries));
 const base = catalog({ "expenses.dateHeader": "Date", "help.expenses": "Expenses are…" });
@@ -70,4 +70,27 @@ test("a change to a term with no in-app entry, or a brand-new term, is not drift
   for (const headSpec of [other, added]) {
     assert.deepEqual(driftFindings({ baseEn: en, headEn: en, baseSpec: spec, headSpec, entries }), []);
   }
+});
+
+test("a bold term straight after a heading opens a section too", () => {
+  const sections = termSections("## Packaging\n**Tray deposit** — a refundable charge.\n");
+  assert.ok(sections.has("tray deposit"));
+});
+
+const NOT_YET = "Not yet in the in-app glossary when #1186 landed.";
+const coverage = (rows) => ({ NOT_YET, SPEC_ONLY: rows });
+const rest = { customer: NOT_YET, "credential epoch": "An internal mechanism." };
+const baseRows = { flock: NOT_YET, ...rest };
+
+test("a term deferred at head but not at the base is refused, even when the count stays the same", () => {
+  const swapped = coverage({ ...rest, "tray deposit": NOT_YET });
+  const [finding] = deferralFindings({ base: coverage(baseRows), head: swapped });
+  assert.match(finding, /"tray deposit" is newly deferred/);
+});
+
+test("removing a NOT_YET row, or giving a new term a real reason, is fine; so is a base without the file", () => {
+  const reasoned = coverage({ ...rest, "tray deposit": "Billing-side only; no screen shows it." });
+  assert.deepEqual(deferralFindings({ base: coverage(baseRows), head: coverage(rest) }), []);
+  assert.deepEqual(deferralFindings({ base: coverage(baseRows), head: reasoned }), []);
+  assert.deepEqual(deferralFindings({ base: null, head: coverage(baseRows) }), []);
 });
