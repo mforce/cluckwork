@@ -30,7 +30,7 @@ that no diff shows.
 | [`727-discount-ceiling/`](727-discount-ceiling/) | Per-farm discount ceiling with approval above it (#727) | Shipped in #766; issue closed |
 | [`732-rename-account-verb/`](732-rename-account-verb/) | `rename-account` verb to change a farm code (#732) | Shipped in #733; issue closed |
 | [`745-audit-details-column/`](745-audit-details-column/) | Readable audit Details column (#745) | Shipped in #749; issue closed |
-| [`770-mcp-server/`](770-mcp-server/) | MCP server support — feasibility design (#770) | Design merged in #785; issue closed. Being built under epic #789 (open): #788 shipped, #805 merged in #1181, #806 in progress (draft #1195) |
+| [`770-mcp-server/`](770-mcp-server/) | MCP server support — feasibility design (#770) | Design merged in #785; issue closed. Being built under epic #789: #788 shipped, #805 merged in #1181, #806 merged in #1195; the epic stays open for #807 to #811 |
 | [`788-mcp-oauth/`](788-mcp-oauth/) | MCP authentication — OAuth 2.1 via OpenIddict (#788) | Shipped in slices #795 to #800, #1146, #1148 and #1164; issue closed; #793 (SPA login on OpenIddict) deferred |
 | [`822-mui-revamp/`](822-mui-revamp/) | MUI revamp design doc (#822) | Design doc merged in #862; issue closed |
 | [`839-integration-wall-clock/`](839-integration-wall-clock/) | Integration suite wall clock (#839) | Shipped in #861; issue closed |
