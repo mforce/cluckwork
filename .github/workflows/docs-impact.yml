@@ -1,0 +1,53 @@
+name: Docs impact
+
+# #1186 — new user-facing strings need a Help or glossary change, or a
+# `Docs-impact: none — <reason>` line in the PR body. A separate workflow, not a
+# step in ci.yml, because fixing the body must re-run this check and nothing
+# else: adding `edited` to ci.yml would start a full CI run on every body edit,
+# and a run whose jobs all skip replaces their check results on the same head
+# commit, so a red test job could read as skipped after a typo fix.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches:
+      - main
+      - release/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-impact-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  docs-impact:
+    name: Docs impact
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      # The check imports catalog files from the PR, so that code must not see
+      # the checkout token.
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+
+      - name: Test the docs-impact check
+        run: node --test .github/scripts/docs-impact.test.mjs
+
+      # The body arrives through the environment, never interpolated into the
+      # script, so its text cannot run as shell.
+      - name: Check new strings against Help and the glossary
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/body.md"
+          node .github/scripts/docs-impact.mjs --base "$BASE_SHA" --body-file "$RUNNER_TEMP/body.md"
