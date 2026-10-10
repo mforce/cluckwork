@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { GLOSSARY, GLOSSARY_GROUPS, glossaryEntry } from "./helpGlossary";
+import { NOT_YET, SPEC_ONLY, glossaryTerms, normalise } from "./glossaryCoverage";
 import { en } from "../i18n/en";
 import { es } from "../i18n/es";
 import { tl } from "../i18n/tl";
@@ -15,14 +16,8 @@ import { tl } from "../i18n/tl";
 type Catalog = { help: Record<string, unknown> };
 const packs: [string, Catalog][] = [["en", en as Catalog], ["es", es as Catalog], ["tl", tl as Catalog]];
 
-// GLOSSARY.md's terms are the bold run that opens a paragraph, sometimes an
-// h3. A parenthetical is commentary — "(#531)", "(spec §4.5)", "(egg unit
-// conversion)" — and is not part of the term.
-const normalise = (term: string) => term.replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
-const specTerms = new Set(
-  [...readFileSync(resolve(process.cwd(), "../specs/product/GLOSSARY.md"), "utf8").matchAll(/^(?:\*\*([^*]+)\*\*|### (.+))/gm)]
-    .map((m) => normalise(m[1] ?? m[2])),
-);
+const specTerms = glossaryTerms(readFileSync(resolve(process.cwd(), "../specs/product/GLOSSARY.md"), "utf8"));
+
 
 describe("help glossary data", () => {
   it("carries every glossary term the en catalog has, and nothing else", () => {
@@ -69,10 +64,32 @@ describe("help glossary data", () => {
     }
   });
 
+  it("has an in-app entry, or a SPEC_ONLY row with a reason, for every GLOSSARY.md term", () => {
+    expect(specTerms.length).toBeGreaterThan(100);
+    const inApp = new Set(GLOSSARY.map((e) => normalise(e.spec)));
+    const missing = specTerms.filter((term) => !inApp.has(term) && !(term in SPEC_ONLY));
+    expect(missing, "add an in-app glossary entry (helpGlossary.ts + en/es/tl), or a SPEC_ONLY row with a reason").toEqual([]);
+  });
+
+  it("keeps SPEC_ONLY to current GLOSSARY.md terms that have no in-app entry", () => {
+    const inApp = new Set(GLOSSARY.map((e) => normalise(e.spec)));
+    for (const [term, reason] of Object.entries(SPEC_ONLY)) {
+      expect(specTerms.includes(term), `SPEC_ONLY "${term}" is no longer a GLOSSARY.md term`).toBe(true);
+      expect(inApp.has(term), `SPEC_ONLY "${term}" now has an in-app entry; delete the row`).toBe(false);
+      expect(reason, `SPEC_ONLY "${term}" needs a reason, not a placeholder`).not.toMatch(/^\s*(?:todo|tbd|fixme)?[\s.:!?-]*$/i);
+    }
+  });
+
+  it("only ever loses NOT_YET rows", () => {
+    // Lower this when a NOT_YET term gets its entry. A new term needs an entry
+    // or a real reason, never NOT_YET.
+    expect(Object.values(SPEC_ONLY).filter((reason) => reason === NOT_YET)).toHaveLength(46);
+  });
+
   it("names, for every entry, a term that exists in specs/product/GLOSSARY.md", () => {
-    expect(specTerms.size).toBeGreaterThan(50);
+    expect(specTerms.length).toBeGreaterThan(100);
     for (const e of GLOSSARY) {
-      expect(specTerms.has(normalise(e.spec)), `${e.key} → "${e.spec}"`).toBe(true);
+      expect(specTerms.includes(normalise(e.spec)), `${e.key} → "${e.spec}"`).toBe(true);
     }
   });
 });
