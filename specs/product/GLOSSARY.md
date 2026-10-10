@@ -1423,8 +1423,8 @@ TOTP/WebAuthn step-up is a deferred follow-up (#320).
 **Connecting an app (#798)** — approving an outside app, such as an AI assistant,
 to act as you through OAuth. The app sends you to Cluckwork's consent screen
 (`/connect`), signing in first if needed; the sign-in screen names the app it
-continues to. The screen shows the app's self-chosen name with an **Unverified
-app** marker, what it asks for (**Read farm data**, **Record daily entries**),
+continues to. The screen shows the app's self-chosen name with its **Verified
+domain** or an **Unverified app** marker (see **Verified domain**), what it asks for (**Read farm data**, **Record daily entries**),
 that it acts as you with only your access, and where the browser returns. It is
 all or nothing: **Allow** after re-entering **Your current password** (a
 **step-up grant**, see above), or **Cancel**. Every approval spends a step-up
@@ -1433,6 +1433,16 @@ the permissions and asks only for the password; when it asks for more, the new
 permission is marked **New** and the earlier one **Already allowed**.
 **Details** holds the longer explanations and **Not you? Sign out**. The app's
 access never expires on its own; see **Disconnecting an app**, which also covers how approvals are audited.
+
+**Verified domain (#1148)** — the website an app's details came from, shown on
+the consent screen and the sign-in screen that leads to it. An app can identify
+itself with the https address of a small document it publishes (a client ID
+metadata document); Cluckwork fetches that document itself, so the app's return
+addresses really come from whoever runs that website. Only the domain is checked:
+the app's name is still its own choice. An app that registered itself instead is
+marked **Unverified app**. A verified app that returns to an address on this
+computer is still taken on trust about which program receives the approval.
+Connecting, disconnecting, auditing and the farm switch work the same either way.
 
 **Disconnecting an app (#799)** — ending a connected app's access. **Account** ›
 **Connected apps** lists the apps you allowed, each with what it **Can** do (the

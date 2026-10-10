@@ -5,6 +5,7 @@ using Cluckwork.Application.Modules.Access.Users.SetLanguage;
 using Cluckwork.Application.Modules.Access.Users.SetStepperUnit;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Modules.Access.OAuth;
+using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using System.Security.Cryptography;
 using Cluckwork.Api.Configuration;
@@ -177,7 +178,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         var oauthIssuer = OAuthIssuer(configuration, environment, role);
         if (oauthIssuer is not null)
         {
-            services.AddAccessOAuthServer(oauthIssuer, allowPlainHttp: environment.IsDevelopment());
+            services.AddAccessOAuthServer(oauthIssuer, allowPlainHttp: environment.IsDevelopment(),
+                new ClientMetadataOptions(
+                    configuration.GetValue("OAuth:ClientMetadata:Enabled", true),
+                    configuration.GetSection("OAuth:ClientMetadata:PrivateHosts").Get<string[]>()?.ToHashSet(StringComparer.OrdinalIgnoreCase)));
             // #796 — one handler per endpoint: OpenIddict validation where the endpoint
             // opted in through AcceptOAuthTokens, the session JWT scheme everywhere else.
             // Neither token is ever handed to the other's handler.

@@ -37,7 +37,7 @@ public sealed partial class OAuthFailClosedTests
         var app = await ConnectAsync(host, manager, ReadScope);
 
         using var listed = await Client(host, manager.Jwt).GetAsync("/api/v1/users/connected-apps");
-        using var disconnected = await DisconnectAsync(host, manager.Jwt, $"/api/v1/users/{manager.Id}/connected-apps/{app.ClientId}");
+        using var disconnected = await DisconnectAsync(host, manager.Jwt, $"/api/v1/users/{manager.Id}/connected-apps?clientId={Uri.EscapeDataString(app.ClientId)}");
 
         Assert.Equal(HttpStatusCode.Forbidden, listed.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, disconnected.StatusCode);
@@ -54,7 +54,7 @@ public sealed partial class OAuthFailClosedTests
         var theirs = await ConnectAsync(host, stranger, ReadScope);
 
         var farm = await Client(host, owner).GetFromJsonAsync<JsonElement>("/api/v1/users/connected-apps");
-        using var refused = await DisconnectAsync(host, owner, $"/api/v1/users/{stranger.Id}/connected-apps/{theirs.ClientId}");
+        using var refused = await DisconnectAsync(host, owner, $"/api/v1/users/{stranger.Id}/connected-apps?clientId={Uri.EscapeDataString(theirs.ClientId)}");
         using var stillWorks = await Client(host, theirs.Token).GetAsync(Probe.Read);
 
         Assert.Equal([(user.Id, app.ClientId)], farm.EnumerateArray()
@@ -74,7 +74,7 @@ public sealed partial class OAuthFailClosedTests
         await ConnectAsync(host, user, [ReadScope, WriteScope], first.ClientId);
 
         var before = await Client(host, user.Jwt).GetFromJsonAsync<JsonElement>("/api/v1/me/connected-apps");
-        using var disconnected = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{first.ClientId}");
+        using var disconnected = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(first.ClientId)}");
         var (authorizations, tokens) = await StillValidAsync(user);
 
         Assert.Equal([ReadScope, WriteScope], before.EnumerateArray().Single().GetProperty("scopes")
@@ -95,8 +95,8 @@ public sealed partial class OAuthFailClosedTests
         using (var before = await Client(host, own.Token).GetAsync(Probe.Read))
             Assert.Equal(HttpStatusCode.OK, before.StatusCode);
 
-        using var self = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{own.ClientId}");
-        using var byOwner = await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps/{other.ClientId}");
+        using var self = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(own.ClientId)}");
+        using var byOwner = await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps?clientId={Uri.EscapeDataString(other.ClientId)}");
         using var afterSelf = await Client(host, own.Token).GetAsync(Probe.Read);
         using var afterOwner = await Client(host, other.Token).GetAsync(Probe.Read);
 
@@ -117,9 +117,9 @@ public sealed partial class OAuthFailClosedTests
         var own = await ConnectAsync(host, user, ReadScope);
         var other = await ConnectAsync(host, user, ReadScope);
 
-        (await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{own.ClientId}")).Dispose();
-        (await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps/{other.ClientId}")).Dispose();
-        using var nothingLeft = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps/{own.ClientId}");
+        (await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(own.ClientId)}")).Dispose();
+        (await DisconnectAsync(host, owner, $"/api/v1/users/{user.Id}/connected-apps?clientId={Uri.EscapeDataString(other.ClientId)}")).Dispose();
+        using var nothingLeft = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(own.ClientId)}");
 
         var rows = await factory.WithTenantScopeAsync(user.AccountId, db => db.AuditEvents
             .Where(e => e.Action == AuditActions.UserAppDisconnected)

@@ -113,7 +113,7 @@ public static class UserEndpoints
             .WithName("ListFarmConnectedApps")
             .WithSummary("Every app anyone on this farm has connected.");
 
-        group.MapDelete("/{id:guid}/connected-apps/{clientId}", DisconnectApp)
+        group.MapDelete("/{id:guid}/connected-apps", DisconnectApp)
             // Binds no body; caps what IdempotencyMiddleware buffers to hash it.
             .WithMaxRequestBodyBytes(512)
             .WithName("DisconnectUserApp")
@@ -181,7 +181,7 @@ public static class UserEndpoints
             : Results.Unauthorized();
 
     private static async Task<IResult> DisconnectApp(
-        Guid id, string clientId, IAccessModule access, TenantContext tenant, CancellationToken ct)
+        Guid id, [FromQuery] string clientId, IAccessModule access, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var result = await access.DisconnectAppAsync(tenant.AccountId, id, clientId, ct);

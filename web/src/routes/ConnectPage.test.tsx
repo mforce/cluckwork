@@ -23,7 +23,7 @@ vi.mock("../api/oauth", () => ({
 
 const SEARCH = "?client_id=c1&scope=farm%3Aread%20daily-entries%3Awrite";
 const REQUEST: ConsentRequest = {
-  clientId: "c1", clientName: "Claude Desktop", redirectHost: "127.0.0.1",
+  clientId: "c1", clientName: "Claude Desktop", verifiedDomain: null, redirectHost: "127.0.0.1",
   scopes: ["farm:read", "daily-entries:write"], alreadyAllowed: [], alreadyApproved: false, assignedFlocks: null,
 };
 const assign = vi.fn();
@@ -203,6 +203,28 @@ describe("ConnectPage (#798, consent D)", () => {
 
     const write = within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem")[1];
     expect(write).toHaveTextContent("Not allowed for your role");
+  });
+
+  // #1148 — a metadata-document app: its domain is checked, its name is not.
+  it("shows a metadata-document app's verified domain instead of the unverified marker", async () => {
+    await show({ ...REQUEST, clientId: "https://claude.ai/oauth/claude-code.json", verifiedDomain: "claude.ai" });
+
+    expect(screen.getByText("Verified domain: claude.ai")).toBeInTheDocument();
+    expect(screen.queryByText("Unverified app")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Details"));
+    const details = screen.getByText("Details").closest("details")!;
+    expect(details).toHaveTextContent(
+      "Cluckwork fetched this app's details from claude.ai itself, so they come from whoever runs claude.ai. "
+      + "The name Claude Desktop is still the app's own choice");
+    expect(details).toHaveTextContent(
+      "an address on this computer. claude.ai cannot vouch for which program on this computer receives it.");
+  });
+
+  it("adds no loopback caveat when a verified app returns to a web host", async () => {
+    await show({ ...REQUEST, verifiedDomain: "claude.ai", redirectHost: "claude.ai" });
+
+    fireEvent.click(screen.getByText("Details"));
+    expect(screen.queryByText(/cannot vouch/)).not.toBeInTheDocument();
   });
 
   it("names a web app's host instead of this computer", async () => {

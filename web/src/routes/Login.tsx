@@ -15,6 +15,7 @@ import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCo
 import { applyDeviceBrand } from "../lib/brand";
 import { returnPath } from "../auth/returnPath";
 import { previewConsent } from "../api/oauth";
+import type { ConsentPreview } from "../api/oauth";
 import { useCachedBannerUrl } from "../lib/bannerCache";
 
 interface LocationState {
@@ -85,11 +86,11 @@ export function Login() {
   // #798 (login B) — sign-in that continues to a connected app's request names the
   // app it continues to. Undefined while asking, null when unnamed or refused.
   const connectSearch = from.startsWith("/connect?") ? from.slice("/connect".length) : null;
-  const [nextApp, setNextApp] = useState<string | null | undefined>(undefined);
+  const [nextApp, setNextApp] = useState<ConsentPreview | null | undefined>(undefined);
   useEffect(() => {
     if (connectSearch === null) return;
     let live = true;
-    void previewConsent(connectSearch).then((name) => { if (live) setNextApp(name); });
+    void previewConsent(connectSearch).then((preview) => { if (live) setNextApp(preview); });
     return () => { live = false; };
   }, [connectSearch]);
 
@@ -233,7 +234,9 @@ export function Login() {
       nextStep={connectSearch !== null && nextApp !== undefined ? (
         <>
           <Typography variant="body2" sx={{ fontWeight: 600, color: "inherit" }}>
-            {nextApp ? t("loginNextHeading", { app: nextApp }) : t("loginNextHeadingUnnamed")}
+            {!nextApp?.clientName ? t("loginNextHeadingUnnamed")
+              : nextApp.verifiedDomain ? t("loginNextHeadingVerified", { app: nextApp.clientName, domain: nextApp.verifiedDomain })
+                : t("loginNextHeading", { app: nextApp.clientName })}
           </Typography>
           <Typography variant="body2" sx={{ color: "inherit", opacity: 0.85 }}>{t("loginNextBody")}</Typography>
         </>
