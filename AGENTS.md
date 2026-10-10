@@ -61,7 +61,7 @@ A wrong guard is worse than none, because it looks safe. → [`407-writing-a-gua
 - A PR that changes what a user sees attaches screenshots: before and after at the same viewport and scenario, after-only for new UI. Capture at 1:1 from a stack rebuilt at the PR head; a long-running sim stack serves the build it started with. Attach with `gh pr comment --attach` or `gh pr create --attach`, never by committing images to a branch.
 - Use the [`verify`](tools/verify/SKILL.md) skill to launch the sim stack, drive it and capture frames. Never reset a sim stack another agent is using. Run `/maintain-verification-skill` after a screen slice lands.
 - Playwright E2E lives in `tools/simulation/ui/` (its README has the suite's rules). Reason about `inert` and the accessibility tree through CDP (`src/ax.ts`), because Playwright's own APIs do not model `inert`. → [`277-spa-e2e.md`](docs/decisions/277-spa-e2e.md)
-- Every user-visible change updates, in the same PR, `specs/product/GLOSSARY.md` when a concept appears or changes meaning, and the SPA Help page and in-app glossary.
+- Every user-visible change updates, in the same PR, `specs/product/GLOSSARY.md` when a concept appears or changes meaning, and the SPA Help page and in-app glossary. The Docs impact workflow (`.github/workflows/docs-impact.yml`) checks part of this and names the fix when it fails; run it before you push with `node .github/scripts/docs-impact.mjs --base origin/main --body-file <file>`.
 
 ## Secrets
 
