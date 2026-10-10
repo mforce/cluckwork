@@ -26,6 +26,8 @@ import urllib.parse
 MAIN = "main"
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
+MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergePullRequest|AutoMerge")
+EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
 REDIRECTS = {">", ">>", ">&", "&>", "&>>"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects"}
@@ -43,7 +45,7 @@ GH_API_BODY = {"-f", "--raw-field", "-F", "--field", "--input"}
 PUSH_YOUR_BRANCH = "Run `git branch --show-current`, then `git push -u origin <that-branch>` (or plain `git push`)."
 MESSAGES = {
     "simple": (
-        "it contains a git write or PR merge, so it must run as its own simple command: one command, optionally "
+        "it contains, or may spell, a git write or PR merge, so it must run as its own simple command: one command, optionally "
         "after `cd <dir> &&`, with no `;`, `||`, `|`, `&`, newlines, comments, subshells, braces, if/for/while, "
         "heredocs, `$(…)`, backticks, variables, unquoted globs, env assignments or wrappers (env, command, timeout, sudo, bash -c). "
         "Allowed forms: `git push -u origin <branch>`, `cd <dir> && git commit -m \"<message>\"`. "
@@ -333,9 +335,10 @@ def check_gh(args, shown):
 
 
 def mentions_write(command):
-    """Text check before parsing: quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be."""
+    """Text check before parsing: quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be.
+    An expansion beside git, gh or a write verb counts too, since it can spell the rest (`/usr/bin/gi? push`)."""
     plain = urllib.parse.unquote(re.sub(r"[\"'\\]", "", command))
-    return MENTIONS_WRITE.search(plain) or ("$'" in command and re.search(r"\b(git|gh)\b", plain))
+    return MENTIONS_WRITE.search(plain) or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain))
 
 
 def check(command, cwd):

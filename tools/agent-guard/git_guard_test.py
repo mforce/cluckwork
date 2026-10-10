@@ -46,6 +46,8 @@ CASES = [
     ("echo ';' git push --force", "main", "allow"),
     ("grep -rn 'gh pr merge' docs", "main", "allow"),
     ("ls -la | wc -l", "main", "allow"),
+    ("ls *.py | wc -l", "main", "allow"),
+    ("gh api 'repos/mforce/cluckwork/pulls?state=open' --jq '.[].number'", "main", "allow"),
     # Merges.
     ("gh pr merge 12 --squash", "feature", "block"),
     ("gh -R mforce/cluckwork pr merge 12", "feature", "block"),
@@ -149,6 +151,10 @@ CASES = [
     ("gh api -X PUT https://api.github.com/repos/mforce/cluckwork/pulls/12/merge/", "feature", "block"),
     ("gh api -X PATCH repos/mforce/cluckwork/pulls/12 -f state=open --jq .mergeable", "feature", "allow"),
     ("rg --pre ./run.sh 'git push' .", "feature", "block"),
+    ("/usr/bin/gi? push --force", "feature", "block"),
+    ("$G push --force", "feature", "block"),
+    ("git $VERB --force", "feature", "block"),
+    ("git -C \"$WT\" status", "feature", "block"),
 ]
 
 MALFORMED = ["", "not json", "{\"tool_name\": \"Bash\"", "{}", "[]", "null", "[" * 100000,
