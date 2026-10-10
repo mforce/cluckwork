@@ -51,6 +51,15 @@ test("a waiver inside a code fence or an HTML comment is not a waiver; a visible
     "```\nan unclosed fence hides the rest\nDocs-impact: none — hidden",
   ];
   for (const body of hidden) assert.equal(waiver(body), null, body);
+  const nested = [
+    "```markdown\n```text\nDocs-impact: none — example from another PR\n```\n```\n",
+    "~~~markdown\n~~~text\nDocs-impact: none — example from another PR\n~~~\n~~~\n",
+    "````\n```\nDocs-impact: none — a shorter fence does not close it\n````\n",
+    "```\n~~~\nDocs-impact: none — the other character does not close it\n```\n",
+  ];
+  for (const body of nested) assert.equal(waiver(body), null, body);
+  const closed = "```js\ncode\n````  \t\nDocs-impact: none — after a longer closing fence with trailing spaces\n";
+  assert.equal(waiver(closed), "Docs-impact: none — after a longer closing fence with trailing spaces");
   const shown = "```\ncode\n```\n<!-- note -->\nDocs-impact: none — labels only, no new concept\n";
   assert.equal(waiver(shown), "Docs-impact: none — labels only, no new concept");
 });
@@ -109,6 +118,11 @@ test("removing a NOT_YET row, or giving a new term a real reason, is fine; so is
   assert.deepEqual(deferralFindings({ base: coverage(baseRows), head: coverage(rest) }), []);
   assert.deepEqual(deferralFindings({ base: coverage(baseRows), head: reasoned }), []);
   assert.deepEqual(deferralFindings({ base: null, head: coverage(baseRows) }), []);
+});
+
+test("a coverage module present at the base but gone at head fails, so a rename cannot retire the check", () => {
+  const [finding] = deferralFindings({ base: coverage(baseRows), head: null });
+  assert.match(finding, /exists at the base but not at head/);
 });
 
 test("a wrapped line that starts with an issue number does not end a term's section", () => {

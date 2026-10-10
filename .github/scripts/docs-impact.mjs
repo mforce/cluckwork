@@ -27,10 +27,22 @@ export const ESCAPE = /^Docs-impact:\s*none\s*(?:—|–|-{1,2})[ \t]+\S/;
 // The waiver line the maintainer will actually see: text inside a fenced code
 // block or an HTML comment is an example or a template note, not a reason.
 export function waiver(body) {
-  const visible = body
-    .replace(/<!--[\s\S]*?(?:-->|$)/g, "")
-    .replace(/^ {0,3}(`{3,}|~{3,}).*$[\s\S]*?(?:^ {0,3}\1.*$|(?![\s\S]))/gm, "");
-  return visible.split("\n").find((line) => ESCAPE.test(line)) ?? null;
+  const visible = [];
+  // CommonMark: a fence closes only on a line of the same character, at least
+  // as long, with nothing after it but spaces or tabs. A backtick fence's info
+  // string cannot contain a backtick, so such a line opens nothing.
+  let fence = null;
+  for (const line of body.replace(/<!--[\s\S]*?(?:-->|$)/g, "").split("\n")) {
+    const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence !== null) {
+      if (m && m[1][0] === fence[0] && m[1].length >= fence.length && /^[ \t]*$/.test(m[2])) fence = null;
+    } else if (m && !(m[1][0] === "`" && m[2].includes("`"))) {
+      fence = m[1];
+    } else {
+      visible.push(line);
+    }
+  }
+  return visible.find((line) => ESCAPE.test(line)) ?? null;
 }
 
 // en.ts as `namespace.key` → string. Namespaces nest one level; a key may
@@ -92,7 +104,10 @@ export function driftFindings({ baseEn, headEn, baseSpec, headSpec, entries }) {
 // compared by term with the base: a term deferred at head but not at the base
 // is new debt. Not escapable by the body line; a real reason row is the way.
 export function deferralFindings({ base, head }) {
-  if (!base || !head) return [];
+  // A base without the module predates it. A head without it means the file
+  // moved or went, and the comparison must move with it, not lapse.
+  if (!base) return [];
+  if (!head) return [`${COVERAGE} exists at the base but not at head. If it moved, update COVERAGE in .github/scripts/docs-impact.mjs in the same PR.`];
   const deferred = ({ SPEC_ONLY, NOT_YET }) => Object.keys(SPEC_ONLY).filter((term) => SPEC_ONLY[term] === NOT_YET);
   const before = new Set(deferred(base));
   return deferred(head).filter((term) => !before.has(term)).map((term) =>
