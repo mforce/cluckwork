@@ -157,7 +157,10 @@ can bring about, so strangers draining the first budget no longer block apps peo
 The second budget is separate rather than an exemption because anyone with an account can
 approve clients of their own: an exemption would let them fetch outside every global
 bound. Total fetches stay at most 120 a minute. Nothing else changes: the copy is
-refreshed, never served stale. The per-URL key is a SHA-256 hash, so no
+refreshed, never served stale. The residual risk is accepted: someone with an account can
+drain the second budget by approving many clients of their own, each with a sign-in and a
+password. That delays refreshes for other approved apps until the window resets. It costs
+availability only, because no expired or refused copy is ever used. The per-URL key is a SHA-256 hash, so no
 client-chosen text reaches the shared store. An exhausted budget refuses with
 `temporarily_unavailable`, and an expired copy never stands in for the refresh, even while
 the budget is spent. A fallback was tried and removed (review round 2). Each failed refresh
