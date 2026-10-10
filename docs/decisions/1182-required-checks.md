@@ -1,4 +1,4 @@
-# Require eight CI checks on `main`, tested against the latest `main` (#1182)
+# Require seven CI checks on `main`, tested against the latest `main` (#1182)
 
 > **Rule** — the one-paragraph version lives in [`.github/AGENTS.md`](../../.github/AGENTS.md);
 > this file is the relocated rationale (what shipped, why the short version was
@@ -18,23 +18,43 @@ GitHub reported #1162 as mergeable, but that only meant it had no conflicts.
 `main` had no required status checks, so nothing required the PR to be tested
 against the `main` it landed on.
 
+The first version of the ruleset required eight checks, including
+`Image build + smoke test (amd64)` and `Image build + smoke test (arm64)`.
+Review found that a documentation-only PR never reports those two names. The
+`image` job's job-level `if:` skips the matrix before its names expand, so the
+skipped job reports one check literally named
+`Image build + smoke test (${{ matrix.arch }})`
+([run 37552204234](https://github.com/mforce/cluckwork/actions/runs/37552204234)).
+Every docs-only PR would have waited at "Expected" forever. The two arch names
+were removed from the ruleset on 2026-10-10, leaving six checks, and `ci.yml`
+gained a summary job with a stable name.
+
 ## The rule
 
-The ruleset "Main required checks" (id 24852475) applies to the default branch
-and requires these eight checks, each pinned to the GitHub Actions app
-(`integration_id` 15368), with "require branches to be up to date before
-merging" on:
+The ruleset "Main required checks" (id 24852475) applies to the default branch,
+with "require branches to be up to date before merging" on. Its end state is
+seven checks, each pinned to the GitHub Actions app (`integration_id` 15368):
 
 - `Build, audit and schema docs`
 - `Tests (domain)`, `Tests (application)`, `Tests (apphost)`, `Tests (integration)`
 - `Web typecheck, test, and build`
-- `Image build + smoke test (amd64)`, `Image build + smoke test (arm64)`
+- `Image build + smoke test`
 
-All eight are `ci.yml` jobs. The names live in the ruleset, not in this
+The seventh is added to the ruleset only after the PR that creates the
+`image-summary` job merges. Requiring it earlier would block every PR whose
+base lacks the job, because none of them can report it.
+
+`Image build + smoke test` is the `image-summary` job. It needs `changes` and
+`image`, runs under `always()`, and passes only when `image` succeeded on every
+leg, or when `image` was skipped and `changes` classified the PR as
+documentation-only. A skip for any other reason, a cancellation or a failure
+fails it. It is not in `publish.needs`, which already waits on `image`.
+
+All seven are `ci.yml` jobs. The names live in the ruleset, not in this
 repository. Renaming a job's `name:` or a matrix value one of them matches
-(`matrix.group`, `matrix.arch`), or adding an `on.pull_request.paths` filter to
-`ci.yml`, leaves a required check stuck at "Expected", and then no PR can
-merge. Such a change MUST update the ruleset in the same PR. Read it with
+(`matrix.group`), or adding an `on.pull_request.paths` filter to `ci.yml`,
+leaves a required check stuck at "Expected", and then no PR can merge. Such a
+change MUST update the ruleset in the same PR. Read it with
 `gh api repos/mforce/cluckwork/rulesets/24852475`.
 
 Strict mode is the point. A PR must merge `main` again whenever `main` moves,
@@ -43,24 +63,34 @@ a merge commit from `origin/main`, never a force-push.
 
 ## Why not the obvious alternative
 
-The obvious move is to require every check CI reports. Four kinds must stay
-out:
+The obvious move is to require every check CI reports. These must stay out:
 
 - **A path-filtered workflow's checks**, such as `e2e-smoke.yml`'s Playwright
   shards. A PR outside the filter never runs them, so a required one waits at
   "Expected" forever. This is the hazard [#782](782-ci-job-gating.md) records
   for `on.pull_request.paths`.
+- **A matrix job that a job-level `if:` can skip.** Skipped, it reports one
+  unexpanded name, not its per-leg names, so a required leg name never appears.
+  This is why `Image build + smoke test (amd64)` and `(arm64)` cannot be
+  required. Any future matrix job like that needs the same summary-job pattern
+  before it can be required.
 - **`Classify the changed paths`.** It is `continue-on-error`, so its reported
   result says nothing; requiring it guards nothing.
 - **CodeQL.** It is advisory here.
-- **Anything a docs-only PR cannot produce.** `web` and `image` are skipped by
-  `if:` on documentation-only PRs (#782). A skipped job satisfies a required
-  check, so requiring them is safe. A filtered-out workflow reports nothing,
-  which does not.
 
-Requiring the checks without pinning `integration_id` would accept a commit
-status of the same name from any source. Any token with status-write access
-could post a fake green. The pin accepts only check runs from GitHub Actions.
+A non-matrix job skipped by `if:` does report its own name as skipped, and a
+skipped job satisfies a required check. That is why `Web typecheck, test, and
+build` can be required although #782 skips it on documentation-only PRs. The
+`Tests (...)` matrix has no job-level `if:`, so its legs always report their
+names.
+
+The `integration_id` pin rejects a same-named status or check from any other
+identity, such as a personal access token. It does not authenticate a
+particular workflow. Every workflow's `GITHUB_TOKEN` acts as the GitHub Actions
+app, so a workflow granted `statuses: write` could post a same-named status
+that the pin accepts. No workflow grants `statuses: write` today, every
+workflow declares its own `permissions:`, and the repository's default token
+permission is read. Review is what keeps it that way.
 
 A merge queue would also test each PR against the `main` it lands on, without
 the manual merge of `main`. It was not chosen for now; strict mode needs no
