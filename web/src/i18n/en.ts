@@ -218,6 +218,8 @@ export const en = {
     // #1149 — only English ships with the app; another language downloads the
     // first time a device switches to it. Shown when that switch happens offline.
     languageNeedsConnection: "{{language}} is not on this device yet. Connect to the internet once to switch to it.",
+    languageSavedReload: "{{language}} is saved for you, but this page could not load it. Select Reload to switch to it.",
+    languageReload: "Reload",
     // #444 — the pack unit YOUR Daily Entry steppers bump by. {{unit}} in the
     // farm-default option is the raw EggUnit code (DATA, e.g. "Tray"), matching
     // how the Products screen renders unit codes.

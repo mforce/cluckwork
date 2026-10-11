@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@mui/material";
 import { putMeLanguage } from "../api/cluckwork";
 import { usePendingAction } from "../components/usePendingAction";
 import i18n, { SUPPORTED_LANGUAGES } from "../i18n";
@@ -19,7 +20,9 @@ export function LanguageSelector() {
   // spinner; a <select> cannot carry one). Called before the early return:
   // hooks are unconditional.
   const { busy, run } = usePendingAction();
-  const [unreachable, setUnreachable] = useState<string | null>(null);
+  // #1149 — why the last switch did not happen. `reload` is set only after the
+  // choice is saved; the page reloads only when the user presses the button.
+  const [notice, setNotice] = useState<{ kind: "offline" | "reload"; language: string } | null>(null);
 
   if (SUPPORTED_LANGUAGES.length <= 1) return null;
 
@@ -40,18 +43,19 @@ export function LanguageSelector() {
       if (!i18n.hasResourceBundle(lang, "common")) {
         // A failed pack stays failed in this document: i18next keeps its load
         // state and Chromium keeps the failed import, so a retry never refetches.
-        // Back online, save the choice and reload; the next document fetches it.
+        // Online, save the choice and offer a reload; the next document fetches
+        // the pack. Never reload unasked: the Account page may hold a draft.
         if (navigator.onLine) {
           await putMeLanguage(lang).catch((err: unknown) => {
             console.warn("Failed to persist language preference", err);
           });
-          globalThis.location.reload();
+          setNotice({ kind: "reload", language: lang });
           return;
         }
-        setUnreachable(lang);
+        setNotice({ kind: "offline", language: lang });
         return;
       }
-      setUnreachable(null);
+      setNotice(null);
       await i18n.changeLanguage(lang);
       // Optimistic: the UI already switched; the preference reconciles from /me
       // on next bootstrap. Log rather than revert (reverting mid-session is jarring).
@@ -72,10 +76,16 @@ export function LanguageSelector() {
           ))}
         </select>
       </label>
-      {unreachable !== null && (
+      {notice !== null && (
         <p role="status" className="muted">
-          {t("languageNeedsConnection", { language: LANGUAGE_NAMES[unreachable] ?? unreachable })}
+          {t(notice.kind === "offline" ? "languageNeedsConnection" : "languageSavedReload",
+            { language: LANGUAGE_NAMES[notice.language] ?? notice.language })}
         </p>
+      )}
+      {notice?.kind === "reload" && (
+        <Button variant="outlined" size="small" onClick={() => globalThis.location.reload()}>
+          {t("languageReload")}
+        </Button>
       )}
     </>
   );
