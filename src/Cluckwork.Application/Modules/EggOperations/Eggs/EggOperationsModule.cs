@@ -81,13 +81,16 @@ public sealed class EggOperationsModule(
             l.Id, l.EggGradeId, l.ProductionDate, l.QuantityProduced,
             l.QuantityAvailable, l.RestrictedUntil, l.DailyEntryId)).ToList();
 
-    public async Task<IReadOnlyList<EggLotMovementDetails>?> ListLotMovementsAsync(Guid lotId, CancellationToken ct)
-    {
-        if (await lots.GetByIdAsync(lotId, ct) is null) return null;
-        return (await movements.ListByLotAsync(lotId, ct)).Select(m => new EggLotMovementDetails(
-            m.Id, m.MovementType, m.QuantityDelta, m.ReferenceType, m.ReferenceId,
-            m.Reason, m.CreatedAtUtc)).ToList();
-    }
+    public async Task<IReadOnlyList<EggLotMovementDetails>?> ListLotMovementsAsync(Guid lotId, CancellationToken ct) =>
+        await lots.GetByIdAsync(lotId, ct) is null ? null : ToDetails(await movements.ListByLotAsync(lotId, ct));
+
+    public async Task<IReadOnlyList<EggLotMovementDetails>?> ListLotMovementsAsync(
+        Guid lotId, int limit, int offset, CancellationToken ct) =>
+        await lots.GetByIdAsync(lotId, ct) is null ? null : ToDetails(await movements.ListByLotAsync(lotId, limit, offset, ct));
+
+    private static List<EggLotMovementDetails> ToDetails(IReadOnlyList<EggInventoryMovement> ledger) =>
+        [.. ledger.Select(m => new EggLotMovementDetails(
+            m.Id, m.MovementType, m.QuantityDelta, m.ReferenceType, m.ReferenceId, m.Reason, m.CreatedAtUtc))];
 
     public Task<Result<RecordEggLotMovementResult>> RecordLotMovementAsync(
         RecordEggLotMovementCommand command, Guid accountId, CancellationToken ct) =>

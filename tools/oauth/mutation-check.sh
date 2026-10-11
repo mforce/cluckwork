@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799, #806 and #1148 OAuth claim has a
+# tools/oauth/mutation-check.sh — proves each #795 to #799, #806, #807 and #1148 OAuth and MCP claim has a
 # test that fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -53,6 +53,17 @@ MCP=src/Cluckwork.Api/Hosting/CluckworkMcp.cs
 FORBIDDEN=src/Cluckwork.Api/Middleware/ForbiddenProblemResultHandler.cs
 POLICIES=src/Cluckwork.Api/AuthPolicies.cs
 TOOL_SURFACE=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurface.cs
+FLOCK_TOOLS=src/Cluckwork.Api/Mcp/FlockTools.cs
+STOCK_TOOLS=src/Cluckwork.Api/Mcp/StockTools.cs
+PAGE=src/Cluckwork.Api/Mcp/McpPage.cs
+FLOCK_ENDPOINTS=src/Cluckwork.Api/Modules/FlockManagement/Flocks/FlockEndpoints.cs
+STOCK_ENDPOINTS=src/Cluckwork.Api/Modules/EggOperations/Stock/StockEndpoints.cs
+FLOCK_SCOPE=src/Cluckwork.Infrastructure/Persistence/FlockScope.cs
+MOVEMENT_REPO=src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggInventoryMovementRepository.cs
+FLOCK_REPO=src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockRepository.cs
+FLOCK_LOOKUP=src/Cluckwork.Application/Modules/FlockManagement/Flocks/FlockLookup.cs
+DB_CONTEXT=src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs
+TEXT_WALK=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurfaceTests.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
@@ -251,6 +262,26 @@ challenge-without-metadata#kill#IDENTITY#? McpAuthenticationDefaults.Authenticat
 metadata-from-request-host#kill#MCP#\n            options.ResourceMetadataUri = new Uri(resource, "/.well-known/oauth-protected-resource" + resource.AbsolutePath);##Mcp.McpAuthorizationTests.Challenge_NamesTheIssuer_NotTheRequestHost#Sub-string not found
 insufficient-scope-unannounced#kill#FORBIDDEN#var onlyScopesFailed = failed.Count > 0 && failed.All(r => r is OAuthScopeRequirement);#var onlyScopesFailed = false;#Mcp.McpAuthorizationTests.TokenWithoutAnMcpScope_Gets403InsufficientScope#Strings differ
 rpc-429-as-problem#kill#LIMITS#if (policyName == RateLimitingOptions.OAuthApiPolicyName)\n                {\n                    context.HttpContext.Response.StatusCode#if (policyName == "none")\n                {\n                    context.HttpContext.Response.StatusCode#Mcp.McpAuthorizationTests.OverTheBudget_Gets429_AsAJsonRpcError#not a JSON-RPC error
+route-tightened#kill#FLOCK_ENDPOINTS#.WithName("ListFlocks")#.WithName("ListFlocks").RequireAuthorization(AuthPolicies.AdminOnly)#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#which ListFlocks denies
+route-renamed#kill#STOCK_ENDPOINTS#.WithName("ListEggLots")#.WithName("ListEggLotsRenamed")#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#mirrors 'ListEggLots', which no endpoint is named
+tool-mirrors-nothing#kill#STOCK_TOOLS#[MirrorsRoute("GetStock")]##Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#declares no [MirrorsRoute]
+read-tool-unpaged#kill#STOCK_TOOLS#public async Task<McpPage<StockRow>> ReadStockAsync#public async Task<object> ReadStockAsync#Mcp.McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage#return Task<McpPage<T>>
+page-without-lookahead#kill#PAGE#var rows = await fetch(take + 1, skip, ct);#var rows = await fetch(take, skip, ct);#Mcp.McpPageTests.AsksForOneRowPastTheClampedLimit#Collections differ
+page-lookahead-ignored#kill#PAGE#if (rows.Count <= take)#if (rows.Count <= take + 1)#Mcp.McpPageTests.MoreThanTheLimit_KeepsThePage_AndContinuesAfterIt#Collections differ
+page-offset-clamped-back#kill#PAGE#var skip = Math.Max(offset, 0);#var skip = Math.Clamp(offset, 0, int.MaxValue - McpPage.MaxLimit);#Mcp.McpPageTests.NearTheIntegerLimit_ContinuesForward_ThenRefuses#No exception was thrown
+page-next-overflows#kill#PAGE#if (next > int.MaxValue)#if (next > int.MaxValue + 1000L)#Mcp.McpPageTests.NearTheIntegerLimit_ContinuesForward_ThenRefuses#No exception was thrown
+page-uncapped#kill#PAGE#Math.Clamp(limit, 1, McpPage.MaxLimit)#Math.Max(limit, 1)#Mcp.McpPageTests.AsksForOneRowPastTheClampedLimit#Collections differ
+flock-id-unchecked#kill#FLOCK_TOOLS#return (await lookup.GetDisplayNamesAsync([id], ct)).GetValueOrDefault(id) ?? throw NotFound(flock);#return new FlockReference(id, flock, Cluckwork.Domain.Modules.FlockManagement.Contracts.FlockStatus.Active);#Mcp.McpReadToolsTests.CrossFarmBearer_ReadsNothingOfTheOtherFarm#"items":[]
+flock-scope-ignored#kill#FLOCK_SCOPE#IsUnrestricted = unrestricted;#IsUnrestricted = true;#Mcp.McpReadToolsTests.AssignedWorker_ReadsOnlyTheirFlocks#Collections differ
+shared-name-first-match#kill#FLOCK_TOOLS#FlockNameResolution.Ambiguous ambiguous => throw new McpException(#FlockNameResolution.Ambiguous ambiguous when ambiguous.Candidates.Count > 0 => ambiguous.Candidates[0], FlockNameResolution.Ambiguous ambiguous => throw new McpException(#Mcp.McpReadToolsTests.SharedFlockName_IsRefusedWithTheCandidates_AndAnIdResolvesIt#"items":[
+reply-free-text#kill#STOCK_TOOLS#string ReferenceType, Guid ReferenceId, DateTimeOffset RecordedAtUtc);#string ReferenceType, Guid ReferenceId, DateTimeOffset RecordedAtUtc, string? Reason = null);#Mcp.McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText#Collections differ
+movements-paged-in-memory#kill#MOVEMENT_REPO#await ByLot(eggLotId).Skip(offset).Take(limit).ToListAsync(ct);#(await ByLot(eggLotId).ToListAsync(ct)).Skip(offset).Take(limit).ToList();#Mcp.McpReadToolsTests.LotMovementPage_ReadsOnlyThePageFromTheDatabase#Collections differ
+name-resolution-unbounded#kill#FLOCK_REPO#.OrderBy(f => f.Id)\n            .Take(limit)#.OrderBy(f => f.Id)#Mcp.McpReadToolsTests.SharedFlockName_ListsBoundedCandidates_AndReadsBoundedRows#Collections differ
+name-candidates-uncapped#kill#FLOCK_LOOKUP#[.. many.Take(FlockNameResolution.MaxCandidates)]#many#Mcp.McpReadToolsTests.SharedFlockName_ListsBoundedCandidates_AndReadsBoundedRows#Values differ
+text-walk-namespace-bound#kill#TEXT_WALK#        if (!seen.Add(type))#        if (type.Namespace?.StartsWith("Cluckwork.Api") != true || !seen.Add(type))#Mcp.McpToolSurfaceTests.TextWalk_ReachesNestedCollectionAndOpaqueText#Assert.Contains() Failure
+text-walk-skips-elements#kill#TEXT_WALK#if (ElementType(type) is { } element)#if (ElementType(type) is { } element && type.IsArray)#Mcp.McpToolSurfaceTests.TextWalk_ReachesNestedCollectionAndOpaqueText#Assert.Contains() Failure
+text-walk-ignores-conditional#kill#TEXT_WALK#&& p.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always)#&& p.GetCustomAttribute<JsonIgnoreAttribute>() is null)#Mcp.McpToolSurfaceTests.TextWalk_FollowsTheSerializer_OnIgnoredProperties#Collections differ
+egg-lot-scope-ignored#kill#DB_CONTEXT#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId\n            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId);#Mcp.McpReadToolsTests.AssignedWorker_ReadsOnlyTheirFlocksEggs#Values differ
 EOF
 )
 
@@ -345,7 +376,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

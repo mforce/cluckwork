@@ -96,7 +96,8 @@ which only classifies binding errors.
   `tools/call` for a tool the caller cannot see with `InvalidRequest` inside a 200. Only the
   endpoint gate answers `insufficient_scope`. A client that follows `tools/list` never calls
   a hidden tool.
-- **Route parity for tools** (guard rows 13 to 15) arrives with the first tool (#807).
+- **Route parity for tools** (guard rows 13 to 15) arrived with the first tools (#807), as
+  `McpRouteParityTests`.
 
 ## How it is enforced
 

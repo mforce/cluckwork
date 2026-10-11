@@ -75,7 +75,24 @@ public sealed class FlockLookupTests
             new(Guid.Parse("00000000-0000-0000-0000-0000000000f2"), "House 1", FlockStatus.Depleted),
         ];
         var resolution = await new FlockLookup(new StubFlocks(null, both)).ResolveByNameAsync("House 1", default);
-        Assert.Equal(both, Assert.IsType<FlockNameResolution.Ambiguous>(resolution).Candidates);
+        var ambiguous = Assert.IsType<FlockNameResolution.Ambiguous>(resolution);
+        Assert.Equal(both, ambiguous.Candidates);
+        Assert.False(ambiguous.MoreExist);
+    }
+
+    // #807: however many flocks share a name, the refusal carries a bounded list and says so.
+    [Theory]
+    [InlineData(FlockNameResolution.MaxCandidates, false)]
+    [InlineData(FlockNameResolution.MaxCandidates + 1, true)]
+    [InlineData(FlockNameResolution.MaxCandidates * 5, true)]
+    public async Task ResolveByName_CapsTheCandidates(int matches, bool moreExist)
+    {
+        var all = Enumerable.Range(1, matches)
+            .Select(i => new FlockReference(Guid.Parse($"00000000-0000-0000-0000-{i:D12}"), "House 1", FlockStatus.Archived)).ToList();
+        var resolution = await new FlockLookup(new StubFlocks(null, all)).ResolveByNameAsync("House 1", default);
+        var ambiguous = Assert.IsType<FlockNameResolution.Ambiguous>(resolution);
+        Assert.Equal(all.Take(FlockNameResolution.MaxCandidates), ambiguous.Candidates);
+        Assert.Equal(moreExist, ambiguous.MoreExist);
     }
 
     private sealed class StubFlocks(Flock? flock, IReadOnlyList<FlockReference>? byName = null) : IFlockRepository
@@ -85,8 +102,8 @@ public sealed class FlockLookupTests
         public Task<Flock?> GetReadOnlyForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct = default) =>
             Task.FromResult(flock);
 
-        public Task<IReadOnlyList<FlockReference>> ListByNameAsync(string name, CancellationToken ct = default) =>
-            Task.FromResult(byName ?? throw new NotSupportedException());
+        public Task<IReadOnlyList<FlockReference>> ListByNameAsync(string name, int limit, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<FlockReference>>([.. (byName ?? throw new NotSupportedException()).Take(limit)]);
 
         public Task<Flock?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<Flock?> GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct = default) =>

@@ -47,9 +47,9 @@ public interface IFlockRepository
     Task<IReadOnlyDictionary<Guid, FlockReference>> GetDisplayNamesAsync(
         IReadOnlyCollection<Guid> flockIds, CancellationToken ct = default);
 
-    // #852 — every visible flock with exactly this name, ordered by id, through
+    // #852 — up to limit visible flocks with exactly this name, ordered by id, through
     // the same filtered set as GetDisplayNamesAsync. Duplicate names are legal.
-    Task<IReadOnlyList<FlockReference>> ListByNameAsync(string name, CancellationToken ct = default);
+    Task<IReadOnlyList<FlockReference>> ListByNameAsync(string name, int limit, CancellationToken ct = default);
 
     // Write-side lifecycle lookup (#388). Bypasses the request-start flock
     // snapshot after the live FlockScopeGuard succeeds, but reinstates AccountId

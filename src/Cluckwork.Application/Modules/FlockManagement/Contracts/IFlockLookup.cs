@@ -20,7 +20,8 @@ public interface IFlockLookup
         IReadOnlyCollection<Guid> ids, CancellationToken ct);
 
     // Exact name match across every status. Duplicate names are legal, so a
-    // caller must handle Ambiguous rather than take the first match.
+    // caller must handle Ambiguous rather than take the first match. Reads at
+    // most MaxCandidates + 1 rows, however many flocks share the name (#807).
     Task<FlockNameResolution> ResolveByNameAsync(string name, CancellationToken ct);
 }
 
@@ -42,12 +43,14 @@ public sealed record FlockDetails(
 
 public abstract record FlockNameResolution
 {
+    public const int MaxCandidates = 10;
+
     private FlockNameResolution() { }
 
     public sealed record Found(FlockReference Flock) : FlockNameResolution;
 
     public sealed record NotFound : FlockNameResolution;
 
-    // Ordered by id.
-    public sealed record Ambiguous(IReadOnlyList<FlockReference> Candidates) : FlockNameResolution;
+    // The first MaxCandidates by id; MoreExist when further flocks share the name.
+    public sealed record Ambiguous(IReadOnlyList<FlockReference> Candidates, bool MoreExist) : FlockNameResolution;
 }

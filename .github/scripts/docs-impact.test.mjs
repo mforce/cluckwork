@@ -4,7 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ESCAPE, deferralFindings, driftFindings, newStringFindings, termSections, waiver } from "./docs-impact.mjs";
+import { ESCAPE, deferralFindings, driftFindings, newStringFindings, waiver } from "./docs-impact.mjs";
+import { termSections } from "../../web/src/routes/glossaryCoverage.ts";
 
 const catalog = (entries) => new Map(Object.entries(entries));
 const base = catalog({ "expenses.dateHeader": "Date", "help.expenses": "Expenses are…" });

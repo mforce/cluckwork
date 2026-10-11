@@ -1,6 +1,10 @@
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -31,6 +35,109 @@ public sealed class McpToolSurfaceTests
         Assert.Contains(typeof(McpCallContext), mcpTypes);
         AssertNone(McpToolSurface.ScopeOpenerDeclarations(mcpTypes));
     }
+
+    // #807, row 31: a read tool's reply says whether it is complete and where to continue.
+    [Fact]
+    public void RealTree_EveryReadToolReturnsAPage()
+    {
+        var reads = ReadTools().ToList();
+
+        Assert.True(reads.Count >= 5, $"the walk found {reads.Count} read tools");
+        AssertNone([.. reads.Where(m => !(m.ReturnType.IsGenericType && m.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
+                && m.ReturnType.GetGenericArguments()[0].IsGenericType
+                && m.ReturnType.GetGenericArguments()[0].GetGenericTypeDefinition() == typeof(McpPage<>)))
+            .Select(m => $"{m.DeclaringType!.FullName}.{m.Name} returns {m.ReturnType.Name}; return Task<McpPage<T>>")]);
+    }
+
+    // #792: phase 1 tools return no farm-entered free text. Every text field a read tool
+    // returns is listed here with why it is not one, so a new note or reason field fails.
+    private static readonly string[] ReplyText =
+    [
+        "DailyEntryRow.FlockName", // a flock's name: the label tools address flocks by, set by Owner or Manager
+        "DailyEntryRow.Status", // enum
+        "EggLotMovementRow.MovementType", // enum
+        "EggLotMovementRow.ReferenceType", // the source record's type name, set by code
+        "EggLotRow.Grade", // a grade's name, set by Owner or Manager
+        "FlockRow.Name",
+        "FlockRow.Status", // enum
+        "GradeCount.Grade",
+        "StockRow.Grade",
+    ];
+
+    [Fact]
+    public void RealTree_ReadToolRepliesReturnOnlyReviewedText() =>
+        Assert.Equal(ReplyText.Order(), ReadTools().SelectMany(m => TextFields(m.ReturnType, m.Name, [])).Distinct().Order());
+
+    // The walk reaches text a serializer would emit from any namespace, inside a collection
+    // or array, and refuses a reply shape it cannot see into.
+    [Theory]
+    [InlineData(typeof(NestedContractRow), "DailyEntryDetails.AdjustReason")]
+    [InlineData(typeof(NestedContractRow), "DailyEntryDetails.VoidReason")]
+    [InlineData(typeof(TextCollectionRow), "TextCollectionRow.Notes")]
+    [InlineData(typeof(TextCollectionRow), "TextCollectionRow.Tags")]
+    [InlineData(typeof(OpaqueRow), "OpaqueRow.Extra is opaque")]
+    [InlineData(typeof(OpaqueRow), "OpaqueRow.Raw is opaque")]
+    public void TextWalk_ReachesNestedCollectionAndOpaqueText(Type row, string field) =>
+        Assert.Contains(field, TextFields(typeof(Task<>).MakeGenericType(typeof(McpPage<>).MakeGenericType(row)), "Fixture", []));
+
+    // A conditionally ignored property still serializes when it holds a value; only an
+    // always-ignored one never does. The walk agrees with the serializer on both.
+    [Fact]
+    public void TextWalk_FollowsTheSerializer_OnIgnoredProperties()
+    {
+        var json = JsonSerializer.Serialize(new IgnoredRow("farm-entered note", "never sent"), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var fields = TextFields(typeof(IgnoredRow), "Fixture", []);
+
+        Assert.Equal("""{"reason":"farm-entered note"}""", json);
+        Assert.Equal(["IgnoredRow.Reason"], fields);
+    }
+
+    private static IEnumerable<MethodInfo> ReadTools() =>
+        McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
+            .Where(m => m.GetCustomAttribute<ModelContextProtocol.Server.McpServerToolAttribute>()!.ReadOnly);
+
+    // Follows a reply the way System.Text.Json serializes it: Task<T> to T, a nullable to its
+    // value, a collection or array to its element, any other type to its public properties.
+    // A text field is keyed by the property holding it.
+    private static IReadOnlyList<string> TextFields(Type type, string holder, HashSet<Type> seen)
+    {
+        if (type == typeof(string) || type == typeof(char))
+            return [holder];
+        if (Nullable.GetUnderlyingType(type) is { } value)
+            return TextFields(value, holder, seen);
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Task<>))
+            return TextFields(type.GetGenericArguments()[0], holder, seen);
+        if (ElementType(type) is { } element)
+            return TextFields(element, holder, seen);
+        if (type == typeof(object) || type == typeof(JsonElement) || typeof(JsonNode).IsAssignableFrom(type) || type.IsInterface)
+            return [$"{holder} is opaque"];
+        if (type.IsPrimitive || type.IsEnum || type == typeof(decimal) || type == typeof(Guid) || type == typeof(DateOnly)
+            || type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeOnly) || type == typeof(TimeSpan))
+            return [];
+        if (!seen.Add(type))
+            return [];
+        return [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0
+                && p.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always)
+            .SelectMany(p => TextFields(p.PropertyType, $"{type.Name}.{p.Name}", seen))];
+    }
+
+    private static Type? ElementType(Type type) =>
+        type.IsArray ? type.GetElementType()
+        : type == typeof(string) ? null
+        : new[] { type }.Concat(type.GetInterfaces())
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            ?.GetGenericArguments()[0];
+
+    private sealed record NestedContractRow(Guid Id, DailyEntryDetails Entry);
+
+    private sealed record TextCollectionRow(Guid Id, IReadOnlyList<string> Notes, string[] Tags);
+
+    private sealed record OpaqueRow(Guid Id, object Extra, JsonElement Raw);
+
+    private sealed record IgnoredRow(
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason,
+        [property: JsonIgnore] string Hidden);
 
     [Fact]
     public void ToolsTakingTheContext_HaveNoFindings() =>
