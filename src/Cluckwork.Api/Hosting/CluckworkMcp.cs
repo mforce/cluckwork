@@ -1,14 +1,18 @@
+using System.Reflection;
+using System.Text.Json.Nodes;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.AspNetCore.Authentication;
 using ModelContextProtocol.Authentication;
+using ModelContextProtocol.Server;
 using OpenIddict.Validation.AspNetCore;
 
 namespace Cluckwork.Api.Hosting;
@@ -29,8 +33,8 @@ internal static class CluckworkMcp
         // tool in the HTTP request's own scope, which McpCallContext then checks.
         services.AddMcpServer()
             .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
-            .AddAuthorizationFilters()
-            .WithToolsFromAssembly(typeof(McpCallContext).Assembly);
+            .AddAuthorizationFilters();
+        AddTools(services);
 
         // The scheme the bearer selector picks for every AcceptOAuthTokens endpoint. It
         // authenticates through OpenIddict validation, answers a challenge with the
@@ -49,6 +53,32 @@ internal static class CluckworkMcp
                 ResourceName = "Cluckwork",
             };
         });
+    }
+
+    // WithToolsFromAssembly, plus the schema options it does not take (#1230).
+    private static void AddTools(IServiceCollection services)
+    {
+        var schema = new AIJsonSchemaCreateOptions { TransformSchemaNode = WithoutNull };
+        foreach (var type in typeof(McpCallContext).Assembly.GetTypes().Where(t => t.IsDefined(typeof(McpServerToolTypeAttribute))))
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Where(m => m.IsDefined(typeof(McpServerToolAttribute))))
+            services.AddSingleton(sp => McpServerTool.Create(method,
+                r => ActivatorUtilities.CreateInstance(r.Services!, type),
+                new McpServerToolCreateOptions { Services = sp, SchemaCreateOptions = schema }));
+    }
+
+    // An omitted parameter binds to its default, so a client never needs to send null.
+    // Some clients mishandle a ["string","null"] union, and a nullable reference type's
+    // element or property reads as nullable to the schema exporter whatever it declares.
+    private static JsonNode WithoutNull(AIJsonSchemaCreateContext context, JsonNode node)
+    {
+        if (node is JsonObject schema && schema["type"] is JsonArray types)
+        {
+            string[] rest = [.. types.Select(t => t!.GetValue<string>()).Where(t => t != "null")];
+            schema["type"] = rest.Length == 1 ? rest[0] : new JsonArray([.. rest.Select(t => JsonValue.Create(t))]);
+            if (schema.TryGetPropertyValue("default", out var value) && value is null)
+                schema.Remove("default");
+        }
+        return node;
     }
 
     // RFC 6750 §3 and RFC 9728 §5.1: a refused OAuth token is answered with a bearer

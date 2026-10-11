@@ -54,9 +54,6 @@ internal static class FilterFreeSetSites
 {
     internal static IReadOnlyList<FilterFreeSetSite> All { get; } =
     [
-        new("Cluckwork.Api.Middleware.IdempotentUnit.TryClaimOrInspectAsync(IdempotencyScope scope, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)",
-            "db.IdempotencyRecords", "5a00a5f9",
-            "by-key: unique index (AccountId, EndpointHash, IdempotencyKeyHash) is enforced by the DB; the scope carries AccountId and the record is written with it. The claim read is by (EndpointHash, KeyHash) within the caller's resolved account."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.AccessSeedLookup.OwnerRoleExistsAsync(CancellationToken ct)",
             "db.Roles", "36c0e024",
             "global-reference: non-Production simulation fixture port (#858) checks the migration-baked Owner role (AspNetRoles is farm-wide reference data); the seeder calls it at unresolved tenant by design (#279)."),

@@ -43,7 +43,7 @@ public sealed class DailyEntryTools(
             + "may record again. Before retrying an older call, check the current entry with "
             + "cluckwork_list_daily_entries, or ask a person when this connection cannot read.")]
         string idempotencyKey,
-        [Description("The flock's exact name, or its id when several flocks share the name.")] string flock,
+        [Description("The flock's name, ignoring case, or its id when several flocks share the name.")] string flock,
         [Description("The production day, YYYY-MM-DD.")] DateOnly date,
         int totalEggs,
         int crackedEggs,

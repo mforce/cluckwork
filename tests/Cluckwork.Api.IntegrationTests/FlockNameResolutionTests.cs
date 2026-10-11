@@ -62,6 +62,30 @@ public sealed class FlockNameResolutionTests(CluckworkWebApplicationFactory fact
         Assert.Equal(new FlockReference(assigned, name, FlockStatus.Active), found.Flock);
     }
 
+    // #1228: models often lower-case a name they copy from a person's message.
+    [Fact]
+    public async Task Name_MatchesIgnoringCase()
+    {
+        var farm = await factory.SeedAccountWithUserAsync($"c-{Guid.NewGuid():N}@test.local");
+        var name = $"Barn A {Guid.NewGuid():N}";
+        var id = await SeedFlockAsync(farm, name);
+
+        var found = Assert.IsType<FlockNameResolution.Found>(await ResolveAsync(farm, name.ToLowerInvariant()));
+        Assert.Equal(new FlockReference(id, name, FlockStatus.Active), found.Flock);
+    }
+
+    [Fact]
+    public async Task NamesDifferingOnlyInCase_AreAmbiguous()
+    {
+        var farm = await factory.SeedAccountWithUserAsync($"c-{Guid.NewGuid():N}@test.local");
+        var suffix = Guid.NewGuid().ToString("N");
+        var upper = await SeedFlockAsync(farm, $"Barn A {suffix}");
+        var lower = await SeedFlockAsync(farm, $"barn a {suffix}");
+
+        var ambiguous = Assert.IsType<FlockNameResolution.Ambiguous>(await ResolveAsync(farm, $"BARN A {suffix}"));
+        Assert.Equal(new[] { upper, lower }.Order(), ambiguous.Candidates.Select(c => c.Id).Order());
+    }
+
     [Fact]
     public async Task NameOnlyInAnotherFarm_IsNotFound()
     {
