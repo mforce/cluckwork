@@ -26,7 +26,6 @@ public sealed partial class FileSizeLimitTests
     {
         ["src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.cs"] = 711,
         ["src/Cluckwork.Api/Program.cs"] = 685,
-        ["src/Cluckwork.Domain/Modules/Commerce/Sales/SalesOrder.cs"] = 595,
         ["src/Cluckwork.Domain/Modules/Farm/Media/ImageSanitizer.cs"] = 741,
         ["src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs"] = 2156,
         ["src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs"] = 2785,
