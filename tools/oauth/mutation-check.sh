@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799, #806 and #1148 OAuth claim has a
+# tools/oauth/mutation-check.sh — proves each #795 to #799, #806, #807 and #1148 OAuth and MCP claim has a
 # test that fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -53,6 +53,12 @@ MCP=src/Cluckwork.Api/Hosting/CluckworkMcp.cs
 FORBIDDEN=src/Cluckwork.Api/Middleware/ForbiddenProblemResultHandler.cs
 POLICIES=src/Cluckwork.Api/AuthPolicies.cs
 TOOL_SURFACE=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurface.cs
+FLOCK_TOOLS=src/Cluckwork.Api/Mcp/FlockTools.cs
+STOCK_TOOLS=src/Cluckwork.Api/Mcp/StockTools.cs
+PAGE=src/Cluckwork.Api/Mcp/McpPage.cs
+FLOCK_ENDPOINTS=src/Cluckwork.Api/Modules/FlockManagement/Flocks/FlockEndpoints.cs
+STOCK_ENDPOINTS=src/Cluckwork.Api/Modules/EggOperations/Stock/StockEndpoints.cs
+FLOCK_SCOPE=src/Cluckwork.Infrastructure/Persistence/FlockScope.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
@@ -251,6 +257,16 @@ challenge-without-metadata#kill#IDENTITY#? McpAuthenticationDefaults.Authenticat
 metadata-from-request-host#kill#MCP#\n            options.ResourceMetadataUri = new Uri(resource, "/.well-known/oauth-protected-resource" + resource.AbsolutePath);##Mcp.McpAuthorizationTests.Challenge_NamesTheIssuer_NotTheRequestHost#Sub-string not found
 insufficient-scope-unannounced#kill#FORBIDDEN#var onlyScopesFailed = failed.Count > 0 && failed.All(r => r is OAuthScopeRequirement);#var onlyScopesFailed = false;#Mcp.McpAuthorizationTests.TokenWithoutAnMcpScope_Gets403InsufficientScope#Strings differ
 rpc-429-as-problem#kill#LIMITS#if (policyName == RateLimitingOptions.OAuthApiPolicyName)\n                {\n                    context.HttpContext.Response.StatusCode#if (policyName == "none")\n                {\n                    context.HttpContext.Response.StatusCode#Mcp.McpAuthorizationTests.OverTheBudget_Gets429_AsAJsonRpcError#not a JSON-RPC error
+route-tightened#kill#FLOCK_ENDPOINTS#.WithName("ListFlocks")#.WithName("ListFlocks").RequireAuthorization(AuthPolicies.AdminOnly)#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#which ListFlocks denies
+route-renamed#kill#STOCK_ENDPOINTS#.WithName("ListEggLots")#.WithName("ListEggLotsRenamed")#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#mirrors 'ListEggLots', which no endpoint is named
+tool-mirrors-nothing#kill#STOCK_TOOLS#[MirrorsRoute("GetStock")]##Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#declares no [MirrorsRoute]
+read-tool-unpaged#kill#STOCK_TOOLS#public async Task<McpPage<StockRow>> ReadStockAsync#public async Task<object> ReadStockAsync#Mcp.McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage#return Task<McpPage<T>>
+page-without-lookahead#kill#FLOCK_TOOLS#SearchAsync(nameContains, eligibility, take + 1, skip, ct)#SearchAsync(nameContains, eligibility, take, skip, ct)#Mcp.McpReadToolsTests.EveryReadTool_PagesWithCompletenessAndContinuation#Assert.False() Failure
+page-uncapped#kill#PAGE#Math.Clamp(limit, 1, MaxLimit)#Math.Max(limit, 1)#Mcp.McpReadToolsTests.OversizedLimit_IsCappedAndSaysSo#Values differ
+flock-id-unchecked#kill#FLOCK_TOOLS#return (await lookup.GetDisplayNamesAsync([id], ct)).GetValueOrDefault(id) ?? throw NotFound(flock);#return new FlockReference(id, flock, Cluckwork.Domain.Modules.FlockManagement.Contracts.FlockStatus.Active);#Mcp.McpReadToolsTests.CrossFarmBearer_ReadsNothingOfTheOtherFarm#"items":[]
+flock-scope-ignored#kill#FLOCK_SCOPE#IsUnrestricted = unrestricted;#IsUnrestricted = true;#Mcp.McpReadToolsTests.AssignedWorker_ReadsOnlyTheirFlocks#Collections differ
+shared-name-first-match#kill#FLOCK_TOOLS#FlockNameResolution.Ambiguous ambiguous => throw new McpException(#FlockNameResolution.Ambiguous ambiguous when ambiguous.Candidates.Count > 0 => ambiguous.Candidates[0], FlockNameResolution.Ambiguous ambiguous => throw new McpException(#Mcp.McpReadToolsTests.SharedFlockName_IsRefusedWithTheCandidates_AndAnIdResolvesIt#"items":[
+reply-free-text#kill#STOCK_TOOLS#string ReferenceType, Guid ReferenceId, DateTimeOffset RecordedAtUtc);#string ReferenceType, Guid ReferenceId, DateTimeOffset RecordedAtUtc, string? Reason = null);#Mcp.McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText#Collections differ
 EOF
 )
 
@@ -345,7 +361,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

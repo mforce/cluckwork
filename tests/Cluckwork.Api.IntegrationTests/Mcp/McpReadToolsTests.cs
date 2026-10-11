@@ -130,11 +130,11 @@ public sealed class McpReadToolsTests(CluckworkWebApplicationFactory factory)
         var arguments = tool == "cluckwork_list_egg_lot_movements" ? new Dictionary<string, object?> { ["lotId"] = lot } : [];
 
         var first = await PageAsync<JsonElement>(client, tool, new(arguments) { ["limit"] = 1 });
-        var rest = await PageAsync<JsonElement>(client, tool, new(arguments) { ["limit"] = 1, ["offset"] = first.NextOffset });
-
         Assert.Single(first.Items);
         Assert.False(first.Complete);
         Assert.Equal(1, first.NextOffset);
+
+        var rest = await PageAsync<JsonElement>(client, tool, new(arguments) { ["limit"] = 1, ["offset"] = first.NextOffset });
         Assert.Single(rest.Items);
         Assert.True(rest.Complete);
         Assert.Null(rest.NextOffset);
