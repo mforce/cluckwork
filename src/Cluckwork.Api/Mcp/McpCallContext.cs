@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
 
@@ -25,6 +26,9 @@ public sealed class McpCallContext
     public ConnectedApp ConnectedApp { get; }
     public bool IsFlockRestricted { get; }
     public IReadOnlyCollection<Guid> AssignedFlockIds { get; }
+
+    // The request's principal, for a tool that asks a policy inside its body (#808).
+    public ClaimsPrincipal User { get; }
 
     public McpCallContext(
         IHttpContextAccessor httpContextAccessor,
@@ -62,6 +66,7 @@ public sealed class McpCallContext
         Email = user.Email;
         IsFlockRestricted = !flockScope.IsUnrestricted;
         AssignedFlockIds = flockScope.AssignedFlockIds;
+        User = httpContext.User;
     }
 
     private static InvalidOperationException Refused(string reason) =>

@@ -27,7 +27,7 @@ public sealed class McpRouteParityTests(CluckworkWebApplicationFactory factory)
     {
         var tools = McpToolSurface.ToolTypes(typeof(McpCallContext).Assembly.GetTypes()).ToList();
 
-        Assert.True(tools.SelectMany(McpToolSurface.ToolMethods).Count() >= 5, "the walk found fewer tools than #807 shipped");
+        Assert.True(tools.SelectMany(McpToolSurface.ToolMethods).Count() >= 9, "the walk found fewer tools than #807 and #808 shipped");
         AssertNone(await FindingsAsync(tools));
     }
 

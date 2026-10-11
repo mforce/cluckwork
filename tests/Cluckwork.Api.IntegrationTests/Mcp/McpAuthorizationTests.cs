@@ -28,6 +28,11 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         "cluckwork_list_flocks", "cluckwork_read_stock",
     ];
 
+    // The commerce read tools (#808): customers and orders admit every role but ReadOnly,
+    // payments and balances only the Sales tier.
+    private static readonly string[] SalesFlowTools = ["cluckwork_list_customers", "cluckwork_list_sales_orders"];
+    private static readonly string[] SalesAccessTools = ["cluckwork_list_customer_balances", "cluckwork_list_order_payments"];
+
     [Theory]
     [InlineData("2026-07-28")]
     [InlineData("2025-11-25")]
@@ -60,8 +65,10 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         await using var client = await ConnectAsync(host, token);
         var tools = await client.ListToolsAsync();
 
-        // The real read tools (#807) admit every role and need farm:read.
-        string[] reads = scopes.Contains(OAuthScopes.ReadFarm) ? ReadTools : [];
+        // The real read tools need farm:read; #807's admit every role.
+        string[] reads = !scopes.Contains(OAuthScopes.ReadFarm) ? []
+            : role == Roles.ReadOnly ? ReadTools
+            : [.. ReadTools, .. SalesFlowTools, .. SalesAccessTools];
         Assert.Equal(expected.Concat(reads).Order(), tools.Select(t => t.Name).Order());
     }
 

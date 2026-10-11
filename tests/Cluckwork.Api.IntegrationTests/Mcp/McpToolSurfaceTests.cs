@@ -42,7 +42,7 @@ public sealed class McpToolSurfaceTests
     {
         var reads = ReadTools().ToList();
 
-        Assert.True(reads.Count >= 5, $"the walk found {reads.Count} read tools");
+        Assert.True(reads.Count >= 9, $"the walk found {reads.Count} read tools");
         AssertNone([.. reads.Where(m => !(m.ReturnType.IsGenericType && m.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
                 && m.ReturnType.GetGenericArguments()[0].IsGenericType
                 && m.ReturnType.GetGenericArguments()[0].GetGenericTypeDefinition() == typeof(McpPage<>)))
@@ -53,6 +53,8 @@ public sealed class McpToolSurfaceTests
     // returns is listed here with why it is not one, so a new note or reason field fails.
     private static readonly string[] ReplyText =
     [
+        "CustomerBalanceRow.Customer", // a customer's name: an identifier, at most 120 characters (#792, 2026-10-11)
+        "CustomerRow.Name",
         "DailyEntryRow.FlockName", // a flock's name: the label tools address flocks by, set by Owner or Manager
         "DailyEntryRow.Status", // enum
         "EggLotMovementRow.MovementType", // enum
@@ -61,6 +63,15 @@ public sealed class McpToolSurfaceTests
         "FlockRow.Name",
         "FlockRow.Status", // enum
         "GradeCount.Grade",
+        "McpMoney.Amount", // a decimal rendered from minor units
+        "McpMoney.Currency", // an ISO currency code
+        "PaymentRow.Method", // enum
+        "SalesOrderLine.Grade",
+        "SalesOrderLine.Unit", // enum
+        "SalesOrderRow.Customer",
+        "SalesOrderRow.DiscountReason", // enum
+        "SalesOrderRow.Reference", // "SO-" and eight hex digits, set by code
+        "SalesOrderRow.Status", // enum
         "StockRow.Grade",
     ];
 
@@ -96,30 +107,54 @@ public sealed class McpToolSurfaceTests
         McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
             .Where(m => m.GetCustomAttribute<ModelContextProtocol.Server.McpServerToolAttribute>()!.ReadOnly);
 
+    // Row 28 (#808): an amount crosses as McpMoney's decimal string, so no reply field names
+    // minor units, whether an amount or the currency's exponent beside one.
+    [Fact]
+    public void RealTree_ReadToolRepliesCarryNoMinorUnits()
+    {
+        var fields = ReadTools().SelectMany(m => Leaves(m.ReturnType, m.Name, [])).Select(l => l.Holder).Distinct().ToList();
+
+        Assert.Contains("McpMoney.Amount", fields);
+        AssertNone([.. fields.Where(IsMinorUnits)]);
+    }
+
+    [Theory]
+    [InlineData(typeof(RawAmountRow), "RawAmountRow.TotalMinorUnits")]
+    [InlineData(typeof(RawAmountRow), "RawAmountRow.CurrencyMinorUnit")]
+    [InlineData(typeof(DomainMoneyRow), "Money.MinorUnits")]
+    public void MoneyWalk_ReachesRawAndNestedMinorUnits(Type row, string field) =>
+        Assert.Contains(field, Leaves(typeof(McpPage<>).MakeGenericType(row), "Fixture", []).Select(l => l.Holder).Where(IsMinorUnits));
+
+    private static bool IsMinorUnits(string holder) => holder.Contains("MinorUnit", StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyList<string> TextFields(Type type, string holder, HashSet<Type> seen) =>
+        [.. Leaves(type, holder, seen).Where(l => l.Type is null || l.Type == typeof(string) || l.Type == typeof(char))
+            .Select(l => l.Type is null ? $"{l.Holder} is opaque" : l.Holder)];
+
     // Follows a reply the way System.Text.Json serializes it: Task<T> to T, a nullable to its
     // value, a collection or array to its element, any other type to its public properties.
-    // A text field is keyed by the property holding it.
-    private static IReadOnlyList<string> TextFields(Type type, string holder, HashSet<Type> seen)
+    // A leaf is keyed by the property holding it; an opaque one has no type.
+    private static IReadOnlyList<(string Holder, Type? Type)> Leaves(Type type, string holder, HashSet<Type> seen)
     {
         if (type == typeof(string) || type == typeof(char))
-            return [holder];
+            return [(holder, type)];
         if (Nullable.GetUnderlyingType(type) is { } value)
-            return TextFields(value, holder, seen);
+            return Leaves(value, holder, seen);
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Task<>))
-            return TextFields(type.GetGenericArguments()[0], holder, seen);
+            return Leaves(type.GetGenericArguments()[0], holder, seen);
         if (ElementType(type) is { } element)
-            return TextFields(element, holder, seen);
+            return Leaves(element, holder, seen);
         if (type == typeof(object) || type == typeof(JsonElement) || typeof(JsonNode).IsAssignableFrom(type) || type.IsInterface)
-            return [$"{holder} is opaque"];
+            return [(holder, null)];
         if (type.IsPrimitive || type.IsEnum || type == typeof(decimal) || type == typeof(Guid) || type == typeof(DateOnly)
             || type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeOnly) || type == typeof(TimeSpan))
-            return [];
+            return [(holder, type)];
         if (!seen.Add(type))
             return [];
         return [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.GetIndexParameters().Length == 0
                 && p.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always)
-            .SelectMany(p => TextFields(p.PropertyType, $"{type.Name}.{p.Name}", seen))];
+            .SelectMany(p => Leaves(p.PropertyType, $"{type.Name}.{p.Name}", seen))];
     }
 
     private static Type? ElementType(Type type) =>
@@ -134,6 +169,10 @@ public sealed class McpToolSurfaceTests
     private sealed record TextCollectionRow(Guid Id, IReadOnlyList<string> Notes, string[] Tags);
 
     private sealed record OpaqueRow(Guid Id, object Extra, JsonElement Raw);
+
+    private sealed record RawAmountRow(Guid Id, long TotalMinorUnits, int CurrencyMinorUnit);
+
+    private sealed record DomainMoneyRow(Guid Id, Domain.Common.Money Total);
 
     private sealed record IgnoredRow(
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason,
