@@ -43,10 +43,14 @@ public sealed class McpToolSurfaceTests
     }
 
     [Fact]
-    public void WriteToolWithoutAKey_IsAFinding_AndAReadOrAKeyedWriteIsNot() =>
+    public void WriteToolWithoutARequiredKey_IsAFinding_AndAReadOrAKeyedWriteIsNot() =>
         Assert.Equal(
-            [$"{typeof(KeylessWriteTool).FullName}.Write writes without a string idempotencyKey parameter"],
-            McpToolSurface.WriteToolFindings([typeof(KeylessWriteTool), typeof(KeyedWriteTool), typeof(KeylessReadTool)]));
+            [
+                $"{typeof(KeylessWriteTool).FullName}.Write writes without a required string idempotencyKey parameter",
+                $"{typeof(OptionalKeyWriteTool).FullName}.Write writes without a required string idempotencyKey parameter",
+            ],
+            McpToolSurface.WriteToolFindings(
+                [typeof(KeylessWriteTool), typeof(OptionalKeyWriteTool), typeof(KeyedWriteTool), typeof(KeylessReadTool)]));
 
     [Fact]
     public void ToolsTakingTheContext_HaveNoFindings() =>
@@ -247,6 +251,13 @@ public sealed class McpToolSurfaceTests
     {
         [ModelContextProtocol.Server.McpServerTool]
         public string Write(int eggs) => $"{call.UserId} {eggs}";
+    }
+
+    [McpServerToolType]
+    private sealed class OptionalKeyWriteTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool]
+        public string Write(int eggs, string idempotencyKey = "shared") => $"{call.UserId} {idempotencyKey} {eggs}";
     }
 
     [McpServerToolType]
