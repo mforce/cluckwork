@@ -402,7 +402,22 @@ describe("language packs on an uncontrolled page", () => {
     const { container } = stubEnv({ controller });
     Object.assign(container, { ready: Promise.resolve() });
     vi.stubGlobal("location", { reload: vi.fn(), origin: "https://farm.example" });
-    const cache = { addAll: vi.fn((_urls: string[]) => Promise.resolve()) };
+    // Behaves like Cache Storage: `add` stores one URL or rejects, and `addAll`
+    // stores nothing when any URL in the batch fails.
+    const stored = new Set<string>();
+    const failing = new Set<string>();
+    const cache = {
+      add: vi.fn((url: string) => {
+        if (failing.has(url)) return Promise.reject(new TypeError("Failed to fetch"));
+        stored.add(url);
+        return Promise.resolve();
+      }),
+      addAll: vi.fn((urls: string[]) => {
+        if (urls.some((url) => failing.has(url))) return Promise.reject(new TypeError("Failed to fetch"));
+        for (const url of urls) stored.add(url);
+        return Promise.resolve();
+      }),
+    };
     vi.stubGlobal("caches", { open: vi.fn(() => Promise.resolve(cache)) });
     let deliver: ((names: string[]) => void) | undefined;
     const observe = vi.fn();
@@ -413,7 +428,7 @@ describe("language packs on an uncontrolled page", () => {
       observe = observe;
       disconnect() {}
     });
-    return { cache, observe, deliver: (names: string[]) => deliver?.(names) };
+    return { cache, stored, failing, observe, deliver: (names: string[]) => deliver?.(names) };
   }
 
   it("copies a pack the page loaded into the language-packs cache once the worker is ready", async () => {
@@ -426,9 +441,9 @@ describe("language packs on an uncontrolled page", () => {
       "https://farm.example/assets/index-abc123.js",
       "https://cdn.example/assets/tl-abc123.js",
     ]);
-    await vi.waitFor(() => expect(cache.addAll).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(cache.add).toHaveBeenCalledTimes(1));
     expect(globalThis.caches.open).toHaveBeenCalledWith("language-packs");
-    expect(cache.addAll).toHaveBeenCalledWith(["https://farm.example/assets/es-abc123.js"]);
+    expect(cache.add).toHaveBeenCalledWith("https://farm.example/assets/es-abc123.js");
 
     // The copy joins the route's four-entry expiration, then expiry runs.
     const expiration = vi.mocked(CacheExpiration).mock.instances.at(-1)!;
@@ -442,8 +457,8 @@ describe("language packs on an uncontrolled page", () => {
   // as it did in Chromium (#1149 review round 2).
   it("copies each pack once, though its own fetch shows up as a new resource entry", async () => {
     const { cache, deliver } = stubPacksEnv(null);
-    cache.addAll.mockImplementation((urls: string[]) => {
-      setTimeout(() => deliver(urls), 0);
+    cache.add.mockImplementation((url: string) => {
+      setTimeout(() => deliver([url]), 0);
       return Promise.resolve();
     });
     await registerWorker();
@@ -452,7 +467,27 @@ describe("language packs on an uncontrolled page", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     deliver(["https://farm.example/assets/es-abc123.js"]);
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(cache.addAll).toHaveBeenCalledTimes(1);
+    expect(cache.add).toHaveBeenCalledTimes(1);
+  });
+
+  // #1149 review round 3 — a 404'd tl request and the es pack that did load
+  // can reach the observer in one batch.
+  it("still copies the pack that loaded when another in the same batch fails", async () => {
+    const { stored, failing, deliver } = stubPacksEnv(null);
+    const es = "https://farm.example/assets/es-abc123.js";
+    const tl = "https://farm.example/assets/tl-abc123.js";
+    failing.add(tl);
+    await registerWorker();
+
+    deliver([tl, es]);
+    const expiration = await vi.waitFor(() => {
+      const instance = vi.mocked(CacheExpiration).mock.instances.at(-1);
+      expect(instance?.expireEntries).toHaveBeenCalledTimes(1);
+      return instance!;
+    });
+    expect([...stored]).toEqual([es]);
+    expect(expiration.updateTimestamp).toHaveBeenCalledTimes(1);
+    expect(expiration.updateTimestamp).toHaveBeenCalledWith(es);
   });
 
   it("leaves a controlled page to the worker's own route", async () => {

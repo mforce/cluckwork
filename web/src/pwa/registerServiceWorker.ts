@@ -121,12 +121,16 @@ function copyLanguagePacksIntoCache(signal?: AbortSignal) {
     for (const pack of packs) scheduled.add(pack);
     void navigator.serviceWorker.ready
       .then(() => caches.open(LANGUAGE_PACK_CACHE))
-      .then((cache) => cache.addAll(packs))
-      .then(async () => {
+      // One add per URL, not addAll: a batch can hold a pack that failed to
+      // load beside one that loaded, and addAll would drop both.
+      .then((cache) => Promise.allSettled(packs.map((pack) => cache.add(pack))))
+      .then(async (results) => {
+        const copied = packs.filter((_, i) => results[i]!.status === "fulfilled");
+        if (copied.length === 0) return;
         // A direct write skips the route's ExpirationPlugin. Record it in the
         // same Workbox bookkeeping so the four-entry limit covers it too.
         const expiration = new CacheExpiration(LANGUAGE_PACK_CACHE, { maxEntries: LANGUAGE_PACK_MAX_ENTRIES });
-        for (const pack of packs) await expiration.updateTimestamp(pack);
+        for (const pack of copied) await expiration.updateTimestamp(pack);
         await expiration.expireEntries();
       })
       .catch(() => {
