@@ -37,6 +37,7 @@ internal static class CluckworkPlatformServiceCollectionExtensions
         // #307 — lease duration / max-wait bounds for the idempotency claim protocol.
         services.Configure<IdempotencyOptions>(
             configuration.GetSection(IdempotencyOptions.SectionName));
+        services.AddScoped<IdempotentUnit>();
 
         return services;
     }
