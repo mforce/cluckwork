@@ -177,6 +177,33 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
         Assert.True(replay.GetProperty("replayed").GetBoolean());
     }
 
+    // The grades description promises both: omitted keeps the draft's lines, empty removes them.
+    [Fact]
+    public async Task OmittedGrades_KeepTheDraftsLines_AndAnEmptyListRemovesThem()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(Roles.Manager);
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, WriteOnly));
+        var entryId = (await RecordAsync(client, Arguments(farm.FlockName, grades: [new { grade = "Large", quantity = 90 }])))
+            .GetProperty("dailyEntryId").GetGuid();
+
+        var omitted = Arguments(farm.FlockName);
+        omitted.Remove("grades");
+        await RecordAsync(client, omitted);
+        var afterOmitted = await GradeLinesAsync(farm.User.AccountId, entryId);
+        await RecordAsync(client, Arguments(farm.FlockName, grades: []));
+        var afterEmpty = await GradeLinesAsync(farm.User.AccountId, entryId);
+
+        Assert.Equal([(farm.LargeGradeId, 90)], afterOmitted);
+        Assert.Empty(afterEmpty);
+    }
+
+    private Task<List<(Guid Grade, int Quantity)>> GradeLinesAsync(Guid accountId, Guid entryId) =>
+        factory.WithTenantScopeAsync(accountId, async db => (await db.DailyEntries
+            .Where(e => e.Id == entryId)
+            .SelectMany(e => e.Grades.Select(g => new { g.EggGradeId, g.Quantity }))
+            .ToListAsync()).Select(g => (g.EggGradeId, g.Quantity)).ToList());
+
     // A replay re-checks current flock access. B stays assigned, so the Worker stays
     // restricted (no assignment rows means unrestricted). Once A is unassigned, the stored
     // reply for A is refused exactly as a fresh call is, and nothing is written.
