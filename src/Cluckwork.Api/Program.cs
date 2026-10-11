@@ -298,9 +298,10 @@ app.UseSerilogRequestLogging(options =>
 // change the relative order of anything already below it.
 app.UseCluckworkBindingFailureResponse();
 
-// Endpoint rate-limit policies (#143): only routes that opt in via
-// RequireRateLimiting are affected. The global limiter counts only oauth-api
-// endpoints, per address.
+// Endpoint rate-limit policies (#143) — no global limiter, only routes that
+// opt in via RequireRateLimiting are affected. oauth-api endpoints also count
+// refused bearers per address, checked first.
+app.UseOAuthApiFailureBudget();
 app.UseRateLimiter();
 
 // #309 — enforce the per-endpoint request-body byte caps (the auth/credential

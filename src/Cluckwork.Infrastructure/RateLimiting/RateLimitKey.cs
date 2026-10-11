@@ -43,12 +43,14 @@ public static class RateLimitKey
     // there is no refresh grant, so a token is one connection. The slice after "Bearer " is
     // exactly what OpenIddict validation extracts, so the bucket is the token it authenticates.
     // Hashed so the shared store never holds a usable token. No bearer falls back to the IP.
-    public static string ForBearer(HttpContext context)
-    {
-        const string prefix = "Bearer ";
-        string? header = context.Request.Headers.Authorization;
-        return header is not null && header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? "token:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(header[prefix.Length..])))
+    public static string ForBearer(HttpContext context) =>
+        HasBearer(context.Request)
+            ? "token:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                context.Request.Headers.Authorization.ToString()[BearerPrefix.Length..])))
             : ForClient(context.Connection.RemoteIpAddress);
-    }
+
+    public static bool HasBearer(HttpRequest request) =>
+        request.Headers.Authorization.ToString().StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase);
+
+    private const string BearerPrefix = "Bearer ";
 }

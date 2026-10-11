@@ -105,6 +105,15 @@ public sealed class DistributedRateLimiterWiringFactory : CluckworkWebApplicatio
             lock (SeenKeys) { SeenKeys.Add(key); }
             return _inner.IncrementAsync(key, window, cancellationToken);
         }
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (_down)
+                throw new RedisException("down");
+            lock (SeenKeys) { SeenKeys.Add(key); }
+            return _inner.CountAsync(key, window, cancellationToken);
+        }
     }
 }
 

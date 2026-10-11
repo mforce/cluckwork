@@ -37,6 +37,15 @@ internal interface IFixedWindowCounter
     /// </summary>
     ValueTask<FixedWindowResult> IncrementAsync(
         string key, TimeSpan window, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the count for <paramref name="key"/> in the current window without changing
+    /// it: 0 when nothing was counted yet. Remaining comes from the same clock as
+    /// <see cref="IncrementAsync"/>'s, so a caller can refuse before it does costly work and
+    /// count only the outcomes it is budgeting.
+    /// </summary>
+    ValueTask<FixedWindowResult> CountAsync(
+        string key, TimeSpan window, CancellationToken cancellationToken = default);
 }
 
 // #544 — the outcome of one fixed-window increment.

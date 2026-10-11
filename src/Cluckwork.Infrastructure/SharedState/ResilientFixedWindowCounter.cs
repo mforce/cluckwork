@@ -43,6 +43,20 @@ internal sealed class ResilientFixedWindowCounter(
         }
     }
 
+    public async ValueTask<FixedWindowResult> CountAsync(
+        string key, TimeSpan window, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await redis.CountAsync(key, window, cancellationToken);
+        }
+        catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
+        {
+            Alarm();
+            return await fallback.CountAsync(key, window, cancellationToken);
+        }
+    }
+
     // RedisTimeoutException derives from TimeoutException, not RedisException
     // — without it a slow/saturated Redis would THROW instead of falling
     // back, the exact silent-degradation the alarm exists to surface.

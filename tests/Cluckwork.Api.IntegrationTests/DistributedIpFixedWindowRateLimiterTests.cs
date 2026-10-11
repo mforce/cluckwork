@@ -42,6 +42,10 @@ public sealed class DistributedIpFixedWindowRateLimiterTests
             AsyncCalls++;
             return new ValueTask<FixedWindowResult>(new FixedWindowResult(NextCount, FakeRemaining));
         }
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("the limiter only increments");
     }
 
     private static DistributedIpFixedWindowRateLimiter NewLimiter(FakeCounter counter) =>

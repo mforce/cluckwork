@@ -92,17 +92,9 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                         context.HttpContext.Request.Path.Value);
                 }
 
-                // #806 — oauth-api counts per token and per address and serves /mcp, whose
-                // client reads a JSON-RPC error. The body is unread here, so the request id is unknown.
                 if (policyName == RateLimitingOptions.OAuthApiPolicyName)
                 {
-                    context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                    await context.HttpContext.Response.WriteAsJsonAsync(new
-                    {
-                        jsonrpc = "2.0",
-                        id = (string?)null,
-                        error = new { code = -32000, message = "Too many requests. Try again later." },
-                    });
+                    await WriteJsonRpcTooManyRequestsAsync(context.HttpContext.Response);
                     return;
                 }
 
@@ -159,18 +151,6 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     rateLimiting.OAuthApi.PermitLimit,
                     TimeSpan.FromSeconds(rateLimiting.OAuthApi.WindowSeconds),
                     RateLimitKey.ForBearer));
-
-            // The global limiter runs before the endpoint policy, so a forged-bearer burst
-            // stops here before OpenIddict looks each token up.
-            var oauthApiPerAddress = new DistributedFixedWindowPolicy(
-                RateLimitingOptions.OAuthApiAddressKeyPrefix,
-                rateLimiting.OAuthApi.PermitLimit * RateLimitingOptions.OAuthApiTokensPerAddress,
-                TimeSpan.FromSeconds(rateLimiting.OAuthApi.WindowSeconds));
-            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
-                    == RateLimitingOptions.OAuthApiPolicyName
-                    ? oauthApiPerAddress.GetPartition(context)
-                    : RateLimitPartition.GetNoLimiter(string.Empty));
         });
 
         // #311/#545 — account-scoped report concurrency cap. Registered separately
@@ -180,6 +160,62 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
         return new CluckworkRateLimitingRegistration(
             rateLimiting,
             trustedProxies);
+    }
+
+    // #806 — oauth-api serves /mcp, whose client reads a JSON-RPC error. The body is unread
+    // here, so the request id is unknown.
+    internal static Task WriteJsonRpcTooManyRequestsAsync(HttpResponse response)
+    {
+        response.StatusCode = StatusCodes.Status429TooManyRequests;
+        return response.WriteAsJsonAsync(new
+        {
+            jsonrpc = "2.0",
+            id = (string?)null,
+            error = new { code = -32000, message = "Too many requests. Try again later." },
+        });
+    }
+}
+
+internal static class OAuthApiFailureBudget
+{
+    // Before UseRateLimiter, so an address over budget spends no per-token permit and
+    // authenticates nothing. Only a presented bearer refused with 401 is recorded: a valid
+    // call, a scope 403, a per-token 429 and a client's tokenless discovery probe spend nothing.
+    public static void UseOAuthApiFailureBudget(this IApplicationBuilder app)
+    {
+        var budget = new FailedAuthenticationBudget(
+            RateLimitingOptions.OAuthApiFailuresKeyPrefix,
+            RateLimitingOptions.OAuthApiFailuresPerAddress,
+            RateLimitingOptions.OAuthApiFailuresWindow);
+        app.Use(async (context, next) =>
+        {
+            if (context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+                != RateLimitingOptions.OAuthApiPolicyName)
+            {
+                await next(context);
+                return;
+            }
+
+            if (await budget.RefusalAsync(context) is { } retryAfter)
+            {
+                context.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Cluckwork.Api.Security.RateLimiting")
+                    .LogWarning("{SecurityEvent} policy={Policy} client={ClientIp} path={Path}",
+                        SecurityEvents.RateLimitRejected,
+                        RateLimitingOptions.OAuthApiFailuresKeyPrefix,
+                        RateLimitKey.ForClient(context.Connection.RemoteIpAddress),
+                        context.Request.Path.Value);
+                context.Response.Headers.RetryAfter =
+                    ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+                await CluckworkRateLimitingServiceCollectionExtensions.WriteJsonRpcTooManyRequestsAsync(context.Response);
+                return;
+            }
+
+            await next(context);
+            if (context.Response.StatusCode == StatusCodes.Status401Unauthorized
+                && RateLimitKey.HasBearer(context.Request))
+                await budget.RecordAsync(context);
+        });
     }
 }
 

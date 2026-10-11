@@ -80,10 +80,13 @@ SDK's own client against this endpoint, a session spends 3 POSTs to its first to
 count); each later call is one POST. In process a call took 4 to 6 ms, so only a runaway loop
 reaches the limit; a model spends seconds between calls. No account-wide
 ceiling: each token costs a step-up password entry (#798), which the password limiter
-already bounds. The per-token key is unverified text, so the same endpoints also count per
-client address before authentication, at ten tokens' worth (3,000 per minute by default), or
-a caller rotating forged bearers would get a fresh budget per request. A 429 on `oauth-api` is
-a JSON-RPC error with a null id, because the limiter runs before the body is read.
+already bounds. The per-token key is unverified text, so a caller rotating forged bearers would
+get a fresh budget per request. The same endpoints therefore count refused bearers per client
+address in the shared counter: 300 a minute, checked before authentication. A presented bearer
+answered 401 spends one; a valid call, a per-token 429 and a tokenless discovery probe spend
+nothing. Once an address has spent its budget, its valid tokens are refused too until the
+minute rolls over, because nothing can tell them apart before authentication. A 429 on
+`oauth-api` is a JSON-RPC error with a null id, because the limiter runs before the body is read.
 
 **A foreign `Origin` gets 403.** Both MCP revisions require Origin validation against DNS
 rebinding. A request without `Origin` (a native client) passes; any other value must equal the

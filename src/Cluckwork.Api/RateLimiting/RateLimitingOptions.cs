@@ -38,11 +38,15 @@ public sealed class RateLimitingOptions
     // spends some before its first tool call (decision 806-mcp-endpoint.md).
     public FixedWindow OAuthApi { get; init; } = new() { PermitLimit = 300, WindowSeconds = 60 };
     // The per-token key is unverified text, so a caller rotating forged bearers would get a
-    // fresh budget per request. The same endpoints also count per client address, before
-    // authentication, at this many tokens' worth: one hosted assistant's egress address can
-    // carry many people's connections.
-    public const string OAuthApiAddressKeyPrefix = "oauth-api-address";
-    public const int OAuthApiTokensPerAddress = 10;
+    // fresh budget per request. The same endpoints therefore also count REFUSED bearers per
+    // client address, and refuse an address over budget before authenticating it. Valid
+    // calls spend nothing, so many farms behind one assistant's egress address do not share
+    // a call budget. 300 a minute caps forged-token lookups at five a second per address and
+    // leaves room for many revoked connections behind that address to retry before their
+    // people reconnect them.
+    public const string OAuthApiFailuresKeyPrefix = "oauth-api-failures";
+    public const int OAuthApiFailuresPerAddress = 300;
+    public static readonly TimeSpan OAuthApiFailuresWindow = TimeSpan.FromMinutes(1);
     public FixedWindow OAuthRegister { get; init; } = new() { PermitLimit = 10, WindowSeconds = 3600 };
     // Small on purpose: a report query is a bounded-range aggregate (#311), not
     // a hot path — a genuine user rarely has more than one or two in flight at

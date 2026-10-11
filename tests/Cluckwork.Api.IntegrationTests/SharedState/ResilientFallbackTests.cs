@@ -57,6 +57,10 @@ public sealed class ResilientFallbackTests
         public ValueTask<FixedWindowResult> IncrementAsync(
             string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
             throw new RedisException("down");
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            throw new RedisException("down");
     }
 
     // ── Timing-out stubs (RedisTimeoutException — NOT a RedisException) ────
@@ -75,6 +79,10 @@ public sealed class ResilientFallbackTests
         public ValueTask<FixedWindowResult> IncrementAsync(
             string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
             throw new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            throw new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
     }
 
     // ── Working stubs (Redis up) ──────────────────────────────────────────
@@ -91,6 +99,10 @@ public sealed class ResilientFallbackTests
         public ValueTask<FixedWindowResult> IncrementAsync(
             string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
             new(new FixedWindowResult(42, TimeSpan.FromMinutes(5)));
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            new(new FixedWindowResult(41, TimeSpan.FromMinutes(5)));
     }
 
     // ── 1. claim-once FAILS CLOSED ────────────────────────────────────────
@@ -170,6 +182,31 @@ public sealed class ResilientFallbackTests
         var result = await counter.IncrementAsync("k", TimeSpan.FromMinutes(5));
 
         Assert.Equal(42, result.Count);
+        Assert.Empty(logger.Warnings);
+    }
+
+    [Fact]
+    public async Task CountAsync_WhenRedisThrows_ReadsTheFallbackAndAlarms()
+    {
+        var logger = new RecordingLogger<ResilientFixedWindowCounter>();
+        var fallback = new InProcessFixedWindowCounter(new FakeTimeProvider());
+        var counter = new ResilientFixedWindowCounter(new ThrowingFixedWindowCounter(), fallback, logger);
+        await fallback.IncrementAsync("k", TimeSpan.FromMinutes(5));
+
+        var result = await counter.CountAsync("k", TimeSpan.FromMinutes(5));
+
+        Assert.Equal(1, result.Count);
+        Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, Assert.Single(logger.Warnings));
+    }
+
+    [Fact]
+    public async Task CountAsync_WhenRedisWorks_ReturnsRedisValueAndDoesNotAlarm()
+    {
+        var logger = new RecordingLogger<ResilientFixedWindowCounter>();
+        var counter = new ResilientFixedWindowCounter(
+            new WorkingFixedWindowCounter(), new InProcessFixedWindowCounter(new FakeTimeProvider()), logger);
+
+        Assert.Equal(41, (await counter.CountAsync("k", TimeSpan.FromMinutes(5))).Count);
         Assert.Empty(logger.Warnings);
     }
 

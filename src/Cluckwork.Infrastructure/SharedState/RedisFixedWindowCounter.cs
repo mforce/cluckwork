@@ -39,6 +39,16 @@ internal sealed class RedisFixedWindowCounter(IConnectionMultiplexer redis, stri
         return {c, pttl}
         """;
 
+    // Same bucket as IncrementScript; GET leaves the count alone, and a missing key is 0.
+    private const string CountScript = """
+        local t = redis.call('TIME')
+        local ms = (tonumber(t[1]) * 1000) + math.floor(tonumber(t[2]) / 1000)
+        local windowMs = tonumber(ARGV[1])
+        local bucket = math.floor(ms / windowMs)
+        local c = tonumber(redis.call('GET', KEYS[1] .. ':' .. bucket) or '0')
+        return {c, windowMs - (ms % windowMs)}
+        """;
+
     public long Increment(string key, TimeSpan window)
     {
         ValidateWindow(key, window);
@@ -68,6 +78,18 @@ internal sealed class RedisFixedWindowCounter(IConnectionMultiplexer redis, stri
         // in (it PEXPIREs on create); fall back to the full window if Redis ever reports one.
         var remainingMs = pttlMs < 0 ? (long)window.TotalMilliseconds : pttlMs;
         return new FixedWindowResult(count, TimeSpan.FromMilliseconds(remainingMs));
+    }
+
+    public async ValueTask<FixedWindowResult> CountAsync(
+        string key, TimeSpan window, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateWindow(key, window);
+        var result = (RedisResult[])(await redis.GetDatabase().ScriptEvaluateAsync(
+            CountScript,
+            new RedisKey[] { RealKey(key) },
+            new RedisValue[] { (long)window.TotalMilliseconds }))!;
+        return new FixedWindowResult((long)result[0], TimeSpan.FromMilliseconds((long)result[1]));
     }
 
     private RedisKey RealKey(string key) => $"{{{keyNamespace}:win:{key}}}";

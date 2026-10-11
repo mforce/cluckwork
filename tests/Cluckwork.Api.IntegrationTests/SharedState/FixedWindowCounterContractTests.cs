@@ -27,6 +27,26 @@ public sealed class FixedWindowCounterContractTests
     }
 
     [Fact]
+    public async Task CountAsync_ReadsWithoutIncrementing_AndResetsWithTheWindow()
+    {
+        var clock = new FakeTimeProvider();
+        var counter = CreateCounter(clock);
+        var window = TimeSpan.FromMinutes(5);
+
+        Assert.Equal(0, (await counter.CountAsync("k", window)).Count);
+        counter.Increment("k", window);
+        counter.Increment("k", window);
+        var read = await counter.CountAsync("k", window);
+        Assert.Equal(2, read.Count);
+        Assert.True(read.Remaining > TimeSpan.Zero && read.Remaining <= window, $"remaining {read.Remaining}");
+        Assert.Equal(2, (await counter.CountAsync("k", window)).Count);
+        Assert.Equal(3, counter.Increment("k", window));
+
+        clock.Advance(window + TimeSpan.FromSeconds(1));
+        Assert.Equal(0, (await counter.CountAsync("k", window)).Count);
+    }
+
+    [Fact]
     public void Count_ResetsWhenWindowRollsOver()
     {
         var clock = new FakeTimeProvider();

@@ -39,6 +39,29 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
         return new ValueTask<FixedWindowResult>(IncrementCore(key, window));
     }
 
+    public ValueTask<FixedWindowResult> CountAsync(
+        string key, TimeSpan window, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(key);
+        ValidateWindow(window);
+        lock (_lock)
+        {
+            var now = timeProvider.GetUtcNow();
+            var windowStart = WindowStart(now, window);
+            var count = _counters.TryGetValue(key, out var entry) && entry.WindowStart == windowStart ? entry.Count : 0;
+            return new ValueTask<FixedWindowResult>(new FixedWindowResult(count, WindowEnd(windowStart, window) - now));
+        }
+    }
+
+    private static void ValidateWindow(TimeSpan window)
+    {
+        if (window.Ticks < TimeSpan.TicksPerMillisecond
+            || window.Ticks % TimeSpan.TicksPerMillisecond != 0)
+            throw new ArgumentOutOfRangeException(nameof(window),
+                "window must be a whole number of milliseconds, at least 1.");
+    }
+
     private FixedWindowResult IncrementCore(string key, TimeSpan window)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -46,10 +69,7 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
         // truncates any sub-ms remainder, so a non-whole-ms window would bucket on
         // a width narrower than its nominal length and reset early. Reject it
         // rather than silently truncate — both backends enforce this identically.
-        if (window.Ticks < TimeSpan.TicksPerMillisecond
-            || window.Ticks % TimeSpan.TicksPerMillisecond != 0)
-            throw new ArgumentOutOfRangeException(nameof(window),
-                "window must be a whole number of milliseconds, at least 1.");
+        ValidateWindow(window);
 
         lock (_lock)
         {
@@ -73,10 +93,7 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
                 // a multi-millennia window: DateTimeOffset.MaxValue.Ticks - window.Ticks
                 // stays representable in a long (a TimeSpan can't exceed ~292k years),
                 // so this never throws.
-                var windowEnd = windowStart.Ticks > DateTimeOffset.MaxValue.Ticks - window.Ticks
-                    ? DateTimeOffset.MaxValue
-                    : windowStart + window;
-                _counters[key] = (windowStart, windowEnd, 1);
+                _counters[key] = (windowStart, WindowEnd(windowStart, window), 1);
             }
 
             MaybeSweep(now);
@@ -89,6 +106,11 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
             return new FixedWindowResult(current.Count, remaining);
         }
     }
+
+    private static DateTimeOffset WindowEnd(DateTimeOffset windowStart, TimeSpan window) =>
+        windowStart.Ticks > DateTimeOffset.MaxValue.Ticks - window.Ticks
+            ? DateTimeOffset.MaxValue
+            : windowStart + window;
 
     private static DateTimeOffset WindowStart(DateTimeOffset now, TimeSpan window)
     {

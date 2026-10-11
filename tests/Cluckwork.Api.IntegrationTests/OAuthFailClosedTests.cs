@@ -277,12 +277,13 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
     }
 
     // The per-token key is unverified text, so a forged bearer per request would never run
-    // out. The address budget (ten tokens' worth) stops the burst before authentication.
+    // out. Each refusal spends the address's failure budget, which is checked before the
+    // next token is looked up.
     [Fact]
-    public async Task ForgedBearers_FromOneAddress_RunOutOfTheAddressBudget()
+    public async Task ForgedBearers_FromOneAddress_RunOutOfTheFailureBudget()
     {
-        using var host = Host(limits: ("OAuthApi", 2));
-        var budget = 2 * RateLimitingOptions.OAuthApiTokensPerAddress;
+        using var host = Host();
+        const int budget = RateLimitingOptions.OAuthApiFailuresPerAddress;
 
         var statuses = new List<HttpStatusCode>();
         for (var i = 0; i <= budget; i++)
@@ -292,6 +293,86 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         }
 
         Assert.Equal(Enumerable.Repeat(HttpStatusCode.Unauthorized, budget).Append(HttpStatusCode.TooManyRequests), statuses);
+    }
+
+    // A valid token's calls spend nothing, so it keeps working while only valid traffic flows.
+    // The forged control proves the read names the key a refusal spends.
+    [Fact]
+    public async Task ValidTokenCalls_SpendNoFailureBudget()
+    {
+        using var host = Host();
+        var token = await IssueAsync(host, await SeedAsync(Roles.Manager), ReadScope);
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 5; i++)
+        {
+            using var response = await Client(host, token).GetAsync(Probe.Read);
+            statuses.Add(response.StatusCode);
+        }
+        var afterValid = await FailuresAsync(host);
+        using var forged = await Client(host, "forged").GetAsync(Probe.Read);
+
+        Assert.All(statuses, s => Assert.Equal(HttpStatusCode.OK, s));
+        Assert.Equal(0, afterValid);
+        Assert.Equal(HttpStatusCode.Unauthorized, forged.StatusCode);
+        Assert.Equal(1, await FailuresAsync(host));
+    }
+
+    // A busy connection hitting its own per-token limit is not a refused credential.
+    [Fact]
+    public async Task PerTokenRefusals_SpendNoFailureBudget()
+    {
+        using var host = Host(limits: ("OAuthApi", 2));
+        var token = await IssueAsync(host, await SeedAsync(Roles.Manager), ReadScope);
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 4; i++)
+        {
+            using var response = await Client(host, token).GetAsync(Probe.Read);
+            statuses.Add(response.StatusCode);
+        }
+
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests, HttpStatusCode.TooManyRequests], statuses);
+        Assert.Equal(0, await FailuresAsync(host));
+    }
+
+    // The failure budget is read from the shared store, not this process: a store reporting
+    // it spent refuses a valid token that every other check would admit.
+    [Fact]
+    public async Task SpentFailureBudget_InTheSharedStore_RefusesBeforeAuthentication()
+    {
+        using var issuing = Host();
+        var token = await IssueAsync(issuing, await SeedAsync(Roles.Manager), ReadScope);
+        using var host = Host().WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IFixedWindowCounter>();
+            services.AddSingleton<IFixedWindowCounter, SpentFailureBudgetCounter>();
+        }));
+
+        using var response = await Client(host, token).GetAsync(Probe.Read);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.Equal(TimeSpan.FromSeconds(42), response.Headers.RetryAfter?.Delta);
+    }
+
+    private static async Task<long> FailuresAsync(WebApplicationFactory<Program> host) =>
+        (await host.Services.GetRequiredService<IFixedWindowCounter>().CountAsync(
+            $"{RateLimitingOptions.OAuthApiFailuresKeyPrefix}:local", RateLimitingOptions.OAuthApiFailuresWindow)).Count;
+
+    // Admits every increment; reports every failure budget spent.
+    private sealed class SpentFailureBudgetCounter : IFixedWindowCounter
+    {
+        public long Increment(string key, TimeSpan window) => 1;
+
+        public ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(new FixedWindowResult(1, window));
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(new FixedWindowResult(
+                key.StartsWith(RateLimitingOptions.OAuthApiFailuresKeyPrefix + ":", StringComparison.Ordinal) ? long.MaxValue : 0,
+                TimeSpan.FromSeconds(42)));
     }
 
     [Fact]
@@ -377,9 +458,8 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.Contains("Authorization requests must use GET.", await authorized.Content.ReadAsStringAsync());
     }
 
-    // The three OAuth policies and oauth-api's address budget count in the shared store
-    // (#543/#544), not in this process: a store that refuses decides each response, and sees
-    // each key.
+    // The three OAuth policies count in the shared store (#543/#544), not in this process:
+    // a store that refuses everything decides each response, and sees each policy's key.
     [Fact]
     public async Task OAuthLimits_AreDecidedByTheSharedCounter()
     {
@@ -403,10 +483,10 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.True(called.StatusCode == HttpStatusCode.TooManyRequests, "oauth-api did not ask the shared counter");
         var bearerKey = "oauth-api:token:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
         Assert.Contains(bearerKey, counter.Keys);
-        Assert.Contains($"{RateLimitingOptions.OAuthApiAddressKeyPrefix}:local", counter.Keys);
     }
 
-    // Admits oauth-api's address budget, which runs first, so the per-token budget is asked too.
+    // Refuses every increment. Reads nothing spent, so oauth-api's failure budget, checked
+    // first, lets the per-token limit decide.
     private sealed class RefusingCounter : IFixedWindowCounter
     {
         public ConcurrentBag<string> Keys { get; } = [];
@@ -414,18 +494,19 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         public long Increment(string key, TimeSpan window)
         {
             Keys.Add(key);
-            return Count(key);
+            return long.MaxValue;
         }
 
         public ValueTask<FixedWindowResult> IncrementAsync(
             string key, TimeSpan window, CancellationToken cancellationToken = default)
         {
             Keys.Add(key);
-            return ValueTask.FromResult(new FixedWindowResult(Count(key), window));
+            return ValueTask.FromResult(new FixedWindowResult(long.MaxValue, window));
         }
 
-        private static long Count(string key) =>
-            key.StartsWith(RateLimitingOptions.OAuthApiAddressKeyPrefix + ":", StringComparison.Ordinal) ? 1 : long.MaxValue;
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(new FixedWindowResult(0, window));
     }
 
     private sealed record SeededUser(Guid Id, Guid AccountId, string Jwt, string OwnerEmail);

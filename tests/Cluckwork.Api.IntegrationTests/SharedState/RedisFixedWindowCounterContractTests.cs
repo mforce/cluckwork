@@ -32,6 +32,26 @@ public sealed class RedisFixedWindowCounterContractTests(RedisFixture fixture) :
         Assert.Equal(1, counter.Increment("k", window));
     }
 
+    // Two counters on one namespace stand for two replicas: one counts, the other reads.
+    [Fact]
+    public async Task CountAsync_reads_the_shared_count_without_incrementing()
+    {
+        var keyNamespace = Guid.NewGuid().ToString("N");
+        var counting = new RedisFixedWindowCounter(fixture.Redis, keyNamespace);
+        var reading = new RedisFixedWindowCounter(fixture.Redis, keyNamespace);
+        var window = TimeSpan.FromSeconds(30);
+
+        Assert.Equal(0, (await reading.CountAsync("k", window)).Count);
+        await counting.IncrementAsync("k", window);
+        await counting.IncrementAsync("k", window);
+        var read = await reading.CountAsync("k", window);
+
+        Assert.Equal(2, read.Count);
+        Assert.True(read.Remaining > TimeSpan.Zero && read.Remaining <= window, $"remaining {read.Remaining}");
+        Assert.Equal(2, (await reading.CountAsync("k", window)).Count);
+        Assert.Equal(3, (await counting.IncrementAsync("k", window)).Count);
+    }
+
     [Fact]
     public async Task IncrementAsync_returns_count_and_positive_remaining()
     {

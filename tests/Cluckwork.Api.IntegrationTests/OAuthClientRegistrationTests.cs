@@ -291,6 +291,9 @@ public sealed class OAuthClientRegistrationTests(CluckworkWebApplicationFactory 
             Keys.Add(key);
             return inner.IncrementAsync(key, window, cancellationToken);
         }
+
+        public ValueTask<FixedWindowResult> CountAsync(string key, TimeSpan window, CancellationToken cancellationToken = default) =>
+            inner.CountAsync(key, window, cancellationToken);
     }
 
     private async Task<string> RegisteredClientIdAsync(string redirect)
