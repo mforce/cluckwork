@@ -36,7 +36,6 @@ public sealed partial class FileSizeLimitTests
         ["web/src/routes/DailyEntryPage.tsx"] = 1365,
         ["web/src/routes/Dashboard.tsx"] = 1241,
         ["web/src/routes/ExpensesPage.tsx"] = 1082,
-        ["web/src/routes/FeedPage.tsx"] = 574,
         ["web/src/routes/FlocksPage.tsx"] = 706,
         ["web/src/routes/HelpPage.tsx"] = 1012,
         ["web/src/routes/HistoryPage.tsx"] = 1033,

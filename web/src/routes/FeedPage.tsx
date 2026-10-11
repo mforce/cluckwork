@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { FilterX, Inbox, Plus } from "lucide-react";
 import {
-  Box, Button, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
+  Box, Button, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   listFeedUsage, listFlocks, listInventoryItems, recordFeedUsage,
@@ -23,7 +23,8 @@ import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
-import { FieldConsole, ConsoleSubhead, LedgerTableContainer, ConsoleSummary, CONSOLE_TICKET_SX, CONSOLE_TICKET_FORM_SX, CONSOLE_TICKET_CHECK_SX } from "../components/FieldConsole";
+import { FieldConsole, ConsoleSubhead, LedgerTableContainer } from "../components/FieldConsole";
+import { FeedCaptureForm, useFeedCaptureFields } from "./FeedCaptureForm";
 import { newId } from "../lib/ids";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import i18n from "../i18n";
@@ -66,22 +67,16 @@ export function FeedPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [details, setDetails] = useState<FeedUsage | null>(null);
 
-  // capture form
-  // #512 (T027/T038) — the capture flock is committed through FlockPicker.
-  // `captureFlock` is the page-controlled committed entity; bumping
-  // `captureFlockGen` re-syncs the engine's committed state after an external
-  // reset (the mount-time default) so a later Escape cannot resurrect a stale
-  // ID. `flockSnapshot.canSubmit` gates BOTH the Record button and onSubmit.
-  const [captureFlock, setCaptureFlock] = useState<Flock | null>(null);
-  const [captureFlockGen, setCaptureFlockGen] = useState(0);
-  const [captureFlockSnapshot, setCaptureFlockSnapshot] = useState<PickerSnapshot<Flock>>({
-    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: false,
-  });
-  const [capturePickerOpen, setCapturePickerOpen] = useState(false);
-  const [itemId, setItemId] = useState("");
-  const [date, setDate] = useState(today);
-  const [quantity, setQuantity] = useState("");
-  const [note, setNote] = useState("");
+  const fields = useFeedCaptureFields(today);
+  const {
+    captureFlock, setCaptureFlock,
+    setCaptureFlockGen,
+    captureFlockSnapshot,
+    itemId, setItemId,
+    date,
+    quantity, setQuantity,
+    note, setNote,
+  } = fields;
 
   // list filters — initialized from the URL so the Daily Entry strip's
   // "Feed: N records" link lands on exactly the day it was describing.
@@ -257,118 +252,6 @@ export function FeedPage() {
   if (error && usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{error}</p></FieldConsole>;
   if (usage.rows === null) return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
 
-  const captureForm = (
-    <>
-      {isDesktop && <ConsoleSummary label={t("contextLabel")} items={[
-        { label: t("flockLabel"), value: captureFlock?.name ?? "—" },
-        { label: t("itemLabel"), value: selectedItem?.name ?? "—" },
-        { label: t("onHand"), value: selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—" },
-      ]} />}
-      <Box sx={isDesktop ? CONSOLE_TICKET_SX : { ...CONSOLE_TICKET_SX, border: 0, my: 0 }}>
-        <Stack component="form" id="feed-entry-form" sx={{ ...CONSOLE_TICKET_FORM_SX, p: isDesktop ? 2 : 0 }} onSubmit={onSubmit}>
-          <Box sx={{ minWidth: 0, width: "100%" }}>
-            <FlockPicker
-              label={t("flockLabel")}
-              eligibility="active-and-depleted"
-              required
-              open={capturePickerOpen}
-              controlledCommitted={captureFlock}
-              controlledGeneration={captureFlockGen}
-              onSnapshot={setCaptureFlockSnapshot}
-              onCommit={(f) => {
-                setCaptureFlock(f);
-                setCaptureFlockGen((g) => g + 1);
-                setCapturePickerOpen(false);
-              }}
-              onEscape={() => setCapturePickerOpen(false)}
-              onOutsideClick={() => setCapturePickerOpen(false)}
-              trigger={
-                <button
-                  type="button"
-                  className="named-picker-trigger"
-                  onClick={() => setCapturePickerOpen(true)}
-                >
-                  {captureFlock
-                    ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
-                    : t("selectFlockOption")}
-                </button>
-              }
-            />
-          </Box>
-          <TextField
-            select
-            label={t("itemLabel")}
-            value={itemId}
-            size="small"
-            slotProps={{ select: { native: true } }}
-            onChange={(e) => setItemId(e.target.value)}
-          >
-            {pickableItems.map((x) => (
-              <option key={x.id} value={x.id}>
-                {t("itemOption", { name: x.name, onHand: x.quantityOnHand, unit: x.unit })}
-                {x.active ? ""
-                  : x.quantityOnHand > 0 ? t("inactiveItemSuffix")
-                    : t("inactiveEmptyItemSuffix")}
-              </option>
-            ))}
-          </TextField>
-          <TextField
-            type="date"
-            label={t("dateLabel")}
-            value={date}
-            size="small"
-            slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
-            onChange={(e) => setDate(e.target.value)}
-          />
-          <TextField
-            type="number"
-            label={selectedItem
-              ? t("quantityLabelWithUnit", { unit: selectedItem.unit })
-              : t("quantityLabel")}
-            value={quantity}
-            size="small"
-            slotProps={{ htmlInput: { min: 0.001, step: 0.001, required: true } }}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-          <TextField
-            label={t("noteLabel")}
-            sx={{ gridColumn: { md: "span 3" } }}
-            value={note}
-            size="small"
-            slotProps={{ htmlInput: { maxLength: 500 } }}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          {isDesktop && <BusyButton variant="contained" type="submit" busy={busy}
-            disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
-            {t("recordFeedButton")}
-          </BusyButton>}
-        </Stack>
-
-        <Box component="aside" aria-label={t("rationCheck")} sx={isDesktop ? CONSOLE_TICKET_CHECK_SX : { ...CONSOLE_TICKET_CHECK_SX, p: 1.5, mt: 2, border: "1px solid var(--rule)", borderRadius: "5px" }}>
-          <h3>{t("rationCheck")}</h3>
-          <Box component="dl" sx={{ m: 0 }}>
-            {([
-              ["onHand", selectedItem ? `${fmt.count(selectedItem.quantityOnHand)} ${selectedItem.unit}` : "—"],
-              ["issue", selectedItem && quantity !== "" ? `${fmt.count(Number(quantity))} ${selectedItem.unit}` : "—"],
-              ["afterIssue", selectedItem && afterIssueQuantity !== null ? `${fmt.count(afterIssueQuantity)} ${selectedItem.unit}` : "—"],
-            ] as const).map(([key, value]) => <Box key={key}
-              aria-live={key === "afterIssue" ? "polite" : undefined}
-              aria-atomic={key === "afterIssue" ? true : undefined}
-              sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: .5, borderBottom: "1px solid var(--rule)" }}>
-              <Typography component="dt" sx={{ fontSize: ".8rem" }}>{t(key)}</Typography>
-              <Typography component="dd" variant="body2" sx={{ m: 0, fontSize: ".8rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
-            </Box>)}
-          </Box>
-          <Box component="p" className="muted" sx={{ mt: 1, mb: 0 }}>{t("correctionsHint")}</Box>
-        </Box>
-      </Box>
-
-      {error && <p className="error">{error}</p>}
-      {isDesktop && message && <p className="success">{message}</p>}
-
-    </>
-  );
-
   const filters = (
       <FilterBar>
         <Box sx={FILTER_PICKER_SX}>
@@ -422,14 +305,24 @@ export function FeedPage() {
         </Stack>}
       <p className="muted">{t("intro")}</p>
 
-      {isDesktop ? captureForm : (
+      {isDesktop ? <FeedCaptureForm
+        isDesktop={isDesktop} fields={fields} today={today}
+        pickableItems={pickableItems} selectedItem={selectedItem}
+        afterIssueQuantity={afterIssueQuantity} busy={busy}
+        onSubmit={onSubmit} error={error} message={message}
+      /> : (
         <Dialog open={formOpen} title={t("logFormTitle")} onClose={() => setFormOpen(false)} closeDisabled={busy}
           actions={<Stack direction="row" sx={{ justifyContent: "flex-end", gap: 1 }}>
             <Button size="small" sx={{ minWidth: 0 }} disabled={busy} onClick={() => setFormOpen(false)}>{tc("cancel")}</Button>
             <BusyButton variant="contained" type="submit" form="feed-entry-form" busy={busy}
               disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>{t("recordFeedButton")}</BusyButton>
           </Stack>}>
-          {captureForm}
+          <FeedCaptureForm
+            isDesktop={isDesktop} fields={fields} today={today}
+            pickableItems={pickableItems} selectedItem={selectedItem}
+            afterIssueQuantity={afterIssueQuantity} busy={busy}
+            onSubmit={onSubmit} error={error} message={message}
+          />
         </Dialog>
       )}
       {!isDesktop && !formOpen && error && <p className="error">{error}</p>}
