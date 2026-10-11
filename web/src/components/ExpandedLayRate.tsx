@@ -136,12 +136,18 @@ export function ExpandedLayRate({
   const { placeReadout } = strip;
   useLayoutEffect(() => placeReadout(), [view.stretch, placeReadout]);
 
-  useEffect(() => {
-    const region = scrollerRef.current;
-    if (region === null) return;
+  // A ref callback, not a mount effect, for the reason `takeOpeningFocus`
+  // gives below: `Modal` portals the region on a second commit, so an effect
+  // on the first one found `scrollerRef` null and never observed it (#1203).
+  // React 19 runs the returned cleanup when the node goes or `sync` changes.
+  const observeRegion = useCallback((node: HTMLDivElement) => {
+    scrollerRef.current = node;
     const observer = new ResizeObserver(() => sync());
-    observer.observe(region);
-    return () => observer.disconnect();
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      scrollerRef.current = null;
+    };
   }, [sync]);
 
   // #485 — this is a MUI `Modal`, so the page behind it cannot speak.
@@ -359,7 +365,7 @@ export function ExpandedLayRate({
                     </div>
                     <div className="lay-expand-window">
                       <div
-                        className={view.stretch ? "lay-expand-scroll is-fit" : "lay-expand-scroll"} ref={scrollerRef}
+                        className={view.stretch ? "lay-expand-scroll is-fit" : "lay-expand-scroll"} ref={observeRegion}
                         onScroll={() => { sync(); strip.placeReadout(); }}
                       >
                         <DaySlots variant="expanded" data={data} label={label} tip={tip} strip={strip} />

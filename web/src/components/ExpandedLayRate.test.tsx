@@ -347,6 +347,30 @@ describe("ExpandedLayRate (#941)", () => {
     expect(region.scrollLeft).toBe(0); // jsdom lays nothing out, so scrollWidth is 0
   });
 
+  // #1203: `Modal` portals the frame on a SECOND commit, so a mount effect
+  // reading `scrollerRef` finds null and the region was never observed. Only a
+  // scroll re-read the window after that; a resize left the box, the cues, the
+  // pager and the caption describing the old width.
+  it("follows the region when it resizes, and lets go of it on unmount", () => {
+    const observed = new Map<Element, () => void>();
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private readonly callback: () => void) {}
+      observe(target: Element) { observed.set(target, this.callback); }
+      disconnect() { for (const [target, cb] of observed) if (cb === this.callback) observed.delete(target); }
+    });
+    const { unmount } = view();
+    const region = measure({ viewport: 1080, scrollLeft: 628 });
+    expect(caption()).not.toBe("All 90 days shown");
+    const resize = observed.get(region);
+    expect(resize).toBeDefined();
+    Object.defineProperty(region, "clientWidth", { value: DAYS * (DAY_SLOT_PX + DAY_GAP_PX), configurable: true });
+    act(() => resize!());
+    expect(caption()).toBe("All 90 days shown");
+    expect(region).toHaveClass("is-fit");
+    unmount();
+    expect(observed.has(region)).toBe(false);
+  });
+
   it("shows its own read failing without blaming the dashboard behind it", () => {
     view({ data: null, failed: true });
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load.");
