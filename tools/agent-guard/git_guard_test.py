@@ -380,6 +380,190 @@ CASES += [  # round 3 note: data programs that can run a program
     ("rg --pre git . gc", "linked", "allow"),
 ]
 
+CASES += [  # #1221: gh api writes to main's history or protection, and the push routes that skip the checks
+    ("gh api -X POST repos/mforce/cluckwork/merges -f base=main -f head=feat/x", "linked", "block"),
+    ("gh api -X PUT repos/mforce/cluckwork/contents/README.md -f message=x -f content=eA== -f branch=main", "linked", "block"),
+    ("gh api -X PATCH repos/mforce/cluckwork/git/refs/heads/main -F force=true -f sha=abc", "linked", "block"),
+    ("gh api -X PUT repos/mforce/cluckwork/rulesets/24852475 -f enforcement=disabled", "linked", "block"),
+    ("gh api -X DELETE repos/mforce/cluckwork/branches/main/protection", "linked", "block"),
+    ("gh api --method=PUT repos/mforce/cluckwork/rulesets/24852475 --input body.json", "linked", "block"),
+    ("gh api -XDELETE repos/mforce/cluckwork/rulesets/24852475", "linked", "block"),
+    ("gh api -X delete repos/mforce/cluckwork/branches/main/protection/required_status_checks", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/merges -f base=main -f head=feat/x", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/git/refs --field ref=refs/heads/main --field sha=abc", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/git/refs/heads/main --raw-field sha=abc", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets --input ruleset.json", "linked", "block"),
+    ("gh api --meth PUT repos/mforce/cluckwork/rulesets/24852475", "linked", "block"),  # gh has no option prefixes
+    ("gh api https://api.github.com/repos/mforce/cluckwork/branches/main/protection -X DELETE", "linked", "block"),
+    ("gh api 'repos/mforce/cluckwork/git/refs/heads/main?x=1' -X PATCH -f sha=abc", "linked", "block"),
+    ("gh api -X PATCH repos/mforce/cluckwork/git/refs/heads/main -f sha=abc | jq .", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets", "linked", "allow"),
+    ("gh api -X GET repos/mforce/cluckwork/rulesets/24852475", "linked", "allow"),
+    ("gh api --method GET repos/mforce/cluckwork/branches/main/protection", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/git/refs/heads/main", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/contents/README.md --jq .sha", "linked", "allow"),
+    ("gh api -X GET repos/mforce/cluckwork/git/refs/heads/main -f per_page=1", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/pulls/1221", "linked", "allow"),
+    ("gh api -X POST repos/mforce/cluckwork/pulls/1221/comments -f body=x", "linked", "allow"),
+    ("git send-pack --force origin HEAD:refs/heads/main", "linked", "block"),
+    ("git send-pack origin feat/l", "linked", "block"),
+    ("git update-ref refs/heads/main HEAD", "linked", "block"),
+    ("git update-ref -d refs/heads/main", "linked", "block"),
+    ("git update-ref -m reason main HEAD", "linked", "block"),
+    ("git update-ref HEAD HEAD~1", "main", "block"),
+    ("git update-ref refs/heads/feat/l HEAD", "linked", "allow"),
+    ("git update-ref HEAD HEAD~1", "feature", "allow"),
+    ("git config alias.p 'push -f'", "linked", "block"),
+    ("git config alias.p \"push -f\" && git p", "linked", "block"),
+    ("git config --global alias.p 'push -f'", "linked", "block"),
+    ("git config --local --add alias.st status", "linked", "block"),
+    ("git config --replace-all alias.st status", "linked", "block"),
+    ("git config set --global alias.p 'push -f'", "linked", "block"),
+    ("git config core.hooksPath /dev/null", "linked", "block"),
+    ("git config --global core.hookspath /dev/null", "linked", "block"),
+    ("git config --unset core.hooksPath", "linked", "block"),
+    ("git config --file ../x core.hooksPath /dev/null", "linked", "block"),
+    ("git config unset core.hooksPath", "linked", "block"),
+    ("git -c core.hooksPath=/dev/null push -u origin feat/l", "linked", "block"),
+    ("git -c core.hooksPath push -u origin feat/l", "linked", "block"),  # a bare -c key is boolean true: no hooks dir
+    ("git config --get alias.p", "linked", "allow"),
+    ("git config --global alias.p", "linked", "allow"),
+    ("git config --get-regexp '^alias\\.'", "linked", "allow"),
+    ("git config alias.p", "linked", "allow"),
+    ("git config core.hooksPath", "linked", "allow"),
+    ("git config get core.hooksPath", "linked", "allow"),
+    ("git config --list", "linked", "allow"),
+    ("git config --type bool core.hooksPath", "linked", "allow"),
+    ("git config user.name t", "linked", "allow"),
+    ("git push --no-verify origin feat/l", "linked", "block"),
+    ("git push --no-veri origin feat/l", "linked", "block"),
+    ("git push --no-ver origin feat/l", "linked", "block"),  # ambiguous: verify or verbose
+    ("git push -n origin feat/l", "linked", "allow"),  # -n is --dry-run; push has no short --no-verify
+    ("git push --verify origin feat/l", "linked", "allow"),
+    # GraphQL routes to the same writes; `linked` holds mutation.graphql, read.graphql, mutation.json, read.json
+    *[(f"gh api graphql -f query='mutation {{ {name}(input: {{}}) {{ clientMutationId }} }}'", "linked", "block") for name in (
+        "createCommitOnBranch", "updateRef", "updateRefs", "createRef", "deleteRef", "mergeBranch",
+        "createRepositoryRuleset", "updateRepositoryRuleset", "deleteRepositoryRuleset",
+        "createBranchProtectionRule", "updateBranchProtectionRule", "deleteBranchProtectionRule")],
+    ("gh api https://api.github.com/graphql -f query='mutation { updateRef(input: {refId: \"R_x\", oid: \"abc\", force: true}) { clientMutationId } }'",
+     "linked", "block"),
+    ("gh api graphql -F query=@mutation.graphql", "linked", "block"),
+    ("gh api graphql --field query=@./mutation.graphql", "linked", "block"),
+    ("gh api graphql --input mutation.json", "linked", "block"),
+    ("gh api graphql --input=mutation.json", "linked", "block"),
+    ("gh api graphql -F query=@missing.graphql", "linked", "block"),  # unreadable query: fail closed
+    ("gh api graphql -F query=@-", "linked", "block"),
+    ("gh api graphql --input -", "linked", "block"),
+    ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { ref(qualifiedName:\"main\") { target { oid } } } }'",
+     "linked", "allow"),
+    ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { rulesets(first: 5) { nodes { id } } } }'",
+     "linked", "allow"),
+    ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { branchProtectionRules(first: 5) { nodes { pattern } } } }'",
+     "linked", "allow"),
+    ("gh api graphql -F query=@read.graphql", "linked", "allow"),
+    ("gh api graphql --input read.json", "linked", "allow"),
+    ("gh api graphql -f query='mutation { addComment(input: {subjectId: \"I_x\", body: \"hi\"}) { clientMutationId } }'", "linked", "allow"),
+    # Codex round 1 on #1224: config edit mode, the operation position, update-ref stdin mode and operands,
+    # and gh api GETs that may be piped, chained or hold gh's `{owner}` placeholders
+    ("git config --edit", "linked", "block"),
+    ("git config -e", "linked", "block"),
+    ("git config --global --edit", "linked", "block"),
+    ("git config edit", "linked", "block"),
+    ("git config --global edit", "linked", "block"),
+    ("git -c core.editor='sed -i s/.githooks/disabled/' config --edit", "linked", "block"),
+    ("git config core.hooksPath list", "linked", "block"),
+    ("git config core.hooksPath get", "linked", "block"),
+    ("git config list", "linked", "allow"),
+    ("git config list --show-origin", "linked", "allow"),
+    ("git config get --show-origin core.hooksPath", "linked", "allow"),
+    ("git update-ref --stdin", "linked", "block"),
+    ("git update-ref -z --stdin", "linked", "block"),
+    ("git update-ref --st", "linked", "block"),
+    ("git update-ref refs/heads/feat/review main", "linked", "allow"),
+    ("git update-ref refs/heads/feat/l refs/heads/main", "linked", "allow"),
+    ("git update-ref -m main refs/heads/feat/l HEAD", "linked", "allow"),
+    ("git update-ref --no-deref refs/heads/main HEAD", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | jq .", "linked", "allow"),
+    ("gh api repos/{owner}/{repo}/rulesets", "linked", "allow"),
+    ("gh api repos/{owner}/{repo}/rulesets --jq '.[].id' | head -3", "linked", "allow"),
+    ("gh api -X GET repos/mforce/cluckwork/git/refs/heads/main | jq .object.sha", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/contents/README.md; gh api repos/mforce/cluckwork/branches/main/protection", "linked", "allow"),
+    ("gh -R mforce/cluckwork api repos/{owner}/{repo}/rulesets | wc -l", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | jq .", "shared", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets/$ID", "linked", "block"),  # unresolved path: fail closed
+    ("gh api repos/mforce/cluckwork/rulesets && gh api -X PUT repos/mforce/cluckwork/rulesets/1 -f enforcement=disabled", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | xargs git push --force", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/merges -f base=main -f head=feat/x | jq .", "linked", "block"),
+    ("gh api --meth GET repos/mforce/cluckwork/rulesets | jq .", "linked", "block"),
+    ("gh api -X GET graphql -f query='mutation { updateRef(input: {}) { clientMutationId } }' | jq .", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets; git push --force", "linked", "block"),
+    ("gh api repos/{owner}/{repo}/rulesets && git push origin HEAD:main", "linked", "block"),
+    ("git push origin HEAD:{main}", "linked", "block"),  # braced words stay out of the write parser
+    # Codex round 2 on #1224: every step of a read chain is accounted for; config option prefixes; query sources
+    # are regular files whose --input body is JSON with a string query; `-m` consumes its value
+    ("gh api repos/mforce/cluckwork/rulesets && sh -c \"gh pr merge 1224 --squash\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets && sh -c \"gh api -X DELETE repos/mforce/cluckwork/rulesets/1\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets; sh -c \"gh pr merge 1224 --squash\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets\nsh -c \"gh pr merge 1224 --squash\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | sh", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/contents/install.sh --jq .content | base64 -d | sh", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | python3 -c 'import sys; print(sys.stdin.read())'", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | sort --compress-program=sh", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | tee /tmp/rulesets.json", "linked", "block"),
+    ("X=1; gh api repos/mforce/cluckwork/rulesets", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | jq -r '.[].name' | head -3", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | grep -c name", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | tail -n 20 | wc -l", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | cat", "linked", "allow"),
+    ("git config --ed", "linked", "block"),
+    ("git config --global --ed", "linked", "block"),
+    ("git config --unknown-option core.hooksPath x", "linked", "block"),
+    ("git config --sho --list", "linked", "block"),  # ambiguous: show-names, show-origin, show-scope
+    ("git config --li", "linked", "allow"),
+    ("git config --get-r '^alias\\.'", "linked", "allow"),
+    ("git config --show-o --get core.hooksPath", "linked", "allow"),
+    ("gh api graphql --input /dev/stdin", "linked", "block"),
+    ("gh api graphql -F query=@/dev/stdin", "linked", "block"),
+    ("gh api graphql -F query=@/proc/self/fd/0", "linked", "block"),
+    ("gh api graphql -F query=@fifo.graphql", "linked", "block"),
+    ("gh api graphql -F query=@link-read.graphql", "linked", "allow"),
+    ("gh api graphql --input escaped.json", "linked", "block"),
+    ("gh api graphql --input noquery.json", "linked", "block"),
+    ("gh api graphql --input notjson.json", "linked", "block"),
+    ("gh api graphql --input read.json", "linked", "allow"),
+    ("git update-ref -m -m refs/heads/main HEAD", "linked", "block"),
+    ("git update-ref -m -m refs/heads/feat/l HEAD", "linked", "allow"),
+    # Codex round 3 on #1224: sort writes with -o and runs a program on a spill; config options consume their values
+    ("gh api repos/mforce/cluckwork/rulesets | sort -o /tmp/rulesets.json", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | sort --output=/tmp/rulesets.json", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | sort -S 1 --parallel=1 --compress=sh", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | sort", "linked", "block"),
+    ("git config --comment --url core.hooksPath disabled", "linked", "block"),
+    ("git config --comment --value alias.review status", "linked", "block"),
+    ("git config --comment --comment core.hooksPath disabled", "linked", "block"),
+    ("git config --comment --type core.hooksPath disabled", "linked", "block"),
+    ("git config -f ../x core.hooksPath disabled", "linked", "block"),
+    ("git config -- alias.p 'push -f'", "linked", "block"),
+    ("git config --get -- core.hooksPath", "linked", "allow"),
+    ("git config --help", "linked", "allow"),
+    ("git config -h", "linked", "allow"),
+    ("git config --default --foo --get core.hooksPath", "linked", "allow"),
+    ("git config --comment why --get alias.p", "linked", "allow"),
+    ("git config -lz", "linked", "allow"),
+    # Codex round 4 on #1224: an attached short-option value (`-f/path`) is the value, not the next token
+    ("git config -f/tmp/settings core.hooksPath disabled", "linked", "block"),
+    ("git config -f/tmp/settings alias.review status", "linked", "block"),
+    ("git config -f/tmp/settings --unset core.hooksPath", "linked", "block"),
+    ("git config -f /tmp/settings core.hooksPath disabled", "linked", "block"),
+    ("git config --file=/tmp/settings core.hooksPath disabled", "linked", "block"),
+    ("git config -ef /tmp/settings", "linked", "block"),
+    ("git config -ef/tmp/settings", "linked", "block"),
+    ("git config -f/tmp/settings --get alias.review", "linked", "allow"),
+    ("git config -f/tmp/settings alias.review", "linked", "allow"),
+    ("git push -f origin HEAD:main", "linked", "block"),  # the audit's controls
+    ("gh pr merge 1221 --squash", "linked", "block"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
@@ -459,6 +643,20 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "feat/s", cls.dirs["shared"])
         git("-C", cls.dirs["shared"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
         git("-C", cls.dirs["shared"], "worktree", "add", "-q", "-b", "feat/l", cls.dirs["linked"])
+        for name, text in (("mutation.graphql", "mutation { updateRef(input: {}) { clientMutationId } }"),
+                           ("read.graphql", "query { viewer { login } }")):
+            with open(os.path.join(cls.dirs["linked"], name), "w") as f:
+                f.write(text)
+            with open(os.path.join(cls.dirs["linked"], name.replace(".graphql", ".json")), "w") as f:
+                json.dump({"query": text}, f)
+        linked = cls.dirs["linked"]
+        os.mkfifo(os.path.join(linked, "fifo.graphql"))
+        os.symlink("read.graphql", os.path.join(linked, "link-read.graphql"))
+        for name, text in (("escaped.json", '{"query": "mutation M { a: delete\\u0052ef(input: {}) { clientMutationId } }"}'),
+                           ("noquery.json", '{"q": "mutation { deleteRef(input: {}) { clientMutationId } }"}'),
+                           ("notjson.json", "mutation { deleteRef(input: {}) { clientMutationId } }")):
+            with open(os.path.join(linked, name), "w") as f:
+                f.write(text)
         spaced_main = os.path.join(root, "p with space")
         git("init", "-q", "-b", "feat/p", spaced_main)
         git("-C", spaced_main, "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")

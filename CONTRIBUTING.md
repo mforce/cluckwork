@@ -10,6 +10,7 @@ links there rather than restating rationale.
 git config core.hooksPath .githooks
 ```
 
+Run this yourself: the agent guard refuses a `core.hooksPath` write from an agent.
 Enables three hooks: **pre-commit** (refuses a commit on `main` or in the shared
 checkout, a main worktree that has linked worktrees beside it, then runs unit
 tests for staged .NET changes and `npm run typecheck` for staged `web/` changes),
@@ -21,9 +22,10 @@ are deliberately excluded — Docker, slow; CI is the authority. Skip once with
 
 In the shared checkout (a main worktree with linked worktrees beside it), `pre-commit`
 refuses commits. The agent guard (`tools/agent-guard/git_guard.py`) runs only inside agent
-harnesses; there it refuses git writes in the shared checkout, and `git stash` and shallow
-fetches anywhere. For a deliberate commit there, put the override on that one command in
-your own shell:
+harnesses; there it refuses git writes in the shared checkout, `git stash` and shallow
+fetches anywhere, and the routes around the hooks (`git push --no-verify`, `git config
+core.hooksPath`, `git send-pack`, `gh api` writes to main's history or protection). For a
+deliberate commit there, put the override on that one command in your own shell:
 
 ```bash
 GIT_GUARD_ALLOW_SHARED=1 git commit -m "…"
