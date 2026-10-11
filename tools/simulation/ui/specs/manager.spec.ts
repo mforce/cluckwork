@@ -238,7 +238,7 @@ test.describe("Manager", () => {
     // `loadMoreLots` has parsed the body and React has committed
     // `setLotsLoading(false)` (codex rounds 8 and 9). A short page, by
     // contrast, can only mean the list is exhausted.
-    // Mirrors LOT_PAGE in web/src/routes/StockPage.tsx:26. Asserted EXACTLY
+    // Mirrors LOT_PAGE in web/src/routes/useStockLots.ts. Asserted EXACTLY
     // against the `limit` each request actually sends, so a change in either
     // direction fails here with a message. An earlier version asserted only
     // `<= LOT_PAGE`, which a lowered page size satisfies silently — a full
