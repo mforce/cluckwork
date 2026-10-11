@@ -179,14 +179,15 @@ describe("ConnectPage (#798, consent D)", () => {
   it("starts focus at the request, not the password", async () => {
     await show(REQUEST);
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    // #1201 — the heading takes focus in a passive effect, after show() sees it in the DOM.
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveFocus());
     expect(screen.getByLabelText(/Your current password/)).not.toHaveFocus();
   });
 
   it("starts a reconnect at the request too", async () => {
     await show({ ...REQUEST, alreadyAllowed: REQUEST.scopes, alreadyApproved: true });
 
-    expect(screen.getByRole("heading", { name: "Reconnect Claude Desktop?" })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Reconnect Claude Desktop?" })).toHaveFocus());
   });
 
   it("returns focus to the password after a wrong one", async () => {
