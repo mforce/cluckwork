@@ -44,15 +44,16 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                     context.RequestAborted)
                 : CredentialVerdict.UnknownUser;
 
-            // #1229 — an OAuth token names its authorization. Only a Current one counts as
-            // use, and a Superseded one can never pass again, so its connection goes.
+            // #1229 — an OAuth token names its authorization and itself. Only a Current
+            // one counts as use, and a Superseded one can never pass again, so it is revoked.
             if (Guid.TryParse(context.User.GetAuthorizationId(), out var appAuthorizationId))
             {
                 var apps = context.RequestServices.GetRequiredService<ConnectedApps>();
                 if (verdict == CredentialVerdict.Current)
                     await apps.RecordUseAsync(appAuthorizationId, context.RequestAborted);
-                else if (verdict == CredentialVerdict.Superseded)
-                    await apps.RevokeSupersededAsync(appAuthorizationId, context.RequestAborted);
+                else if (verdict == CredentialVerdict.Superseded
+                    && Guid.TryParse(context.User.GetTokenId(), out var appTokenId))
+                    await apps.RevokeSupersededTokenAsync(appTokenId, context.RequestAborted);
             }
 
             if (verdict != CredentialVerdict.Current)

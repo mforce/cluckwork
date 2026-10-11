@@ -89,23 +89,24 @@ public sealed class ConnectedApps(
 
     // #1229 — the credential epoch only moves forward, so a token it superseded never
     // passes again. Every bump revokes the user's connections in its own transaction; this
-    // catches a token issued while a bump committed, and any left from before #1229. The
-    // refusal stands whether or not this write lands.
-    public async Task RevokeSupersededAsync(Guid authorizationId, CancellationToken ct)
+    // catches a token issued while a bump committed, and any left from before #1229. Only
+    // the presented token goes: its authorization may since hold a token from a newer
+    // reconnection. A new ConcurrencyToken fails any in-flight OpenIddict write of the row.
+    // The refusal stands whether or not this write lands.
+    public async Task RevokeSupersededTokenAsync(Guid tokenId, CancellationToken ct)
     {
+        var concurrencyToken = Guid.NewGuid().ToString();
         try
         {
-            await db.OAuthAuthorizations
-                .Where(authorization => authorization.Id == authorizationId && authorization.Status == Statuses.Valid)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(authorization => authorization.Status, Statuses.Revoked), ct);
             await db.OAuthTokens
-                .Where(row => row.Authorization!.Id == authorizationId
-                    && (row.Status == Statuses.Valid || row.Status == Statuses.Inactive))
-                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Status, Statuses.Revoked), ct);
+                .Where(row => row.Id == tokenId && (row.Status == Statuses.Valid || row.Status == Statuses.Inactive))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(row => row.Status, Statuses.Revoked)
+                    .SetProperty(row => row.ConcurrencyToken, concurrencyToken), ct);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "Could not revoke superseded OAuth authorization {AuthorizationId}.", authorizationId);
+            logger.LogWarning(exception, "Could not revoke superseded OAuth token {TokenId}.", tokenId);
         }
     }
 

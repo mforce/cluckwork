@@ -5,6 +5,10 @@ using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Abstractions;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -45,8 +49,70 @@ public sealed partial class OAuthFailClosedTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, retry.StatusCode);
         Assert.Equal("Auth.CredentialsSuperseded", await TitleOf(retry));
-        Assert.True(authorizations == 0, $"{authorizations} superseded authorization(s) stayed valid");
         Assert.True(tokens == 0, $"{tokens} superseded token(s) stayed valid");
+        Assert.True(authorizations == 1, "the superseded token's refusal revoked its whole approval");
+    }
+
+    // Suspension bumps the epoch without touching OAuth rows, so reconnecting afterwards
+    // reuses the old approval. The old token's refusal must not take the new token with it.
+    [Fact]
+    public async Task SupersededToken_LeavesAReconnectionUnderTheSameApprovalWorking()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var old = await ConnectAsync(host, user, ReadScope);
+        await SuspendAndReactivateAsync(user.AccountId);
+        var email = await factory.WithTenantScopeAsync(user.AccountId, db =>
+            db.Users.Where(u => u.Id == user.Id).Select(u => u.Email!).SingleAsync());
+        var jwt = await factory.LoginForAccessTokenAsync(email);
+        var fresh = await ConnectAsync(host, user with { Jwt = jwt }, [ReadScope], old.ClientId);
+        var approvals = await factory.WithTenantScopeAsync(user.AccountId, db =>
+            db.OAuthAuthorizations.CountAsync(a => a.Subject == user.Id.ToString()));
+
+        using var oldRetry = await Client(host, old.Token).GetAsync(Probe.Read);
+        using var freshAfter = await Client(host, fresh.Token).GetAsync(Probe.Read);
+
+        Assert.True(approvals == 1, $"the reconnection did not reuse the approval ({approvals} found), so nothing is shared");
+        Assert.Equal(HttpStatusCode.Unauthorized, oldRetry.StatusCode);
+        Assert.Equal("Auth.CredentialsSuperseded", await TitleOf(oldRetry));
+        Assert.True(freshAfter.StatusCode == HttpStatusCode.OK, "the old token's refusal disconnected the reconnection");
+    }
+
+    // OpenIddict writes a token row twice when it issues one: insert, then the payload
+    // update, each a full-row write guarded by ConcurrencyToken. A writer holding the row
+    // from before the revocation stands in for the second write; it must fail rather than
+    // put `valid` back.
+    [Fact]
+    public async Task PasswordChange_FailsAnInFlightTokenWrite()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        await ConnectAsync(host, user, ReadScope);
+        await using var writer = host.Services.CreateAsyncScope();
+        var (tokens, row) = await LoadValidTokenAsync(writer, user);
+
+        await ChangePasswordAsync(host, user.Jwt);
+
+        await Assert.ThrowsAsync<OpenIddictExceptions.ConcurrencyException>(async () => await tokens.UpdateAsync(row));
+        var (_, stillValid) = await StillValidAsync(user);
+        Assert.True(stillValid == 0, "an in-flight write put a revoked token back to valid");
+    }
+
+    [Fact]
+    public async Task SupersededRefusal_FailsAnInFlightTokenWrite()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var app = await ConnectAsync(host, user, ReadScope);
+        await using var writer = host.Services.CreateAsyncScope();
+        var (tokens, row) = await LoadValidTokenAsync(writer, user);
+        await BumpEpochBehindTheSweepAsync(user);
+
+        (await Client(host, app.Token).GetAsync(Probe.Read)).Dispose();
+
+        await Assert.ThrowsAsync<OpenIddictExceptions.ConcurrencyException>(async () => await tokens.UpdateAsync(row));
+        var (_, stillValid) = await StillValidAsync(user);
+        Assert.True(stillValid == 0, "an in-flight write put a revoked token back to valid");
     }
 
     [Fact]
@@ -126,6 +192,29 @@ public sealed partial class OAuthFailClosedTests
             .Where(a => a.Subject == user.Id.ToString())
             .Select(a => EF.Property<DateTimeOffset?>(a, OAuthAuthorizationConfiguration.LastUsedAtUtc))
             .SingleAsync());
+
+    private static async Task<(IOpenIddictTokenManager Tokens, object Row)> LoadValidTokenAsync(
+        AsyncServiceScope scope, SeededUser user)
+    {
+        var tokens = scope.ServiceProvider.GetRequiredService<IOpenIddictTokenManager>();
+        await foreach (var row in tokens.FindBySubjectAsync(user.Id.ToString()))
+            if (await tokens.HasStatusAsync(row, Statuses.Valid))
+                return (tokens, row);
+        throw new InvalidOperationException("the connection has no valid token");
+    }
+
+    private async Task SuspendAndReactivateAsync(Guid accountId)
+    {
+        foreach (var suspend in new[] { true, false })
+        {
+            using var scope = factory.Services.CreateScope();
+            var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
+            var result = suspend
+                ? await service.SuspendAsync(accountId, reason: null)
+                : await service.ReactivateAsync(accountId, reason: null);
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : "");
+        }
+    }
 
     private Task BumpEpochBehindTheSweepAsync(SeededUser user) =>
         factory.WithTenantScopeAsync(user.AccountId, db => db.Users.Where(u => u.Id == user.Id)
