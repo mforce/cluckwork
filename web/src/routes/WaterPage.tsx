@@ -171,10 +171,7 @@ export function WaterPage() {
         }
       })
       .catch(() => setError(i18n.t("water:loadFlocksFailed")));
-    // Mount-only on purpose: the setters come from useWaterCaptureFields, so
-    // the linter cannot see they are stable useState pairs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [setCaptureFlock, setCaptureFlockGen]);
 
 
   // #512 (T037) — the filter's displayed name prefers the EXACT committed
