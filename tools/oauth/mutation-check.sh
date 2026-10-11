@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799, #806, #807 and #1148 OAuth and MCP claim has a
+# tools/oauth/mutation-check.sh — proves each #795 to #799, #806, #807, #808 and #1148 OAuth and MCP claim has a
 # test that fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -64,6 +64,8 @@ FLOCK_REPO=src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/Flo
 FLOCK_LOOKUP=src/Cluckwork.Application/Modules/FlockManagement/Flocks/FlockLookup.cs
 DB_CONTEXT=src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs
 TEXT_WALK=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurfaceTests.cs
+COMMERCE_TOOLS=src/Cluckwork.Api/Mcp/CommerceTools.cs
+PAYMENT_REPO=src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/PaymentRepository.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
@@ -282,6 +284,13 @@ text-walk-namespace-bound#kill#TEXT_WALK#        if (!seen.Add(type))#        if
 text-walk-skips-elements#kill#TEXT_WALK#if (ElementType(type) is { } element)#if (ElementType(type) is { } element && type.IsArray)#Mcp.McpToolSurfaceTests.TextWalk_ReachesNestedCollectionAndOpaqueText#Assert.Contains() Failure
 text-walk-ignores-conditional#kill#TEXT_WALK#&& p.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always)#&& p.GetCustomAttribute<JsonIgnoreAttribute>() is null)#Mcp.McpToolSurfaceTests.TextWalk_FollowsTheSerializer_OnIgnoredProperties#Collections differ
 egg-lot-scope-ignored#kill#DB_CONTEXT#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId\n            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId);#Mcp.McpReadToolsTests.AssignedWorker_ReadsOnlyTheirFlocksEggs#Values differ
+reply-minor-units#kill#COMMERCE_TOOLS#string? DiscountReason, IReadOnlyList<SalesOrderLine> Lines);#string? DiscountReason, IReadOnlyList<SalesOrderLine> Lines, long? OutstandingMinorUnits = null);#Mcp.McpToolSurfaceTests.RealTree_ReadToolRepliesCarryNoMinorUnits#SalesOrderRow.OutstandingMinorUnits
+balances-paged-in-memory#kill#PAYMENT_REPO#await Balances().Skip(offset).Take(limit).ToListAsync(ct);#(await Balances().ToListAsync(ct)).Skip(offset).Take(limit).ToList();#Mcp.McpCommerceToolsTests.BalancePage_ReadsOnlyThePageFromTheDatabase#Collections differ
+balances-no-tie-break#kill#PAYMENT_REPO#orderby b.Total - b.Paid descending, b.CustomerId#orderby b.Total - b.Paid descending#Mcp.McpCommerceToolsTests.BalancePages_OrderByOutstanding_ThenCustomerId#Collections differ
+money-tier-ignored#kill#COMMERCE_TOOLS#var settlement = !maySeeMoney ? SettlementScope.Hidden#var settlement = false ? SettlementScope.Hidden#Mcp.McpCommerceToolsTests.Worker_ListsOrdersWithoutWhatTheyOwe_AndCannotFilterByIt#Assert.Null() Failure
+payments-wider-than-route#kill#COMMERCE_TOOLS#    [Authorize(Policy = AuthPolicies.SalesAccess)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#    [Authorize(Policy = AuthPolicies.SalesFlow)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#admits Worker, which ListOrderPayments denies
+customer-note-returned#kill#COMMERCE_TOOLS#public sealed record CustomerRow(Guid CustomerId, string Name);#public sealed record CustomerRow(Guid CustomerId, string Name, string? Note = null);#Mcp.McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText#Collections differ
+balance-currency-assumed#kill#COMMERCE_TOOLS#McpMoney.From(minorUnits, settings.CurrencyCode, settings.CurrencyMinorUnit)#McpMoney.From(minorUnits, settings.CurrencyCode, 2)#Mcp.McpCommerceToolsTests.Amounts_AreDecimalsInTheirCurrencysPrecision#Values differ
 EOF
 )
 
@@ -376,7 +385,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then
