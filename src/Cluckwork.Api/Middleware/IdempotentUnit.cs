@@ -267,13 +267,17 @@ public sealed class IdempotentUnit(AppDbContext db, IOptions<IdempotencyOptions>
     {
         // A replay, or a concurrent claim that won the race, is an expected outcome, so it
         // is a DO NOTHING rather than a unique violation EF would log twice at Error (#1230).
-        var claimed = await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO idempotency_records ("Id", "AccountId", "EndpointHash", "IdempotencyKeyHash", "RequestHash",
-                "Status", "LeaseOwner", "LeaseExpiresAt", "CreatedAt")
-            VALUES ({Guid.NewGuid()}, {scope.AccountId}, {scope.EndpointHash}, {scope.KeyHash}, {scope.RequestHash},
-                {(int)IdempotencyStatus.InProgress}, {ownerToken}, {leaseExpiresAt}, {now})
-            ON CONFLICT ("AccountId", "EndpointHash", "IdempotencyKeyHash") DO NOTHING
-            """, ct);
+        // Raw SQL gets no retry of its own; the execution strategy replays it as it replayed
+        // the SaveChanges this replaced, and a replay after a lost acknowledgment finds our
+        // own row below (RetryBoundaryTests).
+        var claimed = await db.Database.CreateExecutionStrategy().ExecuteAsync(() =>
+            db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO idempotency_records ("Id", "AccountId", "EndpointHash", "IdempotencyKeyHash", "RequestHash",
+                    "Status", "LeaseOwner", "LeaseExpiresAt", "CreatedAt")
+                VALUES ({Guid.NewGuid()}, {scope.AccountId}, {scope.EndpointHash}, {scope.KeyHash}, {scope.RequestHash},
+                    {(int)IdempotencyStatus.InProgress}, {ownerToken}, {leaseExpiresAt}, {now})
+                ON CONFLICT ("AccountId", "EndpointHash", "IdempotencyKeyHash") DO NOTHING
+                """, ct));
         if (claimed == 1) return new ClaimAttempt(ClaimKind.Claimed);
         logger.LogDebug("Idempotency key already claimed; inspecting the existing claim.");
 
