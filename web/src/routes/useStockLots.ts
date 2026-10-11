@@ -40,6 +40,7 @@ export function useStockLots({ setPageError, setRows }: {
       limit: LOT_PAGE, offset,
     });
   }
+
   // Monotonic ticket per lot-list load: two quick filter changes race their
   // responses, and the broader (older) one can settle LAST — without this it
   // would overwrite the narrower view the user actually asked for.
@@ -58,6 +59,7 @@ export function useStockLots({ setPageError, setRows }: {
   // that lot and re-applies the patch, a later load is proven fresh and
   // retires the entry (codex review).
   const writePatches = useRef(new Map<string, { available: number; tick: number }>());
+
   function reconcileWrites(page: EggLotRow[], seq: number): EggLotRow[] {
     const patches = writePatches.current;
     if (patches.size === 0) return page;
@@ -69,6 +71,7 @@ export function useStockLots({ setPageError, setRows }: {
     for (const [id, p] of patches) if (seq > p.tick) patches.delete(id);
     return out;
   }
+
   async function toggleGrade(gradeId: string) {
     setOpenLot(null);
     setMovements(null);
@@ -118,6 +121,7 @@ export function useStockLots({ setPageError, setRows }: {
       }
     }
   }
+
   // Filter changes restart from the top; the values are passed explicitly
   // because the state set on the previous line hasn't rendered yet.
   async function changeLotsFilter(from: string, to: string) {
@@ -157,6 +161,7 @@ export function useStockLots({ setPageError, setRows }: {
       }
     }
   }
+
   async function loadMoreLots() {
     if (openGrade === null) return;
     const seq = ++lotsReq.current;
@@ -183,6 +188,7 @@ export function useStockLots({ setPageError, setRows }: {
       }
     }
   }
+
   async function toggleLot(lotId: string) {
     if (openLot === lotId) {
       setOpenLot(null);
@@ -203,6 +209,7 @@ export function useStockLots({ setPageError, setRows }: {
       if (seq === ledgerReq.current) setPageError(i18n.t("stock:loadMovementsFailed"));
     }
   }
+
   // Everything the write-off changed, refetched together so the by-grade
   // totals, the lot row and an open ledger never disagree with each other.
   // The lot list is re-walked page-by-page over the WHOLE loaded window under
